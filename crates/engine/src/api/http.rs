@@ -16,8 +16,8 @@ pub fn routes() -> Router<Arc<App>> {
         .route("/", get(health))
         .route("/api/health", get(health))
         .route("/api/worlds", get(list_worlds))
-        .route("/api/worlds/:id", get(get_world))
-        .route("/api/worlds/:id/export", get(export_world))
+    .route("/api/worlds/{id}", get(get_world))
+    .route("/api/worlds/{id}/export", get(export_world))
         // Add more routes as needed
 }
 

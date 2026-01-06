@@ -37,12 +37,13 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
 ### Implemented (Existing)
 
 - [x] **US-TIME-001**: As a DM, I can manually advance game time by hours so that I control pacing
-  - *Implementation*: `AdvanceGameTime` request, `GameTimeUpdated` broadcast
-  - *Files*: `crates/protocol/src/requests.rs`, `crates/engine/src/api/websocket.rs`
+
+  - _Implementation_: `AdvanceGameTime` request, `GameTimeUpdated` broadcast
+  - _Files_: `crates/protocol/src/requests.rs`, `crates/engine/src/api/websocket.rs`
 
 - [x] **US-TIME-002**: As a DM, I can see current game time so that I know the narrative context
-  - *Implementation*: `World.game_time` persisted, included in world data
-  - *Files*: `crates/domain/src/game_time.rs`, `crates/domain/src/entities/world.rs`
+  - _Implementation_: `World.game_time` persisted, included in world data
+  - _Files_: `crates/domain/src/game_time.rs`, `crates/domain/src/entities/world.rs`
 
 ### Pending
 
@@ -77,7 +78,6 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
 │                        │                                                     │
 │                        ▼                                                     │
 │  3. If time_mode == "suggested": Send TimeSuggestion to DM                   │
-│     If time_mode == "auto": Apply automatically                              │
 │     If time_mode == "manual": Skip (DM advances manually)                    │
 │                        │                                                     │
 │                        ▼                                                     │
@@ -98,23 +98,28 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
 
 ### Time Modes
 
-| Mode | Behavior | Use Case |
-|------|----------|----------|
-| `manual` | Time only advances via explicit DM action | Maximum control, narrative-heavy sessions |
-| `suggested` | System suggests, DM approves/modifies | Balanced - consistent time with oversight |
-| `auto` | Time advances automatically on actions | Fast-paced, less DM overhead |
+| Mode        | Behavior                                  | Use Case                                  |
+| ----------- | ----------------------------------------- | ----------------------------------------- |
+| `manual`    | Time only advances via explicit DM action | Maximum control, narrative-heavy sessions |
+| `suggested` | System suggests, DM approves/modifies     | Balanced - consistent time with oversight |
+
+**Note**: The engine intentionally does **not** auto-advance time in response to actions.
+
+- Player actions can generate **time suggestions**.
+- Time only advances when the DM **approves/modifies** a suggestion, or when the DM performs an explicit
+  time operation (advance/set/skip).
 
 ### Default Time Costs
 
-| Action Type | Default Cost | Configurable |
-|-------------|--------------|--------------|
-| `travel_location` | 60 minutes | Yes |
-| `travel_region` | 10 minutes | Yes |
-| `rest_short` | 60 minutes | Yes |
-| `rest_long` | 480 minutes (8 hours) | Yes |
-| `conversation` | 0 minutes | Yes |
-| `challenge` | 10 minutes | Yes |
-| `scene_transition` | 0 minutes | Yes |
+| Action Type        | Default Cost          | Configurable |
+| ------------------ | --------------------- | ------------ |
+| `travel_location`  | 60 minutes            | Yes          |
+| `travel_region`    | 10 minutes            | Yes          |
+| `rest_short`       | 60 minutes            | Yes          |
+| `rest_long`        | 480 minutes (8 hours) | Yes          |
+| `conversation`     | 0 minutes             | Yes          |
+| `challenge`        | 10 minutes            | Yes          |
+| `scene_transition` | 0 minutes             | Yes          |
 
 ---
 
@@ -359,34 +364,34 @@ pub struct TimeAdvanceData {
 
 #### Client → Server (New)
 
-| Message | Fields | Purpose |
-|---------|--------|---------|
-| `SetGameTime` | `world_id`, `day`, `hour`, `notify_players` | DM sets exact time |
-| `SkipToPeriod` | `world_id`, `period` | DM skips to next occurrence of period |
-| `PauseGameTime` | `world_id`, `paused` | DM pauses/unpauses time |
-| `SetTimeMode` | `world_id`, `mode` | DM changes time mode |
-| `SetTimeCosts` | `world_id`, `costs` | DM configures time costs |
-| `RespondToTimeSuggestion` | `suggestion_id`, `decision` | DM approves/modifies/skips suggestion |
+| Message                   | Fields                                      | Purpose                               |
+| ------------------------- | ------------------------------------------- | ------------------------------------- |
+| `SetGameTime`             | `world_id`, `day`, `hour`, `notify_players` | DM sets exact time                    |
+| `SkipToPeriod`            | `world_id`, `period`                        | DM skips to next occurrence of period |
+| `PauseGameTime`           | `world_id`, `paused`                        | DM pauses/unpauses time               |
+| `SetTimeMode`             | `world_id`, `mode`                          | DM changes time mode                  |
+| `SetTimeCosts`            | `world_id`, `costs`                         | DM configures time costs              |
+| `RespondToTimeSuggestion` | `suggestion_id`, `decision`                 | DM approves/modifies/skips suggestion |
 
 #### Client → Server (Existing, Modified)
 
-| Message | Change |
-|---------|--------|
+| Message           | Change                      |
+| ----------------- | --------------------------- |
 | `AdvanceGameTime` | Add optional `reason` field |
 
 #### Server → Client (New)
 
-| Message | Fields | Purpose |
-|---------|--------|---------|
-| `TimeSuggestion` | `TimeSuggestionData` | Sent to DM when action suggests time passage |
-| `GameTimeAdvanced` | `TimeAdvanceData` | Broadcast to all when time advances (replaces simple `GameTimeUpdated`) |
-| `TimeModeChanged` | `world_id`, `mode` | Broadcast when DM changes time mode |
-| `GameTimePaused` | `world_id`, `paused` | Broadcast when time paused/unpaused |
+| Message            | Fields               | Purpose                                                                 |
+| ------------------ | -------------------- | ----------------------------------------------------------------------- |
+| `TimeSuggestion`   | `TimeSuggestionData` | Sent to DM when action suggests time passage                            |
+| `GameTimeAdvanced` | `TimeAdvanceData`    | Broadcast to all when time advances (replaces simple `GameTimeUpdated`) |
+| `TimeModeChanged`  | `world_id`, `mode`   | Broadcast when DM changes time mode                                     |
+| `GameTimePaused`   | `world_id`, `paused` | Broadcast when time paused/unpaused                                     |
 
 #### Server → Client (Existing, Keep)
 
-| Message | Notes |
-|---------|-------|
+| Message           | Notes                                                   |
+| ----------------- | ------------------------------------------------------- |
 | `GameTimeUpdated` | Keep for backward compat, but prefer `GameTimeAdvanced` |
 
 ---
@@ -395,48 +400,48 @@ pub struct TimeAdvanceData {
 
 ### Systems That Generate Time Suggestions
 
-| System | Action | Trigger Point |
-|--------|--------|---------------|
-| Movement | `travel_location` | `EnterRegion` use case when location changes |
-| Movement | `travel_region` | `EnterRegion` use case when only region changes |
-| Challenge | `challenge` | `RollChallenge` use case after resolution |
-| Scene | `scene_transition` | Scene change handlers |
-| (Future) | `rest_short` | Rest action when implemented |
-| (Future) | `rest_long` | Sleep action when implemented |
+| System    | Action             | Trigger Point                                   |
+| --------- | ------------------ | ----------------------------------------------- |
+| Movement  | `travel_location`  | `EnterRegion` use case when location changes    |
+| Movement  | `travel_region`    | `EnterRegion` use case when only region changes |
+| Challenge | `challenge`        | `RollChallenge` use case after resolution       |
+| Scene     | `scene_transition` | Scene change handlers                           |
+| (Future)  | `rest_short`       | Rest action when implemented                    |
+| (Future)  | `rest_long`        | Sleep action when implemented                   |
 
 ### Systems That Consume Game Time
 
-| System | How It Uses Time |
-|--------|------------------|
-| Staging | TTL expiration based on game time, not real time |
-| Scene Resolution | Filter scenes by `TimeOfDay` |
-| NPC Presence | `is_npc_present(time_of_day)` for shifts/frequency |
-| Observations | Record game time when PC observes something |
-| Story Events | Include game time context in event records |
-| Narrative Triggers | `TimeAtLocation` trigger evaluation |
+| System             | How It Uses Time                                   |
+| ------------------ | -------------------------------------------------- |
+| Staging            | TTL expiration based on game time, not real time   |
+| Scene Resolution   | Filter scenes by `TimeOfDay`                       |
+| NPC Presence       | `is_npc_present(time_of_day)` for shifts/frequency |
+| Observations       | Record game time when PC observes something        |
+| Story Events       | Include game time context in event records         |
+| Narrative Triggers | `TimeAtLocation` trigger evaluation                |
 
 ---
 
 ## Implementation Status
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| `GameTime` struct | ✅ | Exists in domain |
-| `TimeOfDay` enum | ✅ | Exists in domain |
-| `World.game_time` | ✅ | Persisted |
-| `AdvanceGameTime` | ✅ | DM can advance hours |
-| `GameTimeUpdated` | ✅ | Broadcast exists |
-| `GameTimeConfig` | ⏳ | Need to add |
-| `TimeMode` enum | ⏳ | Need to add |
-| `TimeCostConfig` | ⏳ | Need to add |
-| `TimeSuggestion` flow | ⏳ | Need to implement |
-| `SetGameTime` | ⏳ | Need to add |
-| `SkipToPeriod` | ⏳ | Need to add |
-| Time suggestion UI | ⏳ | Need to add |
-| Time control panel | ⏳ | Need to add |
-| Integration: Staging | ⏳ | Uses real time, needs game time |
-| Integration: Observations | ⏳ | Uses real time, needs game time |
-| Integration: Movement | ⏳ | Needs to generate suggestions |
+| Component                 | Status | Notes                           |
+| ------------------------- | ------ | ------------------------------- |
+| `GameTime` struct         | ✅     | Exists in domain                |
+| `TimeOfDay` enum          | ✅     | Exists in domain                |
+| `World.game_time`         | ✅     | Persisted                       |
+| `AdvanceGameTime`         | ✅     | DM can advance hours            |
+| `GameTimeUpdated`         | ✅     | Broadcast exists                |
+| `GameTimeConfig`          | ⏳     | Need to add                     |
+| `TimeMode` enum           | ⏳     | Need to add                     |
+| `TimeCostConfig`          | ⏳     | Need to add                     |
+| `TimeSuggestion` flow     | ⏳     | Need to implement               |
+| `SetGameTime`             | ⏳     | Need to add                     |
+| `SkipToPeriod`            | ⏳     | Need to add                     |
+| Time suggestion UI        | ⏳     | Need to add                     |
+| Time control panel        | ⏳     | Need to add                     |
+| Integration: Staging      | ⏳     | Uses real time, needs game time |
+| Integration: Observations | ⏳     | Uses real time, needs game time |
+| Integration: Movement     | ⏳     | Needs to generate suggestions   |
 
 ---
 
@@ -444,32 +449,32 @@ pub struct TimeAdvanceData {
 
 ### Engine
 
-| Layer | File | Purpose |
-|-------|------|---------|
-| Domain | `crates/domain/src/game_time.rs` | GameTime, TimeOfDay, config types |
-| Domain | `crates/domain/src/entities/world.rs` | World with game_time field |
-| Ports | `crates/engine/src/infrastructure/ports.rs` | WorldRepo with time methods |
-| Entities | `crates/engine/src/entities/world.rs` | World entity operations |
-| Use Cases | `crates/engine/src/use_cases/time/mod.rs` | Time suggestion use cases (NEW) |
-| API | `crates/engine/src/api/websocket.rs` | Time-related handlers |
-| Neo4j | `crates/engine/src/infrastructure/neo4j/world_repo.rs` | Persist time config |
+| Layer     | File                                                   | Purpose                           |
+| --------- | ------------------------------------------------------ | --------------------------------- |
+| Domain    | `crates/domain/src/game_time.rs`                       | GameTime, TimeOfDay, config types |
+| Domain    | `crates/domain/src/entities/world.rs`                  | World with game_time field        |
+| Ports     | `crates/engine/src/infrastructure/ports.rs`            | WorldRepo with time methods       |
+| Entities  | `crates/engine/src/entities/world.rs`                  | World entity operations           |
+| Use Cases | `crates/engine/src/use_cases/time/mod.rs`              | Time suggestion use cases (NEW)   |
+| API       | `crates/engine/src/api/websocket.rs`                   | Time-related handlers             |
+| Neo4j     | `crates/engine/src/infrastructure/neo4j/world_repo.rs` | Persist time config               |
 
 ### Protocol
 
-| File | Purpose |
-|------|---------|
-| `crates/protocol/src/types.rs` | GameTime wire format |
+| File                              | Purpose               |
+| --------------------------------- | --------------------- |
+| `crates/protocol/src/types.rs`    | GameTime wire format  |
 | `crates/protocol/src/messages.rs` | Time-related messages |
 | `crates/protocol/src/requests.rs` | Time-related requests |
 
 ### Player
 
-| Layer | File | Purpose |
-|-------|------|---------|
-| UI | `crates/player-ui/src/presentation/components/time_display.rs` | Time display component |
-| UI | `crates/player-ui/src/presentation/components/dm/time_control.rs` | DM time controls (NEW) |
-| State | `crates/player-ui/src/presentation/state/game_state.rs` | Current time state |
-| Utils | `crates/player-ui/src/presentation/utils/game_time_format.rs` | Time formatting |
+| Layer | File                                                              | Purpose                |
+| ----- | ----------------------------------------------------------------- | ---------------------- |
+| UI    | `crates/player-ui/src/presentation/components/time_display.rs`    | Time display component |
+| UI    | `crates/player-ui/src/presentation/components/dm/time_control.rs` | DM time controls (NEW) |
+| State | `crates/player-ui/src/presentation/state/game_state.rs`           | Current time state     |
+| Utils | `crates/player-ui/src/presentation/utils/game_time_format.rs`     | Time formatting        |
 
 ---
 
@@ -482,6 +487,7 @@ None - all changes are additive. Existing `GameTime` and `AdvanceGameTime` conti
 ### Default Values
 
 When `time_config` is missing from a World:
+
 - `mode`: `Suggested` (safest default - DM sees suggestions)
 - `time_costs`: Use sensible defaults (60/10/60/480/0/10/0 minutes)
 - `show_time_to_players`: `true`
@@ -521,6 +527,6 @@ No migration needed - new fields have defaults. Old worlds will use default conf
 
 ## Revision History
 
-| Date | Change |
-|------|--------|
+| Date       | Change                  |
+| ---------- | ----------------------- |
 | 2026-01-04 | Initial design document |

@@ -8,14 +8,14 @@ WrldBldr uses a queue-based architecture for processing player actions, DM decis
 
 ## Queue Types
 
-| Queue | Purpose | Persistence | Concurrency |
-|-------|---------|-------------|-------------|
-| `PlayerActionQueue` | Player actions awaiting processing | SQLite | Unlimited |
-| `DMActionQueue` | DM actions awaiting processing | SQLite | Unlimited |
-| `LLMReasoningQueue` | Ollama requests | SQLite | Semaphore (configurable) |
-| `AssetGenerationQueue` | ComfyUI requests | SQLite | 1 (sequential) |
-| `DMApprovalQueue` | Decisions awaiting DM approval | SQLite | N/A (waiting) |
-| `ChallengeOutcomeQueue` | Challenge outcomes awaiting DM approval | SQLite | N/A (waiting) |
+| Queue                   | Purpose                                 | Persistence | Concurrency              |
+| ----------------------- | --------------------------------------- | ----------- | ------------------------ |
+| `PlayerActionQueue`     | Player actions awaiting processing      | SQLite      | Unlimited                |
+| `DMActionQueue`         | DM actions awaiting processing          | SQLite      | Unlimited                |
+| `LLMReasoningQueue`     | Ollama requests                         | SQLite      | Semaphore (configurable) |
+| `AssetGenerationQueue`  | ComfyUI requests                        | SQLite      | 1 (sequential)           |
+| `DMApprovalQueue`       | Decisions awaiting DM approval          | SQLite      | N/A (waiting)            |
+| `ChallengeOutcomeQueue` | Challenge outcomes awaiting DM approval | SQLite      | N/A (waiting)            |
 
 ---
 
@@ -56,7 +56,7 @@ WrldBldr uses a queue-based architecture for processing player actions, DM decis
 
 ## Queue Port Interface
 
-The core queue interface is defined in `crates/engine-ports/src/outbound/queue_port.rs`:
+The core queue interface is defined in the engine crate’s ports module (`crates/engine/src/infrastructure/ports.rs`).
 
 ```rust
 #[async_trait]
@@ -189,6 +189,7 @@ pub struct QueueConfig {
 ```
 
 Environment variables:
+
 - `QUEUE_BACKEND`: `memory` or `sqlite` (default: sqlite)
 - `QUEUE_SQLITE_PATH`: Database path
 - `LLM_BATCH_SIZE`: Concurrent LLM requests (default: 2)
@@ -212,6 +213,7 @@ GET /api/health/queues
 ```
 
 Response:
+
 ```json
 {
   "player_action_queue": {
@@ -262,49 +264,17 @@ SQLite persistence enables recovery after restart:
 
 ### Domain Layer
 
-| File | Purpose |
-|------|---------|
+| File                                            | Purpose                                                              |
+| ----------------------------------------------- | -------------------------------------------------------------------- |
 | `crates/domain/src/value_objects/queue_data.rs` | Queue payload value objects (PlayerActionData, LlmRequestData, etc.) |
 
-### Ports Layer
+### Engine Layer
 
-| File | Purpose |
-|------|---------|
-| `crates/engine-ports/src/outbound/queue_port.rs` | Core queue port traits (QueuePort, ApprovalQueuePort, ProcessingQueuePort) |
-| `crates/engine-ports/src/outbound/queue_notification_port.rs` | Queue notification port for worker wake-up |
-| `crates/engine-ports/src/outbound/player_action_queue_service_port.rs` | Player action queue service port |
-| `crates/engine-ports/src/outbound/dm_action_queue_service_port.rs` | DM action queue service port |
-| `crates/engine-ports/src/outbound/llm_queue_service_port.rs` | LLM queue service port |
-| `crates/engine-ports/src/outbound/asset_generation_queue_service_port.rs` | Asset generation queue service port |
-| `crates/engine-ports/src/outbound/dm_approval_queue_service_port.rs` | DM approval queue service port |
-
-### Application Layer
-
-| File | Purpose |
-|------|---------|
-| `crates/engine-dto/src/queue.rs` | Queue DTOs and conversions (1000+ lines) |
-| `crates/engine-app/src/application/services/player_action_queue_service.rs` | Player actions |
-| `crates/engine-app/src/application/services/dm_action_queue_service.rs` | DM actions |
-| `crates/engine-app/src/application/services/llm_queue_service.rs` | LLM processing |
-| `crates/engine-app/src/application/services/asset_generation_queue_service.rs` | Asset generation |
-| `crates/engine-app/src/application/services/dm_approval_queue_service.rs` | Approvals |
-
-### Adapters Layer
-
-| File | Purpose |
-|------|---------|
-| `crates/engine-adapters/src/infrastructure/queues/sqlite_queue.rs` | SQLite backend |
-| `crates/engine-adapters/src/infrastructure/queues/memory_queue.rs` | In-memory backend |
-| `crates/engine-adapters/src/infrastructure/queues/factory.rs` | Queue factory |
-| `crates/engine-adapters/src/infrastructure/queues/in_process_notifier.rs` | Queue notification system |
-| `crates/engine-adapters/src/infrastructure/http/queue_routes.rs` | HTTP routes for queue status |
-
-### Runner Layer
-
-| File | Purpose |
-|------|---------|
-| `crates/engine-runner/src/run/queue_workers.rs` | Background worker spawning |
-| `crates/engine-runner/src/composition/factories/queue_services.rs` | Queue service factory |
+| File                                        | Purpose                                                        |
+| ------------------------------------------- | -------------------------------------------------------------- |
+| `crates/engine/src/infrastructure/ports.rs` | Queue-related port traits (QueuePort, ApprovalQueuePort, etc.) |
+| `crates/engine/src/infrastructure/queue.rs` | SQLite-backed queue implementation + storage schema/indexes    |
+| `crates/engine/src/main.rs`                 | Background worker spawning / runtime wiring (when enabled)     |
 
 ---
 

@@ -2,7 +2,7 @@
 version: "3"
 
 vars:
-  ENGINE_DIR: ./crates/engine-runner
+  ENGINE_DIR: ./crates/engine
   PLAYER_RUNNER_DIR: ./crates/player-runner
   PLAYER_UI_DIR: ./crates/player-ui
   PROTOCOL_DIR: ./crates/protocol
@@ -26,7 +26,7 @@ tasks:
     desc: Run the Engine backend server
     dir: "{{.ENGINE_DIR}}"
     cmds:
-      - cargo run --bin wrldbldr-engine
+      - cargo run -p wrldbldr-engine --bin wrldbldr-engine
     env:
       RUST_LOG: info,wrldbldr_engine=debug
       NEO4J_PASSWORD: wrldbldr123
@@ -81,7 +81,7 @@ tasks:
   build:engine:
     desc: Build the Engine backend
     cmds:
-      - cargo build -p wrldbldr-engine-runner
+      - cargo build -p wrldbldr-engine
 
   build:player:
     desc: Build the Player frontend (native)
@@ -108,7 +108,7 @@ tasks:
   check:engine:
     desc: Check Engine crate
     cmds:
-      - cargo check -p wrldbldr-engine-runner
+      - cargo check -p wrldbldr-engine
 
   check:player:
     desc: Check Player runner crate
@@ -128,7 +128,7 @@ tasks:
   test:engine:
     desc: Run Engine tests
     cmds:
-      - cargo test -p wrldbldr-engine-runner
+      - cargo test -p wrldbldr-engine
 
   test:player:
     desc: Run Player runner tests

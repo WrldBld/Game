@@ -160,8 +160,6 @@ pub enum TimeMode {
     /// System suggests, DM approves
     #[default]
     Suggested,
-    /// Time advances automatically
-    Auto,
 }
 
 impl TimeMode {
@@ -169,7 +167,8 @@ impl TimeMode {
         match s.to_lowercase().as_str() {
             "manual" => TimeMode::Manual,
             "suggested" => TimeMode::Suggested,
-            "auto" | "automatic" => TimeMode::Auto,
+            // Auto mode is intentionally treated as Suggested.
+            "auto" | "automatic" => TimeMode::Suggested,
             _ => TimeMode::Suggested,
         }
     }
@@ -178,7 +177,6 @@ impl TimeMode {
         match self {
             TimeMode::Manual => "Manual",
             TimeMode::Suggested => "Suggested",
-            TimeMode::Auto => "Automatic",
         }
     }
 }

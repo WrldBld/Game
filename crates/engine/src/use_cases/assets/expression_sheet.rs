@@ -205,60 +205,23 @@ impl GenerateExpressionSheet {
         _grid_layout: (u32, u32),
         character_id: CharacterId,
     ) -> Result<Vec<SlicedExpression>, ExpressionSheetError> {
-        // TODO: Implement actual image slicing using the `image` crate
-        // For now, return a placeholder indicating what would be created
+        // TODO: Implement actual image slicing using the `image` crate.
         //
-        // Implementation steps:
-        // 1. Load image from sheet_data using image::load_from_memory()
-        // 2. Calculate cell size: cell_width = image_width / cols, cell_height = image_height / rows
-        // 3. For each expression in order:
-        //    a. Calculate cell position: (col * cell_width, row * cell_height)
-        //    b. Crop the cell from the image
-        //    c. Save as PNG to assets/{character_id}/expressions/{expression}.png
-        //    d. Create GalleryAsset record in database
-        // 4. Update character's ExpressionConfig with available expressions
+        // IMPORTANT: Do not return placeholder assets or mutate character state here.
+        // Returning “fake” asset IDs/paths makes downstream systems think sprites exist
+        // when they don't.
 
         let now = self.clock.now();
-        let mut results = Vec::new();
+        tracing::warn!(
+            character_id = %character_id,
+            expression_count = expressions.len(),
+            now = ?now,
+            "Expression sheet slicing is not implemented"
+        );
 
-        for expression in expressions {
-            let asset_id = AssetId::new();
-            let file_path = format!(
-                "assets/characters/{}/expressions/{}.png",
-                character_id, expression
-            );
-
-            results.push(SlicedExpression {
-                expression: expression.clone(),
-                asset_id,
-                file_path,
-            });
-
-            tracing::info!(
-                character_id = %character_id,
-                expression = %expression,
-                asset_id = %asset_id,
-                "Would slice expression (not implemented - needs image crate)"
-            );
-        }
-
-        // Update character's expression config
-        let mut character = self
-            .character
-            .get(character_id)
-            .await?
-            .ok_or(ExpressionSheetError::CharacterNotFound)?;
-
-        character.expression_config = ExpressionConfig::new()
-            .with_expressions(expressions.to_vec())
-            .with_default_expression(expressions.first().cloned().unwrap_or_else(|| "neutral".to_string()));
-
-        self.character
-            .save(&character)
-            .await
-            .map_err(|e| ExpressionSheetError::SaveFailed(e.to_string()))?;
-
-        Ok(results)
+        Err(ExpressionSheetError::SliceFailed(
+            "Expression sheet slicing is not implemented yet".to_string(),
+        ))
     }
 }
 

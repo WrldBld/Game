@@ -49,13 +49,6 @@ pub struct TimeSuggestion {
 /// Result of suggesting time passage.
 #[derive(Debug)]
 pub enum SuggestTimeResult {
-    /// Time was auto-advanced (mode = Auto)
-    AutoAdvanced {
-        previous_time: GameTime,
-        new_time: GameTime,
-        minutes: u32,
-        reason: TimeAdvanceReason,
-    },
     /// Time suggestion created for DM approval (mode = Suggested)
     SuggestionCreated(TimeSuggestion),
     /// No time cost for this action (cost = 0)
@@ -69,7 +62,6 @@ pub enum SuggestTimeResult {
 /// When a player performs an action that should cost time, this use case:
 /// 1. Looks up the configured cost for the action type
 /// 2. Based on time mode:
-///    - Auto: Advances time immediately
 ///    - Suggested: Creates a suggestion for DM approval
 ///    - Manual: Does nothing (DM advances manually)
 pub struct SuggestTime {
@@ -92,7 +84,6 @@ impl SuggestTime {
     /// * `action_description` - Human-readable description
     ///
     /// # Returns
-    /// - `AutoAdvanced` if mode is Auto and time was advanced
     /// - `SuggestionCreated` if mode is Suggested
     /// - `NoCost` if the action has zero time cost
     /// - `ManualMode` if mode is Manual
@@ -125,19 +116,7 @@ impl SuggestTime {
                 // DM controls time manually, no suggestions
                 Ok(SuggestTimeResult::ManualMode)
             }
-            TimeMode::Auto => {
-                // Auto-advance time immediately and persist
-                let reason = self.build_reason(action_type, &action_description);
-                let result = self.world.advance_time(world_id, cost_minutes, reason.clone()).await?;
-
-                Ok(SuggestTimeResult::AutoAdvanced {
-                    previous_time: result.previous_time,
-                    new_time: result.new_time,
-                    minutes: cost_minutes,
-                    reason,
-                })
-            }
-            TimeMode::Suggested => {
+            TimeMode::Auto | TimeMode::Suggested => {
                 // Create suggestion for DM approval
                 let mut resulting_time = world.game_time.clone();
                 let previous_period = resulting_time.time_of_day();
@@ -167,31 +146,30 @@ impl SuggestTime {
             }
         }
     }
+}
 
-    /// Build a TimeAdvanceReason from action type and description.
-    fn build_reason(&self, action_type: &str, description: &str) -> TimeAdvanceReason {
-        match action_type {
-            "travel_location" => {
-                // Try to parse "from X to Y" from description
-                TimeAdvanceReason::TravelLocation {
-                    from: "previous location".to_string(),
-                    to: description.to_string(),
-                }
-            }
-            "travel_region" => TimeAdvanceReason::TravelRegion {
-                from: "previous region".to_string(),
-                to: description.to_string(),
-            },
-            "rest_short" => TimeAdvanceReason::RestShort,
-            "rest_long" => TimeAdvanceReason::RestLong,
-            "challenge" => TimeAdvanceReason::Challenge {
-                name: description.to_string(),
-            },
-            "scene_transition" => TimeAdvanceReason::SceneTransition {
-                scene_name: description.to_string(),
-            },
-            _ => TimeAdvanceReason::DmManual { hours: 0 },
-        }
+/// Build a TimeAdvanceReason from an action type and human-readable description.
+///
+/// Used when a DM approves a time suggestion.
+pub fn time_advance_reason_for_action(action_type: &str, description: &str) -> TimeAdvanceReason {
+    match action_type {
+        "travel_location" => TimeAdvanceReason::TravelLocation {
+            from: "previous location".to_string(),
+            to: description.to_string(),
+        },
+        "travel_region" => TimeAdvanceReason::TravelRegion {
+            from: "previous region".to_string(),
+            to: description.to_string(),
+        },
+        "rest_short" => TimeAdvanceReason::RestShort,
+        "rest_long" => TimeAdvanceReason::RestLong,
+        "challenge" => TimeAdvanceReason::Challenge {
+            name: description.to_string(),
+        },
+        "scene_transition" => TimeAdvanceReason::SceneTransition {
+            scene_name: description.to_string(),
+        },
+        _ => TimeAdvanceReason::DmManual { hours: 0 },
     }
 }
 
@@ -222,7 +200,10 @@ impl TimeSuggestion {
             current_time: game_time_to_protocol(&self.current_time),
             resulting_time: game_time_to_protocol(&self.resulting_time),
             period_change: self.period_change.as_ref().map(|(from, to)| {
-                (from.display_name().to_string(), to.display_name().to_string())
+                (
+                    from.display_name().to_string(),
+                    to.display_name().to_string(),
+                )
             }),
         }
     }

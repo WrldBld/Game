@@ -7,9 +7,8 @@ use std::sync::Arc;
 
 use chrono::Datelike;
 use wrldbldr_domain::{
-    ActivationEvaluation, ActivationLogic, ActivationRule, CharacterId, GameTime,
-    LocationId, LocationState, NarrativeEventId, RegionId, RegionState,
-    WorldId,
+    ActivationEvaluation, ActivationLogic, ActivationRule, CharacterId, GameTime, LocationId,
+    LocationState, NarrativeEventId, RegionId, RegionState, WorldId,
 };
 
 use crate::entities::{Flag, LocationStateEntity, RegionStateEntity};
@@ -85,6 +84,8 @@ pub struct ResolvedStateInfo {
     pub backdrop_override: Option<String>,
     pub atmosphere_override: Option<String>,
     pub ambient_sound: Option<String>,
+    pub priority: i32,
+    pub is_default: bool,
     pub evaluation: ActivationEvaluation,
 }
 
@@ -183,11 +184,11 @@ impl ResolveVisualState {
                 &state.id.to_string(),
                 &state.name,
             );
-            
+
             for soft in soft_rules {
                 pending_soft_rules.push(soft);
             }
-            
+
             location_evaluations.push((state.clone(), eval));
         }
 
@@ -202,11 +203,11 @@ impl ResolveVisualState {
                 &state.id.to_string(),
                 &state.name,
             );
-            
+
             for soft in soft_rules {
                 pending_soft_rules.push(soft);
             }
-            
+
             region_evaluations.push((state.clone(), eval));
         }
 
@@ -219,6 +220,8 @@ impl ResolveVisualState {
                 backdrop_override: state.backdrop_override.clone(),
                 atmosphere_override: state.atmosphere_override.clone(),
                 ambient_sound: state.ambient_sound.clone(),
+                priority: state.priority,
+                is_default: state.is_default,
                 evaluation: eval.clone(),
             })
             .collect();
@@ -231,6 +234,8 @@ impl ResolveVisualState {
                 backdrop_override: state.backdrop_override.clone(),
                 atmosphere_override: state.atmosphere_override.clone(),
                 ambient_sound: state.ambient_sound.clone(),
+                priority: state.priority,
+                is_default: state.is_default,
                 evaluation: eval.clone(),
             })
             .collect();
@@ -263,9 +268,9 @@ impl ResolveVisualState {
         context: &StateResolutionContext,
     ) -> Result<Option<ResolvedStateInfo>, RepoError> {
         let location_states = self.location_state.list_for_location(location_id).await?;
-        
+
         let mut evaluations: Vec<(LocationState, ActivationEvaluation)> = Vec::new();
-        
+
         for state in &location_states {
             let (eval, _) = self.evaluate_rules(
                 &state.activation_rules,
@@ -287,9 +292,9 @@ impl ResolveVisualState {
         context: &StateResolutionContext,
     ) -> Result<Option<ResolvedStateInfo>, RepoError> {
         let region_states = self.region_state.list_for_region(region_id).await?;
-        
+
         let mut evaluations: Vec<(RegionState, ActivationEvaluation)> = Vec::new();
-        
+
         for state in &region_states {
             let (eval, _) = self.evaluate_rules(
                 &state.activation_rules,
@@ -320,7 +325,11 @@ impl ResolveVisualState {
         // Empty rules = always active (implicit Always rule)
         if rules.is_empty() {
             return (
-                ActivationEvaluation::resolved(true, vec!["No rules (always active)".to_string()], vec![]),
+                ActivationEvaluation::resolved(
+                    true,
+                    vec!["No rules (always active)".to_string()],
+                    vec![],
+                ),
                 vec![],
             );
         }
@@ -328,7 +337,11 @@ impl ResolveVisualState {
         for rule in rules {
             if rule.is_soft_rule() {
                 // Soft rules need LLM evaluation
-                if let ActivationRule::Custom { description, llm_prompt } = rule {
+                if let ActivationRule::Custom {
+                    description,
+                    llm_prompt,
+                } = rule
+                {
                     pending_soft.push(SoftRuleContext {
                         state_id: state_id.to_string(),
                         state_name: state_name.to_string(),
@@ -359,7 +372,11 @@ impl ResolveVisualState {
         // If there are pending soft rules, we can't determine final state yet
         if !pending_soft.is_empty() {
             return (
-                ActivationEvaluation::needs_llm(matched, unmatched, pending_soft.iter().map(|s| s.description.clone()).collect()),
+                ActivationEvaluation::needs_llm(
+                    matched,
+                    unmatched,
+                    pending_soft.iter().map(|s| s.description.clone()).collect(),
+                ),
                 pending_soft,
             );
         }
@@ -407,9 +424,7 @@ impl ResolveVisualState {
                 }
             }
 
-            ActivationRule::TimeOfDay { period } => {
-                context.game_time.time_of_day() == *period
-            }
+            ActivationRule::TimeOfDay { period } => context.game_time.time_of_day() == *period,
 
             ActivationRule::EventTriggered { event_id, .. } => {
                 context.triggered_events.contains(event_id)
@@ -431,7 +446,13 @@ impl ResolveVisualState {
     }
 
     /// Check if activation logic is satisfied
-    fn check_logic(&self, logic: ActivationLogic, matched: usize, _unmatched: usize, total: usize) -> bool {
+    fn check_logic(
+        &self,
+        logic: ActivationLogic,
+        matched: usize,
+        _unmatched: usize,
+        total: usize,
+    ) -> bool {
         match logic {
             ActivationLogic::All => matched == total,
             ActivationLogic::Any => matched > 0,
@@ -458,6 +479,8 @@ impl ResolveVisualState {
                 backdrop_override: state.backdrop_override.clone(),
                 atmosphere_override: state.atmosphere_override.clone(),
                 ambient_sound: state.ambient_sound.clone(),
+                priority: state.priority,
+                is_default: state.is_default,
                 evaluation: eval.clone(),
             });
         }
@@ -472,6 +495,8 @@ impl ResolveVisualState {
                 backdrop_override: state.backdrop_override.clone(),
                 atmosphere_override: state.atmosphere_override.clone(),
                 ambient_sound: state.ambient_sound.clone(),
+                priority: state.priority,
+                is_default: state.is_default,
                 evaluation: eval.clone(),
             })
     }
@@ -495,6 +520,8 @@ impl ResolveVisualState {
                 backdrop_override: state.backdrop_override.clone(),
                 atmosphere_override: state.atmosphere_override.clone(),
                 ambient_sound: state.ambient_sound.clone(),
+                priority: state.priority,
+                is_default: state.is_default,
                 evaluation: eval.clone(),
             });
         }
@@ -509,6 +536,8 @@ impl ResolveVisualState {
                 backdrop_override: state.backdrop_override.clone(),
                 atmosphere_override: state.atmosphere_override.clone(),
                 ambient_sound: state.ambient_sound.clone(),
+                priority: state.priority,
+                is_default: state.is_default,
                 evaluation: eval.clone(),
             })
     }
@@ -528,20 +557,19 @@ mod tests {
     fn test_always_rule_matches() {
         let resolve = create_test_resolve();
         let context = create_test_context();
-        
+
         assert!(resolve.evaluate_hard_rule(&ActivationRule::Always, &context));
     }
 
     #[test]
     fn test_flag_rule_matches_world_flag() {
         let resolve = create_test_resolve();
-        let context = create_test_context()
-            .with_world_flags(vec!["festival_active".to_string()]);
-        
+        let context = create_test_context().with_world_flags(vec!["festival_active".to_string()]);
+
         let rule = ActivationRule::FlagSet {
             flag_name: "festival_active".to_string(),
         };
-        
+
         assert!(resolve.evaluate_hard_rule(&rule, &context));
     }
 
@@ -549,11 +577,11 @@ mod tests {
     fn test_flag_rule_no_match() {
         let resolve = create_test_resolve();
         let context = create_test_context();
-        
+
         let rule = ActivationRule::FlagSet {
             flag_name: "festival_active".to_string(),
         };
-        
+
         assert!(!resolve.evaluate_hard_rule(&rule, &context));
     }
 
@@ -561,21 +589,20 @@ mod tests {
     fn test_character_present_matches() {
         let resolve = create_test_resolve();
         let char_id = CharacterId::new();
-        let context = create_test_context()
-            .with_present_characters(vec![char_id]);
-        
+        let context = create_test_context().with_present_characters(vec![char_id]);
+
         let rule = ActivationRule::CharacterPresent {
             character_id: char_id,
             character_name: "Test NPC".to_string(),
         };
-        
+
         assert!(resolve.evaluate_hard_rule(&rule, &context));
     }
 
     #[test]
     fn test_logic_all_requires_all_matched() {
         let resolve = create_test_resolve();
-        
+
         assert!(resolve.check_logic(ActivationLogic::All, 3, 0, 3));
         assert!(!resolve.check_logic(ActivationLogic::All, 2, 1, 3));
     }
@@ -583,7 +610,7 @@ mod tests {
     #[test]
     fn test_logic_any_requires_one_matched() {
         let resolve = create_test_resolve();
-        
+
         assert!(resolve.check_logic(ActivationLogic::Any, 1, 2, 3));
         assert!(!resolve.check_logic(ActivationLogic::Any, 0, 3, 3));
     }
@@ -591,7 +618,7 @@ mod tests {
     #[test]
     fn test_logic_at_least() {
         let resolve = create_test_resolve();
-        
+
         assert!(resolve.check_logic(ActivationLogic::AtLeast(2), 2, 1, 3));
         assert!(resolve.check_logic(ActivationLogic::AtLeast(2), 3, 0, 3));
         assert!(!resolve.check_logic(ActivationLogic::AtLeast(2), 1, 2, 3));
@@ -599,10 +626,10 @@ mod tests {
 
     // Helper to create a test resolver (would need mock repos in real tests)
     fn create_test_resolve() -> ResolveVisualState {
-        use std::sync::Arc;
-        use crate::infrastructure::ports::{LocationStateRepo, RegionStateRepo, FlagRepo};
-        use wrldbldr_domain::{LocationStateId, RegionStateId};
+        use crate::infrastructure::ports::{FlagRepo, LocationStateRepo, RegionStateRepo};
         use async_trait::async_trait;
+        use std::sync::Arc;
+        use wrldbldr_domain::{LocationStateId, RegionStateId};
 
         // Mock implementations for testing
         struct MockLocationStateRepo;
@@ -611,46 +638,149 @@ mod tests {
 
         #[async_trait]
         impl LocationStateRepo for MockLocationStateRepo {
-            async fn get(&self, _id: LocationStateId) -> Result<Option<LocationState>, RepoError> { Ok(None) }
-            async fn save(&self, _state: &LocationState) -> Result<(), RepoError> { Ok(()) }
-            async fn delete(&self, _id: LocationStateId) -> Result<(), RepoError> { Ok(()) }
-            async fn list_for_location(&self, _location_id: LocationId) -> Result<Vec<LocationState>, RepoError> { Ok(vec![]) }
-            async fn get_default(&self, _location_id: LocationId) -> Result<Option<LocationState>, RepoError> { Ok(None) }
-            async fn set_active(&self, _location_id: LocationId, _state_id: LocationStateId) -> Result<(), RepoError> { Ok(()) }
-            async fn get_active(&self, _location_id: LocationId) -> Result<Option<LocationState>, RepoError> { Ok(None) }
-            async fn clear_active(&self, _location_id: LocationId) -> Result<(), RepoError> { Ok(()) }
+            async fn get(&self, _id: LocationStateId) -> Result<Option<LocationState>, RepoError> {
+                Ok(None)
+            }
+            async fn save(&self, _state: &LocationState) -> Result<(), RepoError> {
+                Ok(())
+            }
+            async fn delete(&self, _id: LocationStateId) -> Result<(), RepoError> {
+                Ok(())
+            }
+            async fn list_for_location(
+                &self,
+                _location_id: LocationId,
+            ) -> Result<Vec<LocationState>, RepoError> {
+                Ok(vec![])
+            }
+            async fn get_default(
+                &self,
+                _location_id: LocationId,
+            ) -> Result<Option<LocationState>, RepoError> {
+                Ok(None)
+            }
+            async fn set_active(
+                &self,
+                _location_id: LocationId,
+                _state_id: LocationStateId,
+            ) -> Result<(), RepoError> {
+                Ok(())
+            }
+            async fn get_active(
+                &self,
+                _location_id: LocationId,
+            ) -> Result<Option<LocationState>, RepoError> {
+                Ok(None)
+            }
+            async fn clear_active(&self, _location_id: LocationId) -> Result<(), RepoError> {
+                Ok(())
+            }
         }
 
         #[async_trait]
         impl RegionStateRepo for MockRegionStateRepo {
-            async fn get(&self, _id: RegionStateId) -> Result<Option<RegionState>, RepoError> { Ok(None) }
-            async fn save(&self, _state: &RegionState) -> Result<(), RepoError> { Ok(()) }
-            async fn delete(&self, _id: RegionStateId) -> Result<(), RepoError> { Ok(()) }
-            async fn list_for_region(&self, _region_id: RegionId) -> Result<Vec<RegionState>, RepoError> { Ok(vec![]) }
-            async fn get_default(&self, _region_id: RegionId) -> Result<Option<RegionState>, RepoError> { Ok(None) }
-            async fn set_active(&self, _region_id: RegionId, _state_id: RegionStateId) -> Result<(), RepoError> { Ok(()) }
-            async fn get_active(&self, _region_id: RegionId) -> Result<Option<RegionState>, RepoError> { Ok(None) }
-            async fn clear_active(&self, _region_id: RegionId) -> Result<(), RepoError> { Ok(()) }
+            async fn get(&self, _id: RegionStateId) -> Result<Option<RegionState>, RepoError> {
+                Ok(None)
+            }
+            async fn save(&self, _state: &RegionState) -> Result<(), RepoError> {
+                Ok(())
+            }
+            async fn delete(&self, _id: RegionStateId) -> Result<(), RepoError> {
+                Ok(())
+            }
+            async fn list_for_region(
+                &self,
+                _region_id: RegionId,
+            ) -> Result<Vec<RegionState>, RepoError> {
+                Ok(vec![])
+            }
+            async fn get_default(
+                &self,
+                _region_id: RegionId,
+            ) -> Result<Option<RegionState>, RepoError> {
+                Ok(None)
+            }
+            async fn set_active(
+                &self,
+                _region_id: RegionId,
+                _state_id: RegionStateId,
+            ) -> Result<(), RepoError> {
+                Ok(())
+            }
+            async fn get_active(
+                &self,
+                _region_id: RegionId,
+            ) -> Result<Option<RegionState>, RepoError> {
+                Ok(None)
+            }
+            async fn clear_active(&self, _region_id: RegionId) -> Result<(), RepoError> {
+                Ok(())
+            }
         }
 
         #[async_trait]
         impl FlagRepo for MockFlagRepo {
-            async fn get_world_flags(&self, _world_id: WorldId) -> Result<Vec<String>, RepoError> { Ok(vec![]) }
-            async fn get_pc_flags(&self, _pc_id: wrldbldr_domain::PlayerCharacterId) -> Result<Vec<String>, RepoError> { Ok(vec![]) }
-            async fn set_world_flag(&self, _world_id: WorldId, _flag_name: &str) -> Result<(), RepoError> { Ok(()) }
-            async fn unset_world_flag(&self, _world_id: WorldId, _flag_name: &str) -> Result<(), RepoError> { Ok(()) }
-            async fn set_pc_flag(&self, _pc_id: wrldbldr_domain::PlayerCharacterId, _flag_name: &str) -> Result<(), RepoError> { Ok(()) }
-            async fn unset_pc_flag(&self, _pc_id: wrldbldr_domain::PlayerCharacterId, _flag_name: &str) -> Result<(), RepoError> { Ok(()) }
-            async fn is_world_flag_set(&self, _world_id: WorldId, _flag_name: &str) -> Result<bool, RepoError> { Ok(false) }
-            async fn is_pc_flag_set(&self, _pc_id: wrldbldr_domain::PlayerCharacterId, _flag_name: &str) -> Result<bool, RepoError> { Ok(false) }
+            async fn get_world_flags(&self, _world_id: WorldId) -> Result<Vec<String>, RepoError> {
+                Ok(vec![])
+            }
+            async fn get_pc_flags(
+                &self,
+                _pc_id: wrldbldr_domain::PlayerCharacterId,
+            ) -> Result<Vec<String>, RepoError> {
+                Ok(vec![])
+            }
+            async fn set_world_flag(
+                &self,
+                _world_id: WorldId,
+                _flag_name: &str,
+            ) -> Result<(), RepoError> {
+                Ok(())
+            }
+            async fn unset_world_flag(
+                &self,
+                _world_id: WorldId,
+                _flag_name: &str,
+            ) -> Result<(), RepoError> {
+                Ok(())
+            }
+            async fn set_pc_flag(
+                &self,
+                _pc_id: wrldbldr_domain::PlayerCharacterId,
+                _flag_name: &str,
+            ) -> Result<(), RepoError> {
+                Ok(())
+            }
+            async fn unset_pc_flag(
+                &self,
+                _pc_id: wrldbldr_domain::PlayerCharacterId,
+                _flag_name: &str,
+            ) -> Result<(), RepoError> {
+                Ok(())
+            }
+            async fn is_world_flag_set(
+                &self,
+                _world_id: WorldId,
+                _flag_name: &str,
+            ) -> Result<bool, RepoError> {
+                Ok(false)
+            }
+            async fn is_pc_flag_set(
+                &self,
+                _pc_id: wrldbldr_domain::PlayerCharacterId,
+                _flag_name: &str,
+            ) -> Result<bool, RepoError> {
+                Ok(false)
+            }
         }
 
-        let location_state = Arc::new(crate::entities::LocationStateEntity::new(
-            Arc::new(MockLocationStateRepo) as Arc<dyn LocationStateRepo>
-        ));
-        let region_state = Arc::new(crate::entities::RegionStateEntity::new(
-            Arc::new(MockRegionStateRepo) as Arc<dyn RegionStateRepo>
-        ));
+        let location_state = Arc::new(crate::entities::LocationStateEntity::new(Arc::new(
+            MockLocationStateRepo,
+        )
+            as Arc<dyn LocationStateRepo>));
+        let region_state = Arc::new(crate::entities::RegionStateEntity::new(Arc::new(
+            MockRegionStateRepo,
+        )
+            as Arc<dyn RegionStateRepo>));
         let flag = Arc::new(crate::entities::Flag::new(
             Arc::new(MockFlagRepo) as Arc<dyn FlagRepo>
         ));

@@ -58,10 +58,10 @@ pub enum QueueError {
 pub struct NpcRegionRelationship {
     pub region_id: RegionId,
     pub relationship_type: NpcRegionRelationType,
-    pub shift: Option<String>,          // For WORKS_AT: "day", "night", "always"
-    pub frequency: Option<String>,      // For FREQUENTS: "always", "often", "sometimes", "rarely"
-    pub time_of_day: Option<String>,    // For FREQUENTS: "morning", "afternoon", "evening", "night"
-    pub reason: Option<String>,         // For AVOIDS: why they avoid it
+    pub shift: Option<String>,     // For WORKS_AT: "day", "night", "always"
+    pub frequency: Option<String>, // For FREQUENTS: "always", "often", "sometimes", "rarely"
+    pub time_of_day: Option<String>, // For FREQUENTS: "morning", "afternoon", "evening", "night"
+    pub reason: Option<String>,    // For AVOIDS: why they avoid it
 }
 
 /// Type of NPC-Region relationship
@@ -104,36 +104,45 @@ pub struct NpcWithRegionInfo {
 // Database Ports (one per entity type)
 // =============================================================================
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait CharacterRepo: Send + Sync {
     // CRUD
     async fn get(&self, id: CharacterId) -> Result<Option<Character>, RepoError>;
     async fn save(&self, character: &Character) -> Result<(), RepoError>;
     async fn delete(&self, id: CharacterId) -> Result<(), RepoError>;
-    
+
     // Queries
     async fn list_in_region(&self, region_id: RegionId) -> Result<Vec<Character>, RepoError>;
     async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<Character>, RepoError>;
     async fn list_npcs_in_world(&self, world_id: WorldId) -> Result<Vec<Character>, RepoError>;
-    
+
     // Position
     async fn update_position(&self, id: CharacterId, region_id: RegionId) -> Result<(), RepoError>;
-    
+
     // Relationships
     async fn get_relationships(&self, id: CharacterId) -> Result<Vec<Relationship>, RepoError>;
     async fn save_relationship(&self, relationship: &Relationship) -> Result<(), RepoError>;
     async fn delete_relationship(&self, id: RelationshipId) -> Result<(), RepoError>;
-    
+
     // Inventory
     async fn get_inventory(&self, id: CharacterId) -> Result<Vec<Item>, RepoError>;
-    async fn add_to_inventory(&self, character_id: CharacterId, item_id: ItemId) -> Result<(), RepoError>;
-    async fn remove_from_inventory(&self, character_id: CharacterId, item_id: ItemId) -> Result<(), RepoError>;
-    
+    async fn add_to_inventory(
+        &self,
+        character_id: CharacterId,
+        item_id: ItemId,
+    ) -> Result<(), RepoError>;
+    async fn remove_from_inventory(
+        &self,
+        character_id: CharacterId,
+        item_id: ItemId,
+    ) -> Result<(), RepoError>;
+
     // Wants/Goals
     async fn get_wants(&self, id: CharacterId) -> Result<Vec<Want>, RepoError>;
     async fn save_want(&self, character_id: CharacterId, want: &Want) -> Result<(), RepoError>;
     async fn delete_want(&self, id: WantId) -> Result<(), RepoError>;
-    
+
     // Disposition (NPC's view of a specific PC)
     async fn get_disposition(
         &self,
@@ -141,46 +150,104 @@ pub trait CharacterRepo: Send + Sync {
         pc_id: PlayerCharacterId,
     ) -> Result<Option<NpcDispositionState>, RepoError>;
     async fn save_disposition(&self, disposition: &NpcDispositionState) -> Result<(), RepoError>;
-    
+
     // Actantial
-    async fn get_actantial_context(&self, id: CharacterId) -> Result<Option<ActantialContext>, RepoError>;
-    async fn save_actantial_context(&self, id: CharacterId, context: &ActantialContext) -> Result<(), RepoError>;
-    
+    async fn get_actantial_context(
+        &self,
+        id: CharacterId,
+    ) -> Result<Option<ActantialContext>, RepoError>;
+    async fn save_actantial_context(
+        &self,
+        id: CharacterId,
+        context: &ActantialContext,
+    ) -> Result<(), RepoError>;
+
     // NPC-Region relationships (for staging suggestions)
     /// Get all region relationships for a character (home, work, frequents, avoids)
-    async fn get_region_relationships(&self, id: CharacterId) -> Result<Vec<NpcRegionRelationship>, RepoError>;
+    async fn get_region_relationships(
+        &self,
+        id: CharacterId,
+    ) -> Result<Vec<NpcRegionRelationship>, RepoError>;
     /// Set an NPC's home region
     async fn set_home_region(&self, id: CharacterId, region_id: RegionId) -> Result<(), RepoError>;
     /// Set an NPC's work region with optional shift (day/night/always)
-    async fn set_work_region(&self, id: CharacterId, region_id: RegionId, shift: Option<String>) -> Result<(), RepoError>;
+    async fn set_work_region(
+        &self,
+        id: CharacterId,
+        region_id: RegionId,
+        shift: Option<String>,
+    ) -> Result<(), RepoError>;
     /// Add a region the NPC frequents with frequency (always/often/sometimes/rarely)
-    async fn add_frequents_region(&self, id: CharacterId, region_id: RegionId, frequency: String, time_of_day: Option<String>) -> Result<(), RepoError>;
+    async fn add_frequents_region(
+        &self,
+        id: CharacterId,
+        region_id: RegionId,
+        frequency: String,
+        time_of_day: Option<String>,
+    ) -> Result<(), RepoError>;
     /// Add a region the NPC avoids
-    async fn add_avoids_region(&self, id: CharacterId, region_id: RegionId, reason: Option<String>) -> Result<(), RepoError>;
+    async fn add_avoids_region(
+        &self,
+        id: CharacterId,
+        region_id: RegionId,
+        reason: Option<String>,
+    ) -> Result<(), RepoError>;
     /// Remove a region relationship
-    async fn remove_region_relationship(&self, id: CharacterId, region_id: RegionId, relationship_type: &str) -> Result<(), RepoError>;
+    async fn remove_region_relationship(
+        &self,
+        id: CharacterId,
+        region_id: RegionId,
+        relationship_type: &str,
+    ) -> Result<(), RepoError>;
     /// Get NPCs that have any relationship to a region (for staging suggestions)
-    async fn get_npcs_for_region(&self, region_id: RegionId) -> Result<Vec<NpcWithRegionInfo>, RepoError>;
+    async fn get_npcs_for_region(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<NpcWithRegionInfo>, RepoError>;
 }
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait PlayerCharacterRepo: Send + Sync {
     async fn get(&self, id: PlayerCharacterId) -> Result<Option<PlayerCharacter>, RepoError>;
     async fn save(&self, pc: &PlayerCharacter) -> Result<(), RepoError>;
     async fn delete(&self, id: PlayerCharacterId) -> Result<(), RepoError>;
     async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<PlayerCharacter>, RepoError>;
-    async fn get_by_user(&self, world_id: WorldId, user_id: &str) -> Result<Option<PlayerCharacter>, RepoError>;
-    async fn update_position(&self, id: PlayerCharacterId, location_id: LocationId, region_id: RegionId) -> Result<(), RepoError>;
+    async fn get_by_user(
+        &self,
+        world_id: WorldId,
+        user_id: &str,
+    ) -> Result<Option<PlayerCharacter>, RepoError>;
+    async fn update_position(
+        &self,
+        id: PlayerCharacterId,
+        location_id: LocationId,
+        region_id: RegionId,
+    ) -> Result<(), RepoError>;
     async fn get_inventory(&self, id: PlayerCharacterId) -> Result<Vec<Item>, RepoError>;
-    
+
     // Inventory management
-    async fn add_to_inventory(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<(), RepoError>;
-    async fn remove_from_inventory(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<(), RepoError>;
-    
+    async fn add_to_inventory(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<(), RepoError>;
+    async fn remove_from_inventory(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<(), RepoError>;
+
     /// Modify a stat on a player character (for ModifyCharacterStat trigger)
-    async fn modify_stat(&self, id: PlayerCharacterId, stat: &str, modifier: i32) -> Result<(), RepoError>;
+    async fn modify_stat(
+        &self,
+        id: PlayerCharacterId,
+        stat: &str,
+        modifier: i32,
+    ) -> Result<(), RepoError>;
 }
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait LocationRepo: Send + Sync {
     // Location CRUD
@@ -188,21 +255,31 @@ pub trait LocationRepo: Send + Sync {
     async fn save_location(&self, location: &Location) -> Result<(), RepoError>;
     async fn delete_location(&self, id: LocationId) -> Result<(), RepoError>;
     async fn list_locations_in_world(&self, world_id: WorldId) -> Result<Vec<Location>, RepoError>;
-    
+
     // Region CRUD
     async fn get_region(&self, id: RegionId) -> Result<Option<Region>, RepoError>;
     async fn save_region(&self, region: &Region) -> Result<(), RepoError>;
     async fn delete_region(&self, id: RegionId) -> Result<(), RepoError>;
-    async fn list_regions_in_location(&self, location_id: LocationId) -> Result<Vec<Region>, RepoError>;
-    
+    async fn list_regions_in_location(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Vec<Region>, RepoError>;
+
     // Connections
-    async fn get_connections(&self, region_id: RegionId) -> Result<Vec<RegionConnection>, RepoError>;
+    async fn get_connections(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<RegionConnection>, RepoError>;
     async fn save_connection(&self, connection: &RegionConnection) -> Result<(), RepoError>;
-    
+
     // Location connections (exits)
-    async fn get_location_exits(&self, location_id: LocationId) -> Result<Vec<LocationConnection>, RepoError>;
+    async fn get_location_exits(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Vec<LocationConnection>, RepoError>;
 }
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait SceneRepo: Send + Sync {
     async fn get(&self, id: SceneId) -> Result<Option<Scene>, RepoError>;
@@ -211,18 +288,37 @@ pub trait SceneRepo: Send + Sync {
     async fn get_current(&self, world_id: WorldId) -> Result<Option<Scene>, RepoError>;
     async fn set_current(&self, world_id: WorldId, scene_id: SceneId) -> Result<(), RepoError>;
     async fn list_for_region(&self, region_id: RegionId) -> Result<Vec<Scene>, RepoError>;
-    async fn get_featured_characters(&self, scene_id: SceneId) -> Result<Vec<CharacterId>, RepoError>;
-    async fn set_featured_characters(&self, scene_id: SceneId, characters: &[CharacterId]) -> Result<(), RepoError>;
-    
+    async fn get_featured_characters(
+        &self,
+        scene_id: SceneId,
+    ) -> Result<Vec<CharacterId>, RepoError>;
+    async fn set_featured_characters(
+        &self,
+        scene_id: SceneId,
+        characters: &[CharacterId],
+    ) -> Result<(), RepoError>;
+
     // Completed scene tracking for scene resolution
     /// Check if a PC has completed a specific scene.
-    async fn has_completed_scene(&self, pc_id: PlayerCharacterId, scene_id: SceneId) -> Result<bool, RepoError>;
+    async fn has_completed_scene(
+        &self,
+        pc_id: PlayerCharacterId,
+        scene_id: SceneId,
+    ) -> Result<bool, RepoError>;
     /// Mark a scene as completed for a PC.
-    async fn mark_scene_completed(&self, pc_id: PlayerCharacterId, scene_id: SceneId) -> Result<(), RepoError>;
+    async fn mark_scene_completed(
+        &self,
+        pc_id: PlayerCharacterId,
+        scene_id: SceneId,
+    ) -> Result<(), RepoError>;
     /// Get all completed scene IDs for a PC.
-    async fn get_completed_scenes(&self, pc_id: PlayerCharacterId) -> Result<Vec<SceneId>, RepoError>;
+    async fn get_completed_scenes(
+        &self,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<SceneId>, RepoError>;
 }
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait ChallengeRepo: Send + Sync {
     async fn get(&self, id: ChallengeId) -> Result<Option<Challenge>, RepoError>;
@@ -235,7 +331,10 @@ pub trait ChallengeRepo: Send + Sync {
     async fn set_enabled(&self, id: ChallengeId, enabled: bool) -> Result<(), RepoError>;
     /// Get all resolved (inactive) challenge IDs in a world.
     /// Used for trigger context building.
-    async fn get_resolved_challenges(&self, world_id: WorldId) -> Result<Vec<ChallengeId>, RepoError>;
+    async fn get_resolved_challenges(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<ChallengeId>, RepoError>;
 }
 
 #[async_trait]
@@ -244,19 +343,26 @@ pub trait NarrativeRepo: Send + Sync {
     async fn get_event(&self, id: NarrativeEventId) -> Result<Option<NarrativeEvent>, RepoError>;
     async fn save_event(&self, event: &NarrativeEvent) -> Result<(), RepoError>;
     async fn delete_event(&self, id: NarrativeEventId) -> Result<(), RepoError>;
-    async fn list_events_for_world(&self, world_id: WorldId) -> Result<Vec<NarrativeEvent>, RepoError>;
-    
+    async fn list_events_for_world(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<NarrativeEvent>, RepoError>;
+
     // Event chains
     async fn get_chain(&self, id: EventChainId) -> Result<Option<EventChain>, RepoError>;
     async fn save_chain(&self, chain: &EventChain) -> Result<(), RepoError>;
     async fn delete_chain(&self, id: EventChainId) -> Result<(), RepoError>;
-    
+
     // Story events
     async fn get_story_event(&self, id: StoryEventId) -> Result<Option<StoryEvent>, RepoError>;
     async fn save_story_event(&self, event: &StoryEvent) -> Result<(), RepoError>;
     async fn delete_story_event(&self, id: StoryEventId) -> Result<(), RepoError>;
-    async fn list_story_events(&self, world_id: WorldId, limit: usize) -> Result<Vec<StoryEvent>, RepoError>;
-    
+    async fn list_story_events(
+        &self,
+        world_id: WorldId,
+        limit: usize,
+    ) -> Result<Vec<StoryEvent>, RepoError>;
+
     // Dialogue history
     /// Get dialogue exchanges between a PC and NPC (reverse chronological order).
     async fn get_dialogues_with_npc(
@@ -265,7 +371,7 @@ pub trait NarrativeRepo: Send + Sync {
         npc_id: CharacterId,
         limit: usize,
     ) -> Result<Vec<StoryEvent>, RepoError>;
-    
+
     /// Update or create SPOKE_TO relationship between PC and NPC.
     /// Tracks last dialogue timestamp, topic, and increments conversation count.
     async fn update_spoke_to(
@@ -275,62 +381,115 @@ pub trait NarrativeRepo: Send + Sync {
         timestamp: chrono::DateTime<chrono::Utc>,
         last_topic: Option<String>,
     ) -> Result<(), RepoError>;
-    
+
     // Triggers
-    async fn get_triggers_for_region(&self, region_id: RegionId) -> Result<Vec<NarrativeEvent>, RepoError>;
-    
+    async fn get_triggers_for_region(
+        &self,
+        world_id: WorldId,
+        region_id: RegionId,
+    ) -> Result<Vec<NarrativeEvent>, RepoError>;
+
     // Event management for effect execution
     /// Set a narrative event's active status (for EnableEvent/DisableEvent effects)
     async fn set_event_active(&self, id: NarrativeEventId, active: bool) -> Result<(), RepoError>;
-    
+
     /// Get all completed event IDs from all event chains in a world.
     /// Used for trigger context building.
-    async fn get_completed_events(&self, world_id: WorldId) -> Result<Vec<NarrativeEventId>, RepoError>;
+    async fn get_completed_events(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<NarrativeEventId>, RepoError>;
 }
 
 #[async_trait]
 pub trait StagingRepo: Send + Sync {
     async fn get_staged_npcs(&self, region_id: RegionId) -> Result<Vec<StagedNpc>, RepoError>;
-    async fn stage_npc(&self, region_id: RegionId, character_id: CharacterId) -> Result<(), RepoError>;
-    async fn unstage_npc(&self, region_id: RegionId, character_id: CharacterId) -> Result<(), RepoError>;
+    async fn stage_npc(
+        &self,
+        region_id: RegionId,
+        character_id: CharacterId,
+    ) -> Result<(), RepoError>;
+    async fn unstage_npc(
+        &self,
+        region_id: RegionId,
+        character_id: CharacterId,
+    ) -> Result<(), RepoError>;
     async fn get_pending_staging(&self, world_id: WorldId) -> Result<Vec<Staging>, RepoError>;
     async fn save_pending_staging(&self, staging: &Staging) -> Result<(), RepoError>;
     async fn delete_pending_staging(&self, id: StagingId) -> Result<(), RepoError>;
-    
+
     /// Get active staging for a region, checking TTL expiry.
     /// Returns None if no staging exists or if the current staging is expired.
-    async fn get_active_staging(&self, region_id: RegionId, current_game_time: DateTime<Utc>) -> Result<Option<Staging>, RepoError>;
-    
+    async fn get_active_staging(
+        &self,
+        region_id: RegionId,
+        current_game_time: DateTime<Utc>,
+    ) -> Result<Option<Staging>, RepoError>;
+
     /// Activate a staging (after DM approval), replacing any existing current staging.
-    async fn activate_staging(&self, staging_id: StagingId, region_id: RegionId) -> Result<(), RepoError>;
-    
+    async fn activate_staging(
+        &self,
+        staging_id: StagingId,
+        region_id: RegionId,
+    ) -> Result<(), RepoError>;
+
     /// Get staging history for a region (most recent first, limited).
     /// Returns past stagings that are no longer active.
-    async fn get_staging_history(&self, region_id: RegionId, limit: usize) -> Result<Vec<Staging>, RepoError>;
-    
+    async fn get_staging_history(
+        &self,
+        region_id: RegionId,
+        limit: usize,
+    ) -> Result<Vec<Staging>, RepoError>;
+
     // =========================================================================
     // Mood Operations (Tier 2 of three-tier emotional model)
     // =========================================================================
-    
+
     /// Get an NPC's current mood in a region's active staging.
     /// Returns the NPC's default_mood if not staged or no mood override set.
-    async fn get_npc_mood(&self, region_id: RegionId, npc_id: CharacterId) -> Result<MoodState, RepoError>;
-    
+    async fn get_npc_mood(
+        &self,
+        region_id: RegionId,
+        npc_id: CharacterId,
+    ) -> Result<MoodState, RepoError>;
+
     /// Set an NPC's mood in a region's active staging.
     /// Creates or updates the mood property on the INCLUDES_NPC edge.
-    async fn set_npc_mood(&self, region_id: RegionId, npc_id: CharacterId, mood: MoodState) -> Result<(), RepoError>;
+    async fn set_npc_mood(
+        &self,
+        region_id: RegionId,
+        npc_id: CharacterId,
+        mood: MoodState,
+    ) -> Result<(), RepoError>;
 }
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait ObservationRepo: Send + Sync {
-    async fn get_observations(&self, pc_id: PlayerCharacterId) -> Result<Vec<NpcObservation>, RepoError>;
+    async fn get_observations(
+        &self,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<NpcObservation>, RepoError>;
     async fn save_observation(&self, observation: &NpcObservation) -> Result<(), RepoError>;
-    async fn delete_observation(&self, pc_id: PlayerCharacterId, target_id: CharacterId) -> Result<(), RepoError>;
-    async fn has_observed(&self, pc_id: PlayerCharacterId, target_id: CharacterId) -> Result<bool, RepoError>;
+    async fn delete_observation(
+        &self,
+        pc_id: PlayerCharacterId,
+        target_id: CharacterId,
+    ) -> Result<(), RepoError>;
+    async fn has_observed(
+        &self,
+        pc_id: PlayerCharacterId,
+        target_id: CharacterId,
+    ) -> Result<bool, RepoError>;
     /// Save deduced information from a challenge (for RevealInformation trigger)
-    async fn save_deduced_info(&self, pc_id: PlayerCharacterId, info: String) -> Result<(), RepoError>;
+    async fn save_deduced_info(
+        &self,
+        pc_id: PlayerCharacterId,
+        info: String,
+    ) -> Result<(), RepoError>;
 }
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait ItemRepo: Send + Sync {
     async fn get(&self, id: ItemId) -> Result<Option<Item>, RepoError>;
@@ -338,11 +497,19 @@ pub trait ItemRepo: Send + Sync {
     async fn delete(&self, id: ItemId) -> Result<(), RepoError>;
     async fn list_in_region(&self, region_id: RegionId) -> Result<Vec<Item>, RepoError>;
     async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<Item>, RepoError>;
-    
+
     // Equipment management (EQUIPPED_BY edge)
-    async fn set_equipped(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<(), RepoError>;
-    async fn set_unequipped(&self, pc_id: PlayerCharacterId, item_id: ItemId) -> Result<(), RepoError>;
-    
+    async fn set_equipped(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<(), RepoError>;
+    async fn set_unequipped(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<(), RepoError>;
+
     // Region placement (IN_REGION edge for dropped items)
     async fn place_in_region(&self, item_id: ItemId, region_id: RegionId) -> Result<(), RepoError>;
     async fn remove_from_region(&self, item_id: ItemId) -> Result<(), RepoError>;
@@ -362,22 +529,49 @@ pub trait LoreRepo: Send + Sync {
     async fn get(&self, id: LoreId) -> Result<Option<Lore>, RepoError>;
     async fn save(&self, lore: &Lore) -> Result<(), RepoError>;
     async fn delete(&self, id: LoreId) -> Result<(), RepoError>;
-    
+
     // Queries
     async fn list_for_world(&self, world_id: WorldId) -> Result<Vec<Lore>, RepoError>;
-    async fn list_by_category(&self, world_id: WorldId, category: LoreCategory) -> Result<Vec<Lore>, RepoError>;
+    async fn list_by_category(
+        &self,
+        world_id: WorldId,
+        category: LoreCategory,
+    ) -> Result<Vec<Lore>, RepoError>;
     async fn list_common_knowledge(&self, world_id: WorldId) -> Result<Vec<Lore>, RepoError>;
-    async fn search_by_tags(&self, world_id: WorldId, tags: &[String]) -> Result<Vec<Lore>, RepoError>;
-    
+    async fn search_by_tags(
+        &self,
+        world_id: WorldId,
+        tags: &[String],
+    ) -> Result<Vec<Lore>, RepoError>;
+
     // Knowledge management
     async fn grant_knowledge(&self, knowledge: &LoreKnowledge) -> Result<(), RepoError>;
-    async fn revoke_knowledge(&self, character_id: CharacterId, lore_id: LoreId) -> Result<(), RepoError>;
-    async fn get_character_knowledge(&self, character_id: CharacterId) -> Result<Vec<LoreKnowledge>, RepoError>;
-    async fn get_knowledge_for_lore(&self, lore_id: LoreId) -> Result<Vec<LoreKnowledge>, RepoError>;
-    async fn character_knows_lore(&self, character_id: CharacterId, lore_id: LoreId) -> Result<Option<LoreKnowledge>, RepoError>;
-    
+    async fn revoke_knowledge(
+        &self,
+        character_id: CharacterId,
+        lore_id: LoreId,
+    ) -> Result<(), RepoError>;
+    async fn get_character_knowledge(
+        &self,
+        character_id: CharacterId,
+    ) -> Result<Vec<LoreKnowledge>, RepoError>;
+    async fn get_knowledge_for_lore(
+        &self,
+        lore_id: LoreId,
+    ) -> Result<Vec<LoreKnowledge>, RepoError>;
+    async fn character_knows_lore(
+        &self,
+        character_id: CharacterId,
+        lore_id: LoreId,
+    ) -> Result<Option<LoreKnowledge>, RepoError>;
+
     // Add chunks to existing knowledge
-    async fn add_chunks_to_knowledge(&self, character_id: CharacterId, lore_id: LoreId, chunk_ids: &[LoreChunkId]) -> Result<(), RepoError>;
+    async fn add_chunks_to_knowledge(
+        &self,
+        character_id: CharacterId,
+        lore_id: LoreId,
+        chunk_ids: &[LoreChunkId],
+    ) -> Result<(), RepoError>;
 }
 
 #[async_trait]
@@ -386,14 +580,25 @@ pub trait LocationStateRepo: Send + Sync {
     async fn get(&self, id: LocationStateId) -> Result<Option<LocationState>, RepoError>;
     async fn save(&self, state: &LocationState) -> Result<(), RepoError>;
     async fn delete(&self, id: LocationStateId) -> Result<(), RepoError>;
-    
+
     // Queries
-    async fn list_for_location(&self, location_id: LocationId) -> Result<Vec<LocationState>, RepoError>;
-    async fn get_default(&self, location_id: LocationId) -> Result<Option<LocationState>, RepoError>;
-    
+    async fn list_for_location(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Vec<LocationState>, RepoError>;
+    async fn get_default(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Option<LocationState>, RepoError>;
+
     // Active state management
-    async fn set_active(&self, location_id: LocationId, state_id: LocationStateId) -> Result<(), RepoError>;
-    async fn get_active(&self, location_id: LocationId) -> Result<Option<LocationState>, RepoError>;
+    async fn set_active(
+        &self,
+        location_id: LocationId,
+        state_id: LocationStateId,
+    ) -> Result<(), RepoError>;
+    async fn get_active(&self, location_id: LocationId)
+        -> Result<Option<LocationState>, RepoError>;
     async fn clear_active(&self, location_id: LocationId) -> Result<(), RepoError>;
 }
 
@@ -403,13 +608,17 @@ pub trait RegionStateRepo: Send + Sync {
     async fn get(&self, id: RegionStateId) -> Result<Option<RegionState>, RepoError>;
     async fn save(&self, state: &RegionState) -> Result<(), RepoError>;
     async fn delete(&self, id: RegionStateId) -> Result<(), RepoError>;
-    
+
     // Queries
     async fn list_for_region(&self, region_id: RegionId) -> Result<Vec<RegionState>, RepoError>;
     async fn get_default(&self, region_id: RegionId) -> Result<Option<RegionState>, RepoError>;
-    
+
     // Active state management
-    async fn set_active(&self, region_id: RegionId, state_id: RegionStateId) -> Result<(), RepoError>;
+    async fn set_active(
+        &self,
+        region_id: RegionId,
+        state_id: RegionStateId,
+    ) -> Result<(), RepoError>;
     async fn get_active(&self, region_id: RegionId) -> Result<Option<RegionState>, RepoError>;
     async fn clear_active(&self, region_id: RegionId) -> Result<(), RepoError>;
 }
@@ -649,16 +858,22 @@ pub trait QueuePort: Send + Sync {
     async fn dequeue_dm_approval(&self) -> Result<Option<QueueItem>, QueueError>;
 
     // Asset generation queue
-    async fn enqueue_asset_generation(&self, data: &AssetGenerationData) -> Result<Uuid, QueueError>;
+    async fn enqueue_asset_generation(
+        &self,
+        data: &AssetGenerationData,
+    ) -> Result<Uuid, QueueError>;
     async fn dequeue_asset_generation(&self) -> Result<Option<QueueItem>, QueueError>;
 
     // Common operations
     async fn mark_complete(&self, id: Uuid) -> Result<(), QueueError>;
     async fn mark_failed(&self, id: Uuid, error: &str) -> Result<(), QueueError>;
     async fn get_pending_count(&self, queue_type: &str) -> Result<usize, QueueError>;
-    
+
     /// Get an approval request by ID (for extracting NPC info when processing decision)
-    async fn get_approval_request(&self, id: Uuid) -> Result<Option<ApprovalRequestData>, QueueError>;
+    async fn get_approval_request(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<ApprovalRequestData>, QueueError>;
 }
 
 // =============================================================================
@@ -670,33 +885,47 @@ pub trait QueuePort: Send + Sync {
 pub trait FlagRepo: Send + Sync {
     /// Get all set flags for a world (world-scoped flags).
     async fn get_world_flags(&self, world_id: WorldId) -> Result<Vec<String>, RepoError>;
-    
+
     /// Get all set flags for a player character (PC-scoped flags).
     async fn get_pc_flags(&self, pc_id: PlayerCharacterId) -> Result<Vec<String>, RepoError>;
-    
+
     /// Set a world-scoped flag.
     async fn set_world_flag(&self, world_id: WorldId, flag_name: &str) -> Result<(), RepoError>;
-    
+
     /// Unset a world-scoped flag.
     async fn unset_world_flag(&self, world_id: WorldId, flag_name: &str) -> Result<(), RepoError>;
-    
+
     /// Set a PC-scoped flag.
-    async fn set_pc_flag(&self, pc_id: PlayerCharacterId, flag_name: &str) -> Result<(), RepoError>;
-    
+    async fn set_pc_flag(&self, pc_id: PlayerCharacterId, flag_name: &str)
+        -> Result<(), RepoError>;
+
     /// Unset a PC-scoped flag.
-    async fn unset_pc_flag(&self, pc_id: PlayerCharacterId, flag_name: &str) -> Result<(), RepoError>;
-    
+    async fn unset_pc_flag(
+        &self,
+        pc_id: PlayerCharacterId,
+        flag_name: &str,
+    ) -> Result<(), RepoError>;
+
     /// Check if a world-scoped flag is set.
-    async fn is_world_flag_set(&self, world_id: WorldId, flag_name: &str) -> Result<bool, RepoError>;
-    
+    async fn is_world_flag_set(
+        &self,
+        world_id: WorldId,
+        flag_name: &str,
+    ) -> Result<bool, RepoError>;
+
     /// Check if a PC-scoped flag is set.
-    async fn is_pc_flag_set(&self, pc_id: PlayerCharacterId, flag_name: &str) -> Result<bool, RepoError>;
+    async fn is_pc_flag_set(
+        &self,
+        pc_id: PlayerCharacterId,
+        flag_name: &str,
+    ) -> Result<bool, RepoError>;
 }
 
 // =============================================================================
 // Testability Ports
 // =============================================================================
 
+#[cfg_attr(test, mockall::automock)]
 pub trait ClockPort: Send + Sync {
     fn now(&self) -> DateTime<Utc>;
 }
@@ -705,5 +934,3 @@ pub trait RandomPort: Send + Sync {
     fn gen_range(&self, min: i32, max: i32) -> i32;
     fn gen_uuid(&self) -> Uuid;
 }
-
-

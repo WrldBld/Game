@@ -125,10 +125,7 @@ fn arch_check() -> anyhow::Result<()> {
     step("no-cross-crate-shims", check_no_cross_crate_shims)?;
     step("handler-complexity", check_handler_complexity)?;
     step("use-case-layer", check_use_case_layer)?;
-    step(
-        "engine-app-protocol-isolation",
-        check_engine_app_protocol_isolation,
-    )?;
+    step("engine-protocol-isolation", check_engine_protocol_isolation)?;
     step(
         "engine-ports-protocol-isolation",
         check_engine_ports_protocol_isolation,
@@ -151,7 +148,7 @@ fn arch_check() -> anyhow::Result<()> {
         check_no_engine_dto_shadowing_engine_ports_types,
     )?;
     step(
-        "engine-app-no-internal-service-construction",
+        "engine-no-internal-service-construction",
         check_engine_app_no_internal_service_construction,
     )?;
     step(
@@ -486,18 +483,19 @@ fn check_engine_runner_composition_no_world_connection_manager_imports() -> anyh
     Ok(())
 }
 
-/// Phase 6: enforce IoC rule that application-layer code (engine-app) does not
-/// construct other services internally.
+/// Phase 6: legacy IoC check retained for simplified architecture.
 ///
-/// Specifically: forbid `*Service::new(...)` in `crates/engine-app/src/application/**`
-/// outside of `#[cfg(test)]` items.
+/// Historically this enforced that application-layer code (engine-app) did not construct
+/// other services internally. With the monolithic `engine` crate, we keep the same check
+/// as a guardrail: forbid `*Service::new(...)` in `crates/engine/src/**` outside of
+/// `#[cfg(test)]` items.
 fn check_engine_app_no_internal_service_construction() -> anyhow::Result<()> {
     let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(|p| p.parent())
         .context("finding workspace root")?;
 
-    let app_dir = workspace_root.join("crates/engine-app/src/application");
+    let app_dir = workspace_root.join("crates/engine/src");
     if !app_dir.exists() {
         return Ok(());
     }
@@ -1098,13 +1096,13 @@ fn check_no_cross_crate_shims() -> anyhow::Result<()> {
         .and_then(|p| p.parent())
         .context("finding workspace root")?;
 
-    // Enforce across the whole workspace *except* the owning crates.
-    // (Owning crates may legitimately `pub use` their own internals.)
+    // Enforce across the workspace.
+    // (Owning crates may legitimately `pub use` their own internals; this check only
+    // targets cross-crate re-export/alias patterns like `pub use wrldbldr_*::...`.)
     let enforced_dirs = [
-        workspace_root.join("crates/engine-runner/src"),
-        workspace_root.join("crates/engine-app/src"),
-        workspace_root.join("crates/engine-adapters/src"),
-        workspace_root.join("crates/engine-ports/src"),
+        workspace_root.join("crates/domain/src"),
+        workspace_root.join("crates/protocol/src"),
+        workspace_root.join("crates/engine/src"),
         workspace_root.join("crates/player-app/src"),
         workspace_root.join("crates/player-adapters/src"),
         workspace_root.join("crates/player-ports/src"),
@@ -1286,17 +1284,17 @@ fn check_handler_complexity() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Check that use cases don't import protocol types (ServerMessage, ClientMessage)
+/// Check that engine use cases don't import protocol message enums (ServerMessage, ClientMessage)
 ///
-/// Use cases in engine-app/src/application/use_cases/ should return domain types,
-/// not protocol messages. The errors.rs file is exempt as it provides conversion helpers.
+/// Use cases in crates/engine/src/use_cases/ should return domain-centric results,
+/// not wire-format protocol messages.
 fn check_use_case_layer() -> anyhow::Result<()> {
     let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(|p| p.parent())
         .context("finding workspace root")?;
 
-    let use_cases_dir = workspace_root.join("crates/engine-app/src/application/use_cases");
+    let use_cases_dir = workspace_root.join("crates/engine/src/use_cases");
 
     if !use_cases_dir.exists() {
         // No use cases directory - this is expected early in development
@@ -1312,7 +1310,7 @@ fn check_use_case_layer() -> anyhow::Result<()> {
         regex_lite::Regex::new(r"use\s+wrldbldr_protocol::[^;]*ClientMessage")?;
 
     // Files exempt from protocol import checks
-    let exempt_files: HashSet<&str> = ["mod.rs", "errors.rs"].into_iter().collect();
+    let exempt_files: HashSet<&str> = ["mod.rs"].into_iter().collect();
 
     let mut violations = Vec::new();
 
@@ -1356,18 +1354,23 @@ fn check_use_case_layer() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Check that engine-app application layer doesn't import wrldbldr_protocol directly.
+/// Check that engine internal layers don't import `wrldbldr_protocol` directly.
 ///
-/// The application layer (use_cases, services, dto, handlers) should work with domain types,
-/// not protocol types. Only mod.rs files are exempt.
-fn check_engine_app_protocol_isolation() -> anyhow::Result<()> {
+/// The protocol crate is a wire format; only the API boundary should use it.
+/// Concretely: forbid `wrldbldr_protocol` usage in `crates/engine/src/{entities,use_cases,infrastructure}`.
+fn check_engine_protocol_isolation() -> anyhow::Result<()> {
     let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(|p| p.parent())
         .context("finding workspace root")?;
 
-    // Directories to check within engine-app/src/application/
-    let check_dirs = ["use_cases", "services", "dto", "handlers"];
+    let engine_src = workspace_root.join("crates/engine/src");
+    if !engine_src.exists() {
+        return Ok(());
+    }
+
+    // Directories to check within engine/src/ (API boundary is exempt)
+    let check_dirs = ["entities", "use_cases", "infrastructure"];
 
     // Patterns that indicate protocol usage
     let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_protocol::")?;
@@ -1376,7 +1379,7 @@ fn check_engine_app_protocol_isolation() -> anyhow::Result<()> {
     let mut violations = Vec::new();
 
     for dir_name in check_dirs {
-        let dir = workspace_root.join(format!("crates/engine-app/src/application/{}", dir_name));
+        let dir = engine_src.join(dir_name);
 
         if !dir.exists() {
             continue;
@@ -1385,24 +1388,8 @@ fn check_engine_app_protocol_isolation() -> anyhow::Result<()> {
         for entry in walkdir_rs_files(&dir)? {
             let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-            // Exempt files:
-            // - mod.rs: Module declarations only
-            // - request_handler.rs: Documented exemption - implements RequestHandler trait from ports
-            // - common.rs: Contains helpers for request_handler.rs
-            // - *_handler.rs: Domain-specific handlers that receive protocol types at the boundary
-            // - rule_system.rs: DTO re-exports from protocol (backwards compatibility layer)
-            // - workflow.rs: DTO conversion functions using WorkflowService
-            // - workflow_service.rs: Uses WorkflowConfigExportDto for import/export
-            // - generation_queue_projection_service.rs: Builds DTO snapshots for output
-            if file_name == "mod.rs"
-                || file_name == "request_handler.rs"
-                || file_name == "common.rs"
-                || file_name.ends_with("_handler.rs")
-                || file_name == "rule_system.rs"
-                || file_name == "workflow.rs"
-                || file_name == "workflow_service.rs"
-                || file_name == "generation_queue_projection_service.rs"
-            {
+            // Exempt module declarations only.
+            if file_name == "mod.rs" {
                 continue;
             }
 
@@ -1435,11 +1422,11 @@ fn check_engine_app_protocol_isolation() -> anyhow::Result<()> {
     }
 
     if !violations.is_empty() {
-        eprintln!("Engine-app protocol isolation violations:");
+        eprintln!("Engine protocol isolation violations:");
         for v in &violations {
             eprintln!("  - {v}");
         }
-        anyhow::bail!("arch-check failed: engine-app application layer imports protocol types");
+        anyhow::bail!("arch-check failed: engine internal layers import protocol types");
     }
 
     Ok(())
@@ -1850,37 +1837,25 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
     // with comments indicating which are dev-only.
     //
     // Architecture Simplification (2026-01):
-    // - wrldbldr-domain-types merged into wrldbldr-domain
-    // - wrldbldr-common merged into wrldbldr-domain
-    // - wrldbldr-engine-dto merged into wrldbldr-engine-ports
-    // - wrldbldr-engine-composition merged into wrldbldr-engine-runner
+    // Engine is now a single crate (`wrldbldr-engine`).
+    // Player is still split (ports/app/adapters/ui/runner) for now.
     HashMap::from([
         // Domain layer: entities, value objects, types, common utilities
         // Zero internal dependencies (innermost layer)
         ("wrldbldr-domain", HashSet::from([])),
         // Protocol (API contract) depends on domain for shared vocabulary
         ("wrldbldr-protocol", HashSet::from(["wrldbldr-domain"])),
-        // Ports layer: trait definitions for infrastructure boundaries
+        // Engine is monolithic (entities/use_cases/infrastructure/api) and only
+        // depends on domain + protocol.
         (
-            "wrldbldr-engine-ports",
-            HashSet::from([
-                "wrldbldr-domain",
-                "wrldbldr-protocol", // For boundary DTOs
-            ]),
+            "wrldbldr-engine",
+            HashSet::from(["wrldbldr-domain", "wrldbldr-protocol"]),
         ),
         (
             "wrldbldr-player-ports",
             HashSet::from(["wrldbldr-domain", "wrldbldr-protocol"]),
         ),
-        // Application layer: services, use cases, handlers
-        (
-            "wrldbldr-engine-app",
-            HashSet::from([
-                "wrldbldr-domain",
-                "wrldbldr-protocol",
-                "wrldbldr-engine-ports",
-            ]),
-        ),
+        // Application layer: services, use cases, handlers (player-side)
         (
             "wrldbldr-player-app",
             HashSet::from([
@@ -1890,16 +1865,7 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
                 "wrldbldr-player-adapters", // dev-dependency for MockGameConnectionPort
             ]),
         ),
-        // Adapters layer: infrastructure implementations
-        (
-            "wrldbldr-engine-adapters",
-            HashSet::from([
-                "wrldbldr-engine-app", // For internal service traits used by wrapper adapters
-                "wrldbldr-engine-ports",
-                "wrldbldr-protocol",
-                "wrldbldr-domain",
-            ]),
-        ),
+        // Adapters layer: infrastructure implementations (player-side)
         (
             "wrldbldr-player-adapters",
             HashSet::from([
@@ -1928,18 +1894,6 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
                 "wrldbldr-player-app",
                 "wrldbldr-player-ports",
                 "wrldbldr-player-adapters",
-            ]),
-        ),
-        // Engine runner is the composition root - needs access to all engine layers
-        // Note: engine-composition has been merged into engine-runner
-        (
-            "wrldbldr-engine-runner",
-            HashSet::from([
-                "wrldbldr-engine-adapters",
-                "wrldbldr-engine-app",
-                "wrldbldr-engine-ports",
-                "wrldbldr-protocol",
-                "wrldbldr-domain",
             ]),
         ),
         ("xtask", HashSet::from([])),

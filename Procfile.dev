@@ -3,7 +3,7 @@
 # Or simply: task dev
 
 # Backend Engine server
-backend: RUST_LOG=info,wrldbldr_engine=debug cargo run -p wrldbldr-engine-runner --bin wrldbldr-engine
+backend: RUST_LOG=info,wrldbldr_engine=debug cargo run -p wrldbldr-engine --bin wrldbldr-engine
 
 # Frontend Player (web/WASM with hot reload)
 # Ensure npm deps exist so tailwindcss is available.

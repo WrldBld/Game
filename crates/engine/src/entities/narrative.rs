@@ -9,7 +9,8 @@ use wrldbldr_domain::{
 };
 
 use crate::infrastructure::ports::{
-    ChallengeRepo, ClockPort, FlagRepo, LocationRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo,
+    ChallengeRepo, ClockPort, FlagRepo, LocationRepo, NarrativeRepo, ObservationRepo,
+    PlayerCharacterRepo, RepoError, SceneRepo,
 };
 
 /// Narrative entity operations.
@@ -73,7 +74,7 @@ impl Narrative {
     }
 
     /// Delete a narrative event by ID.
-    /// 
+    ///
     /// Uses DETACH DELETE to remove all relationships.
     pub async fn delete_event(&self, id: NarrativeEventId) -> Result<(), RepoError> {
         self.repo.delete_event(id).await
@@ -95,7 +96,7 @@ impl Narrative {
     }
 
     /// Delete an event chain by ID.
-    /// 
+    ///
     /// Uses DETACH DELETE to remove all relationships.
     pub async fn delete_chain(&self, id: EventChainId) -> Result<(), RepoError> {
         self.repo.delete_chain(id).await
@@ -117,7 +118,7 @@ impl Narrative {
     }
 
     /// Delete a story event by ID.
-    /// 
+    ///
     /// Uses DETACH DELETE to remove all relationships.
     pub async fn delete_story_event(&self, id: StoryEventId) -> Result<(), RepoError> {
         self.repo.delete_story_event(id).await
@@ -229,9 +230,10 @@ impl Narrative {
 
     pub async fn get_triggers_for_region(
         &self,
+        world_id: WorldId,
         region_id: RegionId,
     ) -> Result<Vec<domain::NarrativeEvent>, RepoError> {
-        self.repo.get_triggers_for_region(region_id).await
+        self.repo.get_triggers_for_region(world_id, region_id).await
     }
 
     /// Set a narrative event's active status.
@@ -255,8 +257,20 @@ impl Narrative {
         region_id: RegionId,
         pc_id: wrldbldr_domain::PlayerCharacterId,
     ) -> Result<Vec<domain::NarrativeEvent>, RepoError> {
-        // Get candidate events for this region
-        let candidates = self.get_triggers_for_region(region_id).await?;
+        // Resolve world context from PC (required for safe trigger queries)
+        let world_id = self
+            .player_character_repo
+            .get(pc_id)
+            .await?
+            .map(|pc| pc.world_id);
+
+        let Some(world_id) = world_id else {
+            tracing::warn!(pc_id = %pc_id, "Missing world_id for trigger evaluation");
+            return Ok(vec![]);
+        };
+
+        // Get candidate events for this region (world-bounded)
+        let candidates = self.get_triggers_for_region(world_id, region_id).await?;
 
         if candidates.is_empty() {
             return Ok(vec![]);
@@ -299,13 +313,7 @@ impl Narrative {
         // Get completed events from event chains in the world
         // Note: This is world-wide rather than PC-specific. A future enhancement
         // would be to track per-PC event completion via PC->Event edges.
-        let world_id = self
-            .player_character_repo
-            .get(pc_id)
-            .await?
-            .map(|pc| pc.world_id);
-        
-        let (completed_events, completed_challenges) = if let Some(world_id) = world_id {
+        let (completed_events, completed_challenges) = {
             let events = match self.repo.get_completed_events(world_id).await {
                 Ok(e) => e,
                 Err(e) => {
@@ -329,57 +337,47 @@ impl Narrative {
                 }
             };
             (events, challenges)
-        } else {
-            (Vec::new(), Vec::new())
         };
 
         // Get flags for this PC (both world and PC-scoped)
-        let flags: HashMap<String, bool> = if let Some(world_id) = world_id {
-            match self.flag_repo.get_world_flags(world_id).await {
-                Ok(world_flags) => {
-                    let pc_flags = self.flag_repo.get_pc_flags(pc_id).await.unwrap_or_default();
-                    // Combine world and PC flags into a HashMap<String, bool>
-                    let mut flag_map = HashMap::new();
-                    for flag in world_flags {
-                        flag_map.insert(flag, true);
-                    }
-                    for flag in pc_flags {
-                        flag_map.insert(flag, true);
-                    }
-                    flag_map
+        let flags: HashMap<String, bool> = match self.flag_repo.get_world_flags(world_id).await {
+            Ok(world_flags) => {
+                let pc_flags = self.flag_repo.get_pc_flags(pc_id).await.unwrap_or_default();
+                // Combine world and PC flags into a HashMap<String, bool>
+                let mut flag_map = HashMap::new();
+                for flag in world_flags {
+                    flag_map.insert(flag, true);
                 }
-                Err(e) => {
-                    tracing::warn!(
-                        world_id = %world_id,
-                        error = %e,
-                        "Failed to fetch flags for trigger evaluation"
-                    );
-                    HashMap::new()
+                for flag in pc_flags {
+                    flag_map.insert(flag, true);
                 }
+                flag_map
             }
-        } else {
-            HashMap::new()
+            Err(e) => {
+                tracing::warn!(
+                    world_id = %world_id,
+                    error = %e,
+                    "Failed to fetch flags for trigger evaluation"
+                );
+                HashMap::new()
+            }
         };
 
         // Get current scene for the world
-        let current_scene: Option<SceneId> = if let Some(world_id) = world_id {
-            match self.scene_repo.get_current(world_id).await {
-                Ok(scene_opt) => scene_opt.map(|s: domain::Scene| s.id),
-                Err(e) => {
-                    tracing::warn!(
-                        world_id = %world_id,
-                        error = %e,
-                        "Failed to fetch current scene for trigger evaluation"
-                    );
-                    None
-                }
+        let current_scene: Option<SceneId> = match self.scene_repo.get_current(world_id).await {
+            Ok(scene_opt) => scene_opt.map(|s: domain::Scene| s.id),
+            Err(e) => {
+                tracing::warn!(
+                    world_id = %world_id,
+                    error = %e,
+                    "Failed to fetch current scene for trigger evaluation"
+                );
+                None
             }
-        } else {
-            None
         };
 
         // Build trigger context with enriched PC state
-        // NOTE: event_outcomes, challenge_successes, turns_since_event, turn_count 
+        // NOTE: event_outcomes, challenge_successes, turns_since_event, turn_count
         // are caller-specific context that cannot be determined here.
         // These should be passed in by callers that have this information.
         let context = TriggerContext {
@@ -389,13 +387,13 @@ impl Narrative {
             flags,
             inventory,
             completed_events,
-            event_outcomes: HashMap::new(),        // Caller responsibility - not stored in DB
-            turns_since_event: HashMap::new(),     // Caller responsibility - session state
+            event_outcomes: HashMap::new(), // Caller responsibility - not stored in DB
+            turns_since_event: HashMap::new(), // Caller responsibility - session state
             completed_challenges,
-            challenge_successes: HashMap::new(),   // TODO: Could query from ChallengeRepo if needed
-            turn_count: 0,                         // Caller responsibility - session state
-            recent_dialogue_topics: Vec::new(),    // Caller responsibility - session state  
-            recent_player_action: None,            // Caller responsibility - session state
+            challenge_successes: HashMap::new(), // TODO: Could query from ChallengeRepo if needed
+            turn_count: 0,                       // Caller responsibility - session state
+            recent_dialogue_topics: Vec::new(),  // Caller responsibility - session state
+            recent_player_action: None,          // Caller responsibility - session state
         };
 
         // Evaluate each candidate and collect triggered events

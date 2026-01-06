@@ -66,12 +66,12 @@ impl StagingRepo for Neo4jStagingRepo {
         .param("character_id", character_id.to_string());
 
         let mut result = self.graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
-        
+
         if result.next().await.map_err(|e| RepoError::Database(e.to_string()))?.is_none() {
             // No current staging exists, create one
             let now = self.clock.now();
             let staging_id = StagingId::new();
-            
+
             // Create new staging and link it
             // Get world_id via Region -> Location (location_id property) -> Location.world_id
             let create_q = query(
@@ -157,8 +157,22 @@ impl StagingRepo for Neo4jStagingRepo {
     /// Save a pending staging for DM approval.
     /// Creates the staging node first, then adds NPC relationships separately (no APOC dependency).
     async fn save_pending_staging(&self, staging: &Staging) -> Result<(), RepoError> {
-        // Step 1: Create Staging node and link to region
-        let create_staging_q = query(
+        let npc_character_ids: Vec<String> = staging
+            .npcs
+            .iter()
+            .map(|n| n.character_id.to_string())
+            .collect();
+        let npc_is_present: Vec<bool> = staging.npcs.iter().map(|n| n.is_present).collect();
+        let npc_is_hidden_from_players: Vec<bool> = staging
+            .npcs
+            .iter()
+            .map(|n| n.is_hidden_from_players)
+            .collect();
+        let npc_reasoning: Vec<String> = staging.npcs.iter().map(|n| n.reasoning.clone()).collect();
+        let npc_mood: Vec<String> = staging.npcs.iter().map(|n| n.mood.to_string()).collect();
+
+        // Create staging and all NPC relationships in one query (no APOC)
+        let q = query(
             "MATCH (r:Region {id: $region_id})
             CREATE (s:Staging {
                 id: $id,
@@ -174,7 +188,15 @@ impl StagingRepo for Neo4jStagingRepo {
                 is_active: $is_active
             })
             CREATE (r)-[:HAS_STAGING]->(s)
-            RETURN s.id as staging_id",
+            WITH s
+            UNWIND range(0, size($npc_character_ids) - 1) as i
+            MATCH (c:Character {id: $npc_character_ids[i]})
+            CREATE (s)-[:INCLUDES_NPC {
+                is_present: $npc_is_present[i],
+                is_hidden_from_players: $npc_is_hidden_from_players[i],
+                reasoning: $npc_reasoning[i],
+                mood: $npc_mood[i]
+            }]->(c)",
         )
         .param("id", staging.id.to_string())
         .param("region_id", staging.region_id.to_string())
@@ -186,32 +208,14 @@ impl StagingRepo for Neo4jStagingRepo {
         .param("approved_by", staging.approved_by.clone())
         .param("source", staging.source.to_string())
         .param("dm_guidance", staging.dm_guidance.clone().unwrap_or_default())
-        .param("is_active", staging.is_active);
+        .param("is_active", staging.is_active)
+        .param("npc_character_ids", npc_character_ids)
+        .param("npc_is_present", npc_is_present)
+        .param("npc_is_hidden_from_players", npc_is_hidden_from_players)
+        .param("npc_reasoning", npc_reasoning)
+        .param("npc_mood", npc_mood);
 
-        self.graph.run(create_staging_q).await.map_err(|e| RepoError::Database(e.to_string()))?;
-
-        // Step 2: Add NPC relationships one at a time (avoids APOC)
-        // This is slightly less efficient but more portable
-        for npc in &staging.npcs {
-            let add_npc_q = query(
-                "MATCH (s:Staging {id: $staging_id})
-                MATCH (c:Character {id: $character_id})
-                CREATE (s)-[:INCLUDES_NPC {
-                    is_present: $is_present,
-                    is_hidden_from_players: $is_hidden_from_players,
-                    reasoning: $reasoning,
-                    mood: $mood
-                }]->(c)",
-            )
-            .param("staging_id", staging.id.to_string())
-            .param("character_id", npc.character_id.to_string())
-            .param("is_present", npc.is_present)
-            .param("is_hidden_from_players", npc.is_hidden_from_players)
-            .param("reasoning", npc.reasoning.clone())
-            .param("mood", npc.mood.to_string());
-
-            self.graph.run(add_npc_q).await.map_err(|e| RepoError::Database(e.to_string()))?;
-        }
+        self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
 
         Ok(())
     }
@@ -227,7 +231,7 @@ impl StagingRepo for Neo4jStagingRepo {
         self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
         Ok(())
     }
-    
+
     /// Get active staging for a region, checking TTL expiry.
     /// Uses a single query with COLLECT to fetch staging and NPCs together (avoids N+1).
     async fn get_active_staging(&self, region_id: RegionId, current_game_time: DateTime<Utc>) -> Result<Option<Staging>, RepoError> {
@@ -250,21 +254,21 @@ impl StagingRepo for Neo4jStagingRepo {
         .param("region_id", region_id.to_string());
 
         let mut result = self.graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
-        
+
         if let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
             let staging = row_to_staging_with_npcs(row, current_game_time)?;
-            
+
             // Check if staging is expired
             if staging.is_expired(&current_game_time) {
                 return Ok(None);
             }
-            
+
             Ok(Some(staging))
         } else {
             Ok(None)
         }
     }
-    
+
     /// Activate a staging, replacing any existing current staging for the region.
     async fn activate_staging(&self, staging_id: StagingId, region_id: RegionId) -> Result<(), RepoError> {
         // Remove existing CURRENT_STAGING relationship and add new one
@@ -283,7 +287,7 @@ impl StagingRepo for Neo4jStagingRepo {
         self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
         Ok(())
     }
-    
+
     /// Get staging history for a region (most recent first).
     async fn get_staging_history(&self, region_id: RegionId, limit: usize) -> Result<Vec<Staging>, RepoError> {
         // Get past stagings that are linked via HAS_STAGING but not CURRENT_STAGING
@@ -320,11 +324,11 @@ impl StagingRepo for Neo4jStagingRepo {
 
         Ok(stagings)
     }
-    
+
     // =========================================================================
     // Mood Operations (Tier 2 of three-tier emotional model)
     // =========================================================================
-    
+
     /// Get an NPC's current mood in a region's active staging.
     /// Returns the NPC's default_mood if not staged or no mood override set.
     async fn get_npc_mood(&self, region_id: RegionId, npc_id: CharacterId) -> Result<MoodState, RepoError> {
@@ -337,7 +341,7 @@ impl StagingRepo for Neo4jStagingRepo {
         .param("npc_id", npc_id.to_string());
 
         let mut result = self.graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
-        
+
         if let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
             let mood_str: String = row.get("mood").unwrap_or_else(|_| "calm".to_string());
             Ok(mood_str.parse().unwrap_or(MoodState::Calm))
@@ -348,9 +352,9 @@ impl StagingRepo for Neo4jStagingRepo {
                 RETURN COALESCE(c.default_mood, 'calm') as mood",
             )
             .param("npc_id", npc_id.to_string());
-            
+
             let mut default_result = self.graph.execute(default_q).await.map_err(|e| RepoError::Database(e.to_string()))?;
-            
+
             if let Some(row) = default_result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
                 let mood_str: String = row.get("mood").unwrap_or_else(|_| "calm".to_string());
                 Ok(mood_str.parse().unwrap_or(MoodState::Calm))
@@ -359,7 +363,7 @@ impl StagingRepo for Neo4jStagingRepo {
             }
         }
     }
-    
+
     /// Set an NPC's mood in a region's active staging.
     /// Creates or updates the mood property on the INCLUDES_NPC edge.
     async fn set_npc_mood(&self, region_id: RegionId, npc_id: CharacterId, mood: MoodState) -> Result<(), RepoError> {
@@ -374,12 +378,12 @@ impl StagingRepo for Neo4jStagingRepo {
         .param("mood", mood.to_string());
 
         let mut result = self.graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
-        
+
         if result.next().await.map_err(|e| RepoError::Database(e.to_string()))?.is_none() {
             // NPC is not staged in this region
             return Err(RepoError::NotFound);
         }
-        
+
         Ok(())
     }
 }

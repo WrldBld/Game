@@ -4,7 +4,7 @@
 //! - Viewing current time and period
 //! - Approving/modifying/skipping time suggestions
 //! - Manually advancing time
-//! - Changing time mode (Manual/Suggested/Auto)
+//! - Changing time mode (Manual/Suggested)
 
 use dioxus::prelude::*;
 
@@ -61,7 +61,6 @@ pub fn TimeControlPanel() -> Element {
                     class: match time_mode {
                         TimeMode::Manual => "text-gray-400",
                         TimeMode::Suggested => "text-blue-400",
-                        TimeMode::Auto => "text-green-400",
                     },
                     "{time_mode.display_name()}"
                 }
@@ -146,7 +145,7 @@ pub fn TimeControlPanel() -> Element {
 fn TimeDisplay(game_time: GameTime) -> Element {
     let period = time_of_day(game_time.clone());
     let time_str = display_time(game_time.clone());
-    let date_str = display_date(game_time.clone());
+    let _date_str = display_date(game_time.clone());
 
     let period_icon = match period {
         crate::presentation::game_time_format::TimeOfDay::Morning => "",

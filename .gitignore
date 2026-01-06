@@ -63,6 +63,10 @@ result-*
 crates/engine-runner/data/*.db
 crates/engine-runner/data/*.db-*
 
+# Engine local runtime data
+crates/engine/*.db
+crates/engine/*.db-*
+
 # Generated CSS (Tailwind output)
 crates/player-ui/assets/css/output.css
 crates/player-ui/assets/css/output.css.map

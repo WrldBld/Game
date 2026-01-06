@@ -5,34 +5,34 @@ This `docs/` directory contains planning docs, roadmaps, and technical specs for
 ## Source Of Truth
 
 - Agent Guidelines + Architecture Rules: `../AGENTS.md`
-- Hexagonal enforcement refactor plan: `progress/HEXAGONAL_ENFORCEMENT_REFACTOR_MASTER_PLAN.md`
 - Feature tracking: `progress/ACTIVE_DEVELOPMENT.md`, `progress/ROADMAP.md`, `progress/MVP.md`
 
 ## Architecture Reference (crate-based)
 
-WrldBldr follows **hexagonal (ports & adapters)** architecture and enforces it primarily via a compile-time crate dependency DAG.
+WrldBldr follows a **simplified hexagonal architecture**:
 
-Quick mental model:
+- Hexagonal boundaries are for _infrastructure that might realistically be swapped_ (DB/LLM/queues/clock/random).
+- Internal engine code calls internal engine code directly as concrete types.
+
+Crates (current):
 
 ```
-Domain  <--  Ports  <--  Application  <--  Adapters  <--  Runner (composition root)
-                                  ^
-                                  |
-                               UI (player only)
+crates/
+   domain/       # Pure business types (entities, value objects, typed IDs)
+   protocol/     # Wire format for Engine <-> Player communication
+   engine/       # All server-side code (including infra implementations)
+   player-*/     # Client-side ports/app/adapters/ui/runner
 ```
 
 Rules:
-- Inner crates must not depend on outer crates.
-- **Port traits only live in** `wrldbldr-engine-ports` / `wrldbldr-player-ports`.
-- **No shim imports**: do not `pub use wrldbldr_*` from other crates and do not `use wrldbldr_* as alias`.
-- Composition roots (`wrldbldr-engine-runner`, `wrldbldr-player-runner`) own adapter construction + wiring.
 
-Enforcement:
-- `cargo xtask arch-check` must stay passing (validates crate DAG + bans shim imports).
+- **No shim imports**: do not `pub use wrldbldr_*` from other workspace crates and do not `use wrldbldr_* as alias`.
+- Keep `cargo xtask arch-check` passing (crate DAG + shim checks).
 
 ## Roadmap / Planning Conventions
 
 When completing work:
+
 - Update `progress/ROADMAP.md` and/or `progress/ACTIVE_DEVELOPMENT.md` status as appropriate.
 - Use format `- [x] Task name (Date completed: YYYY-MM-DD)`.
 

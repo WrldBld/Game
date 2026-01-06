@@ -17,7 +17,7 @@ WrldBldr uses Neo4j as its primary database, storing all entities as nodes and r
 
 ## Node Types
 
-Node labels and properties in this document are intended to reflect the live persistence layer in `crates/engine-adapters/src/infrastructure/persistence/*` and the startup schema bootstrap in `crates/engine-adapters/src/infrastructure/persistence/connection.rs`.
+Node labels and properties in this document are intended to reflect the live persistence layer in `crates/engine/src/infrastructure/neo4j/*`.
 
 ### World Structure
 
@@ -616,7 +616,7 @@ OPTIONAL MATCH (npc)-[work:WORKS_AT]->(workLoc)
 OPTIONAL MATCH (npc)-[freq:FREQUENTS]->(freqLoc)
 OPTIONAL MATCH (npc)-[rel:RELATES_TO]->(other)
 OPTIONAL MATCH (npc)-[poss:POSSESSES]->(item)
-RETURN npc, 
+RETURN npc,
        collect(DISTINCT {want: want, target: target}) as wants,
        collect(DISTINCT helper) as helpers,
        collect(DISTINCT opponent) as opponents
@@ -689,16 +689,16 @@ Engine startup calls `Neo4jConnection::initialize_schema()` which runs a set of 
 
 ## Acceptable JSON Blobs
 
-| Entity | Field | Reason |
-|--------|-------|--------|
-| GridMap | `tiles` | 2D spatial data |
-| CharacterSheetTemplate | `sections` | Deeply nested template |
-| CharacterSheetData | Full sheet | Per ADR-001, form data |
-| WorkflowConfiguration | `workflow_json` | ComfyUI format |
-| RuleSystemConfig | Full config | System configuration |
-| DirectorialNotes | Full notes | Scene metadata |
-| NarrativeEvent | `triggers`, `outcomes` | Complex nested structures |
-| StoryEvent | `event_type` | Discriminated union |
+| Entity                 | Field                  | Reason                    |
+| ---------------------- | ---------------------- | ------------------------- |
+| GridMap                | `tiles`                | 2D spatial data           |
+| CharacterSheetTemplate | `sections`             | Deeply nested template    |
+| CharacterSheetData     | Full sheet             | Per ADR-001, form data    |
+| WorkflowConfiguration  | `workflow_json`        | ComfyUI format            |
+| RuleSystemConfig       | Full config            | System configuration      |
+| DirectorialNotes       | Full notes             | Scene metadata            |
+| NarrativeEvent         | `triggers`, `outcomes` | Complex nested structures |
+| StoryEvent             | `event_type`           | Discriminated union       |
 
 ---
 

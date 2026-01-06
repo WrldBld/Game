@@ -166,7 +166,7 @@ def render_port_taxonomy_block() -> str:
     engine_items = collect_public_items(engine_inbound_dir)
     player_items = collect_public_items(player_inbound_dir)
 
-    engine_usage = scan_inbound_usages([WORKSPACE_ROOT / "crates/engine-app/src"])
+    engine_usage = scan_inbound_usages([WORKSPACE_ROOT / "crates/engine/src"])
     player_usage = scan_inbound_usages(
         [
             WORKSPACE_ROOT / "crates/player-app/src",

@@ -26,15 +26,15 @@ Player Action → Engine Context → LLM Response → DM Approval → State Upda
 
 ## Game Systems
 
-| System | Description | Status |
-|--------|-------------|--------|
-| [Navigation](docs/systems/navigation-system.md) | Locations, regions, movement, game time | Engine ✅ Player ✅ |
-| [Character](docs/systems/character-system.md) | NPCs, PCs, archetypes, actantial model, inventory | Engine ✅ Player ✅ |
-| [Dialogue](docs/systems/dialogue-system.md) | LLM integration, DM approval, tool calls | Engine ✅ Player ✅ |
-| [Challenge](docs/systems/challenge-system.md) | Skill checks, dice, outcomes, rule systems | Engine ✅ Player ✅ |
-| [Narrative](docs/systems/narrative-system.md) | Events, triggers, effects, chains | Engine ✅ Player ✅ |
-| [Scene](docs/systems/scene-system.md) | Visual novel, backdrops, sprites, interactions | Engine ✅ Player ✅ |
-| [Asset](docs/systems/asset-system.md) | ComfyUI, image generation, gallery | Engine ✅ Player ✅ |
+| System                                          | Description                                       | Status              |
+| ----------------------------------------------- | ------------------------------------------------- | ------------------- |
+| [Navigation](docs/systems/navigation-system.md) | Locations, regions, movement, game time           | Engine ✅ Player ✅ |
+| [Character](docs/systems/character-system.md)   | NPCs, PCs, archetypes, actantial model, inventory | Engine ✅ Player ✅ |
+| [Dialogue](docs/systems/dialogue-system.md)     | LLM integration, DM approval, tool calls          | Engine ✅ Player ✅ |
+| [Challenge](docs/systems/challenge-system.md)   | Skill checks, dice, outcomes, rule systems        | Engine ✅ Player ✅ |
+| [Narrative](docs/systems/narrative-system.md)   | Events, triggers, effects, chains                 | Engine ✅ Player ✅ |
+| [Scene](docs/systems/scene-system.md)           | Visual novel, backdrops, sprites, interactions    | Engine ✅ Player ✅ |
+| [Asset](docs/systems/asset-system.md)           | ComfyUI, image generation, gallery                | Engine ✅ Player ✅ |
 
 ---
 
@@ -133,7 +133,7 @@ Player Action → Engine Context → LLM Response → DM Approval → State Upda
 
 ## Architecture Overview
 
-WrldBldr uses **hexagonal (ports & adapters) architecture** to separate business logic from external concerns.
+WrldBldr uses a **simplified hexagonal architecture**: we keep port traits only at true infrastructure boundaries (DB/LLM/queues/clock/random), and internal engine code calls internal engine code directly.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -161,57 +161,53 @@ WrldBldr uses **hexagonal (ports & adapters) architecture** to separate business
 │  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
 │  │              │                  │   │              │                  │     │
 │  │  ┌───────────────────────────┐  │   │  ┌───────────────────────────┐  │     │
-│  │  │   engine-ports            │  │   │  │   player-ports            │  │     │
-│  │  │   100+ trait definitions  │  │   │  │   Port trait definitions  │  │     │
-│  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
-│  │              │                  │   │              │                  │     │
-│  │  ┌───────────────────────────┐  │   │  ┌───────────────────────────┐  │     │
-│  │  │   engine-app              │  │   │  │   player-app              │  │     │
-│  │  │   Services + Use Cases    │  │   │  │   Services + DTOs         │  │     │
-│  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
-│  │              │                  │   │              │                  │     │
-│  │  ┌───────────────────────────┐  │   │  ┌───────────────────────────┐  │     │
-│  │  │   engine-adapters         │  │   │  │   player-adapters         │  │     │
-│  │  │   Neo4j, HTTP, WebSocket  │  │   │  │   HTTP/WS, Platform       │  │     │
-│  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
-│  │              │                  │   │              │                  │     │
-│  │  ┌───────────────────────────┐  │   │  ┌───────────────────────────┐  │     │
-│  │  │   engine-runner           │  │   │  │   player-runner           │  │     │
-│  │  │   Composition root        │  │   │  │   Composition root        │  │     │
-│  │  └───────────────────────────┘  │   │  └───────────────────────────┘  │     │
+│  │  │   engine                  │  │   │  │   player-ports            │  │     │
+│  │  │   entities/use_cases/api  │  │   │  │   Port trait definitions  │  │     │
+│  │  │   infra behind port traits│  │   │  └───────────────────────────┘  │     │
+│  │  └───────────────────────────┘  │   │              │                  │     │
+│  │                                  │   │  ┌───────────────────────────┐  │     │
+│  │                                  │   │  │   player-app              │  │     │
+│  │                                  │   │  │   Client use cases        │  │     │
+│  │                                  │   │  └───────────────────────────┘  │     │
 │  │                                  │   │              │                  │     │
-│  └──────────────────────────────────┘   │  ┌───────────────────────────┐  │     │
-│                                         │  │   player-ui               │  │     │
-│                                         │  │   Dioxus presentation     │  │     │
-│                                         │  └───────────────────────────┘  │     │
-│                                         └─────────────────────────────────┘     │
+│  │                                  │   │  ┌───────────────────────────┐  │     │
+│  │                                  │   │  │   player-adapters         │  │     │
+│  │                                  │   │  │   WS client, storage      │  │     │
+│  │                                  │   │  └───────────────────────────┘  │     │
+│  │                                  │   │              │                  │     │
+│  │                                  │   │  ┌───────────────────────────┐  │     │
+│  │                                  │   │  │   player-ui               │  │     │
+│  │                                  │   │  │   Dioxus presentation     │  │     │
+│  │                                  │   │  └───────────────────────────┘  │     │
+│  │                                  │   │              │                  │     │
+│  │                                  │   │  ┌───────────────────────────┐  │     │
+│  │                                  │   │  │   player-runner           │  │     │
+│  │                                  │   │  │   WASM/desktop entrypoint │  │     │
+│  │                                  │   │  └───────────────────────────┘  │     │
+│  │                                  │   │              │                  │     │
+│  └──────────────────────────────────┘   └─────────────────────────────────┘     │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Crate Overview
 
-| Crate | Layer | Purpose |
-|-------|-------|---------|
-| `domain-types` | Domain | Shared vocabulary (archetypes, monomyth stages) |
-| `domain` | Domain | 25+ entities, value objects, 26 typed IDs |
-| `protocol` | Shared Kernel | Wire-format types for Engine↔Player communication |
-| `engine-dto` | Shared Kernel | Engine-internal DTOs (queues, persistence) |
-| `engine-ports` | Ports | 100+ repository/service traits (ISP-compliant) |
-| `player-ports` | Ports | Transport and connection traits |
-| `engine-app` | Application | Services, use cases, request handlers |
-| `player-app` | Application | Player-side services |
-| `engine-composition` | Application | Dependency injection containers |
-| `engine-adapters` | Adapters | Neo4j repos, Axum handlers, WebSocket |
-| `player-adapters` | Adapters | WebSocket client, platform storage |
-| `player-ui` | Presentation | Dioxus components and routes |
-| `engine-runner` | Runner | Server entry point, wiring |
-| `player-runner` | Runner | Client entry point, WASM/desktop |
+| Crate                      | Layer         | Purpose                                                        |
+| -------------------------- | ------------- | -------------------------------------------------------------- |
+| `wrldbldr-domain`          | Domain        | Pure business types (entities, value objects, typed IDs)       |
+| `wrldbldr-protocol`        | Shared Kernel | Wire-format types for Engine↔Player communication              |
+| `wrldbldr-engine`          | Engine        | Server-side code (entities/use_cases/api + infra behind ports) |
+| `wrldbldr-player-ports`    | Ports         | Player-side ports (transport/storage boundaries)               |
+| `wrldbldr-player-app`      | Application   | Player use cases and orchestration                             |
+| `wrldbldr-player-adapters` | Adapters      | WebSocket client + platform implementations                    |
+| `wrldbldr-player-ui`       | Presentation  | Dioxus components and routes                                   |
+| `wrldbldr-player-runner`   | Runner        | Client entry point (WASM/desktop)                              |
 
 ---
 
 ## Technology Stack
 
 ### Engine (Backend)
+
 - **Rust** with Tokio async runtime
 - **Axum** for HTTP/WebSocket server
 - **Neo4j** graph database for all game state
@@ -220,6 +216,7 @@ WrldBldr uses **hexagonal (ports & adapters) architecture** to separate business
 - **ComfyUI** for AI image generation
 
 ### Player (Frontend)
+
 - **Rust** compiled to WebAssembly
 - **Dioxus** for reactive UI
 - **Tailwind CSS** for styling
@@ -232,11 +229,13 @@ WrldBldr uses **hexagonal (ports & adapters) architecture** to separate business
 ### Prerequisites
 
 **Option A: Nix (Recommended)**
+
 ```bash
 nix-shell
 ```
 
 **Option B: Manual**
+
 - Rust toolchain with `wasm32-unknown-unknown` target
 - Dioxus CLI (`cargo install dioxus-cli`)
 - Task runner (`brew install go-task` on macOS)
@@ -277,42 +276,42 @@ task desktop:dev   # Player desktop application
 
 ## Development Commands
 
-| Command | Description |
-|---------|-------------|
-| `task dev` | Run both backend and frontend |
-| `task build` | Build all crates (runs arch-check first) |
-| `task test` | Run all workspace tests |
+| Command           | Description                                    |
+| ----------------- | ---------------------------------------------- |
+| `task dev`        | Run both backend and frontend                  |
+| `task build`      | Build all crates (runs arch-check first)       |
+| `task test`       | Run all workspace tests                        |
 | `task arch-check` | **Required** - Validate hexagonal architecture |
-| `task fmt` | Format all code |
-| `task clippy` | Run Clippy linter |
-| `task docs` | Generate and open documentation |
+| `task fmt`        | Format all code                                |
+| `task clippy`     | Run Clippy linter                              |
+| `task docs`       | Generate and open documentation                |
 
 ---
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `NEO4J_URI` | `bolt://localhost:7687` | Neo4j connection |
-| `NEO4J_USER` | `neo4j` | Database username |
-| `NEO4J_PASSWORD` | - | Database password (required) |
-| `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | LLM API endpoint |
-| `OLLAMA_MODEL` | `qwen3-vl:30b` | LLM model name |
-| `COMFYUI_BASE_URL` | `http://localhost:8188` | Image generation endpoint |
-| `SERVER_PORT` | `3000` | Engine HTTP port |
+| Variable           | Default                     | Description                  |
+| ------------------ | --------------------------- | ---------------------------- |
+| `NEO4J_URI`        | `bolt://localhost:7687`     | Neo4j connection             |
+| `NEO4J_USER`       | `neo4j`                     | Database username            |
+| `NEO4J_PASSWORD`   | -                           | Database password (required) |
+| `OLLAMA_BASE_URL`  | `http://localhost:11434/v1` | LLM API endpoint             |
+| `OLLAMA_MODEL`     | `qwen3-vl:30b`              | LLM model name               |
+| `COMFYUI_BASE_URL` | `http://localhost:8188`     | Image generation endpoint    |
+| `SERVER_PORT`      | `3000`                      | Engine HTTP port             |
 
 ---
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [docs/_index.md](docs/_index.md) | Documentation overview |
-| [docs/architecture/hexagonal-architecture.md](docs/architecture/hexagonal-architecture.md) | Architecture deep-dive |
-| [docs/architecture/neo4j-schema.md](docs/architecture/neo4j-schema.md) | Database schema |
-| [docs/architecture/websocket-protocol.md](docs/architecture/websocket-protocol.md) | Wire protocol |
-| [docs/systems/](docs/systems/) | Game system specifications |
-| [AGENTS.md](AGENTS.md) | AI assistant guidelines |
+| Document                                                                                   | Description                |
+| ------------------------------------------------------------------------------------------ | -------------------------- |
+| [docs/\_index.md](docs/_index.md)                                                          | Documentation overview     |
+| [docs/architecture/hexagonal-architecture.md](docs/architecture/hexagonal-architecture.md) | Architecture deep-dive     |
+| [docs/architecture/neo4j-schema.md](docs/architecture/neo4j-schema.md)                     | Database schema            |
+| [docs/architecture/websocket-protocol.md](docs/architecture/websocket-protocol.md)         | Wire protocol              |
+| [docs/systems/](docs/systems/)                                                             | Game system specifications |
+| [AGENTS.md](AGENTS.md)                                                                     | AI assistant guidelines    |
 
 ---
 
@@ -324,7 +323,8 @@ task desktop:dev   # Player desktop application
 4. Update system docs with implementation summary when complete
 
 See:
-- [crates/engine-runner/README.md](crates/engine-runner/README.md) for Engine contribution guide
+
+- Engine contribution guide lives under [crates/engine/](crates/engine/)
 - [crates/player-runner/README.md](crates/player-runner/README.md) for Player contribution guide
 
 ---

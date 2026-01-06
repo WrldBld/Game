@@ -52,7 +52,7 @@ pub struct RollResult {
     pub challenge_name: String,
     /// Character ID who attempted the challenge
     pub character_id: PlayerCharacterId,
-    /// Character name who attempted the challenge  
+    /// Character name who attempted the challenge
     pub character_name: String,
     /// Outcome triggers (tools) to execute on approval
     pub outcome_triggers: Vec<ProposedTool>,
@@ -164,7 +164,10 @@ impl RollChallenge {
                     arguments: serde_json::Value::Null,
                 })
                 .collect(),
-            roll_breakdown: Some(format!("d20({}) + modifier({}) = {}", roll, modifier, total)),
+            roll_breakdown: Some(format!(
+                "d20({}) + modifier({}) = {}",
+                roll, modifier, total
+            )),
             timestamp: self.clock.now(),
             suggestions: None,
             is_generating_suggestions: false,
@@ -248,22 +251,6 @@ impl ResolveOutcome {
         }
     }
 
-    /// Execute the approved outcome.
-    ///
-    /// This marks the challenge as resolved and executes any outcome triggers.
-    ///
-    /// # Arguments
-    /// * `challenge_id` - The challenge being resolved
-    /// * `outcome_type` - The determined outcome type
-    /// * `target_pc_id` - The player character who attempted the challenge (for item/stat triggers)
-    pub async fn execute(
-        &self,
-        challenge_id: ChallengeId,
-        outcome_type: OutcomeType,
-    ) -> Result<(), ChallengeError> {
-        self.execute_for_pc(challenge_id, outcome_type, None).await
-    }
-
     /// Execute the approved outcome with a known target PC.
     ///
     /// This variant is used when we know which PC attempted the challenge.
@@ -271,7 +258,7 @@ impl ResolveOutcome {
         &self,
         challenge_id: ChallengeId,
         outcome_type: OutcomeType,
-        target_pc_id: Option<PlayerCharacterId>,
+        target_pc_id: PlayerCharacterId,
     ) -> Result<(), ChallengeError> {
         // Get the challenge to access its outcomes
         let challenge = self
@@ -303,7 +290,10 @@ impl ResolveOutcome {
 
         // Execute each trigger in the outcome
         for trigger in &outcome.triggers {
-            if let Err(e) = self.execute_trigger(trigger, &challenge.name, challenge.world_id, target_pc_id).await {
+            if let Err(e) = self
+                .execute_trigger(trigger, &challenge.name, challenge.world_id, target_pc_id)
+                .await
+            {
                 tracing::warn!(
                     challenge = %challenge.name,
                     error = %e,
@@ -330,7 +320,7 @@ impl ResolveOutcome {
         trigger: &OutcomeTrigger,
         challenge_name: &str,
         world_id: WorldId,
-        target_pc_id: Option<PlayerCharacterId>,
+        target_pc_id: PlayerCharacterId,
     ) -> Result<(), ChallengeError> {
         match trigger {
             OutcomeTrigger::RevealInformation { info, persist } => {
@@ -338,18 +328,20 @@ impl ResolveOutcome {
                     challenge = %challenge_name,
                     info = %info,
                     persist = %persist,
-                    target_pc = ?target_pc_id,
+                    target_pc = %target_pc_id,
                     "Revealing information to player"
                 );
-                
+
                 // If persistent, create an observation for the PC
                 if *persist {
-                    if let Some(pc_id) = target_pc_id {
-                        // Create a "deduced" observation from the challenge
-                        // This records that the PC learned this information
-                        if let Err(e) = self.observation.record_deduced_info(pc_id, info.clone()).await {
-                            tracing::warn!(error = %e, "Failed to persist revealed information");
-                        }
+                    // Create a "deduced" observation from the challenge
+                    // This records that the PC learned this information
+                    if let Err(e) = self
+                        .observation
+                        .record_deduced_info(target_pc_id, info.clone())
+                        .await
+                    {
+                        tracing::warn!(error = %e, "Failed to persist revealed information");
                     }
                 }
                 Ok(())
@@ -362,24 +354,17 @@ impl ResolveOutcome {
                     challenge = %challenge_name,
                     item_name = %item_name,
                     item_description = ?item_description,
-                    target_pc = ?target_pc_id,
+                    target_pc = %target_pc_id,
                     "Giving item to player"
                 );
-                
-                if let Some(pc_id) = target_pc_id {
-                    // Create a new item and add it to the PC's inventory
-                    if let Err(e) = self.inventory.give_item_to_pc(
-                        pc_id,
-                        item_name.clone(),
-                        item_description.clone(),
-                    ).await {
-                        tracing::warn!(error = %e, "Failed to give item to player");
-                    }
-                } else {
-                    tracing::warn!(
-                        challenge = %challenge_name,
-                        "Cannot give item: no target PC specified"
-                    );
+
+                // Create a new item and add it to the PC's inventory
+                if let Err(e) = self
+                    .inventory
+                    .give_item_to_pc(target_pc_id, item_name.clone(), item_description.clone())
+                    .await
+                {
+                    tracing::warn!(error = %e, "Failed to give item to player");
                 }
                 Ok(())
             }
@@ -389,7 +374,7 @@ impl ResolveOutcome {
                     scene_id = %scene_id,
                     "Triggering scene transition"
                 );
-                
+
                 // Set the scene as current for this world
                 if let Err(e) = self.scene.set_current(world_id, *scene_id).await {
                     tracing::warn!(error = %e, "Failed to set current scene");
@@ -402,7 +387,7 @@ impl ResolveOutcome {
                     target_challenge_id = %challenge_id,
                     "Enabling challenge"
                 );
-                
+
                 // Enable the target challenge (make it available)
                 if let Err(e) = self.challenge.set_enabled(*challenge_id, true).await {
                     tracing::warn!(error = %e, "Failed to enable challenge");
@@ -415,7 +400,7 @@ impl ResolveOutcome {
                     target_challenge_id = %challenge_id,
                     "Disabling challenge"
                 );
-                
+
                 // Disable the target challenge (remove from available)
                 if let Err(e) = self.challenge.set_enabled(*challenge_id, false).await {
                     tracing::warn!(error = %e, "Failed to disable challenge");
@@ -427,19 +412,16 @@ impl ResolveOutcome {
                     challenge = %challenge_name,
                     stat = %stat,
                     modifier = %modifier,
-                    target_pc = ?target_pc_id,
+                    target_pc = %target_pc_id,
                     "Modifying character stat"
                 );
-                
-                if let Some(pc_id) = target_pc_id {
-                    if let Err(e) = self.player_character.modify_stat(pc_id, stat, *modifier).await {
-                        tracing::warn!(error = %e, "Failed to modify character stat");
-                    }
-                } else {
-                    tracing::warn!(
-                        challenge = %challenge_name,
-                        "Cannot modify stat: no target PC specified"
-                    );
+
+                if let Err(e) = self
+                    .player_character
+                    .modify_stat(target_pc_id, stat, *modifier)
+                    .await
+                {
+                    tracing::warn!(error = %e, "Failed to modify character stat");
                 }
                 Ok(())
             }
@@ -462,8 +444,173 @@ pub enum ChallengeError {
     NotFound,
     #[error("Player character not found")]
     PlayerCharacterNotFound,
+    #[error("Missing target player character for challenge outcome")]
+    MissingTargetPc,
     #[error("Queue error: {0}")]
     QueueError(String),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use chrono::Utc;
+    use wrldbldr_domain::{
+        Challenge as DomainChallenge, ChallengeId, ChallengeOutcomes, Difficulty, ItemId,
+        LocationId, Outcome, OutcomeTrigger, OutcomeType, PlayerCharacter as DomainPc,
+        PlayerCharacterId, SceneId, WorldId,
+    };
+
+    use crate::entities;
+    use crate::infrastructure::ports::{
+        ClockPort, MockChallengeRepo, MockCharacterRepo, MockItemRepo, MockLocationRepo,
+        MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
+    };
+
+    struct FixedClock(chrono::DateTime<chrono::Utc>);
+
+    impl ClockPort for FixedClock {
+        fn now(&self) -> chrono::DateTime<chrono::Utc> {
+            self.0
+        }
+    }
+
+    #[tokio::test]
+    async fn resolve_outcome_executes_pc_dependent_triggers() {
+        let world_id = WorldId::new();
+        let pc_id = PlayerCharacterId::new();
+        let challenge_id = ChallengeId::new();
+        let scene_id = SceneId::new();
+        let now = Utc::now();
+
+        let pc = DomainPc::new("user-1", world_id, "PC", LocationId::new(), now);
+
+        let success_outcome = Outcome::new("success")
+            .with_trigger(OutcomeTrigger::reveal_persistent("secret"))
+            .with_trigger(OutcomeTrigger::GiveItem {
+                item_name: "Key".to_string(),
+                item_description: Some("Rusty".to_string()),
+            })
+            .with_trigger(OutcomeTrigger::modify_stat("hp", -1))
+            .with_trigger(OutcomeTrigger::scene(scene_id));
+
+        let outcomes = ChallengeOutcomes {
+            success: success_outcome,
+            failure: Outcome::new("failure"),
+            partial: None,
+            critical_success: None,
+            critical_failure: None,
+        };
+
+        let challenge = DomainChallenge::new(world_id, "Test Challenge", Difficulty::DC(10))
+            .with_outcomes(outcomes);
+
+        // ---------------------------------------------------------------------
+        // Challenge repo expectations
+        // ---------------------------------------------------------------------
+        let mut challenge_repo = MockChallengeRepo::new();
+        let challenge_for_get = challenge.clone();
+        challenge_repo
+            .expect_get()
+            .withf(move |id| *id == challenge_id)
+            .returning(move |_| Ok(Some(challenge_for_get.clone())));
+        challenge_repo
+            .expect_mark_resolved()
+            .withf(move |id| *id == challenge_id)
+            .returning(|_| Ok(()));
+
+        // ---------------------------------------------------------------------
+        // Observation expectations
+        // ---------------------------------------------------------------------
+        let mut observation_repo = MockObservationRepo::new();
+        observation_repo
+            .expect_save_deduced_info()
+            .withf(move |id, info| *id == pc_id && info == "secret")
+            .returning(|_, _| Ok(()));
+
+        // ---------------------------------------------------------------------
+        // Inventory expectations (give_item_to_pc)
+        // ---------------------------------------------------------------------
+        let expected_item_id: Arc<Mutex<Option<ItemId>>> = Arc::new(Mutex::new(None));
+        let expected_item_id_for_save = expected_item_id.clone();
+        let mut item_repo = MockItemRepo::new();
+        item_repo
+            .expect_save()
+            .withf(|item| item.name == "Key" && item.description.as_deref() == Some("Rusty"))
+            .returning(move |item| {
+                let expected_item_id_for_save = expected_item_id_for_save.clone();
+                let item_id = item.id;
+                *expected_item_id_for_save.lock().unwrap() = Some(item_id);
+                Ok(())
+            });
+
+        let expected_item_id_for_add = expected_item_id.clone();
+        let mut pc_repo = MockPlayerCharacterRepo::new();
+        let pc_for_get = pc.clone();
+        pc_repo
+            .expect_get()
+            .withf(move |id| *id == pc_id)
+            .returning(move |_| Ok(Some(pc_for_get.clone())));
+        pc_repo
+            .expect_add_to_inventory()
+            .withf(move |id, item_id| {
+                *id == pc_id && Some(*item_id) == *expected_item_id_for_add.lock().unwrap()
+            })
+            .returning(|_, _| Ok(()));
+        pc_repo
+            .expect_modify_stat()
+            .withf(move |id, stat, delta| *id == pc_id && stat == "hp" && *delta == -1)
+            .returning(|_, _, _| Ok(()));
+
+        let character_repo = MockCharacterRepo::new();
+
+        // ---------------------------------------------------------------------
+        // Scene expectations
+        // ---------------------------------------------------------------------
+        let mut scene_repo = MockSceneRepo::new();
+        scene_repo
+            .expect_set_current()
+            .withf(move |w, s| *w == world_id && *s == scene_id)
+            .returning(|_, _| Ok(()));
+
+        // Observation entity needs LocationRepo + ClockPort, but this test only
+        // exercises record_deduced_info, so provide dummies.
+        let location_repo = MockLocationRepo::new();
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+
+        // ---------------------------------------------------------------------
+        // Wire entities + use case
+        // ---------------------------------------------------------------------
+        let challenge_entity = Arc::new(entities::Challenge::new(Arc::new(challenge_repo)));
+
+        let pc_repo: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> =
+            Arc::new(pc_repo);
+        let inventory_entity = Arc::new(entities::Inventory::new(
+            Arc::new(item_repo),
+            Arc::new(character_repo),
+            pc_repo.clone(),
+        ));
+        let observation_entity = Arc::new(entities::Observation::new(
+            Arc::new(observation_repo),
+            Arc::new(location_repo),
+            clock,
+        ));
+        let scene_entity = Arc::new(entities::Scene::new(Arc::new(scene_repo)));
+        let player_character_entity = Arc::new(entities::PlayerCharacter::new(pc_repo));
+
+        let resolve = super::ResolveOutcome::new(
+            challenge_entity,
+            inventory_entity,
+            observation_entity,
+            scene_entity,
+            player_character_entity,
+        );
+
+        resolve
+            .execute_for_pc(challenge_id, OutcomeType::Success, pc_id)
+            .await
+            .expect("resolve outcome should succeed");
+    }
 }

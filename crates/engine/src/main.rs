@@ -14,13 +14,10 @@ mod entities;
 mod infrastructure;
 mod use_cases;
 
-use api::{ConnectionManager, websocket::WsState};
+use api::{websocket::WsState, ConnectionManager};
 use app::App;
 use infrastructure::{
-    clock::SystemClock,
-    comfyui::ComfyUIClient,
-    neo4j::Neo4jRepositories,
-    ollama::OllamaClient,
+    clock::SystemClock, comfyui::ComfyUIClient, neo4j::Neo4jRepositories, ollama::OllamaClient,
     queue::SqliteQueue,
 };
 
@@ -44,9 +41,11 @@ async fn main() -> anyhow::Result<()> {
     let neo4j_uri = std::env::var("NEO4J_URI").unwrap_or_else(|_| "bolt://localhost:7687".into());
     let neo4j_user = std::env::var("NEO4J_USER").unwrap_or_else(|_| "neo4j".into());
     let neo4j_pass = std::env::var("NEO4J_PASSWORD").unwrap_or_else(|_| "password".into());
-    let ollama_url = std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".into());
+    let ollama_url =
+        std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".into());
     let ollama_model = std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "llama3.2".into());
-    let comfyui_url = std::env::var("COMFYUI_URL").unwrap_or_else(|_| "http://localhost:8188".into());
+    let comfyui_url =
+        std::env::var("COMFYUI_URL").unwrap_or_else(|_| "http://localhost:8188".into());
     let server_port: u16 = std::env::var("PORT")
         .unwrap_or_else(|_| "8080".into())
         .parse()
@@ -63,21 +62,22 @@ async fn main() -> anyhow::Result<()> {
     // Create infrastructure clients
     let llm = Arc::new(OllamaClient::new(&ollama_url, &ollama_model));
     let image_gen = Arc::new(ComfyUIClient::new(&comfyui_url));
-    
+
     // Create queue
     let queue_db = std::env::var("QUEUE_DB").unwrap_or_else(|_| "queues.db".into());
     let queue = Arc::new(SqliteQueue::new(&queue_db, clock).await?);
 
     // Create application
     let app = Arc::new(App::new(repos, llm, image_gen, queue));
-    
+
     // Create connection manager
     let connections = Arc::new(ConnectionManager::new());
-    
+
     // Create WebSocket state
     let ws_state = Arc::new(WsState {
         app: app.clone(),
         connections,
+        pending_time_suggestions: tokio::sync::RwLock::new(std::collections::HashMap::new()),
     });
 
     // Spawn queue processor
@@ -86,12 +86,24 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(async move {
         loop {
             // Process player actions
-            if let Err(e) = queue_app.use_cases.queues.process_player_action.execute().await {
+            if let Err(e) = queue_app
+                .use_cases
+                .queues
+                .process_player_action
+                .execute()
+                .await
+            {
                 tracing::warn!(error = %e, "Failed to process player action");
             }
 
             // Process LLM requests
-            match queue_app.use_cases.queues.process_llm_request.execute().await {
+            match queue_app
+                .use_cases
+                .queues
+                .process_llm_request
+                .execute()
+                .await
+            {
                 Ok(Some(result)) => {
                     // Handle broadcast events
                     for event in result.broadcast_events {
@@ -101,10 +113,11 @@ async fn main() -> anyhow::Result<()> {
                                 resolution_id,
                                 suggestions,
                             } => {
-                                let msg = wrldbldr_protocol::ServerMessage::OutcomeSuggestionReady {
-                                    resolution_id: resolution_id.to_string(),
-                                    suggestions,
-                                };
+                                let msg =
+                                    wrldbldr_protocol::ServerMessage::OutcomeSuggestionReady {
+                                        resolution_id: resolution_id.to_string(),
+                                        suggestions,
+                                    };
                                 queue_connections.broadcast_to_dms(world_id, msg).await;
                                 tracing::info!(
                                     world_id = %world_id,
