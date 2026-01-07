@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::application::dto::CharacterSheetDataApi;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::RequestPayload;
+use wrldbldr_protocol::{PlayerCharacterRequest, RequestPayload};
 
 /// Full player character data
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -109,10 +109,10 @@ impl PlayerCharacterService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::CreatePlayerCharacter {
+                RequestPayload::PlayerCharacter(PlayerCharacterRequest::CreatePlayerCharacter {
                     world_id: world_id.to_string(),
                     data: request.into(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -129,10 +129,10 @@ impl PlayerCharacterService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::GetMyPlayerCharacter {
+                RequestPayload::PlayerCharacter(PlayerCharacterRequest::GetMyPlayerCharacter {
                     world_id: world_id.to_string(),
                     user_id: user_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -145,9 +145,9 @@ impl PlayerCharacterService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::GetPlayerCharacter {
+                RequestPayload::PlayerCharacter(PlayerCharacterRequest::GetPlayerCharacter {
                     pc_id: pc_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -160,9 +160,9 @@ impl PlayerCharacterService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::ListPlayerCharacters {
+                RequestPayload::PlayerCharacter(PlayerCharacterRequest::ListPlayerCharacters {
                     world_id: world_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -179,10 +179,10 @@ impl PlayerCharacterService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::UpdatePlayerCharacter {
+                RequestPayload::PlayerCharacter(PlayerCharacterRequest::UpdatePlayerCharacter {
                     pc_id: pc_id.to_string(),
                     data: request.into(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -199,10 +199,10 @@ impl PlayerCharacterService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::UpdatePlayerCharacterLocation {
+                RequestPayload::PlayerCharacter(PlayerCharacterRequest::UpdatePlayerCharacterLocation {
                     pc_id: pc_id.to_string(),
                     region_id: region_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -215,9 +215,9 @@ impl PlayerCharacterService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::DeletePlayerCharacter {
+                RequestPayload::PlayerCharacter(PlayerCharacterRequest::DeletePlayerCharacter {
                     pc_id: pc_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;

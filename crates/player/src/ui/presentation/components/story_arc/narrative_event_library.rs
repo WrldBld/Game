@@ -5,7 +5,7 @@ use dioxus::prelude::*;
 use crate::presentation::components::story_arc::narrative_event_card::NarrativeEventCard;
 use crate::presentation::components::story_arc::trigger_builder::TriggerBuilder;
 use crate::presentation::services::use_narrative_event_service;
-use crate::application::application::dto::{CreateNarrativeEventRequest, NarrativeEventData};
+use crate::application::dto::{CreateNarrativeEventRequest, NarrativeEventData};
 
 #[derive(Props, Clone, PartialEq)]
 pub struct NarrativeEventLibraryProps {

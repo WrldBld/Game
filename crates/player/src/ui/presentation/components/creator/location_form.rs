@@ -6,8 +6,8 @@ use super::asset_gallery::AssetGallery;
 use super::suggestion_button::{SuggestionButton, SuggestionType};
 use crate::presentation::components::common::FormField;
 use crate::presentation::services::use_location_service;
-use crate::application::application::services::LocationFormData;
-use crate::application::application::services::SuggestionContext;
+use crate::application::services::LocationFormData;
+use crate::application::services::SuggestionContext;
 
 /// Location types
 const LOCATION_TYPES: &[&str] = &[
@@ -31,7 +31,7 @@ pub fn LocationForm(
     location_id: String,
     world_id: String,
     locations_signal: Signal<
-        Vec<crate::application::application::services::location_service::LocationSummary>,
+        Vec<crate::application::services::location_service::LocationSummary>,
     >,
     on_close: EventHandler<()>,
 ) -> Element {
@@ -433,7 +433,7 @@ pub fn LocationForm(
                                             // Update the locations signal reactively
                                             if is_new {
                                                 // Add new location to list
-                                                let summary = crate::application::application::services::location_service::LocationSummary {
+                                                let summary = crate::application::services::location_service::LocationSummary {
                                                     id: saved_location.id.clone().unwrap_or_default(),
                                                     name: saved_location.name.clone(),
                                                     location_type: saved_location.location_type.clone(),

@@ -1,17 +1,18 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
-use wrldbldr_protocol::RequestPayload;
+
+use wrldbldr_protocol::LoreRequest;
 
 pub(super) async fn handle_lore_request(
     state: &WsState,
     request_id: &str,
     conn_info: &ConnectionInfo,
-    payload: &RequestPayload,
-) -> Result<Option<ResponseResult>, ServerMessage> {
-    match payload {
-        RequestPayload::ListLore { world_id: req_world_id } => {
-            let world_uuid = match Uuid::parse_str(req_world_id) {
+    request: LoreRequest,
+) -> Result<ResponseResult, ServerMessage> {
+    match request {
+        LoreRequest::ListLore { world_id } => {
+            let world_uuid = match Uuid::parse_str(&world_id) {
                 Ok(u) => wrldbldr_domain::WorldId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -50,11 +51,11 @@ pub(super) async fn handle_lore_request(
                 })
                 .collect();
 
-            Ok(Some(ResponseResult::success(data)))
+            Ok(ResponseResult::success(data))
         }
 
-        RequestPayload::GetLore { lore_id } => {
-            let lore_uuid = match Uuid::parse_str(lore_id) {
+        LoreRequest::GetLore { lore_id } => {
+            let lore_uuid = match Uuid::parse_str(&lore_id) {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -80,7 +81,7 @@ pub(super) async fn handle_lore_request(
                         })
                         .collect();
 
-                    Ok(Some(ResponseResult::success(serde_json::json!({
+                    Ok(ResponseResult::success(serde_json::json!({
                         "id": lore.id.to_string(),
                         "worldId": lore.world_id.to_string(),
                         "title": lore.title,
@@ -91,19 +92,22 @@ pub(super) async fn handle_lore_request(
                         "chunks": chunks,
                         "createdAt": lore.created_at.to_rfc3339(),
                         "updatedAt": lore.updated_at.to_rfc3339(),
-                    }))))
+                    })))
                 }
-                Ok(None) => Ok(Some(ResponseResult::error(ErrorCode::NotFound, "Lore not found"))),
-                Err(e) => Ok(Some(ResponseResult::error(ErrorCode::InternalError, &e.to_string()))),
+                Ok(None) => Ok(ResponseResult::error(ErrorCode::NotFound, "Lore not found")),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    &e.to_string(),
+                )),
             }
         }
 
-        RequestPayload::CreateLore { world_id, data } => {
+        LoreRequest::CreateLore { world_id, data } => {
             if let Err(e) = require_dm_for_request(conn_info, request_id) {
                 return Err(e);
             }
 
-            let world_uuid = match Uuid::parse_str(world_id) {
+            let world_uuid = match Uuid::parse_str(&world_id) {
                 Ok(u) => wrldbldr_domain::WorldId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -160,18 +164,18 @@ pub(super) async fn handle_lore_request(
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
                 })?;
 
-            Ok(Some(ResponseResult::success(serde_json::json!({
+            Ok(ResponseResult::success(serde_json::json!({
                 "id": lore.id.to_string(),
                 "title": lore.title,
-            }))))
+            })))
         }
 
-        RequestPayload::UpdateLore { lore_id, data } => {
+        LoreRequest::UpdateLore { lore_id, data } => {
             if let Err(e) = require_dm_for_request(conn_info, request_id) {
                 return Err(e);
             }
 
-            let lore_uuid = match Uuid::parse_str(lore_id) {
+            let lore_uuid = match Uuid::parse_str(&lore_id) {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -227,18 +231,18 @@ pub(super) async fn handle_lore_request(
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
                 })?;
 
-            Ok(Some(ResponseResult::success(serde_json::json!({
+            Ok(ResponseResult::success(serde_json::json!({
                 "id": lore.id.to_string(),
                 "title": lore.title,
-            }))))
+            })))
         }
 
-        RequestPayload::DeleteLore { lore_id } => {
+        LoreRequest::DeleteLore { lore_id } => {
             if let Err(e) = require_dm_for_request(conn_info, request_id) {
                 return Err(e);
             }
 
-            let lore_uuid = match Uuid::parse_str(lore_id) {
+            let lore_uuid = match Uuid::parse_str(&lore_id) {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -259,15 +263,17 @@ pub(super) async fn handle_lore_request(
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
                 })?;
 
-            Ok(Some(ResponseResult::success(serde_json::json!({ "deleted": true }))))
+            Ok(ResponseResult::success(
+                serde_json::json!({ "deleted": true }),
+            ))
         }
 
-        RequestPayload::AddLoreChunk { lore_id, data } => {
+        LoreRequest::AddLoreChunk { lore_id, data } => {
             if let Err(e) = require_dm_for_request(conn_info, request_id) {
                 return Err(e);
             }
 
-            let lore_uuid = match Uuid::parse_str(lore_id) {
+            let lore_uuid = match Uuid::parse_str(&lore_id) {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -317,17 +323,17 @@ pub(super) async fn handle_lore_request(
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
                 })?;
 
-            Ok(Some(ResponseResult::success(serde_json::json!({
+            Ok(ResponseResult::success(serde_json::json!({
                 "chunkId": chunk_id,
-            }))))
+            })))
         }
 
-        RequestPayload::UpdateLoreChunk { chunk_id, data } => {
+        LoreRequest::UpdateLoreChunk { chunk_id, data } => {
             if let Err(e) = require_dm_for_request(conn_info, request_id) {
                 return Err(e);
             }
 
-            let chunk_uuid = match Uuid::parse_str(chunk_id) {
+            let chunk_uuid = match Uuid::parse_str(&chunk_id) {
                 Ok(u) => wrldbldr_domain::LoreChunkId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -402,18 +408,18 @@ pub(super) async fn handle_lore_request(
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
                 })?;
 
-            Ok(Some(ResponseResult::success(serde_json::json!({
+            Ok(ResponseResult::success(serde_json::json!({
                 "loreId": lore.id.to_string(),
                 "chunkId": chunk_id,
-            }))))
+            })))
         }
 
-        RequestPayload::DeleteLoreChunk { chunk_id } => {
+        LoreRequest::DeleteLoreChunk { chunk_id } => {
             if let Err(e) = require_dm_for_request(conn_info, request_id) {
                 return Err(e);
             }
 
-            let chunk_uuid = match Uuid::parse_str(chunk_id) {
+            let chunk_uuid = match Uuid::parse_str(&chunk_id) {
                 Ok(u) => wrldbldr_domain::LoreChunkId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -475,14 +481,14 @@ pub(super) async fn handle_lore_request(
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
                 })?;
 
-            Ok(Some(ResponseResult::success(serde_json::json!({
+            Ok(ResponseResult::success(serde_json::json!({
                 "deleted": true,
                 "loreId": lore.id.to_string(),
                 "chunkId": chunk_id,
-            }))))
+            })))
         }
 
-        RequestPayload::GrantLoreKnowledge {
+        LoreRequest::GrantLoreKnowledge {
             character_id,
             lore_id,
             chunk_ids,
@@ -492,16 +498,19 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            let char_uuid = match Uuid::parse_str(character_id) {
+            let char_uuid = match Uuid::parse_str(&character_id) {
                 Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character_id"),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            "Invalid character_id",
+                        ),
                     })
                 }
             };
-            let lore_uuid = match Uuid::parse_str(lore_id) {
+            let lore_uuid = match Uuid::parse_str(&lore_id) {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -521,7 +530,7 @@ pub(super) async fn handle_lore_request(
                     npc_id,
                     npc_name,
                 } => {
-                    let npc_uuid = Uuid::parse_str(npc_id)
+                    let npc_uuid = Uuid::parse_str(&npc_id)
                         .map(wrldbldr_domain::CharacterId::from_uuid)
                         .unwrap_or_else(|_| wrldbldr_domain::CharacterId::new());
                     wrldbldr_domain::LoreDiscoverySource::Conversation {
@@ -584,10 +593,12 @@ pub(super) async fn handle_lore_request(
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
                 })?;
 
-            Ok(Some(ResponseResult::success(serde_json::json!({ "granted": true }))))
+            Ok(ResponseResult::success(
+                serde_json::json!({ "granted": true }),
+            ))
         }
 
-        RequestPayload::RevokeLoreKnowledge {
+        LoreRequest::RevokeLoreKnowledge {
             character_id,
             lore_id,
             chunk_ids: _,
@@ -596,16 +607,19 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            let char_uuid = match Uuid::parse_str(character_id) {
+            let char_uuid = match Uuid::parse_str(&character_id) {
                 Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character_id"),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            "Invalid character_id",
+                        ),
                     })
                 }
             };
-            let lore_uuid = match Uuid::parse_str(lore_id) {
+            let lore_uuid = match Uuid::parse_str(&lore_id) {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -626,16 +640,21 @@ pub(super) async fn handle_lore_request(
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
                 })?;
 
-            Ok(Some(ResponseResult::success(serde_json::json!({ "revoked": true }))))
+            Ok(ResponseResult::success(
+                serde_json::json!({ "revoked": true }),
+            ))
         }
 
-        RequestPayload::GetCharacterLore { character_id } => {
-            let char_uuid = match Uuid::parse_str(character_id) {
+        LoreRequest::GetCharacterLore { character_id } => {
+            let char_uuid = match Uuid::parse_str(&character_id) {
                 Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid character_id"),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            "Invalid character_id",
+                        ),
                     })
                 }
             };
@@ -668,11 +687,11 @@ pub(super) async fn handle_lore_request(
                 })
                 .collect();
 
-            Ok(Some(ResponseResult::success(data)))
+            Ok(ResponseResult::success(data))
         }
 
-        RequestPayload::GetLoreKnowers { lore_id } => {
-            let lore_uuid = match Uuid::parse_str(lore_id) {
+        LoreRequest::GetLoreKnowers { lore_id } => {
+            let lore_uuid = match Uuid::parse_str(&lore_id) {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -708,9 +727,7 @@ pub(super) async fn handle_lore_request(
                 })
                 .collect();
 
-            Ok(Some(ResponseResult::success(data)))
+            Ok(ResponseResult::success(data))
         }
-
-        _ => Ok(None),
     }
 }

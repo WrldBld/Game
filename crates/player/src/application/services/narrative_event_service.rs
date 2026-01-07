@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use wrldbldr_protocol::RequestPayload;
+use wrldbldr_protocol::{NarrativeEventRequest, RequestPayload};
 
 use crate::application::dto::{CreateNarrativeEventRequest, NarrativeEventData};
 use crate::application::error::{get_request_timeout_ms, ParseResponse, ServiceError};
@@ -33,9 +33,9 @@ impl NarrativeEventService {
         &self,
         world_id: &str,
     ) -> Result<Vec<NarrativeEventData>, ServiceError> {
-        let payload = RequestPayload::ListNarrativeEvents {
+        let payload = RequestPayload::NarrativeEvent(NarrativeEventRequest::ListNarrativeEvents {
             world_id: world_id.to_string(),
-        };
+        });
         let response = self
             .connection
             .request_with_timeout(payload, get_request_timeout_ms())
@@ -63,9 +63,9 @@ impl NarrativeEventService {
     /// Returns the new favorite state after toggling
     pub async fn toggle_favorite(&self, event_id: &str) -> Result<bool, ServiceError> {
         // First get current state by fetching the event
-        let payload = RequestPayload::GetNarrativeEvent {
+        let payload = RequestPayload::NarrativeEvent(NarrativeEventRequest::GetNarrativeEvent {
             event_id: event_id.to_string(),
-        };
+        });
         let response = self
             .connection
             .request_with_timeout(payload, get_request_timeout_ms())
@@ -74,10 +74,11 @@ impl NarrativeEventService {
         let new_favorite = !event.is_favorite;
 
         // Set new state
-        let set_payload = RequestPayload::SetNarrativeEventFavorite {
-            event_id: event_id.to_string(),
-            favorite: new_favorite,
-        };
+        let set_payload =
+            RequestPayload::NarrativeEvent(NarrativeEventRequest::SetNarrativeEventFavorite {
+                event_id: event_id.to_string(),
+                favorite: new_favorite,
+            });
         let set_response = self
             .connection
             .request_with_timeout(set_payload, get_request_timeout_ms())
@@ -88,10 +89,10 @@ impl NarrativeEventService {
 
     /// Set active status for a narrative event
     pub async fn set_active(&self, event_id: &str, active: bool) -> Result<(), ServiceError> {
-        let payload = RequestPayload::SetNarrativeEventActive {
+        let payload = RequestPayload::NarrativeEvent(NarrativeEventRequest::SetNarrativeEventActive {
             event_id: event_id.to_string(),
             active,
-        };
+        });
         let response = self
             .connection
             .request_with_timeout(payload, get_request_timeout_ms())
@@ -129,10 +130,10 @@ impl NarrativeEventService {
             outcomes: None,
         };
 
-        let payload = RequestPayload::CreateNarrativeEvent {
+        let payload = RequestPayload::NarrativeEvent(NarrativeEventRequest::CreateNarrativeEvent {
             world_id: world_id.to_string(),
             data,
-        };
+        });
         let response = self
             .connection
             .request_with_timeout(payload, get_request_timeout_ms())

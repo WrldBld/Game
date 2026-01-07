@@ -3,7 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::presentation::components::story_arc::timeline_view::get_event_type_icon;
-use crate::application::application::dto::{StoryEventData, StoryEventTypeData};
+use crate::application::dto::{StoryEventData, StoryEventTypeData};
 
 #[derive(Props, Clone)]
 pub struct TimelineEventCardProps {

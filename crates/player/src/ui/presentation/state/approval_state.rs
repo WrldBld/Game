@@ -17,7 +17,7 @@ const MAX_PENDING_APPROVALS: usize = 50;
 const MAX_PENDING_CHALLENGE_OUTCOMES: usize = 50;
 use std::sync::Arc;
 
-use crate::application::application::dto::{
+use crate::application::dto::{
     ApprovalDecision, ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, OutcomeBranchData,
     ProposedToolInfo,
 };

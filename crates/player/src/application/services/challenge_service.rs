@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use wrldbldr_protocol::RequestPayload;
+use wrldbldr_protocol::{ChallengeRequest, RequestPayload};
 
 use crate::application::dto::ChallengeData;
 use crate::application::error::{get_request_timeout_ms, ParseResponse, ServiceError};
@@ -34,9 +34,9 @@ impl ChallengeService {
         &self,
         world_id: &str,
     ) -> Result<Vec<ChallengeData>, ServiceError> {
-        let payload = RequestPayload::ListChallenges {
+        let payload = RequestPayload::Challenge(ChallengeRequest::ListChallenges {
             world_id: world_id.to_string(),
-        };
+        });
         let response = self
             .connection
             .request_with_timeout(payload, get_request_timeout_ms())
@@ -46,9 +46,9 @@ impl ChallengeService {
 
     /// Get a single challenge by ID
     pub async fn get_challenge(&self, challenge_id: &str) -> Result<ChallengeData, ServiceError> {
-        let payload = RequestPayload::GetChallenge {
+        let payload = RequestPayload::Challenge(ChallengeRequest::GetChallenge {
             challenge_id: challenge_id.to_string(),
-        };
+        });
         let response = self
             .connection
             .request_with_timeout(payload, get_request_timeout_ms())
@@ -71,10 +71,10 @@ impl ChallengeService {
             failure_outcome: Some(challenge.outcomes.failure.description.clone()),
         };
 
-        let payload = RequestPayload::CreateChallenge {
+        let payload = RequestPayload::Challenge(ChallengeRequest::CreateChallenge {
             world_id: world_id.to_string(),
             data,
-        };
+        });
         let response = self
             .connection
             .request_with_timeout(payload, get_request_timeout_ms())
@@ -96,10 +96,10 @@ impl ChallengeService {
             failure_outcome: Some(challenge.outcomes.failure.description.clone()),
         };
 
-        let payload = RequestPayload::UpdateChallenge {
+        let payload = RequestPayload::Challenge(ChallengeRequest::UpdateChallenge {
             challenge_id: challenge.id.clone(),
             data,
-        };
+        });
         let response = self
             .connection
             .request_with_timeout(payload, get_request_timeout_ms())
@@ -109,9 +109,9 @@ impl ChallengeService {
 
     /// Delete a challenge
     pub async fn delete_challenge(&self, challenge_id: &str) -> Result<(), ServiceError> {
-        let payload = RequestPayload::DeleteChallenge {
+        let payload = RequestPayload::Challenge(ChallengeRequest::DeleteChallenge {
             challenge_id: challenge_id.to_string(),
-        };
+        });
         let response = self
             .connection
             .request_with_timeout(payload, get_request_timeout_ms())
@@ -128,10 +128,10 @@ impl ChallengeService {
         let new_favorite = !challenge.is_favorite;
 
         // Set new state
-        let payload = RequestPayload::SetChallengeFavorite {
+        let payload = RequestPayload::Challenge(ChallengeRequest::SetChallengeFavorite {
             challenge_id: challenge_id.to_string(),
             favorite: new_favorite,
-        };
+        });
         let response = self
             .connection
             .request_with_timeout(payload, get_request_timeout_ms())
@@ -142,10 +142,10 @@ impl ChallengeService {
 
     /// Set challenge active status
     pub async fn set_active(&self, challenge_id: &str, active: bool) -> Result<(), ServiceError> {
-        let payload = RequestPayload::SetChallengeActive {
+        let payload = RequestPayload::Challenge(ChallengeRequest::SetChallengeActive {
             challenge_id: challenge_id.to_string(),
             active,
-        };
+        });
         let response = self
             .connection
             .request_with_timeout(payload, get_request_timeout_ms())

@@ -6,7 +6,7 @@
 use dioxus::prelude::*;
 
 use crate::presentation::services::use_workflow_service;
-use crate::application::application::services::{WorkflowSlotCategory, WorkflowSlotStatus};
+use crate::application::services::{WorkflowSlotCategory, WorkflowSlotStatus};
 
 /// Props for the WorkflowSlotList component
 #[derive(Props, Clone, PartialEq)]

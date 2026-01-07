@@ -2,7 +2,7 @@
 
 use dioxus::prelude::*;
 
-use crate::application::application::dto::ParticipantRole;
+use crate::application::dto::ParticipantRole;
 
 #[component]
 pub fn RoleSelect(on_select_role: EventHandler<ParticipantRole>) -> Element {

@@ -7,7 +7,7 @@ use dioxus::prelude::*;
 use wrldbldr_domain::{parse_dialogue, DialogueMarker, ParsedDialogue};
 
 use crate::use_platform;
-use crate::application::application::dto::DialogueChoice;
+use crate::application::dto::DialogueChoice;
 
 /// A marker with its trigger position in the clean text
 #[derive(Clone, Debug)]

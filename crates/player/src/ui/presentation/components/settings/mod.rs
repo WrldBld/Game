@@ -15,7 +15,7 @@ pub use game_settings::GameSettingsPanel;
 
 use crate::routes::Route;
 use dioxus::prelude::*;
-use crate::application::application::dto::SkillData;
+use crate::application::dto::SkillData;
 
 /// Props for SettingsView
 #[derive(Props, Clone, PartialEq)]
@@ -205,7 +205,7 @@ struct SkillsManagementTabProps {
 fn SkillsManagementTab(props: SkillsManagementTabProps) -> Element {
     use crate::presentation::services::use_skill_service;
     use std::collections::HashMap;
-    use crate::application::application::dto::SkillCategory;
+    use crate::application::dto::SkillCategory;
 
     let skill_service = use_skill_service();
 

@@ -4,8 +4,8 @@ use dioxus::prelude::*;
 
 use super::EntityTypeTab;
 use crate::routes::Route;
-use crate::application::application::services::character_service::CharacterSummary;
-use crate::application::application::services::location_service::LocationSummary;
+use crate::application::services::character_service::CharacterSummary;
+use crate::application::services::location_service::LocationSummary;
 
 /// Props for the EntityBrowser component
 #[component]

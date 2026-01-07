@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::RequestPayload;
+use wrldbldr_protocol::{LocationRequest, RegionRequest, RequestPayload};
 
 /// Location summary for list views
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -144,9 +144,9 @@ impl LocationService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::ListLocations {
+                RequestPayload::Location(LocationRequest::ListLocations {
                     world_id: world_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -158,9 +158,9 @@ impl LocationService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::GetLocation {
+                RequestPayload::Location(LocationRequest::GetLocation {
                     location_id: location_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -176,10 +176,10 @@ impl LocationService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::CreateLocation {
+                RequestPayload::Location(LocationRequest::CreateLocation {
                     world_id: world_id.to_string(),
                     data: location.to_create_data(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -195,10 +195,10 @@ impl LocationService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::UpdateLocation {
+                RequestPayload::Location(LocationRequest::UpdateLocation {
                     location_id: location_id.to_string(),
                     data: location.to_update_data(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -210,9 +210,9 @@ impl LocationService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::DeleteLocation {
+                RequestPayload::Location(LocationRequest::DeleteLocation {
                     location_id: location_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -227,9 +227,9 @@ impl LocationService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::GetLocationConnections {
+                RequestPayload::Location(LocationRequest::GetLocationConnections {
                     location_id: location_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -241,9 +241,9 @@ impl LocationService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::CreateLocationConnection {
+                RequestPayload::Location(LocationRequest::CreateLocationConnection {
                     data: connection.to_create_data(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -255,9 +255,9 @@ impl LocationService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::ListRegions {
+                RequestPayload::Region(RegionRequest::ListRegions {
                     location_id: location_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;

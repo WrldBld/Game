@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::ports::outbound::{ApiError, GameConnectionPort, RawApiPort};
 use wrldbldr_protocol::ErrorCode;
-use wrldbldr_protocol::RequestPayload;
+use wrldbldr_protocol::{RequestPayload, WorldRequest};
 
 use crate::application::dto::requests::CreateWorldRequest;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
@@ -57,9 +57,9 @@ impl WorldService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::GetWorld {
+                RequestPayload::World(WorldRequest::GetWorld {
                     world_id: id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -91,9 +91,9 @@ impl WorldService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::CreateWorld {
+                RequestPayload::World(WorldRequest::CreateWorld {
                     data: request.into(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -112,9 +112,9 @@ impl WorldService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::DeleteWorld {
+                RequestPayload::World(WorldRequest::DeleteWorld {
                     world_id: id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -145,9 +145,9 @@ impl WorldService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::GetSheetTemplate {
+                RequestPayload::World(WorldRequest::GetSheetTemplate {
                     world_id: world_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;

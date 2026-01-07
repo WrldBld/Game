@@ -16,7 +16,7 @@ pub struct LocationNavigatorProps {
 pub fn LocationNavigator(props: LocationNavigatorProps) -> Element {
     let location_service = use_location_service();
     let mut locations: Signal<
-        Vec<crate::application::application::services::location_service::LocationSummary>,
+        Vec<crate::application::services::location_service::LocationSummary>,
     > = use_signal(Vec::new);
     let mut loading = use_signal(|| true);
     let mut error: Signal<Option<String>> = use_signal(|| None);
@@ -94,7 +94,7 @@ pub fn LocationNavigator(props: LocationNavigatorProps) -> Element {
 /// Location Card component
 #[derive(Props, Clone, PartialEq)]
 struct LocationCardProps {
-    location: crate::application::application::services::LocationSummary,
+    location: crate::application::services::LocationSummary,
     on_preview: EventHandler<()>,
 }
 

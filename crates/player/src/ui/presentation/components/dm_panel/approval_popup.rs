@@ -6,7 +6,7 @@
 
 use dioxus::prelude::*;
 use wrldbldr_domain::{parse_dialogue, validate_markers, ExpressionConfig};
-use crate::application::application::dto::{
+use crate::application::dto::{
     ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, OutcomeDetailData,
 };
 

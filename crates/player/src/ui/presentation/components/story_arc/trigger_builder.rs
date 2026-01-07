@@ -10,7 +10,7 @@ use serde_json::Value as JsonValue;
 
 use crate::presentation::components::common::CharacterPicker;
 use crate::presentation::Services;
-use wrldbldr_protocol::RequestPayload;
+use wrldbldr_protocol::{NarrativeEventRequest, RequestPayload};
 
 // =============================================================================
 // Schema Types (mirrors protocol types for local use)
@@ -89,7 +89,10 @@ impl TriggerCondition {
     /// Convert to the domain NarrativeTrigger format
     pub fn to_trigger_json(&self) -> JsonValue {
         let mut trigger_type_obj = serde_json::Map::new();
-        trigger_type_obj.insert("type".to_string(), JsonValue::String(self.trigger_type.clone()));
+        trigger_type_obj.insert(
+            "type".to_string(),
+            JsonValue::String(self.trigger_type.clone()),
+        );
         for (key, value) in &self.values {
             trigger_type_obj.insert(key.clone(), value.clone());
         }
@@ -130,19 +133,19 @@ pub struct TriggerBuilderProps {
 
 #[component]
 pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
-    let services = use_context::<Services<crate::application::application::api::Api>>();
-    
+    let services = use_context::<Services<crate::application::api::Api>>();
+
     // Schema loaded from server
     let mut schema: Signal<Option<TriggerSchema>> = use_signal(|| None);
     let mut schema_loading = use_signal(|| true);
     let mut schema_error: Signal<Option<String>> = use_signal(|| None);
-    
+
     // Builder state
     let mut conditions: Signal<Vec<TriggerCondition>> = use_signal(Vec::new);
     let mut logic = use_signal(|| props.initial_logic.clone());
     let mut at_least_count = use_signal(|| props.initial_at_least_count);
     let mut expanded_condition: Signal<Option<String>> = use_signal(|| None);
-    
+
     // Load schema on mount
     {
         let conn = services.connection.clone();
@@ -151,36 +154,36 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
             spawn(async move {
                 schema_loading.set(true);
                 schema_error.set(None);
-                
-                let payload = RequestPayload::GetTriggerSchema;
+
+                let payload =
+                    RequestPayload::NarrativeEvent(NarrativeEventRequest::GetTriggerSchema);
                 match conn.request(payload).await {
-                    Ok(response) => {
-                        match response {
-                            wrldbldr_protocol::ResponseResult::Success { data } => {
-                                if let Some(json_data) = data {
-                                    match serde_json::from_value::<TriggerSchema>(json_data) {
-                                        Ok(s) => schema.set(Some(s)),
-                                        Err(e) => schema_error.set(Some(format!("Failed to parse schema: {}", e))),
-                                    }
-                                } else {
-                                    schema_error.set(Some("Empty response".to_string()));
+                    Ok(response) => match response {
+                        wrldbldr_protocol::ResponseResult::Success { data } => {
+                            if let Some(json_data) = data {
+                                match serde_json::from_value::<TriggerSchema>(json_data) {
+                                    Ok(s) => schema.set(Some(s)),
+                                    Err(e) => schema_error
+                                        .set(Some(format!("Failed to parse schema: {}", e))),
                                 }
-                            }
-                            wrldbldr_protocol::ResponseResult::Error { message, .. } => {
-                                schema_error.set(Some(message));
-                            }
-                            wrldbldr_protocol::ResponseResult::Unknown => {
-                                schema_error.set(Some("Unknown response type".to_string()));
+                            } else {
+                                schema_error.set(Some("Empty response".to_string()));
                             }
                         }
-                    }
+                        wrldbldr_protocol::ResponseResult::Error { message, .. } => {
+                            schema_error.set(Some(message));
+                        }
+                        wrldbldr_protocol::ResponseResult::Unknown => {
+                            schema_error.set(Some("Unknown response type".to_string()));
+                        }
+                    },
                     Err(e) => schema_error.set(Some(format!("Failed to load schema: {}", e))),
                 }
                 schema_loading.set(false);
             });
         });
     }
-    
+
     // Parse initial conditions
     {
         let initial = props.initial_conditions.clone();
@@ -199,11 +202,22 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                             }
                         }
                         Some(TriggerCondition {
-                            id: v.get("triggerId").and_then(|i| i.as_str()).unwrap_or(&uuid::Uuid::new_v4().to_string()).to_string(),
+                            id: v
+                                .get("triggerId")
+                                .and_then(|i| i.as_str())
+                                .unwrap_or(&uuid::Uuid::new_v4().to_string())
+                                .to_string(),
                             trigger_type: trigger_type.to_string(),
                             values,
-                            description: v.get("description").and_then(|d| d.as_str()).unwrap_or("").to_string(),
-                            is_required: v.get("isRequired").and_then(|r| r.as_bool()).unwrap_or(false),
+                            description: v
+                                .get("description")
+                                .and_then(|d| d.as_str())
+                                .unwrap_or("")
+                                .to_string(),
+                            is_required: v
+                                .get("isRequired")
+                                .and_then(|r| r.as_bool())
+                                .unwrap_or(false),
                         })
                     })
                     .collect();
@@ -211,18 +225,22 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
             }
         });
     }
-    
+
     // Notify parent of changes
     let notify_change = {
         let on_change = props.on_change.clone();
         move || {
-            let conds: Vec<JsonValue> = conditions.read().iter().map(|c| c.to_trigger_json()).collect();
+            let conds: Vec<JsonValue> = conditions
+                .read()
+                .iter()
+                .map(|c| c.to_trigger_json())
+                .collect();
             let logic_val = logic.read().clone();
             let count = *at_least_count.read();
             on_change.call((conds, logic_val, count));
         }
     };
-    
+
     // Add a new condition
     let add_condition = {
         let notify = notify_change.clone();
@@ -236,7 +254,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
             notify();
         }
     };
-    
+
     // Remove a condition
     let remove_condition = {
         let notify = notify_change.clone();
@@ -247,7 +265,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
             notify();
         }
     };
-    
+
     // Update a condition field
     let update_field = {
         let notify = notify_change.clone();
@@ -260,7 +278,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
             notify();
         }
     };
-    
+
     // Update condition description
     let update_description = {
         let notify = notify_change.clone();
@@ -273,7 +291,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
             notify();
         }
     };
-    
+
     // Toggle is_required
     let toggle_required = {
         let notify = notify_change.clone();
@@ -286,7 +304,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
             notify();
         }
     };
-    
+
     // Loading state
     if *schema_loading.read() {
         return rsx! {
@@ -296,7 +314,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
             }
         };
     }
-    
+
     // Error state
     if let Some(err) = schema_error.read().as_ref() {
         return rsx! {
@@ -305,16 +323,18 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
             }
         };
     }
-    
+
     // Get schema
     let schema_data = match schema.read().as_ref() {
         Some(s) => s.clone(),
         None => return rsx! { div { "No schema available" } },
     };
-    
+
     // Group trigger types by category
     let categories: Vec<String> = {
-        let mut cats: Vec<String> = schema_data.trigger_types.iter()
+        let mut cats: Vec<String> = schema_data
+            .trigger_types
+            .iter()
             .map(|t| t.category.clone())
             .collect::<std::collections::HashSet<_>>()
             .into_iter()
@@ -322,9 +342,9 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
         cats.sort();
         cats
     };
-    
+
     let world_id = props.world_id.clone();
-    
+
     rsx! {
         div { class: "space-y-4",
             // Logic selector
@@ -347,7 +367,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                         }
                     }
                 }
-                
+
                 // AtLeast count input
                 if *logic.read() == "atLeast" {
                     input {
@@ -367,13 +387,13 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                     }
                     span { class: "text-gray-400 text-sm", "conditions must match" }
                 }
-                
+
                 // Logic description
                 if let Some(opt) = schema_data.logic_options.iter().find(|o| o.value == *logic.read()) {
                     span { class: "text-gray-500 text-sm italic ml-2", "({opt.description})" }
                 }
             }
-            
+
             // Conditions list
             div { class: "space-y-3",
                 for (idx, cond) in conditions.read().iter().enumerate() {
@@ -381,7 +401,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                         let cond_id = cond.id.clone();
                         let is_expanded = expanded_condition.read().as_ref() == Some(&cond_id);
                         let type_schema = schema_data.trigger_types.iter().find(|t| t.type_name == cond.trigger_type);
-                        
+
                         rsx! {
                             TriggerConditionCard {
                                 key: "{cond_id}",
@@ -422,7 +442,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                     }
                 }
             }
-            
+
             // Add condition dropdown
             div { class: "mt-4",
                 details { class: "group",
@@ -442,7 +462,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                             "Add Condition"
                         }
                     }
-                    
+
                     div { class: "mt-2 p-4 bg-gray-800 rounded-lg border border-gray-700 max-h-96 overflow-y-auto",
                         for category in &categories {
                             div { class: "mb-4",
@@ -470,7 +490,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                     }
                 }
             }
-            
+
             // Empty state
             if conditions.read().is_empty() {
                 div { class: "text-center py-8 text-gray-500",
@@ -502,20 +522,24 @@ struct TriggerConditionCardProps {
 
 #[component]
 fn TriggerConditionCard(props: TriggerConditionCardProps) -> Element {
-    let type_label = props.type_schema.as_ref()
+    let type_label = props
+        .type_schema
+        .as_ref()
         .map(|s| s.label.clone())
         .unwrap_or_else(|| props.condition.trigger_type.clone());
-    
-    let type_desc = props.type_schema.as_ref()
+
+    let type_desc = props
+        .type_schema
+        .as_ref()
         .map(|s| s.description.clone())
         .unwrap_or_default();
-    
+
     rsx! {
         div { class: "bg-gray-800 rounded-lg border border-gray-700 overflow-hidden",
             // Header
             div { class: "flex items-center justify-between px-4 py-3 bg-gray-750 cursor-pointer hover:bg-gray-700 transition-colors",
                 onclick: move |_| props.on_toggle_expand.call(()),
-                
+
                 div { class: "flex items-center gap-3",
                     span { class: "text-gray-500 font-mono text-sm", "{props.index + 1}." }
                     div {
@@ -527,16 +551,16 @@ fn TriggerConditionCard(props: TriggerConditionCardProps) -> Element {
                         }
                     }
                 }
-                
+
                 div { class: "flex items-center gap-2",
                     if props.condition.is_required {
                         span { class: "px-2 py-0.5 bg-yellow-600/30 text-yellow-400 text-xs rounded",
                             "Required"
                         }
                     }
-                    
+
                     // Expand/collapse icon
-                    svg { 
+                    svg {
                         class: if props.is_expanded { "w-5 h-5 text-gray-400 transform rotate-180" } else { "w-5 h-5 text-gray-400" },
                         fill: "none",
                         stroke: "currentColor",
@@ -548,7 +572,7 @@ fn TriggerConditionCard(props: TriggerConditionCardProps) -> Element {
                             d: "M19 9l-7 7-7-7"
                         }
                     }
-                    
+
                     // Remove button
                     button {
                         class: "p-1 text-gray-500 hover:text-red-400 transition-colors",
@@ -571,13 +595,13 @@ fn TriggerConditionCard(props: TriggerConditionCardProps) -> Element {
                     }
                 }
             }
-            
+
             // Expanded content
             if props.is_expanded {
                 div { class: "px-4 py-4 border-t border-gray-700 space-y-4",
                     // Description
                     p { class: "text-sm text-gray-400 mb-4", "{type_desc}" }
-                    
+
                     // Description input
                     div {
                         label { class: "block text-sm font-medium text-gray-400 mb-1",
@@ -593,7 +617,7 @@ fn TriggerConditionCard(props: TriggerConditionCardProps) -> Element {
                             }
                         }
                     }
-                    
+
                     // Required checkbox
                     label { class: "flex items-center gap-2 cursor-pointer",
                         input {
@@ -604,7 +628,7 @@ fn TriggerConditionCard(props: TriggerConditionCardProps) -> Element {
                         }
                         span { class: "text-sm text-gray-300", "Required (must be true even with AtLeast logic)" }
                     }
-                    
+
                     // Fields
                     if let Some(schema) = &props.type_schema {
                         div { class: "grid grid-cols-1 md:grid-cols-2 gap-4 mt-4",
@@ -643,20 +667,33 @@ struct TriggerFieldInputProps {
 
 #[component]
 fn TriggerFieldInput(props: TriggerFieldInputProps) -> Element {
-    let current_value = props.value.clone().unwrap_or(
-        props.field.default_value.clone().unwrap_or(JsonValue::Null)
-    );
-    
+    let current_value = props
+        .value
+        .clone()
+        .unwrap_or(props.field.default_value.clone().unwrap_or(JsonValue::Null));
+
     let field_type = props.field.field_type.as_str();
     let placeholder = props.field.description.as_deref().unwrap_or("");
     let str_value = current_value.as_str().unwrap_or("").to_string();
-    let int_value = current_value.as_i64().map(|n| n.to_string()).unwrap_or_default();
-    let float_value = current_value.as_f64().map(|n| format!("{:.1}", n)).unwrap_or_default();
-    let bool_value = current_value.as_bool().unwrap_or(false);
-    let keywords_str = current_value.as_array()
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect::<Vec<_>>().join(", "))
+    let int_value = current_value
+        .as_i64()
+        .map(|n| n.to_string())
         .unwrap_or_default();
-    
+    let float_value = current_value
+        .as_f64()
+        .map(|n| format!("{:.1}", n))
+        .unwrap_or_default();
+    let bool_value = current_value.as_bool().unwrap_or(false);
+    let keywords_str = current_value
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .unwrap_or_default();
+
     rsx! {
         div {
             label { class: "block text-sm font-medium text-gray-400 mb-1",
@@ -665,7 +702,7 @@ fn TriggerFieldInput(props: TriggerFieldInputProps) -> Element {
                     span { class: "text-red-400 ml-1", "*" }
                 }
             }
-            
+
             // Render input based on field type
             if field_type == "string" {
                 input {
@@ -760,7 +797,7 @@ fn TriggerFieldInput(props: TriggerFieldInputProps) -> Element {
                     }
                 }
             }
-            
+
             if let Some(desc) = &props.field.description {
                 p { class: "text-xs text-gray-500 mt-1", "{desc}" }
             }

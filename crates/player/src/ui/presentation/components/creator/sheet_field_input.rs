@@ -3,7 +3,7 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
-use crate::application::application::dto::{
+use crate::application::dto::{
     FieldType, FieldValue, SheetField, SheetSection, SheetTemplate,
 };
 
@@ -23,13 +23,13 @@ pub fn SheetSectionInput(props: SheetSectionProps) -> Element {
     let mut is_collapsed = use_signal(|| props.section.collapsed_by_default);
 
     let section_class = match props.section.layout {
-        crate::application::application::dto::SectionLayout::Vertical => "flex flex-col gap-3",
-        crate::application::application::dto::SectionLayout::Grid { columns } => {
+        crate::application::dto::SectionLayout::Vertical => "flex flex-col gap-3",
+        crate::application::dto::SectionLayout::Grid { columns } => {
             let _cols = columns.min(4).max(1);
             "grid gap-3"
         }
-        crate::application::application::dto::SectionLayout::TwoColumn => "grid grid-cols-2 gap-3",
-        crate::application::application::dto::SectionLayout::Flow => "flex flex-wrap gap-2",
+        crate::application::dto::SectionLayout::TwoColumn => "grid grid-cols-2 gap-3",
+        crate::application::dto::SectionLayout::Flow => "flex flex-wrap gap-2",
     };
 
     // Sort fields by order

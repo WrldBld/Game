@@ -5,7 +5,7 @@
 
 use dioxus::prelude::*;
 
-use crate::application::application::dto::DialogueChoice;
+use crate::application::dto::DialogueChoice;
 
 use super::choice_menu::{ChoiceMenu, ContinuePrompt};
 

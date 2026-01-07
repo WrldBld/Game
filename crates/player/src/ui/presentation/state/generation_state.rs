@@ -51,7 +51,7 @@ pub struct SuggestionTask {
     pub status: SuggestionStatus,
     pub is_read: bool,
     /// Original context for retry (stored when task is created)
-    pub context: Option<crate::application::application::dto::requests::SuggestionContext>,
+    pub context: Option<crate::application::dto::requests::SuggestionContext>,
     /// World ID for routing (needed for retries)
     pub world_id: Option<String>,
 }
@@ -211,7 +211,7 @@ impl GenerationState {
         request_id: String,
         field_type: String,
         entity_id: Option<String>,
-        context: Option<crate::application::application::dto::requests::SuggestionContext>,
+        context: Option<crate::application::dto::requests::SuggestionContext>,
         world_id: Option<String>,
     ) {
         let task = SuggestionTask {

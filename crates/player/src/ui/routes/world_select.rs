@@ -3,7 +3,7 @@
 use super::Route;
 use crate::use_platform;
 use dioxus::prelude::*;
-use crate::application::application::dto::ParticipantRole;
+use crate::application::dto::ParticipantRole;
 use crate::ports::outbound::storage_keys;
 
 /// Role selection route

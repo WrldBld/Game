@@ -4,7 +4,7 @@
 
 use dioxus::prelude::*;
 
-use crate::application::application::dto::InventoryItemData;
+use crate::application::dto::InventoryItemData;
 
 /// Props for the InventoryPanel component
 #[derive(Props, Clone, PartialEq)]

@@ -20,7 +20,7 @@ use crate::presentation::state::{use_session_state, RollSubmissionStatus};
 use crate::use_platform;
 use dioxus::prelude::*;
 use wrldbldr_domain::value_objects::DiceFormula;
-use crate::application::application::dto::DiceInput;
+use crate::application::dto::DiceInput;
 
 /// Props for the ChallengeRollModal component
 #[derive(Props, Clone, PartialEq)]

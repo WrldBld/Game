@@ -4,7 +4,7 @@
 
 use dioxus::prelude::*;
 
-use crate::application::application::dto::RegionItemData;
+use crate::application::dto::RegionItemData;
 
 /// Props for the RegionItemsPanel component
 #[derive(Props, Clone, PartialEq)]

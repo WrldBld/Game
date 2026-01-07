@@ -1,8 +1,8 @@
 //! Event Chain Visualizer - Flowchart view of event chains
 
 use dioxus::prelude::*;
-use crate::application::application::dto::NarrativeEventData;
-use crate::application::application::services::EventChainData;
+use crate::application::dto::NarrativeEventData;
+use crate::application::services::EventChainData;
 
 #[derive(Props, Clone, PartialEq)]
 pub struct EventChainVisualizerProps {

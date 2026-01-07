@@ -2,7 +2,7 @@
 
 use crate::presentation::services::use_event_chain_service;
 use dioxus::prelude::*;
-use crate::application::application::services::{
+use crate::application::services::{
     CreateEventChainRequest, EventChainData, UpdateEventChainRequest,
 };
 

@@ -10,7 +10,7 @@ use crate::presentation::components::story_arc::timeline_view::{
 };
 use crate::presentation::services::use_story_event_service;
 use crate::presentation::state::use_game_state;
-use crate::application::application::dto::{StoryEventData, StoryEventTypeData};
+use crate::application::dto::{StoryEventData, StoryEventTypeData};
 
 /// A cluster of events that are close together on the timeline
 #[derive(Debug, Clone)]

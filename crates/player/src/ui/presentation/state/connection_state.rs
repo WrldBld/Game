@@ -7,7 +7,7 @@ use dioxus::prelude::*;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::application::application::dto::{ConnectedUser, ParticipantRole, WorldRole};
+use crate::application::dto::{ConnectedUser, ParticipantRole, WorldRole};
 use crate::ports::outbound::GameConnectionPort;
 
 /// Connection status to the Engine server

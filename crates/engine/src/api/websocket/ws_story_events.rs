@@ -1,21 +1,27 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
-use wrldbldr_protocol::RequestPayload;
+
+use wrldbldr_protocol::StoryEventRequest;
 
 pub(super) async fn handle_story_event_request(
     state: &WsState,
     request_id: &str,
     conn_info: &ConnectionInfo,
-    payload: &RequestPayload,
-) -> Result<Option<ResponseResult>, ServerMessage> {
-    match payload {
-        RequestPayload::ListStoryEvents {
+    request: StoryEventRequest,
+) -> Result<ResponseResult, ServerMessage> {
+    match request {
+        StoryEventRequest::GetStoryEvent { .. } | StoryEventRequest::UpdateStoryEvent { .. } => {
+            let msg = "This request type is not yet implemented";
+            Ok(ResponseResult::error(ErrorCode::BadRequest, msg))
+        }
+
+        StoryEventRequest::ListStoryEvents {
             world_id,
             page: _,
             page_size,
         } => {
-            let world_uuid = match Uuid::parse_str(world_id) {
+            let world_uuid = match Uuid::parse_str(&world_id) {
                 Ok(u) => wrldbldr_domain::WorldId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -145,15 +151,15 @@ pub(super) async fn handle_story_event_request(
                 })
                 .collect::<Vec<_>>();
 
-            Ok(Some(ResponseResult::success(data)))
+            Ok(ResponseResult::success(data))
         }
 
-        RequestPayload::CreateDmMarker { world_id, data } => {
+        StoryEventRequest::CreateDmMarker { world_id, data } => {
             if let Err(e) = require_dm_for_request(conn_info, request_id) {
                 return Err(e);
             }
 
-            let world_uuid = match Uuid::parse_str(world_id) {
+            let world_uuid = match Uuid::parse_str(&world_id) {
                 Ok(u) => wrldbldr_domain::WorldId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -191,17 +197,17 @@ pub(super) async fn handle_story_event_request(
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
                 })?;
 
-            Ok(Some(ResponseResult::success(serde_json::json!({
+            Ok(ResponseResult::success(serde_json::json!({
                 "id": event.id.to_string()
-            }))))
+            })))
         }
 
-        RequestPayload::SetStoryEventVisibility { event_id, visible } => {
+        StoryEventRequest::SetStoryEventVisibility { event_id, visible } => {
             if let Err(e) = require_dm_for_request(conn_info, request_id) {
                 return Err(e);
             }
 
-            let event_uuid = match Uuid::parse_str(event_id) {
+            let event_uuid = match Uuid::parse_str(&event_id) {
                 Ok(u) => wrldbldr_domain::StoryEventId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -223,14 +229,14 @@ pub(super) async fn handle_story_event_request(
                 })? {
                 Some(ev) => ev,
                 None => {
-                    return Ok(Some(ResponseResult::error(
-                        ErrorCode::NotFound,
-                        "Story event not found",
-                    )))
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(ErrorCode::NotFound, "Story event not found"),
+                    })
                 }
             };
 
-            ev.is_hidden = !*visible;
+            ev.is_hidden = !visible;
 
             state
                 .app
@@ -243,11 +249,10 @@ pub(super) async fn handle_story_event_request(
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
                 })?;
 
-            Ok(Some(ResponseResult::success(serde_json::json!({
-                "updated": true
-            }))))
+            Ok(ResponseResult::success(serde_json::json!({
+                "id": ev.id.to_string(),
+                "is_hidden": ev.is_hidden,
+            })))
         }
-
-        _ => Ok(None),
     }
 }

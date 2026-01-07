@@ -22,17 +22,29 @@
 
 use std::sync::Arc;
 use uuid::Uuid;
-use wrldbldr_domain::{AssetId, CharacterId, ExpressionConfig};
+use wrldbldr_domain::{AssetId, CharacterId};
 
 use crate::entities::{Assets, Character};
 use crate::infrastructure::ports::{ClockPort, QueuePort, RepoError};
 
 /// Standard expression order in a 4x4 grid
 pub const STANDARD_EXPRESSION_ORDER: [&str; 16] = [
-    "neutral", "happy", "sad", "angry",
-    "surprised", "afraid", "thoughtful", "suspicious",
-    "curious", "confused", "worried", "excited",
-    "confident", "nervous", "amused", "calm",
+    "neutral",
+    "happy",
+    "sad",
+    "angry",
+    "surprised",
+    "afraid",
+    "thoughtful",
+    "suspicious",
+    "curious",
+    "confused",
+    "worried",
+    "excited",
+    "confident",
+    "nervous",
+    "amused",
+    "calm",
 ];
 
 /// Request for expression sheet generation
@@ -60,7 +72,10 @@ impl ExpressionSheetRequest {
         Self {
             character_id,
             source_asset_id: None,
-            expressions: STANDARD_EXPRESSION_ORDER.iter().map(|s| s.to_string()).collect(),
+            expressions: STANDARD_EXPRESSION_ORDER
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             grid_layout: (4, 4),
             workflow,
             style_prompt: None,
@@ -68,11 +83,7 @@ impl ExpressionSheetRequest {
     }
 
     /// Create a request with custom expressions
-    pub fn custom(
-        character_id: CharacterId,
-        expressions: Vec<String>,
-        workflow: String,
-    ) -> Self {
+    pub fn custom(character_id: CharacterId, expressions: Vec<String>, workflow: String) -> Self {
         let count = expressions.len();
         // Calculate grid layout (prefer square)
         let cols = (count as f32).sqrt().ceil() as u32;
@@ -153,10 +164,7 @@ impl GenerateExpressionSheet {
         let expressions_list = request.expressions.join(", ");
         let base_prompt = format!(
             "Expression sheet for character '{}'. Grid layout {}x{}. Expressions: {}",
-            character.name,
-            request.grid_layout.0,
-            request.grid_layout.1,
-            expressions_list
+            character.name, request.grid_layout.0, request.grid_layout.1, expressions_list
         );
 
         let prompt = match request.style_prompt {

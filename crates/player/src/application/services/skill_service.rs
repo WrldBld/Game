@@ -10,7 +10,7 @@ use serde::Serialize;
 use crate::application::dto::{SkillCategory, SkillData};
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::RequestPayload;
+use wrldbldr_protocol::{RequestPayload, SkillRequest};
 
 /// Request to create a new skill
 #[derive(Clone, Debug, Serialize)]
@@ -85,9 +85,9 @@ impl SkillService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::ListSkills {
+                RequestPayload::Skill(SkillRequest::ListSkills {
                     world_id: world_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -100,9 +100,9 @@ impl SkillService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::GetSkill {
+                RequestPayload::Skill(SkillRequest::GetSkill {
                     skill_id: skill_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -119,10 +119,10 @@ impl SkillService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::CreateSkill {
+                RequestPayload::Skill(SkillRequest::CreateSkill {
                     world_id: world_id.to_string(),
                     data: request.into(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -139,10 +139,10 @@ impl SkillService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::UpdateSkill {
+                RequestPayload::Skill(SkillRequest::UpdateSkill {
                     skill_id: skill_id.to_string(),
                     data: request.into(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -167,10 +167,10 @@ impl SkillService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::UpdateSkill {
+                RequestPayload::Skill(SkillRequest::UpdateSkill {
                     skill_id: skill_id.to_string(),
                     data: (&request).into(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -183,9 +183,9 @@ impl SkillService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::DeleteSkill {
+                RequestPayload::Skill(SkillRequest::DeleteSkill {
                     skill_id: skill_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;

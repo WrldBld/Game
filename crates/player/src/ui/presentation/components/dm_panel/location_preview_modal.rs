@@ -2,7 +2,7 @@
 
 use dioxus::prelude::*;
 
-use crate::application::application::services::location_service::{
+use crate::application::services::location_service::{
     ConnectionData, LocationFormData, RegionData,
 };
 

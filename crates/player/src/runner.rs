@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::infrastructure::Platform;
-use crate::application::application::api::Api;
+use crate::application::api::Api;
 use crate::ports::outbound::{GameConnectionPort, PlatformPort, RawApiPort};
 
 /// Configuration types for the player runner.

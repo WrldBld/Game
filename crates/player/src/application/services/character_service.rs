@@ -13,7 +13,7 @@ use crate::application::dto::requests::{
 use crate::application::dto::{CharacterSheetDataApi, InventoryItemData};
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::RequestPayload;
+use wrldbldr_protocol::{CharacterRequest, RequestPayload};
 
 /// Character summary for list views
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -71,9 +71,9 @@ impl CharacterService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::ListCharacters {
+                RequestPayload::Character(CharacterRequest::ListCharacters {
                     world_id: world_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -88,9 +88,9 @@ impl CharacterService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::GetCharacter {
+                RequestPayload::Character(CharacterRequest::GetCharacter {
                     character_id: character_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -114,10 +114,10 @@ impl CharacterService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::CreateCharacter {
+                RequestPayload::Character(CharacterRequest::CreateCharacter {
                     world_id: world_id.to_string(),
                     data: request.into(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -142,10 +142,10 @@ impl CharacterService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::UpdateCharacter {
+                RequestPayload::Character(CharacterRequest::UpdateCharacter {
                     character_id: character_id.to_string(),
                     data: request.into(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -157,9 +157,9 @@ impl CharacterService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::DeleteCharacter {
+                RequestPayload::Character(CharacterRequest::DeleteCharacter {
                     character_id: character_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -181,10 +181,10 @@ impl CharacterService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::ChangeArchetype {
+                RequestPayload::Character(CharacterRequest::ChangeArchetype {
                     character_id: character_id.to_string(),
                     data: request.into(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -199,9 +199,9 @@ impl CharacterService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::GetCharacterInventory {
+                RequestPayload::Character(CharacterRequest::GetCharacterInventory {
                     character_id: character_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;

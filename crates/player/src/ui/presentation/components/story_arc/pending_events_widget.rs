@@ -3,7 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::presentation::services::use_narrative_event_service;
-use crate::application::application::dto::NarrativeEventData;
+use crate::application::dto::NarrativeEventData;
 
 #[derive(Props, Clone, PartialEq)]
 pub struct PendingEventsWidgetProps {

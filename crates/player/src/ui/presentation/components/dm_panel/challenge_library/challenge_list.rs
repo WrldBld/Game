@@ -2,7 +2,7 @@
 
 use dioxus::prelude::*;
 use std::collections::HashMap;
-use crate::application::application::dto::{ChallengeData, ChallengeType};
+use crate::application::dto::{ChallengeData, ChallengeType};
 
 /// Section for a challenge type
 #[derive(Props, Clone, PartialEq)]

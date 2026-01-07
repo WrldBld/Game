@@ -4,7 +4,9 @@ use chrono::{TimeZone, Utc};
 use uuid::Uuid;
 use wrldbldr_domain::{ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency, WorldId};
 
-use crate::infrastructure::{clock::FixedClock, ports::QueueItemData, ports::QueuePort, queue::SqliteQueue};
+use crate::infrastructure::{
+    clock::FixedClock, ports::QueueItemData, ports::QueuePort, queue::SqliteQueue,
+};
 
 #[tokio::test]
 async fn sqlite_queue_dm_approval_persists_across_restart() {
@@ -42,20 +44,19 @@ async fn sqlite_queue_dm_approval_persists_across_restart() {
         let queue = SqliteQueue::new(&db_path_str, clock.clone())
             .await
             .expect("create queue");
+        queue.enqueue_dm_approval(&approval).await.expect("enqueue");
+        queue.get_pending_count("dm_approval").await.expect("count");
+
+        // Drop queue to simulate restart
         queue
             .enqueue_dm_approval(&approval)
             .await
-            .expect("enqueue");
-        queue
-            .get_pending_count("dm_approval")
-            .await
-            .expect("count");
-
-        // Drop queue to simulate restart
-        queue.enqueue_dm_approval(&approval).await.expect("enqueue2")
+            .expect("enqueue2")
     };
 
-    let queue = SqliteQueue::new(&db_path_str, clock).await.expect("reopen queue");
+    let queue = SqliteQueue::new(&db_path_str, clock)
+        .await
+        .expect("reopen queue");
 
     let item = queue
         .dequeue_dm_approval()

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::RequestPayload;
+use wrldbldr_protocol::{GenerationRequest, RequestPayload};
 
 /// DTO for batch status information from the Engine
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -76,10 +76,10 @@ impl GenerationService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::GetGenerationQueue {
+                RequestPayload::Generation(GenerationRequest::GetGenerationQueue {
                     world_id: world_id.to_string(),
                     user_id: user_id.map(|s| s.to_string()),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -105,11 +105,11 @@ impl GenerationService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::SyncGenerationReadState {
+                RequestPayload::Generation(GenerationRequest::SyncGenerationReadState {
                     world_id: world_id.unwrap_or("GLOBAL").to_string(),
                     read_batches,
                     read_suggestions,
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;

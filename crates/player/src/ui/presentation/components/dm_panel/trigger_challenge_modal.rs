@@ -3,7 +3,7 @@
 //! Allows DM to select and trigger a challenge for a specific character.
 
 use dioxus::prelude::*;
-use crate::application::application::dto::{ChallengeData, CharacterData as SceneCharacterState};
+use crate::application::dto::{ChallengeData, CharacterData as SceneCharacterState};
 
 /// Props for TriggerChallengeModal
 #[derive(Props, Clone, PartialEq)]

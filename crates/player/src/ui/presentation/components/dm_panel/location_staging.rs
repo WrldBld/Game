@@ -8,8 +8,8 @@ use dioxus::prelude::*;
 use crate::presentation::services::{use_character_service, use_location_service};
 use crate::presentation::state::game_state::RegionStagingStatus;
 use crate::presentation::state::{use_game_state, use_session_state};
-use crate::application::application::dto::ApprovedNpcInfo;
-use crate::application::application::services::CharacterSummary;
+use crate::application::dto::ApprovedNpcInfo;
+use crate::application::services::CharacterSummary;
 
 /// Region staging status
 #[derive(Clone, PartialEq)]

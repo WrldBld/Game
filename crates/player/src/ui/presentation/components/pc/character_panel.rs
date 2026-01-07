@@ -3,8 +3,8 @@
 use dioxus::prelude::*;
 
 use crate::presentation::services::use_world_service;
-use crate::application::application::dto::SheetTemplate;
-use crate::application::application::services::PlayerCharacterData;
+use crate::application::dto::SheetTemplate;
+use crate::application::services::PlayerCharacterData;
 
 /// Props for CharacterPanel
 #[derive(Props, Clone, PartialEq)]

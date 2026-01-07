@@ -3,7 +3,7 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
-use crate::application::application::dto::{
+use crate::application::dto::{
     FieldType, FieldValue, SheetField, SheetSection, SheetTemplate,
 };
 
@@ -95,12 +95,12 @@ fn SheetSectionViewer(props: SheetSectionViewerProps) -> Element {
 
     // CRITICAL: Extract layout classes BEFORE rsx! block - no inline conditionals in class strings
     let content_layout_class = match props.section.layout {
-        crate::application::application::dto::SectionLayout::Vertical => "flex flex-col gap-2",
-        crate::application::application::dto::SectionLayout::Grid { columns: _ } => {
+        crate::application::dto::SectionLayout::Vertical => "flex flex-col gap-2",
+        crate::application::dto::SectionLayout::Grid { columns: _ } => {
             "grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3"
         }
-        crate::application::application::dto::SectionLayout::TwoColumn => "grid grid-cols-2 gap-3",
-        crate::application::application::dto::SectionLayout::Flow => "flex flex-wrap gap-3",
+        crate::application::dto::SectionLayout::TwoColumn => "grid grid-cols-2 gap-3",
+        crate::application::dto::SectionLayout::Flow => "flex flex-wrap gap-3",
     };
 
     // Sort fields by order

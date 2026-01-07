@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::RequestPayload;
+use wrldbldr_protocol::{EventChainRequest, RequestPayload};
 
 /// Event chain data from engine
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -152,9 +152,9 @@ impl EventChainService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::ListEventChains {
+                RequestPayload::EventChain(EventChainRequest::ListEventChains {
                     world_id: world_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -167,9 +167,9 @@ impl EventChainService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::GetEventChain {
+                RequestPayload::EventChain(EventChainRequest::GetEventChain {
                     chain_id: chain_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -186,10 +186,10 @@ impl EventChainService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::CreateEventChain {
+                RequestPayload::EventChain(EventChainRequest::CreateEventChain {
                     world_id: world_id.to_string(),
                     data: request.into(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -206,10 +206,10 @@ impl EventChainService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::UpdateEventChain {
+                RequestPayload::EventChain(EventChainRequest::UpdateEventChain {
                     chain_id: chain_id.to_string(),
                     data: request.into(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -222,9 +222,9 @@ impl EventChainService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::DeleteEventChain {
+                RequestPayload::EventChain(EventChainRequest::DeleteEventChain {
                     chain_id: chain_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -241,11 +241,11 @@ impl EventChainService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::AddEventToChain {
+                RequestPayload::EventChain(EventChainRequest::AddEventToChain {
                     chain_id: chain_id.to_string(),
                     event_id: request.event_id.clone(),
                     position: request.position.map(|p| p as u32),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -258,10 +258,10 @@ impl EventChainService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::RemoveEventFromChain {
+                RequestPayload::EventChain(EventChainRequest::RemoveEventFromChain {
                     chain_id: chain_id.to_string(),
                     event_id: event_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -274,10 +274,10 @@ impl EventChainService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::CompleteChainEvent {
+                RequestPayload::EventChain(EventChainRequest::CompleteChainEvent {
                     chain_id: chain_id.to_string(),
                     event_id: event_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -294,10 +294,10 @@ impl EventChainService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::SetEventChainFavorite {
+                RequestPayload::EventChain(EventChainRequest::SetEventChainFavorite {
                     chain_id: chain_id.to_string(),
                     favorite,
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -310,10 +310,10 @@ impl EventChainService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::SetEventChainActive {
+                RequestPayload::EventChain(EventChainRequest::SetEventChainActive {
                     chain_id: chain_id.to_string(),
                     active,
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -326,9 +326,9 @@ impl EventChainService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::ResetEventChain {
+                RequestPayload::EventChain(EventChainRequest::ResetEventChain {
                     chain_id: chain_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -341,9 +341,9 @@ impl EventChainService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::GetEventChainStatus {
+                RequestPayload::EventChain(EventChainRequest::GetEventChainStatus {
                     chain_id: chain_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;

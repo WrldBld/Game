@@ -2,7 +2,7 @@
 
 use crate::presentation::services::use_challenge_service;
 use dioxus::prelude::*;
-use crate::application::application::dto::{
+use crate::application::dto::{
     ChallengeData, ChallengeDifficulty, ChallengeOutcomes, ChallengeType, SkillData,
 };
 
@@ -93,11 +93,11 @@ pub fn ChallengeFormModal(props: ChallengeFormModalProps) -> Element {
             skill_id: skill_id.read().clone(),
             difficulty: difficulty.read().clone(),
             outcomes: ChallengeOutcomes {
-                success: crate::application::application::dto::Outcome {
+                success: crate::application::dto::Outcome {
                     description: success_desc.read().clone(),
                     triggers: vec![],
                 },
-                failure: crate::application::application::dto::Outcome {
+                failure: crate::application::dto::Outcome {
                     description: failure_desc.read().clone(),
                     triggers: vec![],
                 },

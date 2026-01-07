@@ -9,7 +9,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::presentation::components::tactical::PlayerSkillData;
-use crate::application::application::dto::{
+use crate::application::dto::{
     ApprovalDecision, ConnectedUser, OutcomeBranchData, ParticipantRole, WorldRole,
 };
 use crate::ports::outbound::GameConnectionPort;

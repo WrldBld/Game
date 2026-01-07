@@ -6,7 +6,7 @@
 
 use wrldbldr_protocol::{
     AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecisionData, ClientMessage,
-    DiceInputType, DirectorialContext, RequestPayload,
+    DiceInputType, DirectorialContext, NpcRequest, RequestPayload, TimeRequest,
 };
 
 /// Builder for ClientMessage variants
@@ -240,12 +240,12 @@ impl ClientMessageBuilder {
     ) -> ClientMessage {
         ClientMessage::Request {
             request_id: uuid::Uuid::new_v4().to_string(),
-            payload: RequestPayload::SetNpcDisposition {
+            payload: RequestPayload::Npc(NpcRequest::SetNpcDisposition {
                 npc_id: npc_id.to_string(),
                 pc_id: pc_id.to_string(),
                 disposition: disposition.to_string(),
                 reason: reason.map(|s| s.to_string()),
-            },
+            }),
         }
     }
 
@@ -255,11 +255,11 @@ impl ClientMessageBuilder {
     pub fn set_npc_relationship(npc_id: &str, pc_id: &str, relationship: &str) -> ClientMessage {
         ClientMessage::Request {
             request_id: uuid::Uuid::new_v4().to_string(),
-            payload: RequestPayload::SetNpcRelationship {
+            payload: RequestPayload::Npc(NpcRequest::SetNpcRelationship {
                 npc_id: npc_id.to_string(),
                 pc_id: pc_id.to_string(),
                 relationship: relationship.to_string(),
-            },
+            }),
         }
     }
 
@@ -269,9 +269,9 @@ impl ClientMessageBuilder {
     pub fn get_npc_dispositions(pc_id: &str) -> ClientMessage {
         ClientMessage::Request {
             request_id: uuid::Uuid::new_v4().to_string(),
-            payload: RequestPayload::GetNpcDispositions {
+            payload: RequestPayload::Npc(NpcRequest::GetNpcDispositions {
                 pc_id: pc_id.to_string(),
-            },
+            }),
         }
     }
 
@@ -332,11 +332,11 @@ impl ClientMessageBuilder {
     pub fn advance_time(world_id: &str, minutes: u32, reason: &str) -> ClientMessage {
         ClientMessage::Request {
             request_id: uuid::Uuid::new_v4().to_string(),
-            payload: RequestPayload::AdvanceGameTimeMinutes {
+            payload: RequestPayload::Time(TimeRequest::AdvanceGameTimeMinutes {
                 world_id: world_id.to_string(),
                 minutes,
                 reason: Some(reason.to_string()),
-            },
+            }),
         }
     }
 }
@@ -419,7 +419,10 @@ mod tests {
             } => {
                 // Request ID should be a valid UUID
                 assert!(uuid::Uuid::parse_str(&request_id).is_ok());
-                assert!(matches!(payload, RequestPayload::SetNpcDisposition { .. }));
+                assert!(matches!(
+                    payload,
+                    RequestPayload::Npc(NpcRequest::SetNpcDisposition { .. })
+                ));
             }
             _ => panic!("Expected Request message"),
         }

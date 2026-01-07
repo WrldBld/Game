@@ -28,8 +28,8 @@ use crate::presentation::state::{
     use_dialogue_state, use_game_state, use_session_state, use_typewriter_effect,
     RollSubmissionStatus,
 };
-use crate::application::application::dto::InventoryItemData;
-use crate::application::application::dto::{
+use crate::application::dto::InventoryItemData;
+use crate::application::dto::{
     DiceInput, FieldValue, InteractionData, PlayerAction, SheetTemplate,
 };
 
@@ -504,7 +504,7 @@ pub fn PCView() -> Element {
                                                     .get(&format!("skill_{}", s.name.to_lowercase().replace(' ', "_")))
                                                     .or_else(|| sheet_values.get(&s.name.to_lowercase()))
                                                     .and_then(|v| match v {
-                                                        crate::application::application::dto::FieldValue::Number(n) => Some(*n),
+                                                        crate::application::dto::FieldValue::Number(n) => Some(*n),
                                                         _ => None,
                                                     })
                                                     .unwrap_or(0);

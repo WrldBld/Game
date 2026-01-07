@@ -11,7 +11,7 @@ use crate::presentation::state::{
     DialogueState, GameState, GenerationState, LoreState, PendingApproval, SessionState,
 };
 use dioxus::prelude::{ReadableExt, WritableExt};
-use crate::application::application::dto::SessionWorldSnapshot;
+use crate::application::dto::SessionWorldSnapshot;
 use crate::ports::outbound::player_events::{
     CharacterData, CharacterPosition, ConnectedUser, NpcPresenceData, PlayerEvent, SceneData,
 };

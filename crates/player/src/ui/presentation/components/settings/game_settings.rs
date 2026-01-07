@@ -6,7 +6,7 @@
 
 use crate::presentation::services::use_settings_service;
 use dioxus::prelude::*;
-use crate::application::application::dto::{AppSettings, BatchQueueFailurePolicy};
+use crate::application::dto::{AppSettings, BatchQueueFailurePolicy};
 
 /// Props for the Game Settings Panel
 #[derive(Props, Clone, PartialEq)]

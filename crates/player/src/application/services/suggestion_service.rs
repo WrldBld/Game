@@ -26,7 +26,7 @@ use serde::Deserialize;
 use crate::application::dto::requests::SuggestionContext;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::RequestPayload;
+use wrldbldr_protocol::{AiRequest, RequestPayload};
 
 /// Response from queued suggestion (immediate response, results via events)
 #[derive(Clone, Debug, Deserialize)]
@@ -209,11 +209,11 @@ impl SuggestionService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::EnqueueContentSuggestion {
+                RequestPayload::Ai(AiRequest::EnqueueContentSuggestion {
                     world_id: world_id.to_string(),
                     suggestion_type: suggestion_type.to_string(),
                     context: context.clone().into(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -229,9 +229,9 @@ impl SuggestionService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::CancelContentSuggestion {
+                RequestPayload::Ai(AiRequest::CancelContentSuggestion {
                     request_id: request_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;

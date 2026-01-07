@@ -12,9 +12,9 @@ use crate::presentation::components::common::FormField;
 use crate::presentation::services::{use_character_service, use_world_service};
 use crate::use_platform;
 use wrldbldr_domain::{ExpressionConfig, MoodState};
-use crate::application::application::dto::{FieldValue, SheetTemplate};
-use crate::application::application::services::SuggestionContext;
-use crate::application::application::services::{CharacterFormData, CharacterSheetDataApi};
+use crate::application::dto::{FieldValue, SheetTemplate};
+use crate::application::services::SuggestionContext;
+use crate::application::services::{CharacterFormData, CharacterSheetDataApi};
 
 /// Character archetypes
 const ARCHETYPES: &[&str] = &[
@@ -34,7 +34,7 @@ pub fn CharacterForm(
     character_id: String,
     world_id: String,
     characters_signal: Signal<
-        Vec<crate::application::application::services::character_service::CharacterSummary>,
+        Vec<crate::application::services::character_service::CharacterSummary>,
     >,
     on_close: EventHandler<()>,
 ) -> Element {
@@ -544,7 +544,7 @@ pub fn CharacterForm(
                                             // Update the characters signal reactively
                                             if is_new {
                                                 // Add new character to list
-                                                let summary = crate::application::application::services::character_service::CharacterSummary {
+                                                let summary = crate::application::services::character_service::CharacterSummary {
                                                     id: saved_character.id.clone().unwrap_or_default(),
                                                     name: saved_character.name.clone(),
                                                     archetype: saved_character.archetype.clone(),

@@ -3,7 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::presentation::services::{use_asset_service, use_settings_service};
-use crate::application::application::services::{Asset, GenerateRequest};
+use crate::application::services::{Asset, GenerateRequest};
 
 /// Asset types that can be generated
 const ASSET_TYPES: &[(&str, &str)] = &[

@@ -9,7 +9,7 @@ use crate::presentation::components::story_arc::timeline_filters::{
 };
 use crate::presentation::services::use_story_event_service;
 use crate::presentation::state::use_game_state;
-use crate::application::application::dto::{StoryEventData, StoryEventTypeData};
+use crate::application::dto::{StoryEventData, StoryEventTypeData};
 
 /// Filter options for the timeline
 #[derive(Debug, Clone, Default)]

@@ -1,4 +1,4 @@
-use crate::application::application::dto::GameTime;
+use crate::application::dto::GameTime;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TimeOfDay {

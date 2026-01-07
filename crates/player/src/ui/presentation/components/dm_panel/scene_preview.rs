@@ -3,7 +3,7 @@
 //! Shows a smaller version of what players see including backdrop and character sprites.
 
 use dioxus::prelude::*;
-use crate::application::application::dto::CharacterData as SceneCharacterState;
+use crate::application::dto::CharacterData as SceneCharacterState;
 
 use crate::presentation::utils::CharacterPositionStyle;
 

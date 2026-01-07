@@ -17,7 +17,7 @@
 use dioxus::prelude::*;
 use std::sync::Arc;
 
-use crate::application::application::services::{
+use crate::application::services::{
     ActantialService, AssetService, ChallengeService, CharacterService, EventChainService,
     GenerationService, LocationService, NarrativeEventService, ObservationService,
     PlayerCharacterService, SettingsService, SkillService, StoryEventService, SuggestionService,
@@ -25,7 +25,7 @@ use crate::application::application::services::{
 };
 use crate::ports::outbound::{ApiPort, GameConnectionPort, RawApiPort};
 
-use crate::application::application::api::Api;
+use crate::application::api::Api;
 
 /// Concrete service bundle type used by the UI.
 pub type UiServices = Services<Api>;

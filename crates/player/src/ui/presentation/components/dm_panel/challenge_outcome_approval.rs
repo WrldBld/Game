@@ -5,7 +5,7 @@
 
 use crate::presentation::state::PendingChallengeOutcome;
 use dioxus::prelude::*;
-use crate::application::application::dto::ChallengeOutcomeDecision;
+use crate::application::dto::ChallengeOutcomeDecision;
 
 /// Props for ChallengeOutcomeApprovalCard
 #[derive(Props, Clone, PartialEq)]

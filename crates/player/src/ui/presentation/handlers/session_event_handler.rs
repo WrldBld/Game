@@ -4,8 +4,8 @@
 //! presentation state accordingly. This is where the application-to-presentation
 //! boundary is properly maintained.
 
-use crate::application::application::services::port_connection_state_to_status;
-use crate::application::application::services::SessionEvent;
+use crate::application::services::port_connection_state_to_status;
+use crate::application::services::SessionEvent;
 use crate::ports::outbound::{ConnectionState as PortConnectionState, PlatformPort};
 
 use crate::presentation::handlers::handle_server_message;
@@ -34,19 +34,19 @@ pub fn handle_session_event(
 
             // Map application status to presentation status
             let presentation_status = match status {
-                crate::application::application::dto::AppConnectionStatus::Disconnected => {
+                crate::application::dto::AppConnectionStatus::Disconnected => {
                     ConnectionStatus::Disconnected
                 }
-                crate::application::application::dto::AppConnectionStatus::Connecting => {
+                crate::application::dto::AppConnectionStatus::Connecting => {
                     ConnectionStatus::Connecting
                 }
-                crate::application::application::dto::AppConnectionStatus::Connected => {
+                crate::application::dto::AppConnectionStatus::Connected => {
                     ConnectionStatus::Connected
                 }
-                crate::application::application::dto::AppConnectionStatus::Reconnecting => {
+                crate::application::dto::AppConnectionStatus::Reconnecting => {
                     ConnectionStatus::Reconnecting
                 }
-                crate::application::application::dto::AppConnectionStatus::Failed => {
+                crate::application::dto::AppConnectionStatus::Failed => {
                     ConnectionStatus::Failed
                 }
             };

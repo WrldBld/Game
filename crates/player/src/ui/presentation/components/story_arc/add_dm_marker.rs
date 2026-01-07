@@ -3,7 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::presentation::services::use_story_event_service;
-use crate::application::application::services::CreateDmMarkerRequest;
+use crate::application::services::CreateDmMarkerRequest;
 
 #[derive(Props, Clone, PartialEq)]
 pub struct AddDmMarkerModalProps {

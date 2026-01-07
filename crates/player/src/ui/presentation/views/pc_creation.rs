@@ -8,8 +8,8 @@ use crate::presentation::services::{
 };
 use crate::presentation::state::use_session_state;
 use crate::use_platform;
-use crate::application::application::dto::{FieldValue, SheetTemplate};
-use crate::application::application::services::CreatePlayerCharacterRequest;
+use crate::application::dto::{FieldValue, SheetTemplate};
+use crate::application::services::CreatePlayerCharacterRequest;
 
 /// Wizard step enum
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -51,7 +51,7 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
 
     // Form state - Step 3: Starting Location
     let mut available_locations: Signal<
-        Vec<crate::application::application::services::LocationSummary>,
+        Vec<crate::application::services::LocationSummary>,
     > = use_signal(Vec::new);
     let mut selected_location_id: Signal<Option<String>> = use_signal(|| None);
     let mut locations_loading = use_signal(|| false);
@@ -489,7 +489,7 @@ fn CharacterSheetStep(props: CharacterSheetStepProps) -> Element {
 /// Step 3: Starting Location
 #[derive(Props, Clone, PartialEq)]
 struct StartingLocationStepProps {
-    locations: Vec<crate::application::application::services::LocationSummary>,
+    locations: Vec<crate::application::services::LocationSummary>,
     selected: Option<String>,
     loading: bool,
     on_select: EventHandler<String>,
@@ -540,7 +540,7 @@ fn StartingLocationStep(props: StartingLocationStepProps) -> Element {
 /// Location card component
 #[derive(Props, Clone, PartialEq)]
 struct LocationCardProps {
-    location: crate::application::application::services::LocationSummary,
+    location: crate::application::services::LocationSummary,
     is_selected: bool,
     on_select: EventHandler<()>,
 }

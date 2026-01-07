@@ -4,7 +4,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::api::connections::ConnectionInfo;
 use wrldbldr_domain::{LlmRequestData, LlmRequestType, SuggestionContext, WorldId};
-use wrldbldr_protocol::RequestPayload;
+
+use wrldbldr_protocol::{AiRequest, ExpressionRequest, GenerationRequest};
 
 #[derive(Debug, Default, Clone)]
 pub struct GenerationReadState {
@@ -34,15 +35,15 @@ fn map_queue_status_to_suggestion_status(
     }
 }
 
-pub(super) async fn handle_creator_request(
+pub(super) async fn handle_generation_request(
     state: &WsState,
     request_id: &str,
     conn_info: &ConnectionInfo,
-    payload: &RequestPayload,
-) -> Result<Option<ResponseResult>, ServerMessage> {
-    match payload {
-        RequestPayload::GetGenerationQueue { world_id, user_id } => {
-            let world_uuid = match Uuid::parse_str(world_id) {
+    request: GenerationRequest,
+) -> Result<ResponseResult, ServerMessage> {
+    match request {
+        GenerationRequest::GetGenerationQueue { world_id, user_id } => {
+            let world_uuid = match Uuid::parse_str(&world_id) {
                 Ok(u) => WorldId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -54,9 +55,8 @@ pub(super) async fn handle_creator_request(
 
             // Prefer explicit user_id (for forward compatibility), fallback to connection user_id.
             let effective_user_id = user_id
-                .as_deref()
                 .filter(|s| !s.is_empty())
-                .unwrap_or(&conn_info.user_id);
+                .unwrap_or_else(|| conn_info.user_id.clone());
 
             let read_key = format!("{}:{}", effective_user_id, world_uuid);
 
@@ -70,7 +70,7 @@ pub(super) async fn handle_creator_request(
                 let persisted = state
                     .app
                     .queue
-                    .get_generation_read_state(effective_user_id, world_uuid)
+                    .get_generation_read_state(effective_user_id.as_str(), world_uuid)
                     .await
                     .map_err(|e| ServerMessage::Response {
                         request_id: request_id.to_string(),
@@ -214,18 +214,18 @@ pub(super) async fn handle_creator_request(
                 })
                 .collect();
 
-            Ok(Some(ResponseResult::success(serde_json::json!({
+            Ok(ResponseResult::success(serde_json::json!({
                 "batches": batches,
                 "suggestions": suggestions,
-            }))))
+            })))
         }
 
-        RequestPayload::SyncGenerationReadState {
+        GenerationRequest::SyncGenerationReadState {
             world_id,
             read_batches,
             read_suggestions,
         } => {
-            let world_uuid = match Uuid::parse_str(world_id) {
+            let world_uuid = match Uuid::parse_str(&world_id) {
                 Ok(u) => WorldId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -242,8 +242,8 @@ pub(super) async fn handle_creator_request(
                 .upsert_generation_read_state(
                     &conn_info.user_id,
                     world_uuid,
-                    read_batches,
-                    read_suggestions,
+                    &read_batches,
+                    &read_suggestions,
                 )
                 .await
                 .map_err(|e| ServerMessage::Response {
@@ -258,15 +258,24 @@ pub(super) async fn handle_creator_request(
             entry.read_batches = read_batches.iter().cloned().collect();
             entry.read_suggestions = read_suggestions.iter().cloned().collect();
 
-            Ok(Some(ResponseResult::success_empty()))
+            Ok(ResponseResult::success_empty())
         }
+    }
+}
 
-        RequestPayload::EnqueueContentSuggestion {
+pub(super) async fn handle_ai_request(
+    state: &WsState,
+    request_id: &str,
+    conn_info: &ConnectionInfo,
+    request: AiRequest,
+) -> Result<ResponseResult, ServerMessage> {
+    match request {
+        AiRequest::EnqueueContentSuggestion {
             world_id,
             suggestion_type,
             context,
         } => {
-            let world_uuid = match Uuid::parse_str(world_id) {
+            let world_uuid = match Uuid::parse_str(&world_id) {
                 Ok(u) => WorldId::from_uuid(u),
                 Err(_) => {
                     return Err(ServerMessage::Response {
@@ -297,7 +306,7 @@ pub(super) async fn handle_creator_request(
 
             let llm_request = LlmRequestData {
                 request_type: LlmRequestType::Suggestion {
-                    field_type: suggestion_type.clone(),
+                    field_type: suggestion_type.to_string(),
                     entity_id: None,
                 },
                 world_id: world_uuid,
@@ -324,110 +333,35 @@ pub(super) async fn handle_creator_request(
                     world_uuid,
                     ServerMessage::SuggestionQueued {
                         request_id: callback_id.clone(),
-                        field_type: suggestion_type.clone(),
+                        field_type: suggestion_type.to_string(),
                         entity_id: None,
                     },
                 )
                 .await;
 
-            Ok(Some(ResponseResult::success(serde_json::json!({
+            Ok(ResponseResult::success(serde_json::json!({
                 "request_id": callback_id,
                 "status": "queued",
-            }))))
+            })))
         }
 
-        RequestPayload::CancelContentSuggestion { request_id: rid } => {
+        AiRequest::CancelContentSuggestion { request_id: rid } => {
             let cancelled = state
                 .app
                 .queue
-                .cancel_pending_llm_request_by_callback_id(rid)
+                .cancel_pending_llm_request_by_callback_id(rid.as_str())
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
                 })?;
 
-            Ok(Some(ResponseResult::success(serde_json::json!({
+            Ok(ResponseResult::success(serde_json::json!({
                 "cancelled": cancelled,
-            }))))
+            })))
         }
 
-        RequestPayload::GenerateExpressionSheet {
-            character_id,
-            workflow,
-            expressions,
-            grid_layout,
-            style_prompt,
-        } => {
-            // DM-only for now.
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
-
-            let character_uuid = match Uuid::parse_str(character_id) {
-                Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
-                Err(_) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(
-                            ErrorCode::BadRequest,
-                            "Invalid character_id",
-                        ),
-                    })
-                }
-            };
-
-            let (cols, rows) = match grid_layout.as_deref() {
-                Some(s) if !s.trim().is_empty() => {
-                    let parts: Vec<&str> = s.split('x').collect();
-                    if parts.len() == 2 {
-                        let c = parts[0].trim().parse::<u32>().unwrap_or(4);
-                        let r = parts[1].trim().parse::<u32>().unwrap_or(4);
-                        (c.max(1), r.max(1))
-                    } else {
-                        (4, 4)
-                    }
-                }
-                _ => (4, 4),
-            };
-
-            let exprs = expressions.clone().unwrap_or_else(|| {
-                crate::use_cases::assets::expression_sheet::STANDARD_EXPRESSION_ORDER
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect()
-            });
-
-            let req = crate::use_cases::assets::expression_sheet::ExpressionSheetRequest {
-                character_id: character_uuid,
-                source_asset_id: None,
-                expressions: exprs,
-                grid_layout: (cols, rows),
-                workflow: workflow.clone(),
-                style_prompt: style_prompt.clone(),
-            };
-
-            let result = state
-                .app
-                .use_cases
-                .assets
-                .expression_sheet
-                .queue(req)
-                .await
-                .map_err(|e| ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
-                })?;
-
-            Ok(Some(ResponseResult::success(serde_json::json!({
-                "batch_id": result.batch_id.to_string(),
-                "character_id": result.character_id.to_string(),
-                "expressions": result.expressions,
-            }))))
-        }
-
-        RequestPayload::SuggestWantDescription { .. }
-        | RequestPayload::SuggestActantialReason { .. } => {
+        AiRequest::SuggestWantDescription { .. } | AiRequest::SuggestActantialReason { .. } => {
             // These are legacy/creator utilities; gate behind DM for now.
             if let Err(e) = require_dm_for_request(conn_info, request_id) {
                 return Err(e);
@@ -454,26 +388,26 @@ pub(super) async fn handle_creator_request(
                 .flatten()
                 .map(|w| w.name);
 
-            let (field_type, entity_id, suggestion_context) = match payload {
-                RequestPayload::SuggestWantDescription { npc_id, context } => (
+            let (field_type, entity_id, suggestion_context) = match request {
+                AiRequest::SuggestWantDescription { npc_id, context } => (
                     "want_description".to_string(),
-                    Some(npc_id.clone()),
+                    Some(npc_id.to_string()),
                     SuggestionContext {
                         entity_type: Some("npc".to_string()),
                         entity_name: None,
                         world_setting,
                         hints: None,
-                        additional_context: context.clone(),
+                        additional_context: context,
                         world_id: Some(world_uuid),
                     },
                 ),
-                RequestPayload::SuggestActantialReason {
+                AiRequest::SuggestActantialReason {
                     npc_id,
                     want_id,
                     target_id,
                     role,
                 } => {
-                    let role_json = serde_json::to_string(role).unwrap_or_else(|_| "null".into());
+                    let role_json = serde_json::to_string(&role).unwrap_or_else(|_| "null".into());
                     let extra = format!(
                         "npc_id={}; want_id={}; target_id={}; role={}",
                         npc_id, want_id, target_id, role_json
@@ -481,7 +415,7 @@ pub(super) async fn handle_creator_request(
 
                     (
                         "actantial_reason".to_string(),
-                        Some(npc_id.clone()),
+                        Some(npc_id.to_string()),
                         SuggestionContext {
                             entity_type: Some("npc".to_string()),
                             entity_name: None,
@@ -492,12 +426,7 @@ pub(super) async fn handle_creator_request(
                         },
                     )
                 }
-                _ => {
-                    return Ok(Some(ResponseResult::error(
-                        ErrorCode::BadRequest,
-                        "Unexpected suggestion payload",
-                    )))
-                }
+                _ => unreachable!(),
             };
 
             let callback_id = Uuid::new_v4().to_string();
@@ -537,12 +466,98 @@ pub(super) async fn handle_creator_request(
                 )
                 .await;
 
-            Ok(Some(ResponseResult::success(serde_json::json!({
+            Ok(ResponseResult::success(serde_json::json!({
                 "request_id": callback_id,
                 "status": "queued",
-            }))))
+            })))
         }
 
-        _ => Ok(None),
+        other => {
+            let msg = format!("This request type is not yet implemented: {:?}", other);
+            Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
+        }
+    }
+}
+
+pub(super) async fn handle_expression_request(
+    state: &WsState,
+    request_id: &str,
+    conn_info: &ConnectionInfo,
+    request: ExpressionRequest,
+) -> Result<ResponseResult, ServerMessage> {
+    match request {
+        ExpressionRequest::GenerateExpressionSheet {
+            character_id,
+            workflow,
+            expressions,
+            grid_layout,
+            style_prompt,
+        } => {
+            // DM-only for now.
+            if let Err(e) = require_dm_for_request(conn_info, request_id) {
+                return Err(e);
+            }
+
+            let character_uuid = match Uuid::parse_str(&character_id) {
+                Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
+                Err(_) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            "Invalid character_id",
+                        ),
+                    })
+                }
+            };
+
+            let (cols, rows) = match grid_layout {
+                Some(s) if !s.trim().is_empty() => {
+                    let parts: Vec<&str> = s.split('x').collect();
+                    if parts.len() == 2 {
+                        let c = parts[0].trim().parse::<u32>().unwrap_or(4);
+                        let r = parts[1].trim().parse::<u32>().unwrap_or(4);
+                        (c.max(1), r.max(1))
+                    } else {
+                        (4, 4)
+                    }
+                }
+                _ => (4, 4),
+            };
+
+            let exprs: Vec<String> = expressions.map(|xs| xs.to_vec()).unwrap_or_else(|| {
+                crate::use_cases::assets::expression_sheet::STANDARD_EXPRESSION_ORDER
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect()
+            });
+
+            let req = crate::use_cases::assets::expression_sheet::ExpressionSheetRequest {
+                character_id: character_uuid,
+                source_asset_id: None,
+                expressions: exprs,
+                grid_layout: (cols, rows),
+                workflow: workflow.to_string(),
+                style_prompt: style_prompt.map(|s| s.to_string()),
+            };
+
+            let result = state
+                .app
+                .use_cases
+                .assets
+                .expression_sheet
+                .queue(req)
+                .await
+                .map_err(|e| ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                })?;
+
+            Ok(ResponseResult::success(serde_json::json!({
+                "batch_id": result.batch_id.to_string(),
+                "character_id": result.character_id.to_string(),
+                "expressions": result.expressions,
+            })))
+        }
     }
 }

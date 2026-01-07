@@ -23,9 +23,9 @@ pub struct CharacterPerspectiveViewerProps {
 pub fn CharacterPerspectiveViewer(props: CharacterPerspectiveViewerProps) -> Element {
     let pc_service = use_player_character_service();
     let character_service = use_character_service();
-    let mut pcs: Signal<Vec<crate::application::application::services::PlayerCharacterData>> =
+    let mut pcs: Signal<Vec<crate::application::services::PlayerCharacterData>> =
         use_signal(Vec::new);
-    let mut npcs: Signal<Vec<crate::application::application::services::CharacterSummary>> =
+    let mut npcs: Signal<Vec<crate::application::services::CharacterSummary>> =
         use_signal(Vec::new);
     let mut loading = use_signal(|| true);
     let mut error: Signal<Option<String>> = use_signal(|| None);

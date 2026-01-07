@@ -12,7 +12,7 @@
 use dioxus::prelude::*;
 
 use crate::presentation::services::use_workflow_service;
-use crate::application::application::services::{
+use crate::application::services::{
     InputDefault, PromptMapping, TestWorkflowResponse, WorkflowConfig, WorkflowInput,
 };
 

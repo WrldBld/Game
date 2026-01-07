@@ -49,10 +49,10 @@ pub fn CreatorMode(props: CreatorModeProps) -> Element {
 
     // Entity lists - stored as reactive signals (single source of truth)
     let mut characters: Signal<
-        Vec<crate::application::application::services::character_service::CharacterSummary>,
+        Vec<crate::application::services::character_service::CharacterSummary>,
     > = use_signal(Vec::new);
     let mut locations: Signal<
-        Vec<crate::application::application::services::location_service::LocationSummary>,
+        Vec<crate::application::services::location_service::LocationSummary>,
     > = use_signal(Vec::new);
 
     // Loading and error states

@@ -7,11 +7,11 @@
 
 use dioxus::prelude::*;
 
-use crate::application::application::dto::{
+use crate::application::dto::{
     DiceSystem, ParticipantRole, RuleSystemConfig, RuleSystemPresetDetails, RuleSystemType,
     RuleSystemTypeExt, RuleSystemVariant, RuleSystemVariantExt, StatDefinition, SuccessComparison,
 };
-use crate::application::application::services::world_service::WorldSummary;
+use crate::application::services::world_service::WorldSummary;
 use crate::presentation::services::use_world_service;
 use crate::presentation::state::{GameState, SessionState};
 use crate::use_platform;

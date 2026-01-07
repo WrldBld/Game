@@ -12,7 +12,7 @@ const MAX_TIME_SUGGESTIONS: usize = 50;
 /// Maximum number of NPC mood entries to track (LRU eviction)
 const MAX_NPC_MOODS: usize = 200;
 
-use crate::application::application::dto::{
+use crate::application::dto::{
     CharacterData as SceneCharacterState, EntityChangedData, GameTime, InteractionData,
     NavigationData, NpcDispositionData, NpcPresenceData, RegionData as SceneRegionInfo,
     RegionItemData, SceneData as SceneSnapshot, SessionWorldSnapshot, SplitPartyLocation,
@@ -76,8 +76,8 @@ pub struct StagedNpcData {
     pub is_hidden_from_players: bool,
 }
 
-impl From<crate::application::application::dto::StagedNpcInfo> for StagedNpcData {
-    fn from(info: crate::application::application::dto::StagedNpcInfo) -> Self {
+impl From<crate::application::dto::StagedNpcInfo> for StagedNpcData {
+    fn from(info: crate::application::dto::StagedNpcInfo) -> Self {
         Self {
             character_id: info.character_id,
             name: info.name,

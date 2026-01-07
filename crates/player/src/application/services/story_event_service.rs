@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::application::dto::StoryEventData;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::RequestPayload;
+use wrldbldr_protocol::{RequestPayload, StoryEventRequest};
 
 /// Paginated response wrapper from Engine
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,11 +65,11 @@ impl StoryEventService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::ListStoryEvents {
+                RequestPayload::StoryEvent(StoryEventRequest::ListStoryEvents {
                     world_id: world_id.to_string(),
                     page: None,
                     page_size: None,
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -87,10 +87,10 @@ impl StoryEventService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::SetStoryEventVisibility {
+                RequestPayload::StoryEvent(StoryEventRequest::SetStoryEventVisibility {
                     event_id: event_id.to_string(),
                     visible,
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -107,10 +107,10 @@ impl StoryEventService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::CreateDmMarker {
+                RequestPayload::StoryEvent(StoryEventRequest::CreateDmMarker {
                     world_id: world_id.to_string(),
                     data: request.into(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;

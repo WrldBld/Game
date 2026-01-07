@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 
 use crate::presentation::components::dm_panel::challenge_outcome_approval::ChallengeOutcomesSection;
 use crate::presentation::state::use_session_state;
-use crate::application::application::dto::ChallengeOutcomeDecision;
+use crate::application::dto::ChallengeOutcomeDecision;
 
 /// Compact decision queue view for Director mode
 #[component]

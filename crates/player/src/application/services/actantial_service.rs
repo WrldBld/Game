@@ -13,8 +13,8 @@ use crate::ports::outbound::GameConnectionPort;
 // as shared value objects. These are essentially protocol primitives used in DTOs.
 // This is a documented exception in the hexagonal architecture.
 use wrldbldr_protocol::{
-    ActantialRoleData, ActorTypeData, NpcActantialContextData, RequestPayload, WantTargetData,
-    WantTargetTypeData, WantVisibilityData,
+    ActantialRequest, ActantialRoleData, ActorTypeData, GoalRequest, NpcActantialContextData,
+    RequestPayload, WantRequest, WantTargetData, WantTargetTypeData, WantVisibilityData,
 };
 
 /// Request to create a new want
@@ -190,9 +190,9 @@ impl ActantialService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::ListWants {
+                RequestPayload::Want(WantRequest::ListWants {
                     character_id: character_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -209,10 +209,10 @@ impl ActantialService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::CreateWant {
+                RequestPayload::Want(WantRequest::CreateWant {
                     character_id: character_id.to_string(),
                     data: request.to_protocol_data(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -229,10 +229,10 @@ impl ActantialService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::UpdateWant {
+                RequestPayload::Want(WantRequest::UpdateWant {
                     want_id: want_id.to_string(),
                     data: request.to_protocol_data(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -245,9 +245,9 @@ impl ActantialService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::DeleteWant {
+                RequestPayload::Want(WantRequest::DeleteWant {
                     want_id: want_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -264,11 +264,11 @@ impl ActantialService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::SetWantTarget {
+                RequestPayload::Want(WantRequest::SetWantTarget {
                     want_id: want_id.to_string(),
                     target_id: request.target_id.clone(),
                     target_type: request.target_type,
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -281,9 +281,9 @@ impl ActantialService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::RemoveWantTarget {
+                RequestPayload::Want(WantRequest::RemoveWantTarget {
                     want_id: want_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -301,9 +301,9 @@ impl ActantialService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::GetActantialContext {
+                RequestPayload::Actantial(ActantialRequest::GetActantialContext {
                     character_id: character_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -320,14 +320,14 @@ impl ActantialService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::AddActantialView {
+                RequestPayload::Actantial(ActantialRequest::AddActantialView {
                     character_id: character_id.to_string(),
                     want_id: request.want_id.clone(),
                     target_id: request.actor_id.clone(),
                     target_type: request.actor_type,
                     role: request.role,
                     reason: request.reason.clone().unwrap_or_default(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -344,13 +344,13 @@ impl ActantialService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::RemoveActantialView {
+                RequestPayload::Actantial(ActantialRequest::RemoveActantialView {
                     character_id: character_id.to_string(),
                     want_id: request.want_id.clone(),
                     target_id: request.actor_id.clone(),
                     target_type: request.actor_type,
                     role: request.role,
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -365,9 +365,9 @@ impl ActantialService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::ListGoals {
+                RequestPayload::Goal(GoalRequest::ListGoals {
                     world_id: world_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -384,10 +384,10 @@ impl ActantialService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::CreateGoal {
+                RequestPayload::Goal(GoalRequest::CreateGoal {
                     world_id: world_id.to_string(),
                     data: request.into(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -404,10 +404,10 @@ impl ActantialService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::UpdateGoal {
+                RequestPayload::Goal(GoalRequest::UpdateGoal {
                     goal_id: goal_id.to_string(),
                     data: request.into(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;
@@ -420,9 +420,9 @@ impl ActantialService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::DeleteGoal {
+                RequestPayload::Goal(GoalRequest::DeleteGoal {
                     goal_id: goal_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;

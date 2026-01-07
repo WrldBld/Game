@@ -4,7 +4,7 @@
 
 use dioxus::prelude::*;
 
-use crate::application::application::dto::InteractionData;
+use crate::application::dto::InteractionData;
 
 /// Props for the ActionPanel component
 #[derive(Props, Clone, PartialEq)]

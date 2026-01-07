@@ -6,7 +6,7 @@ use crate::presentation::components::story_arc::event_chain_editor::EventChainEd
 use crate::presentation::components::story_arc::event_chain_list::{ChainFilter, EventChainList};
 use crate::presentation::components::story_arc::event_chain_visualizer::EventChainVisualizer;
 use crate::presentation::services::use_event_chain_service;
-use crate::application::application::services::EventChainData;
+use crate::application::services::EventChainData;
 
 /// Event Chains view - main component for managing event chains
 #[component]

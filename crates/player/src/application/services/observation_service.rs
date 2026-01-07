@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::ports::outbound::GameConnectionPort;
-use wrldbldr_protocol::RequestPayload;
+use wrldbldr_protocol::{ObservationRequest, RequestPayload};
 
 /// Summary of an NPC observation from the engine
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -47,9 +47,9 @@ impl ObservationService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::ListObservations {
+                RequestPayload::Observation(ObservationRequest::ListObservations {
                     pc_id: pc_id.to_string(),
-                },
+                }),
                 get_request_timeout_ms(),
             )
             .await?;

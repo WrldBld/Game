@@ -7,7 +7,7 @@
 
 use dioxus::prelude::*;
 
-use crate::application::application::dto::{
+use crate::application::dto::{
     GameTime, NavigationData, NavigationExit, NavigationTarget,
 };
 

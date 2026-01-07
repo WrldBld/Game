@@ -6,7 +6,7 @@
 
 use dioxus::prelude::*;
 
-use crate::application::application::dto::{
+use crate::application::dto::{
     CharacterData as SceneCharacterState, CharacterPosition,
 };
 

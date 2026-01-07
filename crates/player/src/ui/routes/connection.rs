@@ -6,7 +6,7 @@
 
 use dioxus::prelude::*;
 
-use crate::application::application::services::{SessionService, DEFAULT_ENGINE_URL};
+use crate::application::services::{SessionService, DEFAULT_ENGINE_URL};
 use crate::ports::outbound::storage_keys;
 use crate::ports::session_types::ParticipantRole;
 use crate::presentation::state::{

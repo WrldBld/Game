@@ -4,7 +4,7 @@
 //! The DM specifies all challenge details including outcomes.
 
 use dioxus::prelude::*;
-use crate::application::application::dto::{AdHocOutcomes, CharacterData as SceneCharacterState};
+use crate::application::dto::{AdHocOutcomes, CharacterData as SceneCharacterState};
 
 /// Data for an ad-hoc challenge creation
 #[derive(Debug, Clone, PartialEq)]

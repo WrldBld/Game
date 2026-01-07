@@ -18,11 +18,11 @@ use crate::presentation::components::creator::suggestion_button::{
 };
 use crate::presentation::services::{use_actantial_service, use_character_service};
 use crate::presentation::state::use_game_state;
-use crate::application::application::dto::{
+use crate::application::dto::{
     ActantialActorData, ActantialRoleData, ActorTypeData, GoalData, NpcActantialContextData,
     SocialRelationData, WantData, WantTargetTypeData, WantVisibilityData,
 };
-use crate::application::application::services::{
+use crate::application::services::{
     AddActantialViewRequest, CreateGoalRequest, CreateWantRequest, RemoveActantialViewRequest,
     SetWantTargetRequest, SuggestionContext, UpdateWantRequest,
 };
