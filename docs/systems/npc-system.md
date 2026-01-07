@@ -46,11 +46,11 @@ This system creates a living world without the complexity of AI pathfinding or s
 
 - [x] **US-NPC-006**: As a DM, I can make an NPC approach a specific player
   - *Implementation*: `TriggerApproachEvent` WebSocket message, NPC appears in PC's region
-  - *Files*: `crates/engine/src/api/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`
 
 - [x] **US-NPC-007**: As a DM, I can trigger a location-wide event (narration)
   - *Implementation*: `TriggerLocationEvent` WebSocket message, all PCs in region see it
-  - *Files*: `crates/engine/src/api/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`
 
 - [x] **US-NPC-008**: As a player, I see an NPC approach me with a description
   - *Implementation*: `ApproachEventOverlay` modal with NPC sprite and "Continue" button
@@ -229,7 +229,7 @@ Result: List of NPCs with presence suggestions and reasoning
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/character_repo.rs` | NPC-Region queries |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/region_repo.rs` | Region queries |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/staging_repo.rs` | Staging persistence |
-| API | `crates/engine/src/api/websocket.rs` | DM event handlers |
+| API | `crates/engine/src/api/websocket/mod.rs` | DM event handlers |
 | Protocol | `crates/protocol/src/messages.rs` | Staging message types |
 
 ### Player

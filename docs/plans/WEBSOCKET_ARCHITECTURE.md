@@ -142,7 +142,7 @@ enum ResponseResult {
 
 ### Phase 1: Infrastructure (1 day)
 1. Add `Request`/`Response` message types to protocol
-2. Implement request routing in `websocket.rs`
+2. Implement request routing in `crates/engine/src/api/websocket/mod.rs`
 3. Add request timeout handling
 4. Create `WebSocketService` in player-app with `request()` method
 
@@ -196,7 +196,7 @@ enum ResponseResult {
 
 ## Related Files
 
-- `crates/engine-adapters/src/infrastructure/websocket.rs` - Server WebSocket handler
-- `crates/player-adapters/src/infrastructure/websocket_connection.rs` - Client connection
+- `crates/engine/src/api/websocket/mod.rs` - Server WebSocket handler + routing
+- `crates/player/src/infrastructure/websocket/mod.rs` - Client connection
 - `crates/protocol/src/lib.rs` - Message definitions
 - `crates/player-ui/src/presentation/handlers/session_message_handler.rs` - UI message handling

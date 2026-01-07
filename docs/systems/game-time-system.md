@@ -39,7 +39,7 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
 - [x] **US-TIME-001**: As a DM, I can manually advance game time by hours so that I control pacing
 
   - _Implementation_: `AdvanceGameTime` request, `GameTimeUpdated` broadcast
-  - _Files_: `crates/protocol/src/requests.rs`, `crates/engine/src/api/websocket.rs`
+  - _Files_: `crates/protocol/src/requests.rs`, `crates/engine/src/api/websocket/mod.rs`
 
 - [x] **US-TIME-002**: As a DM, I can see current game time so that I know the narrative context
   - _Implementation_: `World.game_time` persisted, included in world data
@@ -456,7 +456,7 @@ pub struct TimeAdvanceData {
 | Ports     | `crates/engine/src/infrastructure/ports.rs`            | WorldRepo with time methods       |
 | Entities  | `crates/engine/src/entities/world.rs`                  | World entity operations           |
 | Use Cases | `crates/engine/src/use_cases/time/mod.rs`              | Time suggestion use cases (NEW)   |
-| API       | `crates/engine/src/api/websocket.rs`                   | Time-related handlers             |
+| API       | `crates/engine/src/api/websocket/mod.rs`                   | Time-related handlers             |
 | Neo4j     | `crates/engine/src/infrastructure/neo4j/world_repo.rs` | Persist time config               |
 
 ### Protocol

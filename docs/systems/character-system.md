@@ -431,7 +431,7 @@ The key insight is that the same person can be a HELPER in one character's model
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/character_repo.rs` | Neo4j character persistence |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/goal_repo.rs` | Neo4j goal persistence |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/player_character_repo.rs` | Neo4j PC persistence |
-| API | `crates/engine/src/api/websocket.rs` | Want/Goal via RequestPayload |
+| API | `crates/engine/src/api/websocket/mod.rs` | Want/Goal via RequestPayload |
 
 ### Player
 

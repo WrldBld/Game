@@ -29,7 +29,7 @@ This supports mystery scenarios where players must investigate to find people.
 
 - [x] **US-OBS-002**: As a DM, I can share NPC location information with a player
   - *Implementation*: `ShareNpcLocation` WebSocket message creates `HeardAbout` observation
-  - *Files*: `crates/engine/src/api/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`
 
 - [x] **US-OBS-003**: As a player, challenge successes can reveal NPC information
   - *Implementation*: Challenge outcome effects can create `Deduced` observations
@@ -194,7 +194,7 @@ pub struct ObservationSummary {
 |-------|------|---------|
 | Domain | `crates/domain/src/entities/observation.rs` | Observation entity |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/observation_repo.rs` | Neo4j persistence |
-| API | `crates/engine/src/api/websocket.rs` | ShareNpcLocation, TriggerApproachEvent handlers |
+| API | `crates/engine/src/api/websocket/mod.rs` | ShareNpcLocation, TriggerApproachEvent handlers |
 
 ### Player
 

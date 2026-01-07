@@ -55,7 +55,7 @@ Simplified from 11+ crates with 128+ traits to 4 crates with ~10 traits.
 #### 3.2 Code Quality
 - [x] WebSocket-first migration complete (sessions removed)
 - [x] LLM context wiring complete (mood, actantial, featured NPCs)
-- [x] Extract UUID parsing helpers in websocket.rs (2026-01-04)
+- [x] Extract UUID parsing helpers in websocket/mod.rs (2026-01-04)
 - [x] Extract DM authorization helpers (2026-01-04)
 - [x] Extract navigation data builder (2026-01-04)
 - [x] Extract staging NPC filter to domain method (2026-01-04)
@@ -157,7 +157,7 @@ See individual system documents for detailed user stories.
 
 | Item | Description | Priority | Status |
 |------|-------------|----------|--------|
-| UUID Parsing Helpers | Extract repeated pattern in websocket.rs | Low | **COMPLETE** (2026-01-04) |
+| UUID Parsing Helpers | Extract repeated pattern in websocket/mod.rs | Low | **COMPLETE** (2026-01-04) |
 | DM Auth Macro | Extract authorization checks | Low | **COMPLETE** (2026-01-04) |
 | Navigation Data Builder | Deduplicate between move handlers | Low | **COMPLETE** (2026-01-04) |
 | Staging NPC Filter | Extract visibility filter to domain method | Low | **COMPLETE** (2026-01-04) |

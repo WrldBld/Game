@@ -28,19 +28,19 @@ This is the heart of the AI game master experience:
 
 - [x] **US-DLG-002**: As a DM, I can approve LLM responses before players see them
   - *Implementation*: ApprovalRequired WebSocket message, ApprovalDecision handling
-  - *Files*: `crates/engine/src/api/websocket.rs`, `crates/player-ui/src/presentation/components/dm_panel/approval_popup.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`, `crates/player-ui/src/presentation/components/dm_panel/approval_popup.rs`
 
 - [x] **US-DLG-003**: As a DM, I can modify LLM responses before approving
   - *Implementation*: AcceptWithModification decision type, modified dialogue text
-  - *Files*: `crates/engine/src/api/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`
 
 - [x] **US-DLG-004**: As a DM, I can reject and request regeneration with feedback
   - *Implementation*: Reject decision type, feedback included in retry, max 3 retries
-  - *Files*: `crates/engine/src/api/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`
 
 - [x] **US-DLG-005**: As a DM, I can take over and write my own response
   - *Implementation*: TakeOver decision type, DM-written dialogue
-  - *Files*: `crates/engine/src/api/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`
 
 - [x] **US-DLG-006**: As a DM, I can approve/reject LLM tool call suggestions
   - *Implementation*: ProposedToolInfo in approval, approved_tools filtering
@@ -66,7 +66,7 @@ This is the heart of the AI game master experience:
 
 - [x] **US-DLG-011**: As a system, I persist dialogue exchanges as StoryEvents for later querying
   - *Implementation*: `record_dialogue_exchange()` in Narrative entity, called from WebSocket approval handler
-  - *Files*: `crates/engine/src/entities/narrative.rs`, `crates/engine/src/api/websocket.rs`
+  - *Files*: `crates/engine/src/entities/narrative.rs`, `crates/engine/src/api/websocket/mod.rs`
   - *Completed*: 2026-01-03 implemented in simplified architecture
 
 - [x] **US-DLG-012**: As a system, I can query the last dialogues with a specific NPC
@@ -278,7 +278,7 @@ pub enum GameTool {
 | Use Case | `crates/engine/src/use_cases/conversation/llm_queue.rs` | LLM processing |
 | Use Case | `crates/engine/src/use_cases/conversation/tool_execution.rs` | Execute tools |
 | Infrastructure | `crates/engine/src/infrastructure/ollama.rs` | LLM client |
-| API | `crates/engine/src/api/websocket.rs` | Approval handling |
+| API | `crates/engine/src/api/websocket/mod.rs` | Approval handling |
 
 ### Player
 

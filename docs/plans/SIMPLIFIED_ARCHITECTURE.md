@@ -103,7 +103,8 @@ engine/src/
     
   api/                # Entry points
     http.rs           # HTTP routes (calls use_cases)
-    websocket.rs      # WebSocket handling (calls use_cases)
+    websocket/        # WebSocket handling (calls use_cases)
+      mod.rs
     
   app.rs              # App struct (composition of entities + use_cases)
   main.rs             # Entry point, composition, server startup
@@ -385,7 +386,8 @@ player/src/
     
   infrastructure/
     ports.rs          # Port traits for platform differences
-    websocket.rs      # WebSocket implementation
+    websocket/        # WebSocket implementation
+      mod.rs
     storage/          # Platform-specific storage
       web.rs
       desktop.rs
@@ -511,7 +513,7 @@ protocol/src/
 - [x] Create `engine/src/entities/` modules (10 entity modules)
 - [x] Create `engine/src/use_cases/` modules (7 use case categories)
 - [x] Create `engine/src/infrastructure/ports.rs` (~10 port traits)
-- [x] Create `engine/src/api/` modules (http.rs, websocket.rs)
+- [x] Create `engine/src/api/` modules (http.rs, websocket/mod.rs)
 - [x] Create `engine/src/app.rs`
 - [x] Commit skeleton (f101c87)
 

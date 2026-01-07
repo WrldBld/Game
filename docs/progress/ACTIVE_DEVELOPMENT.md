@@ -118,7 +118,7 @@ All high-priority TODOs resolved:
 All 14 system documentation files updated to use simplified architecture paths:
 - `engine-app/services/*` → `engine/src/entities/*` or `use_cases/*`
 - `engine-adapters/persistence/*` → `engine/src/infrastructure/neo4j/*`
-- `engine-adapters/websocket/*` → `engine/src/api/websocket.rs`
+- `engine-adapters/websocket/*` → `engine/src/api/websocket/mod.rs`
 - `engine-ports/*` → `engine/src/infrastructure/ports.rs`
 
 ---

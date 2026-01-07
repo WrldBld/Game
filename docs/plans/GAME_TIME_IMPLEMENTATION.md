@@ -241,7 +241,7 @@ This plan implements the "Suggested Time" model where player actions generate ti
 
 ### Tasks
 
-1. **Add handlers** in `crates/engine/src/api/websocket.rs`:
+1. **Add handlers** in `crates/engine/src/api/websocket/mod.rs`:
    - `handle_set_game_time` - DM sets exact time
    - `handle_skip_to_period` - DM skips to period
    - `handle_pause_game_time` - DM pauses/unpauses
@@ -262,7 +262,7 @@ This plan implements the "Suggested Time" model where player actions generate ti
 4. **Create helper** `broadcast_time_advance(state, world_id, data)`
 
 ### Files Changed
-- `crates/engine/src/api/websocket.rs`
+- `crates/engine/src/api/websocket/mod.rs`
 
 ### Estimated Effort: 2 hours
 
@@ -320,7 +320,7 @@ This plan implements the "Suggested Time" model where player actions generate ti
 - `crates/engine/src/entities/observation.rs`
 - `crates/engine/src/entities/staging.rs` (or staging repo)
 - `crates/engine/src/entities/narrative.rs`
-- `crates/engine/src/api/websocket.rs`
+- `crates/engine/src/api/websocket/mod.rs`
 - `crates/engine/src/use_cases/movement/enter_region.rs`
 
 ### Estimated Effort: 2 hours

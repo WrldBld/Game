@@ -32,7 +32,7 @@ WrldBldr uses theatre and story terminology throughout:
 
 - [x] **US-STG-001**: As a player, I see NPCs appear after entering a region when the DM approves
   - *Implementation*: Background approval workflow with StagingPending → StagingReady messages
-  - *Files*: `crates/engine/src/api/websocket.rs`, `crates/player-ui/src/presentation/views/pc_view.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`, `crates/player-ui/src/presentation/views/pc_view.rs`
 
 - [x] **US-STG-002**: As a DM, I see a staging approval popup when a player enters an unstaged region
   - *Implementation*: StagingApprovalRequired message triggers popup with rule/LLM options
@@ -89,7 +89,7 @@ WrldBldr uses theatre and story terminology throughout:
   - *Key files*:
     - `crates/domain/src/entities/staging.rs`
     - `crates/engine/src/infrastructure/neo4j/staging_repo.rs`
-    - `crates/engine/src/api/websocket.rs`
+    - `crates/engine/src/api/websocket/mod.rs`
     - `crates/player-ui/src/presentation/components/dm_panel/staging_approval.rs`
 
 ---
@@ -447,7 +447,7 @@ pub struct StagingContext {
 | Entity | `crates/engine/src/entities/staging.rs` | Core staging logic |
 | Infrastructure | `crates/engine/src/infrastructure/ports.rs` | Repository trait |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/staging_repo.rs` | Neo4j implementation |
-| API | `crates/engine/src/api/websocket.rs` | Staging message handlers |
+| API | `crates/engine/src/api/websocket/mod.rs` | Staging message handlers |
 
 ### Player
 

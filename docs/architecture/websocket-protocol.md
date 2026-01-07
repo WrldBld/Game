@@ -38,6 +38,15 @@ WrldBldr uses WebSocket for real-time communication between Player clients and t
 
 The `RequestPayload` enum contains 80+ variants for entity CRUD, queries, and actions. Responses come back as `ServerMessage::Response` with the correlated `request_id`.
 
+#### Routing in Engine
+
+Server-side routing lives in `crates/engine/src/api/websocket/mod.rs`. Connection lifecycle and non-request messages are handled directly in `mod.rs`, while `RequestPayload` is dispatched to focused modules:
+
+- `ws_core.rs`: world, character, location, time, npc, items
+- `ws_creator.rs`: generation, ai, expression
+- `ws_lore.rs`: lore
+- `ws_story_events.rs`: story events
+
 ### Player Actions
 
 | Message | Fields | Purpose |

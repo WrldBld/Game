@@ -35,7 +35,7 @@
 
 ### CR2-1.3 - WebSocket Unknown Message No Response
 **Status**: COMPLETE
-**Files**: `crates/engine/src/api/websocket.rs`
+**Files**: `crates/engine/src/api/websocket/mod.rs`
 **Issue**: `ClientMessage::Unknown` logs but returns `None` - client hangs
 **Impact**: Client hangs indefinitely on unknown messages
 
@@ -84,7 +84,7 @@
 
 ### CR2-2.3 - StagingReady Missing NPC Names
 **Status**: COMPLETE
-**Files**: `crates/engine/src/api/websocket.rs`
+**Files**: `crates/engine/src/api/websocket/mod.rs`
 **Issue**: `StagingReady` broadcast sends empty NPC names
 **Impact**: Players see NPCs without names
 

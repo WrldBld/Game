@@ -36,7 +36,7 @@ Challenges create dramatic tension and player agency. Key design principles:
 
 - [x] **US-CHAL-004**: As a DM, I can approve or reject challenge suggestions
   - *Implementation*: ChallengeSuggestionDecision WebSocket message, DM approval popup
-  - *Files*: `crates/engine/src/api/websocket.rs`, `crates/player-ui/src/presentation/components/dm_panel/approval_popup.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`, `crates/player-ui/src/presentation/components/dm_panel/approval_popup.rs`
 
 - [x] **US-CHAL-005**: As a player, I can roll dice for challenges
   - *Implementation*: ChallengeRollModal with d20 rolls, platform-specific randomness
@@ -300,7 +300,7 @@ pub enum OutcomeTrigger {
 | Use Case | `crates/engine/src/use_cases/challenge/resolve.rs` | Resolution |
 | Use Case | `crates/engine/src/use_cases/approval/challenge_outcome.rs` | Approval |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/challenge_repo.rs` | Neo4j persistence |
-| API | `crates/engine/src/api/websocket.rs` | WebSocket handlers |
+| API | `crates/engine/src/api/websocket/mod.rs` | WebSocket handlers |
 
 ### Player
 

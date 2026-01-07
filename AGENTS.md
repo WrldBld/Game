@@ -102,7 +102,12 @@ engine/src/
     
   api/                # Entry points
     http.rs           # HTTP routes
-    websocket.rs      # WebSocket handling
+    websocket/        # WebSocket handling + routing
+      mod.rs          # Connection lifecycle + dispatch
+      ws_core.rs      # Core RequestPayload handlers
+      ws_creator.rs   # Generation/AI/Expression requests
+      ws_lore.rs      # Lore requests
+      ws_story_events.rs # Story event requests
     
   app.rs              # App struct
   main.rs             # Entry point
@@ -201,7 +206,8 @@ player/src/
     settings.rs
     
   infrastructure/
-    websocket.rs
+    websocket/        # WebSocket client
+      mod.rs
     storage/
       web.rs
       desktop.rs
@@ -312,7 +318,7 @@ dx serve --platform web
 
 ### New API Endpoint
 
-1. Add handler to `engine/src/api/http.rs` or `websocket.rs`
+1. Add handler to `engine/src/api/http.rs` or `engine/src/api/websocket/mod.rs`
 2. Call appropriate use case
 3. Add protocol types if needed
 

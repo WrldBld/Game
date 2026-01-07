@@ -64,7 +64,7 @@ APOC functions may not be available in all Neo4j installations, causing silent f
 **Status**: COMPLETE
 **Files**: 
 - `crates/engine/src/api/connections.rs`
-- `crates/engine/src/api/websocket.rs`
+- `crates/engine/src/api/websocket/mod.rs`
 
 **Issue**: `try_send()` drops messages when channel full
 

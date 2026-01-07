@@ -44,7 +44,7 @@ This system provides the scaffolding for emergent storytelling:
 
 - [x] **US-NAR-006**: As a DM, I can approve/reject event triggers before they execute
   - *Implementation*: NarrativeEventSuggestionDecision WebSocket message
-  - *Files*: `crates/engine/src/api/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`
 
 - [x] **US-NAR-007**: As a DM, I can browse and manage a narrative event library
   - *Implementation*: NarrativeEventLibrary with search, filters, favorites

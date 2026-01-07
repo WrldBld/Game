@@ -185,7 +185,7 @@ The Suggested mode correctly uses these variables for its period_change field.
 ### CR4-6.1 - Add UserJoined Broadcast
 **Status**: COMPLETE
 **Files**: 
-- `crates/engine/src/api/websocket.rs`
+- `crates/engine/src/api/websocket/mod.rs`
 - `crates/engine/src/api/connections.rs`
 
 **Tasks**:
@@ -196,7 +196,7 @@ The Suggested mode correctly uses these variables for its period_change field.
 
 ### CR4-6.2 - Add UserLeft Broadcast
 **Status**: COMPLETE
-**Files**: `crates/engine/src/api/websocket.rs`
+**Files**: `crates/engine/src/api/websocket/mod.rs`
 
 **Tasks**:
 - [x] Before leaving, broadcast UserLeft to other world members

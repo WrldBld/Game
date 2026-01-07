@@ -124,7 +124,7 @@ How this system affects player experience. What gameplay loop it enables. Why it
 | Use Case | `crates/engine/src/use_cases/xxx/mod.rs` | Orchestration logic |
 | Ports | `crates/engine/src/infrastructure/ports.rs` | All port traits |
 | Repository | `crates/engine/src/infrastructure/neo4j/xxx_repo.rs` | Neo4j implementation |
-| API | `crates/engine/src/api/websocket.rs` | WebSocket handlers |
+| API | `crates/engine/src/api/websocket/mod.rs` | WebSocket handlers |
 | API | `crates/engine/src/api/http.rs` | HTTP routes |
 
 ### Player
