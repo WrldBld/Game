@@ -15,12 +15,11 @@ use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
 
 use crate::app::{App, Entities, UseCases};
 use crate::infrastructure::ports::{
-    ClockPort, ImageGenError, ImageGenPort, LlmError, LlmPort, QueueError, QueueItem,
-    RandomPort,
+    ClockPort, ImageGenError, ImageGenPort, LlmError, LlmPort, QueueError, QueueItem, RandomPort,
 };
 use crate::infrastructure::ports::{
-    MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockItemRepo, MockLocationRepo,
-    MockLocationStateRepo, MockLoreRepo, MockNarrativeRepo, MockObservationRepo,
+    MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockItemRepo,
+    MockLocationRepo, MockLocationStateRepo, MockLoreRepo, MockNarrativeRepo, MockObservationRepo,
     MockPlayerCharacterRepo, MockRegionStateRepo, MockSceneRepo, MockStagingRepo,
 };
 
@@ -46,12 +45,29 @@ pub(crate) struct TestAppRepos {
 
 impl TestAppRepos {
     pub(crate) fn new(world_repo: MockWorldRepo) -> Self {
+        let mut character_repo = MockCharacterRepo::new();
+        // Joining a world now includes a lightweight snapshot.
+        // Default to an empty world surface unless tests override.
+        character_repo
+            .expect_list_in_world()
+            .returning(|_world_id| Ok(Vec::new()));
+
+        let mut location_repo = MockLocationRepo::new();
+        location_repo
+            .expect_list_locations_in_world()
+            .returning(|_world_id| Ok(Vec::new()));
+
+        let mut scene_repo = MockSceneRepo::new();
+        scene_repo
+            .expect_get_current()
+            .returning(|_world_id| Ok(None));
+
         Self {
             world_repo,
-            character_repo: MockCharacterRepo::new(),
+            character_repo,
             player_character_repo: MockPlayerCharacterRepo::new(),
-            location_repo: MockLocationRepo::new(),
-            scene_repo: MockSceneRepo::new(),
+            location_repo,
+            scene_repo,
             challenge_repo: MockChallengeRepo::new(),
             narrative_repo: MockNarrativeRepo::new(),
             staging_repo: MockStagingRepo::new(),
@@ -348,8 +364,9 @@ pub(crate) fn build_test_app_with_ports(
 
     // Entities
     let character = Arc::new(crate::entities::Character::new(character_repo.clone()));
-    let player_character =
-        Arc::new(crate::entities::PlayerCharacter::new(player_character_repo.clone()));
+    let player_character = Arc::new(crate::entities::PlayerCharacter::new(
+        player_character_repo.clone(),
+    ));
     let location = Arc::new(crate::entities::Location::new(location_repo.clone()));
     let scene = Arc::new(crate::entities::Scene::new(scene_repo.clone()));
     let challenge = Arc::new(crate::entities::Challenge::new(challenge_repo.clone()));
@@ -476,8 +493,12 @@ pub(crate) fn build_test_app_with_ports(
     );
 
     let approval = crate::use_cases::ApprovalUseCases::new(
-        Arc::new(crate::use_cases::approval::ApproveStaging::new(staging.clone())),
-        Arc::new(crate::use_cases::approval::ApproveSuggestion::new(queue.clone())),
+        Arc::new(crate::use_cases::approval::ApproveStaging::new(
+            staging.clone(),
+        )),
+        Arc::new(crate::use_cases::approval::ApproveSuggestion::new(
+            queue.clone(),
+        )),
     );
 
     let assets_uc = crate::use_cases::AssetUseCases::new(

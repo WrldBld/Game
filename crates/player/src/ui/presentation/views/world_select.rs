@@ -7,15 +7,14 @@
 
 use dioxus::prelude::*;
 
-use crate::presentation::services::use_game_connection;
-use crate::presentation::services::use_world_service;
-use crate::presentation::state::{ConnectionStatus, GameState, SessionState};
-use crate::use_platform;
 use crate::application::application::dto::{
     DiceSystem, ParticipantRole, RuleSystemConfig, RuleSystemPresetDetails, RuleSystemType,
     RuleSystemTypeExt, RuleSystemVariant, RuleSystemVariantExt, StatDefinition, SuccessComparison,
 };
 use crate::application::application::services::world_service::WorldSummary;
+use crate::presentation::services::use_world_service;
+use crate::presentation::state::{GameState, SessionState};
+use crate::use_platform;
 
 /// Props for WorldSelectView
 #[derive(Props, Clone, PartialEq)]
@@ -31,40 +30,23 @@ pub struct WorldSelectViewProps {
 /// World Selection View component
 #[component]
 pub fn WorldSelectView(props: WorldSelectViewProps) -> Element {
-    let game_state = use_context::<GameState>();
-    let session_state = use_context::<SessionState>();
+    let _game_state = use_context::<GameState>();
+    let _session_state = use_context::<SessionState>();
     let platform = use_platform();
-    let connection = use_game_connection();
     let world_service = use_world_service();
     let mut worlds: Signal<Vec<WorldSummary>> = use_signal(Vec::new);
     let mut is_loading = use_signal(|| true);
     let mut error: Signal<Option<String>> = use_signal(|| None);
     let mut show_create_form = use_signal(|| false);
-    let mut world_to_load: Signal<Option<String>> = use_signal(|| None);
 
     let is_dm = props.role == ParticipantRole::DungeonMaster;
 
     // Clone services for use in effects
-    let connection_for_effect = connection.clone();
     let world_service_for_list = world_service.clone();
-    let world_service_for_load = world_service.clone();
+    let _world_service_for_load = world_service.clone();
 
     // Fetch worlds on mount
     use_effect(move || {
-        // Ensure the shared connection is at least initiated before requests.
-        // World listing is a WS request, and will fail with "Not connected" if
-        // we haven't called connect() yet.
-        if matches!(
-            *session_state.connection_status().read(),
-            ConnectionStatus::Disconnected | ConnectionStatus::Failed
-        ) {
-            if let Err(e) = connection_for_effect.connect() {
-                error.set(Some(format!("Connection failed: {e}")));
-                is_loading.set(false);
-                return;
-            }
-        }
-
         let svc = world_service_for_list.clone();
         spawn(async move {
             match svc.list_worlds().await {
@@ -83,28 +65,10 @@ pub fn WorldSelectView(props: WorldSelectViewProps) -> Element {
     // Get user ID for DM session handling (reserved for future use)
     let _user_id = platform.get_user_id();
 
-    // Effect to load world when world_to_load is set
-    use_effect(move || {
-        if let Some(world_id) = world_to_load.read().clone() {
-            let mut game_state = game_state.clone();
-            let world_id_for_callback = world_id.clone();
-            let svc = world_service_for_load.clone();
-            spawn(async move {
-                is_loading.set(true);
-                match svc.load_world_snapshot(&world_id).await {
-                    Ok(snapshot) => {
-                        game_state.load_world(snapshot);
-                        props.on_world_selected.call(world_id_for_callback);
-                    }
-                    Err(e) => {
-                        error.set(Some(format!("Failed to load world: {}", e)));
-                        is_loading.set(false);
-                    }
-                }
-                world_to_load.set(None);
-            });
-        }
-    });
+    // IMPORTANT:
+    // Do not load the world snapshot here.
+    // World-scoped routes establish the WebSocket session (connect + JoinWorld)
+    // via WorldSessionLayout/ensure_connection.
 
     // Title based on role
     let title = match props.role {
@@ -174,7 +138,8 @@ pub fn WorldSelectView(props: WorldSelectViewProps) -> Element {
                     CreateWorldForm {
                         on_created: move |world_id: String| {
                             show_create_form.set(false);
-                            world_to_load.set(Some(world_id));
+                            is_loading.set(true);
+                            props.on_world_selected.call(world_id);
                         },
                         on_cancel: move |_| show_create_form.set(false),
                     }
@@ -224,11 +189,10 @@ pub fn WorldSelectView(props: WorldSelectViewProps) -> Element {
                                     action_label: action_label,
                                     is_dm: is_dm,
                                     on_select: {
-                                        let mut world_to_load = world_to_load;
+                                        let mut is_loading = is_loading;
                                         move |id: String| {
-                                            // In the new WebSocket-first architecture,
-                                            // sessions are established when connecting to the world
-                                            world_to_load.set(Some(id));
+                                            is_loading.set(true);
+                                            props.on_world_selected.call(id);
                                         }
                                     },
                                 }

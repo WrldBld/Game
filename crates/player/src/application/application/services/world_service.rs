@@ -9,10 +9,10 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::ports::outbound::{ApiError, GameConnectionPort, RawApiPort};
+use wrldbldr_protocol::ErrorCode;
 use wrldbldr_protocol::RequestPayload;
 
 use crate::application::dto::requests::CreateWorldRequest;
-use crate::application::dto::SessionWorldSnapshot;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 
 /// Summary of a world for list views
@@ -41,11 +41,15 @@ impl WorldService {
 
     /// List all available worlds
     pub async fn list_worlds(&self) -> Result<Vec<WorldSummary>, ServiceError> {
-        let result = self
-            .connection
-            .request_with_timeout(RequestPayload::ListWorlds, get_request_timeout_ms())
-            .await?;
-        result.parse()
+        let value = self
+            .api
+            .get_json("/api/worlds")
+            .await
+            .map_err(|e: ApiError| ServiceError::ServerError {
+                code: ErrorCode::InternalError,
+                message: e.to_string(),
+            })?;
+        serde_json::from_value(value).map_err(|e| ServiceError::ParseError(e.to_string()))
     }
 
     /// Get a world by ID (returns basic info)
@@ -60,15 +64,6 @@ impl WorldService {
             )
             .await?;
         result.parse_optional()
-    }
-
-    /// Load a gameplay world snapshot for the client.
-    ///
-    /// This remains a REST call as it's a heavy export operation.
-    pub async fn load_world_snapshot(&self, id: &str) -> Result<SessionWorldSnapshot, ApiError> {
-        let path = format!("/api/worlds/{}/export/raw", id);
-        let value = self.api.get_json(&path).await?;
-        serde_json::from_value(value).map_err(|e| ApiError::ParseError(e.to_string()))
     }
 
     /// Create a new world

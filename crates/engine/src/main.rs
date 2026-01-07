@@ -4,8 +4,9 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::routing::get;
+use axum::http::header::HeaderName;
 use axum::http::{HeaderValue, Method};
+use axum::routing::get;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -189,14 +190,20 @@ fn build_cors_layer_from_env() -> Option<CorsLayer> {
         return None;
     };
 
-    let mut cors = CorsLayer::new().allow_methods([
-        Method::GET,
-        Method::POST,
-        Method::PUT,
-        Method::PATCH,
-        Method::DELETE,
-        Method::OPTIONS,
-    ]);
+    let mut cors = CorsLayer::new()
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        // The Player sends X-User-Id and JSON content types which trigger CORS preflights.
+        .allow_headers([
+            HeaderName::from_static("x-user-id"),
+            axum::http::header::CONTENT_TYPE,
+        ]);
 
     if allowed_origins == "*" {
         cors = cors.allow_origin(Any);

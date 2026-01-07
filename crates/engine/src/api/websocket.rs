@@ -16,6 +16,8 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+mod ws_story_events;
+
 use crate::use_cases::narrative::EffectExecutionContext;
 use wrldbldr_domain::{
     ChallengeId, CharacterId, ItemId, LocationId, MoodState, NarrativeEventId, PlayerCharacterId,
@@ -522,13 +524,89 @@ async fn handle_join_world(
         })
         .collect();
 
-    // Build world snapshot (simplified for now)
+    // Build a session world snapshot for the client.
+    // Player expects this to match `SessionWorldSnapshot` (player application DTO).
+    // Keep it lightweight: world + locations + characters + current scene.
+    let locations = state
+        .app
+        .entities
+        .location
+        .list_in_world(world_id_typed)
+        .await
+        .unwrap_or_default();
+
+    let characters = state
+        .app
+        .entities
+        .character
+        .list_in_world(world_id_typed)
+        .await
+        .unwrap_or_default();
+
+    let current_scene = state
+        .app
+        .entities
+        .scene
+        .get_current(world_id_typed)
+        .await
+        .unwrap_or(None);
+
+    let current_scene_json = current_scene.as_ref().map(|scene| {
+        let featured = scene
+            .featured_characters
+            .iter()
+            .map(|id| id.to_string())
+            .collect::<Vec<_>>();
+
+        serde_json::json!({
+            "id": scene.id.to_string(),
+            "name": scene.name,
+            "location_id": scene.location_id.to_string(),
+            "time_context": format!("{:?}", scene.time_context),
+            "backdrop_override": scene.backdrop_override,
+            "featured_characters": featured,
+            "directorial_notes": scene.directorial_notes,
+        })
+    });
+
+    let scenes_json = current_scene_json
+        .as_ref()
+        .map(|s| vec![s.clone()])
+        .unwrap_or_else(Vec::new);
+
     let snapshot = serde_json::json!({
         "world": {
-            "id": world.id,
+            "id": world.id.to_string(),
             "name": world.name,
             "description": world.description,
-        }
+            "rule_system": world.rule_system,
+            "created_at": world.created_at.to_rfc3339(),
+            "updated_at": world.updated_at.to_rfc3339(),
+        },
+        "locations": locations.into_iter().map(|loc| {
+            serde_json::json!({
+                "id": loc.id.to_string(),
+                "name": loc.name,
+                "description": loc.description,
+                "location_type": format!("{:?}", loc.location_type),
+                "backdrop_asset": loc.backdrop_asset,
+                "parent_id": null,
+            })
+        }).collect::<Vec<_>>(),
+        "characters": characters.into_iter().map(|c| {
+            serde_json::json!({
+                "id": c.id.to_string(),
+                "name": c.name,
+                "description": c.description,
+                "archetype": format!("{:?}", c.current_archetype),
+                "sprite_asset": c.sprite_asset,
+                "portrait_asset": c.portrait_asset,
+                "is_alive": c.is_alive,
+                "is_active": c.is_active,
+            })
+        }).collect::<Vec<_>>(),
+        "scenes": scenes_json,
+        "current_scene": current_scene_json,
     });
 
     // Fetch PC data if role is Player and pc_id is provided
@@ -2778,6 +2856,29 @@ async fn handle_request(
         }
 
         // =========================================================================
+        // Story Event Operations (Timeline)
+        // =========================================================================
+        RequestPayload::ListStoryEvents { .. }
+        | RequestPayload::CreateDmMarker { .. }
+        | RequestPayload::SetStoryEventVisibility { .. } => {
+            match ws_story_events::handle_story_event_request(
+                state,
+                &request_id,
+                &_conn_info,
+                &payload,
+            )
+            .await
+            {
+                Ok(Some(result)) => result,
+                Ok(None) => ResponseResult::error(
+                    ErrorCode::BadRequest,
+                    "StoryEvent request handler did not handle payload",
+                ),
+                Err(e) => return Some(e),
+            }
+        }
+
+        // =========================================================================
         // NPC Mood Operations (Tier 2 of emotional model)
         // =========================================================================
         RequestPayload::SetNpcMood {
@@ -2950,10 +3051,10 @@ async fn handle_request(
         }
 
         // Default - not implemented
-        _ => ResponseResult::error(
-            ErrorCode::BadRequest,
-            "This request type is not yet implemented",
-        ),
+        other => {
+            let msg = format!("This request type is not yet implemented: {:?}", other);
+            ResponseResult::error(ErrorCode::BadRequest, &msg)
+        }
     };
 
     Some(ServerMessage::Response { request_id, result })
