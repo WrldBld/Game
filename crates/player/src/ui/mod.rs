@@ -32,6 +32,14 @@ pub fn app() -> Element {
 
 #[component]
 fn AppRoot() -> Element {
+    // Ensure Platform is always available.
+    // In some launch modes (e.g. Dioxus CLI web), the external composition root may not
+    // provide it, which would cause a runtime panic when UI code calls `use_platform()`.
+    use_context_provider(|| {
+        let platform = crate::infrastructure::platform::create_platform();
+        Arc::new(platform) as Platform
+    });
+
     // Provided by the composition root (see `crates/player/src/main.rs`).
     let shell = use_context::<ShellKind>();
 

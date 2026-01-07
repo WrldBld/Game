@@ -5,6 +5,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::routing::get;
+use axum::http::{HeaderValue, Method};
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -23,8 +25,8 @@ use infrastructure::{
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Load environment
-    dotenvy::dotenv().ok();
+    // Load environment from repo root (Taskfile runs the engine from `crates/engine`).
+    load_dotenv_from_repo_root();
 
     // Initialize logging
     tracing_subscriber::registry()
@@ -41,15 +43,19 @@ async fn main() -> anyhow::Result<()> {
     let neo4j_uri = std::env::var("NEO4J_URI").unwrap_or_else(|_| "bolt://localhost:7687".into());
     let neo4j_user = std::env::var("NEO4J_USER").unwrap_or_else(|_| "neo4j".into());
     let neo4j_pass = std::env::var("NEO4J_PASSWORD").unwrap_or_else(|_| "password".into());
-    let ollama_url =
-        std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".into());
+    let ollama_url = std::env::var("OLLAMA_URL")
+        .or_else(|_| std::env::var("OLLAMA_BASE_URL"))
+        .unwrap_or_else(|_| "http://localhost:11434".into());
     let ollama_model = std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "llama3.2".into());
-    let comfyui_url =
-        std::env::var("COMFYUI_URL").unwrap_or_else(|_| "http://localhost:8188".into());
-    let server_port: u16 = std::env::var("PORT")
-        .unwrap_or_else(|_| "8080".into())
+    let comfyui_url = std::env::var("COMFYUI_URL")
+        .or_else(|_| std::env::var("COMFYUI_BASE_URL"))
+        .unwrap_or_else(|_| "http://localhost:8188".into());
+    let server_host = std::env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".into());
+    let server_port: u16 = std::env::var("SERVER_PORT")
+        .or_else(|_| std::env::var("PORT"))
+        .unwrap_or_else(|_| "3000".into())
         .parse()
-        .unwrap_or(8080);
+        .unwrap_or(3000);
 
     // Create clock for repositories
     let clock: Arc<dyn infrastructure::ports::ClockPort> = Arc::new(SystemClock);
@@ -140,17 +146,74 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Build router with separate states for HTTP and WebSocket
-    let router = api::http::routes()
+    let mut router = api::http::routes()
         .with_state(app)
         .route("/ws", get(api::websocket::ws_handler).with_state(ws_state))
         .layer(TraceLayer::new_for_http());
 
+    if let Some(cors) = build_cors_layer_from_env() {
+        router = router.layer(cors);
+    }
+
     // Start server
-    let addr = SocketAddr::from(([0, 0, 0, 0], server_port));
+    let addr: SocketAddr = format!("{server_host}:{server_port}").parse()?;
     tracing::info!("Listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, router).await?;
 
     Ok(())
+}
+
+fn load_dotenv_from_repo_root() {
+    let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..");
+
+    // Prefer local overrides.
+    for filename in [".env.local", ".env"] {
+        let path = repo_root.join(filename);
+        if path.exists() {
+            let _ = dotenvy::from_path(path);
+        }
+    }
+}
+
+fn build_cors_layer_from_env() -> Option<CorsLayer> {
+    let allowed_origins = std::env::var("CORS_ALLOWED_ORIGINS")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    let Some(allowed_origins) = allowed_origins else {
+        return None;
+    };
+
+    let mut cors = CorsLayer::new().allow_methods([
+        Method::GET,
+        Method::POST,
+        Method::PUT,
+        Method::PATCH,
+        Method::DELETE,
+        Method::OPTIONS,
+    ]);
+
+    if allowed_origins == "*" {
+        cors = cors.allow_origin(Any);
+    } else {
+        let origins: Vec<HeaderValue> = allowed_origins
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .filter_map(|s| HeaderValue::from_str(s).ok())
+            .collect();
+
+        if origins.is_empty() {
+            return None;
+        }
+
+        cors = cors.allow_origin(origins);
+    }
+
+    Some(cors)
 }

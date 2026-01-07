@@ -3,6 +3,8 @@
 #[cfg(not(target_arch = "wasm32"))]
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use wrldbldr_player::ports::outbound::PlatformPort;
+
 fn main() {
     #[cfg(not(target_arch = "wasm32"))]
     tracing_subscriber::registry()
@@ -23,6 +25,7 @@ fn main() {
 
     // Platform
     let platform = wrldbldr_player::infrastructure::platform::create_platform();
+    let platform: std::sync::Arc<dyn PlatformPort> = std::sync::Arc::new(platform);
 
     // HTTP
     let raw_api =
@@ -78,7 +81,7 @@ fn main() {
     }
 
     builder
-        .with_context(std::sync::Arc::new(platform))
+        .with_context(platform)
         .with_context(shell)
         .with_context(wrldbldr_player::ui::presentation::Services::new(
             api, raw_api, connection,
