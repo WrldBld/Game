@@ -15,17 +15,20 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+mod ws_challenge;
 mod ws_core;
-mod ws_location;
-mod ws_player;
 mod ws_creator;
+mod ws_event_chain;
+mod ws_location;
 mod ws_lore;
+mod ws_narrative_event;
+mod ws_player;
 mod ws_story_events;
 
 use crate::use_cases::narrative::EffectExecutionContext;
 use wrldbldr_domain::{
-    ChallengeId, CharacterId, ItemId, LocationId, MoodState, NarrativeEventId, PlayerCharacterId,
-    RegionId, StagingSource, WorldId,
+    ChallengeId, CharacterId, EventChainId, ItemId, LocationId, MoodState, NarrativeEventId,
+    PlayerCharacterId, RegionId, StagingSource, WorldId,
 };
 use wrldbldr_protocol::{
     ClientMessage, ErrorCode, RequestPayload, ResponseResult, ServerMessage,
@@ -707,7 +710,6 @@ async fn handle_move_to_region(
     }
 }
 
-
 async fn handle_exit_to_location(
     state: &WsState,
     connection_id: Uuid,
@@ -876,14 +878,22 @@ async fn handle_request(
             ws_creator::handle_expression_request(state, &request_id, &_conn_info, req).await
         }
 
+        RequestPayload::Challenge(req) => {
+            ws_challenge::handle_challenge_request(state, &request_id, &_conn_info, req).await
+        }
+        RequestPayload::NarrativeEvent(req) => {
+            ws_narrative_event::handle_narrative_event_request(state, &request_id, &_conn_info, req)
+                .await
+        }
+        RequestPayload::EventChain(req) => {
+            ws_event_chain::handle_event_chain_request(state, &request_id, &_conn_info, req).await
+        }
+
         // Not yet implemented in the engine.
         RequestPayload::Scene(_)
         | RequestPayload::Act(_)
         | RequestPayload::Interaction(_)
         | RequestPayload::Skill(_)
-        | RequestPayload::Challenge(_)
-        | RequestPayload::NarrativeEvent(_)
-        | RequestPayload::EventChain(_)
         | RequestPayload::Goal(_)
         | RequestPayload::Want(_)
         | RequestPayload::Actantial(_)
@@ -3623,11 +3633,13 @@ mod ws_integration_tests_inline {
                 visual_state_uc.resolve.clone(),
                 llm.clone(),
             )),
-            Arc::new(crate::use_cases::staging::RegenerateStagingSuggestions::new(
-                location.clone(),
-                character.clone(),
-                llm.clone(),
-            )),
+            Arc::new(
+                crate::use_cases::staging::RegenerateStagingSuggestions::new(
+                    location.clone(),
+                    character.clone(),
+                    llm.clone(),
+                ),
+            ),
             Arc::new(crate::use_cases::staging::ApproveStagingRequest::new(
                 staging.clone(),
                 world.clone(),
@@ -5248,6 +5260,24 @@ fn parse_challenge_id(id_str: &str) -> Result<ChallengeId, ServerMessage> {
     )
 }
 
+/// Parse a narrative event ID from a string.
+fn parse_narrative_event_id(id_str: &str) -> Result<NarrativeEventId, ServerMessage> {
+    parse_id(
+        id_str,
+        NarrativeEventId::from_uuid,
+        "Invalid narrative event ID format",
+    )
+}
+
+/// Parse an event chain ID from a string.
+fn parse_event_chain_id(id_str: &str) -> Result<EventChainId, ServerMessage> {
+    parse_id(
+        id_str,
+        EventChainId::from_uuid,
+        "Invalid event chain ID format",
+    )
+}
+
 /// Verify that the connection has DM authorization, returning an error response if not.
 fn require_dm(conn_info: &super::connections::ConnectionInfo) -> Result<(), ServerMessage> {
     if conn_info.is_dm() {
@@ -5354,5 +5384,31 @@ fn parse_challenge_id_for_request(
         request_id,
         ChallengeId::from_uuid,
         "Invalid challenge ID",
+    )
+}
+
+/// Parse a narrative event ID for the Request/Response pattern.
+fn parse_narrative_event_id_for_request(
+    id_str: &str,
+    request_id: &str,
+) -> Result<NarrativeEventId, ServerMessage> {
+    parse_id_for_request(
+        id_str,
+        request_id,
+        NarrativeEventId::from_uuid,
+        "Invalid narrative event ID",
+    )
+}
+
+/// Parse an event chain ID for the Request/Response pattern.
+fn parse_event_chain_id_for_request(
+    id_str: &str,
+    request_id: &str,
+) -> Result<EventChainId, ServerMessage> {
+    parse_id_for_request(
+        id_str,
+        request_id,
+        EventChainId::from_uuid,
+        "Invalid event chain ID",
     )
 }

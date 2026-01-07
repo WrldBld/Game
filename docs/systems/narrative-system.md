@@ -4,6 +4,12 @@
 
 The Narrative System enables DMs to design **future events** with triggers and effects. When conditions are met (player enters a location, completes a challenge, talks to an NPC), events fire and change the game world. Events can be chained into sequences with branching paths based on outcomes.
 
+## WebSocket Coverage
+
+- `wrldbldr_protocol::NarrativeEventRequest` now routes through `crates/engine/src/api/websocket/ws_narrative_event.rs`. The handler emits `NarrativeEventData` responses for list/get and implements create/update/delete, set active/favorite, trigger/reset, and trigger schema generation to keep the Player UI in sync.
+- `EventChainRequest` passes through `crates/engine/src/api/websocket/ws_event_chain.rs`, returning `EventChainData` plus status info while allowing DM-only flow for chain manipulation (add/remove/complete/reset events, activate/favorite, etc.).
+- Triggered events execute their outcome effects via `use_cases::narrative::ExecuteEffects` before broadcasting `ServerMessage::NarrativeEventTriggered`, so UI flows that call `NarrativeEventService` receive consistent state.
+
 ---
 
 ## Game Design

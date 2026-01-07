@@ -170,8 +170,8 @@ See [SIMPLIFIED_ARCHITECTURE.md](../plans/SIMPLIFIED_ARCHITECTURE.md) for full a
 
 ### Current Gaps (as of latest audit)
 
-- WebSocket CRUD handlers for several protocol request groups are not wired yet (Region/Scene/Act/Interaction/Skill/Challenge/NarrativeEvent/EventChain/PlayerCharacter/Relationship/Observation/Goal/Want/Actantial).
-- Some protocol requests exist without engine handlers (StoryEvent Get/Update, NPC disposition/relationship, AI deflection/tells suggestions).
+- WebSocket CRUD handlers for several protocol request groups remain to be wired (Region/Scene/Act/Interaction/Skill/PlayerCharacter/Relationship/Observation/Goal/Want/Actantial). Challenge/NarrativeEvent/EventChain CRUD coverage has been added via `ws_challenge.rs`, `ws_narrative_event.rs`, and `ws_event_chain.rs`.
+- Some protocol requests still lack handlers (NPC disposition/relationship updates, AI deflection/tells suggestions).
 - HTTP settings and rule-system preset endpoints expected by the player are not yet implemented.
 
 ---

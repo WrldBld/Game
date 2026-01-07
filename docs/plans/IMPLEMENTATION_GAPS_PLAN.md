@@ -8,10 +8,9 @@ Update this file as work progresses.
 - [~] In progress
 - [x] Done
 
-## Phase 1: WebSocket Request Coverage (Engine)
 - [x] Implement request handlers for PlayerCharacter/Relationship/Observation (Priority A)
 - [x] Implement request handlers for World/Character/Location/Region CRUD (Priority A)
-- [ ] Implement request handlers for Challenge/NarrativeEvent/EventChain (Priority B)
+- [x] Implement request handlers for Challenge/NarrativeEvent/EventChain (Priority B)
 - [ ] Implement request handlers for Goal/Want/Actantial (Priority C)
 - [ ] Implement request handlers for Skill/Act/Interaction/Scene (Priority D)
 - [x] Implement missing StoryEvent operations (Get/Update) (Priority E)

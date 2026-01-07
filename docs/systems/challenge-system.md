@@ -4,6 +4,12 @@
 
 The Challenge System handles skill checks, ability tests, and other dice-based resolution mechanics. It supports multiple TTRPG rule systems (D20 like D&D, D100 like Call of Cthulhu, Narrative like Fate) and integrates with the LLM to suggest contextually appropriate challenges during gameplay.
 
+## WebSocket Coverage
+
+- The Engine now routes `wrldbldr_protocol::ChallengeRequest` through `crates/engine/src/api/websocket/ws_challenge.rs`, returning the same shape expected by `ChallengeData`.
+- Supported operations: list/get/create/update/delete challenges plus `SetChallengeActive` and `SetChallengeFavorite`.
+- Responses include serialized outcomes, trigger conditions, and metadata so the Player app can keep the DM library and favorites dashboard in sync.
+
 ---
 
 ## Game Design
