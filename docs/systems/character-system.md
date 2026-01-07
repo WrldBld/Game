@@ -403,8 +403,9 @@ The key insight is that the same person can be a HELPER in one character's model
 | Actantial Context Service | ✅ | - | Full aggregation logic |
 | Relationship Edges | ✅ | ✅ | Sentiment tracking |
 | Archetype History | ✅ | - | Change tracking |
-| Character Form | - | ✅ | Create/edit NPCs |
-| Motivations Tab | - | ✅ | Wants, goals, social stance |
+| WebSocket Request Handlers | ⏳ | - | Character/PC/Goal/Want/Actantial requests not wired |
+| Character Form | - | ✅ | UI exists; engine handlers missing |
+| Motivations Tab | - | ✅ | UI exists; engine handlers missing |
 | Character Sheet Viewer | - | ✅ | Read-only display |
 | Inventory UI | - | ✅ | Full panel with categories |
 | LLM Motivations Context | ✅ | - | Full context in prompts |
@@ -417,33 +418,33 @@ The key insight is that the same person can be a HELPER in one character's model
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/entities/character.rs` | Character entity |
-| Domain | `src/domain/entities/player_character.rs` | PC entity |
-| Domain | `src/domain/entities/want.rs` | Want entity with visibility, deflection, tells |
-| Domain | `src/domain/entities/goal.rs` | Goal entity with common goals |
-| Domain | `src/domain/entities/item.rs` | Item entity |
-| Domain | `src/domain/value_objects/archetype.rs` | CampbellArchetype |
-| Domain | `src/domain/value_objects/actantial_context.rs` | ActantialContext, WantContext |
-| Domain | `src/domain/value_objects/llm_context.rs` | MotivationsContext for LLM |
-| Domain | `src/domain/value_objects/relationship.rs` | Relationship types |
+| Domain | `crates/domain/src/entities/character.rs` | Character entity |
+| Domain | `crates/domain/src/entities/player_character.rs` | PC entity |
+| Domain | `crates/domain/src/entities/want.rs` | Want entity with visibility, deflection, tells |
+| Domain | `crates/domain/src/entities/goal.rs` | Goal entity with common goals |
+| Domain | `crates/domain/src/entities/item.rs` | Item entity |
+| Domain | `crates/domain/src/value_objects/archetype.rs` | CampbellArchetype |
+| Domain | `crates/domain/src/value_objects/actantial_context.rs` | ActantialContext, WantContext |
+| Domain | `crates/domain/src/value_objects/llm_context.rs` | MotivationsContext for LLM |
+| Domain | `crates/domain/src/value_objects/relationship.rs` | Relationship types |
 | Entity | `crates/engine/src/entities/character.rs` | Character operations |
 | Entity | `crates/engine/src/entities/player_character.rs` | PC operations |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/character_repo.rs` | Neo4j character persistence |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/goal_repo.rs` | Neo4j goal persistence |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/player_character_repo.rs` | Neo4j PC persistence |
-| API | `crates/engine/src/api/websocket/mod.rs` | Want/Goal via RequestPayload |
+| API | `crates/engine/src/api/websocket/mod.rs` | RequestPayload handlers (not wired yet) |
 
 ### Player
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Application | `src/application/services/character_service.rs` | Character API |
-| Application | `src/application/services/player_character_service.rs` | PC API |
-| Application | `src/application/services/actantial_service.rs` | Actantial HTTP client |
-| Presentation | `src/presentation/components/creator/character_form.rs` | Character editor |
-| Presentation | `src/presentation/components/creator/motivations_tab.rs` | Motivations tab |
-| Presentation | `src/presentation/components/shared/character_sheet_viewer.rs` | Sheet viewer |
-| Presentation | `src/presentation/components/dm_panel/npc_motivation.rs` | NPC panel |
+| Application | `crates/player/src/application/services/character_service.rs` | Character API |
+| Application | `crates/player/src/application/services/player_character_service.rs` | PC API |
+| Application | `crates/player/src/application/services/actantial_service.rs` | Actantial API |
+| Presentation | `crates/player/src/ui/presentation/components/creator/character_form.rs` | Character editor |
+| Presentation | `crates/player/src/ui/presentation/components/creator/motivations_tab.rs` | Motivations tab |
+| Presentation | `crates/player/src/ui/presentation/components/character_sheet_viewer.rs` | Sheet viewer |
+| Presentation | `crates/player/src/ui/presentation/components/dm_panel/npc_motivation.rs` | NPC panel |
 
 ---
 

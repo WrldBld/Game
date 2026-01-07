@@ -312,6 +312,36 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         Ok(())
     }
 
+    async fn list_chains_for_world(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<EventChain>, RepoError> {
+        let q = query(
+            "MATCH (w:World {id: $world_id})-[:HAS_EVENT_CHAIN]->(c:EventChain)
+            RETURN c
+            ORDER BY c.is_favorite DESC, c.name",
+        )
+        .param("world_id", world_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+        let mut chains = Vec::new();
+        let now = self.clock.now();
+
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            chains.push(row_to_event_chain(row, now)?);
+        }
+
+        Ok(chains)
+    }
+
     // =========================================================================
     // StoryEvent operations
     // =========================================================================

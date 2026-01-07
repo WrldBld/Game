@@ -103,10 +103,10 @@ impl TriggerChallengePrompt {
             .ok_or(ChallengeError::NotFound)?;
 
         let difficulty_display = match &challenge.difficulty {
-            wrldbldr_domain::Difficulty::DC(dc) => format!(\"DC {}\", dc),
-            wrldbldr_domain::Difficulty::Percentage(pct) => format!(\"{}%\", pct),
-            wrldbldr_domain::Difficulty::Opposed => \"Opposed\".to_string(),
-            wrldbldr_domain::Difficulty::Descriptor(desc) => format!(\"{:?}\", desc),
+            wrldbldr_domain::Difficulty::DC(dc) => format!("DC {}", dc),
+            wrldbldr_domain::Difficulty::Percentage(pct) => format!("{}%", pct),
+            wrldbldr_domain::Difficulty::Opposed => "Opposed".to_string(),
+            wrldbldr_domain::Difficulty::Descriptor(desc) => format!("{:?}", desc),
             wrldbldr_domain::Difficulty::Custom(custom) => custom.clone(),
         };
 
@@ -117,7 +117,7 @@ impl TriggerChallengePrompt {
             description: challenge.description.clone(),
             skill_name: String::new(),
             character_modifier: 0,
-            suggested_dice: Some(\"1d20\".to_string()),
+            suggested_dice: Some("1d20".to_string()),
             rule_system_hint: None,
         })
     }

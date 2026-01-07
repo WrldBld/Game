@@ -47,7 +47,7 @@ impl InventoryOps {
         &self,
         item_id: ItemId,
         region_id: wrldbldr_domain::RegionId,
-    ) -> Result<(), RepoError> {
+    ) -> Result<(), crate::entities::inventory::InventoryError> {
         self.inventory.place_item_in_region(item_id, region_id).await
     }
 
@@ -63,7 +63,7 @@ impl InventoryOps {
         world_id: WorldId,
         region_id: wrldbldr_domain::RegionId,
         data: CreateItemInput,
-    ) -> Result<ItemId, RepoError> {
+    ) -> Result<ItemId, crate::entities::inventory::InventoryError> {
         let mut item = Item::new(world_id, data.name);
         if let Some(desc) = data.description {
             item = item.with_description(desc);

@@ -320,13 +320,14 @@ pub enum TimeOfDay {
 
 | Component | Engine | Player | Notes |
 |-----------|--------|--------|-------|
-| Location Entity | ✅ | ✅ | Full CRUD |
-| Region Entity | ✅ | ✅ | Spawn points, connections |
+| Location Entity | ✅ | ✅ | Entities exist; API CRUD missing |
+| Region Entity | ✅ | ✅ | Entities exist; API CRUD missing |
 | GameTime Value Object | ✅ | ✅ | DM-controlled |
 | Location Repository | ✅ | - | Neo4j with hierarchy |
 | Region Repository | ✅ | - | Neo4j with connections |
 | Location Service | ✅ | ✅ | Business logic |
-| HTTP Routes | ✅ | - | REST API |
+| HTTP Routes | ⏳ | - | Location/region REST not wired |
+| WebSocket CRUD | ⏳ | - | Location/region requests not wired |
 | WebSocket Navigation | ✅ | ✅ | Full integration |
 | Navigation UI | - | ✅ | Modal + inline buttons |
 | Time Display UI | - | ✅ | Time-of-day icons |
@@ -352,10 +353,10 @@ pub enum TimeOfDay {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Application | `src/application/dto/world_snapshot.rs` | Location/Region types |
-| Application | `src/application/dto/websocket_messages.rs` | WS message types |
-| Presentation | `src/presentation/state/game_state.rs` | Current location state |
-| Presentation | `src/presentation/handlers/session_message_handler.rs` | Handle SceneChanged |
+| Application | `crates/player/src/application/dto/world_snapshot.rs` | Location/Region types |
+| Application | `crates/player/src/application/dto/websocket_messages.rs` | WS message types |
+| Presentation | `crates/player/src/ui/presentation/state/game_state.rs` | Current location state |
+| Presentation | `crates/player/src/ui/presentation/handlers/session_message_handler.rs` | Handle SceneChanged |
 
 ---
 

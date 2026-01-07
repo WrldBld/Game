@@ -153,9 +153,9 @@ pub struct ObservationSummary {
 
 | Method | Path | Description | Status |
 |--------|------|-------------|--------|
-| GET | `/api/player-characters/{id}/observations` | List PC's NPC observations | ✅ |
-| POST | `/api/player-characters/{id}/observations` | Create observation | ✅ |
-| DELETE | `/api/observations/{id}` | Remove observation | ✅ |
+| GET | `/api/player-characters/{id}/observations` | List PC's NPC observations | ⏳ (not in engine HTTP) |
+| POST | `/api/player-characters/{id}/observations` | Create observation | ⏳ (not in engine HTTP) |
+| DELETE | `/api/observations/{id}` | Remove observation | ⏳ (not in engine HTTP) |
 
 ### WebSocket Messages
 
@@ -179,6 +179,7 @@ pub struct ObservationSummary {
 |-----------|--------|--------|-------|
 | Observation Entity | ✅ | - | Three observation types + reveal flag |
 | Observation Repository | ✅ | - | Neo4j OBSERVED_NPC edge with is_revealed |
+| WebSocket Request Handlers | ⏳ | - | Observation requests not wired |
 | Auto-record on Scene | ✅ | - | Direct observations |
 | DM Share Location | ✅ | ✅ | WebSocket handler complete |
 | Known NPCs Panel | - | ✅ | Full UI with observation types |
@@ -201,7 +202,7 @@ pub struct ObservationSummary {
 | Layer | File | Purpose |
 |-------|------|---------|
 | Application | `src/application/dto/websocket_messages.rs` | Message types |
-| Presentation | *pending* | Known NPCs panel |
+| Presentation | `crates/player/src/ui/presentation/components/known_npcs_panel.rs` | Known NPCs panel |
 
 ---
 

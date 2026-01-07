@@ -277,10 +277,11 @@ pub enum OutcomeTrigger {
 | Challenge Entity | ✅ | ✅ | Full outcome support |
 | Skill Entity | ✅ | ✅ | Categories, attributes |
 | Challenge Repository | ✅ | - | Neo4j with skill edges |
-| ChallengeService | ✅ | ✅ | CRUD, resolution |
+| ChallengeService | ✅ | ✅ | Use cases exist; WebSocket CRUD missing |
 | ChallengeResolutionService | ✅ | - | Dice, modifiers |
 | ChallengeOutcomeApprovalService | ✅ | - | DM approval |
 | LLM Challenge Suggestions | ✅ | - | Parse XML tags |
+| WebSocket Request Handlers | ⏳ | - | Challenge/Skill requests not wired |
 | Challenge Library UI | - | ✅ | Search, filter, favorites |
 | Challenge Roll Modal | - | ✅ | Dice rolling |
 | Trigger Challenge Modal | - | ✅ | Manual triggering |
@@ -306,11 +307,11 @@ pub enum OutcomeTrigger {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Application | `src/application/services/challenge_service.rs` | API calls |
-| Presentation | `src/presentation/components/dm_panel/challenge_library/` | Library UI |
-| Presentation | `src/presentation/components/tactical/challenge_roll.rs` | Roll modal |
-| Presentation | `src/presentation/components/dm_panel/trigger_challenge_modal.rs` | Trigger UI |
-| Presentation | `src/presentation/components/dm_panel/challenge_outcome_approval.rs` | Approval |
+| Application | `crates/player/src/application/services/challenge_service.rs` | API calls |
+| Presentation | `crates/player/src/ui/presentation/components/dm_panel/challenge_library/` | Library UI |
+| Presentation | `crates/player/src/ui/presentation/components/tactical/challenge_roll.rs` | Roll modal |
+| Presentation | `crates/player/src/ui/presentation/components/dm_panel/trigger_challenge_modal.rs` | Trigger UI |
+| Presentation | `crates/player/src/ui/presentation/components/dm_panel/challenge_outcome_approval.rs` | Approval |
 
 ---
 

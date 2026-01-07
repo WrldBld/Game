@@ -3,7 +3,7 @@
 This document tracks implementation progress and remaining work. For detailed system specifications, see the [systems/](../systems/) directory.
 
 **Last Updated**: 2026-01-05  
-**Overall Progress**: Core gameplay complete; Simplified architecture complete; WebSocket implementation complete; Scene resolution and narrative effects implemented; Lore & Visual State systems complete  
+**Overall Progress**: Core gameplay partial; Simplified architecture complete; WebSocket implementation partial; Scene resolution and narrative effects partial; Lore & Visual State systems partial  
 **Branch**: `new-arch`
 
 ---
@@ -12,10 +12,10 @@ This document tracks implementation progress and remaining work. For detailed sy
 
 | Tier | Description | Status |
 |------|-------------|--------|
-| Tier 1 | Critical Path (Core Gameplay) | **COMPLETE** |
-| Tier 2 | Feature Completeness | **COMPLETE** |
+| Tier 1 | Critical Path (Core Gameplay) | **PARTIAL** |
+| Tier 2 | Feature Completeness | **PARTIAL** |
 | Tier 3 | Architecture & Quality | **COMPLETE** (simplified 4-crate architecture) |
-| Tier 4 | Session & World Management | **COMPLETE** (WebSocket-first) |
+| Tier 4 | Session & World Management | **PARTIAL** (WebSocket-first) |
 | Tier 5 | Future Features | Not Started |
 
 **Architecture**: See [SIMPLIFIED_ARCHITECTURE.md](../plans/SIMPLIFIED_ARCHITECTURE.md) for current 4-crate structure.
@@ -24,12 +24,12 @@ This document tracks implementation progress and remaining work. For detailed sy
 
 ## Priority Tiers
 
-### Tier 1: Critical Path - **COMPLETE**
+### Tier 1: Critical Path - **PARTIAL**
 - LLM Integration (Engine)
 - DM Approval Flow (Engine + Player)
 - Player Action Sending (Player)
 
-### Tier 2: Feature Completeness - **COMPLETE**
+### Tier 2: Feature Completeness - **PARTIAL**
 - Creator Mode API Integration (Player)
 - Workflow Config Persistence (Player)
 - Spectator View (Player)
@@ -68,7 +68,7 @@ Simplified from 11+ crates with 128+ traits to 4 crates with ~10 traits.
 - [ ] Authentication middleware
 - [ ] Authorization checks
 
-### Tier 4: Session & World Management - **COMPLETE**
+### Tier 4: Session & World Management - **PARTIAL**
 - Phase 13: World Selection Flow
 - Phase 14: Rule Systems & Challenges
 - Phase 15: Routing & Navigation
@@ -136,10 +136,10 @@ See individual system documents for detailed user stories.
 | - | Scene Resolution Service (condition evaluation) | 2026-01-03 |
 | - | Event Effect Executor (all narrative effects) | 2026-01-03 |
 | - | Code Quality: Helper extraction, Flag Storage | 2026-01-04 |
-| - | WebSocket Implementation: PC data, region items, challenge flow, directorial context | 2026-01-04 |
-| - | Lore System (entities, repo, handlers, UI) | 2026-01-05 |
-| - | Visual State System (LocationState, RegionState, activation rules) | 2026-01-05 |
-| - | Game Time Enhancements (TimeUseCases, TimeControl UI) | 2026-01-05 |
+| - | WebSocket Implementation: PC data, region items, challenge flow, directorial context | Partial |
+| - | Lore System (entities, repo, handlers, UI) | Partial |
+| - | Visual State System (LocationState, RegionState, activation rules) | Partial |
+| - | Game Time Enhancements (TimeUseCases, TimeControl UI) | Partial |
 
 ---
 
@@ -152,6 +152,11 @@ See individual system documents for detailed user stories.
 | Flag Storage | Persistent game flags for FlagSet conditions/effects | Medium | **COMPLETE** (2026-01-04) |
 | XP/Level Tracking | Track experience and level (no character advancement) | Low | Not Started |
 | Combat System | Tactical combat (DEFERRED - out of scope for MVP) | None | Deferred |
+| WebSocket CRUD Coverage | Request groups in protocol without engine handlers | High | In Progress |
+| HTTP Settings Endpoints | /api/settings + per-world settings + metadata | High | Not Started |
+| Rule System Presets | Presets endpoint used by player | Medium | Not Started |
+
+See `docs/plans/IMPLEMENTATION_GAPS_PLAN.md` for the active remediation plan.
 
 ### Code Quality Items
 
@@ -165,7 +170,7 @@ See individual system documents for detailed user stories.
 
 ### Documentation Updates Needed
 
-All system documentation files in `docs/systems/` reference old file paths (`engine-app`, `engine-adapters`). These should be updated to reference the simplified `engine` crate structure. Scene system docs are up to date and can be used as a template.
+Some system documentation files still reference legacy paths or claim APIs that are not wired yet. See `docs/plans/IMPLEMENTATION_GAPS_PLAN.md` for the active cleanup checklist.
 
 ---
 

@@ -214,6 +214,7 @@ Result: List of NPCs with presence suggestions and reasoning
 | Share NPC Location | ✅ | ✅ | Full WebSocket integration |
 | NPC Mood Panel | ✅ | ✅ | DM can view/modify moods toward PCs |
 | Mood in LLM Context | ✅ | - | Wired to build_prompt_from_action (2025-12-26) |
+| WebSocket Request Handlers | ⏳ | - | Disposition/relationship requests not wired |
 
 ---
 
@@ -236,8 +237,8 @@ Result: List of NPCs with presence suggestions and reasoning
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Application | `src/application/dto/websocket_messages.rs` | Event message types |
-| Presentation | `src/presentation/handlers/session_message_handler.rs` | Handle events |
+| Application | `crates/player/src/application/dto/websocket_messages.rs` | Event message types |
+| Presentation | `crates/player/src/ui/presentation/handlers/session_message_handler.rs` | Handle events |
 
 ---
 

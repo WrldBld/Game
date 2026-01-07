@@ -1,7 +1,7 @@
 # WrldBldr MVP Plan
 
 **Created:** 2025-12-17  
-**Status:** ACTIVE - Primary Implementation Reference  
+**Status:** ACTIVE - Needs alignment with current implementation  
 **Target:** Playable TTRPG game loop without tactical combat
 
 ---
@@ -167,6 +167,12 @@ See [SIMPLIFIED_ARCHITECTURE.md](../plans/SIMPLIFIED_ARCHITECTURE.md) for full a
    - ~10 port traits for real infrastructure boundaries
    - Entities wrap repos, use cases orchestrate entities
    - Domain crate is pure (no framework imports)
+
+### Current Gaps (as of latest audit)
+
+- WebSocket CRUD handlers for several protocol request groups are not wired yet (Region/Scene/Act/Interaction/Skill/Challenge/NarrativeEvent/EventChain/PlayerCharacter/Relationship/Observation/Goal/Want/Actantial).
+- Some protocol requests exist without engine handlers (StoryEvent Get/Update, NPC disposition/relationship, AI deflection/tells suggestions).
+- HTTP settings and rule-system preset endpoints expected by the player are not yet implemented.
 
 ---
 

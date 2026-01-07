@@ -340,6 +340,32 @@ impl ChallengeRepo for Neo4jChallengeRepo {
         Ok(())
     }
 
+    async fn list_for_world(&self, world_id: WorldId) -> Result<Vec<Challenge>, RepoError> {
+        let q = query(
+            "MATCH (w:World {id: $world_id})-[:CONTAINS_CHALLENGE]->(c:Challenge)
+            RETURN c
+            ORDER BY c.is_favorite DESC, c.challenge_order",
+        )
+        .param("world_id", world_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let mut challenges = Vec::new();
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            challenges.push(self.row_to_challenge(row)?);
+        }
+
+        Ok(challenges)
+    }
+
     async fn list_for_scene(&self, scene_id: SceneId) -> Result<Vec<Challenge>, RepoError> {
         let q = query(
             "MATCH (c:Challenge)-[:TIED_TO_SCENE]->(s:Scene {id: $scene_id})

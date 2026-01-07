@@ -45,15 +45,35 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
   - _Implementation_: `World.game_time` persisted, included in world data
   - _Files_: `crates/domain/src/game_time.rs`, `crates/domain/src/entities/world.rs`
 
-### Pending
+### Implemented (Existing)
 
-- [ ] **US-TIME-003**: As a DM, I can set the exact time (hour and day) so that I can jump to specific moments
-- [ ] **US-TIME-004**: As a DM, I can skip to the next time period so that I don't count hours manually
-- [ ] **US-TIME-005**: As a DM, I can pause time progression so that suggested time doesn't accumulate
-- [ ] **US-TIME-006**: As a DM, I can configure default time costs per action type so that time flows consistently
-- [ ] **US-TIME-007**: As a DM, I receive time suggestions when players take time-consuming actions so that I can approve/modify them
-- [ ] **US-TIME-008**: As a player, I see time passage notifications so that I understand when time moves
-- [ ] **US-TIME-009**: As a player, I can see the current game time so that I can plan time-sensitive actions
+- [x] **US-TIME-003**: As a DM, I can set the exact time (hour and day) so that I can jump to specific moments
+  - _Implementation_: `SetGameTime` request updates `World.game_time`, optional broadcast
+  - _Files_: `crates/engine/src/api/websocket/ws_core.rs`
+
+- [x] **US-TIME-004**: As a DM, I can skip to the next time period so that I don't count hours manually
+  - _Implementation_: `SkipToPeriod` request advances to time-of-day boundary
+  - _Files_: `crates/engine/src/api/websocket/ws_core.rs`
+
+- [x] **US-TIME-005**: As a DM, I can pause time progression so that suggested time doesn't accumulate
+  - _Implementation_: `PauseGameTime` client message toggles paused flag
+  - _Files_: `crates/engine/src/api/websocket/mod.rs`
+
+- [x] **US-TIME-006**: As a DM, I can configure default time costs per action type so that time flows consistently
+  - _Implementation_: `GetTimeConfig` / `UpdateTimeConfig` requests persist config
+  - _Files_: `crates/engine/src/api/websocket/ws_core.rs`
+
+- [x] **US-TIME-007**: As a DM, I receive time suggestions when players take time-consuming actions so that I can approve/modify them
+  - _Implementation_: `SuggestTime` use case + TimeSuggestion approval flow
+  - _Files_: `crates/engine/src/use_cases/time/mod.rs`, `crates/engine/src/api/websocket/mod.rs`
+
+- [x] **US-TIME-008**: As a player, I see time passage notifications so that I understand when time moves
+  - _Implementation_: `GameTimeAdvanced` / `GameTimeUpdated` broadcasts update UI
+  - _Files_: `crates/engine/src/api/websocket/ws_core.rs`, `crates/player/src/ui/presentation/state/game_state.rs`
+
+- [x] **US-TIME-009**: As a player, I can see the current game time so that I can plan time-sensitive actions
+  - _Implementation_: `GameTimeDisplay` in player UI + world snapshot
+  - _Files_: `crates/player/src/ui/presentation/components/navigation_panel.rs`
 
 ---
 
@@ -431,17 +451,17 @@ pub struct TimeAdvanceData {
 | `World.game_time`         | ✅     | Persisted                       |
 | `AdvanceGameTime`         | ✅     | DM can advance hours            |
 | `GameTimeUpdated`         | ✅     | Broadcast exists                |
-| `GameTimeConfig`          | ⏳     | Need to add                     |
-| `TimeMode` enum           | ⏳     | Need to add                     |
-| `TimeCostConfig`          | ⏳     | Need to add                     |
-| `TimeSuggestion` flow     | ⏳     | Need to implement               |
-| `SetGameTime`             | ⏳     | Need to add                     |
-| `SkipToPeriod`            | ⏳     | Need to add                     |
-| Time suggestion UI        | ⏳     | Need to add                     |
-| Time control panel        | ⏳     | Need to add                     |
-| Integration: Staging      | ⏳     | Uses real time, needs game time |
-| Integration: Observations | ⏳     | Uses real time, needs game time |
-| Integration: Movement     | ⏳     | Needs to generate suggestions   |
+| `GameTimeConfig`          | ✅     | Config persisted on World       |
+| `TimeMode` enum           | ✅     | Manual/Suggested modes          |
+| `TimeCostConfig`          | ✅     | Default cost map                |
+| `TimeSuggestion` flow     | ✅     | Suggest/approve/advance         |
+| `SetGameTime`             | ✅     | Set day/hour                    |
+| `SkipToPeriod`            | ✅     | Skip to time-of-day period      |
+| Time suggestion UI        | ✅     | DM approval flow in UI          |
+| Time control panel        | ✅     | DM controls in UI               |
+| Integration: Staging      | ✅     | TTL uses game time              |
+| Integration: Observations | ✅     | Observations record game time   |
+| Integration: Movement     | ✅     | Movement generates suggestions  |
 
 ---
 
@@ -455,8 +475,8 @@ pub struct TimeAdvanceData {
 | Domain    | `crates/domain/src/entities/world.rs`                  | World with game_time field        |
 | Ports     | `crates/engine/src/infrastructure/ports.rs`            | WorldRepo with time methods       |
 | Entities  | `crates/engine/src/entities/world.rs`                  | World entity operations           |
-| Use Cases | `crates/engine/src/use_cases/time/mod.rs`              | Time suggestion use cases (NEW)   |
-| API       | `crates/engine/src/api/websocket/mod.rs`                   | Time-related handlers             |
+| Use Cases | `crates/engine/src/use_cases/time/mod.rs`              | Time suggestion use cases         |
+| API       | `crates/engine/src/api/websocket/mod.rs`               | Time-related handlers             |
 | Neo4j     | `crates/engine/src/infrastructure/neo4j/world_repo.rs` | Persist time config               |
 
 ### Protocol
@@ -471,10 +491,10 @@ pub struct TimeAdvanceData {
 
 | Layer | File                                                              | Purpose                |
 | ----- | ----------------------------------------------------------------- | ---------------------- |
-| UI    | `crates/player-ui/src/presentation/components/time_display.rs`    | Time display component |
-| UI    | `crates/player-ui/src/presentation/components/dm/time_control.rs` | DM time controls (NEW) |
-| State | `crates/player-ui/src/presentation/state/game_state.rs`           | Current time state     |
-| Utils | `crates/player-ui/src/presentation/utils/game_time_format.rs`     | Time formatting        |
+| UI    | `crates/player/src/ui/presentation/components/navigation_panel.rs` | Time display component |
+| UI    | `crates/player/src/ui/presentation/components/dm_panel/time_control.rs` | DM time controls |
+| State | `crates/player/src/ui/presentation/state/game_state.rs`           | Current time state     |
+| Utils | `crates/player/src/ui/presentation/game_time_format.rs`           | Time formatting        |
 
 ---
 

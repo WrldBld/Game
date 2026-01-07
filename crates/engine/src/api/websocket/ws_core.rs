@@ -1,5 +1,7 @@
 use super::*;
 
+use chrono::Timelike;
+
 use crate::api::connections::ConnectionInfo;
 
 use wrldbldr_protocol::{CharacterRequest, ItemsRequest, NpcRequest, TimeRequest, WorldRequest};
@@ -408,7 +410,6 @@ pub(super) async fn handle_character_request(
                         .use_cases
                         .inventory
                         .ops
-                        .inventory
                         .get_character_inventory(npc_id)
                         .await
                         .map_err(|e| ServerMessage::Response {

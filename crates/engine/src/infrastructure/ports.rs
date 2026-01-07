@@ -150,6 +150,10 @@ pub trait CharacterRepo: Send + Sync {
         pc_id: PlayerCharacterId,
     ) -> Result<Option<NpcDispositionState>, RepoError>;
     async fn save_disposition(&self, disposition: &NpcDispositionState) -> Result<(), RepoError>;
+    async fn list_dispositions_for_pc(
+        &self,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<NpcDispositionState>, RepoError>;
 
     // Actantial
     async fn get_actantial_context(
@@ -271,12 +275,38 @@ pub trait LocationRepo: Send + Sync {
         region_id: RegionId,
     ) -> Result<Vec<RegionConnection>, RepoError>;
     async fn save_connection(&self, connection: &RegionConnection) -> Result<(), RepoError>;
+    async fn delete_connection(
+        &self,
+        from_region: RegionId,
+        to_region: RegionId,
+    ) -> Result<(), RepoError>;
 
     // Location connections (exits)
     async fn get_location_exits(
         &self,
         location_id: LocationId,
     ) -> Result<Vec<LocationConnection>, RepoError>;
+    async fn save_location_connection(
+        &self,
+        connection: &LocationConnection,
+    ) -> Result<(), RepoError>;
+    async fn delete_location_connection(
+        &self,
+        from_location: LocationId,
+        to_location: LocationId,
+    ) -> Result<(), RepoError>;
+
+    // Region exits (to locations)
+    async fn get_region_exits(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<RegionExit>, RepoError>;
+    async fn save_region_exit(&self, exit: &RegionExit) -> Result<(), RepoError>;
+    async fn delete_region_exit(
+        &self,
+        region_id: RegionId,
+        location_id: LocationId,
+    ) -> Result<(), RepoError>;
 }
 
 #[cfg_attr(test, mockall::automock)]
@@ -324,6 +354,7 @@ pub trait ChallengeRepo: Send + Sync {
     async fn get(&self, id: ChallengeId) -> Result<Option<Challenge>, RepoError>;
     async fn save(&self, challenge: &Challenge) -> Result<(), RepoError>;
     async fn delete(&self, id: ChallengeId) -> Result<(), RepoError>;
+    async fn list_for_world(&self, world_id: WorldId) -> Result<Vec<Challenge>, RepoError>;
     async fn list_for_scene(&self, scene_id: SceneId) -> Result<Vec<Challenge>, RepoError>;
     async fn list_pending_for_world(&self, world_id: WorldId) -> Result<Vec<Challenge>, RepoError>;
     async fn mark_resolved(&self, id: ChallengeId) -> Result<(), RepoError>;
@@ -353,6 +384,7 @@ pub trait NarrativeRepo: Send + Sync {
     async fn get_chain(&self, id: EventChainId) -> Result<Option<EventChain>, RepoError>;
     async fn save_chain(&self, chain: &EventChain) -> Result<(), RepoError>;
     async fn delete_chain(&self, id: EventChainId) -> Result<(), RepoError>;
+    async fn list_chains_for_world(&self, world_id: WorldId) -> Result<Vec<EventChain>, RepoError>;
 
     // Story events
     async fn get_story_event(&self, id: StoryEventId) -> Result<Option<StoryEvent>, RepoError>;

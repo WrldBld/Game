@@ -161,6 +161,13 @@ impl Narrative {
         self.repo.delete_chain(id).await
     }
 
+    pub async fn list_chains_for_world(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<domain::EventChain>, RepoError> {
+        self.repo.list_chains_for_world(world_id).await
+    }
+
     // =========================================================================
     // Story Events
     // =========================================================================

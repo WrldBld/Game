@@ -821,6 +821,71 @@ impl CharacterRepo for Neo4jCharacterRepo {
         Ok(())
     }
 
+    async fn list_dispositions_for_pc(
+        &self,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<NpcDispositionState>, RepoError> {
+        let q = query(
+            "MATCH (npc:Character)-[d:DISPOSITION_TOWARD]->(pc:PlayerCharacter {id: $pc_id})
+            RETURN npc.id as npc_id, d.disposition as disposition, d.relationship as relationship,
+                   d.sentiment as sentiment, d.updated_at as updated_at,
+                   d.disposition_reason as disposition_reason, d.relationship_points as relationship_points",
+        )
+        .param("pc_id", pc_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let mut dispositions = Vec::new();
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let npc_id_str: String = row
+                .get("npc_id")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let npc_id = Uuid::parse_str(&npc_id_str)
+                .map_err(|e| RepoError::Database(e.to_string()))?
+                .into();
+
+            let disposition_str: String = row
+                .get("disposition")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let disposition: DispositionLevel = disposition_str
+                .parse()
+                .map_err(|e: String| RepoError::Database(e))?;
+
+            let relationship_str: String =
+                row.get("relationship").unwrap_or_else(|_| "Stranger".to_string());
+            let relationship: RelationshipLevel =
+                relationship_str.parse().unwrap_or(RelationshipLevel::Stranger);
+
+            let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
+            let updated_at_str: String = row.get("updated_at").unwrap_or_default();
+            let updated_at =
+                wrldbldr_domain::common::parse_datetime_or(&updated_at_str, chrono::Utc::now());
+            let disposition_reason: Option<String> = row.get("disposition_reason").ok();
+            let relationship_points: i64 = row.get("relationship_points").unwrap_or(0);
+
+            dispositions.push(NpcDispositionState {
+                npc_id,
+                pc_id,
+                disposition,
+                relationship,
+                sentiment: sentiment as f32,
+                updated_at,
+                disposition_reason,
+                relationship_points: relationship_points as i32,
+            });
+        }
+
+        Ok(dispositions)
+    }
+
     // =========================================================================
     // Actantial Context Operations
     // =========================================================================

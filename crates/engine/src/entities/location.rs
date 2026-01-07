@@ -104,8 +104,55 @@ impl Location {
         self.repo.save_connection(connection).await
     }
 
+    pub async fn delete_connection(
+        &self,
+        from_region: RegionId,
+        to_region: RegionId,
+    ) -> Result<(), RepoError> {
+        self.repo.delete_connection(from_region, to_region).await
+    }
+
     pub async fn get_location_exits(&self, location_id: LocationId) -> Result<Vec<LocationConnection>, RepoError> {
         self.repo.get_location_exits(location_id).await
+    }
+
+    pub async fn save_location_connection(
+        &self,
+        connection: &LocationConnection,
+    ) -> Result<(), RepoError> {
+        self.repo.save_location_connection(connection).await
+    }
+
+    pub async fn delete_location_connection(
+        &self,
+        from_location: LocationId,
+        to_location: LocationId,
+    ) -> Result<(), RepoError> {
+        self.repo
+            .delete_location_connection(from_location, to_location)
+            .await
+    }
+
+    pub async fn get_region_exits(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<domain::RegionExit>, RepoError> {
+        self.repo.get_region_exits(region_id).await
+    }
+
+    pub async fn save_region_exit(
+        &self,
+        exit: &domain::RegionExit,
+    ) -> Result<(), RepoError> {
+        self.repo.save_region_exit(exit).await
+    }
+
+    pub async fn delete_region_exit(
+        &self,
+        region_id: RegionId,
+        location_id: LocationId,
+    ) -> Result<(), RepoError> {
+        self.repo.delete_region_exit(region_id, location_id).await
     }
 
     /// Get exits from a region to other locations.
@@ -113,6 +160,29 @@ impl Location {
     /// This finds the location for the given region, then finds connections to 
     /// other locations, and enriches them with location names and default arrival regions.
     pub async fn get_exits(&self, region_id: RegionId) -> Result<Vec<RegionExit>, RepoError> {
+        let region_exits = self.repo.get_region_exits(region_id).await?;
+        if !region_exits.is_empty() {
+            let mut exits = Vec::new();
+            for exit in region_exits {
+                if let Some(target_location) = self.repo.get_location(exit.to_location).await? {
+                    exits.push(RegionExit {
+                        location_id: exit.to_location,
+                        location_name: target_location.name,
+                        arrival_region_id: exit.arrival_region_id,
+                        description: exit.description,
+                    });
+                } else {
+                    tracing::warn!(
+                        from_region = %region_id,
+                        to_location = %exit.to_location,
+                        "Skipping exit: target location not found"
+                    );
+                }
+            }
+
+            return Ok(exits);
+        }
+
         // Get the region to find its location
         let region = match self.repo.get_region(region_id).await? {
             Some(r) => r,

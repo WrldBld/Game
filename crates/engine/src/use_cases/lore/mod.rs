@@ -254,7 +254,7 @@ impl LoreOps {
         character_id: CharacterId,
         lore_id: LoreId,
     ) -> Result<Value, LoreError> {
-        self.lore.revoke_knowledge(lore_id, character_id).await?;
+        self.lore.revoke_knowledge(character_id, lore_id).await?;
         Ok(serde_json::json!({ "revoked": true }))
     }
 

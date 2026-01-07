@@ -341,7 +341,8 @@ pub enum EventEffect {
 | EventChain Entity | ✅ | ✅ | Sequencing, branching |
 | NarrativeEvent Repository | ✅ | - | Neo4j with all edges |
 | TriggerEvaluationService | ✅ | - | Evaluate against state |
-| EventEffectExecutor | ✅ | - | ExecuteEffects use case handles all effect types |
+| EventEffectExecutor | ⏳ | - | StartCombat/AddReward are stubbed |
+| WebSocket Request Handlers | ⏳ | - | NarrativeEvent/EventChain requests not wired |
 | LLM Event Suggestions | ✅ | - | Parse XML tags |
 | Event Library UI | - | ✅ | Search, filter, favorites |
 | Event Chain Editor | - | ✅ | Add/remove events |
@@ -368,11 +369,11 @@ pub enum EventEffect {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Application | `src/application/services/narrative_event_service.rs` | API calls |
-| Presentation | `src/presentation/components/story_arc/narrative_event_library.rs` | Library |
-| Presentation | `src/presentation/components/story_arc/event_chain_editor.rs` | Editor |
-| Presentation | `src/presentation/components/story_arc/event_chain_visualizer.rs` | Visualizer |
-| Presentation | `src/presentation/components/story_arc/pending_events_widget.rs` | Widget |
+| Application | `crates/player/src/application/services/narrative_event_service.rs` | API calls |
+| Presentation | `crates/player/src/ui/presentation/components/story_arc/narrative_event_library.rs` | Library |
+| Presentation | `crates/player/src/ui/presentation/components/story_arc/event_chain_editor.rs` | Editor |
+| Presentation | `crates/player/src/ui/presentation/components/story_arc/event_chain_visualizer.rs` | Visualizer |
+| Presentation | `crates/player/src/ui/presentation/components/story_arc/pending_events_widget.rs` | Widget |
 
 ---
 

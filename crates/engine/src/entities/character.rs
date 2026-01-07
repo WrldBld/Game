@@ -131,6 +131,13 @@ impl Character {
         self.repo.save_disposition(disposition).await
     }
 
+    pub async fn list_dispositions_for_pc(
+        &self,
+        pc_id: wrldbldr_domain::PlayerCharacterId,
+    ) -> Result<Vec<NpcDispositionState>, RepoError> {
+        self.repo.list_dispositions_for_pc(pc_id).await
+    }
+
     // =========================================================================
     // Actantial
     // =========================================================================

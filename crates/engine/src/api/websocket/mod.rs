@@ -51,7 +51,6 @@ pub struct WsState {
         tokio::sync::RwLock<HashMap<String, ws_creator::GenerationReadState>>,
 }
 
-#[derive(Debug, Clone, Copy)]
 /// WebSocket upgrade handler - entry point for new connections.
 pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<WsState>>) -> Response {
     ws.on_upgrade(move |socket| handle_socket(socket, state))

@@ -260,8 +260,9 @@ Opponents:
 | CharacterActantialPort | ✅ | - | Port traits |
 | ActantialContextService | ✅ | - | Builds full context |
 | Protocol Messages | ✅ | ✅ | WebSocket messages |
+| WebSocket Request Handlers | ⏳ | - | Requests not wired in engine yet |
 | LLM Context Integration | ✅ | - | `MotivationsContext` in prompts |
-| LLM Suggestions | ✅ | ✅ | 4 suggestion types |
+| LLM Suggestions | ⏳ | ✅ | Want/actantial reason wired; deflection/tells pending |
 | NPC Motivations Panel | - | ✅ | DM UI for editing |
 
 ---
@@ -286,7 +287,7 @@ Opponents:
 | Layer | File | Purpose |
 |-------|------|---------|
 | Protocol | `crates/protocol/src/messages.rs` | Actantial messages |
-| Presentation | `crates/player-ui/src/presentation/components/dm_panel/npc_motivations.rs` | Motivations panel |
+| Presentation | `crates/player/src/ui/presentation/components/dm_panel/npc_motivation.rs` | Motivations panel |
 
 ---
 

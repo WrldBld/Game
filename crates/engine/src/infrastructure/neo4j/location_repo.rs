@@ -4,6 +4,7 @@
 
 use async_trait::async_trait;
 use neo4rs::{query, Graph, Row};
+use uuid::Uuid;
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_typed_id, NodeExt, RowExt};
@@ -553,6 +554,38 @@ impl LocationRepo for Neo4jLocationRepo {
         Ok(())
     }
 
+    async fn delete_connection(
+        &self,
+        from_region: RegionId,
+        to_region: RegionId,
+    ) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (from:Region {id: $from_id})-[rel:CONNECTED_TO_REGION]->(to:Region {id: $to_id})
+            DELETE rel",
+        )
+        .param("from_id", from_region.to_string())
+        .param("to_id", to_region.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let reverse_q = query(
+            "MATCH (from:Region {id: $to_id})-[rel:CONNECTED_TO_REGION]->(to:Region {id: $from_id})
+            DELETE rel",
+        )
+        .param("from_id", from_region.to_string())
+        .param("to_id", to_region.to_string());
+
+        self.graph
+            .run(reverse_q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
     // =========================================================================
     // Location Connections (exits between locations)
     // =========================================================================
@@ -589,5 +622,246 @@ impl LocationRepo for Neo4jLocationRepo {
         }
 
         Ok(connections)
+    }
+
+    async fn save_location_connection(
+        &self,
+        connection: &LocationConnection,
+    ) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (from:Location {id: $from_id})
+            MATCH (to:Location {id: $to_id})
+            MERGE (from)-[r:CONNECTED_TO]->(to)
+            SET r.connection_type = $connection_type,
+                r.description = $description,
+                r.bidirectional = $bidirectional,
+                r.travel_time = $travel_time,
+                r.is_locked = $is_locked,
+                r.lock_description = $lock_description",
+        )
+        .param("from_id", connection.from_location.to_string())
+        .param("to_id", connection.to_location.to_string())
+        .param("connection_type", connection.connection_type.clone())
+        .param(
+            "description",
+            connection.description.clone().unwrap_or_default(),
+        )
+        .param("bidirectional", connection.bidirectional)
+        .param("travel_time", connection.travel_time as i64)
+        .param("is_locked", connection.is_locked)
+        .param(
+            "lock_description",
+            connection.lock_description.clone().unwrap_or_default(),
+        );
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        if connection.bidirectional {
+            let reverse_q = query(
+                "MATCH (from:Location {id: $to_id})
+                MATCH (to:Location {id: $from_id})
+                MERGE (from)-[r:CONNECTED_TO]->(to)
+                SET r.connection_type = $connection_type,
+                    r.description = $description,
+                    r.bidirectional = $bidirectional,
+                    r.travel_time = $travel_time,
+                    r.is_locked = $is_locked,
+                    r.lock_description = $lock_description",
+            )
+            .param("from_id", connection.from_location.to_string())
+            .param("to_id", connection.to_location.to_string())
+            .param("connection_type", connection.connection_type.clone())
+            .param(
+                "description",
+                connection.description.clone().unwrap_or_default(),
+            )
+            .param("bidirectional", connection.bidirectional)
+            .param("travel_time", connection.travel_time as i64)
+            .param("is_locked", connection.is_locked)
+            .param(
+                "lock_description",
+                connection.lock_description.clone().unwrap_or_default(),
+            );
+
+            self.graph
+                .run(reverse_q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+        }
+
+        Ok(())
+    }
+
+    async fn delete_location_connection(
+        &self,
+        from_location: LocationId,
+        to_location: LocationId,
+    ) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (from:Location {id: $from_id})-[r:CONNECTED_TO]->(to:Location {id: $to_id})
+            DELETE r",
+        )
+        .param("from_id", from_location.to_string())
+        .param("to_id", to_location.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let reverse_q = query(
+            "MATCH (from:Location {id: $to_id})-[r:CONNECTED_TO]->(to:Location {id: $from_id})
+            DELETE r",
+        )
+        .param("from_id", from_location.to_string())
+        .param("to_id", to_location.to_string());
+
+        self.graph
+            .run(reverse_q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
+    async fn get_region_exits(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<RegionExit>, RepoError> {
+        let q = query(
+            "MATCH (r:Region {id: $id})-[rel:EXITS_TO_LOCATION]->(l:Location)
+            RETURN r.id as from_region, l.id as to_location,
+                   rel.arrival_region_id as arrival_region_id,
+                   rel.description as description,
+                   rel.bidirectional as bidirectional",
+        )
+        .param("id", region_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let mut exits = Vec::new();
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let from_region: String = row.get("from_region").map_err(|e| RepoError::Database(e.to_string()))?;
+            let to_location: String = row.get("to_location").map_err(|e| RepoError::Database(e.to_string()))?;
+            let arrival_region: String = row.get("arrival_region_id").map_err(|e| RepoError::Database(e.to_string()))?;
+            let description: String = row.get("description").unwrap_or_default();
+            let bidirectional: bool = row.get("bidirectional").unwrap_or(false);
+
+            exits.push(RegionExit {
+                from_region: RegionId::from(
+                    Uuid::parse_str(&from_region)
+                        .map_err(|e| RepoError::Database(e.to_string()))?,
+                ),
+                to_location: LocationId::from(
+                    Uuid::parse_str(&to_location)
+                        .map_err(|e| RepoError::Database(e.to_string()))?,
+                ),
+                arrival_region_id: RegionId::from(
+                    Uuid::parse_str(&arrival_region)
+                        .map_err(|e| RepoError::Database(e.to_string()))?,
+                ),
+                description: if description.is_empty() {
+                    None
+                } else {
+                    Some(description)
+                },
+                bidirectional,
+            });
+        }
+
+        Ok(exits)
+    }
+
+    async fn save_region_exit(&self, exit: &RegionExit) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (from:Region {id: $from_id})<-[:HAS_REGION]-(from_location:Location)
+            MATCH (to:Location {id: $to_id})-[:HAS_REGION]->(arrival_region:Region {id: $arrival_region_id})
+            MERGE (from)-[r:EXITS_TO_LOCATION]->(to)
+            SET r.arrival_region_id = $arrival_region_id,
+                r.description = $description,
+                r.bidirectional = $bidirectional",
+        )
+        .param("from_id", exit.from_region.to_string())
+        .param("to_id", exit.to_location.to_string())
+        .param("arrival_region_id", exit.arrival_region_id.to_string())
+        .param("description", exit.description.clone().unwrap_or_default())
+        .param("bidirectional", exit.bidirectional);
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        if exit.bidirectional {
+            let reverse_q = query(
+                "MATCH (from:Region {id: $from_id})<-[:HAS_REGION]-(from_location:Location)
+                MATCH (to:Location {id: $to_id})-[:HAS_REGION]->(arrival_region:Region {id: $arrival_region_id})
+                MERGE (arrival_region)-[r:EXITS_TO_LOCATION]->(from_location)
+                SET r.arrival_region_id = $from_id,
+                    r.description = $description,
+                    r.bidirectional = $bidirectional",
+            )
+            .param("from_id", exit.from_region.to_string())
+            .param("to_id", exit.to_location.to_string())
+            .param("arrival_region_id", exit.arrival_region_id.to_string())
+            .param("description", exit.description.clone().unwrap_or_default())
+            .param("bidirectional", exit.bidirectional);
+
+            self.graph
+                .run(reverse_q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+        } else {
+            let cleanup_q = query(
+                "MATCH (from:Region {id: $from_id})<-[:HAS_REGION]-(from_location:Location)
+                MATCH (to:Location {id: $to_id})-[:HAS_REGION]->(arrival_region:Region {id: $arrival_region_id})
+                OPTIONAL MATCH (arrival_region)-[r:EXITS_TO_LOCATION]->(from_location)
+                DELETE r",
+            )
+            .param("from_id", exit.from_region.to_string())
+            .param("to_id", exit.to_location.to_string())
+            .param("arrival_region_id", exit.arrival_region_id.to_string());
+
+            self.graph
+                .run(cleanup_q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+        }
+
+        Ok(())
+    }
+
+    async fn delete_region_exit(
+        &self,
+        region_id: RegionId,
+        location_id: LocationId,
+    ) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (r:Region {id: $region_id})-[rel:EXITS_TO_LOCATION]->(l:Location {id: $location_id})
+            WITH r, l, rel.arrival_region_id AS arrival_region_id, rel
+            OPTIONAL MATCH (r)<-[:HAS_REGION]-(from_location:Location)
+            OPTIONAL MATCH (arrival_region:Region {id: arrival_region_id})-[rev:EXITS_TO_LOCATION]->(from_location)
+            DELETE rel, rev",
+        )
+        .param("region_id", region_id.to_string())
+        .param("location_id", location_id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        Ok(())
     }
 }

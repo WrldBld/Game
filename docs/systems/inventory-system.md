@@ -132,12 +132,10 @@ The Inventory System provides classic RPG item management:
 
 | RequestPayload | Purpose |
 |----------------|---------|
-| `GetPlayerCharacterInventory` | Get PC's inventory |
-| `GiveItemToPlayerCharacter` | DM gives item to PC |
 | `PlaceItemInRegion` | DM places item in region |
-| `CreateItem` | Create new item definition |
-| `UpdateItem` | Update item properties |
-| `DeleteItem` | Delete item definition |
+| `CreateAndPlaceItem` | Create a new item and place it in a region |
+
+Requests for inventory CRUD (create/update/delete items, give item to PC, get PC inventory) are not wired in the engine request handlers yet.
 
 ---
 
@@ -150,6 +148,7 @@ The Inventory System provides classic RPG item management:
 | PlayerCharacterInventoryPort | ✅ | - | Port trait |
 | Inventory Use Cases | ✅ | - | Equip/unequip/drop/pickup |
 | Protocol Messages | ✅ | ✅ | WebSocket messages |
+| WebSocket Request Handlers | ⏳ | - | Inventory CRUD requests not wired |
 | Inventory UI Component | - | ✅ | Shows PC inventory |
 | Region Items Display | - | ✅ | Shows pickable items in `SceneChanged` |
 
@@ -171,7 +170,7 @@ The Inventory System provides classic RPG item management:
 | Layer | File | Purpose |
 |-------|------|---------|
 | Protocol | `crates/protocol/src/messages.rs` | Inventory messages |
-| Presentation | `crates/player-ui/src/presentation/components/pc/inventory.rs` | Inventory UI |
+| Presentation | `crates/player/src/ui/presentation/components/inventory_panel.rs` | Inventory UI |
 
 ---
 
