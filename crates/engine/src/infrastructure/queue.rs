@@ -38,7 +38,8 @@ impl SqliteQueue {
                 status TEXT NOT NULL DEFAULT 'pending',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
-                error_message TEXT
+                error_message TEXT,
+                result_json TEXT
             )
             "#,
         )
@@ -49,7 +50,7 @@ impl SqliteQueue {
         // Create index for queue lookups
         sqlx::query(
             r#"
-            CREATE INDEX IF NOT EXISTS idx_queue_status 
+            CREATE INDEX IF NOT EXISTS idx_queue_status
             ON queue_items(queue_type, status, created_at)
             "#,
         )
@@ -105,7 +106,7 @@ impl SqliteQueue {
                 LIMIT 1
             )
             AND queue_type = ? AND status = 'pending'
-            RETURNING id, queue_type, payload_json, status, created_at, updated_at, error_message
+            RETURNING id, queue_type, payload_json, status, created_at, updated_at, error_message, result_json
             "#,
         )
         .bind(&now)
@@ -131,6 +132,8 @@ impl SqliteQueue {
         let payload_json: String = row.get("payload_json");
         let status_str: String = row.get("status");
         let created_at_str: String = row.get("created_at");
+        let error_message: Option<String> = row.get("error_message");
+        let result_json: Option<String> = row.try_get("result_json").ok();
 
         let status = match status_str.as_str() {
             "pending" => QueueItemStatus::Pending,
@@ -165,7 +168,12 @@ impl SqliteQueue {
                     .map_err(|e| QueueError::Error(e.to_string()))?;
                 QueueItemData::AssetGeneration(payload)
             }
-            _ => return Err(QueueError::Error(format!("Unknown queue type: {}", queue_type))),
+            _ => {
+                return Err(QueueError::Error(format!(
+                    "Unknown queue type: {}",
+                    queue_type
+                )))
+            }
         };
 
         Ok(QueueItem {
@@ -173,6 +181,8 @@ impl SqliteQueue {
             data,
             created_at,
             status,
+            error_message,
+            result_json,
         })
     }
 }
@@ -266,6 +276,83 @@ impl QueuePort for SqliteQueue {
         Ok(())
     }
 
+    async fn list_by_type(
+        &self,
+        queue_type: &str,
+        limit: usize,
+    ) -> Result<Vec<QueueItem>, QueueError> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, queue_type, payload_json, status, created_at, updated_at, error_message, result_json
+            FROM queue_items
+            WHERE queue_type = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            "#,
+        )
+        .bind(queue_type)
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| QueueError::Error(e.to_string()))?;
+
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            out.push(self.row_to_queue_item(row)?);
+        }
+        Ok(out)
+    }
+
+    async fn set_result_json(&self, id: Uuid, result_json: &str) -> Result<(), QueueError> {
+        let now = self.clock.now().to_rfc3339();
+
+        let result = sqlx::query(
+            r#"
+            UPDATE queue_items
+            SET result_json = ?, updated_at = ?
+            WHERE id = ?
+            "#,
+        )
+        .bind(result_json)
+        .bind(&now)
+        .bind(id.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(|e| QueueError::Error(e.to_string()))?;
+
+        if result.rows_affected() == 0 {
+            return Err(QueueError::Error(format!("Queue item not found: {}", id)));
+        }
+
+        Ok(())
+    }
+
+    async fn cancel_pending_llm_request_by_callback_id(
+        &self,
+        callback_id: &str,
+    ) -> Result<bool, QueueError> {
+        // We don't have a dedicated callback_id column; scan a bounded set of pending items.
+        let items = self.list_by_type("llm_request", 500).await?;
+        let mut cancelled_any = false;
+
+        for item in items {
+            if item.status != QueueItemStatus::Pending {
+                continue;
+            }
+
+            let QueueItemData::LlmRequest(req) = item.data else {
+                continue;
+            };
+
+            if req.callback_id == callback_id {
+                self.mark_failed(item.id, "Cancelled").await?;
+                cancelled_any = true;
+            }
+        }
+
+        Ok(cancelled_any)
+    }
+
     async fn get_pending_count(&self, queue_type: &str) -> Result<usize, QueueError> {
         let row = sqlx::query(
             r#"
@@ -281,8 +368,11 @@ impl QueuePort for SqliteQueue {
         let count: i64 = row.get("count");
         Ok(count as usize)
     }
-    
-    async fn get_approval_request(&self, id: Uuid) -> Result<Option<ApprovalRequestData>, QueueError> {
+
+    async fn get_approval_request(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<ApprovalRequestData>, QueueError> {
         let result = sqlx::query(
             r#"
             SELECT payload_json FROM queue_items
@@ -293,7 +383,7 @@ impl QueuePort for SqliteQueue {
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| QueueError::Error(e.to_string()))?;
-        
+
         match result {
             Some(row) => {
                 let payload_json: String = row.get("payload_json");

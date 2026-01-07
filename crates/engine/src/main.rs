@@ -86,6 +86,7 @@ async fn main() -> anyhow::Result<()> {
         connections,
         pending_time_suggestions: tokio::sync::RwLock::new(std::collections::HashMap::new()),
         pending_staging_requests: tokio::sync::RwLock::new(std::collections::HashMap::new()),
+        generation_read_state: tokio::sync::RwLock::new(std::collections::HashMap::new()),
     });
 
     // Spawn queue processor
@@ -132,6 +133,19 @@ async fn main() -> anyhow::Result<()> {
                                     resolution_id = %resolution_id,
                                     "Broadcast OutcomeSuggestionReady to DMs"
                                 );
+                            }
+
+                            use_cases::queues::BroadcastEvent::SuggestionComplete {
+                                world_id,
+                                request_id,
+                                suggestions,
+                            } => {
+                                let msg = wrldbldr_protocol::ServerMessage::SuggestionComplete {
+                                    request_id,
+                                    suggestions,
+                                };
+                                queue_connections.broadcast_to_world(world_id, msg).await;
+                                tracing::info!(world_id = %world_id, "Broadcast SuggestionComplete");
                             }
                         }
                     }

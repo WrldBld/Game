@@ -1,0 +1,495 @@
+use super::*;
+
+use std::collections::{HashMap, HashSet};
+
+use crate::api::connections::ConnectionInfo;
+use wrldbldr_domain::{LlmRequestData, LlmRequestType, SuggestionContext, WorldId};
+use wrldbldr_protocol::RequestPayload;
+
+#[derive(Debug, Default, Clone)]
+pub struct GenerationReadState {
+    pub read_batches: HashSet<String>,
+    pub read_suggestions: HashSet<String>,
+}
+
+fn map_queue_status_to_batch_status(
+    status: crate::infrastructure::ports::QueueItemStatus,
+) -> &'static str {
+    match status {
+        crate::infrastructure::ports::QueueItemStatus::Pending => "queued",
+        crate::infrastructure::ports::QueueItemStatus::Processing => "generating",
+        crate::infrastructure::ports::QueueItemStatus::Completed => "ready",
+        crate::infrastructure::ports::QueueItemStatus::Failed => "failed",
+    }
+}
+
+fn map_queue_status_to_suggestion_status(
+    status: crate::infrastructure::ports::QueueItemStatus,
+) -> &'static str {
+    match status {
+        crate::infrastructure::ports::QueueItemStatus::Pending => "queued",
+        crate::infrastructure::ports::QueueItemStatus::Processing => "processing",
+        crate::infrastructure::ports::QueueItemStatus::Completed => "ready",
+        crate::infrastructure::ports::QueueItemStatus::Failed => "failed",
+    }
+}
+
+pub(super) async fn handle_creator_request(
+    state: &WsState,
+    request_id: &str,
+    conn_info: &ConnectionInfo,
+    payload: &RequestPayload,
+) -> Result<Option<ResponseResult>, ServerMessage> {
+    match payload {
+        RequestPayload::GetGenerationQueue { world_id, user_id } => {
+            let world_uuid = match Uuid::parse_str(world_id) {
+                Ok(u) => WorldId::from_uuid(u),
+                Err(_) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world_id"),
+                    })
+                }
+            };
+
+            // Prefer explicit user_id (for forward compatibility), fallback to connection user_id.
+            let effective_user_id = user_id
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .unwrap_or(&conn_info.user_id);
+
+            let read_key = format!("{}:{}", effective_user_id, world_id);
+            let read_map = state.generation_read_state.read().await;
+            let read_state = read_map.get(&read_key).cloned().unwrap_or_default();
+            drop(read_map);
+
+            // Compute queue position for pending asset_generation items in this world.
+            let asset_items = state
+                .app
+                .queue
+                .list_by_type("asset_generation", 500)
+                .await
+                .map_err(|e| ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                })?;
+
+            let mut pending_asset_ids_in_order: Vec<String> = asset_items
+                .iter()
+                .filter(|item| {
+                    item.status == crate::infrastructure::ports::QueueItemStatus::Pending
+                })
+                .filter_map(|item| match &item.data {
+                    crate::infrastructure::ports::QueueItemData::AssetGeneration(d) => {
+                        if d.world_id == Some(world_uuid) {
+                            Some(item.id.to_string())
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                })
+                .collect();
+
+            // Items returned newest-first; for position we want oldest-first.
+            pending_asset_ids_in_order.reverse();
+            let pending_positions: HashMap<String, u32> = pending_asset_ids_in_order
+                .into_iter()
+                .enumerate()
+                .map(|(idx, id)| (id, (idx as u32) + 1))
+                .collect();
+
+            let batches: Vec<serde_json::Value> = asset_items
+                .into_iter()
+                .filter_map(|item| {
+                    let crate::infrastructure::ports::QueueItemData::AssetGeneration(d) = item.data
+                    else {
+                        return None;
+                    };
+
+                    if d.world_id != Some(world_uuid) {
+                        return None;
+                    }
+
+                    let batch_id = item.id.to_string();
+                    let position = pending_positions.get(&batch_id).copied();
+
+                    Some(serde_json::json!({
+                        "batch_id": batch_id,
+                        "entity_type": d.entity_type,
+                        "entity_id": d.entity_id,
+                        // The protocol expects asset_type; the queue stores workflow_id.
+                        "asset_type": d.workflow_id,
+                        "status": map_queue_status_to_batch_status(item.status),
+                        "position": position,
+                        "progress": serde_json::Value::Null,
+                        "asset_count": serde_json::Value::Null,
+                        "error": item.error_message,
+                        "is_read": read_state.read_batches.contains(&batch_id),
+                    }))
+                })
+                .collect();
+
+            let llm_items = state
+                .app
+                .queue
+                .list_by_type("llm_request", 500)
+                .await
+                .map_err(|e| ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                })?;
+
+            let suggestions: Vec<serde_json::Value> = llm_items
+                .into_iter()
+                .filter_map(|item| {
+                    let crate::infrastructure::ports::QueueItemData::LlmRequest(d) = item.data
+                    else {
+                        return None;
+                    };
+
+                    if d.world_id != world_uuid {
+                        return None;
+                    }
+
+                    let LlmRequestType::Suggestion {
+                        field_type,
+                        entity_id,
+                    } = d.request_type
+                    else {
+                        return None;
+                    };
+
+                    let request_key = d.callback_id.clone();
+                    let mut suggestions: Option<Vec<String>> = None;
+
+                    if let Some(result_json) = &item.result_json {
+                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(result_json) {
+                            suggestions =
+                                v.get("suggestions").and_then(|s| s.as_array()).map(|arr| {
+                                    arr.iter()
+                                        .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                                        .collect()
+                                });
+                        }
+                    }
+
+                    Some(serde_json::json!({
+                        "request_id": request_key,
+                        "field_type": field_type,
+                        "entity_id": entity_id,
+                        "status": map_queue_status_to_suggestion_status(item.status),
+                        "suggestions": suggestions,
+                        "error": item.error_message,
+                        "is_read": read_state.read_suggestions.contains(&request_key),
+                    }))
+                })
+                .collect();
+
+            Ok(Some(ResponseResult::success(serde_json::json!({
+                "batches": batches,
+                "suggestions": suggestions,
+            }))))
+        }
+
+        RequestPayload::SyncGenerationReadState {
+            world_id,
+            read_batches,
+            read_suggestions,
+        } => {
+            // Use the connection's user_id for now.
+            let read_key = format!("{}:{}", conn_info.user_id, world_id);
+            let mut map = state.generation_read_state.write().await;
+            let entry = map.entry(read_key).or_default();
+
+            entry.read_batches = read_batches.iter().cloned().collect();
+            entry.read_suggestions = read_suggestions.iter().cloned().collect();
+
+            Ok(Some(ResponseResult::success_empty()))
+        }
+
+        RequestPayload::EnqueueContentSuggestion {
+            world_id,
+            suggestion_type,
+            context,
+        } => {
+            let world_uuid = match Uuid::parse_str(world_id) {
+                Ok(u) => WorldId::from_uuid(u),
+                Err(_) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world_id"),
+                    })
+                }
+            };
+
+            // Auto-enrich world_setting from world name if missing.
+            let mut world_setting = context.world_setting.clone();
+            if world_setting.as_deref().unwrap_or("").is_empty() {
+                if let Ok(Some(world)) = state.app.entities.world.get(world_uuid).await {
+                    world_setting = Some(world.name);
+                }
+            }
+
+            let suggestion_context = SuggestionContext {
+                entity_type: context.entity_type.clone(),
+                entity_name: context.entity_name.clone(),
+                world_setting,
+                hints: context.hints.clone(),
+                additional_context: context.additional_context.clone(),
+                world_id: context.world_id.map(WorldId::from_uuid),
+            };
+
+            let callback_id = Uuid::new_v4().to_string();
+
+            let llm_request = LlmRequestData {
+                request_type: LlmRequestType::Suggestion {
+                    field_type: suggestion_type.clone(),
+                    entity_id: None,
+                },
+                world_id: world_uuid,
+                pc_id: None,
+                prompt: None,
+                suggestion_context: Some(suggestion_context),
+                callback_id: callback_id.clone(),
+            };
+
+            state
+                .app
+                .queue
+                .enqueue_llm_request(&llm_request)
+                .await
+                .map_err(|e| ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                })?;
+
+            // Best-effort broadcast to world so the queue UI can update.
+            state
+                .connections
+                .broadcast_to_world(
+                    world_uuid,
+                    ServerMessage::SuggestionQueued {
+                        request_id: callback_id.clone(),
+                        field_type: suggestion_type.clone(),
+                        entity_id: None,
+                    },
+                )
+                .await;
+
+            Ok(Some(ResponseResult::success(serde_json::json!({
+                "request_id": callback_id,
+                "status": "queued",
+            }))))
+        }
+
+        RequestPayload::CancelContentSuggestion { request_id: rid } => {
+            let cancelled = state
+                .app
+                .queue
+                .cancel_pending_llm_request_by_callback_id(rid)
+                .await
+                .map_err(|e| ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                })?;
+
+            Ok(Some(ResponseResult::success(serde_json::json!({
+                "cancelled": cancelled,
+            }))))
+        }
+
+        RequestPayload::GenerateExpressionSheet {
+            character_id,
+            workflow,
+            expressions,
+            grid_layout,
+            style_prompt,
+        } => {
+            // DM-only for now.
+            if let Err(e) = require_dm_for_request(conn_info, request_id) {
+                return Err(e);
+            }
+
+            let character_uuid = match Uuid::parse_str(character_id) {
+                Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
+                Err(_) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            "Invalid character_id",
+                        ),
+                    })
+                }
+            };
+
+            let (cols, rows) = match grid_layout.as_deref() {
+                Some(s) if !s.trim().is_empty() => {
+                    let parts: Vec<&str> = s.split('x').collect();
+                    if parts.len() == 2 {
+                        let c = parts[0].trim().parse::<u32>().unwrap_or(4);
+                        let r = parts[1].trim().parse::<u32>().unwrap_or(4);
+                        (c.max(1), r.max(1))
+                    } else {
+                        (4, 4)
+                    }
+                }
+                _ => (4, 4),
+            };
+
+            let exprs = expressions.clone().unwrap_or_else(|| {
+                crate::use_cases::assets::expression_sheet::STANDARD_EXPRESSION_ORDER
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect()
+            });
+
+            let req = crate::use_cases::assets::expression_sheet::ExpressionSheetRequest {
+                character_id: character_uuid,
+                source_asset_id: None,
+                expressions: exprs,
+                grid_layout: (cols, rows),
+                workflow: workflow.clone(),
+                style_prompt: style_prompt.clone(),
+            };
+
+            let result = state
+                .app
+                .use_cases
+                .assets
+                .expression_sheet
+                .queue(req)
+                .await
+                .map_err(|e| ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                })?;
+
+            Ok(Some(ResponseResult::success(serde_json::json!({
+                "batch_id": result.batch_id.to_string(),
+                "character_id": result.character_id.to_string(),
+                "expressions": result.expressions,
+            }))))
+        }
+
+        RequestPayload::SuggestWantDescription { .. }
+        | RequestPayload::SuggestActantialReason { .. } => {
+            // These are legacy/creator utilities; gate behind DM for now.
+            if let Err(e) = require_dm_for_request(conn_info, request_id) {
+                return Err(e);
+            }
+
+            let Some(world_uuid) = conn_info.world_id else {
+                return Err(ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        "Must join a world before requesting suggestions",
+                    ),
+                });
+            };
+
+            // Auto-enrich world_setting from world name.
+            let world_setting = state
+                .app
+                .entities
+                .world
+                .get(world_uuid)
+                .await
+                .ok()
+                .flatten()
+                .map(|w| w.name);
+
+            let (field_type, entity_id, suggestion_context) = match payload {
+                RequestPayload::SuggestWantDescription { npc_id, context } => (
+                    "want_description".to_string(),
+                    Some(npc_id.clone()),
+                    SuggestionContext {
+                        entity_type: Some("npc".to_string()),
+                        entity_name: None,
+                        world_setting,
+                        hints: None,
+                        additional_context: context.clone(),
+                        world_id: Some(world_uuid),
+                    },
+                ),
+                RequestPayload::SuggestActantialReason {
+                    npc_id,
+                    want_id,
+                    target_id,
+                    role,
+                } => {
+                    let role_json = serde_json::to_string(role).unwrap_or_else(|_| "null".into());
+                    let extra = format!(
+                        "npc_id={}; want_id={}; target_id={}; role={}",
+                        npc_id, want_id, target_id, role_json
+                    );
+
+                    (
+                        "actantial_reason".to_string(),
+                        Some(npc_id.clone()),
+                        SuggestionContext {
+                            entity_type: Some("npc".to_string()),
+                            entity_name: None,
+                            world_setting,
+                            hints: None,
+                            additional_context: Some(extra),
+                            world_id: Some(world_uuid),
+                        },
+                    )
+                }
+                _ => {
+                    return Ok(Some(ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        "Unexpected suggestion payload",
+                    )))
+                }
+            };
+
+            let callback_id = Uuid::new_v4().to_string();
+
+            let llm_request = LlmRequestData {
+                request_type: LlmRequestType::Suggestion {
+                    field_type: field_type.clone(),
+                    entity_id: entity_id.clone(),
+                },
+                world_id: world_uuid,
+                pc_id: None,
+                prompt: None,
+                suggestion_context: Some(suggestion_context),
+                callback_id: callback_id.clone(),
+            };
+
+            state
+                .app
+                .queue
+                .enqueue_llm_request(&llm_request)
+                .await
+                .map_err(|e| ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                })?;
+
+            // Best-effort broadcast to world so the queue UI can update.
+            state
+                .connections
+                .broadcast_to_world(
+                    world_uuid,
+                    ServerMessage::SuggestionQueued {
+                        request_id: callback_id.clone(),
+                        field_type: field_type.clone(),
+                        entity_id,
+                    },
+                )
+                .await;
+
+            Ok(Some(ResponseResult::success(serde_json::json!({
+                "request_id": callback_id,
+                "status": "queued",
+            }))))
+        }
+
+        _ => Ok(None),
+    }
+}

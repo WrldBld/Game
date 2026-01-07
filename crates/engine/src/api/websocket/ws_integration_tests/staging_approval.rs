@@ -233,6 +233,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         connections,
         pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
         pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+        generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
     });
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;

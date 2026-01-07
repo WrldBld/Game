@@ -26,6 +26,7 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
         connections,
         pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
         pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+        generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
     });
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -114,11 +115,10 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
     })
     .await;
 
-    let spectator_broadcast =
-        ws_expect_message(&mut spectator_ws, Duration::from_secs(2), |m| {
-            matches!(m, ServerMessage::GameTimeAdvanced { .. })
-        })
-        .await;
+    let spectator_broadcast = ws_expect_message(&mut spectator_ws, Duration::from_secs(2), |m| {
+        matches!(m, ServerMessage::GameTimeAdvanced { .. })
+    })
+    .await;
 
     // Basic sanity: both received the same broadcast variant.
     assert!(matches!(

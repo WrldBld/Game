@@ -16,6 +16,8 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+mod ws_creator;
+mod ws_lore;
 mod ws_story_events;
 
 use crate::use_cases::narrative::EffectExecutionContext;
@@ -42,6 +44,8 @@ pub struct WsState {
     pub pending_time_suggestions:
         tokio::sync::RwLock<HashMap<Uuid, crate::use_cases::time::TimeSuggestion>>,
     pub pending_staging_requests: tokio::sync::RwLock<HashMap<String, PendingStagingRequest>>,
+    pub generation_read_state:
+        tokio::sync::RwLock<HashMap<String, ws_creator::GenerationReadState>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -2303,547 +2307,25 @@ async fn handle_request(
         // =========================================================================
         // Lore Operations
         // =========================================================================
-        RequestPayload::ListLore {
-            world_id: req_world_id,
-        } => {
-            let world_uuid = match Uuid::parse_str(&req_world_id) {
-                Ok(u) => wrldbldr_domain::WorldId::from_uuid(u),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world_id"),
-                    })
-                }
-            };
-
-            match state.app.entities.lore.list_for_world(world_uuid).await {
-                Ok(lore_list) => {
-                    let data: Vec<serde_json::Value> = lore_list
-                        .into_iter()
-                        .map(|l| {
-                            serde_json::json!({
-                                "id": l.id.to_string(),
-                                "worldId": l.world_id.to_string(),
-                                "title": l.title,
-                                "summary": l.summary,
-                                "category": format!("{}", l.category),
-                                "isCommonKnowledge": l.is_common_knowledge,
-                                "tags": l.tags,
-                                "chunkCount": l.chunks.len(),
-                                "createdAt": l.created_at.to_rfc3339(),
-                                "updatedAt": l.updated_at.to_rfc3339(),
-                            })
-                        })
-                        .collect();
-                    ResponseResult::success(data)
-                }
-                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-            }
-        }
-
-        RequestPayload::GetLore { lore_id } => {
-            let lore_uuid = match Uuid::parse_str(&lore_id) {
-                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id"),
-                    })
-                }
-            };
-
-            match state.app.entities.lore.get(lore_uuid).await {
-                Ok(Some(lore)) => {
-                    let chunks: Vec<serde_json::Value> = lore
-                        .chunks
-                        .iter()
-                        .map(|c| {
-                            serde_json::json!({
-                                "id": c.id.to_string(),
-                                "order": c.order,
-                                "title": c.title,
-                                "content": c.content,
-                                "discoveryHint": c.discovery_hint,
-                            })
-                        })
-                        .collect();
-
-                    ResponseResult::success(serde_json::json!({
-                        "id": lore.id.to_string(),
-                        "worldId": lore.world_id.to_string(),
-                        "title": lore.title,
-                        "summary": lore.summary,
-                        "category": format!("{}", lore.category),
-                        "isCommonKnowledge": lore.is_common_knowledge,
-                        "tags": lore.tags,
-                        "chunks": chunks,
-                        "createdAt": lore.created_at.to_rfc3339(),
-                        "updatedAt": lore.updated_at.to_rfc3339(),
-                    }))
-                }
-                Ok(None) => ResponseResult::error(ErrorCode::NotFound, "Lore not found"),
-                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-            }
-        }
-
-        RequestPayload::CreateLore { world_id, data } => {
-            // DM authorization required for lore creation
-            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
-                return Some(e);
-            }
-
-            let world_uuid = match Uuid::parse_str(&world_id) {
-                Ok(u) => wrldbldr_domain::WorldId::from_uuid(u),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world_id"),
-                    })
-                }
-            };
-
-            let category = data
-                .category
-                .as_deref()
-                .unwrap_or("common")
-                .parse::<wrldbldr_domain::LoreCategory>()
-                .unwrap_or(wrldbldr_domain::LoreCategory::Common);
-
-            let now = chrono::Utc::now();
-            let mut lore = wrldbldr_domain::Lore::new(world_uuid, &data.title, category, now);
-
-            if let Some(summary) = &data.summary {
-                lore = lore.with_summary(summary);
-            }
-            if let Some(tags) = &data.tags {
-                lore = lore.with_tags(tags.clone());
-            }
-            if data.is_common_knowledge.unwrap_or(false) {
-                lore = lore.as_common_knowledge();
-            }
-
-            // Add chunks if provided
-            if let Some(chunks) = &data.chunks {
-                let mut domain_chunks = Vec::new();
-                for (i, chunk_data) in chunks.iter().enumerate() {
-                    let mut chunk = wrldbldr_domain::LoreChunk::new(&chunk_data.content)
-                        .with_order(chunk_data.order.unwrap_or(i as u32));
-                    if let Some(title) = &chunk_data.title {
-                        chunk = chunk.with_title(title);
-                    }
-                    if let Some(hint) = &chunk_data.discovery_hint {
-                        chunk = chunk.with_discovery_hint(hint);
-                    }
-                    domain_chunks.push(chunk);
-                }
-                lore = lore.with_chunks(domain_chunks);
-            }
-
-            match state.app.entities.lore.save(&lore).await {
-                Ok(()) => ResponseResult::success(serde_json::json!({
-                    "id": lore.id.to_string(),
-                    "title": lore.title,
-                })),
-                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-            }
-        }
-
-        RequestPayload::UpdateLore { lore_id, data } => {
-            // DM authorization required for lore updates
-            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
-                return Some(e);
-            }
-
-            let lore_uuid = match Uuid::parse_str(&lore_id) {
-                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id"),
-                    })
-                }
-            };
-
-            let mut lore = match state.app.entities.lore.get(lore_uuid).await {
-                Ok(Some(l)) => l,
-                Ok(None) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(ErrorCode::NotFound, "Lore not found"),
-                    })
-                }
-                Err(e) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                    })
-                }
-            };
-
-            if let Some(title) = &data.title {
-                lore.title = title.clone();
-            }
-            if let Some(summary) = &data.summary {
-                lore.summary = summary.clone();
-            }
-            if let Some(category_str) = &data.category {
-                if let Ok(cat) = category_str.parse::<wrldbldr_domain::LoreCategory>() {
-                    lore.category = cat;
-                }
-            }
-            if let Some(tags) = &data.tags {
-                lore.tags = tags.clone();
-            }
-            if let Some(is_common) = data.is_common_knowledge {
-                lore.is_common_knowledge = is_common;
-            }
-            lore.updated_at = chrono::Utc::now();
-
-            match state.app.entities.lore.save(&lore).await {
-                Ok(()) => ResponseResult::success(serde_json::json!({
-                    "id": lore.id.to_string(),
-                    "title": lore.title,
-                })),
-                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-            }
-        }
-
-        RequestPayload::DeleteLore { lore_id } => {
-            // DM authorization required for lore deletion
-            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
-                return Some(e);
-            }
-
-            let lore_uuid = match Uuid::parse_str(&lore_id) {
-                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id"),
-                    })
-                }
-            };
-
-            match state.app.entities.lore.delete(lore_uuid).await {
-                Ok(()) => ResponseResult::success(serde_json::json!({ "deleted": true })),
-                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-            }
-        }
-
-        RequestPayload::AddLoreChunk { lore_id, data } => {
-            // DM authorization required for adding lore chunks
-            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
-                return Some(e);
-            }
-
-            let lore_uuid = match Uuid::parse_str(&lore_id) {
-                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id"),
-                    })
-                }
-            };
-
-            let mut lore = match state.app.entities.lore.get(lore_uuid).await {
-                Ok(Some(l)) => l,
-                Ok(None) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(ErrorCode::NotFound, "Lore not found"),
-                    })
-                }
-                Err(e) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                    })
-                }
-            };
-
-            let mut chunk = wrldbldr_domain::LoreChunk::new(&data.content)
-                .with_order(data.order.unwrap_or(lore.chunks.len() as u32));
-            if let Some(title) = &data.title {
-                chunk = chunk.with_title(title);
-            }
-            if let Some(hint) = &data.discovery_hint {
-                chunk = chunk.with_discovery_hint(hint);
-            }
-
-            let chunk_id = chunk.id.to_string();
-            lore.chunks.push(chunk);
-            lore.updated_at = chrono::Utc::now();
-
-            match state.app.entities.lore.save(&lore).await {
-                Ok(()) => ResponseResult::success(serde_json::json!({
-                    "chunkId": chunk_id,
-                })),
-                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-            }
-        }
-
-        RequestPayload::UpdateLoreChunk { chunk_id, data } => {
-            // DM authorization required for updating lore chunks
-            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
-                return Some(e);
-            }
-
-            let chunk_uuid = match Uuid::parse_str(&chunk_id) {
-                Ok(u) => wrldbldr_domain::LoreChunkId::from_uuid(u),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid chunk_id"),
-                    })
-                }
-            };
-
-            // Note: This would require finding which lore contains this chunk
-            // For simplicity, we return not implemented for now
-            // A proper implementation would need a repo method to find lore by chunk ID
-            let _ = chunk_uuid;
-            let _ = data;
-            ResponseResult::error(
-                ErrorCode::BadRequest,
-                "UpdateLoreChunk requires finding parent lore - not yet implemented",
-            )
-        }
-
-        RequestPayload::DeleteLoreChunk { chunk_id } => {
-            // DM authorization required for deleting lore chunks
-            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
-                return Some(e);
-            }
-
-            let chunk_uuid = match Uuid::parse_str(&chunk_id) {
-                Ok(u) => wrldbldr_domain::LoreChunkId::from_uuid(u),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid chunk_id"),
-                    })
-                }
-            };
-
-            // Note: Same as UpdateLoreChunk - requires finding parent lore
-            let _ = chunk_uuid;
-            ResponseResult::error(
-                ErrorCode::BadRequest,
-                "DeleteLoreChunk requires finding parent lore - not yet implemented",
-            )
-        }
-
-        RequestPayload::GrantLoreKnowledge {
-            character_id,
-            lore_id,
-            chunk_ids,
-            discovery_source,
-        } => {
-            // DM authorization required for granting lore knowledge
-            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
-                return Some(e);
-            }
-
-            let char_uuid = match Uuid::parse_str(&character_id) {
-                Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(
-                            ErrorCode::BadRequest,
-                            "Invalid character_id",
-                        ),
-                    })
-                }
-            };
-            let lore_uuid = match Uuid::parse_str(&lore_id) {
-                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id"),
-                    })
-                }
-            };
-
-            // Convert discovery source from protocol to domain
-            let domain_source = match discovery_source {
-                wrldbldr_protocol::types::LoreDiscoverySourceData::ReadBook { book_name } => {
-                    wrldbldr_domain::LoreDiscoverySource::ReadBook { book_name }
-                }
-                wrldbldr_protocol::types::LoreDiscoverySourceData::Conversation {
-                    npc_id,
-                    npc_name,
-                } => {
-                    let npc_uuid = Uuid::parse_str(&npc_id)
-                        .map(wrldbldr_domain::CharacterId::from_uuid)
-                        .unwrap_or_else(|_| wrldbldr_domain::CharacterId::new());
-                    wrldbldr_domain::LoreDiscoverySource::Conversation {
-                        npc_id: npc_uuid,
-                        npc_name,
-                    }
-                }
-                wrldbldr_protocol::types::LoreDiscoverySourceData::Investigation => {
-                    wrldbldr_domain::LoreDiscoverySource::Investigation
-                }
-                wrldbldr_protocol::types::LoreDiscoverySourceData::DmGranted { reason } => {
-                    wrldbldr_domain::LoreDiscoverySource::DmGranted { reason }
-                }
-                wrldbldr_protocol::types::LoreDiscoverySourceData::CommonKnowledge => {
-                    wrldbldr_domain::LoreDiscoverySource::CommonKnowledge
-                }
-                wrldbldr_protocol::types::LoreDiscoverySourceData::LlmDiscovered { context } => {
-                    wrldbldr_domain::LoreDiscoverySource::LlmDiscovered { context }
-                }
-                wrldbldr_protocol::types::LoreDiscoverySourceData::Unknown => {
-                    // Default to DM granted for unknown source types
-                    wrldbldr_domain::LoreDiscoverySource::DmGranted {
-                        reason: Some("Unknown source type".to_string()),
-                    }
-                }
-            };
-
-            let now = chrono::Utc::now();
-            let knowledge = if let Some(ids) = chunk_ids {
-                let chunk_uuids: Vec<wrldbldr_domain::LoreChunkId> = ids
-                    .iter()
-                    .filter_map(|id| {
-                        Uuid::parse_str(id)
-                            .ok()
-                            .map(wrldbldr_domain::LoreChunkId::from_uuid)
-                    })
-                    .collect();
-                wrldbldr_domain::LoreKnowledge::partial(
-                    lore_uuid,
-                    char_uuid,
-                    chunk_uuids,
-                    domain_source,
-                    now,
-                )
-            } else {
-                wrldbldr_domain::LoreKnowledge::full(lore_uuid, char_uuid, domain_source, now)
-            };
-
-            match state.app.entities.lore.grant_knowledge(&knowledge).await {
-                Ok(()) => ResponseResult::success(serde_json::json!({ "granted": true })),
-                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-            }
-        }
-
-        RequestPayload::RevokeLoreKnowledge {
-            character_id,
-            lore_id,
-            chunk_ids: _,
-        } => {
-            // DM authorization required for revoking lore knowledge
-            if let Err(e) = require_dm_for_request(&_conn_info, &request_id) {
-                return Some(e);
-            }
-
-            let char_uuid = match Uuid::parse_str(&character_id) {
-                Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(
-                            ErrorCode::BadRequest,
-                            "Invalid character_id",
-                        ),
-                    })
-                }
-            };
-            let lore_uuid = match Uuid::parse_str(&lore_id) {
-                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id"),
-                    })
-                }
-            };
-
-            // Note: chunk_ids for partial revocation would need additional repo support
-            match state
-                .app
-                .entities
-                .lore
-                .revoke_knowledge(char_uuid, lore_uuid)
-                .await
-            {
-                Ok(()) => ResponseResult::success(serde_json::json!({ "revoked": true })),
-                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-            }
-        }
-
-        RequestPayload::GetCharacterLore { character_id } => {
-            let char_uuid = match Uuid::parse_str(&character_id) {
-                Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(
-                            ErrorCode::BadRequest,
-                            "Invalid character_id",
-                        ),
-                    })
-                }
-            };
-
-            match state
-                .app
-                .entities
-                .lore
-                .get_character_knowledge(char_uuid)
-                .await
-            {
-                Ok(knowledge_list) => {
-                    let data: Vec<serde_json::Value> = knowledge_list
-                        .into_iter()
-                        .map(|k| serde_json::json!({
-                            "loreId": k.lore_id.to_string(),
-                            "characterId": k.character_id.to_string(),
-                            "knownChunkIds": k.known_chunk_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>(),
-                            "discoveredAt": k.discovered_at.to_rfc3339(),
-                            "notes": k.notes,
-                        }))
-                        .collect();
-                    ResponseResult::success(data)
-                }
-                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-            }
-        }
-
-        RequestPayload::GetLoreKnowers { lore_id } => {
-            let lore_uuid = match Uuid::parse_str(&lore_id) {
-                Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
-                Err(_) => {
-                    return Some(ServerMessage::Response {
-                        request_id: request_id.clone(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id"),
-                    })
-                }
-            };
-
-            match state
-                .app
-                .entities
-                .lore
-                .get_knowledge_for_lore(lore_uuid)
-                .await
-            {
-                Ok(knowledge_list) => {
-                    let data: Vec<serde_json::Value> = knowledge_list
-                        .into_iter()
-                        .map(|k| serde_json::json!({
-                            "characterId": k.character_id.to_string(),
-                            "knownChunkIds": k.known_chunk_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>(),
-                            "discoveredAt": k.discovered_at.to_rfc3339(),
-                        }))
-                        .collect();
-                    ResponseResult::success(data)
-                }
-                Err(e) => ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+        RequestPayload::ListLore { .. }
+        | RequestPayload::GetLore { .. }
+        | RequestPayload::CreateLore { .. }
+        | RequestPayload::UpdateLore { .. }
+        | RequestPayload::DeleteLore { .. }
+        | RequestPayload::AddLoreChunk { .. }
+        | RequestPayload::UpdateLoreChunk { .. }
+        | RequestPayload::DeleteLoreChunk { .. }
+        | RequestPayload::GrantLoreKnowledge { .. }
+        | RequestPayload::RevokeLoreKnowledge { .. }
+        | RequestPayload::GetCharacterLore { .. }
+        | RequestPayload::GetLoreKnowers { .. } => {
+            match ws_lore::handle_lore_request(state, &request_id, &_conn_info, &payload).await {
+                Ok(Some(result)) => result,
+                Ok(None) => ResponseResult::error(
+                    ErrorCode::BadRequest,
+                    "Lore request handler did not handle payload",
+                ),
+                Err(e) => return Some(e),
             }
         }
 
@@ -2873,6 +2355,28 @@ async fn handle_request(
                 Ok(None) => ResponseResult::error(
                     ErrorCode::BadRequest,
                     "StoryEvent request handler did not handle payload",
+                ),
+                Err(e) => return Some(e),
+            }
+        }
+
+        // =========================================================================
+        // Creator / Generation Queue / Suggestions
+        // =========================================================================
+        RequestPayload::GetGenerationQueue { .. }
+        | RequestPayload::SyncGenerationReadState { .. }
+        | RequestPayload::EnqueueContentSuggestion { .. }
+        | RequestPayload::CancelContentSuggestion { .. }
+        | RequestPayload::GenerateExpressionSheet { .. }
+        | RequestPayload::SuggestWantDescription { .. }
+        | RequestPayload::SuggestActantialReason { .. } => {
+            match ws_creator::handle_creator_request(state, &request_id, &_conn_info, &payload)
+                .await
+            {
+                Ok(Some(result)) => result,
+                Ok(None) => ResponseResult::error(
+                    ErrorCode::BadRequest,
+                    "Creator request handler did not handle payload",
                 ),
                 Err(e) => return Some(e),
             }
@@ -5488,6 +4992,25 @@ mod ws_integration_tests_inline {
             Ok(0)
         }
 
+        async fn list_by_type(
+            &self,
+            _queue_type: &str,
+            _limit: usize,
+        ) -> Result<Vec<QueueItem>, QueueError> {
+            Ok(vec![])
+        }
+
+        async fn set_result_json(&self, _id: Uuid, _result_json: &str) -> Result<(), QueueError> {
+            Ok(())
+        }
+
+        async fn cancel_pending_llm_request_by_callback_id(
+            &self,
+            _callback_id: &str,
+        ) -> Result<bool, QueueError> {
+            Ok(false)
+        }
+
         async fn get_approval_request(
             &self,
             _id: Uuid,
@@ -5643,6 +5166,25 @@ mod ws_integration_tests_inline {
 
         async fn get_pending_count(&self, _queue_type: &str) -> Result<usize, QueueError> {
             Ok(0)
+        }
+
+        async fn list_by_type(
+            &self,
+            _queue_type: &str,
+            _limit: usize,
+        ) -> Result<Vec<QueueItem>, QueueError> {
+            Ok(vec![])
+        }
+
+        async fn set_result_json(&self, _id: Uuid, _result_json: &str) -> Result<(), QueueError> {
+            Ok(())
+        }
+
+        async fn cancel_pending_llm_request_by_callback_id(
+            &self,
+            _callback_id: &str,
+        ) -> Result<bool, QueueError> {
+            Ok(false)
         }
 
         async fn get_approval_request(
@@ -6065,6 +5607,7 @@ mod ws_integration_tests_inline {
             connections,
             pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
             pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+            generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
         });
 
         let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -6407,6 +5950,7 @@ mod ws_integration_tests_inline {
             connections,
             pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
             pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+            generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
         });
 
         let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -6561,6 +6105,7 @@ mod ws_integration_tests_inline {
             connections,
             pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
             pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+            generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
         });
 
         let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -6711,6 +6256,7 @@ mod ws_integration_tests_inline {
             connections,
             pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
             pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+            generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
         });
 
         let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -6836,6 +6382,7 @@ mod ws_integration_tests_inline {
             connections,
             pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
             pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+            generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
         });
 
         let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -7171,6 +6718,7 @@ mod ws_integration_tests_inline {
             connections,
             pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
             pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+            generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
         });
 
         let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -7347,6 +6895,7 @@ mod ws_integration_tests_inline {
             connections,
             pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
             pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+            generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
         });
 
         // Seed a pending staging request correlation.

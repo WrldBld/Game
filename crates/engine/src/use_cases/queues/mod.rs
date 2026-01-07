@@ -27,6 +27,13 @@ pub enum BroadcastEvent {
         resolution_id: uuid::Uuid,
         suggestions: Vec<String>,
     },
+
+    /// LLM suggestion request completed (Creator UI).
+    SuggestionComplete {
+        world_id: WorldId,
+        request_id: String,
+        suggestions: Vec<String>,
+    },
 }
 
 /// Container for queue use cases.
@@ -133,7 +140,10 @@ impl ProcessPlayerAction {
     }
 
     /// Build a full GamePromptRequest with character context from the database.
-    async fn build_prompt(&self, action_data: &PlayerActionData) -> Result<GamePromptRequest, QueueError> {
+    async fn build_prompt(
+        &self,
+        action_data: &PlayerActionData,
+    ) -> Result<GamePromptRequest, QueueError> {
         // Get PC name if pc_id is provided
         let pc_name = if let Some(pc_id) = action_data.pc_id {
             self.player_character
@@ -325,19 +335,19 @@ impl ProcessLlmRequest {
 
         // Handle different request types
         match &request_data.request_type {
-            LlmRequestType::OutcomeSuggestion { 
-                resolution_id, 
-                world_id, 
-                challenge_name, 
-                current_description, 
-                guidance 
+            LlmRequestType::OutcomeSuggestion {
+                resolution_id,
+                world_id,
+                challenge_name,
+                current_description,
+                guidance,
             } => {
                 // Build prompt for outcome suggestions
                 let system_prompt = "You are a creative TTRPG game master assistant. \
                     Generate 3 alternative narrative descriptions for a challenge outcome. \
                     Each suggestion should be evocative and fit the fantasy setting. \
                     Return each suggestion on a separate line, numbered 1-3.";
-                
+
                 let user_message = format!(
                     "Challenge: {}\nCurrent outcome description: \"{}\"\n{}Generate 3 alternative descriptions.",
                     challenge_name,
@@ -358,14 +368,17 @@ impl ProcessLlmRequest {
                     .map_err(|e| QueueError::LlmError(e.to_string()))?;
 
                 // Parse suggestions from response (one per line)
-                let suggestions: Vec<String> = llm_response.content
+                let suggestions: Vec<String> = llm_response
+                    .content
                     .lines()
                     .filter(|line| !line.trim().is_empty())
                     .map(|line| {
                         // Strip numbering if present (e.g., "1. ", "1) ", etc.)
                         let trimmed = line.trim();
                         if let Some(rest) = trimmed.strip_prefix(|c: char| c.is_ascii_digit()) {
-                            rest.trim_start_matches(['.', ')', ':', '-', ' ']).trim().to_string()
+                            rest.trim_start_matches(['.', ')', ':', '-', ' '])
+                                .trim()
+                                .to_string()
                         } else {
                             trimmed.to_string()
                         }
@@ -397,7 +410,70 @@ impl ProcessLlmRequest {
                     broadcast_events: vec![broadcast_event],
                 }))
             }
-            LlmRequestType::NpcResponse { .. } | LlmRequestType::Suggestion { .. } => {
+            LlmRequestType::Suggestion {
+                field_type,
+                entity_id: _,
+            } => {
+                // Generic content suggestions are returned directly to clients (no DM approval).
+
+                let context = request_data.suggestion_context.clone().unwrap_or_default();
+
+                let prompt = build_suggestion_prompt(field_type, &context);
+
+                let llm_request = crate::infrastructure::ports::LlmRequest::new(vec![
+                    crate::infrastructure::ports::ChatMessage::user(&prompt),
+                ])
+                .with_system_prompt(
+                    "You are a helpful worldbuilding assistant. Return only suggestions, one per line.".to_string(),
+                )
+                .with_temperature(0.8);
+
+                let llm_response = self
+                    .llm
+                    .generate(llm_request)
+                    .await
+                    .map_err(|e| QueueError::LlmError(e.to_string()))?;
+
+                let suggestions: Vec<String> = llm_response
+                    .content
+                    .lines()
+                    .map(str::trim)
+                    .filter(|l| !l.is_empty())
+                    .map(|line| {
+                        // Strip simple numbering/bullets
+                        line.trim_start_matches(|c: char| {
+                            c.is_ascii_digit() || matches!(c, '.' | ')' | '-' | ':' | ' ')
+                        })
+                        .trim()
+                        .to_string()
+                    })
+                    .filter(|l| !l.is_empty())
+                    .take(10)
+                    .collect();
+
+                // Persist for hydration.
+                let result_json = serde_json::json!({ "suggestions": suggestions });
+                let _ = self
+                    .queue
+                    .set_result_json(item.id, &result_json.to_string())
+                    .await;
+
+                // Mark the LLM request as complete.
+                self.queue.mark_complete(item.id).await?;
+
+                Ok(Some(LlmRequestProcessed {
+                    request_id: item.id,
+                    approval_id: uuid::Uuid::nil(),
+                    npc_dialogue: llm_response.content,
+                    broadcast_events: vec![BroadcastEvent::SuggestionComplete {
+                        world_id: request_data.world_id,
+                        request_id: request_data.callback_id,
+                        suggestions,
+                    }],
+                }))
+            }
+
+            LlmRequestType::NpcResponse { .. } => {
                 // Build LLM request from the queued prompt data
                 let llm_request = if let Some(ref prompt) = request_data.prompt {
                     // Use the full GamePromptRequest to build a rich prompt
@@ -440,7 +516,9 @@ impl ProcessLlmRequest {
                             "Generate a brief, in-character NPC response to the player's action.",
                         ),
                     ])
-                    .with_system_prompt("You are an NPC in a fantasy TTRPG. Respond briefly and in character.")
+                    .with_system_prompt(
+                        "You are an NPC in a fantasy TTRPG. Respond briefly and in character.",
+                    )
                 };
 
                 let llm_response = self
@@ -486,6 +564,40 @@ impl ProcessLlmRequest {
                 }))
             }
         }
+    }
+}
+
+fn build_suggestion_prompt(
+    field_type: &str,
+    context: &wrldbldr_domain::SuggestionContext,
+) -> String {
+    let entity_type = context.entity_type.as_deref().unwrap_or("entity");
+    let entity_name = context.entity_name.as_deref().unwrap_or("(unnamed)");
+    let world_setting = context.world_setting.as_deref().unwrap_or("fantasy");
+    let hints = context.hints.as_deref().unwrap_or("");
+    let extra = context.additional_context.as_deref().unwrap_or("");
+
+    match field_type {
+        "character_name" => format!(
+            "Generate 5 unique character names for a {} in a {} setting. Hints: {}. Return one per line.",
+            entity_type, world_setting, hints
+        ),
+        "location_name" => format!(
+            "Generate 5 evocative names for a {} called '{}' in a {} setting. Hints: {}. Return one per line.",
+            entity_type, entity_name, world_setting, hints
+        ),
+        "character_description" => format!(
+            "Generate 3 different physical descriptions for '{}' (a {}). Setting: {}. Hints: {}. Return each description on its own line.",
+            entity_name, entity_type, world_setting, hints
+        ),
+        "location_description" => format!(
+            "Generate 3 different descriptions for '{}' (a {}). Setting: {}. Hints: {}. Return each description on its own line.",
+            entity_name, entity_type, world_setting, hints
+        ),
+        other => format!(
+            "Generate 4 suggestions for {} for '{}' ({}). Setting: {}. Hints: {}. Context: {}. Return one per line.",
+            other, entity_name, entity_type, world_setting, hints, extra
+        ),
     }
 }
 

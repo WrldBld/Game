@@ -275,6 +275,25 @@ mod tests {
             Ok(0)
         }
 
+        async fn list_by_type(
+            &self,
+            _queue_type: &str,
+            _limit: usize,
+        ) -> Result<Vec<QueueItem>, QueueError> {
+            Ok(vec![])
+        }
+
+        async fn set_result_json(&self, _id: Uuid, _result_json: &str) -> Result<(), QueueError> {
+            Ok(())
+        }
+
+        async fn cancel_pending_llm_request_by_callback_id(
+            &self,
+            _callback_id: &str,
+        ) -> Result<bool, QueueError> {
+            Ok(false)
+        }
+
         async fn get_approval_request(
             &self,
             _id: Uuid,

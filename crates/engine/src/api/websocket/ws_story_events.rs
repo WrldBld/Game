@@ -34,11 +34,9 @@ pub(super) async fn handle_story_event_request(
                 .narrative
                 .list_story_events(world_uuid, limit)
                 .await
-                .map_err(|e| {
-                    ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                    }
+                .map_err(|e| ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
                 })?;
 
             let data = events

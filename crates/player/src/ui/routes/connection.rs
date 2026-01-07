@@ -6,13 +6,14 @@
 
 use dioxus::prelude::*;
 
+use crate::application::application::services::{SessionService, DEFAULT_ENGINE_URL};
+use crate::ports::outbound::storage_keys;
+use crate::ports::session_types::ParticipantRole;
 use crate::presentation::state::{
     ConnectionStatus, DialogueState, GameState, GenerationState, LoreState, SessionState,
 };
 use crate::Platform;
-use crate::application::application::services::{SessionService, DEFAULT_ENGINE_URL};
-use crate::ports::outbound::storage_keys;
-use crate::ports::session_types::ParticipantRole;
+use uuid::Uuid;
 
 /// Ensure a WebSocket connection is established for the given world and role.
 ///
@@ -31,11 +32,35 @@ pub fn ensure_connection(
 ) {
     let status = *session_state.connection_status().read();
 
+    // If we're already connected (or in-flight) but for a different world/role,
+    // we must restart the connection. Otherwise the Engine will keep using the
+    // previous server-side role and DM-only actions will be rejected.
+    let desired_world = Uuid::parse_str(world_id).ok();
+    let current_world = *session_state.world_id().read();
+    let current_role = *session_state.user_role().read();
+    let world_mismatch =
+        current_world.is_some() && desired_world.is_some() && current_world != desired_world;
+    let role_mismatch = current_role.is_some() && current_role != Some(role);
+    let needs_restart = world_mismatch || role_mismatch;
+
+    if needs_restart {
+        if let Some(client) = session_state.engine_client().read().as_ref() {
+            client.disconnect();
+        }
+        // Only reset connection-related state; let view-specific state persist.
+        let mut session_state_reset = session_state.clone();
+        session_state_reset.set_disconnected();
+    }
+
     // Only attempt a new connection if we're not already connecting/connected
-    if matches!(
-        status,
-        ConnectionStatus::Connecting | ConnectionStatus::Connected | ConnectionStatus::Reconnecting
-    ) {
+    if !needs_restart
+        && matches!(
+            status,
+            ConnectionStatus::Connecting
+                | ConnectionStatus::Connected
+                | ConnectionStatus::Reconnecting
+        )
+    {
         return;
     }
 

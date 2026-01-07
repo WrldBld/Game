@@ -831,6 +831,11 @@ pub struct QueueItem {
     pub data: QueueItemData,
     pub created_at: DateTime<Utc>,
     pub status: QueueItemStatus,
+    pub error_message: Option<String>,
+    /// Optional JSON result payload for completed items.
+    ///
+    /// Used for queued suggestion results so the Creator UI can hydrate after reload.
+    pub result_json: Option<String>,
 }
 
 /// Concrete queue item data - avoids generics for dyn compatibility.
@@ -875,6 +880,26 @@ pub trait QueuePort: Send + Sync {
     async fn mark_complete(&self, id: Uuid) -> Result<(), QueueError>;
     async fn mark_failed(&self, id: Uuid, error: &str) -> Result<(), QueueError>;
     async fn get_pending_count(&self, queue_type: &str) -> Result<usize, QueueError>;
+
+    /// List queue items by type (newest first).
+    ///
+    /// This is used by the WebSocket Creator UI to hydrate a unified generation queue.
+    async fn list_by_type(
+        &self,
+        queue_type: &str,
+        limit: usize,
+    ) -> Result<Vec<QueueItem>, QueueError>;
+
+    /// Persist a JSON result payload for a queue item.
+    async fn set_result_json(&self, id: Uuid, result_json: &str) -> Result<(), QueueError>;
+
+    /// Cancel a pending LLM request by callback_id.
+    ///
+    /// Returns true if a matching pending request was found and cancelled.
+    async fn cancel_pending_llm_request_by_callback_id(
+        &self,
+        callback_id: &str,
+    ) -> Result<bool, QueueError>;
 
     /// Get an approval request by ID (for extracting NPC info when processing decision)
     async fn get_approval_request(
