@@ -16,6 +16,10 @@ pub mod visual_state;
 pub mod management;
 pub mod session;
 pub mod staging;
+pub mod npc;
+pub mod inventory;
+pub mod story_events;
+pub mod lore;
 
 // Re-export main types
 pub use movement::MovementUseCases;
@@ -31,3 +35,7 @@ pub use visual_state::VisualStateUseCases;
 pub use management::ManagementUseCases;
 pub use session::SessionUseCases;
 pub use staging::StagingUseCases;
+pub use npc::NpcUseCases;
+pub use inventory::InventoryUseCases;
+pub use story_events::StoryEventUseCases;
+pub use lore::LoreUseCases;

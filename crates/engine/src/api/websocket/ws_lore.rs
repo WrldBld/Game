@@ -12,89 +12,33 @@ pub(super) async fn handle_lore_request(
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
         LoreRequest::ListLore { world_id } => {
-            let world_uuid = match Uuid::parse_str(&world_id) {
-                Ok(u) => wrldbldr_domain::WorldId::from_uuid(u),
-                Err(_) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world_id"),
-                    })
-                }
+            let world_uuid = match parse_world_id_for_request(&world_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
             };
 
-            let lore_list = state
-                .app
-                .entities
-                .lore
-                .list_for_world(world_uuid)
-                .await
-                .map_err(|e| ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                })?;
-
-            let data: Vec<serde_json::Value> = lore_list
-                .into_iter()
-                .map(|l| {
-                    serde_json::json!({
-                        "id": l.id.to_string(),
-                        "worldId": l.world_id.to_string(),
-                        "title": l.title,
-                        "summary": l.summary,
-                        "category": format!("{}", l.category),
-                        "isCommonKnowledge": l.is_common_knowledge,
-                        "tags": l.tags,
-                        "chunkCount": l.chunks.len(),
-                        "createdAt": l.created_at.to_rfc3339(),
-                        "updatedAt": l.updated_at.to_rfc3339(),
-                    })
-                })
-                .collect();
-
-            Ok(ResponseResult::success(data))
+            match state.app.use_cases.lore.ops.list(world_uuid).await {
+                Ok(data) => Ok(ResponseResult::success(data)),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
         }
 
         LoreRequest::GetLore { lore_id } => {
-            let lore_uuid = match Uuid::parse_str(&lore_id) {
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id")
+            {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
-                Err(_) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id"),
-                    })
-                }
+                Err(e) => return Err(e),
             };
 
-            match state.app.entities.lore.get(lore_uuid).await {
-                Ok(Some(lore)) => {
-                    let chunks: Vec<serde_json::Value> = lore
-                        .chunks
-                        .iter()
-                        .map(|c| {
-                            serde_json::json!({
-                                "id": c.id.to_string(),
-                                "order": c.order,
-                                "title": c.title,
-                                "content": c.content,
-                                "discoveryHint": c.discovery_hint,
-                            })
-                        })
-                        .collect();
-
-                    Ok(ResponseResult::success(serde_json::json!({
-                        "id": lore.id.to_string(),
-                        "worldId": lore.world_id.to_string(),
-                        "title": lore.title,
-                        "summary": lore.summary,
-                        "category": format!("{}", lore.category),
-                        "isCommonKnowledge": lore.is_common_knowledge,
-                        "tags": lore.tags,
-                        "chunks": chunks,
-                        "createdAt": lore.created_at.to_rfc3339(),
-                        "updatedAt": lore.updated_at.to_rfc3339(),
-                    })))
-                }
+            match state.app.use_cases.lore.ops.get(lore_uuid).await {
+                Ok(Some(lore)) => Ok(ResponseResult::success(lore)),
                 Ok(None) => Ok(ResponseResult::error(ErrorCode::NotFound, "Lore not found")),
+                Err(crate::use_cases::lore::LoreError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Lore not found"))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     &e.to_string(),
@@ -107,67 +51,25 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            let world_uuid = match Uuid::parse_str(&world_id) {
-                Ok(u) => wrldbldr_domain::WorldId::from_uuid(u),
-                Err(_) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world_id"),
-                    })
-                }
+            let world_uuid = match parse_world_id_for_request(&world_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
             };
 
-            let category = data
-                .category
-                .as_deref()
-                .unwrap_or("common")
-                .parse::<wrldbldr_domain::LoreCategory>()
-                .unwrap_or(wrldbldr_domain::LoreCategory::Common);
-
-            let now = chrono::Utc::now();
-            let mut lore = wrldbldr_domain::Lore::new(world_uuid, &data.title, category, now);
-
-            if let Some(summary) = &data.summary {
-                lore = lore.with_summary(summary);
-            }
-            if let Some(tags) = &data.tags {
-                lore = lore.with_tags(tags.clone());
-            }
-            if data.is_common_knowledge.unwrap_or(false) {
-                lore = lore.as_common_knowledge();
-            }
-
-            if let Some(chunks) = &data.chunks {
-                let mut domain_chunks = Vec::new();
-                for (i, chunk_data) in chunks.iter().enumerate() {
-                    let mut chunk = wrldbldr_domain::LoreChunk::new(&chunk_data.content)
-                        .with_order(chunk_data.order.unwrap_or(i as u32));
-                    if let Some(title) = &chunk_data.title {
-                        chunk = chunk.with_title(title);
-                    }
-                    if let Some(hint) = &chunk_data.discovery_hint {
-                        chunk = chunk.with_discovery_hint(hint);
-                    }
-                    domain_chunks.push(chunk);
-                }
-                lore = lore.with_chunks(domain_chunks);
-            }
-
-            state
+            match state
                 .app
-                .entities
+                .use_cases
                 .lore
-                .save(&lore)
+                .ops
+                .create(world_uuid, data)
                 .await
-                .map_err(|e| ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                })?;
-
-            Ok(ResponseResult::success(serde_json::json!({
-                "id": lore.id.to_string(),
-                "title": lore.title,
-            })))
+            {
+                Ok(result) => Ok(ResponseResult::success(result)),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    &e.to_string(),
+                )),
+            }
         }
 
         LoreRequest::UpdateLore { lore_id, data } => {
@@ -175,66 +77,32 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            let lore_uuid = match Uuid::parse_str(&lore_id) {
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id")
+            {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
-                Err(_) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id"),
-                    })
-                }
+                Err(e) => return Err(e),
             };
 
-            let mut lore = match state.app.entities.lore.get(lore_uuid).await {
-                Ok(Some(l)) => l,
-                Ok(None) => {
-                    return Err(ServerMessage::Response {
+            match state
+                .app
+                .use_cases
+                .lore
+                .ops
+                .update(lore_uuid, data)
+                .await
+            {
+                Ok(result) => Ok(ResponseResult::success(result)),
+                Err(crate::use_cases::lore::LoreError::NotFound) => {
+                    Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
                         result: ResponseResult::error(ErrorCode::NotFound, "Lore not found"),
                     })
                 }
-                Err(e) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                    })
-                }
-            };
-
-            if let Some(title) = &data.title {
-                lore.title = title.clone();
-            }
-            if let Some(summary) = &data.summary {
-                lore.summary = summary.clone();
-            }
-            if let Some(category_str) = &data.category {
-                if let Ok(cat) = category_str.parse::<wrldbldr_domain::LoreCategory>() {
-                    lore.category = cat;
-                }
-            }
-            if let Some(tags) = &data.tags {
-                lore.tags = tags.clone();
-            }
-            if let Some(is_common) = data.is_common_knowledge {
-                lore.is_common_knowledge = is_common;
-            }
-            lore.updated_at = chrono::Utc::now();
-
-            state
-                .app
-                .entities
-                .lore
-                .save(&lore)
-                .await
-                .map_err(|e| ServerMessage::Response {
+                Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                })?;
-
-            Ok(ResponseResult::success(serde_json::json!({
-                "id": lore.id.to_string(),
-                "title": lore.title,
-            })))
+                }),
+            }
         }
 
         LoreRequest::DeleteLore { lore_id } => {
@@ -242,30 +110,19 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            let lore_uuid = match Uuid::parse_str(&lore_id) {
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id")
+            {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
-                Err(_) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id"),
-                    })
-                }
+                Err(e) => return Err(e),
             };
 
-            state
-                .app
-                .entities
-                .lore
-                .delete(lore_uuid)
-                .await
-                .map_err(|e| ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                })?;
-
-            Ok(ResponseResult::success(
-                serde_json::json!({ "deleted": true }),
-            ))
+            match state.app.use_cases.lore.ops.delete(lore_uuid).await {
+                Ok(result) => Ok(ResponseResult::success(result)),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    &e.to_string(),
+                )),
+            }
         }
 
         LoreRequest::AddLoreChunk { lore_id, data } => {
@@ -273,59 +130,32 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            let lore_uuid = match Uuid::parse_str(&lore_id) {
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id")
+            {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
-                Err(_) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id"),
-                    })
-                }
+                Err(e) => return Err(e),
             };
 
-            let mut lore = match state.app.entities.lore.get(lore_uuid).await {
-                Ok(Some(l)) => l,
-                Ok(None) => {
-                    return Err(ServerMessage::Response {
+            match state
+                .app
+                .use_cases
+                .lore
+                .ops
+                .add_chunk(lore_uuid, data)
+                .await
+            {
+                Ok(result) => Ok(ResponseResult::success(result)),
+                Err(crate::use_cases::lore::LoreError::NotFound) => {
+                    Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
                         result: ResponseResult::error(ErrorCode::NotFound, "Lore not found"),
                     })
                 }
-                Err(e) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                    })
-                }
-            };
-
-            let mut chunk = wrldbldr_domain::LoreChunk::new(&data.content)
-                .with_order(data.order.unwrap_or(lore.chunks.len() as u32));
-            if let Some(title) = &data.title {
-                chunk = chunk.with_title(title);
-            }
-            if let Some(hint) = &data.discovery_hint {
-                chunk = chunk.with_discovery_hint(hint);
-            }
-
-            let chunk_id = chunk.id.to_string();
-            lore.chunks.push(chunk);
-            lore.updated_at = chrono::Utc::now();
-
-            state
-                .app
-                .entities
-                .lore
-                .save(&lore)
-                .await
-                .map_err(|e| ServerMessage::Response {
+                Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                })?;
-
-            Ok(ResponseResult::success(serde_json::json!({
-                "chunkId": chunk_id,
-            })))
+                }),
+            }
         }
 
         LoreRequest::UpdateLoreChunk { chunk_id, data } => {
@@ -333,14 +163,10 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            let chunk_uuid = match Uuid::parse_str(&chunk_id) {
+            let chunk_uuid = match parse_uuid_for_request(&chunk_id, request_id, "Invalid chunk_id")
+            {
                 Ok(u) => wrldbldr_domain::LoreChunkId::from_uuid(u),
-                Err(_) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid chunk_id"),
-                    })
-                }
+                Err(e) => return Err(e),
             };
 
             let world_id = match conn_info.world_id {
@@ -356,62 +182,26 @@ pub(super) async fn handle_lore_request(
                 }
             };
 
-            let mut lore = state
+            match state
                 .app
-                .entities
+                .use_cases
                 .lore
-                .list_for_world(world_id)
+                .ops
+                .update_chunk(world_id, chunk_uuid, data)
                 .await
-                .map_err(|e| ServerMessage::Response {
+            {
+                Ok(result) => Ok(ResponseResult::success(result)),
+                Err(crate::use_cases::lore::LoreError::ChunkNotFound) => {
+                    Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(ErrorCode::NotFound, "Lore chunk not found"),
+                    })
+                }
+                Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                })?
-                .into_iter()
-                .find(|l| l.chunks.iter().any(|c| c.id == chunk_uuid))
-                .ok_or_else(|| ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::NotFound, "Lore chunk not found"),
-                })?;
-
-            let chunk = lore
-                .chunks
-                .iter_mut()
-                .find(|c| c.id == chunk_uuid)
-                .ok_or_else(|| ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::NotFound, "Lore chunk not found"),
-                })?;
-
-            if let Some(title) = &data.title {
-                chunk.title = Some(title.clone());
+                }),
             }
-            if let Some(content) = &data.content {
-                chunk.content = content.clone();
-            }
-            if let Some(order) = data.order {
-                chunk.order = order;
-            }
-            if let Some(hint) = &data.discovery_hint {
-                chunk.discovery_hint = Some(hint.clone());
-            }
-
-            lore.updated_at = chrono::Utc::now();
-
-            state
-                .app
-                .entities
-                .lore
-                .save(&lore)
-                .await
-                .map_err(|e| ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                })?;
-
-            Ok(ResponseResult::success(serde_json::json!({
-                "loreId": lore.id.to_string(),
-                "chunkId": chunk_id,
-            })))
         }
 
         LoreRequest::DeleteLoreChunk { chunk_id } => {
@@ -419,14 +209,10 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            let chunk_uuid = match Uuid::parse_str(&chunk_id) {
+            let chunk_uuid = match parse_uuid_for_request(&chunk_id, request_id, "Invalid chunk_id")
+            {
                 Ok(u) => wrldbldr_domain::LoreChunkId::from_uuid(u),
-                Err(_) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid chunk_id"),
-                    })
-                }
+                Err(e) => return Err(e),
             };
 
             let world_id = match conn_info.world_id {
@@ -442,50 +228,26 @@ pub(super) async fn handle_lore_request(
                 }
             };
 
-            let mut lore = state
+            match state
                 .app
-                .entities
+                .use_cases
                 .lore
-                .list_for_world(world_id)
+                .ops
+                .delete_chunk(world_id, chunk_uuid)
                 .await
-                .map_err(|e| ServerMessage::Response {
+            {
+                Ok(result) => Ok(ResponseResult::success(result)),
+                Err(crate::use_cases::lore::LoreError::ChunkNotFound) => {
+                    Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(ErrorCode::NotFound, "Lore chunk not found"),
+                    })
+                }
+                Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                })?
-                .into_iter()
-                .find(|l| l.chunks.iter().any(|c| c.id == chunk_uuid))
-                .ok_or_else(|| ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::NotFound, "Lore chunk not found"),
-                })?;
-
-            let before = lore.chunks.len();
-            lore.chunks.retain(|c| c.id != chunk_uuid);
-            if lore.chunks.len() == before {
-                return Err(ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::NotFound, "Lore chunk not found"),
-                });
+                }),
             }
-
-            lore.updated_at = chrono::Utc::now();
-
-            state
-                .app
-                .entities
-                .lore
-                .save(&lore)
-                .await
-                .map_err(|e| ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                })?;
-
-            Ok(ResponseResult::success(serde_json::json!({
-                "deleted": true,
-                "loreId": lore.id.to_string(),
-                "chunkId": chunk_id,
-            })))
         }
 
         LoreRequest::GrantLoreKnowledge {
@@ -498,104 +260,41 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            let char_uuid = match Uuid::parse_str(&character_id) {
-                Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
-                Err(_) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(
-                            ErrorCode::BadRequest,
-                            "Invalid character_id",
-                        ),
-                    })
-                }
-            };
-            let lore_uuid = match Uuid::parse_str(&lore_id) {
+            let char_uuid =
+                match parse_character_id_for_request(&character_id, request_id) {
+                    Ok(id) => id,
+                    Err(e) => return Err(e),
+                };
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id")
+            {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
-                Err(_) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id"),
-                    })
-                }
+                Err(e) => return Err(e),
             };
 
-            let domain_source = match discovery_source {
-                wrldbldr_protocol::types::LoreDiscoverySourceData::ReadBook { book_name } => {
-                    wrldbldr_domain::LoreDiscoverySource::ReadBook {
-                        book_name: book_name.clone(),
-                    }
-                }
-                wrldbldr_protocol::types::LoreDiscoverySourceData::Conversation {
-                    npc_id,
-                    npc_name,
-                } => {
-                    let npc_uuid = Uuid::parse_str(&npc_id)
-                        .map(wrldbldr_domain::CharacterId::from_uuid)
-                        .unwrap_or_else(|_| wrldbldr_domain::CharacterId::new());
-                    wrldbldr_domain::LoreDiscoverySource::Conversation {
-                        npc_id: npc_uuid,
-                        npc_name: npc_name.clone(),
-                    }
-                }
-                wrldbldr_protocol::types::LoreDiscoverySourceData::Investigation => {
-                    wrldbldr_domain::LoreDiscoverySource::Investigation
-                }
-                wrldbldr_protocol::types::LoreDiscoverySourceData::DmGranted { reason } => {
-                    wrldbldr_domain::LoreDiscoverySource::DmGranted {
-                        reason: reason.clone(),
-                    }
-                }
-                wrldbldr_protocol::types::LoreDiscoverySourceData::CommonKnowledge => {
-                    wrldbldr_domain::LoreDiscoverySource::CommonKnowledge
-                }
-                wrldbldr_protocol::types::LoreDiscoverySourceData::LlmDiscovered { context } => {
-                    wrldbldr_domain::LoreDiscoverySource::LlmDiscovered {
-                        context: context.clone(),
-                    }
-                }
-                wrldbldr_protocol::types::LoreDiscoverySourceData::Unknown => {
-                    wrldbldr_domain::LoreDiscoverySource::DmGranted {
-                        reason: Some("Unknown source type".to_string()),
-                    }
-                }
-            };
-
-            let now = chrono::Utc::now();
-            let knowledge = if let Some(ids) = chunk_ids {
-                let chunk_uuids: Vec<wrldbldr_domain::LoreChunkId> = ids
-                    .iter()
+            let chunk_uuids = chunk_ids.map(|ids| {
+                ids.into_iter()
                     .filter_map(|id| {
-                        Uuid::parse_str(id)
+                        Uuid::parse_str(&id)
                             .ok()
                             .map(wrldbldr_domain::LoreChunkId::from_uuid)
                     })
-                    .collect();
-                wrldbldr_domain::LoreKnowledge::partial(
-                    lore_uuid,
-                    char_uuid,
-                    chunk_uuids,
-                    domain_source,
-                    now,
-                )
-            } else {
-                wrldbldr_domain::LoreKnowledge::full(lore_uuid, char_uuid, domain_source, now)
-            };
+                    .collect::<Vec<_>>()
+            });
 
-            state
+            match state
                 .app
-                .entities
+                .use_cases
                 .lore
-                .grant_knowledge(&knowledge)
+                .ops
+                .grant_knowledge(char_uuid, lore_uuid, chunk_uuids, discovery_source)
                 .await
-                .map_err(|e| ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                })?;
-
-            Ok(ResponseResult::success(
-                serde_json::json!({ "granted": true }),
-            ))
+            {
+                Ok(result) => Ok(ResponseResult::success(result)),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    &e.to_string(),
+                )),
+            }
         }
 
         LoreRequest::RevokeLoreKnowledge {
@@ -607,127 +306,63 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            let char_uuid = match Uuid::parse_str(&character_id) {
-                Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
-                Err(_) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(
-                            ErrorCode::BadRequest,
-                            "Invalid character_id",
-                        ),
-                    })
-                }
-            };
-            let lore_uuid = match Uuid::parse_str(&lore_id) {
+            let char_uuid =
+                match parse_character_id_for_request(&character_id, request_id) {
+                    Ok(id) => id,
+                    Err(e) => return Err(e),
+                };
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id")
+            {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
-                Err(_) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id"),
-                    })
-                }
+                Err(e) => return Err(e),
             };
 
-            state
+            match state
                 .app
-                .entities
+                .use_cases
                 .lore
+                .ops
                 .revoke_knowledge(char_uuid, lore_uuid)
                 .await
-                .map_err(|e| ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                })?;
-
-            Ok(ResponseResult::success(
-                serde_json::json!({ "revoked": true }),
-            ))
+            {
+                Ok(result) => Ok(ResponseResult::success(result)),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    &e.to_string(),
+                )),
+            }
         }
 
         LoreRequest::GetCharacterLore { character_id } => {
-            let char_uuid = match Uuid::parse_str(&character_id) {
-                Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
-                Err(_) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(
-                            ErrorCode::BadRequest,
-                            "Invalid character_id",
-                        ),
-                    })
-                }
-            };
+            let char_uuid =
+                match parse_character_id_for_request(&character_id, request_id) {
+                    Ok(id) => id,
+                    Err(e) => return Err(e),
+                };
 
-            let knowledge_list = state
-                .app
-                .entities
-                .lore
-                .get_character_knowledge(char_uuid)
-                .await
-                .map_err(|e| ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                })?;
-
-            let data: Vec<serde_json::Value> = knowledge_list
-                .into_iter()
-                .map(|k| {
-                    serde_json::json!({
-                        "loreId": k.lore_id.to_string(),
-                        "characterId": k.character_id.to_string(),
-                        "knownChunkIds": k
-                            .known_chunk_ids
-                            .iter()
-                            .map(|id| id.to_string())
-                            .collect::<Vec<_>>(),
-                        "discoveredAt": k.discovered_at.to_rfc3339(),
-                        "notes": k.notes,
-                    })
-                })
-                .collect();
-
-            Ok(ResponseResult::success(data))
+            match state.app.use_cases.lore.ops.get_character_lore(char_uuid).await {
+                Ok(data) => Ok(ResponseResult::success(data)),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    &e.to_string(),
+                )),
+            }
         }
 
         LoreRequest::GetLoreKnowers { lore_id } => {
-            let lore_uuid = match Uuid::parse_str(&lore_id) {
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id")
+            {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
-                Err(_) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid lore_id"),
-                    })
-                }
+                Err(e) => return Err(e),
             };
 
-            let knowledge_list = state
-                .app
-                .entities
-                .lore
-                .get_knowledge_for_lore(lore_uuid)
-                .await
-                .map_err(|e| ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                })?;
-
-            let data: Vec<serde_json::Value> = knowledge_list
-                .into_iter()
-                .map(|k| {
-                    serde_json::json!({
-                        "characterId": k.character_id.to_string(),
-                        "knownChunkIds": k
-                            .known_chunk_ids
-                            .iter()
-                            .map(|id| id.to_string())
-                            .collect::<Vec<_>>(),
-                        "discoveredAt": k.discovered_at.to_rfc3339(),
-                    })
-                })
-                .collect();
-
-            Ok(ResponseResult::success(data))
+            match state.app.use_cases.lore.ops.get_lore_knowers(lore_uuid).await {
+                Ok(data) => Ok(ResponseResult::success(data)),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    &e.to_string(),
+                )),
+            }
         }
     }
 }

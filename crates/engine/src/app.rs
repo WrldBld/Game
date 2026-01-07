@@ -56,6 +56,10 @@ pub struct UseCases {
     pub management: use_cases::ManagementUseCases,
     pub session: use_cases::SessionUseCases,
     pub staging: use_cases::StagingUseCases,
+    pub npc: use_cases::NpcUseCases,
+    pub inventory: use_cases::InventoryUseCases,
+    pub story_events: use_cases::StoryEventUseCases,
+    pub lore: use_cases::LoreUseCases,
 }
 
 impl App {
@@ -305,6 +309,30 @@ impl App {
             )),
         );
 
+        let npc_uc = use_cases::NpcUseCases::new(
+            Arc::new(use_cases::npc::NpcDisposition::new(
+                character.clone(),
+                clock.clone(),
+            )),
+            Arc::new(use_cases::npc::NpcMood::new(
+                staging.clone(),
+                character.clone(),
+            )),
+            Arc::new(use_cases::npc::NpcRegionRelationships::new(character.clone())),
+        );
+
+        let inventory_uc = use_cases::InventoryUseCases::new(Arc::new(
+            use_cases::inventory::InventoryOps::new(inventory.clone()),
+        ));
+
+        let story_events_uc = use_cases::StoryEventUseCases::new(Arc::new(
+            use_cases::story_events::StoryEventOps::new(narrative.clone()),
+        ));
+
+        let lore_uc = use_cases::LoreUseCases::new(Arc::new(use_cases::lore::LoreOps::new(
+            lore.clone(),
+        )));
+
         let management = use_cases::ManagementUseCases::new(
             use_cases::management::WorldCrud::new(world.clone(), clock.clone()),
             use_cases::management::CharacterCrud::new(character.clone(), clock.clone()),
@@ -349,6 +377,10 @@ impl App {
             management,
             session,
             staging: staging_uc,
+            npc: npc_uc,
+            inventory: inventory_uc,
+            story_events: story_events_uc,
+            lore: lore_uc,
         };
 
         Self {

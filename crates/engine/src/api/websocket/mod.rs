@@ -664,7 +664,8 @@ async fn handle_move_to_region(
 
                     // Get items in the region
                     let region_items =
-                        build_region_items(&state.app.entities.inventory, region_uuid).await;
+                        build_region_items(state.app.use_cases.inventory.ops.as_ref(), region_uuid)
+                            .await;
 
                     // Broadcast time suggestion to DMs if present
                     if let Some(ref time_suggestion) = result.time_suggestion {
@@ -793,7 +794,8 @@ async fn handle_exit_to_location(
 
             // Get items in the region
             let region_items =
-                build_region_items(&state.app.entities.inventory, result.region.id).await;
+                build_region_items(state.app.use_cases.inventory.ops.as_ref(), result.region.id)
+                    .await;
 
             Some(ServerMessage::SceneChanged {
                 pc_id: pc_id.clone(),
@@ -2934,10 +2936,10 @@ async fn build_navigation_data(
 
 /// Build region items data (items that can be picked up in this region).
 async fn build_region_items(
-    inventory_entity: &crate::entities::Inventory,
+    inventory_ops: &crate::use_cases::inventory::InventoryOps,
     region_id: RegionId,
 ) -> Vec<wrldbldr_protocol::RegionItemData> {
-    match inventory_entity.list_in_region(region_id).await {
+    match inventory_ops.list_in_region(region_id).await {
         Ok(items) => items
             .into_iter()
             .map(|item| wrldbldr_protocol::RegionItemData {
@@ -3636,6 +3638,32 @@ mod ws_integration_tests_inline {
             )),
         );
 
+        let npc_uc = crate::use_cases::NpcUseCases::new(
+            Arc::new(crate::use_cases::npc::NpcDisposition::new(
+                character.clone(),
+                clock.clone(),
+            )),
+            Arc::new(crate::use_cases::npc::NpcMood::new(
+                staging.clone(),
+                character.clone(),
+            )),
+            Arc::new(crate::use_cases::npc::NpcRegionRelationships::new(
+                character.clone(),
+            )),
+        );
+
+        let inventory_uc = crate::use_cases::InventoryUseCases::new(Arc::new(
+            crate::use_cases::inventory::InventoryOps::new(inventory.clone()),
+        ));
+
+        let story_events_uc = crate::use_cases::StoryEventUseCases::new(Arc::new(
+            crate::use_cases::story_events::StoryEventOps::new(narrative.clone()),
+        ));
+
+        let lore_uc = crate::use_cases::LoreUseCases::new(Arc::new(
+            crate::use_cases::lore::LoreOps::new(lore.clone()),
+        ));
+
         let management = crate::use_cases::ManagementUseCases::new(
             crate::use_cases::management::WorldCrud::new(world.clone(), clock.clone()),
             crate::use_cases::management::CharacterCrud::new(character.clone(), clock.clone()),
@@ -3680,6 +3708,10 @@ mod ws_integration_tests_inline {
             management,
             session,
             staging: staging_uc,
+            npc: npc_uc,
+            inventory: inventory_uc,
+            story_events: story_events_uc,
+            lore: lore_uc,
         };
 
         Arc::new(App {

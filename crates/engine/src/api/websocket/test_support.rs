@@ -673,6 +673,32 @@ pub(crate) fn build_test_app_with_ports(
         )),
     );
 
+    let npc_uc = crate::use_cases::NpcUseCases::new(
+        Arc::new(crate::use_cases::npc::NpcDisposition::new(
+            character.clone(),
+            clock.clone(),
+        )),
+        Arc::new(crate::use_cases::npc::NpcMood::new(
+            staging.clone(),
+            character.clone(),
+        )),
+        Arc::new(crate::use_cases::npc::NpcRegionRelationships::new(
+            character.clone(),
+        )),
+    );
+
+    let inventory_uc = crate::use_cases::InventoryUseCases::new(Arc::new(
+        crate::use_cases::inventory::InventoryOps::new(inventory.clone()),
+    ));
+
+    let story_events_uc = crate::use_cases::StoryEventUseCases::new(Arc::new(
+        crate::use_cases::story_events::StoryEventOps::new(narrative.clone()),
+    ));
+
+    let lore_uc = crate::use_cases::LoreUseCases::new(Arc::new(
+        crate::use_cases::lore::LoreOps::new(lore.clone()),
+    ));
+
     let management = crate::use_cases::ManagementUseCases::new(
         crate::use_cases::management::WorldCrud::new(world.clone(), clock.clone()),
         crate::use_cases::management::CharacterCrud::new(character.clone(), clock.clone()),
@@ -717,6 +743,10 @@ pub(crate) fn build_test_app_with_ports(
         management,
         session,
         staging: staging_uc,
+        npc: npc_uc,
+        inventory: inventory_uc,
+        story_events: story_events_uc,
+        lore: lore_uc,
     };
 
     Arc::new(App {

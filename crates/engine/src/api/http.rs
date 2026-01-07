@@ -16,8 +16,8 @@ pub fn routes() -> Router<Arc<App>> {
         .route("/", get(health))
         .route("/api/health", get(health))
         .route("/api/worlds", get(list_worlds))
-    .route("/api/worlds/{id}", get(get_world))
-    .route("/api/worlds/{id}/export", get(export_world))
+        .route("/api/worlds/{id}", get(get_world))
+        .route("/api/worlds/{id}/export", get(export_world))
         // Add more routes as needed
 }
 
@@ -28,7 +28,13 @@ async fn health() -> &'static str {
 async fn list_worlds(
     State(app): State<Arc<App>>,
 ) -> Result<Json<Vec<wrldbldr_domain::World>>, ApiError> {
-    let worlds = app.entities.world.list_all().await?;
+    let worlds = app
+        .use_cases
+        .management
+        .world
+        .list()
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
     Ok(Json(worlds))
 }
 
@@ -37,10 +43,12 @@ async fn get_world(
     Path(id): Path<Uuid>,
 ) -> Result<Json<wrldbldr_domain::World>, ApiError> {
     let world = app
-        .entities
+        .use_cases
+        .management
         .world
         .get(wrldbldr_domain::WorldId::from_uuid(id))
-        .await?
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
         .ok_or(ApiError::NotFound)?;
     Ok(Json(world))
 }

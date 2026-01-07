@@ -392,13 +392,22 @@ pub(super) async fn handle_character_request(
                 };
 
             let pc_id = PlayerCharacterId::from_uuid(char_uuid);
-            let items = match state.app.entities.inventory.get_pc_inventory(pc_id).await {
+            let items = match state
+                .app
+                .use_cases
+                .inventory
+                .ops
+                .get_pc_inventory(pc_id)
+                .await
+            {
                 Ok(items) => items,
                 Err(_) => {
                     let npc_id = CharacterId::from_uuid(char_uuid);
                     state
                         .app
-                        .entities
+                        .use_cases
+                        .inventory
+                        .ops
                         .inventory
                         .get_character_inventory(npc_id)
                         .await
@@ -866,20 +875,15 @@ pub(super) async fn handle_npc_request(
                 ));
             }
 
-            let now = chrono::Utc::now();
-            let mut disposition_state = match state
+            let update = match state
                 .app
-                .entities
-                .character
-                .get_disposition(npc_id_typed, pc_id_typed)
+                .use_cases
+                .npc
+                .disposition
+                .set_disposition(npc_id_typed, pc_id_typed, disposition_level, reason.clone())
                 .await
             {
-                Ok(Some(existing)) => existing,
-                Ok(None) => wrldbldr_domain::NpcDispositionState::new(
-                    npc_id_typed,
-                    pc_id_typed,
-                    now,
-                ),
+                Ok(result) => result,
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
@@ -888,35 +892,14 @@ pub(super) async fn handle_npc_request(
                 }
             };
 
-            disposition_state.set_disposition(disposition_level, reason.clone(), now);
-
-            if let Err(e) = state
-                .app
-                .entities
-                .character
-                .save_disposition(&disposition_state)
-                .await
-            {
-                return Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                ));
-            }
-
-            let npc_name = match state.app.entities.character.get(npc_id_typed).await {
-                Ok(Some(npc)) => npc.name,
-                Ok(None) => "Unknown NPC".to_string(),
-                Err(_) => "Unknown NPC".to_string(),
-            };
-
             if let Some(world_id) = conn_info.world_id {
                 let msg = ServerMessage::NpcDispositionChanged {
-                    npc_id: npc_id_typed.to_string(),
-                    npc_name,
-                    pc_id: pc_id_typed.to_string(),
-                    disposition: disposition_level.to_string(),
-                    relationship: disposition_state.relationship.to_string(),
-                    reason,
+                    npc_id: update.npc_id.to_string(),
+                    npc_name: update.npc_name,
+                    pc_id: update.pc_id.to_string(),
+                    disposition: update.disposition.to_string(),
+                    relationship: update.relationship.to_string(),
+                    reason: update.reason,
                 };
                 state.connections.broadcast_to_dms(world_id, msg).await;
             }
@@ -960,20 +943,15 @@ pub(super) async fn handle_npc_request(
                 ));
             }
 
-            let now = chrono::Utc::now();
-            let mut disposition_state = match state
+            let update = match state
                 .app
-                .entities
-                .character
-                .get_disposition(npc_id_typed, pc_id_typed)
+                .use_cases
+                .npc
+                .disposition
+                .set_relationship(npc_id_typed, pc_id_typed, relationship_level)
                 .await
             {
-                Ok(Some(existing)) => existing,
-                Ok(None) => wrldbldr_domain::NpcDispositionState::new(
-                    npc_id_typed,
-                    pc_id_typed,
-                    now,
-                ),
+                Ok(result) => result,
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
@@ -982,36 +960,14 @@ pub(super) async fn handle_npc_request(
                 }
             };
 
-            disposition_state.relationship = relationship_level;
-            disposition_state.updated_at = now;
-
-            if let Err(e) = state
-                .app
-                .entities
-                .character
-                .save_disposition(&disposition_state)
-                .await
-            {
-                return Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                ));
-            }
-
-            let npc_name = match state.app.entities.character.get(npc_id_typed).await {
-                Ok(Some(npc)) => npc.name,
-                Ok(None) => "Unknown NPC".to_string(),
-                Err(_) => "Unknown NPC".to_string(),
-            };
-
             if let Some(world_id) = conn_info.world_id {
                 let msg = ServerMessage::NpcDispositionChanged {
-                    npc_id: npc_id_typed.to_string(),
-                    npc_name,
-                    pc_id: pc_id_typed.to_string(),
-                    disposition: disposition_state.disposition.to_string(),
-                    relationship: relationship_level.to_string(),
-                    reason: None,
+                    npc_id: update.npc_id.to_string(),
+                    npc_name: update.npc_name,
+                    pc_id: update.pc_id.to_string(),
+                    disposition: update.disposition.to_string(),
+                    relationship: update.relationship.to_string(),
+                    reason: update.reason,
                 };
                 state.connections.broadcast_to_dms(world_id, msg).await;
             }
@@ -1026,11 +982,12 @@ pub(super) async fn handle_npc_request(
             };
             let pc_id_typed = PlayerCharacterId::from_uuid(pc_uuid);
 
-            let dispositions = match state
+            let response_data = match state
                 .app
-                .entities
-                .character
-                .list_dispositions_for_pc(pc_id_typed)
+                .use_cases
+                .npc
+                .disposition
+                .list_for_pc(pc_id_typed)
                 .await
             {
                 Ok(list) => list,
@@ -1041,24 +998,6 @@ pub(super) async fn handle_npc_request(
                     ))
                 }
             };
-
-            let mut response_data = Vec::with_capacity(dispositions.len());
-            for disposition in dispositions {
-                let npc_name = match state.app.entities.character.get(disposition.npc_id).await {
-                    Ok(Some(npc)) => npc.name,
-                    Ok(None) => "Unknown NPC".to_string(),
-                    Err(_) => "Unknown NPC".to_string(),
-                };
-
-                response_data.push(wrldbldr_protocol::NpcDispositionData {
-                    npc_id: disposition.npc_id.to_string(),
-                    npc_name,
-                    disposition: disposition.disposition.to_string(),
-                    relationship: disposition.relationship.to_string(),
-                    sentiment: disposition.sentiment,
-                    last_reason: disposition.disposition_reason,
-                });
-            }
 
             let msg = ServerMessage::NpcDispositionsResponse {
                 pc_id: pc_id_typed.to_string(),
@@ -1086,9 +1025,10 @@ pub(super) async fn handle_npc_request(
 
             match state
                 .app
-                .entities
-                .character
-                .get_region_relationships(char_id_typed)
+                .use_cases
+                .npc
+                .region_relationships
+                .list_for_character(char_id_typed)
                 .await
             {
                 Ok(relationships) => {
@@ -1107,6 +1047,10 @@ pub(super) async fn handle_npc_request(
                         .collect();
                     Ok(ResponseResult::success(data))
                 }
+                Err(crate::use_cases::npc::NpcError::NotFound) => Ok(ResponseResult::error(
+                    ErrorCode::NotFound,
+                    "Character not found",
+                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -1134,13 +1078,18 @@ pub(super) async fn handle_npc_request(
 
             match state
                 .app
-                .entities
-                .character
+                .use_cases
+                .npc
+                .region_relationships
                 .set_home_region(char_uuid, region_uuid)
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success(
                     serde_json::json!({"success": true}),
+                )),
+                Err(crate::use_cases::npc::NpcError::NotFound) => Ok(ResponseResult::error(
+                    ErrorCode::NotFound,
+                    "Character not found",
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
@@ -1169,13 +1118,18 @@ pub(super) async fn handle_npc_request(
 
             match state
                 .app
-                .entities
-                .character
-                .set_work_region(char_uuid, region_uuid, None)
+                .use_cases
+                .npc
+                .region_relationships
+                .set_work_region(char_uuid, region_uuid)
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success(
                     serde_json::json!({"success": true}),
+                )),
+                Err(crate::use_cases::npc::NpcError::NotFound) => Ok(ResponseResult::error(
+                    ErrorCode::NotFound,
+                    "Character not found",
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
@@ -1205,13 +1159,18 @@ pub(super) async fn handle_npc_request(
 
             match state
                 .app
-                .entities
-                .character
-                .remove_region_relationship(char_uuid, region_uuid, &relationship_type)
+                .use_cases
+                .npc
+                .region_relationships
+                .remove_relationship(char_uuid, region_uuid, &relationship_type)
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success(
                     serde_json::json!({"success": true}),
+                )),
+                Err(crate::use_cases::npc::NpcError::NotFound) => Ok(ResponseResult::error(
+                    ErrorCode::NotFound,
+                    "Character not found",
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
@@ -1228,9 +1187,10 @@ pub(super) async fn handle_npc_request(
 
             match state
                 .app
-                .entities
-                .character
-                .get_npcs_for_region(region_id_typed)
+                .use_cases
+                .npc
+                .region_relationships
+                .list_region_npcs(region_id_typed)
                 .await
             {
                 Ok(npcs) => {
@@ -1252,6 +1212,10 @@ pub(super) async fn handle_npc_request(
                         .collect();
                     Ok(ResponseResult::success(data))
                 }
+                Err(crate::use_cases::npc::NpcError::NotFound) => Ok(ResponseResult::error(
+                    ErrorCode::NotFound,
+                    "Region not found",
+                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -1307,43 +1271,20 @@ pub(super) async fn handle_npc_request(
                 }
             };
 
-            let npc = match state.app.entities.character.get(npc_uuid).await {
-                Ok(Some(c)) => c,
-                Ok(None) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::NotFound, "NPC not found"),
-                    })
-                }
-                Err(e) => {
-                    return Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
-                    })
-                }
-            };
-
-            let old_mood = state
-                .app
-                .entities
-                .staging
-                .get_npc_mood(region_uuid, npc_uuid)
-                .await
-                .unwrap_or(npc.default_mood);
-
             match state
                 .app
-                .entities
-                .staging
-                .set_npc_mood(region_uuid, npc_uuid, mood_state)
+                .use_cases
+                .npc
+                .mood
+                .set_mood(region_uuid, npc_uuid, mood_state)
                 .await
             {
-                Ok(_) => {
+                Ok(change) => {
                     let mood_changed_msg = ServerMessage::NpcMoodChanged {
-                        npc_id: npc_id.to_string(),
-                        npc_name: npc.name.clone(),
-                        old_mood: old_mood.to_string(),
-                        new_mood: mood_state.to_string(),
+                        npc_id: change.npc_id.to_string(),
+                        npc_name: change.npc_name.clone(),
+                        old_mood: change.old_mood.to_string(),
+                        new_mood: change.new_mood.to_string(),
                         reason: reason.map(|s| s.to_string()),
                         region_id: Some(region_id.to_string()),
                     };
@@ -1359,6 +1300,10 @@ pub(super) async fn handle_npc_request(
                         "mood": mood_state.to_string(),
                     })))
                 }
+                Err(crate::use_cases::npc::NpcError::NotFound) => Ok(ResponseResult::error(
+                    ErrorCode::NotFound,
+                    "NPC not found",
+                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     &e.to_string(),
@@ -1389,9 +1334,10 @@ pub(super) async fn handle_npc_request(
 
             match state
                 .app
-                .entities
-                .staging
-                .get_npc_mood(region_uuid, npc_uuid)
+                .use_cases
+                .npc
+                .mood
+                .get_mood(region_uuid, npc_uuid)
                 .await
             {
                 Ok(mood) => Ok(ResponseResult::success(serde_json::json!({
@@ -1438,8 +1384,9 @@ pub(super) async fn handle_items_request(
 
             match state
                 .app
-                .entities
+                .use_cases
                 .inventory
+                .ops
                 .place_item_in_region(item_uuid, region_uuid)
                 .await
             {
@@ -1471,22 +1418,21 @@ pub(super) async fn handle_items_request(
                 Err(e) => return Err(e),
             };
 
-            let mut item = wrldbldr_domain::Item::new(world_uuid, data.name.clone());
-            if let Some(desc) = &data.description {
-                item = item.with_description(desc.clone());
-            }
-            if let Some(item_type) = &data.item_type {
-                item = item.with_type(item_type.clone());
-            }
-            if let Some(props) = &data.properties {
-                item = item.with_properties(props.to_string());
-            }
-
             match state
                 .app
-                .entities
+                .use_cases
                 .inventory
-                .create_and_place_in_region(item, region_uuid)
+                .ops
+                .create_and_place_item(
+                    world_uuid,
+                    region_uuid,
+                    crate::use_cases::inventory::CreateItemInput {
+                        name: data.name,
+                        description: data.description,
+                        item_type: data.item_type,
+                        properties: data.properties,
+                    },
+                )
                 .await
             {
                 Ok(item_id) => Ok(ResponseResult::success(serde_json::json!({
