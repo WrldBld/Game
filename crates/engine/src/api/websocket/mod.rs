@@ -11,7 +11,6 @@ use axum::{
     },
     response::Response,
 };
-use chrono::{Datelike, Timelike};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -36,7 +35,7 @@ use wrldbldr_protocol::{
 use super::connections::{ConnectionManager, WorldRole};
 use crate::app::App;
 use crate::use_cases::movement::{EnterRegionError, StagingStatus};
-use crate::use_cases::visual_state::StateResolutionContext;
+use crate::use_cases::staging::PendingStagingRequest;
 
 /// Buffer size for per-connection message channel.
 const CONNECTION_CHANNEL_BUFFER: usize = 256;
@@ -53,11 +52,6 @@ pub struct WsState {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct PendingStagingRequest {
-    pub region_id: RegionId,
-    pub location_id: LocationId,
-}
-
 /// WebSocket upgrade handler - entry point for new connections.
 pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<WsState>>) -> Response {
     ws.on_upgrade(move |socket| handle_socket(socket, state))
@@ -614,131 +608,32 @@ async fn handle_move_to_region(
             // Check staging status
             match result.staging_status {
                 StagingStatus::Pending { previous_staging } => {
-                    // Send StagingPending to the player
-                    let pending_msg = ServerMessage::StagingPending {
-                        region_id: result.region.id.to_string(),
-                        region_name: result.region.name.clone(),
+                    let world_id = result.pc.world_id;
+                    let ctx = crate::use_cases::staging::StagingApprovalContext {
+                        connections: &state.connections,
+                        pending_time_suggestions: &state.pending_time_suggestions,
+                        pending_staging_requests: &state.pending_staging_requests,
+                    };
+                    let input = crate::use_cases::staging::StagingApprovalInput {
+                        world_id,
+                        region: result.region.clone(),
+                        pc: result.pc.clone(),
+                        previous_staging,
+                        time_suggestion: result.time_suggestion.clone(),
+                        guidance: None,
                     };
 
-                    // Send StagingApprovalRequired to DMs
-                    let request_id = Uuid::new_v4().to_string();
-                    {
-                        let mut guard = state.pending_staging_requests.write().await;
-                        guard.insert(
-                            request_id.clone(),
-                            PendingStagingRequest {
-                                region_id: result.region.id,
-                                location_id: result.region.location_id,
-                            },
-                        );
-                    }
-                    let world_time = state
+                    match state
                         .app
-                        .entities
-                        .world
-                        .get(result.pc.world_id)
+                        .use_cases
+                        .staging
+                        .request_approval
+                        .execute(&ctx, input)
                         .await
-                        .ok()
-                        .flatten()
-                        .map(|w| w.game_time)
-                        .unwrap_or_else(|| wrldbldr_domain::GameTime::new(chrono::Utc::now()));
-
-                    let now = world_time.current();
-
-                    // Get rule-based suggestions (NPCs that have relationships to this region)
-                    let rule_based_npcs =
-                        generate_rule_based_suggestions(state, result.region.id).await;
-
-                    // Get LLM-based suggestions (async call to LLM for context-aware suggestions)
-                    let llm_based_npcs = generate_llm_based_suggestions(
-                        state,
-                        result.region.id,
-                        &result.region.name,
-                        &location_name,
-                        None, // No guidance on initial entry
-                    )
-                    .await;
-
-                    // Resolve visual states for this region
-                    let (resolved_visual_state, available_location_states, available_region_states) =
-                        resolve_visual_states_for_staging(
-                            state,
-                            conn_info.world_id,
-                            result.region.location_id,
-                            result.region.id,
-                        )
-                        .await;
-
-                    let approval_msg = ServerMessage::StagingApprovalRequired {
-                        request_id,
-                        region_id: result.region.id.to_string(),
-                        region_name: result.region.name.clone(),
-                        location_id: result.region.location_id.to_string(),
-                        location_name: location_name.clone(),
-                        game_time: wrldbldr_protocol::types::GameTime {
-                            day: now.ordinal() as u32,
-                            hour: now.hour() as u8,
-                            minute: now.minute() as u8,
-                            is_paused: world_time.is_paused(),
-                        },
-                        previous_staging: previous_staging.map(|s| {
-                            wrldbldr_protocol::PreviousStagingInfo {
-                                staging_id: s.id.to_string(),
-                                approved_at: s.approved_at.to_rfc3339(),
-                                npcs: s
-                                    .npcs
-                                    .into_iter()
-                                    .map(|n| wrldbldr_protocol::StagedNpcInfo {
-                                        character_id: n.character_id.to_string(),
-                                        name: n.name,
-                                        sprite_asset: n.sprite_asset,
-                                        portrait_asset: n.portrait_asset,
-                                        is_present: n.is_present,
-                                        reasoning: n.reasoning,
-                                        is_hidden_from_players: n.is_hidden_from_players,
-                                        mood: Some(n.mood.to_string()),
-                                    })
-                                    .collect(),
-                            }
-                        }),
-                        rule_based_npcs,
-                        llm_based_npcs,
-                        default_ttl_hours: 24,
-                        waiting_pcs: vec![wrldbldr_protocol::WaitingPcInfo {
-                            pc_id: result.pc.id.to_string(),
-                            pc_name: result.pc.name.clone(),
-                            player_id: result.pc.user_id.clone(),
-                        }],
-                        resolved_visual_state,
-                        available_location_states,
-                        available_region_states,
-                    };
-
-                    // Broadcast staging approval and time suggestion to DMs
-                    if let Some(world_id) = conn_info.world_id {
-                        state
-                            .connections
-                            .broadcast_to_dms(world_id, approval_msg)
-                            .await;
-
-                        // Also send time suggestion if present
-                        if let Some(ref time_suggestion) = result.time_suggestion {
-                            state
-                                .pending_time_suggestions
-                                .write()
-                                .await
-                                .insert(time_suggestion.id, time_suggestion.clone());
-                            let suggestion_msg = ServerMessage::TimeSuggestion {
-                                data: time_suggestion.to_protocol(),
-                            };
-                            state
-                                .connections
-                                .broadcast_to_dms(world_id, suggestion_msg)
-                                .await;
-                        }
+                    {
+                        Ok(msg) => Some(msg),
+                        Err(e) => Some(error_response("STAGING_ERROR", &e.to_string())),
                     }
-
-                    Some(pending_msg)
                 }
                 StagingStatus::Ready => {
                     // Build SceneChanged response with NPCs
@@ -812,411 +707,6 @@ async fn handle_move_to_region(
     }
 }
 
-/// Generate rule-based staging suggestions based on NPC relationships to a region.
-///
-/// Returns NPCs that have relationships to this region (home, work, frequents),
-/// with reasoning based on the relationship type.
-async fn generate_rule_based_suggestions(
-    state: &WsState,
-    region_id: RegionId,
-) -> Vec<wrldbldr_protocol::StagedNpcInfo> {
-    use crate::infrastructure::ports::NpcRegionRelationType;
-
-    // Get NPCs that have relationships to this region
-    let npcs_with_relationships = state
-        .app
-        .entities
-        .character
-        .get_npcs_for_region(region_id)
-        .await
-        .ok()
-        .unwrap_or_default();
-
-    // Convert to staging suggestions with reasoning
-    let mut suggestions: Vec<wrldbldr_protocol::StagedNpcInfo> = npcs_with_relationships
-        .into_iter()
-        .filter(|n| n.relationship_type != NpcRegionRelationType::Avoids) // Filter out NPCs that avoid this region
-        .map(|npc| {
-            let reasoning = match npc.relationship_type {
-                NpcRegionRelationType::HomeRegion => "Lives here".to_string(),
-                NpcRegionRelationType::WorksAt => match npc.shift.as_deref() {
-                    Some("day") => "Works here (day shift)".to_string(),
-                    Some("night") => "Works here (night shift)".to_string(),
-                    _ => "Works here".to_string(),
-                },
-                NpcRegionRelationType::Frequents => {
-                    let freq = npc.frequency.as_deref().unwrap_or("sometimes");
-                    let time = npc.time_of_day.as_deref();
-                    match time {
-                        Some(t) => format!("Frequents this area {} ({})", freq, t),
-                        None => format!("Frequents this area ({})", freq),
-                    }
-                }
-                NpcRegionRelationType::Avoids => "Avoids this area".to_string(), // Should be filtered out
-            };
-
-            wrldbldr_protocol::StagedNpcInfo {
-                character_id: npc.character_id.to_string(),
-                name: npc.name,
-                sprite_asset: npc.sprite_asset,
-                portrait_asset: npc.portrait_asset,
-                is_present: true, // Suggest as present by default
-                reasoning,
-                is_hidden_from_players: false,
-                mood: Some(npc.default_mood.to_string()),
-            }
-        })
-        .collect();
-
-    // Also include currently staged NPCs that might not have explicit relationships
-    if let Ok(staged_npcs) = state.app.entities.staging.get_staged_npcs(region_id).await {
-        for staged in staged_npcs {
-            // Only add if not already in suggestions
-            if !suggestions
-                .iter()
-                .any(|s| s.character_id == staged.character_id.to_string())
-            {
-                suggestions.push(wrldbldr_protocol::StagedNpcInfo {
-                    character_id: staged.character_id.to_string(),
-                    name: staged.name,
-                    sprite_asset: staged.sprite_asset,
-                    portrait_asset: staged.portrait_asset,
-                    is_present: staged.is_present,
-                    reasoning: staged.reasoning,
-                    is_hidden_from_players: staged.is_hidden_from_players,
-                    mood: Some(staged.mood.to_string()),
-                });
-            }
-        }
-    }
-
-    suggestions
-}
-
-/// Generate LLM-based NPC staging suggestions.
-///
-/// Uses the LLM to analyze which NPCs should be present based on:
-/// - Region context (name, location, atmosphere)
-/// - Time of day
-/// - NPC descriptions and relationships
-/// - Any DM guidance
-async fn generate_llm_based_suggestions(
-    state: &WsState,
-    region_id: RegionId,
-    region_name: &str,
-    location_name: &str,
-    guidance: Option<&str>,
-) -> Vec<wrldbldr_protocol::StagedNpcInfo> {
-    use crate::infrastructure::ports::{ChatMessage, LlmRequest, NpcRegionRelationType};
-
-    // Get NPC candidates (those with relationships to this region)
-    let npcs_with_relationships = match state
-        .app
-        .entities
-        .character
-        .get_npcs_for_region(region_id)
-        .await
-    {
-        Ok(npcs) => npcs,
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to get NPCs for LLM staging");
-            return vec![];
-        }
-    };
-
-    // Filter out NPCs that avoid this region
-    let candidates: Vec<_> = npcs_with_relationships
-        .into_iter()
-        .filter(|n| n.relationship_type != NpcRegionRelationType::Avoids)
-        .collect();
-
-    if candidates.is_empty() {
-        return vec![];
-    }
-
-    // Build the NPC list for the prompt
-    let npc_list: String = candidates
-        .iter()
-        .enumerate()
-        .map(|(i, npc)| {
-            let relationship = match npc.relationship_type {
-                NpcRegionRelationType::HomeRegion => "lives here",
-                NpcRegionRelationType::WorksAt => "works here",
-                NpcRegionRelationType::Frequents => "frequents this area",
-                NpcRegionRelationType::Avoids => "avoids this area",
-            };
-            format!("{}. {} ({})", i + 1, npc.name, relationship)
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    // Build the prompt
-    let guidance_text = guidance
-        .filter(|g| !g.is_empty())
-        .map(|g| format!("\n\nDM's guidance: {}", g))
-        .unwrap_or_default();
-
-    let system_prompt = "You are a helpful TTRPG assistant helping decide which NPCs should be present in a scene. \
-        Respond with a JSON array of objects, each with 'name' (exact name from the list) and 'reason' (brief explanation). \
-        Select 1-4 NPCs that would logically be present. Only include NPCs from the provided list.";
-
-    let user_prompt = format!(
-        "Region: {} (in {})\n\nAvailable NPCs:\n{}{}\n\nWhich NPCs should be present? Respond with JSON only.",
-        region_name, location_name, npc_list, guidance_text
-    );
-
-    // Call the LLM
-    let request = LlmRequest::new(vec![ChatMessage::user(&user_prompt)])
-        .with_system_prompt(system_prompt)
-        .with_temperature(0.7);
-
-    let response = match state.app.llm.generate(request).await {
-        Ok(resp) => resp,
-        Err(e) => {
-            tracing::warn!(error = %e, "LLM staging suggestion failed");
-            return vec![];
-        }
-    };
-
-    // Parse the LLM response (simple JSON parsing)
-    // Expected format: [{"name": "NPC Name", "reason": "Why they're here"}]
-    let suggestions = parse_llm_staging_response(&response.content, &candidates);
-
-    tracing::info!(
-        region = %region_name,
-        suggestion_count = suggestions.len(),
-        "Generated LLM staging suggestions"
-    );
-
-    suggestions
-}
-
-/// Parse LLM staging response into StagedNpcInfo structs.
-fn parse_llm_staging_response(
-    content: &str,
-    candidates: &[crate::infrastructure::ports::NpcWithRegionInfo],
-) -> Vec<wrldbldr_protocol::StagedNpcInfo> {
-    // Try to extract JSON array from the response
-    let json_start = content.find('[');
-    let json_end = content.rfind(']');
-
-    let json_str = match (json_start, json_end) {
-        (Some(start), Some(end)) if end > start => &content[start..=end],
-        _ => {
-            tracing::debug!("No valid JSON array found in LLM response");
-            return vec![];
-        }
-    };
-
-    // Parse JSON
-    #[derive(serde::Deserialize)]
-    struct LlmSuggestion {
-        name: String,
-        reason: String,
-    }
-
-    let parsed: Vec<LlmSuggestion> = match serde_json::from_str(json_str) {
-        Ok(p) => p,
-        Err(e) => {
-            tracing::debug!(error = %e, json = %json_str, "Failed to parse LLM staging JSON");
-            return vec![];
-        }
-    };
-
-    // Match suggestions to actual NPCs
-    parsed
-        .into_iter()
-        .filter_map(|suggestion| {
-            // Find matching NPC (case-insensitive)
-            let npc = candidates
-                .iter()
-                .find(|c| c.name.to_lowercase() == suggestion.name.to_lowercase())?;
-
-            Some(wrldbldr_protocol::StagedNpcInfo {
-                character_id: npc.character_id.to_string(),
-                name: npc.name.clone(),
-                sprite_asset: npc.sprite_asset.clone(),
-                portrait_asset: npc.portrait_asset.clone(),
-                is_present: true,
-                reasoning: format!("[LLM] {}", suggestion.reason),
-                is_hidden_from_players: false,
-                mood: Some(npc.default_mood.to_string()),
-            })
-        })
-        .collect()
-}
-
-/// Resolve visual states for a staging request.
-///
-/// Returns the auto-resolved visual state (if determinable) and all available
-/// location/region states for DM selection.
-async fn resolve_visual_states_for_staging(
-    state: &WsState,
-    world_id: Option<WorldId>,
-    location_id: LocationId,
-    region_id: RegionId,
-) -> (
-    Option<wrldbldr_protocol::types::ResolvedVisualStateData>,
-    Vec<wrldbldr_protocol::types::StateOptionData>,
-    Vec<wrldbldr_protocol::types::StateOptionData>,
-) {
-    // Get world to build context
-    let world_id = match world_id {
-        Some(id) => id,
-        None => return (None, vec![], vec![]),
-    };
-
-    // Get the world for game time
-    let game_time = match state.app.entities.world.get(world_id).await {
-        Ok(Some(w)) => w.game_time,
-        _ => return (None, vec![], vec![]),
-    };
-
-    // Get world flags
-    let world_flags = state
-        .app
-        .entities
-        .flag
-        .get_world_flags(world_id)
-        .await
-        .unwrap_or_default();
-
-    // Build resolution context
-    let context = StateResolutionContext::new(world_id, game_time).with_world_flags(world_flags);
-
-    // Resolve visual states
-    let resolution = match state
-        .app
-        .use_cases
-        .visual_state
-        .resolve
-        .execute(location_id, region_id, &context)
-        .await
-    {
-        Ok(r) => r,
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to resolve visual states");
-            return (None, vec![], vec![]);
-        }
-    };
-
-    // Convert to protocol types
-    let resolved = if resolution.is_complete {
-        Some(wrldbldr_protocol::types::ResolvedVisualStateData {
-            location_state: resolution.location_state.as_ref().map(|s| {
-                wrldbldr_protocol::types::ResolvedStateInfoData {
-                    id: s.id.clone(),
-                    name: s.name.clone(),
-                    backdrop_override: s.backdrop_override.clone(),
-                    atmosphere_override: s.atmosphere_override.clone(),
-                    ambient_sound: s.ambient_sound.clone(),
-                }
-            }),
-            region_state: resolution.region_state.as_ref().map(|s| {
-                wrldbldr_protocol::types::ResolvedStateInfoData {
-                    id: s.id.clone(),
-                    name: s.name.clone(),
-                    backdrop_override: s.backdrop_override.clone(),
-                    atmosphere_override: s.atmosphere_override.clone(),
-                    ambient_sound: s.ambient_sound.clone(),
-                }
-            }),
-        })
-    } else {
-        None // Incomplete resolution (needs LLM for soft rules)
-    };
-
-    // Convert available location states
-    let available_location: Vec<wrldbldr_protocol::types::StateOptionData> = resolution
-        .available_location_states
-        .iter()
-        .map(|s| {
-            let match_reason = if s.evaluation.is_active {
-                Some(s.evaluation.matched_rules.join(", "))
-            } else {
-                None
-            };
-            wrldbldr_protocol::types::StateOptionData {
-                id: s.id.clone(),
-                name: s.name.clone(),
-                priority: s.priority,
-                is_default: s.is_default,
-                match_reason,
-            }
-        })
-        .collect();
-
-    // Convert available region states
-    let available_region: Vec<wrldbldr_protocol::types::StateOptionData> = resolution
-        .available_region_states
-        .iter()
-        .map(|s| {
-            let match_reason = if s.evaluation.is_active {
-                Some(s.evaluation.matched_rules.join(", "))
-            } else {
-                None
-            };
-            wrldbldr_protocol::types::StateOptionData {
-                id: s.id.clone(),
-                name: s.name.clone(),
-                priority: s.priority,
-                is_default: s.is_default,
-                match_reason,
-            }
-        })
-        .collect();
-
-    (resolved, available_location, available_region)
-}
-
-/// Build visual state data from currently active states for StagingReady message.
-async fn build_visual_state_for_staging(
-    state: &WsState,
-    location_id: wrldbldr_domain::LocationId,
-    region_id: wrldbldr_domain::RegionId,
-) -> Option<wrldbldr_protocol::types::ResolvedVisualStateData> {
-    // Fetch active location state
-    let location_state = state
-        .app
-        .entities
-        .location_state
-        .get_active(location_id)
-        .await
-        .ok()
-        .flatten();
-
-    // Fetch active region state
-    let region_state = state
-        .app
-        .entities
-        .region_state
-        .get_active(region_id)
-        .await
-        .ok()
-        .flatten();
-
-    // If neither is set, return None
-    if location_state.is_none() && region_state.is_none() {
-        return None;
-    }
-
-    Some(wrldbldr_protocol::types::ResolvedVisualStateData {
-        location_state: location_state.map(|s| wrldbldr_protocol::types::ResolvedStateInfoData {
-            id: s.id.to_string(),
-            name: s.name,
-            backdrop_override: s.backdrop_override,
-            atmosphere_override: s.atmosphere_override,
-            ambient_sound: s.ambient_sound,
-        }),
-        region_state: region_state.map(|s| wrldbldr_protocol::types::ResolvedStateInfoData {
-            id: s.id.to_string(),
-            name: s.name,
-            backdrop_override: s.backdrop_override,
-            atmosphere_override: s.atmosphere_override,
-            ambient_sound: s.ambient_sound,
-        }),
-    })
-}
 
 async fn handle_exit_to_location(
     state: &WsState,
@@ -1753,10 +1243,18 @@ async fn handle_trigger_challenge(
         return Some(e);
     }
 
-    // Get the challenge to send a prompt to the target player
-    let challenge = match state.app.entities.challenge.get(challenge_uuid).await {
-        Ok(Some(c)) => c,
-        Ok(None) => return Some(error_response("NOT_FOUND", "Challenge not found")),
+    let prompt_data = match state
+        .app
+        .use_cases
+        .challenge
+        .trigger_prompt
+        .execute(challenge_uuid)
+        .await
+    {
+        Ok(data) => data,
+        Err(crate::use_cases::challenge::ChallengeError::NotFound) => {
+            return Some(error_response("NOT_FOUND", "Challenge not found"))
+        }
         Err(e) => {
             tracing::error!(error = %e, "Failed to fetch challenge");
             return Some(error_response(
@@ -1769,24 +1267,15 @@ async fn handle_trigger_challenge(
     // Get target PC's connection to send them the challenge prompt
     // For now, we broadcast to the world - the client filters by pc_id
     if let Some(world_id) = conn_info.world_id {
-        // Build and send challenge prompt
-        let difficulty_display = match &challenge.difficulty {
-            wrldbldr_domain::Difficulty::DC(dc) => format!("DC {}", dc),
-            wrldbldr_domain::Difficulty::Percentage(pct) => format!("{}%", pct),
-            wrldbldr_domain::Difficulty::Opposed => "Opposed".to_string(),
-            wrldbldr_domain::Difficulty::Descriptor(desc) => format!("{:?}", desc),
-            wrldbldr_domain::Difficulty::Custom(custom) => custom.clone(),
-        };
-
         let prompt = ServerMessage::ChallengePrompt {
-            challenge_id: challenge_id.clone(),
-            challenge_name: challenge.name.clone(),
-            skill_name: String::new(), // Would need to fetch from relationship
-            difficulty_display,
-            description: challenge.description.clone(),
-            character_modifier: 0, // Would need to calculate from PC stats
-            suggested_dice: Some("1d20".to_string()),
-            rule_system_hint: None,
+            challenge_id: prompt_data.challenge_id.to_string(),
+            challenge_name: prompt_data.challenge_name.clone(),
+            skill_name: prompt_data.skill_name.clone(),
+            difficulty_display: prompt_data.difficulty_display.clone(),
+            description: prompt_data.description.clone(),
+            character_modifier: prompt_data.character_modifier,
+            suggested_dice: prompt_data.suggested_dice.clone(),
+            rule_system_hint: prompt_data.rule_system_hint.clone(),
         };
 
         // Broadcast to world connections (target player will see it)
@@ -1796,7 +1285,7 @@ async fn handle_trigger_challenge(
     // Confirm to DM that challenge was triggered
     Some(ServerMessage::AdHocChallengeCreated {
         challenge_id,
-        challenge_name: challenge.name,
+        challenge_name: prompt_data.challenge_name,
         target_pc_id: target_character_id,
     })
 }
@@ -1882,163 +1371,31 @@ async fn handle_staging_approval(
         None => return Some(error_response("NOT_CONNECTED", "World not joined")),
     };
 
-    // Use world game time (not wall clock) for staging TTL semantics.
-    let world = match state.app.entities.world.get(world_id).await {
-        Ok(Some(w)) => w,
-        Ok(None) => return Some(error_response("NOT_FOUND", "World not found")),
-        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
-    };
-    let current_game_time = world.game_time.current();
-    let approved_at = chrono::Utc::now();
-
-    // Build a full staging record so per-NPC properties (hidden/mood/reasoning)
-    // are persisted beyond the immediate broadcast.
-    let mut staged_npcs = Vec::new();
-    for npc_info in &approved_npcs {
-        let char_uuid = match Uuid::parse_str(&npc_info.character_id) {
-            Ok(u) => u,
-            Err(_) => continue,
-        };
-        let character_id = wrldbldr_domain::CharacterId::from_uuid(char_uuid);
-
-        let character = state
-            .app
-            .entities
-            .character
-            .get(character_id)
-            .await
-            .ok()
-            .flatten();
-        let (name, sprite_asset, portrait_asset, default_mood) = match character {
-            Some(c) => (c.name, c.sprite_asset, c.portrait_asset, c.default_mood),
-            None => (
-                String::new(),
-                None,
-                None,
-                wrldbldr_domain::MoodState::default(),
-            ),
-        };
-
-        let mood = npc_info
-            .mood
-            .as_deref()
-            .and_then(|m| m.parse::<wrldbldr_domain::MoodState>().ok())
-            .unwrap_or(default_mood);
-
-        staged_npcs.push(wrldbldr_domain::StagedNpc {
-            character_id,
-            name,
-            sprite_asset,
-            portrait_asset,
-            is_present: npc_info.is_present,
-            is_hidden_from_players: npc_info.is_hidden_from_players,
-            reasoning: npc_info.reasoning.clone().unwrap_or_default(),
-            mood,
-        });
-    }
-
-    let staging = wrldbldr_domain::Staging::new(
+    let input = crate::use_cases::staging::ApproveStagingInput {
         region_id,
         location_id,
         world_id,
-        current_game_time,
-        conn_info.user_id.clone(),
-        parse_staging_source(&source),
+        approved_by: conn_info.user_id.clone(),
         ttl_hours,
-        approved_at,
-    )
-    .with_npcs(staged_npcs);
+        source: parse_staging_source(&source),
+        approved_npcs,
+        location_state_id,
+        region_state_id,
+    };
 
-    if let Err(e) = state.app.entities.staging.save_pending(&staging).await {
-        return Some(error_response("REPO_ERROR", &e.to_string()));
-    }
+    let payload = match state.app.use_cases.staging.approve.execute(input).await {
+        Ok(result) => result,
+        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
+    };
 
-    if let Err(e) = state
-        .app
-        .entities
-        .staging
-        .activate_staging(staging.id, region_id)
-        .await
-    {
-        return Some(error_response("REPO_ERROR", &e.to_string()));
-    }
-
-    // Store selected visual states if provided
-    if let Some(loc_state_str) = &location_state_id {
-        if let Ok(loc_uuid) = Uuid::parse_str(loc_state_str) {
-            let loc_state_id = wrldbldr_domain::LocationStateId::from_uuid(loc_uuid);
-            if let Err(e) = state
-                .app
-                .entities
-                .location_state
-                .set_active(location_id, loc_state_id)
-                .await
-            {
-                tracing::warn!(error = %e, "Failed to set active location state");
-            }
-        }
-    }
-
-    if let Some(reg_state_str) = &region_state_id {
-        if let Ok(reg_uuid) = Uuid::parse_str(reg_state_str) {
-            let reg_state_id = wrldbldr_domain::RegionStateId::from_uuid(reg_uuid);
-            if let Err(e) = state
-                .app
-                .entities
-                .region_state
-                .set_active(region_id, reg_state_id)
-                .await
-            {
-                tracing::warn!(error = %e, "Failed to set active region state");
-            }
-        }
-    }
-
-    // Get NPC details for the response (visible NPCs only)
-    let mut npcs_present = Vec::new();
-    for npc_info in &approved_npcs {
-        // Never broadcast hidden NPCs to players (even though DMs also
-        // receive world broadcasts).
-        if npc_info.is_present && !npc_info.is_hidden_from_players {
-            // Fetch character details for name and assets
-            let (name, sprite_asset, portrait_asset) =
-                if let Ok(char_id) = Uuid::parse_str(&npc_info.character_id) {
-                    let char_id = wrldbldr_domain::CharacterId::from_uuid(char_id);
-                    match state.app.entities.character.get(char_id).await {
-                        Ok(Some(character)) => (
-                            character.name,
-                            character.sprite_asset,
-                            character.portrait_asset,
-                        ),
-                        _ => (String::new(), None, None),
-                    }
-                } else {
-                    (String::new(), None, None)
-                };
-
-            npcs_present.push(wrldbldr_protocol::NpcPresentInfo {
-                character_id: npc_info.character_id.clone(),
-                name,
-                sprite_asset,
-                portrait_asset,
-                is_hidden_from_players: npc_info.is_hidden_from_players,
-                mood: npc_info.mood.clone(),
-            });
-        }
-    }
-
-    // Fetch active visual states for the response
-    let visual_state = build_visual_state_for_staging(state, location_id, region_id).await;
-
-    // Broadcast StagingReady to all players in the world
     state
         .connections
         .broadcast_to_world(
             world_id,
             ServerMessage::StagingReady {
-                region_id: region_id.to_string(),
-                npcs_present,
-                visual_state,
+                region_id: payload.region_id.to_string(),
+                npcs_present: payload.npcs_present,
+                visual_state: payload.visual_state,
             },
         )
         .await;
@@ -2078,53 +1435,26 @@ async fn handle_staging_regenerate(
         }
     };
 
-    // Get region info for the LLM prompt
-    let region = match state.app.entities.location.get_region(region_id).await {
-        Ok(Some(r)) => r,
-        Ok(None) => return Some(error_response("NOT_FOUND", "Region not found")),
-        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
-    };
-
-    // Get location name
-    let location_name = state
-        .app
-        .entities
-        .location
-        .get(region.location_id)
-        .await
-        .ok()
-        .flatten()
-        .map(|l| l.name)
-        .unwrap_or_else(|| "Unknown Location".to_string());
-
-    tracing::info!(
-        request_id = %request_id,
-        region_id = %region_id,
-        region_name = %region.name,
-        guidance = %guidance,
-        "Staging regeneration requested - calling LLM"
-    );
-
-    // Generate LLM-based suggestions with the DM's guidance
     let guidance_opt = if guidance.is_empty() {
         None
     } else {
         Some(guidance.as_str())
     };
-    let llm_based_npcs = generate_llm_based_suggestions(
-        state,
-        region_id,
-        &region.name,
-        &location_name,
-        guidance_opt,
-    )
-    .await;
 
-    tracing::info!(
-        request_id = %request_id,
-        npc_count = llm_based_npcs.len(),
-        "Generated LLM staging suggestions"
-    );
+    let llm_based_npcs = match state
+        .app
+        .use_cases
+        .staging
+        .regenerate
+        .execute(region_id, guidance_opt)
+        .await
+    {
+        Ok(npcs) => npcs,
+        Err(crate::use_cases::staging::StagingError::RegionNotFound) => {
+            return Some(error_response("NOT_FOUND", "Region not found"))
+        }
+        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
+    };
 
     Some(ServerMessage::StagingRegenerated {
         request_id,
@@ -2138,8 +1468,8 @@ async fn handle_pre_stage_region(
     region_id: String,
     npcs: Vec<wrldbldr_protocol::ApprovedNpcInfo>,
     ttl_hours: i32,
-    _location_state_id: Option<String>,
-    _region_state_id: Option<String>,
+    location_state_id: Option<String>,
+    region_state_id: Option<String>,
 ) -> Option<ServerMessage> {
     // Get connection info - only DMs can pre-stage
     let conn_info = match state.connections.get(connection_id).await {
@@ -2170,80 +1500,19 @@ async fn handle_pre_stage_region(
     };
     let location_id = region.location_id;
 
-    let world = match state.app.entities.world.get(world_id).await {
-        Ok(Some(w)) => w,
-        Ok(None) => return Some(error_response("NOT_FOUND", "World not found")),
-        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
-    };
-    let current_game_time = world.game_time.current();
-    let approved_at = chrono::Utc::now();
-
-    let mut staged_npcs = Vec::new();
-    for npc_info in &npcs {
-        let char_uuid = match Uuid::parse_str(&npc_info.character_id) {
-            Ok(u) => u,
-            Err(_) => continue,
-        };
-        let character_id = wrldbldr_domain::CharacterId::from_uuid(char_uuid);
-        let character = state
-            .app
-            .entities
-            .character
-            .get(character_id)
-            .await
-            .ok()
-            .flatten();
-        let (name, sprite_asset, portrait_asset, default_mood) = match character {
-            Some(c) => (c.name, c.sprite_asset, c.portrait_asset, c.default_mood),
-            None => (
-                String::new(),
-                None,
-                None,
-                wrldbldr_domain::MoodState::default(),
-            ),
-        };
-
-        let mood = npc_info
-            .mood
-            .as_deref()
-            .and_then(|m| m.parse::<wrldbldr_domain::MoodState>().ok())
-            .unwrap_or(default_mood);
-
-        staged_npcs.push(wrldbldr_domain::StagedNpc {
-            character_id,
-            name,
-            sprite_asset,
-            portrait_asset,
-            is_present: npc_info.is_present,
-            is_hidden_from_players: npc_info.is_hidden_from_players,
-            reasoning: npc_info.reasoning.clone().unwrap_or_default(),
-            mood,
-        });
-    }
-
-    let staging = wrldbldr_domain::Staging::new(
-        region_uuid,
+    let input = crate::use_cases::staging::ApproveStagingInput {
+        region_id: region_uuid,
         location_id,
         world_id,
-        current_game_time,
-        conn_info.user_id.clone(),
-        StagingSource::PreStaged,
+        approved_by: conn_info.user_id.clone(),
         ttl_hours,
-        approved_at,
-    )
-    .with_npcs(staged_npcs);
+        source: StagingSource::PreStaged,
+        approved_npcs: npcs,
+        location_state_id,
+        region_state_id,
+    };
 
-    if let Err(e) = state.app.entities.staging.save_pending(&staging).await {
-        return Some(error_response("REPO_ERROR", &e.to_string()));
-    }
-
-    if let Err(e) = state
-        .app
-        .entities
-        .staging
-        .activate_staging(staging.id, region_uuid)
-        .await
-    {
+    if let Err(e) = state.app.use_cases.staging.approve.execute(input).await {
         return Some(error_response("REPO_ERROR", &e.to_string()));
     }
 
@@ -4258,6 +3527,9 @@ mod ws_integration_tests_inline {
                 scene.clone(),
                 player_character.clone(),
             )),
+            Arc::new(crate::use_cases::challenge::TriggerChallengePrompt::new(
+                challenge.clone(),
+            )),
         );
 
         let approval = crate::use_cases::ApprovalUseCases::new(
@@ -4340,6 +3612,30 @@ mod ws_integration_tests_inline {
             ),
         ));
 
+        let staging_uc = crate::use_cases::StagingUseCases::new(
+            Arc::new(crate::use_cases::staging::RequestStagingApproval::new(
+                character.clone(),
+                staging.clone(),
+                location.clone(),
+                world.clone(),
+                flag.clone(),
+                visual_state_uc.resolve.clone(),
+                llm.clone(),
+            )),
+            Arc::new(crate::use_cases::staging::RegenerateStagingSuggestions::new(
+                location.clone(),
+                character.clone(),
+                llm.clone(),
+            )),
+            Arc::new(crate::use_cases::staging::ApproveStagingRequest::new(
+                staging.clone(),
+                world.clone(),
+                character.clone(),
+                location_state.clone(),
+                region_state.clone(),
+            )),
+        );
+
         let management = crate::use_cases::ManagementUseCases::new(
             crate::use_cases::management::WorldCrud::new(world.clone(), clock.clone()),
             crate::use_cases::management::CharacterCrud::new(character.clone(), clock.clone()),
@@ -4383,6 +3679,7 @@ mod ws_integration_tests_inline {
             visual_state: visual_state_uc,
             management,
             session,
+            staging: staging_uc,
         };
 
         Arc::new(App {

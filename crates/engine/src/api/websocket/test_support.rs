@@ -564,6 +564,9 @@ pub(crate) fn build_test_app_with_ports(
             scene.clone(),
             player_character.clone(),
         )),
+        Arc::new(crate::use_cases::challenge::TriggerChallengePrompt::new(
+            challenge.clone(),
+        )),
     );
 
     let approval = crate::use_cases::ApprovalUseCases::new(
@@ -646,6 +649,30 @@ pub(crate) fn build_test_app_with_ports(
         ),
     ));
 
+    let staging_uc = crate::use_cases::StagingUseCases::new(
+        Arc::new(crate::use_cases::staging::RequestStagingApproval::new(
+            character.clone(),
+            staging.clone(),
+            location.clone(),
+            world.clone(),
+            flag.clone(),
+            visual_state_uc.resolve.clone(),
+            llm.clone(),
+        )),
+        Arc::new(crate::use_cases::staging::RegenerateStagingSuggestions::new(
+            location.clone(),
+            character.clone(),
+            llm.clone(),
+        )),
+        Arc::new(crate::use_cases::staging::ApproveStagingRequest::new(
+            staging.clone(),
+            world.clone(),
+            character.clone(),
+            location_state.clone(),
+            region_state.clone(),
+        )),
+    );
+
     let management = crate::use_cases::ManagementUseCases::new(
         crate::use_cases::management::WorldCrud::new(world.clone(), clock.clone()),
         crate::use_cases::management::CharacterCrud::new(character.clone(), clock.clone()),
@@ -689,6 +716,7 @@ pub(crate) fn build_test_app_with_ports(
         visual_state: visual_state_uc,
         management,
         session,
+        staging: staging_uc,
     };
 
     Arc::new(App {

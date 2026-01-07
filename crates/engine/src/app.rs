@@ -55,6 +55,7 @@ pub struct UseCases {
     pub visual_state: use_cases::VisualStateUseCases,
     pub management: use_cases::ManagementUseCases,
     pub session: use_cases::SessionUseCases,
+    pub staging: use_cases::StagingUseCases,
 }
 
 impl App {
@@ -199,6 +200,9 @@ impl App {
                 scene.clone(),
                 player_character.clone(),
             )),
+            Arc::new(use_cases::challenge::TriggerChallengePrompt::new(
+                challenge.clone(),
+            )),
         );
 
         let approval = use_cases::ApprovalUseCases::new(
@@ -277,6 +281,30 @@ impl App {
             ),
         ));
 
+        let staging_uc = use_cases::StagingUseCases::new(
+            Arc::new(use_cases::staging::RequestStagingApproval::new(
+                character.clone(),
+                staging.clone(),
+                location.clone(),
+                world.clone(),
+                flag.clone(),
+                visual_state_uc.resolve.clone(),
+                llm.clone(),
+            )),
+            Arc::new(use_cases::staging::RegenerateStagingSuggestions::new(
+                location.clone(),
+                character.clone(),
+                llm.clone(),
+            )),
+            Arc::new(use_cases::staging::ApproveStagingRequest::new(
+                staging.clone(),
+                world.clone(),
+                character.clone(),
+                location_state.clone(),
+                region_state.clone(),
+            )),
+        );
+
         let management = use_cases::ManagementUseCases::new(
             use_cases::management::WorldCrud::new(world.clone(), clock.clone()),
             use_cases::management::CharacterCrud::new(character.clone(), clock.clone()),
@@ -320,6 +348,7 @@ impl App {
             visual_state: visual_state_uc,
             management,
             session,
+            staging: staging_uc,
         };
 
         Self {

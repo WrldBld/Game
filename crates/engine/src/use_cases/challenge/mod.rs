@@ -21,11 +21,20 @@ use crate::infrastructure::ports::{ClockPort, QueuePort, RandomPort, RepoError};
 pub struct ChallengeUseCases {
     pub roll: Arc<RollChallenge>,
     pub resolve: Arc<ResolveOutcome>,
+    pub trigger_prompt: Arc<TriggerChallengePrompt>,
 }
 
 impl ChallengeUseCases {
-    pub fn new(roll: Arc<RollChallenge>, resolve: Arc<ResolveOutcome>) -> Self {
-        Self { roll, resolve }
+    pub fn new(
+        roll: Arc<RollChallenge>,
+        resolve: Arc<ResolveOutcome>,
+        trigger_prompt: Arc<TriggerChallengePrompt>,
+    ) -> Self {
+        Self {
+            roll,
+            resolve,
+            trigger_prompt,
+        }
     }
 }
 
@@ -58,6 +67,60 @@ pub struct RollResult {
     pub outcome_triggers: Vec<ProposedTool>,
     /// Roll breakdown string (e.g., "d20(18) + modifier(3) = 21")
     pub roll_breakdown: Option<String>,
+}
+
+/// Challenge prompt data for sending to players.
+#[derive(Debug, Clone)]
+pub struct ChallengePromptData {
+    pub challenge_id: ChallengeId,
+    pub challenge_name: String,
+    pub difficulty_display: String,
+    pub description: String,
+    pub skill_name: String,
+    pub character_modifier: i32,
+    pub suggested_dice: Option<String>,
+    pub rule_system_hint: Option<String>,
+}
+
+/// Build a challenge prompt for a player.
+pub struct TriggerChallengePrompt {
+    challenge: Arc<Challenge>,
+}
+
+impl TriggerChallengePrompt {
+    pub fn new(challenge: Arc<Challenge>) -> Self {
+        Self { challenge }
+    }
+
+    pub async fn execute(
+        &self,
+        challenge_id: ChallengeId,
+    ) -> Result<ChallengePromptData, ChallengeError> {
+        let challenge = self
+            .challenge
+            .get(challenge_id)
+            .await?
+            .ok_or(ChallengeError::NotFound)?;
+
+        let difficulty_display = match &challenge.difficulty {
+            wrldbldr_domain::Difficulty::DC(dc) => format!(\"DC {}\", dc),
+            wrldbldr_domain::Difficulty::Percentage(pct) => format!(\"{}%\", pct),
+            wrldbldr_domain::Difficulty::Opposed => \"Opposed\".to_string(),
+            wrldbldr_domain::Difficulty::Descriptor(desc) => format!(\"{:?}\", desc),
+            wrldbldr_domain::Difficulty::Custom(custom) => custom.clone(),
+        };
+
+        Ok(ChallengePromptData {
+            challenge_id,
+            challenge_name: challenge.name.clone(),
+            difficulty_display,
+            description: challenge.description.clone(),
+            skill_name: String::new(),
+            character_modifier: 0,
+            suggested_dice: Some(\"1d20\".to_string()),
+            rule_system_hint: None,
+        })
+    }
 }
 
 /// Roll a challenge use case.
