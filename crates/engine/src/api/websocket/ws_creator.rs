@@ -58,10 +58,38 @@ pub(super) async fn handle_creator_request(
                 .filter(|s| !s.is_empty())
                 .unwrap_or(&conn_info.user_id);
 
-            let read_key = format!("{}:{}", effective_user_id, world_id);
-            let read_map = state.generation_read_state.read().await;
-            let read_state = read_map.get(&read_key).cloned().unwrap_or_default();
-            drop(read_map);
+            let read_key = format!("{}:{}", effective_user_id, world_uuid);
+
+            // Read-through cache: check memory first, then fall back to persisted state.
+            let mut read_state = {
+                let read_map = state.generation_read_state.read().await;
+                read_map.get(&read_key).cloned()
+            };
+
+            if read_state.is_none() {
+                let persisted = state
+                    .app
+                    .queue
+                    .get_generation_read_state(effective_user_id, world_uuid)
+                    .await
+                    .map_err(|e| ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    })?;
+
+                if let Some((read_batches, read_suggestions)) = persisted {
+                    read_state = Some(GenerationReadState {
+                        read_batches: read_batches.into_iter().collect(),
+                        read_suggestions: read_suggestions.into_iter().collect(),
+                    });
+                }
+
+                // Populate cache even if empty, to avoid repeated DB reads.
+                let mut map = state.generation_read_state.write().await;
+                map.insert(read_key.clone(), read_state.clone().unwrap_or_default());
+            }
+
+            let read_state = read_state.unwrap_or_default();
 
             // Compute queue position for pending asset_generation items in this world.
             let asset_items = state
@@ -197,8 +225,33 @@ pub(super) async fn handle_creator_request(
             read_batches,
             read_suggestions,
         } => {
-            // Use the connection's user_id for now.
-            let read_key = format!("{}:{}", conn_info.user_id, world_id);
+            let world_uuid = match Uuid::parse_str(world_id) {
+                Ok(u) => WorldId::from_uuid(u),
+                Err(_) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(ErrorCode::BadRequest, "Invalid world_id"),
+                    })
+                }
+            };
+
+            // Persist first so state survives restarts.
+            state
+                .app
+                .queue
+                .upsert_generation_read_state(
+                    &conn_info.user_id,
+                    world_uuid,
+                    read_batches,
+                    read_suggestions,
+                )
+                .await
+                .map_err(|e| ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                })?;
+
+            let read_key = format!("{}:{}", conn_info.user_id, world_uuid);
             let mut map = state.generation_read_state.write().await;
             let entry = map.entry(read_key).or_default();
 

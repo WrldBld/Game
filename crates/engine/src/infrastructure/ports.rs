@@ -906,6 +906,24 @@ pub trait QueuePort: Send + Sync {
         &self,
         id: Uuid,
     ) -> Result<Option<ApprovalRequestData>, QueueError>;
+
+    /// Get the persisted generation queue read-state for a user in a world.
+    ///
+    /// Returns (read_batches, read_suggestions) if present.
+    async fn get_generation_read_state(
+        &self,
+        user_id: &str,
+        world_id: WorldId,
+    ) -> Result<Option<(Vec<String>, Vec<String>)>, QueueError>;
+
+    /// Upsert the persisted generation queue read-state for a user in a world.
+    async fn upsert_generation_read_state(
+        &self,
+        user_id: &str,
+        world_id: WorldId,
+        read_batches: &[String],
+        read_suggestions: &[String],
+    ) -> Result<(), QueueError>;
 }
 
 // =============================================================================

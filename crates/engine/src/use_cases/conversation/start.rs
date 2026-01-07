@@ -300,6 +300,24 @@ mod tests {
         ) -> Result<Option<ApprovalRequestData>, QueueError> {
             Ok(None)
         }
+
+        async fn get_generation_read_state(
+            &self,
+            _user_id: &str,
+            _world_id: WorldId,
+        ) -> Result<Option<(Vec<String>, Vec<String>)>, QueueError> {
+            Ok(None)
+        }
+
+        async fn upsert_generation_read_state(
+            &self,
+            _user_id: &str,
+            _world_id: WorldId,
+            _read_batches: &[String],
+            _read_suggestions: &[String],
+        ) -> Result<(), QueueError> {
+            Ok(())
+        }
     }
 
     #[tokio::test]

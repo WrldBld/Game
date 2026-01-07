@@ -58,6 +58,23 @@ impl SqliteQueue {
         .await
         .map_err(|e| QueueError::Error(e.to_string()))?;
 
+        // Durable read-state for Creator generation queue hydration.
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS generation_read_state (
+                user_id TEXT NOT NULL,
+                world_id TEXT NOT NULL,
+                read_batches_json TEXT NOT NULL,
+                read_suggestions_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (user_id, world_id)
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| QueueError::Error(e.to_string()))?;
+
         Ok(Self { pool, clock })
     }
 
@@ -393,5 +410,84 @@ impl QueuePort for SqliteQueue {
             }
             None => Ok(None),
         }
+    }
+
+    async fn get_generation_read_state(
+        &self,
+        user_id: &str,
+        world_id: wrldbldr_domain::WorldId,
+    ) -> Result<Option<(Vec<String>, Vec<String>)>, QueueError> {
+        let row = sqlx::query(
+            r#"
+            SELECT read_batches_json, read_suggestions_json
+            FROM generation_read_state
+            WHERE user_id = ? AND world_id = ?
+            "#,
+        )
+        .bind(user_id)
+        .bind(world_id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| QueueError::Error(e.to_string()))?;
+
+        let Some(row) = row else {
+            return Ok(None);
+        };
+
+        let read_batches_json: String = row
+            .try_get("read_batches_json")
+            .map_err(|e| QueueError::Error(e.to_string()))?;
+        let read_suggestions_json: String = row
+            .try_get("read_suggestions_json")
+            .map_err(|e| QueueError::Error(e.to_string()))?;
+
+        let read_batches: Vec<String> = serde_json::from_str(&read_batches_json)
+            .map_err(|e| QueueError::Error(e.to_string()))?;
+        let read_suggestions: Vec<String> = serde_json::from_str(&read_suggestions_json)
+            .map_err(|e| QueueError::Error(e.to_string()))?;
+
+        Ok(Some((read_batches, read_suggestions)))
+    }
+
+    async fn upsert_generation_read_state(
+        &self,
+        user_id: &str,
+        world_id: wrldbldr_domain::WorldId,
+        read_batches: &[String],
+        read_suggestions: &[String],
+    ) -> Result<(), QueueError> {
+        let now = self.clock.now().to_rfc3339();
+        let read_batches_json =
+            serde_json::to_string(read_batches).map_err(|e| QueueError::Error(e.to_string()))?;
+        let read_suggestions_json = serde_json::to_string(read_suggestions)
+            .map_err(|e| QueueError::Error(e.to_string()))?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO generation_read_state (
+                user_id,
+                world_id,
+                read_batches_json,
+                read_suggestions_json,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, world_id)
+            DO UPDATE SET
+                read_batches_json = excluded.read_batches_json,
+                read_suggestions_json = excluded.read_suggestions_json,
+                updated_at = excluded.updated_at
+            "#,
+        )
+        .bind(user_id)
+        .bind(world_id.to_string())
+        .bind(read_batches_json)
+        .bind(read_suggestions_json)
+        .bind(now)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| QueueError::Error(e.to_string()))?;
+
+        Ok(())
     }
 }

@@ -5017,6 +5017,24 @@ mod ws_integration_tests_inline {
         ) -> Result<Option<wrldbldr_domain::ApprovalRequestData>, QueueError> {
             Ok(None)
         }
+
+        async fn get_generation_read_state(
+            &self,
+            _user_id: &str,
+            _world_id: wrldbldr_domain::WorldId,
+        ) -> Result<Option<(Vec<String>, Vec<String>)>, QueueError> {
+            Ok(None)
+        }
+
+        async fn upsert_generation_read_state(
+            &self,
+            _user_id: &str,
+            _world_id: wrldbldr_domain::WorldId,
+            _read_batches: &[String],
+            _read_suggestions: &[String],
+        ) -> Result<(), QueueError> {
+            Ok(())
+        }
     }
 
     struct NoopLlm;
@@ -5193,6 +5211,24 @@ mod ws_integration_tests_inline {
         ) -> Result<Option<wrldbldr_domain::ApprovalRequestData>, QueueError> {
             let guard = self.state.lock().unwrap();
             Ok(guard.approvals.get(&id).cloned())
+        }
+
+        async fn get_generation_read_state(
+            &self,
+            _user_id: &str,
+            _world_id: wrldbldr_domain::WorldId,
+        ) -> Result<Option<(Vec<String>, Vec<String>)>, QueueError> {
+            Ok(None)
+        }
+
+        async fn upsert_generation_read_state(
+            &self,
+            _user_id: &str,
+            _world_id: wrldbldr_domain::WorldId,
+            _read_batches: &[String],
+            _read_suggestions: &[String],
+        ) -> Result<(), QueueError> {
+            Ok(())
         }
     }
 
