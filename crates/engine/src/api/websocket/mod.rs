@@ -17,6 +17,8 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 mod ws_core;
+mod ws_location;
+mod ws_player;
 mod ws_creator;
 mod ws_lore;
 mod ws_story_events;
@@ -465,24 +467,6 @@ async fn handle_join_world(
 ) -> Option<ServerMessage> {
     let world_id_typed = WorldId::from_uuid(world_id);
 
-    // Verify world exists
-    let world = match state.app.entities.world.get(world_id_typed).await {
-        Ok(Some(w)) => w,
-        Ok(None) => {
-            return Some(ServerMessage::WorldJoinFailed {
-                world_id,
-                error: wrldbldr_protocol::JoinError::WorldNotFound,
-            });
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "Failed to fetch world");
-            return Some(ServerMessage::WorldJoinFailed {
-                world_id,
-                error: wrldbldr_protocol::JoinError::Unknown,
-            });
-        }
-    };
-
     // Convert protocol role to internal role
     let internal_role = match role {
         ProtoWorldRole::Dm => WorldRole::Dm,
@@ -491,6 +475,31 @@ async fn handle_join_world(
     };
 
     let pc_id_typed = pc_id.map(PlayerCharacterId::from_uuid);
+    let include_pc = matches!(role, ProtoWorldRole::Player);
+
+    let join_result = match state
+        .app
+        .use_cases
+        .session
+        .join_world
+        .execute(world_id_typed, pc_id_typed, include_pc)
+        .await
+    {
+        Ok(result) => result,
+        Err(crate::use_cases::session::JoinWorldError::WorldNotFound) => {
+            return Some(ServerMessage::WorldJoinFailed {
+                world_id,
+                error: wrldbldr_protocol::JoinError::WorldNotFound,
+            });
+        }
+        Err(crate::use_cases::session::JoinWorldError::Repo(e)) => {
+            tracing::error!(error = %e, "Failed to build world snapshot");
+            return Some(ServerMessage::WorldJoinFailed {
+                world_id,
+                error: wrldbldr_protocol::JoinError::Unknown,
+            });
+        }
+    };
 
     // Join the world
     if let Err(e) = state
@@ -530,127 +539,13 @@ async fn handle_join_world(
         })
         .collect();
 
-    // Build a session world snapshot for the client.
-    // Player expects this to match `SessionWorldSnapshot` (player application DTO).
-    // Keep it lightweight: world + locations + characters + current scene.
-    let locations = state
-        .app
-        .entities
-        .location
-        .list_in_world(world_id_typed)
-        .await
-        .unwrap_or_default();
-
-    let characters = state
-        .app
-        .entities
-        .character
-        .list_in_world(world_id_typed)
-        .await
-        .unwrap_or_default();
-
-    let current_scene = state
-        .app
-        .entities
-        .scene
-        .get_current(world_id_typed)
-        .await
-        .unwrap_or(None);
-
-    let current_scene_json = current_scene.as_ref().map(|scene| {
-        let featured = scene
-            .featured_characters
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>();
-
-        serde_json::json!({
-            "id": scene.id.to_string(),
-            "name": scene.name,
-            "location_id": scene.location_id.to_string(),
-            "time_context": format!("{:?}", scene.time_context),
-            "backdrop_override": scene.backdrop_override,
-            "featured_characters": featured,
-            "directorial_notes": scene.directorial_notes,
-        })
-    });
-
-    let scenes_json = current_scene_json
-        .as_ref()
-        .map(|s| vec![s.clone()])
-        .unwrap_or_else(Vec::new);
-
-    let snapshot = serde_json::json!({
-        "world": {
-            "id": world.id.to_string(),
-            "name": world.name,
-            "description": world.description,
-            "rule_system": world.rule_system,
-            "created_at": world.created_at.to_rfc3339(),
-            "updated_at": world.updated_at.to_rfc3339(),
-        },
-        "locations": locations.into_iter().map(|loc| {
-            serde_json::json!({
-                "id": loc.id.to_string(),
-                "name": loc.name,
-                "description": loc.description,
-                "location_type": format!("{:?}", loc.location_type),
-                "backdrop_asset": loc.backdrop_asset,
-                "parent_id": null,
-            })
-        }).collect::<Vec<_>>(),
-        "characters": characters.into_iter().map(|c| {
-            serde_json::json!({
-                "id": c.id.to_string(),
-                "name": c.name,
-                "description": c.description,
-                "archetype": format!("{:?}", c.current_archetype),
-                "sprite_asset": c.sprite_asset,
-                "portrait_asset": c.portrait_asset,
-                "is_alive": c.is_alive,
-                "is_active": c.is_active,
-            })
-        }).collect::<Vec<_>>(),
-        "scenes": scenes_json,
-        "current_scene": current_scene_json,
-    });
-
-    // Fetch PC data if role is Player and pc_id is provided
-    let your_pc = if matches!(role, ProtoWorldRole::Player) {
-        if let Some(pc_id) = pc_id_typed {
-            match state.app.entities.player_character.get(pc_id).await {
-                Ok(Some(pc)) => Some(serde_json::json!({
-                    "id": pc.id.to_string(),
-                    "name": pc.name,
-                    "description": pc.description,
-                    "portrait_asset": pc.portrait_asset,
-                    "sprite_asset": pc.sprite_asset,
-                    "current_location_id": pc.current_location_id.to_string(),
-                    "current_region_id": pc.current_region_id.map(|id| id.to_string()),
-                })),
-                Ok(None) => {
-                    tracing::warn!(pc_id = %pc_id, "PC not found when joining world");
-                    None
-                }
-                Err(e) => {
-                    tracing::error!(error = %e, "Failed to fetch PC data");
-                    None
-                }
-            }
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
     // Get connection info to broadcast UserJoined to other world members
     if let Some(conn_info) = state.connections.get(connection_id).await {
         let user_joined_msg = ServerMessage::UserJoined {
             user_id: conn_info.user_id,
             username: None,
             role,
-            pc: your_pc.clone(),
+            pc: join_result.your_pc.clone(),
         };
         state
             .connections
@@ -660,10 +555,10 @@ async fn handle_join_world(
 
     Some(ServerMessage::WorldJoined {
         world_id,
-        snapshot,
+        snapshot: join_result.snapshot,
         connected_users,
         your_role: role,
-        your_pc,
+        your_pc: join_result.your_pc,
     })
 }
 
@@ -1456,7 +1351,10 @@ async fn handle_request(
             ws_core::handle_character_request(state, &request_id, &_conn_info, req).await
         }
         RequestPayload::Location(req) => {
-            ws_core::handle_location_request(state, &request_id, &_conn_info, req).await
+            ws_location::handle_location_request(state, &request_id, &_conn_info, req).await
+        }
+        RequestPayload::Region(req) => {
+            ws_location::handle_region_request(state, &request_id, &_conn_info, req).await
         }
         RequestPayload::Time(req) => {
             ws_core::handle_time_request(state, &request_id, &_conn_info, req).await
@@ -1466,6 +1364,15 @@ async fn handle_request(
         }
         RequestPayload::Items(req) => {
             ws_core::handle_items_request(state, &request_id, &_conn_info, req).await
+        }
+        RequestPayload::PlayerCharacter(req) => {
+            ws_player::handle_player_character_request(state, &request_id, &_conn_info, req).await
+        }
+        RequestPayload::Relationship(req) => {
+            ws_player::handle_relationship_request(state, &request_id, &_conn_info, req).await
+        }
+        RequestPayload::Observation(req) => {
+            ws_player::handle_observation_request(state, &request_id, &_conn_info, req).await
         }
 
         RequestPayload::Generation(req) => {
@@ -1479,17 +1386,13 @@ async fn handle_request(
         }
 
         // Not yet implemented in the engine.
-        RequestPayload::Region(_)
-        | RequestPayload::Scene(_)
+        RequestPayload::Scene(_)
         | RequestPayload::Act(_)
         | RequestPayload::Interaction(_)
         | RequestPayload::Skill(_)
         | RequestPayload::Challenge(_)
         | RequestPayload::NarrativeEvent(_)
         | RequestPayload::EventChain(_)
-        | RequestPayload::PlayerCharacter(_)
-        | RequestPayload::Relationship(_)
-        | RequestPayload::Observation(_)
         | RequestPayload::Goal(_)
         | RequestPayload::Want(_)
         | RequestPayload::Actantial(_)
@@ -4434,6 +4337,36 @@ mod ws_integration_tests_inline {
             ),
         ));
 
+        let management = crate::use_cases::ManagementUseCases::new(
+            crate::use_cases::management::WorldCrud::new(world.clone(), clock.clone()),
+            crate::use_cases::management::CharacterCrud::new(character.clone(), clock.clone()),
+            crate::use_cases::management::LocationCrud::new(location.clone()),
+            crate::use_cases::management::PlayerCharacterCrud::new(
+                player_character.clone(),
+                location.clone(),
+                clock.clone(),
+            ),
+            crate::use_cases::management::RelationshipCrud::new(character.clone(), clock.clone()),
+            crate::use_cases::management::ObservationCrud::new(
+                observation.clone(),
+                player_character.clone(),
+                character.clone(),
+                location.clone(),
+                world.clone(),
+                clock.clone(),
+            ),
+        );
+
+        let session = crate::use_cases::SessionUseCases::new(Arc::new(
+            crate::use_cases::session::JoinWorld::new(
+                world.clone(),
+                location.clone(),
+                character.clone(),
+                scene.clone(),
+                player_character.clone(),
+            ),
+        ));
+
         let use_cases = UseCases {
             movement,
             conversation,
@@ -4445,6 +4378,8 @@ mod ws_integration_tests_inline {
             narrative: narrative_uc,
             time: time_uc,
             visual_state: visual_state_uc,
+            management,
+            session,
         };
 
         Arc::new(App {

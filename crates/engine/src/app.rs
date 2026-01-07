@@ -53,6 +53,8 @@ pub struct UseCases {
     pub narrative: use_cases::NarrativeUseCases,
     pub time: use_cases::TimeUseCases,
     pub visual_state: use_cases::VisualStateUseCases,
+    pub management: use_cases::ManagementUseCases,
+    pub session: use_cases::SessionUseCases,
 }
 
 impl App {
@@ -272,6 +274,36 @@ impl App {
             ),
         ));
 
+        let management = use_cases::ManagementUseCases::new(
+            use_cases::management::WorldCrud::new(world.clone(), clock.clone()),
+            use_cases::management::CharacterCrud::new(character.clone(), clock.clone()),
+            use_cases::management::LocationCrud::new(location.clone()),
+            use_cases::management::PlayerCharacterCrud::new(
+                player_character.clone(),
+                location.clone(),
+                clock.clone(),
+            ),
+            use_cases::management::RelationshipCrud::new(character.clone(), clock.clone()),
+            use_cases::management::ObservationCrud::new(
+                observation.clone(),
+                player_character.clone(),
+                character.clone(),
+                location.clone(),
+                world.clone(),
+                clock.clone(),
+            ),
+        );
+
+        let session = use_cases::SessionUseCases::new(Arc::new(
+            use_cases::session::JoinWorld::new(
+                world.clone(),
+                location.clone(),
+                character.clone(),
+                scene.clone(),
+                player_character.clone(),
+            ),
+        ));
+
         let use_cases = UseCases {
             movement,
             conversation,
@@ -283,6 +315,8 @@ impl App {
             narrative: narrative_uc,
             time: time_uc,
             visual_state: visual_state_uc,
+            management,
+            session,
         };
 
         Self {

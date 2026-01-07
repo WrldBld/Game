@@ -643,6 +643,36 @@ pub(crate) fn build_test_app_with_ports(
         ),
     ));
 
+    let management = crate::use_cases::ManagementUseCases::new(
+        crate::use_cases::management::WorldCrud::new(world.clone(), clock.clone()),
+        crate::use_cases::management::CharacterCrud::new(character.clone(), clock.clone()),
+        crate::use_cases::management::LocationCrud::new(location.clone()),
+        crate::use_cases::management::PlayerCharacterCrud::new(
+            player_character.clone(),
+            location.clone(),
+            clock.clone(),
+        ),
+        crate::use_cases::management::RelationshipCrud::new(character.clone(), clock.clone()),
+        crate::use_cases::management::ObservationCrud::new(
+            observation.clone(),
+            player_character.clone(),
+            character.clone(),
+            location.clone(),
+            world.clone(),
+            clock.clone(),
+        ),
+    );
+
+    let session = crate::use_cases::SessionUseCases::new(Arc::new(
+        crate::use_cases::session::JoinWorld::new(
+            world.clone(),
+            location.clone(),
+            character.clone(),
+            scene.clone(),
+            player_character.clone(),
+        ),
+    ));
+
     let use_cases = UseCases {
         movement,
         conversation,
@@ -654,6 +684,8 @@ pub(crate) fn build_test_app_with_ports(
         narrative: narrative_uc,
         time: time_uc,
         visual_state: visual_state_uc,
+        management,
+        session,
     };
 
     Arc::new(App {

@@ -13,6 +13,8 @@ pub mod queues;
 pub mod narrative;
 pub mod time;
 pub mod visual_state;
+pub mod management;
+pub mod session;
 
 // Re-export main types
 pub use movement::MovementUseCases;
@@ -25,3 +27,5 @@ pub use queues::QueueUseCases;
 pub use narrative::NarrativeUseCases;
 pub use time::TimeUseCases;
 pub use visual_state::VisualStateUseCases;
+pub use management::ManagementUseCases;
+pub use session::SessionUseCases;
