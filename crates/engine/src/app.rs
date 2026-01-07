@@ -264,7 +264,10 @@ impl App {
                 clock.clone(),
             )));
 
-        let time_uc = use_cases::TimeUseCases::new(suggest_time);
+        let time_uc = use_cases::TimeUseCases::new(
+            suggest_time,
+            Arc::new(use_cases::time::TimeControl::new(world.clone())),
+        );
 
         let visual_state_uc = use_cases::VisualStateUseCases::new(Arc::new(
             use_cases::visual_state::ResolveVisualState::new(

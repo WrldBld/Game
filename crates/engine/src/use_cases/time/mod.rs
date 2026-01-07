@@ -19,11 +19,12 @@ use crate::infrastructure::ports::{ClockPort, RepoError};
 /// Container for time use cases.
 pub struct TimeUseCases {
     pub suggest_time: Arc<SuggestTime>,
+    pub control: Arc<TimeControl>,
 }
 
 impl TimeUseCases {
-    pub fn new(suggest_time: Arc<SuggestTime>) -> Self {
-        Self { suggest_time }
+    pub fn new(suggest_time: Arc<SuggestTime>, control: Arc<TimeControl>) -> Self {
+        Self { suggest_time, control }
     }
 }
 
@@ -181,6 +182,240 @@ pub enum SuggestTimeError {
     Repo(#[from] RepoError),
     #[error("World error: {0}")]
     World(#[from] WorldError),
+}
+
+// =============================================================================
+// Time Control
+// =============================================================================
+
+/// Consolidated use case for time control operations (get/advance/set/config).
+pub struct TimeControl {
+    world: Arc<World>,
+}
+
+impl TimeControl {
+    pub fn new(world: Arc<World>) -> Self {
+        Self { world }
+    }
+
+    pub async fn get_game_time(&self, world_id: WorldId) -> Result<GameTime, TimeControlError> {
+        self.world
+            .get_current_time(world_id)
+            .await
+            .map_err(TimeControlError::from)
+    }
+
+    pub async fn advance_hours(
+        &self,
+        world_id: WorldId,
+        hours: u32,
+    ) -> Result<TimeAdvanceOutcome, TimeControlError> {
+        let mut world = self
+            .world
+            .get(world_id)
+            .await?
+            .ok_or(TimeControlError::WorldNotFound)?;
+
+        let previous_time = world.game_time.clone();
+        world.game_time.advance_hours(hours);
+        world.updated_at = chrono::Utc::now();
+
+        self.world.save(&world).await?;
+
+        Ok(TimeAdvanceOutcome {
+            previous_time,
+            new_time: world.game_time,
+            minutes_advanced: hours * 60,
+        })
+    }
+
+    pub async fn advance_minutes(
+        &self,
+        world_id: WorldId,
+        minutes: u32,
+        reason: TimeAdvanceReason,
+    ) -> Result<TimeAdvanceOutcome, TimeControlError> {
+        let result = self
+            .world
+            .advance_time(world_id, minutes, reason)
+            .await?;
+
+        Ok(TimeAdvanceOutcome {
+            previous_time: result.previous_time,
+            new_time: result.new_time,
+            minutes_advanced: result.minutes_advanced,
+        })
+    }
+
+    pub async fn set_game_time(
+        &self,
+        world_id: WorldId,
+        day: u32,
+        hour: u8,
+    ) -> Result<TimeAdvanceOutcome, TimeControlError> {
+        let mut world = self
+            .world
+            .get(world_id)
+            .await?
+            .ok_or(TimeControlError::WorldNotFound)?;
+
+        let previous_time = world.game_time.clone();
+        world.game_time.set_day_and_hour(day, hour as u32);
+        world.updated_at = chrono::Utc::now();
+
+        self.world.save(&world).await?;
+
+        Ok(TimeAdvanceOutcome {
+            previous_time,
+            new_time: world.game_time,
+            minutes_advanced: 0,
+        })
+    }
+
+    pub async fn skip_to_period(
+        &self,
+        world_id: WorldId,
+        period: TimeOfDay,
+    ) -> Result<TimeAdvanceOutcome, TimeControlError> {
+        let mut world = self
+            .world
+            .get(world_id)
+            .await?
+            .ok_or(TimeControlError::WorldNotFound)?;
+
+        let previous_time = world.game_time.clone();
+        let minutes_until = world.game_time.minutes_until_period(period);
+        world.game_time.skip_to_period(period);
+        world.updated_at = chrono::Utc::now();
+
+        self.world.save(&world).await?;
+
+        Ok(TimeAdvanceOutcome {
+            previous_time,
+            new_time: world.game_time,
+            minutes_advanced: minutes_until,
+        })
+    }
+
+    pub async fn get_time_config(
+        &self,
+        world_id: WorldId,
+    ) -> Result<wrldbldr_protocol::types::GameTimeConfig, TimeControlError> {
+        let world = self
+            .world
+            .get(world_id)
+            .await?
+            .ok_or(TimeControlError::WorldNotFound)?;
+
+        Ok(domain_time_config_to_protocol(&world.time_config))
+    }
+
+    pub async fn update_time_config(
+        &self,
+        world_id: WorldId,
+        config: wrldbldr_protocol::types::GameTimeConfig,
+    ) -> Result<TimeConfigUpdate, TimeControlError> {
+        let mut world = self
+            .world
+            .get(world_id)
+            .await?
+            .ok_or(TimeControlError::WorldNotFound)?;
+
+        let normalized_config = normalize_protocol_time_config(config);
+        let domain_config = protocol_time_config_to_domain(&normalized_config);
+
+        world.time_config = domain_config;
+        world.updated_at = chrono::Utc::now();
+
+        self.world.save(&world).await?;
+
+        Ok(TimeConfigUpdate {
+            world_id,
+            normalized_config,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TimeAdvanceOutcome {
+    pub previous_time: GameTime,
+    pub new_time: GameTime,
+    pub minutes_advanced: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimeConfigUpdate {
+    pub world_id: WorldId,
+    pub normalized_config: wrldbldr_protocol::types::GameTimeConfig,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum TimeControlError {
+    #[error("World not found")]
+    WorldNotFound,
+    #[error("Repository error: {0}")]
+    Repo(#[from] RepoError),
+    #[error("World error: {0}")]
+    World(#[from] WorldError),
+}
+
+fn normalize_protocol_time_config(
+    mut config: wrldbldr_protocol::types::GameTimeConfig,
+) -> wrldbldr_protocol::types::GameTimeConfig {
+    if matches!(config.mode, wrldbldr_protocol::types::TimeMode::Auto) {
+        config.mode = wrldbldr_protocol::types::TimeMode::Suggested;
+    }
+    config
+}
+
+fn protocol_time_config_to_domain(
+    config: &wrldbldr_protocol::types::GameTimeConfig,
+) -> wrldbldr_domain::GameTimeConfig {
+    let mode = match config.mode {
+        wrldbldr_protocol::types::TimeMode::Manual => wrldbldr_domain::TimeMode::Manual,
+        wrldbldr_protocol::types::TimeMode::Suggested => wrldbldr_domain::TimeMode::Suggested,
+        wrldbldr_protocol::types::TimeMode::Auto => wrldbldr_domain::TimeMode::Suggested,
+    };
+
+    let time_costs = wrldbldr_domain::TimeCostConfig {
+        travel_location: config.time_costs.travel_location,
+        travel_region: config.time_costs.travel_region,
+        rest_short: config.time_costs.rest_short,
+        rest_long: config.time_costs.rest_long,
+        conversation: config.time_costs.conversation,
+        challenge: config.time_costs.challenge,
+        scene_transition: config.time_costs.scene_transition,
+    };
+
+    wrldbldr_domain::GameTimeConfig {
+        mode,
+        time_costs,
+        show_time_to_players: config.show_time_to_players,
+        time_format: wrldbldr_domain::TimeFormat::TwelveHour,
+    }
+}
+
+fn domain_time_config_to_protocol(
+    config: &wrldbldr_domain::GameTimeConfig,
+) -> wrldbldr_protocol::types::GameTimeConfig {
+    wrldbldr_protocol::types::GameTimeConfig {
+        mode: match config.mode {
+            wrldbldr_domain::TimeMode::Manual => wrldbldr_protocol::types::TimeMode::Manual,
+            wrldbldr_domain::TimeMode::Suggested => wrldbldr_protocol::types::TimeMode::Suggested,
+            wrldbldr_domain::TimeMode::Auto => wrldbldr_protocol::types::TimeMode::Suggested,
+        },
+        time_costs: wrldbldr_protocol::types::TimeCostConfig {
+            travel_location: config.time_costs.travel_location,
+            travel_region: config.time_costs.travel_region,
+            rest_short: config.time_costs.rest_short,
+            rest_long: config.time_costs.rest_long,
+            conversation: config.time_costs.conversation,
+            challenge: config.time_costs.challenge,
+            scene_transition: config.time_costs.scene_transition,
+        },
+        show_time_to_players: config.show_time_to_players,
+        time_format: wrldbldr_protocol::types::TimeFormat::TwelveHour,
+    }
 }
 
 // =============================================================================

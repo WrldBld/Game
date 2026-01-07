@@ -4327,7 +4327,10 @@ mod ws_integration_tests_inline {
             ),
         ));
 
-        let time_uc = crate::use_cases::TimeUseCases::new(suggest_time);
+        let time_uc = crate::use_cases::TimeUseCases::new(
+            suggest_time,
+            Arc::new(crate::use_cases::time::TimeControl::new(world.clone())),
+        );
 
         let visual_state_uc = crate::use_cases::VisualStateUseCases::new(Arc::new(
             crate::use_cases::visual_state::ResolveVisualState::new(

@@ -2,9 +2,7 @@ use super::*;
 
 use crate::api::connections::ConnectionInfo;
 
-use wrldbldr_protocol::{
-    CharacterRequest, ItemsRequest, LocationRequest, NpcRequest, TimeRequest, WorldRequest,
-};
+use wrldbldr_protocol::{CharacterRequest, ItemsRequest, NpcRequest, TimeRequest, WorldRequest};
 
 pub(super) async fn handle_world_request(
     state: &WsState,
@@ -14,7 +12,7 @@ pub(super) async fn handle_world_request(
 ) -> Result<ResponseResult, ServerMessage> {
     let _ = conn_info;
     match request {
-        WorldRequest::ListWorlds => match state.app.entities.world.list_all().await {
+        WorldRequest::ListWorlds => match state.app.use_cases.management.world.list().await {
             Ok(worlds) => {
                 let data: Vec<serde_json::Value> = worlds
                     .into_iter()
@@ -40,7 +38,7 @@ pub(super) async fn handle_world_request(
                 Err(e) => return Err(e),
             };
 
-            match state.app.entities.world.get(world_id_typed).await {
+            match state.app.use_cases.management.world.get(world_id_typed).await {
                 Ok(Some(world)) => Ok(ResponseResult::success(serde_json::json!({
                     "id": world.id,
                     "name": world.name,
@@ -56,6 +54,113 @@ pub(super) async fn handle_world_request(
                 )),
             }
         }
+
+        WorldRequest::CreateWorld { data } => {
+            if let Err(e) = require_dm_for_request(conn_info, request_id) {
+                return Err(e);
+            }
+
+            match state
+                .app
+                .use_cases
+                .management
+                .world
+                .create(data.name, data.description, data.setting)
+                .await
+            {
+                Ok(world) => Ok(ResponseResult::success(serde_json::json!({
+                    "id": world.id.to_string(),
+                    "name": world.name,
+                    "description": world.description,
+                }))),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        WorldRequest::UpdateWorld { world_id, data } => {
+            if let Err(e) = require_dm_for_request(conn_info, request_id) {
+                return Err(e);
+            }
+
+            let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            match state
+                .app
+                .use_cases
+                .management
+                .world
+                .update(world_id_typed, data.name, data.description, data.setting)
+                .await
+            {
+                Ok(world) => Ok(ResponseResult::success(serde_json::json!({
+                    "id": world.id.to_string(),
+                    "name": world.name,
+                    "description": world.description,
+                }))),
+                Err(crate::use_cases::management::ManagementError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"))
+                }
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        WorldRequest::DeleteWorld { world_id } => {
+            if let Err(e) = require_dm_for_request(conn_info, request_id) {
+                return Err(e);
+            }
+
+            let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            match state
+                .app
+                .use_cases
+                .management
+                .world
+                .delete(world_id_typed)
+                .await
+            {
+                Ok(()) => Ok(ResponseResult::success_empty()),
+                Err(crate::use_cases::management::ManagementError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"))
+                }
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        WorldRequest::ExportWorld { world_id } => {
+            let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            match state.app.use_cases.world.export.execute(world_id_typed).await {
+                Ok(export) => Ok(ResponseResult::success(serde_json::json!(export))),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        WorldRequest::GetSheetTemplate { .. } => Ok(ResponseResult::error(
+            ErrorCode::BadRequest,
+            "Sheet template request is not yet implemented",
+        )),
 
         other => {
             let msg = format!("This request type is not yet implemented: {:?}", other);
@@ -79,7 +184,8 @@ pub(super) async fn handle_character_request(
 
             match state
                 .app
-                .entities
+                .use_cases
+                .management
                 .character
                 .list_in_world(world_id_typed)
                 .await
@@ -89,14 +195,186 @@ pub(super) async fn handle_character_request(
                         .into_iter()
                         .map(|c| {
                             serde_json::json!({
-                                "id": c.id,
+                                "id": c.id.to_string(),
                                 "name": c.name,
-                                "description": c.description,
-                                "is_active": c.is_active,
+                                "archetype": Some(c.current_archetype.to_string()),
                             })
                         })
                         .collect();
                     Ok(ResponseResult::success(data))
+                }
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        CharacterRequest::GetCharacter { character_id } => {
+            let char_id = match parse_character_id_for_request(&character_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            match state.app.use_cases.management.character.get(char_id).await {
+                Ok(Some(character)) => Ok(ResponseResult::success(serde_json::json!({
+                    "id": character.id.to_string(),
+                    "name": character.name,
+                    "description": if character.description.is_empty() { None } else { Some(character.description) },
+                    "archetype": Some(character.current_archetype.to_string()),
+                    "sprite_asset": character.sprite_asset,
+                    "portrait_asset": character.portrait_asset,
+                    "sheet_data": serde_json::Value::Null,
+                }))),
+                Ok(None) => Ok(ResponseResult::error(
+                    ErrorCode::NotFound,
+                    "Character not found",
+                )),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        CharacterRequest::CreateCharacter { world_id, data } => {
+            if let Err(e) = require_dm_for_request(conn_info, request_id) {
+                return Err(e);
+            }
+
+            let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            match state
+                .app
+                .use_cases
+                .management
+                .character
+                .create(
+                    world_id_typed,
+                    data.name,
+                    data.description,
+                    data.archetype,
+                    data.sprite_asset,
+                    data.portrait_asset,
+                )
+                .await
+            {
+                Ok(character) => Ok(ResponseResult::success(serde_json::json!({
+                    "id": character.id.to_string(),
+                    "name": character.name,
+                    "description": if character.description.is_empty() { None } else { Some(character.description) },
+                    "archetype": Some(character.current_archetype.to_string()),
+                    "sprite_asset": character.sprite_asset,
+                    "portrait_asset": character.portrait_asset,
+                    "sheet_data": serde_json::Value::Null,
+                }))),
+                Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
+                    Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
+                }
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        CharacterRequest::UpdateCharacter { character_id, data } => {
+            if let Err(e) = require_dm_for_request(conn_info, request_id) {
+                return Err(e);
+            }
+
+            let char_id = match parse_character_id_for_request(&character_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            match state
+                .app
+                .use_cases
+                .management
+                .character
+                .update(
+                    char_id,
+                    data.name,
+                    data.description,
+                    data.sprite_asset,
+                    data.portrait_asset,
+                    data.is_alive,
+                    data.is_active,
+                )
+                .await
+            {
+                Ok(character) => Ok(ResponseResult::success(serde_json::json!({
+                    "id": character.id.to_string(),
+                    "name": character.name,
+                    "description": if character.description.is_empty() { None } else { Some(character.description) },
+                    "archetype": Some(character.current_archetype.to_string()),
+                    "sprite_asset": character.sprite_asset,
+                    "portrait_asset": character.portrait_asset,
+                    "sheet_data": serde_json::Value::Null,
+                }))),
+                Err(crate::use_cases::management::ManagementError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Character not found"))
+                }
+                Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
+                    Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
+                }
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        CharacterRequest::DeleteCharacter { character_id } => {
+            if let Err(e) = require_dm_for_request(conn_info, request_id) {
+                return Err(e);
+            }
+
+            let char_id = match parse_character_id_for_request(&character_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            match state.app.use_cases.management.character.delete(char_id).await {
+                Ok(()) => Ok(ResponseResult::success_empty()),
+                Err(crate::use_cases::management::ManagementError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Character not found"))
+                }
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        CharacterRequest::ChangeArchetype { character_id, data } => {
+            if let Err(e) = require_dm_for_request(conn_info, request_id) {
+                return Err(e);
+            }
+
+            let char_id = match parse_character_id_for_request(&character_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            match state
+                .app
+                .use_cases
+                .management
+                .character
+                .change_archetype(char_id, data.new_archetype, data.reason)
+                .await
+            {
+                Ok(()) => Ok(ResponseResult::success_empty()),
+                Err(crate::use_cases::management::ManagementError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Character not found"))
+                }
+                Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
+                    Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
@@ -154,53 +432,6 @@ pub(super) async fn handle_character_request(
     }
 }
 
-pub(super) async fn handle_location_request(
-    state: &WsState,
-    request_id: &str,
-    _conn_info: &ConnectionInfo,
-    request: LocationRequest,
-) -> Result<ResponseResult, ServerMessage> {
-    match request {
-        LocationRequest::ListLocations { world_id } => {
-            let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
-                Ok(id) => id,
-                Err(e) => return Err(e),
-            };
-
-            match state
-                .app
-                .entities
-                .location
-                .list_in_world(world_id_typed)
-                .await
-            {
-                Ok(locations) => {
-                    let data: Vec<serde_json::Value> = locations
-                        .into_iter()
-                        .map(|l| {
-                            serde_json::json!({
-                                "id": l.id,
-                                "name": l.name,
-                                "description": l.description,
-                            })
-                        })
-                        .collect();
-                    Ok(ResponseResult::success(data))
-                }
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
-            }
-        }
-
-        other => {
-            let msg = format!("This request type is not yet implemented: {:?}", other);
-            Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
-        }
-    }
-}
-
 pub(super) async fn handle_time_request(
     state: &WsState,
     request_id: &str,
@@ -214,23 +445,20 @@ pub(super) async fn handle_time_request(
                 Err(e) => return Err(e),
             };
 
-            match state.app.entities.world.get(world_id_typed).await {
-                Ok(Some(world)) => {
-                    let gt = &world.game_time;
-                    let game_time = wrldbldr_protocol::types::GameTime {
-                        day: gt.day_ordinal(),
-                        hour: gt.current().hour() as u8,
-                        minute: gt.current().minute() as u8,
-                        is_paused: gt.is_paused(),
-                    };
-                    Ok(ResponseResult::success(serde_json::json!({
-                        "game_time": game_time,
-                    })))
+            match state
+                .app
+                .use_cases
+                .time
+                .control
+                .get_game_time(world_id_typed)
+                .await
+            {
+                Ok(game_time) => Ok(ResponseResult::success(serde_json::json!({
+                    "game_time": crate::use_cases::time::game_time_to_protocol(&game_time),
+                }))),
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"))
                 }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "World not found",
-                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -249,9 +477,16 @@ pub(super) async fn handle_time_request(
                     Err(e) => return Err(e),
                 };
 
-            let mut world = match state.app.entities.world.get(world_id_typed).await {
-                Ok(Some(w)) => w,
-                Ok(None) => {
+            let outcome = match state
+                .app
+                .use_cases
+                .time
+                .control
+                .advance_hours(world_id_typed, hours)
+                .await
+            {
+                Ok(result) => result,
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
                         result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
@@ -265,24 +500,7 @@ pub(super) async fn handle_time_request(
                 }
             };
 
-            world.game_time.advance_hours(hours);
-            world.updated_at = chrono::Utc::now();
-
-            if let Err(e) = state.app.entities.world.save(&world).await {
-                return Err(ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
-                });
-            }
-
-            let gt = &world.game_time;
-            let game_time = wrldbldr_protocol::types::GameTime {
-                day: gt.day_ordinal(),
-                hour: gt.current().hour() as u8,
-                minute: gt.current().minute() as u8,
-                is_paused: gt.is_paused(),
-            };
-
+            let game_time = crate::use_cases::time::game_time_to_protocol(&outcome.new_time);
             let update_msg = ServerMessage::GameTimeUpdated { game_time };
             state
                 .connections
@@ -292,8 +510,8 @@ pub(super) async fn handle_time_request(
             tracing::info!(
                 world_id = %world_id_typed,
                 hours_advanced = hours,
-                new_day = gt.day_ordinal(),
-                new_hour = gt.current().hour(),
+                new_day = outcome.new_time.day_ordinal(),
+                new_hour = outcome.new_time.current().hour(),
                 "Game time advanced"
             );
 
@@ -318,9 +536,19 @@ pub(super) async fn handle_time_request(
                     Err(e) => return Err(e),
                 };
 
-            let mut world = match state.app.entities.world.get(world_id_typed).await {
-                Ok(Some(w)) => w,
-                Ok(None) => {
+            let advance_reason = wrldbldr_domain::TimeAdvanceReason::DmManual {
+                hours: minutes / 60,
+            };
+            let outcome = match state
+                .app
+                .use_cases
+                .time
+                .control
+                .advance_minutes(world_id_typed, minutes, advance_reason.clone())
+                .await
+            {
+                Ok(result) => result,
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
                         result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
@@ -334,22 +562,9 @@ pub(super) async fn handle_time_request(
                 }
             };
 
-            let previous_time = world.game_time.clone();
-            let advance_reason = wrldbldr_domain::TimeAdvanceReason::DmManual {
-                hours: minutes / 60,
-            };
-            let result = world.advance_time(minutes, advance_reason.clone(), chrono::Utc::now());
-
-            if let Err(e) = state.app.entities.world.save(&world).await {
-                return Err(ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
-                });
-            }
-
             let advance_data = crate::use_cases::time::build_time_advance_data(
-                &previous_time,
-                &result.new_time,
+                &outcome.previous_time,
+                &outcome.new_time,
                 minutes,
                 &advance_reason,
             );
@@ -365,7 +580,7 @@ pub(super) async fn handle_time_request(
                 "Game time advanced (minutes)"
             );
 
-            let game_time = crate::use_cases::time::game_time_to_protocol(&world.game_time);
+            let game_time = crate::use_cases::time::game_time_to_protocol(&outcome.new_time);
             Ok(ResponseResult::success(serde_json::json!({
                 "game_time": game_time,
                 "minutes_advanced": minutes,
@@ -388,9 +603,16 @@ pub(super) async fn handle_time_request(
                     Err(e) => return Err(e),
                 };
 
-            let mut world = match state.app.entities.world.get(world_id_typed).await {
-                Ok(Some(w)) => w,
-                Ok(None) => {
+            let outcome = match state
+                .app
+                .use_cases
+                .time
+                .control
+                .set_game_time(world_id_typed, day, hour)
+                .await
+            {
+                Ok(result) => result,
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
                         result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
@@ -404,22 +626,11 @@ pub(super) async fn handle_time_request(
                 }
             };
 
-            let previous_time = world.game_time.clone();
-            world.game_time.set_day_and_hour(day, hour as u32);
-            world.updated_at = chrono::Utc::now();
-
-            if let Err(e) = state.app.entities.world.save(&world).await {
-                return Err(ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
-                });
-            }
-
             if notify_players {
                 let reason = wrldbldr_domain::TimeAdvanceReason::DmSetTime;
                 let advance_data = crate::use_cases::time::build_time_advance_data(
-                    &previous_time,
-                    &world.game_time,
+                    &outcome.previous_time,
+                    &outcome.new_time,
                     0,
                     &reason,
                 );
@@ -437,7 +648,7 @@ pub(super) async fn handle_time_request(
                 "Game time set"
             );
 
-            let game_time = crate::use_cases::time::game_time_to_protocol(&world.game_time);
+            let game_time = crate::use_cases::time::game_time_to_protocol(&outcome.new_time);
             Ok(ResponseResult::success(serde_json::json!({
                 "game_time": game_time,
             })))
@@ -470,9 +681,16 @@ pub(super) async fn handle_time_request(
                 }
             };
 
-            let mut world = match state.app.entities.world.get(world_id_typed).await {
-                Ok(Some(w)) => w,
-                Ok(None) => {
+            let outcome = match state
+                .app
+                .use_cases
+                .time
+                .control
+                .skip_to_period(world_id_typed, target_period)
+                .await
+            {
+                Ok(result) => result,
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
                         result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
@@ -486,25 +704,13 @@ pub(super) async fn handle_time_request(
                 }
             };
 
-            let previous_time = world.game_time.clone();
-            let minutes_until = world.game_time.minutes_until_period(target_period);
-            world.game_time.skip_to_period(target_period);
-            world.updated_at = chrono::Utc::now();
-
-            if let Err(e) = state.app.entities.world.save(&world).await {
-                return Err(ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
-                });
-            }
-
             let reason = wrldbldr_domain::TimeAdvanceReason::DmSkipToPeriod {
                 period: target_period,
             };
             let advance_data = crate::use_cases::time::build_time_advance_data(
-                &previous_time,
-                &world.game_time,
-                minutes_until,
+                &outcome.previous_time,
+                &outcome.new_time,
+                outcome.minutes_advanced,
                 &reason,
             );
             let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
@@ -519,7 +725,7 @@ pub(super) async fn handle_time_request(
                 "Skipped to time period"
             );
 
-            let game_time = crate::use_cases::time::game_time_to_protocol(&world.game_time);
+            let game_time = crate::use_cases::time::game_time_to_protocol(&outcome.new_time);
             Ok(ResponseResult::success(serde_json::json!({
                 "game_time": game_time,
                 "skipped_to": period,
@@ -533,27 +739,30 @@ pub(super) async fn handle_time_request(
                     Err(e) => return Err(e),
                 };
 
-            match state.app.entities.world.get(world_id_typed).await {
-                Ok(Some(world)) => {
-                    let config = &world.time_config;
-                    Ok(ResponseResult::success(serde_json::json!({
-                        "mode": format!("{:?}", config.mode).to_lowercase(),
-                        "time_costs": {
-                            "travel_location": config.time_costs.travel_location,
-                            "travel_region": config.time_costs.travel_region,
-                            "rest_short": config.time_costs.rest_short,
-                            "rest_long": config.time_costs.rest_long,
-                            "conversation": config.time_costs.conversation,
-                            "challenge": config.time_costs.challenge,
-                            "scene_transition": config.time_costs.scene_transition,
-                        },
-                        "show_time_to_players": config.show_time_to_players,
-                    })))
+            match state
+                .app
+                .use_cases
+                .time
+                .control
+                .get_time_config(world_id_typed)
+                .await
+            {
+                Ok(config) => Ok(ResponseResult::success(serde_json::json!({
+                    "mode": format!("{:?}", config.mode).to_lowercase(),
+                    "time_costs": {
+                        "travel_location": config.time_costs.travel_location,
+                        "travel_region": config.time_costs.travel_region,
+                        "rest_short": config.time_costs.rest_short,
+                        "rest_long": config.time_costs.rest_long,
+                        "conversation": config.time_costs.conversation,
+                        "challenge": config.time_costs.challenge,
+                        "scene_transition": config.time_costs.scene_transition,
+                    },
+                    "show_time_to_players": config.show_time_to_players,
+                }))),
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"))
                 }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "World not found",
-                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -572,9 +781,16 @@ pub(super) async fn handle_time_request(
                     Err(e) => return Err(e),
                 };
 
-            let mut world = match state.app.entities.world.get(world_id_typed).await {
-                Ok(Some(w)) => w,
-                Ok(None) => {
+            let update = match state
+                .app
+                .use_cases
+                .time
+                .control
+                .update_time_config(world_id_typed, config)
+                .await
+            {
+                Ok(result) => result,
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
                         result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
@@ -588,57 +804,16 @@ pub(super) async fn handle_time_request(
                 }
             };
 
-            let mut normalized_config = config.clone();
-            if matches!(
-                normalized_config.mode,
-                wrldbldr_protocol::types::TimeMode::Auto
-            ) {
-                normalized_config.mode = wrldbldr_protocol::types::TimeMode::Suggested;
-            }
-
-            let mode = match normalized_config.mode {
-                wrldbldr_protocol::types::TimeMode::Manual => wrldbldr_domain::TimeMode::Manual,
-                wrldbldr_protocol::types::TimeMode::Suggested => {
-                    wrldbldr_domain::TimeMode::Suggested
-                }
-                wrldbldr_protocol::types::TimeMode::Auto => wrldbldr_domain::TimeMode::Suggested,
-            };
-
-            let time_costs = wrldbldr_domain::TimeCostConfig {
-                travel_location: normalized_config.time_costs.travel_location,
-                travel_region: normalized_config.time_costs.travel_region,
-                rest_short: normalized_config.time_costs.rest_short,
-                rest_long: normalized_config.time_costs.rest_long,
-                conversation: normalized_config.time_costs.conversation,
-                challenge: normalized_config.time_costs.challenge,
-                scene_transition: normalized_config.time_costs.scene_transition,
-            };
-
-            world.time_config = wrldbldr_domain::GameTimeConfig {
-                mode,
-                time_costs,
-                show_time_to_players: normalized_config.show_time_to_players,
-                time_format: wrldbldr_domain::TimeFormat::TwelveHour,
-            };
-            world.updated_at = chrono::Utc::now();
-
-            if let Err(e) = state.app.entities.world.save(&world).await {
-                return Err(ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
-                });
-            }
-
             let update_msg = ServerMessage::TimeConfigUpdated {
-                world_id: world_id_typed.to_string(),
-                config: normalized_config,
+                world_id: update.world_id.to_string(),
+                config: update.normalized_config,
             };
             state
                 .connections
                 .broadcast_to_dms(world_id_typed, update_msg)
                 .await;
 
-            tracing::info!(world_id = %world_id_typed, mode = ?mode, "Time config updated");
+            tracing::info!(world_id = %world_id_typed, "Time config updated");
 
             Ok(ResponseResult::success_empty())
         }
@@ -652,6 +827,257 @@ pub(super) async fn handle_npc_request(
     request: NpcRequest,
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
+        NpcRequest::SetNpcDisposition {
+            npc_id,
+            pc_id,
+            disposition,
+            reason,
+        } => {
+            if let Err(e) = require_dm_for_request(conn_info, request_id) {
+                return Err(e);
+            }
+
+            let npc_id_typed = match parse_character_id_for_request(&npc_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+            let pc_uuid = match parse_uuid_for_request(&pc_id, request_id, "Invalid PC ID") {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+            let pc_id_typed = PlayerCharacterId::from_uuid(pc_uuid);
+
+            let disposition_level: wrldbldr_domain::DispositionLevel = disposition
+                .parse()
+                .map_err(|_| {
+                    ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            "Invalid disposition value",
+                        ),
+                    }
+                })?;
+
+            if disposition_level == wrldbldr_domain::DispositionLevel::Unknown {
+                return Ok(ResponseResult::error(
+                    ErrorCode::BadRequest,
+                    "Invalid disposition value",
+                ));
+            }
+
+            let now = chrono::Utc::now();
+            let mut disposition_state = match state
+                .app
+                .entities
+                .character
+                .get_disposition(npc_id_typed, pc_id_typed)
+                .await
+            {
+                Ok(Some(existing)) => existing,
+                Ok(None) => wrldbldr_domain::NpcDispositionState::new(
+                    npc_id_typed,
+                    pc_id_typed,
+                    now,
+                ),
+                Err(e) => {
+                    return Ok(ResponseResult::error(
+                        ErrorCode::InternalError,
+                        e.to_string(),
+                    ))
+                }
+            };
+
+            disposition_state.set_disposition(disposition_level, reason.clone(), now);
+
+            if let Err(e) = state
+                .app
+                .entities
+                .character
+                .save_disposition(&disposition_state)
+                .await
+            {
+                return Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                ));
+            }
+
+            let npc_name = match state.app.entities.character.get(npc_id_typed).await {
+                Ok(Some(npc)) => npc.name,
+                Ok(None) => "Unknown NPC".to_string(),
+                Err(_) => "Unknown NPC".to_string(),
+            };
+
+            if let Some(world_id) = conn_info.world_id {
+                let msg = ServerMessage::NpcDispositionChanged {
+                    npc_id: npc_id_typed.to_string(),
+                    npc_name,
+                    pc_id: pc_id_typed.to_string(),
+                    disposition: disposition_level.to_string(),
+                    relationship: disposition_state.relationship.to_string(),
+                    reason,
+                };
+                state.connections.broadcast_to_dms(world_id, msg).await;
+            }
+
+            Ok(ResponseResult::success_empty())
+        }
+
+        NpcRequest::SetNpcRelationship {
+            npc_id,
+            pc_id,
+            relationship,
+        } => {
+            if let Err(e) = require_dm_for_request(conn_info, request_id) {
+                return Err(e);
+            }
+
+            let npc_id_typed = match parse_character_id_for_request(&npc_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+            let pc_uuid = match parse_uuid_for_request(&pc_id, request_id, "Invalid PC ID") {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+            let pc_id_typed = PlayerCharacterId::from_uuid(pc_uuid);
+
+            let relationship_level: wrldbldr_domain::RelationshipLevel = relationship
+                .parse()
+                .map_err(|_| ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        "Invalid relationship value",
+                    ),
+                })?;
+
+            if relationship_level == wrldbldr_domain::RelationshipLevel::Unknown {
+                return Ok(ResponseResult::error(
+                    ErrorCode::BadRequest,
+                    "Invalid relationship value",
+                ));
+            }
+
+            let now = chrono::Utc::now();
+            let mut disposition_state = match state
+                .app
+                .entities
+                .character
+                .get_disposition(npc_id_typed, pc_id_typed)
+                .await
+            {
+                Ok(Some(existing)) => existing,
+                Ok(None) => wrldbldr_domain::NpcDispositionState::new(
+                    npc_id_typed,
+                    pc_id_typed,
+                    now,
+                ),
+                Err(e) => {
+                    return Ok(ResponseResult::error(
+                        ErrorCode::InternalError,
+                        e.to_string(),
+                    ))
+                }
+            };
+
+            disposition_state.relationship = relationship_level;
+            disposition_state.updated_at = now;
+
+            if let Err(e) = state
+                .app
+                .entities
+                .character
+                .save_disposition(&disposition_state)
+                .await
+            {
+                return Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                ));
+            }
+
+            let npc_name = match state.app.entities.character.get(npc_id_typed).await {
+                Ok(Some(npc)) => npc.name,
+                Ok(None) => "Unknown NPC".to_string(),
+                Err(_) => "Unknown NPC".to_string(),
+            };
+
+            if let Some(world_id) = conn_info.world_id {
+                let msg = ServerMessage::NpcDispositionChanged {
+                    npc_id: npc_id_typed.to_string(),
+                    npc_name,
+                    pc_id: pc_id_typed.to_string(),
+                    disposition: disposition_state.disposition.to_string(),
+                    relationship: relationship_level.to_string(),
+                    reason: None,
+                };
+                state.connections.broadcast_to_dms(world_id, msg).await;
+            }
+
+            Ok(ResponseResult::success_empty())
+        }
+
+        NpcRequest::GetNpcDispositions { pc_id } => {
+            let pc_uuid = match parse_uuid_for_request(&pc_id, request_id, "Invalid PC ID") {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+            let pc_id_typed = PlayerCharacterId::from_uuid(pc_uuid);
+
+            let dispositions = match state
+                .app
+                .entities
+                .character
+                .list_dispositions_for_pc(pc_id_typed)
+                .await
+            {
+                Ok(list) => list,
+                Err(e) => {
+                    return Ok(ResponseResult::error(
+                        ErrorCode::InternalError,
+                        e.to_string(),
+                    ))
+                }
+            };
+
+            let mut response_data = Vec::with_capacity(dispositions.len());
+            for disposition in dispositions {
+                let npc_name = match state.app.entities.character.get(disposition.npc_id).await {
+                    Ok(Some(npc)) => npc.name,
+                    Ok(None) => "Unknown NPC".to_string(),
+                    Err(_) => "Unknown NPC".to_string(),
+                };
+
+                response_data.push(wrldbldr_protocol::NpcDispositionData {
+                    npc_id: disposition.npc_id.to_string(),
+                    npc_name,
+                    disposition: disposition.disposition.to_string(),
+                    relationship: disposition.relationship.to_string(),
+                    sentiment: disposition.sentiment,
+                    last_reason: disposition.disposition_reason,
+                });
+            }
+
+            let msg = ServerMessage::NpcDispositionsResponse {
+                pc_id: pc_id_typed.to_string(),
+                dispositions: response_data,
+            };
+
+            match state
+                .connections
+                .send_critical(conn_info.connection_id, msg)
+                .await
+            {
+                Ok(()) => Ok(ResponseResult::success_empty()),
+                Err(_) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    "Failed to send dispositions response",
+                )),
+            }
+        }
+
         NpcRequest::ListCharacterRegionRelationships { character_id } => {
             let char_id_typed = match parse_character_id_for_request(&character_id, request_id) {
                 Ok(id) => id,
