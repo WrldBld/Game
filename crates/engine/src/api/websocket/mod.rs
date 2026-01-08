@@ -39,7 +39,7 @@ use wrldbldr_protocol::{
     WorldRole as ProtoWorldRole,
 };
 
-use super::connections::{ConnectionManager, WorldRole};
+use super::connections::ConnectionManager;
 use crate::app::App;
 use crate::use_cases::movement::{EnterRegionError, StagingStatus};
 use crate::use_cases::staging::PendingStagingRequest;
@@ -467,31 +467,30 @@ async fn handle_join_world(
 ) -> Option<ServerMessage> {
     let world_id_typed = WorldId::from_uuid(world_id);
 
-    // Convert protocol role to internal role
-    let internal_role = match role {
-        ProtoWorldRole::Dm => WorldRole::Dm,
-        ProtoWorldRole::Player => WorldRole::Player,
-        ProtoWorldRole::Spectator | ProtoWorldRole::Unknown => WorldRole::Spectator,
-    };
-
     let pc_id_typed = pc_id.map(PlayerCharacterId::from_uuid);
 
-    let join_result = match state
-        .app
-        .use_cases
-        .session
-        .join_world
-        .execute_with_role(world_id_typed, role, pc_id_typed)
-        .await
-    {
+    let ctx = crate::use_cases::session::JoinWorldContext {
+        connections: &state.connections,
+    };
+    let input = crate::use_cases::session::JoinWorldInput {
+        connection_id,
+        world_id: world_id_typed,
+        role,
+        pc_id: pc_id_typed,
+    };
+
+    let join_result = match state.app.use_cases.session.join_world_flow.execute(&ctx, input).await {
         Ok(result) => result,
-        Err(crate::use_cases::session::JoinWorldError::WorldNotFound) => {
+        Err(crate::use_cases::session::JoinWorldFlowError::WorldNotFound) => {
             return Some(ServerMessage::WorldJoinFailed {
                 world_id,
                 error: wrldbldr_protocol::JoinError::WorldNotFound,
-            });
+            })
         }
-        Err(crate::use_cases::session::JoinWorldError::Repo(e)) => {
+        Err(crate::use_cases::session::JoinWorldFlowError::JoinError(e)) => {
+            return Some(ServerMessage::WorldJoinFailed { world_id, error: e })
+        }
+        Err(crate::use_cases::session::JoinWorldFlowError::Repo(e)) => {
             tracing::error!(error = %e, "Failed to build world snapshot");
             return Some(ServerMessage::WorldJoinFailed {
                 world_id,
@@ -500,51 +499,12 @@ async fn handle_join_world(
         }
     };
 
-    // Join the world
-    if let Err(e) = state
-        .connections
-        .join_world(connection_id, world_id_typed, internal_role, pc_id_typed)
-        .await
-    {
-        return Some(ServerMessage::WorldJoinFailed {
-            world_id,
-            error: match e {
-                super::connections::ConnectionError::DmAlreadyConnected => {
-                    wrldbldr_protocol::JoinError::DmAlreadyConnected {
-                        existing_user_id: String::new(),
-                    }
-                }
-                _ => wrldbldr_protocol::JoinError::Unknown,
-            },
-        });
-    }
-
-    // Get connected users
-    let connected_users = state
-        .connections
-        .get_world_connections(world_id_typed)
-        .await
-        .into_iter()
-        .map(|info| wrldbldr_protocol::ConnectedUser {
-            user_id: info.user_id,
-            username: None,
-            role: match info.role {
-                WorldRole::Dm => ProtoWorldRole::Dm,
-                WorldRole::Player => ProtoWorldRole::Player,
-                WorldRole::Spectator => ProtoWorldRole::Spectator,
-            },
-            pc_id: info.pc_id.map(|id| id.to_string()),
-            connection_count: 1,
-        })
-        .collect();
-
-    // Get connection info to broadcast UserJoined to other world members
-    if let Some(conn_info) = state.connections.get(connection_id).await {
+    if let Some(joined) = join_result.user_joined {
         let user_joined_msg = ServerMessage::UserJoined {
-            user_id: conn_info.user_id,
+            user_id: joined.user_id,
             username: None,
-            role,
-            pc: join_result.your_pc.clone(),
+            role: joined.role,
+            pc: joined.pc,
         };
         state
             .connections
@@ -555,7 +515,7 @@ async fn handle_join_world(
     Some(ServerMessage::WorldJoined {
         world_id,
         snapshot: join_result.snapshot,
-        connected_users,
+        connected_users: join_result.connected_users,
         your_role: role,
         your_pc: join_result.your_pc,
     })
@@ -3648,15 +3608,16 @@ mod ws_integration_tests_inline {
             crate::use_cases::settings::SettingsOps::new(settings_repo),
         ));
 
-        let session = crate::use_cases::SessionUseCases::new(Arc::new(
-            crate::use_cases::session::JoinWorld::new(
-                world.clone(),
-                location.clone(),
-                character.clone(),
-                scene.clone(),
-                player_character.clone(),
-            ),
+        let join_world = Arc::new(crate::use_cases::session::JoinWorld::new(
+            world.clone(),
+            location.clone(),
+            character.clone(),
+            scene.clone(),
+            player_character.clone(),
         ));
+        let join_world_flow =
+            Arc::new(crate::use_cases::session::JoinWorldFlow::new(join_world.clone()));
+        let session = crate::use_cases::SessionUseCases::new(join_world, join_world_flow);
 
         let use_cases = UseCases {
             movement,

@@ -802,15 +802,16 @@ pub(crate) fn build_test_app_with_ports(
         crate::use_cases::settings::SettingsOps::new(settings_repo),
     ));
 
-    let session = crate::use_cases::SessionUseCases::new(Arc::new(
-        crate::use_cases::session::JoinWorld::new(
-            world.clone(),
-            location.clone(),
-            character.clone(),
-            scene.clone(),
-            player_character.clone(),
-        ),
+    let join_world = Arc::new(crate::use_cases::session::JoinWorld::new(
+        world.clone(),
+        location.clone(),
+        character.clone(),
+        scene.clone(),
+        player_character.clone(),
     ));
+    let join_world_flow =
+        Arc::new(crate::use_cases::session::JoinWorldFlow::new(join_world.clone()));
+    let session = crate::use_cases::SessionUseCases::new(join_world, join_world_flow);
 
     let use_cases = UseCases {
         movement,
