@@ -15,8 +15,11 @@ use neo4rs::{query, Graph, Row};
 use uuid::Uuid;
 use wrldbldr_domain::*;
 
-use super::helpers::{parse_typed_id, row_to_item, NodeExt};
-use crate::infrastructure::ports::{CharacterRepo, NpcRegionRelationType, NpcRegionRelationship, NpcWithRegionInfo, RepoError};
+use super::helpers::{parse_typed_id, parse_typed_id_from_row, row_to_item, NodeExt};
+use crate::infrastructure::ports::{
+    ActantialViewRecord, CharacterRepo, NpcRegionRelationType, NpcRegionRelationship,
+    NpcWithRegionInfo, RepoError, WantDetails, WantTargetRef,
+};
 
 // =============================================================================
 // Stored Types for JSON serialization
@@ -180,7 +183,6 @@ impl Neo4jCharacterRepo {
             expression_config,
         })
     }
-
 }
 
 #[async_trait]
@@ -379,11 +381,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.list_in_world(world_id).await
     }
 
-    async fn update_position(
-        &self,
-        id: CharacterId,
-        region_id: RegionId,
-    ) -> Result<(), RepoError> {
+    async fn update_position(&self, id: CharacterId, region_id: RegionId) -> Result<(), RepoError> {
         // Remove any existing STAGED_IN edges and create new one
         let q = query(
             "MATCH (c:Character {id: $id})
@@ -463,7 +461,9 @@ impl CharacterRepo for Neo4jCharacterRepo {
             let rel_type_str: String = row
                 .get("rel_type")
                 .map_err(|e| RepoError::Database(e.to_string()))?;
-            let relationship_type: RelationshipType = rel_type_str.parse().unwrap_or(RelationshipType::Custom(rel_type_str));
+            let relationship_type: RelationshipType = rel_type_str
+                .parse()
+                .unwrap_or(RelationshipType::Custom(rel_type_str));
 
             let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
             let known_to_player: bool = row.get("known_to_player").unwrap_or(true);
@@ -615,10 +615,11 @@ impl CharacterRepo for Neo4jCharacterRepo {
     // Wants/Goals Operations
     // =========================================================================
 
-    async fn get_wants(&self, id: CharacterId) -> Result<Vec<Want>, RepoError> {
+    async fn get_wants(&self, id: CharacterId) -> Result<Vec<WantDetails>, RepoError> {
         let q = query(
-            "MATCH (c:Character {id: $id})-[:HAS_WANT]->(w:Want)
-            RETURN w",
+            "MATCH (c:Character {id: $id})-[r:HAS_WANT]->(w:Want)
+            OPTIONAL MATCH (w)-[:TARGETS]->(target)
+            RETURN w, r.priority as priority, target, labels(target) as target_labels",
         )
         .param("id", id.to_string());
 
@@ -637,37 +638,67 @@ impl CharacterRepo for Neo4jCharacterRepo {
             let node: neo4rs::Node = row
                 .get("w")
                 .map_err(|e| RepoError::Database(e.to_string()))?;
+            let want = node_to_want(&node)?;
 
-            let want_id: WantId =
-                parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
-            let description: String = node.get_string_or("description", "");
-            let intensity: f64 = node.get_f64_or("intensity", 0.5);
-            let visibility_str: String = node.get_string_or("visibility", "Hidden");
-            let created_at = node.get_datetime_or("created_at", chrono::Utc::now());
-            let deflection_behavior = node.get_optional_string("deflection_behavior");
-            let tells: Vec<String> = node.get_json_or_default("tells");
+            let priority: i64 = row.get("priority").unwrap_or(1);
+            let target = parse_want_target_from_row(&row)?;
 
-            let visibility = match visibility_str.as_str() {
-                "Known" => WantVisibility::Known,
-                "Suspected" => WantVisibility::Suspected,
-                _ => WantVisibility::Hidden,
-            };
-
-            wants.push(Want {
-                id: want_id,
-                description,
-                intensity: intensity as f32,
-                visibility,
-                created_at,
-                deflection_behavior,
-                tells,
+            wants.push(WantDetails {
+                character_id: id,
+                want,
+                priority: priority.max(1) as u32,
+                target,
             });
         }
 
         Ok(wants)
     }
 
-    async fn save_want(&self, character_id: CharacterId, want: &Want) -> Result<(), RepoError> {
+    async fn get_want(&self, id: WantId) -> Result<Option<WantDetails>, RepoError> {
+        let q = query(
+            "MATCH (c:Character)-[r:HAS_WANT]->(w:Want {id: $want_id})
+            OPTIONAL MATCH (w)-[:TARGETS]->(target)
+            RETURN w, r.priority as priority, c.id as character_id, target, labels(target) as target_labels",
+        )
+        .param("want_id", id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let node: neo4rs::Node = row
+                .get("w")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let want = node_to_want(&node)?;
+            let character_id: CharacterId = parse_typed_id_from_row(&row, "character_id")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let priority: i64 = row.get("priority").unwrap_or(1);
+            let target = parse_want_target_from_row(&row)?;
+
+            Ok(Some(WantDetails {
+                character_id,
+                want,
+                priority: priority.max(1) as u32,
+                target,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn save_want(
+        &self,
+        character_id: CharacterId,
+        want: &Want,
+        priority: u32,
+    ) -> Result<(), RepoError> {
         let visibility_str = match want.visibility {
             WantVisibility::Known => "Known",
             WantVisibility::Suspected => "Suspected",
@@ -685,7 +716,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 w.created_at = $created_at,
                 w.deflection_behavior = $deflection_behavior,
                 w.tells = $tells
-            MERGE (c)-[:HAS_WANT]->(w)",
+            MERGE (c)-[r:HAS_WANT]->(w)
+            SET r.priority = $priority",
         )
         .param("character_id", character_id.to_string())
         .param("want_id", want.id.to_string())
@@ -697,7 +729,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
             "deflection_behavior",
             want.deflection_behavior.clone().unwrap_or_default(),
         )
-        .param("tells", tells_json);
+        .param("tells", tells_json)
+        .param("priority", i64::from(priority.max(1)));
 
         self.graph
             .run(q)
@@ -721,6 +754,70 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
         tracing::debug!("Deleted want: {}", id);
+        Ok(())
+    }
+
+    async fn set_want_target(
+        &self,
+        want_id: WantId,
+        target: WantTargetRef,
+    ) -> Result<WantTarget, RepoError> {
+        let (target_match, target_id) = match target {
+            WantTargetRef::Character(id) => (
+                "MATCH (target) WHERE target.id = $target_id AND (target:Character OR target:PlayerCharacter)",
+                id.to_string(),
+            ),
+            WantTargetRef::Item(id) => (
+                "MATCH (target:Item {id: $target_id})",
+                id.to_string(),
+            ),
+            WantTargetRef::Goal(id) => (
+                "MATCH (target:Goal {id: $target_id})",
+                id.to_string(),
+            ),
+        };
+
+        let q = query(&format!(
+            "MATCH (w:Want {{id: $want_id}})
+            OPTIONAL MATCH (w)-[r:TARGETS]->()
+            DELETE r
+            WITH w
+            {target_match}
+            MERGE (w)-[:TARGETS]->(target)
+            RETURN target, labels(target) as target_labels"
+        ))
+        .param("want_id", want_id.to_string())
+        .param("target_id", target_id);
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            parse_want_target_from_row(&row)?.ok_or(RepoError::NotFound)
+        } else {
+            Err(RepoError::NotFound)
+        }
+    }
+
+    async fn remove_want_target(&self, want_id: WantId) -> Result<(), RepoError> {
+        let q = query(
+            "MATCH (w:Want {id: $want_id})-[r:TARGETS]->()
+            DELETE r",
+        )
+        .param("want_id", want_id.to_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
         Ok(())
     }
 
@@ -760,12 +857,17 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 .parse()
                 .map_err(|e: String| RepoError::Database(e))?;
 
-            let relationship_str: String = row.get("relationship").unwrap_or_else(|_| "Stranger".to_string());
-            let relationship: RelationshipLevel = relationship_str.parse().unwrap_or(RelationshipLevel::Stranger);
+            let relationship_str: String = row
+                .get("relationship")
+                .unwrap_or_else(|_| "Stranger".to_string());
+            let relationship: RelationshipLevel = relationship_str
+                .parse()
+                .unwrap_or(RelationshipLevel::Stranger);
 
             let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
             let updated_at_str: String = row.get("updated_at").unwrap_or_default();
-            let updated_at = wrldbldr_domain::common::parse_datetime_or(&updated_at_str, chrono::Utc::now());
+            let updated_at =
+                wrldbldr_domain::common::parse_datetime_or(&updated_at_str, chrono::Utc::now());
             let disposition_reason: Option<String> = row.get("disposition_reason").ok();
             let relationship_points: i64 = row.get("relationship_points").unwrap_or(0);
 
@@ -806,7 +908,10 @@ impl CharacterRepo for Neo4jCharacterRepo {
             "disposition_reason",
             disposition.disposition_reason.clone().unwrap_or_default(),
         )
-        .param("relationship_points", disposition.relationship_points as i64);
+        .param(
+            "relationship_points",
+            disposition.relationship_points as i64,
+        );
 
         self.graph
             .run(q)
@@ -859,10 +964,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 .parse()
                 .map_err(|e: String| RepoError::Database(e))?;
 
-            let relationship_str: String =
-                row.get("relationship").unwrap_or_else(|_| "Stranger".to_string());
-            let relationship: RelationshipLevel =
-                relationship_str.parse().unwrap_or(RelationshipLevel::Stranger);
+            let relationship_str: String = row
+                .get("relationship")
+                .unwrap_or_else(|_| "Stranger".to_string());
+            let relationship: RelationshipLevel = relationship_str
+                .parse()
+                .unwrap_or(RelationshipLevel::Stranger);
 
             let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
             let updated_at_str: String = row.get("updated_at").unwrap_or_default();
@@ -915,13 +1022,72 @@ impl CharacterRepo for Neo4jCharacterRepo {
             return Ok(None); // Character not found
         };
 
-        // ActantialContext is an LLM context structure that aggregates wants and social views.
-        // For basic persistence, we return an empty context with the character ID/name.
-        // Full context building is done at the service layer.
-        Ok(Some(ActantialContext::new(
-            Uuid::from(id),
-            character_name,
-        )))
+        let wants = self.get_wants(id).await?;
+        let views = self.list_actantial_views(id).await?;
+
+        let mut context = ActantialContext::new(Uuid::from(id), character_name);
+        let mut want_index = std::collections::HashMap::new();
+
+        for details in wants {
+            let mut want_ctx = WantContext::new(
+                details.want.id,
+                details.want.description,
+                details.want.intensity,
+                details.priority,
+            );
+            want_ctx.visibility = details.want.visibility;
+            want_ctx.target = details.target;
+            want_ctx.deflection_behavior = details.want.deflection_behavior;
+            want_ctx.tells = details.want.tells;
+
+            let idx = context.wants.len();
+            context.wants.push(want_ctx);
+            want_index.insert(details.want.id, idx);
+        }
+
+        for view in views {
+            let Some(idx) = want_index.get(&view.want_id).copied() else {
+                continue;
+            };
+
+            let actor = ActantialActor::new(
+                view.target.clone(),
+                view.target_name.clone(),
+                view.reason.clone(),
+            );
+
+            match view.role {
+                ActantialRole::Helper => {
+                    context.wants[idx].helpers.push(actor);
+                    context.social_views.add_ally(
+                        view.target,
+                        view.target_name,
+                        view.reason,
+                    );
+                }
+                ActantialRole::Opponent => {
+                    context.wants[idx].opponents.push(actor);
+                    context.social_views.add_enemy(
+                        view.target,
+                        view.target_name,
+                        view.reason,
+                    );
+                }
+                ActantialRole::Sender => {
+                    if context.wants[idx].sender.is_none() {
+                        context.wants[idx].sender = Some(actor);
+                    }
+                }
+                ActantialRole::Receiver => {
+                    if context.wants[idx].receiver.is_none() {
+                        context.wants[idx].receiver = Some(actor);
+                    }
+                }
+                ActantialRole::Unknown => {}
+            }
+        }
+
+        Ok(Some(context))
     }
 
     async fn save_actantial_context(
@@ -938,11 +1104,158 @@ impl CharacterRepo for Neo4jCharacterRepo {
         Ok(())
     }
 
+    async fn list_actantial_views(
+        &self,
+        id: CharacterId,
+    ) -> Result<Vec<ActantialViewRecord>, RepoError> {
+        let q = query(
+            "MATCH (c:Character {id: $id})-[r:VIEWS_AS_HELPER|VIEWS_AS_OPPONENT|VIEWS_AS_SENDER|VIEWS_AS_RECEIVER]->(target)
+            RETURN type(r) as role, r.want_id as want_id, r.reason as reason,
+                   target.id as target_id, target.name as target_name, labels(target) as target_labels",
+        )
+        .param("id", id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let mut views = Vec::new();
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let role_str: String = row.get("role").unwrap_or_default();
+            let role = match role_str.as_str() {
+                "VIEWS_AS_HELPER" => ActantialRole::Helper,
+                "VIEWS_AS_OPPONENT" => ActantialRole::Opponent,
+                "VIEWS_AS_SENDER" => ActantialRole::Sender,
+                "VIEWS_AS_RECEIVER" => ActantialRole::Receiver,
+                _ => ActantialRole::Unknown,
+            };
+
+            let want_id_str: String = row.get("want_id").unwrap_or_default();
+            let want_uuid = Uuid::parse_str(&want_id_str)
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let want_id = WantId::from_uuid(want_uuid);
+
+            let target_id_str: String = row.get("target_id").unwrap_or_default();
+            let target_uuid = Uuid::parse_str(&target_id_str)
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let target_labels: Vec<String> = row.get("target_labels").unwrap_or_default();
+            let target = if target_labels.iter().any(|l| l == "PlayerCharacter") {
+                ActantialTarget::pc(target_uuid)
+            } else {
+                ActantialTarget::npc(target_uuid)
+            };
+
+            let target_name: String = row.get("target_name").unwrap_or_else(|_| "Unknown".into());
+            let reason: String = row.get("reason").unwrap_or_default();
+
+            views.push(ActantialViewRecord {
+                want_id,
+                target,
+                target_name,
+                role,
+                reason,
+            });
+        }
+
+        Ok(views)
+    }
+
+    async fn add_actantial_view(
+        &self,
+        character_id: CharacterId,
+        want_id: WantId,
+        target: ActantialTarget,
+        role: ActantialRole,
+        reason: String,
+    ) -> Result<ActantialViewRecord, RepoError> {
+        let relationship_type = actantial_role_to_relationship(role);
+        let target_id = target.id_string();
+
+        let q = query(&format!(
+            "MATCH (c:Character {{id: $character_id}})
+            MATCH (target) WHERE target.id = $target_id AND (target:Character OR target:PlayerCharacter)
+            MERGE (c)-[r:{relationship_type} {{want_id: $want_id}}]->(target)
+            SET r.reason = $reason
+            RETURN target.name as target_name, labels(target) as target_labels"
+        ))
+        .param("character_id", character_id.to_string())
+        .param("want_id", want_id.to_string())
+        .param("target_id", target_id.clone())
+        .param("reason", reason.clone());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let target_name: String = row.get("target_name").unwrap_or_else(|_| "Unknown".into());
+            let target_labels: Vec<String> = row.get("target_labels").unwrap_or_default();
+            let target_uuid =
+                Uuid::parse_str(&target_id).map_err(|e| RepoError::Database(e.to_string()))?;
+            let resolved_target = if target_labels.iter().any(|l| l == "PlayerCharacter") {
+                ActantialTarget::pc(target_uuid)
+            } else {
+                ActantialTarget::npc(target_uuid)
+            };
+
+            Ok(ActantialViewRecord {
+                want_id,
+                target: resolved_target,
+                target_name,
+                role,
+                reason,
+            })
+        } else {
+            Err(RepoError::NotFound)
+        }
+    }
+
+    async fn remove_actantial_view(
+        &self,
+        character_id: CharacterId,
+        want_id: WantId,
+        target: ActantialTarget,
+        role: ActantialRole,
+    ) -> Result<(), RepoError> {
+        let relationship_type = actantial_role_to_relationship(role);
+
+        let q = query(&format!(
+            "MATCH (c:Character {{id: $character_id}})-[r:{relationship_type}]->(target)
+            WHERE r.want_id = $want_id AND target.id = $target_id
+            DELETE r"
+        ))
+        .param("character_id", character_id.to_string())
+        .param("want_id", want_id.to_string())
+        .param("target_id", target.id_string());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
     // =========================================================================
     // NPC-Region Relationship Operations
     // =========================================================================
 
-    async fn get_region_relationships(&self, id: CharacterId) -> Result<Vec<NpcRegionRelationship>, RepoError> {
+    async fn get_region_relationships(
+        &self,
+        id: CharacterId,
+    ) -> Result<Vec<NpcRegionRelationship>, RepoError> {
         let q = query(
             "MATCH (c:Character {id: $id})
             OPTIONAL MATCH (c)-[h:HOME_REGION]->(hr:Region)
@@ -965,7 +1278,11 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
         let mut relationships = Vec::new();
 
-        if let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
             // Parse home regions
             if let Ok(homes) = row.get::<Vec<serde_json::Value>>("home") {
                 for h in homes {
@@ -995,7 +1312,10 @@ impl CharacterRepo for Neo4jCharacterRepo {
                                 relationships.push(NpcRegionRelationship {
                                     region_id: RegionId::from_uuid(uuid),
                                     relationship_type: NpcRegionRelationType::WorksAt,
-                                    shift: w.get("shift").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                    shift: w
+                                        .get("shift")
+                                        .and_then(|v| v.as_str())
+                                        .map(|s| s.to_string()),
                                     frequency: None,
                                     time_of_day: None,
                                     reason: None,
@@ -1016,8 +1336,14 @@ impl CharacterRepo for Neo4jCharacterRepo {
                                     region_id: RegionId::from_uuid(uuid),
                                     relationship_type: NpcRegionRelationType::Frequents,
                                     shift: None,
-                                    frequency: f.get("frequency").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                                    time_of_day: f.get("time_of_day").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                    frequency: f
+                                        .get("frequency")
+                                        .and_then(|v| v.as_str())
+                                        .map(|s| s.to_string()),
+                                    time_of_day: f
+                                        .get("time_of_day")
+                                        .and_then(|v| v.as_str())
+                                        .map(|s| s.to_string()),
                                     reason: None,
                                 });
                             }
@@ -1038,7 +1364,10 @@ impl CharacterRepo for Neo4jCharacterRepo {
                                     shift: None,
                                     frequency: None,
                                     time_of_day: None,
-                                    reason: a.get("reason").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                                    reason: a
+                                        .get("reason")
+                                        .and_then(|v| v.as_str())
+                                        .map(|s| s.to_string()),
                                 });
                             }
                         }
@@ -1072,7 +1401,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
         Ok(())
     }
 
-    async fn set_work_region(&self, id: CharacterId, region_id: RegionId, shift: Option<String>) -> Result<(), RepoError> {
+    async fn set_work_region(
+        &self,
+        id: CharacterId,
+        region_id: RegionId,
+        shift: Option<String>,
+    ) -> Result<(), RepoError> {
         // Remove existing WORKS_AT_REGION and create new one
         let q = query(
             "MATCH (c:Character {id: $id})
@@ -1095,7 +1429,13 @@ impl CharacterRepo for Neo4jCharacterRepo {
         Ok(())
     }
 
-    async fn add_frequents_region(&self, id: CharacterId, region_id: RegionId, frequency: String, time_of_day: Option<String>) -> Result<(), RepoError> {
+    async fn add_frequents_region(
+        &self,
+        id: CharacterId,
+        region_id: RegionId,
+        frequency: String,
+        time_of_day: Option<String>,
+    ) -> Result<(), RepoError> {
         let q = query(
             "MATCH (c:Character {id: $id})
             MATCH (r:Region {id: $region_id})
@@ -1112,11 +1452,20 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
-        tracing::debug!("Added frequents region for character {} to {}", id, region_id);
+        tracing::debug!(
+            "Added frequents region for character {} to {}",
+            id,
+            region_id
+        );
         Ok(())
     }
 
-    async fn add_avoids_region(&self, id: CharacterId, region_id: RegionId, reason: Option<String>) -> Result<(), RepoError> {
+    async fn add_avoids_region(
+        &self,
+        id: CharacterId,
+        region_id: RegionId,
+        reason: Option<String>,
+    ) -> Result<(), RepoError> {
         let q = query(
             "MATCH (c:Character {id: $id})
             MATCH (r:Region {id: $region_id})
@@ -1136,7 +1485,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
         Ok(())
     }
 
-    async fn remove_region_relationship(&self, id: CharacterId, region_id: RegionId, relationship_type: &str) -> Result<(), RepoError> {
+    async fn remove_region_relationship(
+        &self,
+        id: CharacterId,
+        region_id: RegionId,
+        relationship_type: &str,
+    ) -> Result<(), RepoError> {
         // Use static queries per relationship type to avoid any format-based injection risk
         let (cypher, rel_type_name) = match relationship_type.to_uppercase().as_str() {
             "HOME_REGION" | "HOME" => (
@@ -1167,11 +1521,19 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
-        tracing::debug!("Removed {} relationship from character {} to region {}", rel_type_name, id, region_id);
+        tracing::debug!(
+            "Removed {} relationship from character {} to region {}",
+            rel_type_name,
+            id,
+            region_id
+        );
         Ok(())
     }
 
-    async fn get_npcs_for_region(&self, region_id: RegionId) -> Result<Vec<NpcWithRegionInfo>, RepoError> {
+    async fn get_npcs_for_region(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<NpcWithRegionInfo>, RepoError> {
         let q = query(
             "MATCH (r:Region {id: $region_id})
             OPTIONAL MATCH (c1:Character)-[h:HOME_REGION]->(r)
@@ -1201,15 +1563,26 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
         let mut npcs = Vec::new();
 
-        while let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
-            let character_id_str: String = row.get("character_id").map_err(|e| RepoError::Database(e.to_string()))?;
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let character_id_str: String = row
+                .get("character_id")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
             let character_id = CharacterId::from_uuid(
-                Uuid::parse_str(&character_id_str).map_err(|e| RepoError::Database(e.to_string()))?
+                Uuid::parse_str(&character_id_str)
+                    .map_err(|e| RepoError::Database(e.to_string()))?,
             );
-            let name: String = row.get("name").map_err(|e| RepoError::Database(e.to_string()))?;
+            let name: String = row
+                .get("name")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
             let sprite_asset: Option<String> = row.get("sprite_asset").ok();
             let portrait_asset: Option<String> = row.get("portrait_asset").ok();
-            let rel_type_str: String = row.get("relationship_type").map_err(|e| RepoError::Database(e.to_string()))?;
+            let rel_type_str: String = row
+                .get("relationship_type")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
             let shift: Option<String> = row.get("shift").ok();
             let frequency: Option<String> = row.get("frequency").ok();
             let time_of_day: Option<String> = row.get("time_of_day").ok();
@@ -1224,7 +1597,9 @@ impl CharacterRepo for Neo4jCharacterRepo {
             };
 
             // Parse default_mood from string
-            let default_mood_str: String = row.get("default_mood").unwrap_or_else(|_| "calm".to_string());
+            let default_mood_str: String = row
+                .get("default_mood")
+                .unwrap_or_else(|_| "calm".to_string());
             let default_mood: MoodState = default_mood_str.parse().unwrap_or(MoodState::Calm);
 
             npcs.push(NpcWithRegionInfo {
@@ -1242,5 +1617,73 @@ impl CharacterRepo for Neo4jCharacterRepo {
         }
 
         Ok(npcs)
+    }
+}
+
+fn node_to_want(node: &neo4rs::Node) -> Result<Want, RepoError> {
+    let want_id: WantId =
+        parse_typed_id(node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+    let description: String = node.get_string_or("description", "");
+    let intensity: f64 = node.get_f64_or("intensity", 0.5);
+    let visibility_str: String = node.get_string_or("visibility", "Hidden");
+    let created_at = node.get_datetime_or("created_at", chrono::Utc::now());
+    let deflection_behavior = node.get_optional_string("deflection_behavior");
+    let tells: Vec<String> = node.get_json_or_default("tells");
+
+    let visibility = match visibility_str.as_str() {
+        "Known" => WantVisibility::Known,
+        "Suspected" => WantVisibility::Suspected,
+        _ => WantVisibility::Hidden,
+    };
+
+    Ok(Want {
+        id: want_id,
+        description,
+        intensity: intensity as f32,
+        visibility,
+        created_at,
+        deflection_behavior,
+        tells,
+    })
+}
+
+fn parse_want_target_from_row(row: &Row) -> Result<Option<WantTarget>, RepoError> {
+    let target_node: Option<neo4rs::Node> = row.get("target").ok();
+    let Some(node) = target_node else {
+        return Ok(None);
+    };
+
+    let target_id = node
+        .get_uuid("id")
+        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let target_name: String = node.get_string_or("name", "");
+    let target_labels: Vec<String> = row.get("target_labels").unwrap_or_default();
+
+    if target_labels.iter().any(|label| label == "Goal") {
+        Ok(Some(WantTarget::Goal {
+            id: target_id,
+            name: target_name,
+            description: node.get_optional_string("description"),
+        }))
+    } else if target_labels.iter().any(|label| label == "Item") {
+        Ok(Some(WantTarget::Item {
+            id: target_id,
+            name: target_name,
+        }))
+    } else {
+        Ok(Some(WantTarget::Character {
+            id: target_id,
+            name: target_name,
+        }))
+    }
+}
+
+fn actantial_role_to_relationship(role: ActantialRole) -> &'static str {
+    match role {
+        ActantialRole::Helper => "VIEWS_AS_HELPER",
+        ActantialRole::Opponent => "VIEWS_AS_OPPONENT",
+        ActantialRole::Sender => "VIEWS_AS_SENDER",
+        ActantialRole::Receiver => "VIEWS_AS_RECEIVER",
+        ActantialRole::Unknown => "VIEWS_AS_HELPER",
     }
 }

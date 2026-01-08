@@ -19,6 +19,7 @@ mod ws_challenge;
 mod ws_core;
 mod ws_creator;
 mod ws_event_chain;
+mod ws_actantial;
 mod ws_location;
 mod ws_lore;
 mod ws_narrative_event;
@@ -27,8 +28,8 @@ mod ws_story_events;
 
 use crate::use_cases::narrative::EffectExecutionContext;
 use wrldbldr_domain::{
-    ChallengeId, CharacterId, EventChainId, ItemId, LocationId, MoodState, NarrativeEventId,
-    PlayerCharacterId, RegionId, StagingSource, WorldId,
+    ChallengeId, CharacterId, EventChainId, GoalId, ItemId, LocationId, MoodState,
+    NarrativeEventId, PlayerCharacterId, RegionId, StagingSource, WantId, WorldId,
 };
 use wrldbldr_protocol::{
     ClientMessage, ErrorCode, RequestPayload, ResponseResult, ServerMessage,
@@ -888,15 +889,21 @@ async fn handle_request(
         RequestPayload::EventChain(req) => {
             ws_event_chain::handle_event_chain_request(state, &request_id, &_conn_info, req).await
         }
+        RequestPayload::Goal(req) => {
+            ws_actantial::handle_goal_request(state, &request_id, &_conn_info, req).await
+        }
+        RequestPayload::Want(req) => {
+            ws_actantial::handle_want_request(state, &request_id, &_conn_info, req).await
+        }
+        RequestPayload::Actantial(req) => {
+            ws_actantial::handle_actantial_request(state, &request_id, &_conn_info, req).await
+        }
 
         // Not yet implemented in the engine.
         RequestPayload::Scene(_)
         | RequestPayload::Act(_)
         | RequestPayload::Interaction(_)
         | RequestPayload::Skill(_)
-        | RequestPayload::Goal(_)
-        | RequestPayload::Want(_)
-        | RequestPayload::Actantial(_)
         | RequestPayload::Unknown => Ok(ResponseResult::error(
             ErrorCode::BadRequest,
             "This request type is not yet implemented",
@@ -3010,8 +3017,8 @@ mod ws_integration_tests_inline {
         QueuePort, RandomPort,
     };
     use crate::infrastructure::ports::{
-        MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockItemRepo,
-        MockLocationRepo, MockLocationStateRepo, MockLoreRepo, MockNarrativeRepo,
+        MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockGoalRepo,
+        MockItemRepo, MockLocationRepo, MockLocationStateRepo, MockLoreRepo, MockNarrativeRepo,
         MockObservationRepo, MockPlayerCharacterRepo, MockRegionStateRepo, MockSceneRepo,
         MockStagingRepo, MockWorldRepo,
     };
@@ -3029,6 +3036,7 @@ mod ws_integration_tests_inline {
         item_repo: MockItemRepo,
         asset_repo: MockAssetRepo,
         flag_repo: MockFlagRepo,
+        goal_repo: MockGoalRepo,
         lore_repo: MockLoreRepo,
         location_state_repo: MockLocationStateRepo,
         region_state_repo: MockRegionStateRepo,
@@ -3049,6 +3057,7 @@ mod ws_integration_tests_inline {
                 item_repo: MockItemRepo::new(),
                 asset_repo: MockAssetRepo::new(),
                 flag_repo: MockFlagRepo::new(),
+                goal_repo: MockGoalRepo::new(),
                 lore_repo: MockLoreRepo::new(),
                 location_state_repo: MockLocationStateRepo::new(),
                 region_state_repo: MockRegionStateRepo::new(),
@@ -3406,6 +3415,7 @@ mod ws_integration_tests_inline {
         let item_repo = Arc::new(repos.item_repo);
         let asset_repo = Arc::new(repos.asset_repo);
         let flag_repo = Arc::new(repos.flag_repo);
+        let goal_repo = Arc::new(repos.goal_repo);
         let lore_repo = Arc::new(repos.lore_repo);
         let location_state_repo = Arc::new(repos.location_state_repo);
         let region_state_repo = Arc::new(repos.region_state_repo);
@@ -3442,6 +3452,7 @@ mod ws_integration_tests_inline {
         let assets = Arc::new(crate::entities::Assets::new(asset_repo.clone(), image_gen));
         let world = Arc::new(crate::entities::World::new(world_repo, clock.clone()));
         let flag = Arc::new(crate::entities::Flag::new(flag_repo.clone()));
+        let goal = Arc::new(crate::entities::Goal::new(goal_repo.clone()));
         let lore = Arc::new(crate::entities::Lore::new(lore_repo.clone()));
         let location_state = Arc::new(crate::entities::LocationStateEntity::new(
             location_state_repo.clone(),
@@ -3461,6 +3472,7 @@ mod ws_integration_tests_inline {
             assets: assets.clone(),
             world: world.clone(),
             flag: flag.clone(),
+            goal: goal.clone(),
             lore: lore.clone(),
             location_state: location_state.clone(),
             region_state: region_state.clone(),
@@ -3521,6 +3533,12 @@ mod ws_integration_tests_inline {
                 character.clone(),
                 player_character.clone(),
             )),
+        );
+
+        let actantial = crate::use_cases::ActantialUseCases::new(
+            crate::use_cases::actantial::GoalOps::new(goal.clone()),
+            crate::use_cases::actantial::WantOps::new(character.clone(), clock.clone()),
+            crate::use_cases::actantial::ActantialContextOps::new(character.clone()),
         );
 
         let challenge_uc = crate::use_cases::ChallengeUseCases::new(
@@ -3710,6 +3728,7 @@ mod ws_integration_tests_inline {
             conversation,
             challenge: challenge_uc,
             approval,
+            actantial,
             assets: assets_uc,
             world: world_uc,
             queues,
@@ -5372,6 +5391,16 @@ fn parse_location_id_for_request(
 /// Parse an item ID for Request/Response pattern.
 fn parse_item_id_for_request(id_str: &str, request_id: &str) -> Result<ItemId, ServerMessage> {
     parse_id_for_request(id_str, request_id, ItemId::from_uuid, "Invalid item ID")
+}
+
+/// Parse a goal ID for Request/Response pattern.
+fn parse_goal_id_for_request(id_str: &str, request_id: &str) -> Result<GoalId, ServerMessage> {
+    parse_id_for_request(id_str, request_id, GoalId::from_uuid, "Invalid goal ID")
+}
+
+/// Parse a want ID for Request/Response pattern.
+fn parse_want_id_for_request(id_str: &str, request_id: &str) -> Result<WantId, ServerMessage> {
+    parse_id_for_request(id_str, request_id, WantId::from_uuid, "Invalid want ID")
 }
 
 /// Parse a challenge ID for Request/Response pattern.

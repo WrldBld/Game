@@ -74,10 +74,12 @@ engine/src/
     staging.rs        # NPC presence
     observation.rs    # Player knowledge
     inventory.rs      # Items
+    goal.rs           # Goals (actantial targets)
     assets.rs         # Asset generation
     world.rs          # World operations
     
   use_cases/          # User story orchestration
+    actantial/        # Goals, wants, actantial context
     movement/         # Player movement
       enter_region.rs
       exit_location.rs
@@ -104,9 +106,15 @@ engine/src/
     http.rs           # HTTP routes
     websocket/        # WebSocket handling + routing
       mod.rs          # Connection lifecycle + dispatch
+      ws_actantial.rs # Goal/Want/Actantial requests
+      ws_challenge.rs # Challenge requests
       ws_core.rs      # Core RequestPayload handlers
       ws_creator.rs   # Generation/AI/Expression requests
+      ws_event_chain.rs # Event chain requests
+      ws_location.rs  # Location/Region requests
       ws_lore.rs      # Lore requests
+      ws_narrative_event.rs # Narrative event requests
+      ws_player.rs    # PlayerCharacter/Relationship/Observation requests
       ws_story_events.rs # Story event requests
     
   app.rs              # App struct

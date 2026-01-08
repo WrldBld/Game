@@ -36,6 +36,7 @@ pub struct Entities {
     pub assets: Arc<entities::Assets>,
     pub world: Arc<entities::World>,
     pub flag: Arc<entities::Flag>,
+    pub goal: Arc<entities::Goal>,
     pub lore: Arc<entities::Lore>,
     pub location_state: Arc<entities::LocationStateEntity>,
     pub region_state: Arc<entities::RegionStateEntity>,
@@ -47,6 +48,7 @@ pub struct UseCases {
     pub conversation: use_cases::ConversationUseCases,
     pub challenge: use_cases::ChallengeUseCases,
     pub approval: use_cases::ApprovalUseCases,
+    pub actantial: use_cases::ActantialUseCases,
     pub assets: use_cases::AssetUseCases,
     pub world: use_cases::WorldUseCases,
     pub queues: use_cases::QueueUseCases,
@@ -107,6 +109,7 @@ impl App {
         let assets = Arc::new(entities::Assets::new(repos.asset.clone(), image_gen));
         let world = Arc::new(entities::World::new(repos.world.clone(), clock.clone()));
         let flag = Arc::new(entities::Flag::new(repos.flag.clone()));
+        let goal = Arc::new(entities::Goal::new(repos.goal.clone()));
         let lore = Arc::new(entities::Lore::new(repos.lore.clone()));
         let location_state = Arc::new(entities::LocationStateEntity::new(
             repos.location_state.clone(),
@@ -126,6 +129,7 @@ impl App {
             assets: assets.clone(),
             world: world.clone(),
             flag: flag.clone(),
+            goal: goal.clone(),
             lore: lore.clone(),
             location_state: location_state.clone(),
             region_state: region_state.clone(),
@@ -187,6 +191,12 @@ impl App {
                 character.clone(),
                 player_character.clone(),
             )),
+        );
+
+        let actantial = use_cases::ActantialUseCases::new(
+            use_cases::actantial::GoalOps::new(goal.clone()),
+            use_cases::actantial::WantOps::new(character.clone(), clock.clone()),
+            use_cases::actantial::ActantialContextOps::new(character.clone()),
         );
 
         let challenge_uc = use_cases::ChallengeUseCases::new(
@@ -318,7 +328,9 @@ impl App {
                 staging.clone(),
                 character.clone(),
             )),
-            Arc::new(use_cases::npc::NpcRegionRelationships::new(character.clone())),
+            Arc::new(use_cases::npc::NpcRegionRelationships::new(
+                character.clone(),
+            )),
         );
 
         let inventory_uc = use_cases::InventoryUseCases::new(Arc::new(
@@ -329,9 +341,8 @@ impl App {
             use_cases::story_events::StoryEventOps::new(narrative.clone()),
         ));
 
-        let lore_uc = use_cases::LoreUseCases::new(Arc::new(use_cases::lore::LoreOps::new(
-            lore.clone(),
-        )));
+        let lore_uc =
+            use_cases::LoreUseCases::new(Arc::new(use_cases::lore::LoreOps::new(lore.clone())));
 
         let management = use_cases::ManagementUseCases::new(
             use_cases::management::WorldCrud::new(world.clone(), clock.clone()),
@@ -353,21 +364,21 @@ impl App {
             ),
         );
 
-        let session = use_cases::SessionUseCases::new(Arc::new(
-            use_cases::session::JoinWorld::new(
+        let session =
+            use_cases::SessionUseCases::new(Arc::new(use_cases::session::JoinWorld::new(
                 world.clone(),
                 location.clone(),
                 character.clone(),
                 scene.clone(),
                 player_character.clone(),
-            ),
-        ));
+            )));
 
         let use_cases = UseCases {
             movement,
             conversation,
             challenge: challenge_uc,
             approval,
+            actantial,
             assets: assets_uc,
             world: world_uc,
             queues,

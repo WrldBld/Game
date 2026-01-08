@@ -2,11 +2,14 @@
 
 use std::sync::Arc;
 use wrldbldr_domain::{
-    self as domain, ActantialContext, CharacterId, Item, NpcDispositionState, RegionId,
-    Relationship, Want, WorldId,
+    self as domain, ActantialContext, ActantialRole, ActantialTarget, CharacterId, Item,
+    NpcDispositionState, RegionId, Relationship, Want, WantId, WantTarget, WorldId,
 };
 
-use crate::infrastructure::ports::{CharacterRepo, NpcRegionRelationship, NpcWithRegionInfo, RepoError};
+use crate::infrastructure::ports::{
+    ActantialViewRecord, CharacterRepo, NpcRegionRelationship, NpcWithRegionInfo, RepoError,
+    WantDetails, WantTargetRef,
+};
 
 /// Character entity operations.
 ///
@@ -40,15 +43,24 @@ impl Character {
     // Queries
     // =========================================================================
 
-    pub async fn list_in_region(&self, region_id: RegionId) -> Result<Vec<domain::Character>, RepoError> {
+    pub async fn list_in_region(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<domain::Character>, RepoError> {
         self.repo.list_in_region(region_id).await
     }
 
-    pub async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<domain::Character>, RepoError> {
+    pub async fn list_in_world(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<domain::Character>, RepoError> {
         self.repo.list_in_world(world_id).await
     }
 
-    pub async fn list_npcs_in_world(&self, world_id: WorldId) -> Result<Vec<domain::Character>, RepoError> {
+    pub async fn list_npcs_in_world(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<domain::Character>, RepoError> {
         self.repo.list_npcs_in_world(world_id).await
     }
 
@@ -56,7 +68,11 @@ impl Character {
     // Position
     // =========================================================================
 
-    pub async fn update_position(&self, id: CharacterId, region_id: RegionId) -> Result<(), RepoError> {
+    pub async fn update_position(
+        &self,
+        id: CharacterId,
+        region_id: RegionId,
+    ) -> Result<(), RepoError> {
         self.repo.update_position(id, region_id).await
     }
 
@@ -73,7 +89,10 @@ impl Character {
     }
 
     /// Delete a relationship by ID.
-    pub async fn delete_relationship(&self, id: wrldbldr_domain::RelationshipId) -> Result<(), RepoError> {
+    pub async fn delete_relationship(
+        &self,
+        id: wrldbldr_domain::RelationshipId,
+    ) -> Result<(), RepoError> {
         self.repo.delete_relationship(id).await
     }
 
@@ -85,11 +104,19 @@ impl Character {
         self.repo.get_inventory(id).await
     }
 
-    pub async fn add_to_inventory(&self, character_id: CharacterId, item_id: wrldbldr_domain::ItemId) -> Result<(), RepoError> {
+    pub async fn add_to_inventory(
+        &self,
+        character_id: CharacterId,
+        item_id: wrldbldr_domain::ItemId,
+    ) -> Result<(), RepoError> {
         self.repo.add_to_inventory(character_id, item_id).await
     }
 
-    pub async fn remove_from_inventory(&self, character_id: CharacterId, item_id: wrldbldr_domain::ItemId) -> Result<(), RepoError> {
+    pub async fn remove_from_inventory(
+        &self,
+        character_id: CharacterId,
+        item_id: wrldbldr_domain::ItemId,
+    ) -> Result<(), RepoError> {
         self.repo.remove_from_inventory(character_id, item_id).await
     }
 
@@ -97,19 +124,40 @@ impl Character {
     // Wants/Goals
     // =========================================================================
 
-    pub async fn get_wants(&self, id: CharacterId) -> Result<Vec<Want>, RepoError> {
+    pub async fn get_wants(&self, id: CharacterId) -> Result<Vec<WantDetails>, RepoError> {
         self.repo.get_wants(id).await
     }
 
-    pub async fn save_want(&self, character_id: CharacterId, want: &Want) -> Result<(), RepoError> {
-        self.repo.save_want(character_id, want).await
+    pub async fn get_want(&self, id: WantId) -> Result<Option<WantDetails>, RepoError> {
+        self.repo.get_want(id).await
+    }
+
+    pub async fn save_want(
+        &self,
+        character_id: CharacterId,
+        want: &Want,
+        priority: u32,
+    ) -> Result<(), RepoError> {
+        self.repo.save_want(character_id, want, priority).await
     }
 
     /// Delete a want by ID.
-    /// 
+    ///
     /// Uses DETACH DELETE to remove all relationships.
     pub async fn delete_want(&self, id: wrldbldr_domain::WantId) -> Result<(), RepoError> {
         self.repo.delete_want(id).await
+    }
+
+    pub async fn set_want_target(
+        &self,
+        want_id: WantId,
+        target: WantTargetRef,
+    ) -> Result<WantTarget, RepoError> {
+        self.repo.set_want_target(want_id, target).await
+    }
+
+    pub async fn remove_want_target(&self, want_id: WantId) -> Result<(), RepoError> {
+        self.repo.remove_want_target(want_id).await
     }
 
     // =========================================================================
@@ -142,12 +190,51 @@ impl Character {
     // Actantial
     // =========================================================================
 
-    pub async fn get_actantial_context(&self, id: CharacterId) -> Result<Option<ActantialContext>, RepoError> {
+    pub async fn get_actantial_context(
+        &self,
+        id: CharacterId,
+    ) -> Result<Option<ActantialContext>, RepoError> {
         self.repo.get_actantial_context(id).await
     }
 
-    pub async fn save_actantial_context(&self, id: CharacterId, context: &ActantialContext) -> Result<(), RepoError> {
+    pub async fn save_actantial_context(
+        &self,
+        id: CharacterId,
+        context: &ActantialContext,
+    ) -> Result<(), RepoError> {
         self.repo.save_actantial_context(id, context).await
+    }
+
+    pub async fn list_actantial_views(
+        &self,
+        id: CharacterId,
+    ) -> Result<Vec<ActantialViewRecord>, RepoError> {
+        self.repo.list_actantial_views(id).await
+    }
+
+    pub async fn add_actantial_view(
+        &self,
+        character_id: CharacterId,
+        want_id: WantId,
+        target: ActantialTarget,
+        role: ActantialRole,
+        reason: String,
+    ) -> Result<ActantialViewRecord, RepoError> {
+        self.repo
+            .add_actantial_view(character_id, want_id, target, role, reason)
+            .await
+    }
+
+    pub async fn remove_actantial_view(
+        &self,
+        character_id: CharacterId,
+        want_id: WantId,
+        target: ActantialTarget,
+        role: ActantialRole,
+    ) -> Result<(), RepoError> {
+        self.repo
+            .remove_actantial_view(character_id, want_id, target, role)
+            .await
     }
 
     // =========================================================================
@@ -155,37 +242,72 @@ impl Character {
     // =========================================================================
 
     /// Get all region relationships for an NPC (home, work, frequents, avoids)
-    pub async fn get_region_relationships(&self, id: CharacterId) -> Result<Vec<NpcRegionRelationship>, RepoError> {
+    pub async fn get_region_relationships(
+        &self,
+        id: CharacterId,
+    ) -> Result<Vec<NpcRegionRelationship>, RepoError> {
         self.repo.get_region_relationships(id).await
     }
 
     /// Set an NPC's home region
-    pub async fn set_home_region(&self, id: CharacterId, region_id: RegionId) -> Result<(), RepoError> {
+    pub async fn set_home_region(
+        &self,
+        id: CharacterId,
+        region_id: RegionId,
+    ) -> Result<(), RepoError> {
         self.repo.set_home_region(id, region_id).await
     }
 
     /// Set an NPC's work region with optional shift (day/night/always)
-    pub async fn set_work_region(&self, id: CharacterId, region_id: RegionId, shift: Option<String>) -> Result<(), RepoError> {
+    pub async fn set_work_region(
+        &self,
+        id: CharacterId,
+        region_id: RegionId,
+        shift: Option<String>,
+    ) -> Result<(), RepoError> {
         self.repo.set_work_region(id, region_id, shift).await
     }
 
     /// Add a region the NPC frequents
-    pub async fn add_frequents_region(&self, id: CharacterId, region_id: RegionId, frequency: String, time_of_day: Option<String>) -> Result<(), RepoError> {
-        self.repo.add_frequents_region(id, region_id, frequency, time_of_day).await
+    pub async fn add_frequents_region(
+        &self,
+        id: CharacterId,
+        region_id: RegionId,
+        frequency: String,
+        time_of_day: Option<String>,
+    ) -> Result<(), RepoError> {
+        self.repo
+            .add_frequents_region(id, region_id, frequency, time_of_day)
+            .await
     }
 
     /// Add a region the NPC avoids
-    pub async fn add_avoids_region(&self, id: CharacterId, region_id: RegionId, reason: Option<String>) -> Result<(), RepoError> {
+    pub async fn add_avoids_region(
+        &self,
+        id: CharacterId,
+        region_id: RegionId,
+        reason: Option<String>,
+    ) -> Result<(), RepoError> {
         self.repo.add_avoids_region(id, region_id, reason).await
     }
 
     /// Remove a region relationship
-    pub async fn remove_region_relationship(&self, id: CharacterId, region_id: RegionId, relationship_type: &str) -> Result<(), RepoError> {
-        self.repo.remove_region_relationship(id, region_id, relationship_type).await
+    pub async fn remove_region_relationship(
+        &self,
+        id: CharacterId,
+        region_id: RegionId,
+        relationship_type: &str,
+    ) -> Result<(), RepoError> {
+        self.repo
+            .remove_region_relationship(id, region_id, relationship_type)
+            .await
     }
 
     /// Get all NPCs that have any relationship to a region (for staging suggestions)
-    pub async fn get_npcs_for_region(&self, region_id: RegionId) -> Result<Vec<NpcWithRegionInfo>, RepoError> {
+    pub async fn get_npcs_for_region(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<NpcWithRegionInfo>, RepoError> {
         self.repo.get_npcs_for_region(region_id).await
     }
 }

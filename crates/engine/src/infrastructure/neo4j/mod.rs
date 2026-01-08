@@ -7,37 +7,39 @@ use crate::infrastructure::ports::ClockPort;
 
 mod helpers;
 
-mod character_repo;
-mod location_repo;
-mod scene_repo;
-mod challenge_repo;
-mod narrative_repo;
-mod staging_repo;
-mod observation_repo;
-mod item_repo;
-mod world_repo;
 mod asset_repo;
-mod player_character_repo;
+mod challenge_repo;
+mod character_repo;
 mod flag_repo;
-mod lore_repo;
+mod goal_repo;
+mod item_repo;
+mod location_repo;
 mod location_state_repo;
+mod lore_repo;
+mod narrative_repo;
+mod observation_repo;
+mod player_character_repo;
 mod region_state_repo;
+mod scene_repo;
+mod staging_repo;
+mod world_repo;
 
-pub use character_repo::Neo4jCharacterRepo;
-pub use location_repo::Neo4jLocationRepo;
-pub use scene_repo::Neo4jSceneRepo;
-pub use challenge_repo::Neo4jChallengeRepo;
-pub use narrative_repo::Neo4jNarrativeRepo;
-pub use staging_repo::Neo4jStagingRepo;
-pub use observation_repo::Neo4jObservationRepo;
-pub use item_repo::Neo4jItemRepo;
-pub use world_repo::Neo4jWorldRepo;
 pub use asset_repo::Neo4jAssetRepo;
-pub use player_character_repo::Neo4jPlayerCharacterRepo;
+pub use challenge_repo::Neo4jChallengeRepo;
+pub use character_repo::Neo4jCharacterRepo;
 pub use flag_repo::Neo4jFlagRepo;
-pub use lore_repo::Neo4jLoreRepo;
+pub use goal_repo::Neo4jGoalRepo;
+pub use item_repo::Neo4jItemRepo;
+pub use location_repo::Neo4jLocationRepo;
 pub use location_state_repo::Neo4jLocationStateRepo;
+pub use lore_repo::Neo4jLoreRepo;
+pub use narrative_repo::Neo4jNarrativeRepo;
+pub use observation_repo::Neo4jObservationRepo;
+pub use player_character_repo::Neo4jPlayerCharacterRepo;
 pub use region_state_repo::Neo4jRegionStateRepo;
+pub use scene_repo::Neo4jSceneRepo;
+pub use staging_repo::Neo4jStagingRepo;
+pub use world_repo::Neo4jWorldRepo;
 
 #[cfg(test)]
 mod integration_tests;
@@ -56,6 +58,7 @@ pub struct Neo4jRepositories {
     pub world: Arc<Neo4jWorldRepo>,
     pub asset: Arc<Neo4jAssetRepo>,
     pub flag: Arc<Neo4jFlagRepo>,
+    pub goal: Arc<Neo4jGoalRepo>,
     pub lore: Arc<Neo4jLoreRepo>,
     pub location_state: Arc<Neo4jLocationStateRepo>,
     pub region_state: Arc<Neo4jRegionStateRepo>,
@@ -76,6 +79,7 @@ impl Neo4jRepositories {
             world: Arc::new(Neo4jWorldRepo::new(graph.clone(), clock.clone())),
             asset: Arc::new(Neo4jAssetRepo::new(graph.clone())),
             flag: Arc::new(Neo4jFlagRepo::new(Arc::new(graph.clone()))),
+            goal: Arc::new(Neo4jGoalRepo::new(graph.clone())),
             lore: Arc::new(Neo4jLoreRepo::new(graph.clone(), clock.clone())),
             location_state: Arc::new(Neo4jLocationStateRepo::new(graph.clone(), clock.clone())),
             region_state: Arc::new(Neo4jRegionStateRepo::new(graph, clock)),

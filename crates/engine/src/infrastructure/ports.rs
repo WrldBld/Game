@@ -100,6 +100,40 @@ pub struct NpcWithRegionInfo {
     pub default_mood: MoodState,
 }
 
+/// Want details with relationship metadata and resolved target.
+#[derive(Debug, Clone)]
+pub struct WantDetails {
+    pub character_id: CharacterId,
+    pub want: Want,
+    pub priority: u32,
+    pub target: Option<WantTarget>,
+}
+
+/// Goal details with usage statistics.
+#[derive(Debug, Clone)]
+pub struct GoalDetails {
+    pub goal: Goal,
+    pub usage_count: u32,
+}
+
+/// Reference to a want target by type.
+#[derive(Debug, Clone)]
+pub enum WantTargetRef {
+    Character(CharacterId),
+    Item(ItemId),
+    Goal(GoalId),
+}
+
+/// Actantial view record for a specific want and target.
+#[derive(Debug, Clone)]
+pub struct ActantialViewRecord {
+    pub want_id: WantId,
+    pub target: ActantialTarget,
+    pub target_name: String,
+    pub role: ActantialRole,
+    pub reason: String,
+}
+
 // =============================================================================
 // Database Ports (one per entity type)
 // =============================================================================
@@ -139,9 +173,21 @@ pub trait CharacterRepo: Send + Sync {
     ) -> Result<(), RepoError>;
 
     // Wants/Goals
-    async fn get_wants(&self, id: CharacterId) -> Result<Vec<Want>, RepoError>;
-    async fn save_want(&self, character_id: CharacterId, want: &Want) -> Result<(), RepoError>;
+    async fn get_wants(&self, id: CharacterId) -> Result<Vec<WantDetails>, RepoError>;
+    async fn get_want(&self, id: WantId) -> Result<Option<WantDetails>, RepoError>;
+    async fn save_want(
+        &self,
+        character_id: CharacterId,
+        want: &Want,
+        priority: u32,
+    ) -> Result<(), RepoError>;
     async fn delete_want(&self, id: WantId) -> Result<(), RepoError>;
+    async fn set_want_target(
+        &self,
+        want_id: WantId,
+        target: WantTargetRef,
+    ) -> Result<WantTarget, RepoError>;
+    async fn remove_want_target(&self, want_id: WantId) -> Result<(), RepoError>;
 
     // Disposition (NPC's view of a specific PC)
     async fn get_disposition(
@@ -164,6 +210,25 @@ pub trait CharacterRepo: Send + Sync {
         &self,
         id: CharacterId,
         context: &ActantialContext,
+    ) -> Result<(), RepoError>;
+    async fn list_actantial_views(
+        &self,
+        id: CharacterId,
+    ) -> Result<Vec<ActantialViewRecord>, RepoError>;
+    async fn add_actantial_view(
+        &self,
+        character_id: CharacterId,
+        want_id: WantId,
+        target: ActantialTarget,
+        role: ActantialRole,
+        reason: String,
+    ) -> Result<ActantialViewRecord, RepoError>;
+    async fn remove_actantial_view(
+        &self,
+        character_id: CharacterId,
+        want_id: WantId,
+        target: ActantialTarget,
+        role: ActantialRole,
     ) -> Result<(), RepoError>;
 
     // NPC-Region relationships (for staging suggestions)
@@ -208,6 +273,15 @@ pub trait CharacterRepo: Send + Sync {
         &self,
         region_id: RegionId,
     ) -> Result<Vec<NpcWithRegionInfo>, RepoError>;
+}
+
+#[cfg_attr(test, mockall::automock)]
+#[async_trait]
+pub trait GoalRepo: Send + Sync {
+    async fn get(&self, id: GoalId) -> Result<Option<GoalDetails>, RepoError>;
+    async fn save(&self, goal: &Goal) -> Result<(), RepoError>;
+    async fn delete(&self, id: GoalId) -> Result<(), RepoError>;
+    async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<GoalDetails>, RepoError>;
 }
 
 #[cfg_attr(test, mockall::automock)]
@@ -297,10 +371,7 @@ pub trait LocationRepo: Send + Sync {
     ) -> Result<(), RepoError>;
 
     // Region exits (to locations)
-    async fn get_region_exits(
-        &self,
-        region_id: RegionId,
-    ) -> Result<Vec<RegionExit>, RepoError>;
+    async fn get_region_exits(&self, region_id: RegionId) -> Result<Vec<RegionExit>, RepoError>;
     async fn save_region_exit(&self, exit: &RegionExit) -> Result<(), RepoError>;
     async fn delete_region_exit(
         &self,

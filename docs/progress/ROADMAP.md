@@ -2,7 +2,7 @@
 
 This document tracks implementation progress and remaining work. For detailed system specifications, see the [systems/](../systems/) directory.
 
-**Last Updated**: 2026-01-05  
+**Last Updated**: 2026-01-06  
 **Overall Progress**: Core gameplay partial; Simplified architecture complete; WebSocket implementation partial; Scene resolution and narrative effects partial; Lore & Visual State systems partial  
 **Branch**: `new-arch`
 
@@ -141,6 +141,7 @@ See individual system documents for detailed user stories.
 | - | Visual State System (LocationState, RegionState, activation rules) | Partial |
 | - | Game Time Enhancements (TimeUseCases, TimeControl UI) | Partial |
 | - | Phase 1B WebSocket CRUD (Challenge/NarrativeEvent/EventChain) | 2026-01-06 |
+| - | Phase 1C WebSocket CRUD (Goal/Want/Actantial) | 2026-01-06 |
 
 ---
 
@@ -153,7 +154,7 @@ See individual system documents for detailed user stories.
 | Flag Storage | Persistent game flags for FlagSet conditions/effects | Medium | **COMPLETE** (2026-01-04) |
 | XP/Level Tracking | Track experience and level (no character advancement) | Low | Not Started |
 | Combat System | Tactical combat (DEFERRED - out of scope for MVP) | None | Deferred |
-| WebSocket CRUD Coverage | Remaining request groups (Scene, Act, Interaction, Skill, Goal/Want/Actantial) are still pending; Challenge/NarrativeEvent/EventChain and StoryEvent CRUD support is now in place. | High | In Progress |
+| WebSocket CRUD Coverage | Remaining request groups (Scene, Act, Interaction, Skill) are pending; Goal/Want/Actantial and Challenge/NarrativeEvent/EventChain handlers are now in place. | High | In Progress |
 | HTTP Settings Endpoints | /api/settings + per-world settings + metadata | High | Not Started |
 | Rule System Presets | Presets endpoint used by player | Medium | Not Started |
 

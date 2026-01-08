@@ -18,7 +18,7 @@ use crate::infrastructure::ports::{
     ClockPort, ImageGenError, ImageGenPort, LlmError, LlmPort, QueueError, QueueItem, RandomPort,
 };
 use crate::infrastructure::ports::{
-    MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockItemRepo,
+    MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockGoalRepo, MockItemRepo,
     MockLocationRepo, MockLocationStateRepo, MockLoreRepo, MockNarrativeRepo, MockObservationRepo,
     MockPlayerCharacterRepo, MockRegionStateRepo, MockSceneRepo, MockStagingRepo,
 };
@@ -38,6 +38,7 @@ pub(crate) struct TestAppRepos {
     pub(crate) item_repo: MockItemRepo,
     pub(crate) asset_repo: MockAssetRepo,
     pub(crate) flag_repo: MockFlagRepo,
+    pub(crate) goal_repo: MockGoalRepo,
     pub(crate) lore_repo: MockLoreRepo,
     pub(crate) location_state_repo: MockLocationStateRepo,
     pub(crate) region_state_repo: MockRegionStateRepo,
@@ -75,6 +76,7 @@ impl TestAppRepos {
             item_repo: MockItemRepo::new(),
             asset_repo: MockAssetRepo::new(),
             flag_repo: MockFlagRepo::new(),
+            goal_repo: MockGoalRepo::new(),
             lore_repo: MockLoreRepo::new(),
             location_state_repo: MockLocationStateRepo::new(),
             region_state_repo: MockRegionStateRepo::new(),
@@ -432,6 +434,7 @@ pub(crate) fn build_test_app_with_ports(
     let item_repo = Arc::new(repos.item_repo);
     let asset_repo = Arc::new(repos.asset_repo);
     let flag_repo = Arc::new(repos.flag_repo);
+    let goal_repo = Arc::new(repos.goal_repo);
     let lore_repo = Arc::new(repos.lore_repo);
     let location_state_repo = Arc::new(repos.location_state_repo);
     let region_state_repo = Arc::new(repos.region_state_repo);
@@ -468,6 +471,7 @@ pub(crate) fn build_test_app_with_ports(
     let assets = Arc::new(crate::entities::Assets::new(asset_repo.clone(), image_gen));
     let world = Arc::new(crate::entities::World::new(world_repo, clock.clone()));
     let flag = Arc::new(crate::entities::Flag::new(flag_repo.clone()));
+    let goal = Arc::new(crate::entities::Goal::new(goal_repo.clone()));
     let lore = Arc::new(crate::entities::Lore::new(lore_repo.clone()));
     let location_state = Arc::new(crate::entities::LocationStateEntity::new(
         location_state_repo.clone(),
@@ -487,6 +491,7 @@ pub(crate) fn build_test_app_with_ports(
         assets: assets.clone(),
         world: world.clone(),
         flag: flag.clone(),
+        goal: goal.clone(),
         lore: lore.clone(),
         location_state: location_state.clone(),
         region_state: region_state.clone(),
@@ -547,6 +552,12 @@ pub(crate) fn build_test_app_with_ports(
             character.clone(),
             player_character.clone(),
         )),
+    );
+
+    let actantial = crate::use_cases::ActantialUseCases::new(
+        crate::use_cases::actantial::GoalOps::new(goal.clone()),
+        crate::use_cases::actantial::WantOps::new(character.clone(), clock.clone()),
+        crate::use_cases::actantial::ActantialContextOps::new(character.clone()),
     );
 
     let challenge_uc = crate::use_cases::ChallengeUseCases::new(
@@ -659,11 +670,13 @@ pub(crate) fn build_test_app_with_ports(
             visual_state_uc.resolve.clone(),
             llm.clone(),
         )),
-        Arc::new(crate::use_cases::staging::RegenerateStagingSuggestions::new(
-            location.clone(),
-            character.clone(),
-            llm.clone(),
-        )),
+        Arc::new(
+            crate::use_cases::staging::RegenerateStagingSuggestions::new(
+                location.clone(),
+                character.clone(),
+                llm.clone(),
+            ),
+        ),
         Arc::new(crate::use_cases::staging::ApproveStagingRequest::new(
             staging.clone(),
             world.clone(),
@@ -734,6 +747,7 @@ pub(crate) fn build_test_app_with_ports(
         conversation,
         challenge: challenge_uc,
         approval,
+        actantial,
         assets: assets_uc,
         world: world_uc,
         queues,

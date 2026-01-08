@@ -63,7 +63,7 @@ The actantial model enables deep NPC characterization:
     id: "uuid",
     description: "Avenge my family's murder",
     intensity: 0.9,                    // 0.0-1.0, how strongly felt
-    known_to_player: false,            // Known, Suspected (implicit), or Secret
+    visibility: "Hidden",              // Known, Suspected, or Hidden
     deflection_behavior: "...",        // How NPC deflects when probed
     tells: "[...]",                    // JSON array of behavioral tells
     created_at: datetime()
@@ -121,7 +121,7 @@ pub enum WantVisibility {
     /// Player senses something but doesn't know details
     Suspected,  
     /// Player has no idea
-    Secret,
+    Hidden,
 }
 
 /// Actantial role in relation to a want
@@ -134,9 +134,15 @@ pub enum ActantialRole {
 
 /// Target of a want
 pub enum WantTargetType {
-    Character(CharacterId),
-    Item(ItemId),
-    Goal(GoalId),
+    Character,
+    Item,
+    Goal,
+}
+
+pub enum WantTarget {
+    Character { id: Uuid, name: String },
+    Item { id: Uuid, name: String },
+    Goal { id: Uuid, name: String, description: Option<String> },
 }
 ```
 
@@ -176,7 +182,9 @@ pub enum WantTargetType {
 
 | RequestPayload | Purpose |
 |----------------|---------|
-| `GetNpcActantialContext` | Get full actantial context for NPC |
+| `GetActantialContext` | Get full actantial context for NPC |
+| `ListWants` | List wants for a character |
+| `GetWant` | Fetch a single want |
 | `CreateWant` | Create a want for an NPC |
 | `UpdateWant` | Update want properties |
 | `DeleteWant` | Delete a want |
@@ -184,7 +192,8 @@ pub enum WantTargetType {
 | `RemoveWantTarget` | Remove want target |
 | `AddActantialView` | Add Helper/Opponent/Sender/Receiver view |
 | `RemoveActantialView` | Remove actantial view |
-| `GetWorldGoals` | Get all goals for a world |
+| `ListGoals` | Get all goals for a world |
+| `GetGoal` | Fetch a goal |
 | `CreateGoal` | Create a goal |
 | `UpdateGoal` | Update goal |
 | `DeleteGoal` | Delete goal |
