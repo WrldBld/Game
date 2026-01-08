@@ -155,8 +155,8 @@ See individual system documents for detailed user stories.
 | XP/Level Tracking | Track experience and level (no character advancement) | Low | Not Started |
 | Combat System | Tactical combat (DEFERRED - out of scope for MVP) | None | Deferred |
 | WebSocket CRUD Coverage | Scene/Act/Interaction/Skill handlers are now wired alongside prior request groups. | High | **COMPLETE** (2026-01-07) |
-| HTTP Settings Endpoints | /api/settings + per-world settings + metadata | High | Not Started |
-| Rule System Presets | Presets endpoint used by player | Medium | Not Started |
+| HTTP Settings Endpoints | /api/settings + per-world settings + metadata | High | **COMPLETE** (2026-01-07) |
+| Rule System Presets | Presets endpoint used by player | Medium | **COMPLETE** (2026-01-07) |
 
 See `docs/plans/IMPLEMENTATION_GAPS_PLAN.md` for the active remediation plan.
 

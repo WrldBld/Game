@@ -3030,7 +3030,8 @@ mod ws_integration_tests_inline {
         MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo,
         MockGoalRepo, MockInteractionRepo, MockItemRepo, MockLocationRepo, MockLocationStateRepo,
         MockLoreRepo, MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
-        MockRegionStateRepo, MockSceneRepo, MockSkillRepo, MockStagingRepo, MockWorldRepo,
+        MockRegionStateRepo, MockSceneRepo, MockSettingsRepo, MockSkillRepo, MockStagingRepo,
+        MockWorldRepo,
     };
 
     struct TestAppRepos {
@@ -3042,6 +3043,7 @@ mod ws_integration_tests_inline {
         act_repo: MockActRepo,
         skill_repo: MockSkillRepo,
         interaction_repo: MockInteractionRepo,
+        settings_repo: MockSettingsRepo,
         challenge_repo: MockChallengeRepo,
         narrative_repo: MockNarrativeRepo,
         staging_repo: MockStagingRepo,
@@ -3066,6 +3068,7 @@ mod ws_integration_tests_inline {
                 act_repo: MockActRepo::new(),
                 skill_repo: MockSkillRepo::new(),
                 interaction_repo: MockInteractionRepo::new(),
+                settings_repo: MockSettingsRepo::new(),
                 challenge_repo: MockChallengeRepo::new(),
                 narrative_repo: MockNarrativeRepo::new(),
                 staging_repo: MockStagingRepo::new(),
@@ -3427,6 +3430,7 @@ mod ws_integration_tests_inline {
         let act_repo = Arc::new(repos.act_repo);
         let skill_repo = Arc::new(repos.skill_repo);
         let interaction_repo = Arc::new(repos.interaction_repo);
+        let settings_repo = Arc::new(repos.settings_repo);
         let challenge_repo = Arc::new(repos.challenge_repo);
         let narrative_repo = Arc::new(repos.narrative_repo);
         let staging_repo = Arc::new(repos.staging_repo);
@@ -3742,6 +3746,10 @@ mod ws_integration_tests_inline {
             crate::use_cases::management::SkillCrud::new(skill.clone()),
         );
 
+        let settings = crate::use_cases::SettingsUseCases::new(Arc::new(
+            crate::use_cases::settings::SettingsOps::new(settings_repo),
+        ));
+
         let session = crate::use_cases::SessionUseCases::new(Arc::new(
             crate::use_cases::session::JoinWorld::new(
                 world.clone(),
@@ -3766,6 +3774,7 @@ mod ws_integration_tests_inline {
             visual_state: visual_state_uc,
             management,
             session,
+            settings,
             staging: staging_uc,
             npc: npc_uc,
             inventory: inventory_uc,

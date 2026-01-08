@@ -2,12 +2,13 @@
 //!
 //! Contains port trait implementations for external dependencies.
 
-pub mod ports;
+pub mod clock;
+pub mod comfyui;
 pub mod neo4j;
 pub mod ollama;
-pub mod comfyui;
+pub mod ports;
 pub mod queue;
-pub mod clock;
+pub mod settings;
 
 #[cfg(test)]
 mod queue_integration_tests;

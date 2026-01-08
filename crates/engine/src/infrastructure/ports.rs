@@ -27,6 +27,24 @@ pub enum RepoError {
     Serialization(String),
 }
 
+// =============================================================================
+// Settings Storage
+// =============================================================================
+
+#[cfg_attr(test, mockall::automock)]
+#[async_trait]
+pub trait SettingsRepo: Send + Sync {
+    async fn get_global(&self) -> Result<Option<AppSettings>, RepoError>;
+    async fn save_global(&self, settings: &AppSettings) -> Result<(), RepoError>;
+    async fn get_for_world(&self, world_id: WorldId) -> Result<Option<AppSettings>, RepoError>;
+    async fn save_for_world(
+        &self,
+        world_id: WorldId,
+        settings: &AppSettings,
+    ) -> Result<(), RepoError>;
+    async fn delete_for_world(&self, world_id: WorldId) -> Result<(), RepoError>;
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum LlmError {
     #[error("LLM request failed: {0}")]

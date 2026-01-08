@@ -172,7 +172,7 @@ See [SIMPLIFIED_ARCHITECTURE.md](../plans/SIMPLIFIED_ARCHITECTURE.md) for full a
 
 - WebSocket CRUD handlers now include Scene/Act/Interaction/Skill alongside World/Character/Location/Region/PlayerCharacter/Relationship/Observation, Goal/Want/Actantial, and Challenge/NarrativeEvent/EventChain.
 - AI deflection/tells suggestions are wired, but UI flows still need to consume results from queued suggestions.
-- HTTP settings and rule-system preset endpoints expected by the player are not yet implemented.
+- HTTP settings and rule-system preset endpoints are now implemented; DM UI wiring should be validated against them.
 
 ---
 

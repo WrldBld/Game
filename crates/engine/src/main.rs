@@ -21,7 +21,7 @@ use api::{websocket::WsState, ConnectionManager};
 use app::App;
 use infrastructure::{
     clock::SystemClock, comfyui::ComfyUIClient, neo4j::Neo4jRepositories, ollama::OllamaClient,
-    queue::SqliteQueue,
+    queue::SqliteQueue, settings::SqliteSettingsRepo,
 };
 
 #[tokio::main]
@@ -72,10 +72,11 @@ async fn main() -> anyhow::Result<()> {
 
     // Create queue
     let queue_db = std::env::var("QUEUE_DB").unwrap_or_else(|_| "queues.db".into());
-    let queue = Arc::new(SqliteQueue::new(&queue_db, clock).await?);
+    let queue = Arc::new(SqliteQueue::new(&queue_db, clock.clone()).await?);
+    let settings_repo = Arc::new(SqliteSettingsRepo::new(&queue_db, clock.clone()).await?);
 
     // Create application
-    let app = Arc::new(App::new(repos, llm, image_gen, queue));
+    let app = Arc::new(App::new(repos, llm, image_gen, queue, settings_repo));
 
     // Create connection manager
     let connections = Arc::new(ConnectionManager::new());

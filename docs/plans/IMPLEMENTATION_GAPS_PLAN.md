@@ -18,9 +18,9 @@ Update this file as work progresses.
 - [x] Implement missing AI requests (SuggestDeflectionBehavior, SuggestBehavioralTells) (Priority G)
 
 ## Phase 2: HTTP API Coverage (Engine)
-- [ ] Add settings endpoints: /api/settings, /api/settings/metadata, /api/settings/reset
-- [ ] Add world settings endpoints: /api/worlds/{id}/settings, /api/worlds/{id}/settings/reset
-- [ ] Add rule system presets endpoint used by player
+- [x] Add settings endpoints: /api/settings, /api/settings/metadata, /api/settings/reset
+- [x] Add world settings endpoints: /api/worlds/{id}/settings, /api/worlds/{id}/settings/reset
+- [x] Add rule system presets endpoint used by player
 
 ## Phase 3: Use Case Wiring and UX Validation
 - [ ] Wire world import use case to API entry point (HTTP or WebSocket)

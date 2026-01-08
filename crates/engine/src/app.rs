@@ -6,7 +6,7 @@ use crate::entities;
 use crate::infrastructure::{
     clock::{SystemClock, SystemRandom},
     neo4j::Neo4jRepositories,
-    ports::{ClockPort, ImageGenPort, LlmPort, QueuePort, RandomPort},
+    ports::{ClockPort, ImageGenPort, LlmPort, QueuePort, RandomPort, SettingsRepo},
     queue::SqliteQueue,
 };
 use crate::use_cases;
@@ -60,6 +60,7 @@ pub struct UseCases {
     pub visual_state: use_cases::VisualStateUseCases,
     pub management: use_cases::ManagementUseCases,
     pub session: use_cases::SessionUseCases,
+    pub settings: use_cases::SettingsUseCases,
     pub staging: use_cases::StagingUseCases,
     pub npc: use_cases::NpcUseCases,
     pub inventory: use_cases::InventoryUseCases,
@@ -74,6 +75,7 @@ impl App {
         llm: Arc<dyn LlmPort>,
         image_gen: Arc<dyn ImageGenPort>,
         queue: Arc<SqliteQueue>,
+        settings_repo: Arc<dyn SettingsRepo>,
     ) -> Self {
         // Create infrastructure services
         let clock: Arc<dyn ClockPort> = Arc::new(SystemClock::new());
@@ -377,6 +379,10 @@ impl App {
             use_cases::management::SkillCrud::new(skill.clone()),
         );
 
+        let settings = use_cases::SettingsUseCases::new(Arc::new(
+            use_cases::settings::SettingsOps::new(settings_repo),
+        ));
+
         let session =
             use_cases::SessionUseCases::new(Arc::new(use_cases::session::JoinWorld::new(
                 world.clone(),
@@ -400,6 +406,7 @@ impl App {
             visual_state: visual_state_uc,
             management,
             session,
+            settings,
             staging: staging_uc,
             npc: npc_uc,
             inventory: inventory_uc,

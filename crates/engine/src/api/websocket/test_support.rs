@@ -21,7 +21,7 @@ use crate::infrastructure::ports::{
     MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockGoalRepo,
     MockInteractionRepo, MockItemRepo, MockLocationRepo, MockLocationStateRepo, MockLoreRepo,
     MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockRegionStateRepo,
-    MockSceneRepo, MockSkillRepo, MockStagingRepo,
+    MockSceneRepo, MockSettingsRepo, MockSkillRepo, MockStagingRepo,
 };
 
 pub(crate) use crate::infrastructure::ports::{MockWorldRepo, QueuePort};
@@ -35,6 +35,7 @@ pub(crate) struct TestAppRepos {
     pub(crate) act_repo: MockActRepo,
     pub(crate) skill_repo: MockSkillRepo,
     pub(crate) interaction_repo: MockInteractionRepo,
+    pub(crate) settings_repo: MockSettingsRepo,
     pub(crate) challenge_repo: MockChallengeRepo,
     pub(crate) narrative_repo: MockNarrativeRepo,
     pub(crate) staging_repo: MockStagingRepo,
@@ -76,6 +77,7 @@ impl TestAppRepos {
             act_repo: MockActRepo::new(),
             skill_repo: MockSkillRepo::new(),
             interaction_repo: MockInteractionRepo::new(),
+            settings_repo: MockSettingsRepo::new(),
             challenge_repo: MockChallengeRepo::new(),
             narrative_repo: MockNarrativeRepo::new(),
             staging_repo: MockStagingRepo::new(),
@@ -437,6 +439,7 @@ pub(crate) fn build_test_app_with_ports(
     let act_repo = Arc::new(repos.act_repo);
     let skill_repo = Arc::new(repos.skill_repo);
     let interaction_repo = Arc::new(repos.interaction_repo);
+    let settings_repo = Arc::new(repos.settings_repo);
     let challenge_repo = Arc::new(repos.challenge_repo);
     let narrative_repo = Arc::new(repos.narrative_repo);
     let staging_repo = Arc::new(repos.staging_repo);
@@ -752,6 +755,10 @@ pub(crate) fn build_test_app_with_ports(
         crate::use_cases::management::SkillCrud::new(skill.clone()),
     );
 
+    let settings = crate::use_cases::SettingsUseCases::new(Arc::new(
+        crate::use_cases::settings::SettingsOps::new(settings_repo),
+    ));
+
     let session = crate::use_cases::SessionUseCases::new(Arc::new(
         crate::use_cases::session::JoinWorld::new(
             world.clone(),
@@ -776,6 +783,7 @@ pub(crate) fn build_test_app_with_ports(
         visual_state: visual_state_uc,
         management,
         session,
+        settings,
         staging: staging_uc,
         npc: npc_uc,
         inventory: inventory_uc,
