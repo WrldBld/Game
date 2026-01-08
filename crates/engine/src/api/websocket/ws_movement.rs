@@ -351,10 +351,33 @@ async fn build_scene_update(
         });
     }
 
+    let interactions = match state.app.entities.interaction.list_for_scene(scene.id).await {
+        Ok(list) => list,
+        Err(e) => {
+            tracing::warn!(error = %e, scene_id = %scene.id, "Failed to load scene interactions");
+            Vec::new()
+        }
+    };
+
+    let mut interaction_data = Vec::with_capacity(interactions.len());
+    for interaction in interactions {
+        let (target_id, target_type, target_name) =
+            resolve_interaction_target(state, &interaction.target).await;
+        interaction_data.push(InteractionData {
+            id: interaction.id.to_string(),
+            name: interaction.name,
+            interaction_type: interaction_type_to_str(&interaction.interaction_type).to_string(),
+            target_name,
+            target_id,
+            target_type,
+            is_available: interaction.is_available,
+        });
+    }
+
     Some(ServerMessage::SceneUpdate {
         scene: scene_data,
         characters,
-        interactions: Vec::<InteractionData>::new(),
+        interactions: interaction_data,
     })
 }
 
@@ -387,4 +410,55 @@ fn resolve_event_outcome_description(event: &wrldbldr_domain::NarrativeEvent) ->
         .first()
         .map(|outcome| outcome.description.clone())
         .unwrap_or_default()
+}
+
+fn interaction_type_to_str(interaction_type: &wrldbldr_domain::InteractionType) -> &'static str {
+    match interaction_type {
+        wrldbldr_domain::InteractionType::Dialogue => "dialogue",
+        wrldbldr_domain::InteractionType::Examine => "examine",
+        wrldbldr_domain::InteractionType::UseItem => "use_item",
+        wrldbldr_domain::InteractionType::PickUp => "pick_up",
+        wrldbldr_domain::InteractionType::GiveItem => "give_item",
+        wrldbldr_domain::InteractionType::Attack => "attack",
+        wrldbldr_domain::InteractionType::Travel => "travel",
+        wrldbldr_domain::InteractionType::Custom(_) => "custom",
+    }
+}
+
+async fn resolve_interaction_target(
+    state: &WsState,
+    target: &wrldbldr_domain::InteractionTarget,
+) -> (Option<String>, Option<String>, Option<String>) {
+    match target {
+        wrldbldr_domain::InteractionTarget::Character(id) => {
+            let name = state
+                .app
+                .entities
+                .character
+                .get(*id)
+                .await
+                .ok()
+                .flatten()
+                .map(|c| c.name);
+            (Some(id.to_string()), Some("character".to_string()), name)
+        }
+        wrldbldr_domain::InteractionTarget::Item(id) => {
+            let name = state
+                .app
+                .entities
+                .inventory
+                .get(*id)
+                .await
+                .ok()
+                .flatten()
+                .map(|item| item.name);
+            (Some(id.to_string()), Some("item".to_string()), name)
+        }
+        wrldbldr_domain::InteractionTarget::Environment(label) => (
+            None,
+            Some("environment".to_string()),
+            Some(label.clone()),
+        ),
+        wrldbldr_domain::InteractionTarget::None => (None, None, None),
+    }
 }

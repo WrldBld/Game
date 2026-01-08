@@ -43,6 +43,12 @@ pub enum ClientMessage {
         target: Option<String>,
         dialogue: Option<String>,
     },
+    /// Start a conversation with an NPC
+    StartConversation { npc_id: String, message: String },
+    /// Continue an existing conversation with an NPC
+    ContinueConversation { npc_id: String, message: String },
+    /// Perform a scene interaction by ID
+    PerformInteraction { interaction_id: String },
     /// Request to change scene
     RequestSceneChange { scene_id: String },
     /// DM updates directorial context
@@ -1059,6 +1065,10 @@ pub struct InteractionData {
     pub name: String,
     pub interaction_type: String,
     pub target_name: Option<String>,
+    #[serde(default)]
+    pub target_id: Option<String>,
+    #[serde(default)]
+    pub target_type: Option<String>,
     pub is_available: bool,
 }
 

@@ -82,6 +82,15 @@ pub trait GameConnectionPort: Send + Sync {
         dialogue: Option<&str>,
     ) -> anyhow::Result<()>;
 
+    /// Start a conversation with an NPC
+    fn start_conversation(&self, npc_id: &str, message: &str) -> anyhow::Result<()>;
+
+    /// Continue a conversation with an NPC
+    fn continue_conversation(&self, npc_id: &str, message: &str) -> anyhow::Result<()>;
+
+    /// Perform a scene interaction by ID
+    fn perform_interaction(&self, interaction_id: &str) -> anyhow::Result<()>;
+
     /// Request a scene change (DM only)
     fn request_scene_change(&self, scene_id: &str) -> anyhow::Result<()>;
 

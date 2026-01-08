@@ -57,15 +57,13 @@ pub(super) async fn handle_player_action(
                 "Talk action requires target NPC ID",
             ))
         }
-        Err(crate::use_cases::player_action::PlayerActionError::MissingTalkDialogue) => {
-            return Some(error_response(
-                "MISSING_PARAMS",
-                "Talk action requires dialogue",
-            ))
-        }
         Err(crate::use_cases::player_action::PlayerActionError::Conversation(e)) => {
             tracing::error!(error = %e, "Failed to start conversation");
             return Some(error_response("CONVERSATION_ERROR", &e.to_string()));
+        }
+        Err(crate::use_cases::player_action::PlayerActionError::Queue(e)) => {
+            tracing::error!(error = %e, "Failed to enqueue player action");
+            return Some(error_response("QUEUE_ERROR", &e));
         }
     };
 

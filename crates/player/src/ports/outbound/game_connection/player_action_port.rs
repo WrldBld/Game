@@ -25,6 +25,15 @@ pub trait PlayerActionPort: Send + Sync {
         dialogue: Option<String>,
     ) -> anyhow::Result<()>;
 
+    /// Start a conversation with an NPC
+    fn start_conversation(&self, npc_id: &str, message: &str) -> anyhow::Result<()>;
+
+    /// Continue a conversation with an NPC
+    fn continue_conversation(&self, npc_id: &str, message: &str) -> anyhow::Result<()>;
+
+    /// Perform a scene interaction by ID
+    fn perform_interaction(&self, interaction_id: &str) -> anyhow::Result<()>;
+
     /// Submit a challenge roll (Player only) - legacy method using raw i32
     fn submit_challenge_roll(&self, challenge_id: &str, roll: i32) -> anyhow::Result<()>;
 
@@ -61,6 +70,18 @@ impl<T: GameConnectionPort + ?Sized> PlayerActionPort for T {
         dialogue: Option<String>,
     ) -> anyhow::Result<()> {
         GameConnectionPort::send_action(self, action_type, target.as_deref(), dialogue.as_deref())
+    }
+
+    fn start_conversation(&self, npc_id: &str, message: &str) -> anyhow::Result<()> {
+        GameConnectionPort::start_conversation(self, npc_id, message)
+    }
+
+    fn continue_conversation(&self, npc_id: &str, message: &str) -> anyhow::Result<()> {
+        GameConnectionPort::continue_conversation(self, npc_id, message)
+    }
+
+    fn perform_interaction(&self, interaction_id: &str) -> anyhow::Result<()> {
+        GameConnectionPort::perform_interaction(self, interaction_id)
     }
 
     fn submit_challenge_roll(&self, challenge_id: &str, roll: i32) -> anyhow::Result<()> {
