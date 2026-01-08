@@ -235,6 +235,9 @@ impl App {
             Arc::new(use_cases::challenge::TriggerChallengePrompt::new(
                 challenge.clone(),
             )),
+            Arc::new(use_cases::challenge::ChallengeOps::new(
+                challenge.clone(),
+            )),
         );
 
         let approval = use_cases::ApprovalUseCases::new(

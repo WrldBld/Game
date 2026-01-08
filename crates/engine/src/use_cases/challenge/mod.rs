@@ -14,6 +14,10 @@ use wrldbldr_domain::{
     OutcomeTrigger, OutcomeType, PlayerCharacterId, ProposedTool, WorldId,
 };
 
+mod crud;
+
+pub use crud::{ChallengeError as ChallengeCrudError, ChallengeOps};
+
 use crate::entities::{Challenge, Inventory, Observation, PlayerCharacter, Scene};
 use crate::infrastructure::ports::{ClockPort, QueuePort, RandomPort, RepoError};
 
@@ -22,6 +26,7 @@ pub struct ChallengeUseCases {
     pub roll: Arc<RollChallenge>,
     pub resolve: Arc<ResolveOutcome>,
     pub trigger_prompt: Arc<TriggerChallengePrompt>,
+    pub ops: Arc<ChallengeOps>,
 }
 
 impl ChallengeUseCases {
@@ -29,11 +34,13 @@ impl ChallengeUseCases {
         roll: Arc<RollChallenge>,
         resolve: Arc<ResolveOutcome>,
         trigger_prompt: Arc<TriggerChallengePrompt>,
+        ops: Arc<ChallengeOps>,
     ) -> Self {
         Self {
             roll,
             resolve,
             trigger_prompt,
+            ops,
         }
     }
 }

@@ -3,7 +3,7 @@ use super::*;
 use std::collections::{HashMap, HashSet};
 
 use crate::api::connections::ConnectionInfo;
-use wrldbldr_domain::WorldId;
+use wrldbldr_domain::{LlmRequestType, WorldId};
 
 use wrldbldr_protocol::{AiRequest, ExpressionRequest, GenerationRequest};
 

@@ -211,14 +211,14 @@ impl NarrativeEventOps {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TriggeredNarrativeEvent {
     pub world_id: WorldId,
     pub event_id: NarrativeEventId,
     pub event_name: String,
     pub outcome_name: String,
     pub outcome_description: String,
-    pub scene_direction: Option<String>,
+    pub scene_direction: String,
     pub effects_summary: Option<EffectExecutionSummary>,
     pub effects_present: bool,
 }
