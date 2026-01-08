@@ -811,7 +811,12 @@ pub(crate) fn build_test_app_with_ports(
     ));
     let join_world_flow =
         Arc::new(crate::use_cases::session::JoinWorldFlow::new(join_world.clone()));
-    let session = crate::use_cases::SessionUseCases::new(join_world, join_world_flow);
+    let directorial_update = Arc::new(crate::use_cases::session::DirectorialUpdate::new());
+    let session = crate::use_cases::SessionUseCases::new(
+        join_world,
+        join_world_flow,
+        directorial_update,
+    );
 
     let use_cases = UseCases {
         movement,

@@ -2074,47 +2074,22 @@ async fn handle_directorial_update(
         None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
     };
 
-    // Log the directorial context update with all fields
-    tracing::info!(
-        world_id = %world_id,
-        connection_id = %connection_id,
-        scene_notes = %context.scene_notes,
-        tone = %context.tone,
-        npc_motivation_count = context.npc_motivations.len(),
-        forbidden_topic_count = context.forbidden_topics.len(),
-        "Directorial context stored"
-    );
+    let ctx = crate::use_cases::session::DirectorialUpdateContext {
+        connections: &state.connections,
+    };
+    let input = crate::use_cases::session::DirectorialUpdateInput {
+        world_id,
+        context,
+    };
 
-    // Log detailed NPC motivations at debug level
-    for motivation in &context.npc_motivations {
-        tracing::debug!(
-            world_id = %world_id,
-            character_id = %motivation.character_id,
-            emotional_guidance = %motivation.emotional_guidance,
-            immediate_goal = %motivation.immediate_goal,
-            has_secret_agenda = motivation.secret_agenda.is_some(),
-            "NPC motivation in directorial context"
-        );
-    }
-
-    // Log forbidden topics at debug level
-    if !context.forbidden_topics.is_empty() {
-        tracing::debug!(
-            world_id = %world_id,
-            forbidden_topics = ?context.forbidden_topics,
-            "Forbidden topics in directorial context"
-        );
-    }
-
-    // Store directorial context in per-world cache for LLM prompts
-    // This is session-scoped storage. For persistent storage, the context
-    // would need to be saved to the Scene entity or a dedicated table.
-    state.connections.set_directorial_context(world_id, context);
-
-    tracing::info!(
-        world_id = %world_id,
-        "Directorial context stored for world"
-    );
+    // Store directorial context in per-world cache for LLM prompts.
+    state
+        .app
+        .use_cases
+        .session
+        .directorial_update
+        .execute(&ctx, input)
+        .await;
 
     None
 }
@@ -3617,7 +3592,12 @@ mod ws_integration_tests_inline {
         ));
         let join_world_flow =
             Arc::new(crate::use_cases::session::JoinWorldFlow::new(join_world.clone()));
-        let session = crate::use_cases::SessionUseCases::new(join_world, join_world_flow);
+        let directorial_update = Arc::new(crate::use_cases::session::DirectorialUpdate::new());
+        let session = crate::use_cases::SessionUseCases::new(
+            join_world,
+            join_world_flow,
+            directorial_update,
+        );
 
         let use_cases = UseCases {
             movement,
