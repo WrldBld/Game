@@ -598,18 +598,6 @@ async fn handle_move_to_region(
         .await
     {
         Ok(result) => {
-            // Get location name for the response
-            let location_name = state
-                .app
-                .entities
-                .location
-                .get(result.region.location_id)
-                .await
-                .ok()
-                .flatten()
-                .map(|l| l.name.clone())
-                .unwrap_or_else(|| "Unknown Location".to_string());
-
             // Check staging status
             match result.staging_status {
                 StagingStatus::Pending { previous_staging } => {
@@ -641,36 +629,12 @@ async fn handle_move_to_region(
                     }
                 }
                 StagingStatus::Ready => {
-                    // Build SceneChanged response with NPCs
-                    let region_data = wrldbldr_protocol::RegionData {
-                        id: result.region.id.to_string(),
-                        name: result.region.name.clone(),
-                        location_id: result.region.location_id.to_string(),
-                        location_name,
-                        backdrop_asset: result.region.backdrop_asset.clone(),
-                        atmosphere: result.region.atmosphere.clone(),
-                        map_asset: None,
-                    };
-
-                    let npcs_present: Vec<wrldbldr_protocol::NpcPresenceData> = result
-                        .npcs
-                        .into_iter()
-                        .map(|npc| wrldbldr_protocol::NpcPresenceData {
-                            character_id: npc.character_id.to_string(),
-                            name: npc.name,
-                            sprite_asset: npc.sprite_asset,
-                            portrait_asset: npc.portrait_asset,
-                        })
-                        .collect();
-
-                    // Get navigation data
-                    let navigation =
-                        build_navigation_data(&state.app.entities.location, region_uuid).await;
-
-                    // Get items in the region
-                    let region_items =
-                        build_region_items(state.app.use_cases.inventory.ops.as_ref(), region_uuid)
-                            .await;
+                    let scene_change = state
+                        .app
+                        .use_cases
+                        .scene_change
+                        .build_scene_change(&result.region, result.npcs, true)
+                        .await;
 
                     // Broadcast time suggestion to DMs if present
                     if let Some(ref time_suggestion) = result.time_suggestion {
@@ -692,10 +656,10 @@ async fn handle_move_to_region(
 
                     Some(ServerMessage::SceneChanged {
                         pc_id: pc_id.clone(),
-                        region: region_data,
-                        npcs_present,
-                        navigation,
-                        region_items,
+                        region: scene_change.region,
+                        npcs_present: scene_change.npcs_present,
+                        navigation: scene_change.navigation,
+                        region_items: scene_change.region_items,
                     })
                 }
             }
@@ -758,55 +722,19 @@ async fn handle_exit_to_location(
         .await
     {
         Ok(result) => {
-            // Get location name for the response
-            let location_name = state
+            let scene_change = state
                 .app
-                .entities
-                .location
-                .get(result.region.location_id)
-                .await
-                .ok()
-                .flatten()
-                .map(|l| l.name.clone())
-                .unwrap_or_else(|| "Unknown Location".to_string());
-
-            let region_data = wrldbldr_protocol::RegionData {
-                id: result.region.id.to_string(),
-                name: result.region.name.clone(),
-                location_id: result.region.location_id.to_string(),
-                location_name,
-                backdrop_asset: result.region.backdrop_asset.clone(),
-                atmosphere: result.region.atmosphere.clone(),
-                map_asset: None,
-            };
-
-            let npcs_present: Vec<wrldbldr_protocol::NpcPresenceData> = result
-                .npcs
-                .into_iter()
-                .filter(|npc| npc.is_visible_to_players())
-                .map(|npc| wrldbldr_protocol::NpcPresenceData {
-                    character_id: npc.character_id.to_string(),
-                    name: npc.name,
-                    sprite_asset: npc.sprite_asset,
-                    portrait_asset: npc.portrait_asset,
-                })
-                .collect();
-
-            // Get navigation data for new region
-            let navigation =
-                build_navigation_data(&state.app.entities.location, result.region.id).await;
-
-            // Get items in the region
-            let region_items =
-                build_region_items(state.app.use_cases.inventory.ops.as_ref(), result.region.id)
-                    .await;
+                .use_cases
+                .scene_change
+                .build_scene_change(&result.region, result.npcs, false)
+                .await;
 
             Some(ServerMessage::SceneChanged {
                 pc_id: pc_id.clone(),
-                region: region_data,
-                npcs_present,
-                navigation,
-                region_items,
+                region: scene_change.region,
+                npcs_present: scene_change.npcs_present,
+                navigation: scene_change.navigation,
+                region_items: scene_change.region_items,
             })
         }
         Err(e) => {
@@ -2430,77 +2358,73 @@ async fn handle_player_action(
         None => return Some(error_response("NO_PC", "Must have a PC to perform actions")),
     };
 
-    // Generate action ID
-    let action_id = Uuid::new_v4().to_string();
+    let target_npc = if action_type == "talk" {
+        match target.as_ref() {
+            Some(target_str) => match parse_character_id(target_str) {
+                Ok(id) => Some(id),
+                Err(e) => return Some(e),
+            },
+            None => None,
+        }
+    } else {
+        None
+    };
+
+    let processed = match state
+        .app
+        .use_cases
+        .player_action
+        .handle
+        .execute(
+            world_id,
+            pc_id,
+            conn_info.user_id.clone(),
+            action_type.clone(),
+            target_npc,
+            dialogue.clone(),
+        )
+        .await
+    {
+        Ok(result) => result,
+        Err(crate::use_cases::player_action::PlayerActionError::MissingTalkTarget) => {
+            return Some(error_response(
+                "MISSING_PARAMS",
+                "Talk action requires target NPC ID",
+            ))
+        }
+        Err(crate::use_cases::player_action::PlayerActionError::MissingTalkDialogue) => {
+            return Some(error_response(
+                "MISSING_PARAMS",
+                "Talk action requires dialogue",
+            ))
+        }
+        Err(crate::use_cases::player_action::PlayerActionError::Conversation(e)) => {
+            tracing::error!(error = %e, "Failed to start conversation");
+            return Some(error_response("CONVERSATION_ERROR", &e.to_string()));
+        }
+    };
 
     tracing::info!(
         connection_id = %connection_id,
-        action_id = %action_id,
-        action_type = %action_type,
+        action_id = %processed.action_id,
+        action_type = %processed.action_type,
         target = ?target,
         "Player action received"
     );
 
     // Acknowledge the action
     let ack = ServerMessage::ActionReceived {
-        action_id: action_id.clone(),
-        player_id: conn_info.user_id.clone(),
-        action_type: action_type.clone(),
+        action_id: processed.action_id.to_string(),
+        player_id: processed.player_id.clone(),
+        action_type: processed.action_type.clone(),
     };
-
-    // Handle "talk" actions via conversation use case
-    if action_type == "talk" {
-        if let (Some(target_str), Some(dialogue_text)) = (target.as_ref(), dialogue.as_ref()) {
-            // Parse target as NPC ID
-            let npc_id = match parse_character_id(target_str) {
-                Ok(id) => id,
-                Err(e) => return Some(e),
-            };
-
-            // Start conversation - validates NPC is in region and queues for LLM
-            match state
-                .app
-                .use_cases
-                .conversation
-                .start
-                .execute(
-                    world_id,
-                    pc_id,
-                    npc_id,
-                    conn_info.user_id.clone(),
-                    dialogue_text.clone(),
-                )
-                .await
-            {
-                Ok(result) => {
-                    tracing::info!(
-                        conversation_id = %result.conversation_id,
-                        action_queue_id = %result.action_queue_id,
-                        npc = %result.npc_name,
-                        disposition = ?result.npc_disposition,
-                        "Conversation started, queued for LLM processing"
-                    );
-                    // Action is queued - actual NPC response comes later via approval flow
-                }
-                Err(e) => {
-                    tracing::error!(error = %e, "Failed to start conversation");
-                    return Some(error_response("CONVERSATION_ERROR", &e.to_string()));
-                }
-            }
-        } else {
-            return Some(error_response(
-                "MISSING_PARAMS",
-                "Talk action requires target NPC ID and dialogue",
-            ));
-        }
-    }
 
     // Notify DMs that action is queued
     let queue_msg = ServerMessage::ActionQueued {
-        action_id,
-        player_name: conn_info.user_id,
-        action_type,
-        queue_depth: 1, // Would need actual queue depth
+        action_id: processed.action_id.to_string(),
+        player_name: processed.player_id,
+        action_type: processed.action_type,
+        queue_depth: processed.queue_depth,
     };
     state
         .connections
@@ -2891,80 +2815,6 @@ fn error_response(code: &str, message: &str) -> ServerMessage {
     ServerMessage::Error {
         code: code.to_string(),
         message: message.to_string(),
-    }
-}
-
-/// Build navigation data for a region, including connected regions and exits.
-async fn build_navigation_data(
-    location_entity: &crate::entities::Location,
-    region_id: RegionId,
-) -> wrldbldr_protocol::NavigationData {
-    // Get region connections
-    let connections = location_entity
-        .get_connections(region_id)
-        .await
-        .ok()
-        .unwrap_or_default();
-
-    // Build connected regions with names
-    let mut connected_regions = Vec::new();
-    for c in connections {
-        let region_name = location_entity
-            .get_region(c.to_region)
-            .await
-            .ok()
-            .flatten()
-            .map(|r| r.name)
-            .unwrap_or_else(|| "Unknown".to_string());
-
-        connected_regions.push(wrldbldr_protocol::NavigationTarget {
-            region_id: c.to_region.to_string(),
-            name: region_name,
-            is_locked: c.is_locked,
-            lock_description: c.lock_description,
-        });
-    }
-
-    // Get location exits
-    let exits = location_entity
-        .get_exits(region_id)
-        .await
-        .ok()
-        .unwrap_or_default()
-        .into_iter()
-        .map(|e| wrldbldr_protocol::NavigationExit {
-            location_id: e.location_id.to_string(),
-            location_name: e.location_name,
-            arrival_region_id: e.arrival_region_id.to_string(),
-            description: e.description,
-        })
-        .collect();
-
-    wrldbldr_protocol::NavigationData {
-        connected_regions,
-        exits,
-    }
-}
-
-/// Build region items data (items that can be picked up in this region).
-async fn build_region_items(
-    inventory_ops: &crate::use_cases::inventory::InventoryOps,
-    region_id: RegionId,
-) -> Vec<wrldbldr_protocol::RegionItemData> {
-    match inventory_ops.list_in_region(region_id).await {
-        Ok(items) => items
-            .into_iter()
-            .map(|item| wrldbldr_protocol::RegionItemData {
-                id: item.id.to_string(),
-                name: item.name,
-                description: item.description,
-                item_type: item.item_type,
-            })
-            .collect(),
-        Err(e) => {
-            tracing::warn!(error = %e, region_id = %region_id, "Failed to fetch region items");
-            vec![]
-        }
     }
 }
 
@@ -3526,16 +3376,19 @@ mod ws_integration_tests_inline {
             )),
         );
 
-        let conversation = crate::use_cases::ConversationUseCases::new(
-            Arc::new(crate::use_cases::conversation::StartConversation::new(
-                character.clone(),
-                player_character.clone(),
-                staging.clone(),
-                scene.clone(),
-                world.clone(),
-                queue.clone(),
-                clock.clone(),
-            )),
+        let scene_change =
+            crate::use_cases::SceneChangeBuilder::new(location.clone(), inventory.clone());
+
+        let conversation_start = Arc::new(crate::use_cases::conversation::StartConversation::new(
+            character.clone(),
+            player_character.clone(),
+            staging.clone(),
+            scene.clone(),
+            world.clone(),
+            queue.clone(),
+            clock.clone(),
+        ));
+        let conversation_continue =
             Arc::new(crate::use_cases::conversation::ContinueConversation::new(
                 character.clone(),
                 player_character.clone(),
@@ -3543,12 +3396,20 @@ mod ws_integration_tests_inline {
                 world.clone(),
                 queue.clone(),
                 clock.clone(),
-            )),
-            Arc::new(crate::use_cases::conversation::EndConversation::new(
-                character.clone(),
-                player_character.clone(),
-            )),
+            ));
+        let conversation_end = Arc::new(crate::use_cases::conversation::EndConversation::new(
+            character.clone(),
+            player_character.clone(),
+        ));
+        let conversation = crate::use_cases::ConversationUseCases::new(
+            conversation_start.clone(),
+            conversation_continue,
+            conversation_end,
         );
+
+        let player_action = crate::use_cases::PlayerActionUseCases::new(Arc::new(
+            crate::use_cases::player_action::HandlePlayerAction::new(conversation_start),
+        ));
 
         let actantial = crate::use_cases::ActantialUseCases::new(
             crate::use_cases::actantial::GoalOps::new(goal.clone()),
@@ -3775,9 +3636,11 @@ mod ws_integration_tests_inline {
             actantial,
             ai,
             assets: assets_uc,
+            scene_change,
             world: world_uc,
             queues,
             narrative: narrative_uc,
+            player_action,
             time: time_uc,
             visual_state: visual_state_uc,
             management,

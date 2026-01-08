@@ -549,29 +549,41 @@ pub(crate) fn build_test_app_with_ports(
         )),
     );
 
-    let conversation = crate::use_cases::ConversationUseCases::new(
-        Arc::new(crate::use_cases::conversation::StartConversation::new(
-            character.clone(),
-            player_character.clone(),
-            staging.clone(),
-            scene.clone(),
-            world.clone(),
-            queue.clone(),
-            clock.clone(),
-        )),
-        Arc::new(crate::use_cases::conversation::ContinueConversation::new(
-            character.clone(),
-            player_character.clone(),
-            staging.clone(),
-            world.clone(),
-            queue.clone(),
-            clock.clone(),
-        )),
-        Arc::new(crate::use_cases::conversation::EndConversation::new(
-            character.clone(),
-            player_character.clone(),
-        )),
+    let scene_change = crate::use_cases::SceneChangeBuilder::new(
+        location.clone(),
+        inventory.clone(),
     );
+
+    let conversation_start = Arc::new(crate::use_cases::conversation::StartConversation::new(
+        character.clone(),
+        player_character.clone(),
+        staging.clone(),
+        scene.clone(),
+        world.clone(),
+        queue.clone(),
+        clock.clone(),
+    ));
+    let conversation_continue = Arc::new(crate::use_cases::conversation::ContinueConversation::new(
+        character.clone(),
+        player_character.clone(),
+        staging.clone(),
+        world.clone(),
+        queue.clone(),
+        clock.clone(),
+    ));
+    let conversation_end = Arc::new(crate::use_cases::conversation::EndConversation::new(
+        character.clone(),
+        player_character.clone(),
+    ));
+    let conversation = crate::use_cases::ConversationUseCases::new(
+        conversation_start.clone(),
+        conversation_continue,
+        conversation_end,
+    );
+
+    let player_action = crate::use_cases::PlayerActionUseCases::new(Arc::new(
+        crate::use_cases::player_action::HandlePlayerAction::new(conversation_start),
+    ));
 
     let actantial = crate::use_cases::ActantialUseCases::new(
         crate::use_cases::actantial::GoalOps::new(goal.clone()),
@@ -791,9 +803,11 @@ pub(crate) fn build_test_app_with_ports(
         actantial,
         ai,
         assets: assets_uc,
+        scene_change,
         world: world_uc,
         queues,
         narrative: narrative_uc,
+        player_action,
         time: time_uc,
         visual_state: visual_state_uc,
         management,

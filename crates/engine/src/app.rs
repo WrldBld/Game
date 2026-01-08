@@ -54,9 +54,11 @@ pub struct UseCases {
     pub actantial: use_cases::ActantialUseCases,
     pub ai: use_cases::AiUseCases,
     pub assets: use_cases::AssetUseCases,
+    pub scene_change: use_cases::SceneChangeBuilder,
     pub world: use_cases::WorldUseCases,
     pub queues: use_cases::QueueUseCases,
     pub narrative: use_cases::NarrativeUseCases,
+    pub player_action: use_cases::PlayerActionUseCases,
     pub time: use_cases::TimeUseCases,
     pub visual_state: use_cases::VisualStateUseCases,
     pub management: use_cases::ManagementUseCases,
@@ -181,29 +183,38 @@ impl App {
             )),
         );
 
+        let scene_change = use_cases::SceneChangeBuilder::new(location.clone(), inventory.clone());
+
+        let conversation_start = Arc::new(use_cases::conversation::StartConversation::new(
+            character.clone(),
+            player_character.clone(),
+            staging.clone(),
+            scene.clone(),
+            world.clone(),
+            queue_port.clone(),
+            clock.clone(),
+        ));
+        let conversation_continue = Arc::new(use_cases::conversation::ContinueConversation::new(
+            character.clone(),
+            player_character.clone(),
+            staging.clone(),
+            world.clone(),
+            queue_port.clone(),
+            clock.clone(),
+        ));
+        let conversation_end = Arc::new(use_cases::conversation::EndConversation::new(
+            character.clone(),
+            player_character.clone(),
+        ));
         let conversation = use_cases::ConversationUseCases::new(
-            Arc::new(use_cases::conversation::StartConversation::new(
-                character.clone(),
-                player_character.clone(),
-                staging.clone(),
-                scene.clone(),
-                world.clone(),
-                queue_port.clone(),
-                clock.clone(),
-            )),
-            Arc::new(use_cases::conversation::ContinueConversation::new(
-                character.clone(),
-                player_character.clone(),
-                staging.clone(),
-                world.clone(),
-                queue_port.clone(),
-                clock.clone(),
-            )),
-            Arc::new(use_cases::conversation::EndConversation::new(
-                character.clone(),
-                player_character.clone(),
-            )),
+            conversation_start.clone(),
+            conversation_continue,
+            conversation_end,
         );
+
+        let player_action = use_cases::PlayerActionUseCases::new(Arc::new(
+            use_cases::player_action::HandlePlayerAction::new(conversation_start),
+        ));
 
         let actantial = use_cases::ActantialUseCases::new(
             use_cases::actantial::GoalOps::new(goal.clone()),
@@ -415,9 +426,11 @@ impl App {
             actantial,
             ai,
             assets: assets_uc,
+            scene_change,
             world: world_uc,
             queues,
             narrative: narrative_uc,
+            player_action,
             time: time_uc,
             visual_state: visual_state_uc,
             management,
