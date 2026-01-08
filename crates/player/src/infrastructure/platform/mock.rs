@@ -3,10 +3,11 @@
 //! Provides controllable implementations of all platform providers
 //! for deterministic testing.
 
-use crate::application::ports::outbound::platform::{
-    DocumentProvider, EngineConfigProvider, ConnectionFactoryProvider, LogProvider,
-    Platform, RandomProvider, SleepProvider, StorageProvider, TimeProvider,
+use crate::ports::outbound::platform::{
+    ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider,
+    SleepProvider, StorageProvider, TimeProvider,
 };
+use crate::state::Platform;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::{future::Future, pin::Pin};
@@ -285,12 +286,15 @@ pub struct MockConnectionFactoryProvider;
 
 impl MockConnectionFactoryProvider {
     pub fn new() -> Self {
-        Self::default()
+        Self
     }
 }
 
 impl ConnectionFactoryProvider for MockConnectionFactoryProvider {
-    fn create_game_connection(&self, _server_url: &str) -> Arc<dyn crate::application::ports::outbound::GameConnectionPort> {
+    fn create_game_connection(
+        &self,
+        _server_url: &str,
+    ) -> Arc<dyn crate::ports::outbound::GameConnectionPort> {
         // For testing, we would need a mock GameConnectionPort implementation
         // For now, this will panic if called - tests that need connection should mock it separately
         panic!("MockConnectionFactoryProvider::create_game_connection called - this should be mocked in tests that need it")
@@ -301,13 +305,13 @@ impl ConnectionFactoryProvider for MockConnectionFactoryProvider {
 pub fn create_mock_platform() -> Platform {
     Platform::new(
         MockTimeProvider::default(),
-        MockSleepProvider::default(),
+        MockSleepProvider,
         MockRandomProvider::default(),
         MockStorageProvider::default(),
         MockLogProvider::default(),
         MockDocumentProvider::default(),
         MockEngineConfigProvider::default(),
-        MockConnectionFactoryProvider::default(),
+        MockConnectionFactoryProvider,
     )
 }
 
@@ -333,13 +337,13 @@ impl MockPlatformBuilder {
     pub fn new() -> Self {
         Self {
             time: MockTimeProvider::default(),
-            sleep: MockSleepProvider::default(),
+            sleep: MockSleepProvider,
             random: MockRandomProvider::default(),
             storage: MockStorageProvider::default(),
             log: MockLogProvider::default(),
             document: MockDocumentProvider::default(),
             engine_config: MockEngineConfigProvider::default(),
-            connection_factory: MockConnectionFactoryProvider::default(),
+            connection_factory: MockConnectionFactoryProvider,
         }
     }
 

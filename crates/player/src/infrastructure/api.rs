@@ -52,8 +52,14 @@ mod tests {
 
     #[test]
     fn test_ws_to_http() {
-        assert_eq!(ws_to_http("ws://localhost:3000/ws"), "http://localhost:3000");
+        assert_eq!(
+            ws_to_http("ws://localhost:3000/ws"),
+            "http://localhost:3000"
+        );
         assert_eq!(ws_to_http("wss://example.com/ws"), "https://example.com");
-        assert_eq!(ws_to_http("ws://192.168.1.1:3000"), "http://192.168.1.1:3000");
+        assert_eq!(
+            ws_to_http("ws://192.168.1.1:3000"),
+            "http://192.168.1.1:3000"
+        );
     }
 }

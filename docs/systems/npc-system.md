@@ -26,39 +26,39 @@ This system creates a living world without the complexity of AI pathfinding or s
 
 - [x] **US-NPC-001**: As a player, I see relevant NPCs when I enter a region based on their schedules
   - *Implementation*: [Staging System](./staging-system.md) queries NPC-Region relationships, generates suggestions, and requires DM approval
-  - *Files*: `Engine/src/application/services/staging_service.rs` (replaces `presence_service.rs`)
+  - *Files*: `crates/engine/src/entities/staging.rs` (replaces `presence_service.rs`)
 
 - [x] **US-NPC-002**: As a DM, I can define where NPCs work (region + shift)
   - *Implementation*: `WORKS_AT_REGION` edge with `shift` property (day/night/always)
-  - *Files*: `Engine/src/infrastructure/persistence/character_repository.rs`
+  - *Files*: `crates/engine/src/infrastructure/neo4j/character_repo.rs`
 
 - [x] **US-NPC-003**: As a DM, I can define where NPCs live
   - *Implementation*: `HOME_REGION` edge, NPCs more likely present at night
-  - *Files*: `Engine/src/infrastructure/persistence/character_repository.rs`
+  - *Files*: `crates/engine/src/infrastructure/neo4j/character_repo.rs`
 
 - [x] **US-NPC-004**: As a DM, I can define where NPCs frequently visit
   - *Implementation*: `FREQUENTS_REGION` edge with `frequency` (always/often/sometimes/rarely) and `time_of_day`
-  - *Files*: `Engine/src/infrastructure/persistence/character_repository.rs`
+  - *Files*: `crates/engine/src/infrastructure/neo4j/character_repo.rs`
 
 - [x] **US-NPC-005**: As a DM, I can define regions NPCs avoid
   - *Implementation*: `AVOIDS_REGION` edge overrides other presence rules
-  - *Files*: `Engine/src/infrastructure/persistence/character_repository.rs`
+  - *Files*: `crates/engine/src/infrastructure/neo4j/character_repo.rs`
 
 - [x] **US-NPC-006**: As a DM, I can make an NPC approach a specific player
   - *Implementation*: `TriggerApproachEvent` WebSocket message, NPC appears in PC's region
-  - *Files*: `Engine/src/infrastructure/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`
 
 - [x] **US-NPC-007**: As a DM, I can trigger a location-wide event (narration)
   - *Implementation*: `TriggerLocationEvent` WebSocket message, all PCs in region see it
-  - *Files*: `Engine/src/infrastructure/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`
 
-### Pending
+- [x] **US-NPC-008**: As a player, I see an NPC approach me with a description
+  - *Implementation*: `ApproachEventOverlay` modal with NPC sprite and "Continue" button
+  - *Files*: `crates/player-ui/src/presentation/components/event_overlays.rs`, `crates/player-ui/src/presentation/state/game_state.rs`
 
-- [ ] **US-NPC-008**: As a player, I see an NPC approach me with a description
-  - *Notes*: Engine sends `ApproachEvent`, Player UI needs approach animation/modal
-
-- [ ] **US-NPC-009**: As a player, I see location events as narrative text
-  - *Notes*: Engine sends `LocationEvent`, Player UI needs event display
+- [x] **US-NPC-009**: As a player, I see location events as narrative text
+  - *Implementation*: `LocationEventBanner` component at top of screen, click to dismiss
+  - *Files*: `crates/player-ui/src/presentation/components/event_overlays.rs`, `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
 
 ### Future Improvements
 
@@ -96,7 +96,7 @@ This system creates a living world without the complexity of AI pathfinding or s
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending
+**Status**: ✅ Implemented (US-NPC-008)
 
 ### Location Event Display
 
@@ -113,7 +113,7 @@ This system creates a living world without the complexity of AI pathfinding or s
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending
+**Status**: ✅ Implemented (US-NPC-009)
 
 ---
 
@@ -208,10 +208,13 @@ Result: List of NPCs with presence suggestions and reasoning
 | Component | Engine | Player | Notes |
 |-----------|--------|--------|-------|
 | NPC-Region Edges | ✅ | - | All 4 relationship types |
-| Staging System | ⏳ | ⏳ | Replaces PresenceService - see [Staging System](./staging-system.md) |
-| Approach Events | ✅ | ⏳ | Engine sends, Player pending |
-| Location Events | ✅ | ⏳ | Engine sends, Player pending |
-| Share NPC Location | ✅ | ⏳ | Engine sends, Player pending |
+| Staging System | ✅ | ⏳ | Partial - see [Staging System](./staging-system.md) |
+| Approach Events | ✅ | ✅ | Full modal overlay |
+| Location Events | ✅ | ✅ | Banner with dismiss |
+| Share NPC Location | ✅ | ✅ | Full WebSocket integration |
+| NPC Mood Panel | ✅ | ✅ | DM can view/modify moods toward PCs |
+| Mood in LLM Context | ✅ | - | Wired to build_prompt_from_action (2025-12-26) |
+| WebSocket Request Handlers | ⏳ | - | Disposition/relationship requests not wired |
 
 ---
 
@@ -221,22 +224,21 @@ Result: List of NPCs with presence suggestions and reasoning
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/value_objects/region.rs` | RegionRelationship types |
-| Domain | `src/domain/entities/staging.rs` | Staging entity |
-| Application | `src/application/services/staging_service.rs` | Staging workflow |
-| Application | `src/application/services/staging_context_provider.rs` | Context for LLM |
-| Infrastructure | `src/infrastructure/persistence/character_repository.rs` | NPC-Region queries |
-| Infrastructure | `src/infrastructure/persistence/region_repository.rs` | Region queries |
-| Infrastructure | `src/infrastructure/persistence/staging_repository.rs` | Staging persistence |
-| Infrastructure | `src/infrastructure/websocket.rs` | DM event handlers |
+| Domain | `crates/domain/src/value_objects/region.rs` | RegionRelationship types |
+| Domain | `crates/domain/src/entities/staging.rs` | Staging entity |
+| Entity | `crates/engine/src/entities/staging.rs` | Staging operations |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/character_repo.rs` | NPC-Region queries |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/region_repo.rs` | Region queries |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/staging_repo.rs` | Staging persistence |
+| API | `crates/engine/src/api/websocket/mod.rs` | DM event handlers |
 | Protocol | `crates/protocol/src/messages.rs` | Staging message types |
 
 ### Player
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Application | `src/application/dto/websocket_messages.rs` | Event message types |
-| Presentation | `src/presentation/handlers/session_message_handler.rs` | Handle events |
+| Application | `crates/player/src/application/dto/websocket_messages.rs` | Event message types |
+| Presentation | `crates/player/src/ui/presentation/handlers/session_message_handler.rs` | Handle events |
 
 ---
 
@@ -252,5 +254,7 @@ Result: List of NPCs with presence suggestions and reasoning
 
 | Date | Change |
 |------|--------|
-| 2025-12-18 | Initial version extracted from MVP.md |
+| 2025-12-26 | Added NPC Mood Panel and LLM context integration status |
+| 2025-12-24 | Marked US-NPC-008/009 complete; updated staging status |
 | 2025-12-19 | Updated to reference Staging System for presence determination |
+| 2025-12-18 | Initial version extracted from MVP.md |

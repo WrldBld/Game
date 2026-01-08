@@ -8,13 +8,14 @@ use anyhow::Result;
 
 use std::sync::Arc;
 
-use crate::application::ports::outbound::GameConnectionPort;
-use crate::domain::entities::PlayerAction;
+use crate::application::dto::PlayerAction;
+use crate::ports::outbound::GameConnectionPort;
 
 /// Service for sending player actions to the Engine via WebSocket
 ///
 /// This service uses the GameConnectionPort trait to abstract the actual
 /// connection implementation, allowing for different backends or testing.
+/// The PlayerActionPort methods are available via blanket implementation.
 pub struct ActionService {
     connection: Arc<dyn GameConnectionPort>,
 }
@@ -81,8 +82,7 @@ impl ActionService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::infrastructure::testing::MockGameConnectionPort;
-    use crate::infrastructure::testing::fixtures::action_custom;
+    use crate::ports::outbound::testing::MockGameConnectionPort;
 
     #[test]
     fn send_action_records_outbound_call() {
@@ -90,7 +90,7 @@ mod tests {
         let conn_dyn: Arc<dyn GameConnectionPort> = conn.clone();
         let svc = ActionService::new(conn_dyn);
 
-        svc.send_action(action_custom("hello")).unwrap();
+        svc.send_action(PlayerAction::custom("hello")).unwrap();
 
         let sent = conn.sent_actions();
         assert_eq!(sent.len(), 1);

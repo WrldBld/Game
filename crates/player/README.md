@@ -1,333 +1,573 @@
 # WrldBldr Player
 
-The **Player** is the frontend client for WrldBldr, a TTRPG (Tabletop Role-Playing Game) world management system. It provides a visual novel-style interface for players and a directorial control panel for Dungeon Masters.
+The Player is the frontend client for WrldBldr, providing the visual novel interface for players and DM control panels. It supports both **web** (WASM) and **desktop** (native) builds.
 
-## Goals
+---
 
-- **Visual Novel Gameplay**: Immersive PC experience with backdrops, character sprites, and typewriter dialogue
-- **DM Directing**: Control panel for guiding AI-assisted NPC responses and managing scenes
-- **World Creation**: Tools for building characters, locations, and assets within the game
-- **Cross-Platform**: Run on Desktop (Linux/Windows/macOS), Web (WASM), and Android
-- **Real-Time Multiplayer**: Synchronized sessions with multiple players and a DM
+## Architecture Overview
 
-## Architecture
-
-The Player follows a **layered architecture** with clear separation between domain, application, infrastructure, and presentation:
+The Player is now unified into a single crate (`wrldbldr-player`) with internal modules for UI, application logic, and infrastructure.
 
 ```
-Player/
-├── src/
-│   ├── main.rs                        # Dioxus app entry point
-│   │
-│   ├── domain/                        # Core client-side logic
-│   │   ├── entities/
-│   │   │   └── player_action.rs       # Player action types (Talk, Examine, Travel, etc.)
-│   │   ├── services/                  # (planned)
-│   │   └── value_objects/             # (planned)
-│   │
-│   ├── application/                   # Use cases and services
-│   │   ├── services/
-│   │   │   ├── session_service.rs     # WebSocket connection lifecycle
-│   │   │   └── action_service.rs      # Player action dispatch
-│   │   ├── ports/                     # (planned)
-│   │   └── dto/                       # (planned)
-│   │
-│   ├── infrastructure/                # External system adapters
-│   │   ├── websocket/
-│   │   │   ├── client.rs              # Dual-platform WebSocket (Tokio + WASM)
-│   │   │   └── messages.rs            # Client/Server message types
-│   │   ├── asset_loader/
-│   │   │   └── world_snapshot.rs      # World data deserialization
-│   │   └── audio/                     # (planned)
-│   │
-│   └── presentation/                  # UI layer
-│       ├── state/                     # Global state management
-│       │   ├── session_state.rs       # Connection status, user role
-│       │   ├── game_state.rs          # World, scene, characters
-│       │   ├── dialogue_state.rs      # Typewriter animation
-│       │   └── generation_state.rs    # Asset generation tracking
-│       │
-│       ├── views/                     # Top-level screens
-│       │   ├── main_menu.rs           # Server connection
-│       │   ├── role_select.rs         # DM/Player/Spectator selection
-│       │   ├── pc_view.rs             # Player character view
-│       │   ├── dm_view.rs             # Dungeon Master view
-│       │   └── spectator_view.rs      # Observer view
-│       │
-│       └── components/                # Reusable UI components
-│           ├── visual_novel/          # VN-style components
-│           │   ├── backdrop.rs        # Background images
-│           │   ├── character_sprite.rs# Character positioning
-│           │   ├── dialogue_box.rs    # Typewriter text display
-│           │   └── choice_menu.rs     # Player choices
-│           │
-│           ├── dm_panel/              # DM control components
-│           │   ├── approval_popup.rs  # LLM response approval
-│           │   ├── scene_preview.rs   # Compact scene display
-│           │   ├── conversation_log.rs
-│           │   ├── directorial_notes.rs
-│           │   ├── npc_motivation.rs
-│           │   └── tone_selector.rs
-│           │
-│           ├── creator/               # World building components
-│           │   ├── entity_browser.rs  # Entity tree view
-│           │   ├── character_form.rs  # Character creation/editing
-│           │   ├── location_form.rs   # Location creation/editing
-│           │   ├── asset_gallery.rs   # Generated asset selection
-│           │   ├── generation_queue.rs# Generation progress
-│           │   └── suggestion_button.rs# AI suggestion requests
-│           │
-│           ├── settings/              # Configuration components
-│           │   ├── workflow_config_editor.rs
-│           │   ├── workflow_upload_modal.rs
-│           │   └── workflow_slot_list.rs
-│           │
-│           ├── tactical/              # Combat grid (planned)
-│           ├── action_panel.rs        # Interaction buttons
-│           └── shared/                # Common utilities
-│
-├── Cargo.toml                         # Dependencies
-├── Trunk.toml                         # WASM bundler config
-├── Tailwind.config.js                 # CSS configuration
-├── package.json                       # JS dependencies (Tailwind)
-├── shell.nix                          # NixOS development environment
-└── Taskfile.yml                       # Task runner commands
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           wrldbldr-player                                    │
+│                                                                             │
+│  src/main.rs           Composition root (desktop + web)                      │
+│  src/ui/*              Dioxus routes/views/components/state                  │
+│  src/application/*     Services + DTOs                                       │
+│  src/infrastructure/*  WebSocket/HTTP/platform adapters (cfg per target)     │
+│  src/ports/*           Transitional port traits (will shrink over time)      │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Views and Roles
+---
 
-### Main Menu
-Server connection screen where users enter the Engine WebSocket URL.
+## Module Responsibilities
 
-### Role Selection
-Choose your role in the session:
-- **Dungeon Master**: Direct the game, approve AI responses, manage world
-- **Player**: Control a player character in the visual novel interface
-- **Spectator**: Watch the game unfold (read-only)
+### `src/main.rs` (Composition Root)
 
-### PC View (Player Character)
-Visual novel-style gameplay interface:
+- Creates platform-specific adapters (WASM vs Desktop)
+- Injects dependencies via Dioxus context providers
+- Launches the Dioxus application
+
+### `src/ui/` (Presentation)
+
+- Routes, views, reusable components
+- Reactive state via Dioxus Signals
+- Server event processing/handlers
+
+### `src/application/` (Application)
+
+- Services (API interactions)
+- DTOs and error handling
+
+### `src/infrastructure/` (Infrastructure)
+
+- WebSocket (desktop/wasm)
+- HTTP client (desktop/wasm)
+- Platform (storage, clipboard, URL handling)
+
+---
+
+## Directory Structure
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  [Backdrop Image - Full Screen]                             │
-│         ┌─────────┐     ┌─────────┐                         │
-│         │  NPC    │     │   PC    │                         │
-│         │ Sprite  │     │ Sprite  │                         │
-│         └─────────┘     └─────────┘                         │
-├─────────────────────────────────────────────────────────────┤
-│ ┌─────────────────────────────────────────────────────────┐ │
-│ │ NPC Name:                                               │ │
-│ │ "Dialogue text appears here, typewriter style..."       │ │
-│ │ [Choice 1] [Choice 2] [Custom input...]                 │ │
-│ └─────────────────────────────────────────────────────────┘ │
-│ [Inventory]  [Character]  [Map]  [Log]                      │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### DM View (Dungeon Master)
-Tabbed interface with Director Mode, Creator Mode, and Settings:
-```
-┌─────────────────────────────────────────────────────────────┐
-│  [Director Mode]  [Creator Mode]  [Settings]       [← Back] │
-├───────────────────────────────────┬─────────────────────────┤
-│  Scene Preview                    │  Directorial Panel      │
-│  ┌─────────────────────────────┐  │  Scene Notes: [...]     │
-│  │  Backdrop + Characters      │  │  NPC Motivations        │
-│  └─────────────────────────────┘  │  Tone: [Dropdown]       │
-│                                   │                         │
-│  Conversation Log                 │  Active NPCs:           │
-│  ┌─────────────────────────────┐  │  [x] Bartender          │
-│  │ PC: "Hello there"           │  │  [ ] Guard              │
-│  │ [Awaiting response...]      │  │                         │
-│  └─────────────────────────────┘  │  [Social Graph]         │
-│                                   │                         │
-│  ┌─ Approval Popup ─────────────┐ │                         │
-│  │ NPC will say: "..."          │ │                         │
-│  │ [Accept] [Modify] [Reject]   │ │                         │
-│  └──────────────────────────────┘ │                         │
-└───────────────────────────────────┴─────────────────────────┘
+crates/
+└── player/
+    ├── src/
+    │   ├── main.rs
+    │   ├── ui/
+    │   ├── application/
+    │   ├── infrastructure/
+    │   ├── ports/
+    │   └── state/
+    ├── assets/
+    ├── styles/
+    ├── package.json
+    ├── tailwind.config.js
+    └── Dioxus.toml
 ```
 
-## Running the Player
+---
 
-### Prerequisites
+## Key Navigation Guide
 
-- **Rust** (latest stable)
-- **Node.js** (for Tailwind CSS)
-- **Trunk** (for WASM builds): `cargo install trunk`
+### Finding Code by Task
 
-### Using Nix (Recommended)
+| Task                 | Location                                                                |
+| -------------------- | ----------------------------------------------------------------------- |
+| Add a new route      | `crates/player/src/ui/routes/mod.rs`                                    |
+| Add a new view       | `crates/player/src/ui/presentation/views/`                              |
+| Add a component      | `crates/player/src/ui/presentation/components/`                         |
+| Add state management | `crates/player/src/ui/presentation/state/`                              |
+| Add a service        | `crates/player/src/application/application/services/`                   |
+| Add a port trait     | `crates/player/src/ports/outbound/`                                     |
+| Handle server events | `crates/player/src/ui/presentation/handlers/session_message_handler.rs` |
+| Add platform code    | `crates/player/src/infrastructure/platform/`                            |
 
-```bash
-# Enter development environment
-nix-shell
+### Important Files
 
-# Install JS dependencies
-npm install
+| File                                                                    | Purpose                          |
+| ----------------------------------------------------------------------- | -------------------------------- |
+| `crates/player/src/main.rs`                                             | Application entry point          |
+| `crates/player/src/ui/mod.rs`                                           | Dioxus app root, ShellKind       |
+| `crates/player/src/ui/routes/mod.rs`                                    | All route definitions            |
+| `crates/player/src/ui/presentation/services.rs`                         | Service hooks (use\_\*\_service) |
+| `crates/player/src/ui/presentation/handlers/session_message_handler.rs` | Event processing                 |
+| `crates/player/src/ports/outbound/game_connection_port.rs`              | WebSocket interface              |
 
-# Run desktop version
-task desktop
+---
 
-# Or run web version
-task web
+## Routes
+
+```rust
+pub enum Route {
+    // Main screens
+    MainMenuRoute {}                    // /
+    WorldSelectRoute {}                 // /worlds
+    RoleSelectRoute {}                  // /roles
+
+    // Player views
+    PCViewRoute { world_id }            // /worlds/:id/play
+    PCCreationRoute { world_id }        // /worlds/:id/play/create-character
+    SpectatorViewRoute { world_id }     // /worlds/:id/watch
+
+    // DM views
+    DMViewRoute { world_id }            // /worlds/:id/dm
+    DMViewTabRoute { world_id, tab }    // /worlds/:id/dm/:tab
+    DMCreatorSubTabRoute { ... }        // /worlds/:id/dm/creator/:subtab
+    DMSettingsSubTabRoute { ... }       // /worlds/:id/dm/settings/:subtab
+    DMStoryArcSubTabRoute { ... }       // /worlds/:id/dm/story-arc/:subtab
+
+    NotFoundRoute { route }             // /:..route
+}
 ```
 
-### Desktop Build
-
-```bash
-# Install dependencies
-npm install
-
-# Build and run (Linux with GTK)
-cargo run
-
-# Or with release optimizations
-cargo run --release
-```
-
-### Web/WASM Build
-
-```bash
-# Install trunk if not present
-cargo install trunk
-
-# Serve with hot reload
-trunk serve
-
-# Build for production
-trunk build --release
-
-# Output in dist/
-```
-
-### Android Build
-
-```bash
-# Requires Android SDK and NDK
-cargo apk build --release
-```
-
-## Configuration
-
-The Player connects to an Engine server via WebSocket. The default URL is `ws://localhost:3000/ws`.
-
-### Build Targets
-
-| Target | Command | Notes |
-|--------|---------|-------|
-| Desktop (Linux) | `cargo run` | Uses GTK/WebKitGTK |
-| Desktop (Windows) | `cargo run` | Uses WebView2 |
-| Desktop (macOS) | `cargo run` | Uses WKWebView |
-| Web (WASM) | `trunk serve` | Runs at localhost:8080 |
-| Android | `cargo apk build` | Requires Android toolchain |
+---
 
 ## State Management
 
-The Player uses Dioxus signals with context providers for global state:
+State is managed via **Dioxus Signals** provided through context:
 
-### SessionState
-- Connection status (Disconnected, Connecting, Connected, etc.)
-- Session ID and user info
-- WebSocket client reference
+### State Containers
 
-### GameState
-- Loaded WorldSnapshot
-- Current scene and characters
-- Available interactions
+| State             | Hook                     | Purpose                                 |
+| ----------------- | ------------------------ | --------------------------------------- |
+| `GameState`       | `use_game_state()`       | World data, scene, NPCs, navigation     |
+| `SessionState`    | `use_session_state()`    | Connection, user, approvals, challenges |
+| `DialogueState`   | `use_dialogue_state()`   | Current dialogue, typewriter effect     |
+| `GenerationState` | `use_generation_state()` | Asset generation queue                  |
 
-### DialogueState
-- Current speaker and text
-- Typewriter animation progress
-- Available choices
+### SessionState Composition
 
-### GenerationState
-- Asset generation batch tracking
-- Progress updates from Engine
+`SessionState` is a facade composing:
 
-## WebSocket Protocol
+- `ConnectionState` - WebSocket status, user identity
+- `ApprovalState` - Pending approvals, decision history
+- `ChallengeState` - Active challenges, results, skills
 
-### Client → Server
+### Accessing State
+
 ```rust
-JoinSession { user_id, role }      // Join game session
-PlayerAction { action_type, target, dialogue }  // PC action
-DirectorialUpdate { scene_notes, npc_motivations, tone }
-ApprovalDecision { Accept | Modify | Reject | TakeOver }
-RequestSceneChange { scene_id }
-Heartbeat
+#[component]
+fn MyComponent() -> Element {
+    let game = use_game_state();
+    let session = use_session_state();
+
+    // Read state
+    let current_region = game.read().current_region.clone();
+    let is_connected = session.read().connection.is_connected();
+
+    // Mutate state
+    game.write().update_scene(new_scene);
+
+    rsx! {
+        div { "Current region: {current_region:?}" }
+    }
+}
 ```
 
-### Server → Client
+---
+
+## Service Hooks
+
+Services are provided via `Services<A: ApiPort>` context:
+
 ```rust
-SessionJoined { session_id, world_snapshot }
-SceneUpdate { scene, characters }
-DialogueResponse { speaker, text, choices }
-LLMProcessing { action_id }        // AI is thinking
-ApprovalRequired { dialogue, proposed_tools }  // DM approval needed
-ResponseApproved { dialogue, executed_tools }
-GenerationEvent { batch_id, status, progress }
-Error { message }
+#[component]
+fn MyComponent() -> Element {
+    let world_service = use_world_service();
+    let character_service = use_character_service();
+
+    // Use services
+    let _ = use_future(move || async move {
+        let worlds = world_service.list().await;
+        // ...
+    });
+
+    rsx! { /* ... */ }
+}
 ```
 
-## Development
+### Available Service Hooks
 
-### Task Commands
+| Hook                            | Service               | Purpose              |
+| ------------------------------- | --------------------- | -------------------- |
+| `use_world_service()`           | WorldService          | World CRUD           |
+| `use_character_service()`       | CharacterService      | Character CRUD       |
+| `use_location_service()`        | LocationService       | Location/Region CRUD |
+| `use_challenge_service()`       | ChallengeService      | Challenge management |
+| `use_skill_service()`           | SkillService          | Skill CRUD           |
+| `use_narrative_event_service()` | NarrativeEventService | Event management     |
+| `use_event_chain_service()`     | EventChainService     | Event chains         |
+| `use_asset_service()`           | AssetService          | Asset gallery        |
+| `use_generation_service()`      | GenerationService     | Image generation     |
+| `use_workflow_service()`        | WorkflowService       | ComfyUI workflows    |
+| `use_settings_service()`        | SettingsService       | App/world settings   |
+| `use_story_event_service()`     | StoryEventService     | Story timeline       |
 
-```bash
-# Using Taskfile
-task desktop    # Run desktop version
-task web        # Run web version with hot reload
-task build      # Build release
-task check      # Run clippy and format check
+---
+
+## Component Organization
+
+### Visual Novel Components (`components/visual_novel/`)
+
+| Component             | Purpose                      |
+| --------------------- | ---------------------------- |
+| `backdrop.rs`         | Scene background image       |
+| `character_sprite.rs` | NPC sprites with positioning |
+| `dialogue_box.rs`     | Typewriter text display      |
+| `choice_menu.rs`      | Player dialogue choices      |
+
+### DM Panel Components (`components/dm_panel/`)
+
+| Component                    | Purpose                  |
+| ---------------------------- | ------------------------ |
+| `approval_popup.rs`          | LLM response approval    |
+| `challenge_library/`         | Challenge management     |
+| `trigger_challenge_modal.rs` | Manual challenge trigger |
+| `director_generate_modal.rs` | Quick asset generation   |
+| `staging_approval.rs`        | NPC staging approval     |
+
+### Creator Components (`components/creator/`)
+
+| Component             | Purpose                      |
+| --------------------- | ---------------------------- |
+| `character_form.rs`   | Character editor             |
+| `location_form.rs`    | Location editor              |
+| `motivations_tab.rs`  | NPC wants/goals (1513 lines) |
+| `asset_gallery.rs`    | Generated assets browser     |
+| `generation_queue.rs` | Generation progress          |
+
+### Tactical Components (`components/tactical/`)
+
+| Component           | Purpose            |
+| ------------------- | ------------------ |
+| `challenge_roll.rs` | Dice rolling modal |
+| `skills_display.rs` | Character skills   |
+
+---
+
+## Platform Support
+
+The Player supports both web (WASM) and desktop builds through conditional compilation.
+
+### Platform Detection
+
+```rust
+// In player-runner/src/main.rs
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    // WASM initialization
+    dioxus::launch(app);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn main() {
+    // Desktop initialization with tokio runtime
+    tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(async { /* ... */ });
+}
 ```
-
-### Styling
-
-The Player uses Tailwind CSS with a TTRPG-themed design:
-- **Colors**: Parchment backgrounds, ink text, blood accents, gold highlights
-- **Typography**: Fantasy-inspired fonts
-- **Components**: Card-based layouts, gradient buttons
 
 ### Platform-Specific Code
 
-The codebase handles platform differences with conditional compilation:
+| Feature     | Desktop             | WASM                  |
+| ----------- | ------------------- | --------------------- |
+| HTTP Client | `reqwest`           | `gloo-net`            |
+| WebSocket   | `tokio-tungstenite` | `gloo-net`            |
+| Storage     | File system         | `localStorage`        |
+| Random      | `rand`              | `getrandom` (browser) |
+
+---
+
+## Adding a New Feature
+
+### 1. Add a Component
 
 ```rust
-#[cfg(not(target_arch = "wasm32"))]
-// Desktop: Uses tokio for async, tokio-tungstenite for WebSocket
+// crates/player/src/presentation/components/my_component.rs
+use dioxus::prelude::*;
 
-#[cfg(target_arch = "wasm32")]
-// WASM: Uses gloo-timers, web-sys WebSocket API
+#[component]
+pub fn MyComponent(name: String) -> Element {
+    rsx! {
+        div { class: "p-4",
+            h1 { "{name}" }
+        }
+    }
+}
 ```
 
-## Current Status
+### 2. Add State
 
-### Implemented
-- Dual-platform WebSocket client (Desktop + WASM)
-- Session and action services
-- WorldSnapshot loading and parsing
-- State management (Session, Game, Dialogue, Generation)
-- Visual novel components (backdrop, sprites, dialogue, choices)
-- Typewriter effect with punctuation-aware timing
-- Main menu and role selection
-- PC view with visual novel interface
-- DM view structure with tabs
-- Creator mode UI components
-- Workflow configuration UI
+```rust
+// crates/player/src/presentation/state/my_state.rs
+use dioxus::prelude::*;
 
-### In Progress
-- Creator mode API integration
-- Workflow config save functionality
-- DM approval flow wiring
+#[derive(Clone, Default)]
+pub struct MyState {
+    pub items: Vec<String>,
+}
 
-### Planned
-- Spectator view scene display
-- Tactical combat grid
-- Audio system
-- Mobile-optimized layouts
+pub fn use_my_state() -> Signal<MyState> {
+    use_context::<Signal<MyState>>()
+}
+```
 
-## Related
+### 3. Add a Service
 
-- [Engine README](../Engine/README.md) - Backend server documentation
-- [Master Plan](../plans/00-master-plan.md) - Full project specification
-- [Phase 4: Player Basics](../plans/04-player-basics.md) - Player implementation details
-- [Phase 11: Director Creation UI](../plans/11-director-creation-ui.md) - Creator mode specification
+```rust
+// crates/player/src/application/services/my_service.rs
+use crate::application::{Api, ServiceError};
+use wrldbldr_player_ports::outbound::ApiPort;
+
+pub struct MyService<A: ApiPort> {
+    api: Api<A>,
+}
+
+impl<A: ApiPort> MyService<A> {
+    pub fn new(api: Api<A>) -> Self {
+        Self { api }
+    }
+
+    pub async fn list(&self) -> Result<Vec<MyItem>, ServiceError> {
+        self.api.get("/api/my-items").await
+    }
+}
+```
+
+### 4. Add a Service Hook
+
+```rust
+// Add to crates/player/src/presentation/services.rs
+pub fn use_my_service<A: ApiPort + 'static>() -> MyService<A> {
+    let services = use_context::<Services<A>>();
+    services.my_service.clone()
+}
+```
+
+### 5. Handle Server Events
+
+```rust
+// In crates/player/src/ui/presentation/handlers/session_message_handler.rs
+match event {
+    PlayerEvent::MyEvent(data) => {
+        game_state.write().handle_my_event(data);
+    }
+    // ...
+}
+```
+
+---
+
+## Running the Player
+
+### Web (WASM)
+
+```bash
+# Development with hot reload
+task web:dev
+
+# Or using Dioxus CLI directly
+dx serve --platform web
+
+# Build for production
+task build:web
+```
+
+### Desktop
+
+```bash
+# Development
+task desktop:dev
+
+# Or using Dioxus CLI
+dx serve --platform desktop
+
+# Build for production
+cargo build --release -p wrldbldr-player
+```
+
+### Configuration
+
+The Player needs the Engine WebSocket URL:
+
+```bash
+# Environment variable
+ENGINE_WS_URL=ws://localhost:3000/ws
+
+# Or configure in the UI (Main Menu → Settings)
+```
+
+---
+
+## Styling
+
+The Player uses **Tailwind CSS** for styling:
+
+```bash
+# Build CSS (required after changes to styles)
+task css:build
+
+# Watch for changes during development
+task css:watch
+```
+
+CSS files:
+
+- Source: `crates/player/styles/input.css`
+- Output: `crates/player/assets/css/output.css`
+- Config: `crates/player/tailwind.config.js`
+
+---
+
+## Architecture Rules
+
+### UI Layer
+
+- Access state via hooks (`use_game_state()`, etc.)
+- Access services via hooks (`use_world_service()`, etc.)
+- NO direct adapter or infrastructure imports
+- Protocol imports ALLOWED (UI is a boundary)
+
+### Application Layer
+
+- Services depend on port traits, not adapters
+- DTOs defined here, not in ports
+- Protocol imports allowed for boundary DTOs
+
+### Ports Layer
+
+- Traits only - no implementations
+- ISP-compliant (focused traits)
+- `PlayerEvent` types defined here
+- Limited protocol imports (boundary files only)
+
+### Adapters Layer
+
+- Implements port traits
+- Platform-specific code via `cfg`
+- Message translation (protocol → app events)
+
+---
+
+## WebSocket Communication
+
+### Message Flow
+
+```
+User Action
+    │
+    ▼
+Component calls GameConnectionPort method
+    │
+    ▼
+Adapter sends ClientMessage via WebSocket
+    │
+    ▼
+[Engine processes request]
+    │
+    ▼
+Adapter receives ServerMessage
+    │
+    ▼
+message_translator converts to PlayerEvent
+    │
+    ▼
+session_message_handler updates state
+    │
+    ▼
+Components re-render via signals
+```
+
+### Handling Events
+
+```rust
+// In session_message_handler.rs
+pub fn handle_server_message(
+    event: PlayerEvent,
+    game_state: &mut Signal<GameState>,
+    session_state: &mut Signal<SessionState>,
+    // ...
+) {
+    match event {
+        PlayerEvent::SceneChanged(data) => {
+            game_state.write().update_scene(data);
+        }
+        PlayerEvent::DialogueResponse(data) => {
+            dialogue_state.write().show_dialogue(data);
+        }
+        // ... 70+ event types
+    }
+}
+```
+
+---
+
+## Testing
+
+```bash
+# Run player tests
+cargo test -p wrldbldr-player
+```
+
+### Mocking Ports
+
+Use the `testing` feature for mock implementations:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use wrldbldr_player::ports::outbound::testing::MockGameConnectionPort;
+
+    #[test]
+    fn test_something() {
+        let mock = MockGameConnectionPort::new();
+        // Configure mock expectations...
+    }
+}
+```
+
+---
+
+## Common Issues
+
+### WASM Build Fails
+
+Ensure WASM target is installed:
+
+```bash
+rustup target add wasm32-unknown-unknown
+```
+
+### CSS Not Updating
+
+Rebuild Tailwind CSS:
+
+```bash
+task css:build
+```
+
+### WebSocket Connection Issues
+
+- Check Engine is running at correct URL
+- Verify CORS settings in Engine
+- Check browser console for errors
+
+### State Not Updating
+
+- Ensure using `.write()` for mutations
+- Check that state is provided via context
+- Verify event handler is processing the event
+
+---
+
+## Related Documentation
+
+- [Hexagonal Architecture](../../docs/architecture/hexagonal-architecture.md)
+- [WebSocket Protocol](../../docs/architecture/websocket-protocol.md)
+- [System Documents](../../docs/systems/) - Game system specs with UI mockups
+- [Dioxus Documentation](https://dioxuslabs.com/learn/0.5/)
+- [AGENTS.md](../../AGENTS.md) - AI assistant guidelines

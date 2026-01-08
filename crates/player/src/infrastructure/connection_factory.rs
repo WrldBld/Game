@@ -5,7 +5,9 @@
 //! the presentation layer free from infrastructure dependencies.
 
 use std::sync::Arc;
-use crate::application::ports::outbound::GameConnectionPort;
+
+use crate::ports::outbound::GameConnectionPort;
+
 use super::websocket::{EngineClient, EngineGameConnection};
 
 /// Factory for creating game connections

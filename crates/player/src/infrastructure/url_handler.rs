@@ -11,60 +11,67 @@
 //! On web platforms, URL navigation is handled by the Dioxus Router.
 //! On desktop platforms, the OS will pass `wrldbldr://` URLs to the application.
 
-use crate::routes::Route;
+/// Deep link extracted from a `wrldbldr://` url.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeepLink {
+    MainMenu,
+    RoleSelect,
+    WorldSelect,
+    DmView { world_id: String },
+    PcView { world_id: String },
+    SpectatorView { world_id: String },
+}
 
-/// Parse a wrldbldr:// URL into a Route
+/// Parse a `wrldbldr://` URL into a deep link.
 ///
-/// Extracts the path from a wrldbldr:// scheme URL and maps it to the
-/// corresponding application route. Returns None if the URL is invalid.
+/// Extracts the path from a `wrldbldr://` scheme URL and maps it to a `DeepLink`.
+/// Returns `None` if the URL is invalid.
 ///
 /// # Arguments
 /// * `url` - Full URL string (e.g., "wrldbldr://worlds/abc-123/dm")
 ///
 /// # Returns
-/// Some(Route) if the URL is valid, None if it cannot be parsed
+/// `Some(DeepLink)` if the URL is valid, `None` if it cannot be parsed
 ///
 /// # Examples
 /// ```ignore
-/// assert_eq!(
-///     parse_url_scheme("wrldbldr://"),
-///     Some(Route::MainMenuRoute {})
-/// );
-///
+/// assert_eq!(parse_url_scheme("wrldbldr://"), Some(DeepLink::MainMenu));
 /// assert_eq!(
 ///     parse_url_scheme("wrldbldr://worlds/abc-123/dm"),
-///     Some(Route::DMViewRoute { world_id: "abc-123".to_string() })
+///     Some(DeepLink::DmView {
+///         world_id: "abc-123".to_string(),
+///     })
 /// );
 /// ```
-pub fn parse_url_scheme(url: &str) -> Option<Route> {
+pub fn parse_url_scheme(url: &str) -> Option<DeepLink> {
     let url = url.strip_prefix("wrldbldr://")?;
 
     // Parse path segments, filtering out empty strings
     let segments: Vec<&str> = url.split('/').filter(|s| !s.is_empty()).collect();
 
-    // Match on path segments to determine the route
+    // Match on path segments to determine the deep link
     match segments.as_slice() {
         // wrldbldr:// → MainMenu
-        [] => Some(Route::MainMenuRoute {}),
+        [] => Some(DeepLink::MainMenu),
 
         // wrldbldr://roles → RoleSelect
-        ["roles"] => Some(Route::RoleSelectRoute {}),
+        ["roles"] => Some(DeepLink::RoleSelect),
 
         // wrldbldr://worlds → WorldSelect
-        ["worlds"] => Some(Route::WorldSelectRoute {}),
+        ["worlds"] => Some(DeepLink::WorldSelect),
 
         // wrldbldr://worlds/{world_id}/dm → DMView
-        ["worlds", world_id, "dm"] => Some(Route::DMViewRoute {
+        ["worlds", world_id, "dm"] => Some(DeepLink::DmView {
             world_id: world_id.to_string(),
         }),
 
         // wrldbldr://worlds/{world_id}/play → PCView
-        ["worlds", world_id, "play"] => Some(Route::PCViewRoute {
+        ["worlds", world_id, "play"] => Some(DeepLink::PcView {
             world_id: world_id.to_string(),
         }),
 
         // wrldbldr://worlds/{world_id}/watch → SpectatorView
-        ["worlds", world_id, "watch"] => Some(Route::SpectatorViewRoute {
+        ["worlds", world_id, "watch"] => Some(DeepLink::SpectatorView {
             world_id: world_id.to_string(),
         }),
 
@@ -79,53 +86,53 @@ mod tests {
 
     #[test]
     fn test_parse_main_menu() {
-        assert!(matches!(
-            parse_url_scheme("wrldbldr://"),
-            Some(Route::MainMenuRoute {})
-        ));
+        assert_eq!(parse_url_scheme("wrldbldr://"), Some(DeepLink::MainMenu));
     }
 
     #[test]
     fn test_parse_role_select() {
-        assert!(matches!(
+        assert_eq!(
             parse_url_scheme("wrldbldr://roles"),
-            Some(Route::RoleSelectRoute {})
-        ));
+            Some(DeepLink::RoleSelect)
+        );
     }
 
     #[test]
     fn test_parse_world_select() {
-        assert!(matches!(
+        assert_eq!(
             parse_url_scheme("wrldbldr://worlds"),
-            Some(Route::WorldSelectRoute {})
-        ));
+            Some(DeepLink::WorldSelect)
+        );
     }
 
     #[test]
     fn test_parse_dm_view() {
-        let route = parse_url_scheme("wrldbldr://worlds/abc-123/dm");
-        assert!(matches!(
-            route,
-            Some(Route::DMViewRoute { world_id }) if world_id == "abc-123"
-        ));
+        assert_eq!(
+            parse_url_scheme("wrldbldr://worlds/abc-123/dm"),
+            Some(DeepLink::DmView {
+                world_id: "abc-123".to_string(),
+            })
+        );
     }
 
     #[test]
     fn test_parse_pc_view() {
-        let route = parse_url_scheme("wrldbldr://worlds/test-world/play");
-        assert!(matches!(
-            route,
-            Some(Route::PCViewRoute { world_id }) if world_id == "test-world"
-        ));
+        assert_eq!(
+            parse_url_scheme("wrldbldr://worlds/test-world/play"),
+            Some(DeepLink::PcView {
+                world_id: "test-world".to_string(),
+            })
+        );
     }
 
     #[test]
     fn test_parse_spectator_view() {
-        let route = parse_url_scheme("wrldbldr://worlds/world-001/watch");
-        assert!(matches!(
-            route,
-            Some(Route::SpectatorViewRoute { world_id }) if world_id == "world-001"
-        ));
+        assert_eq!(
+            parse_url_scheme("wrldbldr://worlds/world-001/watch"),
+            Some(DeepLink::SpectatorView {
+                world_id: "world-001".to_string(),
+            })
+        );
     }
 
     #[test]
@@ -137,9 +144,9 @@ mod tests {
 
     #[test]
     fn test_parse_with_trailing_slash() {
-        assert!(matches!(
+        assert_eq!(
             parse_url_scheme("wrldbldr://roles/"),
-            Some(Route::RoleSelectRoute {})
-        ));
+            Some(DeepLink::RoleSelect)
+        );
     }
 }

@@ -1,12 +1,15 @@
 //! Location Service - Application service for location management
 //!
 //! This service provides use case implementations for listing, creating,
-//! updating, and fetching locations. It abstracts away the HTTP client
+//! updating, and fetching locations. It abstracts away the WebSocket client
 //! details from the presentation layer.
 
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
-use crate::application::ports::outbound::{ApiError, ApiPort};
+use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
+use crate::ports::outbound::GameConnectionPort;
+use wrldbldr_protocol::{LocationRequest, RegionRequest, RequestPayload};
 
 /// Location summary for list views
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -62,6 +65,35 @@ fn default_bidirectional() -> bool {
     true
 }
 
+// From impls for protocol conversion at the boundary
+impl LocationFormData {
+    fn to_create_data(&self) -> wrldbldr_protocol::requests::CreateLocationData {
+        wrldbldr_protocol::requests::CreateLocationData {
+            name: self.name.clone(),
+            description: self.description.clone(),
+            setting: self.atmosphere.clone(),
+        }
+    }
+
+    fn to_update_data(&self) -> wrldbldr_protocol::requests::UpdateLocationData {
+        wrldbldr_protocol::requests::UpdateLocationData {
+            name: Some(self.name.clone()),
+            description: self.description.clone(),
+            setting: self.atmosphere.clone(),
+        }
+    }
+}
+
+impl ConnectionData {
+    fn to_create_data(&self) -> wrldbldr_protocol::requests::CreateLocationConnectionData {
+        wrldbldr_protocol::requests::CreateLocationConnectionData {
+            from_id: self.from_location_id.clone(),
+            to_id: self.to_location_id.clone(),
+            bidirectional: Some(self.bidirectional),
+        }
+    }
+}
+
 /// Region data with map bounds (for mini-map)
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RegionData {
@@ -91,32 +123,48 @@ pub struct MapBoundsData {
 /// Location service for managing locations
 ///
 /// This service provides methods for location-related operations
-/// while depending only on the `ApiPort` trait, not concrete
+/// while depending only on the `GameConnectionPort` trait, not concrete
 /// infrastructure implementations.
-pub struct LocationService<A: ApiPort> {
-    api: A,
+#[derive(Clone)]
+pub struct LocationService {
+    connection: Arc<dyn GameConnectionPort>,
 }
 
-impl<A: ApiPort> LocationService<A> {
-    /// Create a new LocationService with the given API port
-    pub fn new(api: A) -> Self {
-        Self { api }
+impl LocationService {
+    /// Create a new LocationService with the given game connection
+    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
+        Self { connection }
     }
 
     /// List all locations in a world
-    pub async fn list_locations(&self, world_id: &str) -> Result<Vec<LocationSummary>, ApiError> {
-        let path = format!("/api/worlds/{}/locations", world_id);
-        self.api.get(&path).await
+    pub async fn list_locations(
+        &self,
+        world_id: &str,
+    ) -> Result<Vec<LocationSummary>, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Location(LocationRequest::ListLocations {
+                    world_id: world_id.to_string(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse()
     }
 
     /// Get a single location by ID
-    pub async fn get_location(
-        &self,
-        _world_id: &str, // Not used in API endpoint, but kept for API compatibility
-        location_id: &str,
-    ) -> Result<LocationFormData, ApiError> {
-        let path = format!("/api/locations/{}", location_id);
-        self.api.get(&path).await
+    pub async fn get_location(&self, location_id: &str) -> Result<LocationFormData, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Location(LocationRequest::GetLocation {
+                    location_id: location_id.to_string(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse()
     }
 
     /// Create a new location
@@ -124,9 +172,18 @@ impl<A: ApiPort> LocationService<A> {
         &self,
         world_id: &str,
         location: &LocationFormData,
-    ) -> Result<LocationFormData, ApiError> {
-        let path = format!("/api/worlds/{}/locations", world_id);
-        self.api.post(&path, location).await
+    ) -> Result<LocationFormData, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Location(LocationRequest::CreateLocation {
+                    world_id: world_id.to_string(),
+                    data: location.to_create_data(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse()
     }
 
     /// Update an existing location
@@ -134,44 +191,76 @@ impl<A: ApiPort> LocationService<A> {
         &self,
         location_id: &str,
         location: &LocationFormData,
-    ) -> Result<LocationFormData, ApiError> {
-        let path = format!("/api/locations/{}", location_id);
-        self.api.put(&path, location).await
+    ) -> Result<LocationFormData, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Location(LocationRequest::UpdateLocation {
+                    location_id: location_id.to_string(),
+                    data: location.to_update_data(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse()
     }
 
     /// Delete a location
-    pub async fn delete_location(&self, location_id: &str) -> Result<(), ApiError> {
-        let path = format!("/api/locations/{}", location_id);
-        self.api.delete(&path).await
+    pub async fn delete_location(&self, location_id: &str) -> Result<(), ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Location(LocationRequest::DeleteLocation {
+                    location_id: location_id.to_string(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse_empty()
     }
 
     /// Get connections from a location
     pub async fn get_connections(
         &self,
         location_id: &str,
-    ) -> Result<Vec<ConnectionData>, ApiError> {
-        let path = format!("/api/locations/{}/connections", location_id);
-        self.api.get(&path).await
+    ) -> Result<Vec<ConnectionData>, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Location(LocationRequest::GetLocationConnections {
+                    location_id: location_id.to_string(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse()
     }
 
     /// Create a connection between locations
-    pub async fn create_connection(&self, connection: &ConnectionData) -> Result<(), ApiError> {
-        self.api
-            .post_no_response("/api/connections", connection)
-            .await
+    pub async fn create_connection(&self, connection: &ConnectionData) -> Result<(), ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Location(LocationRequest::CreateLocationConnection {
+                    data: connection.to_create_data(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse_empty()
     }
 
     /// Get all regions for a location (with map bounds)
-    pub async fn get_regions(&self, location_id: &str) -> Result<Vec<RegionData>, ApiError> {
-        let path = format!("/api/locations/{}/regions", location_id);
-        self.api.get(&path).await
-    }
-}
-
-impl<A: ApiPort + Clone> Clone for LocationService<A> {
-    fn clone(&self) -> Self {
-        Self {
-            api: self.api.clone(),
-        }
+    pub async fn get_regions(&self, location_id: &str) -> Result<Vec<RegionData>, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Region(RegionRequest::ListRegions {
+                    location_id: location_id.to_string(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse()
     }
 }

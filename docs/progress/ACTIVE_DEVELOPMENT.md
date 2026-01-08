@@ -1,323 +1,326 @@
 # Active Development
 
-Active implementation tracking for WrldBldr user stories.
+Active implementation tracking for WrldBldr user stories and features.
 
-**Current Phase**: Phase B - Player Knowledge & Agency (COMPLETE)  
-**Last Updated**: 2025-12-18
-
----
-
-## Phase Overview
-
-| Phase | Focus | Status | Est. Effort |
-|-------|-------|--------|-------------|
-| A | Core Player Experience | **COMPLETE** | 3-4 days |
-| B | Player Knowledge & Agency | **COMPLETE** | 4-5 days |
-| C | DM Tools & Advanced Features | **NEXT** | 5-7 days |
+**Last Updated**: 2026-01-05  
+**Branch**: `new-arch`
 
 ---
 
-## Phase A: Core Player Experience - COMPLETE
+## Recently Completed (2026-01-05)
 
-All Phase A stories have been implemented. See Completed section for details.
+### Lore & Visual State Systems - COMPLETE
+
+Full implementation of two new game systems with bug fixes:
+
+**Lore System**:
+- Domain: `Lore`, `LoreChunk`, `LoreKnowledge`, `LoreDiscoverySource` entities
+- Neo4j: `LoreRepo` with search, knowledge tracking, character associations
+- WebSocket: Full CRUD + `GrantLoreKnowledge`, `RevokeLoreKnowledge` handlers
+- UI: `LoreJournal` for players, `LoreForm` for DM creation
+- Security: DM authorization on all write handlers
+
+**Visual State System**:
+- Domain: `LocationState`, `RegionState` entities with `ActivationRule` value objects
+- Supports hard rules (date, time, flags, events, character presence) and soft rules (LLM-evaluated)
+- Neo4j: `LocationStateRepo`, `RegionStateRepo` with atomic `set_active`
+- Use Case: `ResolveVisualState` with rule evaluation and default fallback
+- UI: `VisualStateIndicator` component
+
+**Game Time Enhancements**:
+- Use Case: `TimeUseCases` for time advancement and period skipping
+- UI: `TimeControl` component for DM panel
+- Documentation: `game-time-system.md`
+
+**Bug Fixes**:
+1. Fixed `search_by_tags` Neo4j JSON array handling
+2. Fixed `add_chunks_to_knowledge` deduplication logic
+3. Fixed `set_active` atomicity (match before delete)
+4. Added default state fallback when no activation rules match
+5. Added `PartialEq` to domain structs for testing
+6. Fixed `CreateLoreChunkData.title` to be `Option<String>`
+7. Added `Any` logic short-circuit optimization
 
 ---
 
-## Phase B: Player Knowledge & Agency - COMPLETE
+## Recently Completed (2026-01-04)
 
-All Phase B stories have been implemented. See Completed section for details.
+### WebSocket Implementation - COMPLETE
+All WebSocket TODOs resolved:
+1. ✅ `WorldJoined` response now fetches PC data when role is Player
+2. ✅ Region items returned in `SceneChanged` response via `build_region_items()` helper
+3. ✅ Challenge outcome decision uses stored approval data (not hardcoded)
+4. ✅ `ChallengeOutcomeDecision::Edit` broadcasts with DM's modified description
+5. ✅ `DirectorialContext` stored in per-world cache in ConnectionManager
+6. ✅ `ChallengeOutcomePending` sent to DMs when rolls require approval
+7. ✅ `ChallengeOutcomeDecision::Suggest` queues LLM request for outcome suggestions
+
+### Challenge Resolution Flow - COMPLETE
+- Extended `RollResult` with challenge/character metadata for DM notifications
+- Added `challenge_outcome: Option<ChallengeOutcomeData>` to `ApprovalRequestData`
+- Handler uses stored approval data for outcome type, roll, modifier, character info
+- `execute_for_pc()` variant passes PC context for trigger execution
+
+### LLM Outcome Suggestions - COMPLETE
+- Added `LlmRequestType::OutcomeSuggestion` variant with challenge context
+- Queue processor handles OutcomeSuggestion and generates 3 alternatives
+- Added `BroadcastEvent` type for queue->main communication
+- Main loop broadcasts `OutcomeSuggestionReady` to DMs in world
+
+### Code Quality Improvements (2026-01-04)
+- Extracted UUID parsing helpers (30+ occurrences reduced to helper calls)
+- Extracted DM authorization helpers (`require_dm`, `require_dm_for_request`)
+- Extracted `build_navigation_data()` async helper
+- Extracted `build_region_items()` async helper
+- Added `StagedNpc::is_visible_to_players()` method to domain
+- Removed unused `ConnectionManager` trait from ports.rs
+- Wired `ExecuteEffects` into narrative event approval handler
+
+### Flag Storage System (2026-01-04)
+- Added `FlagRepo` port trait with world and PC-scoped flag operations
+- Implemented Neo4j flag repository
+- Created `Flag` entity module
+- Wired into `EnterRegion` use case for scene condition evaluation
 
 ---
 
-## Phase C: DM Tools & Advanced Features
+## Current Focus
 
-Improve DM workflow. These don't block player gameplay.
+### Outstanding Engine TODOs - COMPLETE (2026-01-04 Session 2)
 
-### US-CHAL-010: Region-level Challenge Binding
+All high-priority TODOs resolved:
+
+1. ✅ **Broadcast OutcomeSuggestionReady to DMs** - Added `BroadcastEvent` enum, handled in main loop
+2. ✅ **PC Name in Dialogue Events** - Now fetches from `player_character_repo`
+3. ✅ **Event Completion Tracking** - `get_completed_events()` queries event chains
+4. ✅ **Challenge Completion Tracking** - `get_resolved_challenges()` queries resolved challenges
+
+### Remaining TODOs - LOW PRIORITY
+
+1. ~~**Game Time in Observations**~~ - RESOLVED (2026-01-05)
+   - Observations now correctly use `world.game_time.current()` for in-game time
+   - `created_at` uses real time for record timestamps
+
+2. **Event Outcomes Tracking** (`narrative.rs:279`)
+   - `event_outcomes` HashMap for trigger evaluation
+   - Would enable "trigger if event X had outcome Y"
+
+3. **Challenge Success/Failure Tracking** (`narrative.rs:290`)
+   - `challenge_successes` HashMap for trigger evaluation
+   - Would enable "trigger if challenge X was succeeded/failed"
+
+4. **Per-PC Flags System** (`narrative.rs:279`)
+   - `flags` HashMap for trigger evaluation
+   - Would enable custom state tracking per PC
+
+### Documentation Updates - COMPLETE (2026-01-05)
+
+All 14 system documentation files updated to use simplified architecture paths:
+- `engine-app/services/*` → `engine/src/entities/*` or `use_cases/*`
+- `engine-adapters/persistence/*` → `engine/src/infrastructure/neo4j/*`
+- `engine-adapters/websocket/*` → `engine/src/api/websocket/mod.rs`
+- `engine-ports/*` → `engine/src/infrastructure/ports.rs`
+
+---
+
+## Upcoming Features
+
+### US-NAR-009: Visual Trigger Condition Builder - COMPLETE (2026-01-05)
 
 | Field | Value |
 |-------|-------|
-| **Status** | Not Started |
-| **Priority** | Medium |
-| **Effort** | 2 days |
-| **System** | [Challenge](../systems/challenge-system.md) |
-
-**Description**: Bind challenges to specific regions, not just locations.
-
-**Implementation Notes**:
-- Engine: Schema referenced but not implemented
-- Player: Not started
-- Add `AVAILABLE_AT_REGION` edge to challenge repository
-- Add `list_by_region()` repository method
-- Add region filter to challenge service
-- Update Director Mode to show region-bound challenges
-
----
-
-### US-SCN-009: Scene Entry Conditions
-
-| Field | Value |
-|-------|-------|
-| **Status** | Partial |
-| **Priority** | Medium |
-| **Effort** | 0.5 days |
-| **System** | [Scene](../systems/scene-system.md) |
-
-**Description**: Evaluate conditions before showing a scene.
-
-**Implementation Notes**:
-- Engine: `SceneCondition` enum exists, evaluation missing
-- Player: N/A (engine feature)
-- Add `evaluate_conditions()` helper function
-- Call from `scene_resolution_service.resolve_scene()`
-- Check CompletedScene, HasItem, KnowsCharacter, FlagSet conditions
-
----
-
-### US-NAR-009: Visual Trigger Condition Builder
-
-| Field | Value |
-|-------|-------|
-| **Status** | Not Started |
+| **Status** | Complete |
 | **Priority** | Low |
-| **Effort** | 3-4 days |
+| **Effort** | 2 days |
 | **System** | [Narrative](../systems/narrative-system.md) |
 
 **Description**: Visual builder for narrative trigger conditions.
 
-**Implementation Notes**:
-- Engine: Trigger schema exists
-- Player: Not started
-- Add `/api/triggers/schema` endpoint for available types
-- Create visual builder component with dropdowns
-- Support all trigger types (location, NPC, challenge, time, etc.)
-- Add AND/OR/AtLeast logic selection
+**Implementation**:
+- Engine: Added `GetTriggerSchema` WebSocket request with full schema for 14 trigger types
+- Protocol: Added `TriggerSchema`, `TriggerTypeSchema`, `TriggerFieldSchema` types
+- Player UI: Created `TriggerBuilder` component (~770 lines) with:
+  - Category dropdown (Location, Character, Inventory, Challenge, Time, State, Event, Custom)
+  - Dynamic form fields based on trigger type schema
+  - All/Any/AtLeast logic selection
+  - Character picker integration for NPC-related triggers
+  - Collapsible condition cards with remove functionality
+- Integration: Wired into `NarrativeEventFormModal` in narrative event library
+- Service: `NarrativeEventService.create_narrative_event` passes conditions to engine
 
 ---
 
-### US-AST-010: Advanced Workflow Parameter Editor
+### US-AST-010: Advanced Workflow Parameter Editor - COMPLETE (2026-01-05)
 
 | Field | Value |
 |-------|-------|
-| **Status** | Not Started |
+| **Status** | Complete |
 | **Priority** | Low |
-| **Effort** | 2 days |
+| **Effort** | 1 day |
 | **System** | [Asset](../systems/asset-system.md) |
 
 **Description**: Edit ComfyUI workflow parameters in UI.
 
-**Implementation Notes**:
-- Engine: Complete (workflow config exists)
-- Player: Basic config exists
-- Add prompt mapping editor
-- Add locked inputs configuration
-- Add style reference detection display
-- Optional: Raw JSON viewer/editor
+**Implementation**:
+- Enhanced `WorkflowConfigEditor` component with:
+  - **Editable Prompt Mappings**: Add/remove mappings, change type (primary/negative)
+  - **Input Defaults with Lock Toggle**: Click lock icon to toggle, locked inputs shown in summary
+  - **Style Reference Detection**: Auto-detects IPAdapter/CLIPVision nodes
+  - **Raw JSON Viewer**: Shows workflow info and node counts
+- Save handler now passes locked inputs to engine
+- State management for edited mappings, defaults, and locked inputs
 
 ---
 
-## Completed
-
-Stories moved here when fully implemented.
-
-### US-CHAR-009: Inventory Panel
+### P3.1: Mood & Expression System
 
 | Field | Value |
 |-------|-------|
-| **Completed** | 2025-12-18 |
-| **System** | [Character](../systems/character-system.md) |
+| **Status** | Planning Complete - Ready for Implementation |
+| **Priority** | Low (Polish) |
+| **Effort** | 30-35 hours (4-5 days) |
+| **Full Plan** | [MOOD_EXPRESSION_SYSTEM_IMPLEMENTATION.md](../plans/MOOD_EXPRESSION_SYSTEM_IMPLEMENTATION.md) |
 
-**Implementation**: Full inventory panel with item categories and actions.
-- Engine: `GET /api/characters/{id}/inventory` endpoint
-- Player: `InventoryPanel` component with category tabs (All/Equipped/Consumables/Key)
-- `ItemData`, `InventoryItemData` DTOs
-- `get_inventory()` on CharacterService
-- Use item action wired to player actions
+**Description**: Implement a three-tier emotional model with clear terminology:
 
-**Files**:
-- `Engine/src/application/dto/item.rs`
-- `Player/src/presentation/components/inventory_panel.rs`
-- `Player/src/application/services/character_service.rs`
-- `Player/src/application/dto/world_snapshot.rs`
+1. **Disposition** (persistent NPC→PC relationship) - renamed from MoodLevel
+2. **Mood** (semi-persistent NPC state) - set during staging
+3. **Expression** (transient dialogue state) - inline markers that change sprites
+
+**Key Features**:
+- Clear terminology separation: Disposition vs Mood vs Expression
+- Expression markers in dialogue: `*happy*` or `*excited|happy*`
+- LLM context includes both disposition AND mood
+- DM editable dialogue with live marker validation
+- Expression sheet generation via ComfyUI
+
+**Implementation Phases** (13 phases):
+0. Disposition Rename Refactor (prerequisite)
+1. New Mood System (Domain & Protocol)
+2. Staging System Mood Integration
+3. Persistence & Repository Updates
+4. LLM Prompt Updates
+5. Expression Sheet Generation
+6. Typewriter with Expression Changes
+7. Character Sprite Updates
+8. Player Input Validation
+9. Expression Config Editor UI
+10. Expression Sheet Generation UI
+11. DM Approval Marker Support
+12. Testing & Polish
 
 ---
 
-### US-OBS-004/005: Known NPCs Panel
+## Architecture & Technical Debt
 
-| Field | Value |
-|-------|-------|
-| **Completed** | 2025-12-18 |
-| **System** | [Observation](../systems/observation-system.md) |
+For architecture remediation, code quality, and cleanup work, see:
 
-**Implementation**: Panel showing observed NPCs with last seen info.
-- `KnownNpcsPanel` component with observation cards
-- `ObservationService` with `list_observations()` method
-- Observation type icons (direct/heard/deduced)
-- Display last seen location and game time
-- Click NPC to initiate talk action
+**[HEXAGONAL_ARCHITECTURE_REFACTOR_MASTER_PLAN.md](../plans/HEXAGONAL_ARCHITECTURE_REFACTOR_MASTER_PLAN.md)**
 
-**Files**:
-- `Player/src/presentation/components/known_npcs_panel.rs`
-- `Player/src/application/services/observation_service.rs`
-- `Player/src/presentation/views/pc_view.rs`
+Current architecture score: 92/100 → Target: 98/100
+
+Remaining work includes:
+- Protocol → Domain dependency removal (C5)
+- Implementation code in ports layer (C6)
+- File decomposition (app_state.rs, request_handler.rs)
+- God trait completion
+- Clippy warning fixes
 
 ---
 
-### US-NAV-010: Mini-map with Clickable Regions
+## Completed Phases
 
-| Field | Value |
-|-------|-------|
-| **Completed** | 2025-12-18 |
-| **System** | [Navigation](../systems/navigation-system.md) |
+### Phase A: Core Player Experience ✅
+- Navigation panel with region/exit buttons
+- Game time display with time-of-day icons
+- Approach event overlay for NPC approaches
+- Location event banner
 
-**Implementation**: Visual map with clickable region overlays.
-- `MiniMap` component with map image overlay and grid fallback
-- `MapRegionData`, `MapBounds` types for region positioning
-- `get_regions()` on LocationService
-- Click navigable region to move
-- Legend showing current/available/locked regions
+### Phase B: Player Knowledge & Agency ✅
+- Inventory panel with item categories
+- Known NPCs panel with observations
+- Mini-map with clickable regions
 
-**Files**:
-- `Player/src/presentation/components/mini_map.rs`
-- `Player/src/application/services/location_service.rs`
-- `Player/src/presentation/views/pc_view.rs`
+### Phase P: Feature Parity Gap Removal ✅
+- Ad-hoc challenge creation modal wired
+- Mini-map background image from location data
+- Inventory equip/drop end-to-end
+- ComfyUI polling and asset persistence
+- Challenge outcome triggers
+- Scene broadcast after PC creation
+- State updates for NpcLocationShared and PcSelected
 
----
+### Sprint 4: UX Polish ✅
+- Split Party Warning
+- Location Preview
+- View-as-Character
+- Style Reference
+- Visual Timeline
 
-### US-NAV-008: Navigation Options UI
+### Sprint 5: Actantial Completion ✅
+- Dead code cleanup (~850 lines)
+- CharacterPicker component
+- WebSocket architecture doc
+- MotivationsTab with wants, goals, actantial views
 
-| Field | Value |
-|-------|-------|
-| **Completed** | 2025-12-18 |
-| **System** | [Navigation](../systems/navigation-system.md) |
-
-**Implementation**: Full navigation UI for region movement and location exits.
-- `NavigationPanel` modal component with region/exit buttons
-- `NavigationButtons` compact inline variant
-- `move_to_region()` and `exit_to_location()` on GameConnectionPort
-- Region buttons show locked/unlocked state
-- Map button in action panel opens navigation modal
-
-**Files**:
-- `Player/src/presentation/components/navigation_panel.rs`
-- `Player/src/presentation/state/game_state.rs`
-- `Player/src/application/ports/outbound/game_connection_port.rs`
-- `Player/src/infrastructure/websocket/game_connection_adapter.rs`
-
----
-
-### US-NAV-009: Game Time Display
-
-| Field | Value |
-|-------|-------|
-| **Completed** | 2025-12-18 |
-| **System** | [Navigation](../systems/navigation-system.md) |
-
-**Implementation**: Game time display with time-of-day icons.
-- `GameTimeDisplay` component shows current time with icons
-- `GameTimeData` struct with display, time_of_day, is_paused
-- Updates from `GameTimeUpdated` WebSocket message
-- Shows pause indicator when time is stopped
-
-**Files**:
-- `Player/src/presentation/components/navigation_panel.rs` (GameTimeDisplay)
-- `Player/src/presentation/state/game_state.rs` (GameTimeData)
-- `Player/src/presentation/handlers/session_message_handler.rs`
+### Sprint 6: Code Quality Remediation ✅
+- All P0 Critical items (REST→WebSocket migration)
+- All P1 High Priority items (WebSocket migration Phase 5)
+- All P2 Medium Priority items (DTO consolidation, dead code)
+- P3.2-P3.4 Low Priority items (deps, type consolidation, legacy messages)
 
 ---
 
-### US-NPC-008: Approach Event Display
+## Completed Stories (Summary)
 
-| Field | Value |
-|-------|-------|
-| **Completed** | 2025-12-18 |
-| **System** | [NPC](../systems/npc-system.md) |
-
-**Implementation**: Visual overlay when NPC approaches player.
-- `ApproachEventOverlay` modal component
-- Shows NPC sprite (if available) with description
-- "Continue" button to dismiss
-- `ApproachEventData` in game state
-- Triggered by `ApproachEvent` WebSocket message
-
-**Files**:
-- `Player/src/presentation/components/event_overlays.rs`
-- `Player/src/presentation/state/game_state.rs`
-- `Player/src/presentation/handlers/session_message_handler.rs`
-- `Player/src/presentation/views/pc_view.rs`
-
----
-
-### US-NPC-009: Location Event Display
-
-| Field | Value |
-|-------|-------|
-| **Completed** | 2025-12-18 |
-| **System** | [NPC](../systems/npc-system.md) |
-
-**Implementation**: Banner notification for location-wide events.
-- `LocationEventBanner` component at top of screen
-- Click anywhere to dismiss
-- `LocationEventData` in game state
-- Triggered by `LocationEvent` WebSocket message
-
-**Files**:
-- `Player/src/presentation/components/event_overlays.rs`
-- `Player/src/presentation/state/game_state.rs`
-- `Player/src/presentation/handlers/session_message_handler.rs`
-- `Player/src/presentation/views/pc_view.rs`
-
----
-
-### US-CHAL-009: Skill Modifiers Display During Rolls
-
-| Field | Value |
-|-------|-------|
-| **Completed** | 2025-12-18 (discovered already complete) |
-| **System** | [Challenge](../systems/challenge-system.md) |
-
-**Implementation**: Full skill modifier display in challenge rolls.
-- `SkillsDisplay` component shows all skills with modifiers
-- `ChallengeRollModal` shows modifier in header and result breakdown
-- Roll display: dice + modifier + skill = total
-
-**Files**:
-- `Player/src/presentation/components/tactical/challenge_roll.rs`
-- `Player/src/presentation/components/tactical/skills_display.rs`
-
----
-
-### US-DLG-009: Context Budget Configuration
-
-| Field | Value |
-|-------|-------|
-| **Completed** | 2025-12-18 (discovered already complete) |
-| **System** | [Dialogue](../systems/dialogue-system.md) |
-
-**Implementation**: Full context budget configuration via Settings API.
-- `GET/PUT /api/settings` exposes all 10 `ContextBudgetConfig` fields
-- Per-world settings at `/api/worlds/{world_id}/settings`
-- Metadata endpoint for UI field rendering
-
-**Files**:
-- `Engine/src/domain/value_objects/context_budget.rs`
-- `Engine/src/infrastructure/http/settings_routes.rs`
+| Story | Description | Completed |
+|-------|-------------|-----------|
+| US-NAV-008 | Navigation Options UI | 2025-12-18 |
+| US-NAV-009 | Game Time Display | 2025-12-18 |
+| US-NAV-010 | Mini-map with Clickable Regions | 2025-12-18 |
+| US-NPC-008 | Approach Event Display | 2025-12-18 |
+| US-NPC-009 | Location Event Display | 2025-12-18 |
+| US-CHAR-009 | Inventory Panel | 2025-12-18 |
+| US-OBS-004/005 | Known NPCs Panel | 2025-12-18 |
+| US-CHAL-009 | Skill Modifiers Display | 2025-12-18 |
+| US-DLG-009 | Context Budget Configuration | 2025-12-18 |
+| US-CHAL-010 | Region-level Challenge Binding | 2025-12-24 |
+| US-SCN-009 | Scene Entry Conditions | 2025-12-24 |
+| US-INV-001 | PC Inventory System | 2025-12-24 |
+| US-STG-013/US-OBS-006 | Hidden NPCs + Unrevealed Interactions | 2025-12-25 |
+| ARCH-SHIM-001 | Remove internal shims | 2025-12-25 |
+| P0.1-P0.4 | Critical fixes (REST→WS, parsing) | 2025-12-27 |
+| P1.1-P1.6 | Core functionality (staging, dialogue, handlers) | 2025-12-27 |
+| P2.1-P2.6 | Feature completion (websocket split, DTOs, docs) | 2025-12-27 |
+| P3.2-P3.4 | Polish (deps, types, legacy messages) | 2025-12-27 |
+| US-LORE-001 | Lore System (CRUD, knowledge, UI) | 2026-01-05 |
+| US-VS-001 | Visual State System (states, rules, resolution) | 2026-01-05 |
+| US-NAR-009 | Visual Trigger Condition Builder | 2026-01-05 |
+| US-AST-010 | Advanced Workflow Parameter Editor | 2026-01-05 |
 
 ---
 
 ## Progress Log
 
-| Date | Phase | Story | Change |
-|------|-------|-------|--------|
-| 2025-12-18 | A | US-NAV-008 | Implemented navigation panel with region/exit buttons |
-| 2025-12-18 | A | US-NAV-009 | Implemented game time display with time-of-day icons |
-| 2025-12-18 | A | US-NPC-008 | Implemented approach event overlay for NPC approaches |
-| 2025-12-18 | A | US-NPC-009 | Implemented location event banner for location events |
-| 2025-12-18 | A | - | **Phase A Complete** |
-| 2025-12-18 | - | US-CHAL-009 | Marked complete (already implemented) |
-| 2025-12-18 | - | US-DLG-009 | Marked complete (already implemented) |
-| 2025-12-18 | - | - | Created ACTIVE_DEVELOPMENT.md |
-| 2025-12-18 | B | US-CHAR-009 | Implemented inventory panel with item categories |
-| 2025-12-18 | B | US-OBS-004/005 | Implemented known NPCs panel with observations |
-| 2025-12-18 | B | US-NAV-010 | Implemented mini-map with clickable regions |
-| 2025-12-18 | B | - | **Phase B Complete** |
+| Date | Change |
+|------|--------|
+| 2026-01-05 | US-AST-010 complete - Advanced Workflow Parameter Editor with editable mappings/locks |
+| 2026-01-05 | US-NAR-009 complete - Visual Trigger Condition Builder with 14 trigger types |
+| 2026-01-05 | Documentation updated - 14 system docs with new architecture file paths |
+| 2026-01-05 | Lore System complete - domain, repo, handlers, UI components |
+| 2026-01-05 | Visual State System complete - LocationState, RegionState, activation rules |
+| 2026-01-05 | Game Time enhancements - TimeUseCases, TimeControl UI |
+| 2026-01-05 | Bug fixes - Neo4j JSON arrays, atomicity, default fallback, PartialEq, short-circuit |
+| 2026-01-04 | WebSocket TODOs complete - PC data, region items, challenge flow, directorial context |
+| 2026-01-04 | Challenge resolution flow rewritten - uses stored approval data, proper outcome types |
+| 2026-01-04 | LLM outcome suggestions queued (broadcast pending) |
+| 2026-01-04 | Flag storage system implemented |
+| 2026-01-04 | Code quality: helper functions extracted |
+| 2026-01-03 | Simplified architecture migration complete |
+| 2025-12-30 | Consolidated documentation - moved remediation to ARCHITECTURE_GAP_REMEDIATION_PLAN |
+| 2025-12-27 | Sprint 6 Code Quality Remediation complete (P0-P3.4) |
+| 2025-12-25 | Sprint 5 Actantial Completion complete |
+| 2025-12-25 | Sprint 4 UX Polish complete |
+| 2025-12-24 | Phase P Feature Parity complete |
+| 2025-12-24 | Phase C started |
+| 2025-12-18 | Phase A & B complete |

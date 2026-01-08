@@ -23,42 +23,43 @@ Navigation creates the physical framework for storytelling. Players explore the 
 
 - [x] **US-NAV-001**: As a player, I can move between regions within a location so that I can explore different areas
   - *Implementation*: `MoveToRegion` WebSocket message validates connection and updates PC position
-  - *Files*: `Engine/src/infrastructure/websocket.rs`, `Engine/src/domain/entities/region.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`, `crates/domain/src/entities/region.rs`
 
 - [x] **US-NAV-002**: As a player, I can exit a location to travel to a connected location so that I can explore the world
   - *Implementation*: `ExitToLocation` WebSocket message uses `EXITS_TO_LOCATION` edge, sets arrival region
-  - *Files*: `Engine/src/infrastructure/websocket.rs`, `Engine/src/infrastructure/persistence/region_repository.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`, `crates/engine/src/infrastructure/neo4j/region_repo.rs`
 
 - [x] **US-NAV-003**: As a DM, I can create locations with a hierarchy (town contains tavern contains back room)
   - *Implementation*: `CONTAINS_LOCATION` edges in Neo4j, LocationService methods
-  - *Files*: `Engine/src/application/services/location_service.rs`
+  - *Files*: `crates/engine/src/entities/location.rs`
 
 - [x] **US-NAV-004**: As a DM, I can create regions within a location with spawn points
   - *Implementation*: Region entity with `is_spawn_point` flag, `HAS_REGION` edge
-  - *Files*: `Engine/src/domain/entities/region.rs`, `Engine/src/infrastructure/persistence/region_repository.rs`
+  - *Files*: `crates/domain/src/entities/region.rs`, `crates/engine/src/infrastructure/neo4j/region_repo.rs`
 
 - [x] **US-NAV-005**: As a DM, I can advance game time to affect NPC schedules
   - *Implementation*: `AdvanceGameTime` WebSocket message updates `GameTime`, invalidates presence cache
-  - *Files*: `Engine/src/domain/value_objects/game_time.rs`, `Engine/src/infrastructure/websocket.rs`
+  - *Files*: `crates/domain/src/value_objects/game_time.rs`, `crates/engine/src/api/websocket/mod.rs`
 
 - [x] **US-NAV-006**: As a DM, I can connect regions within a location
   - *Implementation*: `CONNECTED_TO_REGION` edge with bidirectional flag
-  - *Files*: `Engine/src/infrastructure/persistence/region_repository.rs`
+  - *Files*: `crates/engine/src/infrastructure/neo4j/region_repo.rs`
 
 - [x] **US-NAV-007**: As a DM, I can create exits from regions to other locations
   - *Implementation*: `EXITS_TO_LOCATION` edge with arrival_region_id
-  - *Files*: `Engine/src/infrastructure/persistence/region_repository.rs`
+  - *Files*: `crates/engine/src/infrastructure/neo4j/region_repo.rs`
 
-### Pending
+- [x] **US-NAV-008**: As a player, I can see navigation options in the scene UI
+  - *Implementation*: `NavigationPanel` modal and `NavigationButtons` inline variant with region/exit buttons
+  - *Files*: `crates/player-ui/src/presentation/components/navigation_panel.rs`, `crates/player-ports/src/outbound/game_connection_port.rs`
 
-- [ ] **US-NAV-008**: As a player, I can see navigation options in the scene UI
-  - *Notes*: Engine sends `NavigationOptions` in `SceneChanged`, Player UI needs to render buttons
+- [x] **US-NAV-009**: As a player, I can see the current game time displayed
+  - *Implementation*: `GameTimeDisplay` component with time-of-day icons and pause indicator
+  - *Files*: `crates/player-ui/src/presentation/components/navigation_panel.rs`, `crates/player-ui/src/presentation/state/game_state.rs`
 
-- [ ] **US-NAV-009**: As a player, I can see the current game time displayed
-  - *Notes*: Engine sends `GameTimeUpdated`, Player UI needs time display component
-
-- [ ] **US-NAV-010**: As a player, I can see a mini-map of the current location with clickable regions
-  - *Notes*: Region `map_bounds` fields exist for clickable areas, UI not implemented
+- [x] **US-NAV-010**: As a player, I can see a mini-map of the current location with clickable regions
+  - *Implementation*: `MiniMap` component with map image overlay, grid fallback, and region legend
+  - *Files*: `crates/player-ui/src/presentation/components/mini_map.rs`, `crates/player-app/src/application/services/location_service.rs`
 
 ### Future Improvements
 
@@ -76,6 +77,11 @@ Navigation creates the physical framework for storytelling. Players explore the 
   - *Design*: DM-controlled party visibility, mini-map with PC icons
   - *Effect*: Better coordination without revealing all information
   - *Priority*: Low - depends on party formation feature
+
+- [ ] **US-NAV-014**: As an LLM, I can see items placed in the current region
+  - *Design*: Add `region_items` to LLM context (currently hardcoded to empty in `build_prompt_from_action`)
+  - *Blocked by*: Region item placement system (US-REGION-ITEMS)
+  - *Priority*: Medium - enables NPCs to reference visible items in dialogue
 
 ---
 
@@ -103,7 +109,7 @@ Navigation creates the physical framework for storytelling. Players explore the 
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending (Engine provides data, Player UI not implemented)
+**Status**: ✅ Implemented (US-NAV-008)
 
 ### Game Time Display
 
@@ -114,7 +120,7 @@ Navigation creates the physical framework for storytelling. Players explore the 
 └──────────────────────────┘
 ```
 
-**Status**: ⏳ Pending (US-NAV-009)
+**Status**: ✅ Implemented (US-NAV-009)
 
 ### Navigation Panel (Player View)
 
@@ -140,7 +146,7 @@ Navigation creates the physical framework for storytelling. Players explore the 
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending (US-NAV-008 - Engine complete, Player UI not implemented)
+**Status**: ✅ Implemented (US-NAV-008)
 
 ### Mini-map with Clickable Regions
 
@@ -175,7 +181,7 @@ Navigation creates the physical framework for storytelling. Players explore the 
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending (US-NAV-010 - Region bounds data exists, UI not implemented)
+**Status**: ✅ Implemented (US-NAV-010)
 
 ---
 
@@ -314,17 +320,18 @@ pub enum TimeOfDay {
 
 | Component | Engine | Player | Notes |
 |-----------|--------|--------|-------|
-| Location Entity | ✅ | ✅ | Full CRUD |
-| Region Entity | ✅ | ✅ | Spawn points, connections |
+| Location Entity | ✅ | ✅ | Entities exist; API CRUD missing |
+| Region Entity | ✅ | ✅ | Entities exist; API CRUD missing |
 | GameTime Value Object | ✅ | ✅ | DM-controlled |
 | Location Repository | ✅ | - | Neo4j with hierarchy |
 | Region Repository | ✅ | - | Neo4j with connections |
 | Location Service | ✅ | ✅ | Business logic |
-| HTTP Routes | ✅ | - | REST API |
-| WebSocket Navigation | ✅ | ⏳ | Engine sends, Player pending |
-| Navigation UI | - | ⏳ | Buttons for region/exit |
-| Time Display UI | - | ⏳ | Show current game time |
-| Mini-map UI | - | ⏳ | Clickable regions |
+| HTTP Routes | ⏳ | - | Location/region REST not wired |
+| WebSocket CRUD | ⏳ | - | Location/region requests not wired |
+| WebSocket Navigation | ✅ | ✅ | Full integration |
+| Navigation UI | - | ✅ | Modal + inline buttons |
+| Time Display UI | - | ✅ | Time-of-day icons |
+| Mini-map UI | - | ✅ | Clickable regions with legend |
 
 ---
 
@@ -334,25 +341,22 @@ pub enum TimeOfDay {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/entities/location.rs` | Location entity |
-| Domain | `src/domain/entities/region.rs` | Region entity |
-| Domain | `src/domain/value_objects/game_time.rs` | GameTime, TimeOfDay |
-| Application | `src/application/services/location_service.rs` | Location business logic |
-| Infrastructure | `src/infrastructure/persistence/location_repository.rs` | Neo4j Location CRUD |
-| Infrastructure | `src/infrastructure/persistence/region_repository.rs` | Neo4j Region CRUD |
-| Infrastructure | `src/infrastructure/http/location_routes.rs` | REST routes |
-| Infrastructure | `src/infrastructure/http/region_routes.rs` | REST routes |
-| Infrastructure | `src/infrastructure/websocket/messages.rs` | WS messages |
-| Infrastructure | `src/infrastructure/websocket.rs` | Navigation handlers |
+| Domain | `crates/domain/src/entities/location.rs` | Location entity |
+| Domain | `crates/domain/src/entities/region.rs` | Region entity |
+| Domain | `crates/domain/src/value_objects/game_time.rs` | GameTime, TimeOfDay |
+| Entity | `crates/engine/src/entities/location.rs` | Location operations |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/location_repo.rs` | Neo4j Location CRUD |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/region_repo.rs` | Neo4j Region CRUD |
+| API | `crates/engine/src/api/websocket/mod.rs` | Movement and staging handlers |
 
 ### Player
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Application | `src/application/dto/world_snapshot.rs` | Location/Region types |
-| Application | `src/application/dto/websocket_messages.rs` | WS message types |
-| Presentation | `src/presentation/state/game_state.rs` | Current location state |
-| Presentation | `src/presentation/handlers/session_message_handler.rs` | Handle SceneChanged |
+| Application | `crates/player/src/application/dto/world_snapshot.rs` | Location/Region types |
+| Application | `crates/player/src/application/dto/websocket_messages.rs` | WS message types |
+| Presentation | `crates/player/src/ui/presentation/state/game_state.rs` | Current location state |
+| Presentation | `crates/player/src/ui/presentation/handlers/session_message_handler.rs` | Handle SceneChanged |
 
 ---
 
@@ -367,4 +371,6 @@ pub enum TimeOfDay {
 
 | Date | Change |
 |------|--------|
+| 2025-12-26 | Added US-NAV-014 for region items in LLM context |
+| 2025-12-24 | Marked US-NAV-008/009/010 complete |
 | 2025-12-18 | Initial version extracted from MVP.md |

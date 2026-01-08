@@ -3,10 +3,16 @@
 //! Provides platform-specific implementations for desktop using
 //! standard library and native crates.
 
-use crate::application::ports::outbound::platform::{
-    DocumentProvider, EngineConfigProvider, ConnectionFactoryProvider, LogProvider,
-    Platform, RandomProvider, SleepProvider, StorageProvider, TimeProvider,
+use crate::ports::outbound::platform::{
+    ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider,
+    SleepProvider, StorageProvider, TimeProvider,
 };
+use crate::state::Platform;
+use directories::ProjectDirs;
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::RwLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{future::Future, pin::Pin, sync::Arc};
 
@@ -46,27 +52,133 @@ impl RandomProvider for DesktopRandomProvider {
     }
 }
 
-/// Desktop storage provider
+/// Desktop storage provider with file-based persistence
 ///
-/// For desktop, we use a simple in-memory implementation.
-/// Could be extended to use directories crate + JSON file for persistence.
-#[derive(Clone, Default)]
-pub struct DesktopStorageProvider;
+/// Stores key-value pairs in a JSON file at:
+/// - Linux: ~/.config/wrldbldr/player/storage.json
+/// - macOS: ~/Library/Application Support/io.wrldbldr.player/storage.json
+/// - Windows: C:\Users\<User>\AppData\Roaming\wrldbldr\player\storage.json
+#[derive(Clone)]
+pub struct DesktopStorageProvider {
+    /// Path to the storage file
+    storage_path: PathBuf,
+    /// In-memory cache of stored values
+    cache: Arc<RwLock<HashMap<String, String>>>,
+}
+
+impl Default for DesktopStorageProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DesktopStorageProvider {
+    /// Create a new desktop storage provider
+    ///
+    /// Loads existing data from the storage file if it exists.
+    pub fn new() -> Self {
+        // Get platform-specific config directory
+        let storage_path = if let Some(dirs) = ProjectDirs::from("io", "wrldbldr", "player") {
+            dirs.config_dir().join("storage.json")
+        } else {
+            // Fallback to current directory if project dirs unavailable
+            PathBuf::from("wrldbldr_storage.json")
+        };
+
+        // Load existing data from file
+        let cache = if storage_path.exists() {
+            match fs::read_to_string(&storage_path) {
+                Ok(data) => match serde_json::from_str::<HashMap<String, String>>(&data) {
+                    Ok(map) => map,
+                    Err(e) => {
+                        tracing::warn!("Failed to parse storage file: {}", e);
+                        HashMap::new()
+                    }
+                },
+                Err(e) => {
+                    tracing::warn!("Failed to read storage file: {}", e);
+                    HashMap::new()
+                }
+            }
+        } else {
+            HashMap::new()
+        };
+
+        tracing::debug!("Desktop storage initialized at: {:?}", storage_path);
+
+        Self {
+            storage_path,
+            cache: Arc::new(RwLock::new(cache)),
+        }
+    }
+
+    /// Persist the cache to disk
+    fn persist(&self) {
+        // Ensure parent directory exists
+        if let Some(parent) = self.storage_path.parent() {
+            if let Err(e) = fs::create_dir_all(parent) {
+                tracing::error!("Failed to create storage directory: {}", e);
+                return;
+            }
+        }
+
+        // Write cache to file
+        let cache = match self.cache.read() {
+            Ok(guard) => guard,
+            Err(e) => {
+                tracing::error!("Failed to acquire read lock for storage: {}", e);
+                return;
+            }
+        };
+
+        match serde_json::to_string_pretty(&*cache) {
+            Ok(data) => {
+                if let Err(e) = fs::write(&self.storage_path, data) {
+                    tracing::error!("Failed to write storage file: {}", e);
+                }
+            }
+            Err(e) => {
+                tracing::error!("Failed to serialize storage data: {}", e);
+            }
+        }
+    }
+}
 
 impl StorageProvider for DesktopStorageProvider {
-    fn save(&self, _key: &str, _value: &str) {
-        // Desktop: could write to ~/.config/wrldbldr/
-        // For now, no-op since desktop doesn't need localStorage equivalent
-        // The desktop app maintains state in memory during session
+    fn save(&self, key: &str, value: &str) {
+        match self.cache.write() {
+            Ok(mut guard) => {
+                guard.insert(key.to_string(), value.to_string());
+                drop(guard); // Release lock before I/O
+                self.persist();
+            }
+            Err(e) => {
+                tracing::error!("Failed to acquire write lock for storage: {}", e);
+            }
+        }
     }
 
-    fn load(&self, _key: &str) -> Option<String> {
-        // No persistence on desktop for now
-        None
+    fn load(&self, key: &str) -> Option<String> {
+        match self.cache.read() {
+            Ok(guard) => guard.get(key).cloned(),
+            Err(e) => {
+                tracing::error!("Failed to acquire read lock for storage: {}", e);
+                None
+            }
+        }
     }
 
-    fn remove(&self, _key: &str) {
-        // No-op
+    fn remove(&self, key: &str) {
+        match self.cache.write() {
+            Ok(mut guard) => {
+                guard.remove(key);
+                drop(guard); // Release lock before I/O
+                self.persist();
+            }
+            Err(e) => {
+                tracing::error!("Failed to acquire write lock for storage: {}", e);
+            }
+        }
     }
 }
 
@@ -144,8 +256,13 @@ impl EngineConfigProvider for DesktopEngineConfigProvider {
 pub struct DesktopConnectionFactoryProvider;
 
 impl ConnectionFactoryProvider for DesktopConnectionFactoryProvider {
-    fn create_game_connection(&self, server_url: &str) -> Arc<dyn crate::application::ports::outbound::GameConnectionPort> {
-        crate::infrastructure::connection_factory::ConnectionFactory::create_game_connection(server_url)
+    fn create_game_connection(
+        &self,
+        server_url: &str,
+    ) -> Arc<dyn crate::ports::outbound::GameConnectionPort> {
+        crate::infrastructure::connection_factory::ConnectionFactory::create_game_connection(
+            server_url,
+        )
     }
 }
 
@@ -155,7 +272,7 @@ pub fn create_platform() -> Platform {
         DesktopTimeProvider,
         DesktopSleepProvider,
         DesktopRandomProvider,
-        DesktopStorageProvider,
+        DesktopStorageProvider::new(),
         DesktopLogProvider,
         DesktopDocumentProvider,
         DesktopEngineConfigProvider,

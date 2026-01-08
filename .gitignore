@@ -25,9 +25,10 @@ Thumbs.db
 node_modules/
 crates/player/node_modules/
 
-# WASM build artifacts
+# Dioxus build outputs
 crates/player/dist/
 crates/player/pkg/
+crates/player/.dioxus/
 
 # Local cargo
 .cargo/registry/
@@ -36,6 +37,8 @@ crates/player/pkg/
 # Nix
 result
 result-*
+.direnv/
+.envrc
 
 # Editor backups
 *.bak
@@ -46,6 +49,21 @@ result-*
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm
+
+# Local runtime data
+crates/engine-runner/data/*.db
+crates/engine-runner/data/*.db-*
+
+# Engine local runtime data
+crates/engine/*.db
+crates/engine/*.db-*
+
+# Generated CSS (Tailwind output)
+crates/player/assets/css/output.css
+crates/player/assets/css/output.css.map
+
+# Node lockfiles are generated
+crates/player/package-lock.json
 
 # Log files
 *.log

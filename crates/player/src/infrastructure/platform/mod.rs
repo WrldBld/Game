@@ -13,11 +13,18 @@ mod desktop;
 
 pub mod mock;
 
-// Re-export the platform-specific module
+// Re-export the platform-specific types explicitly
 #[cfg(target_arch = "wasm32")]
-pub use wasm::*;
+pub use wasm::{
+    create_platform, WasmConnectionFactoryProvider, WasmDocumentProvider, WasmEngineConfigProvider,
+    WasmLogProvider, WasmRandomProvider, WasmSleepProvider, WasmStorageProvider, WasmTimeProvider,
+};
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use desktop::*;
+pub use desktop::{
+    create_platform, DesktopConnectionFactoryProvider, DesktopDocumentProvider,
+    DesktopEngineConfigProvider, DesktopLogProvider, DesktopRandomProvider, DesktopSleepProvider,
+    DesktopStorageProvider, DesktopTimeProvider,
+};
 
 // Mock platform remains available via `crate::infrastructure::platform::mock`.

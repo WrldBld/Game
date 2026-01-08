@@ -13,6 +13,7 @@ Players don't have omniscient knowledge of where NPCs are. Instead:
 1. **Direct Observations**: Auto-recorded when NPCs appear in a scene
 2. **Heard Information**: DM shares intel ("The bartender mentioned seeing Marcus at the docks")
 3. **Deduced Information**: Challenge results reveal NPC patterns
+4. **Unrevealed Interactions (Hidden NPCs)**: Observations can be recorded without revealing identity (shown as "Unknown Figure")
 
 This supports mystery scenarios where players must investigate to find people.
 
@@ -24,23 +25,34 @@ This supports mystery scenarios where players must investigate to find people.
 
 - [x] **US-OBS-001**: As a player, my observations are recorded when NPCs appear in scenes
   - *Implementation*: `record_observation()` called when scene displays NPCs
-  - *Files*: `Engine/src/domain/entities/observation.rs`, `Engine/src/infrastructure/persistence/observation_repository.rs`
+  - *Files*: `crates/domain/src/entities/observation.rs`, `crates/engine/src/infrastructure/neo4j/observation_repo.rs`
 
 - [x] **US-OBS-002**: As a DM, I can share NPC location information with a player
   - *Implementation*: `ShareNpcLocation` WebSocket message creates `HeardAbout` observation
-  - *Files*: `Engine/src/infrastructure/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`
 
 - [x] **US-OBS-003**: As a player, challenge successes can reveal NPC information
   - *Implementation*: Challenge outcome effects can create `Deduced` observations
-  - *Files*: `Engine/src/application/services/event_effect_executor.rs`
+  - *Files*: `crates/engine/src/use_cases/narrative/execute_effects.rs`
 
-### Pending
+- [x] **US-OBS-004**: As a player, I can see a panel showing NPCs I know about
+  - *Implementation*: `KnownNpcsPanel` component with observation cards and type icons
+  - *Files*: `crates/player-ui/src/presentation/components/known_npcs_panel.rs`
 
-- [ ] **US-OBS-004**: As a player, I can see a panel showing NPCs I know about
-  - *Notes*: Engine has data, Player UI needs Known NPCs panel
+- [x] **US-OBS-005**: As a player, I can see where/when I last saw each NPC
+  - *Implementation*: Observation cards display last seen location and game time
+  - *Files*: `crates/player-ui/src/presentation/components/known_npcs_panel.rs`, `crates/player-app/src/application/services/observation_service.rs`
 
-- [ ] **US-OBS-005**: As a player, I can see where/when I last saw each NPC
-  - *Notes*: Observation records game time and location
+### Implemented (Unrevealed Interactions)
+
+- [x] **US-OBS-006**: As a DM, I can record an interaction without revealing the NPC
+  - *Implementation*: Unrevealed observations render as `npc_name = "Unknown Figure"` and have no portrait/sprite
+  - *Completed 2025-12-25*:
+    - Added `is_revealed_to_player` to observation entity + persistence
+    - Approach events can set `reveal=false` to create an unrevealed direct observation
+    - Observation list API scrubs identity when unrevealed
+    - Player Known NPCs UI respects the reveal flag
+  - *Files*: `crates/domain/src/entities/observation.rs`, `crates/engine/src/infrastructure/neo4j/observation_repo.rs`
 
 ---
 
@@ -75,7 +87,7 @@ This supports mystery scenarios where players must investigate to find people.
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending
+**Status**: ✅ Implemented (US-OBS-004/005)
 
 ---
 
@@ -88,8 +100,10 @@ This supports mystery scenarios where players must investigate to find people.
 (pc:PlayerCharacter)-[:OBSERVED_NPC {
     location_id: "uuid",
     region_id: "uuid",
+    conversation_id: "uuid",
     game_time: datetime(),
     observation_type: "direct",  // direct, heard_about, deduced
+    is_revealed_to_player: true,  // false => show "Unknown Figure"
     notes: "Saw them arguing with the bartender"
 }]->(npc:Character)
 ```
@@ -140,9 +154,9 @@ pub struct ObservationSummary {
 
 | Method | Path | Description | Status |
 |--------|------|-------------|--------|
-| GET | `/api/player-characters/{id}/observations` | List PC's NPC observations | ✅ |
-| POST | `/api/player-characters/{id}/observations` | Create observation | ✅ |
-| DELETE | `/api/observations/{id}` | Remove observation | ✅ |
+| GET | `/api/player-characters/{id}/observations` | List PC's NPC observations | ⏳ (not in engine HTTP) |
+| POST | `/api/player-characters/{id}/observations` | Create observation | ⏳ (not in engine HTTP) |
+| DELETE | `/api/observations/{id}` | Remove observation | ⏳ (not in engine HTTP) |
 
 ### WebSocket Messages
 
@@ -164,11 +178,13 @@ pub struct ObservationSummary {
 
 | Component | Engine | Player | Notes |
 |-----------|--------|--------|-------|
-| Observation Entity | ✅ | - | Three observation types |
-| Observation Repository | ✅ | - | Neo4j OBSERVED_NPC edge |
+| Observation Entity | ✅ | - | Three observation types + reveal flag |
+| Observation Repository | ✅ | - | Neo4j OBSERVED_NPC edge with is_revealed |
+| WebSocket Request Handlers | ⏳ | - | Observation requests not wired |
 | Auto-record on Scene | ✅ | - | Direct observations |
-| DM Share Location | ✅ | ⏳ | WebSocket handler done |
-| Known NPCs Panel | - | ⏳ | UI not implemented |
+| DM Share Location | ✅ | ✅ | WebSocket handler complete |
+| Known NPCs Panel | - | ✅ | Full UI with observation types |
+| Unrevealed Observations | ✅ | ✅ | "Unknown Figure" for hidden NPCs |
 
 ---
 
@@ -178,17 +194,16 @@ pub struct ObservationSummary {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/entities/observation.rs` | Observation entity |
-| Infrastructure | `src/infrastructure/persistence/observation_repository.rs` | Neo4j impl |
-| Infrastructure | `src/infrastructure/http/observation_routes.rs` | REST routes |
-| Infrastructure | `src/infrastructure/websocket.rs` | ShareNpcLocation handler |
+| Domain | `crates/domain/src/entities/observation.rs` | Observation entity |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/observation_repo.rs` | Neo4j persistence |
+| API | `crates/engine/src/api/websocket/mod.rs` | ShareNpcLocation, TriggerApproachEvent handlers |
 
 ### Player
 
 | Layer | File | Purpose |
 |-------|------|---------|
 | Application | `src/application/dto/websocket_messages.rs` | Message types |
-| Presentation | *pending* | Known NPCs panel |
+| Presentation | `crates/player/src/ui/presentation/components/known_npcs_panel.rs` | Known NPCs panel |
 
 ---
 
@@ -203,4 +218,6 @@ pub struct ObservationSummary {
 
 | Date | Change |
 |------|--------|
+| 2025-12-26 | Marked US-OBS-006 (unrevealed interactions) as complete |
+| 2025-12-24 | Marked US-OBS-004/005 complete |
 | 2025-12-18 | Initial version extracted from MVP.md |

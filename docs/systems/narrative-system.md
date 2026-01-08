@@ -4,6 +4,12 @@
 
 The Narrative System enables DMs to design **future events** with triggers and effects. When conditions are met (player enters a location, completes a challenge, talks to an NPC), events fire and change the game world. Events can be chained into sequences with branching paths based on outcomes.
 
+## WebSocket Coverage
+
+- `wrldbldr_protocol::NarrativeEventRequest` now routes through `crates/engine/src/api/websocket/ws_narrative_event.rs`. The handler emits `NarrativeEventData` responses for list/get and implements create/update/delete, set active/favorite, trigger/reset, and trigger schema generation to keep the Player UI in sync.
+- `EventChainRequest` passes through `crates/engine/src/api/websocket/ws_event_chain.rs`, returning `EventChainData` plus status info while allowing DM-only flow for chain manipulation (add/remove/complete/reset events, activate/favorite, etc.).
+- Triggered events execute their outcome effects via `use_cases::narrative::ExecuteEffects` before broadcasting `ServerMessage::NarrativeEventTriggered`, so UI flows that call `NarrativeEventService` receive consistent state.
+
 ---
 
 ## Game Design
@@ -24,40 +30,51 @@ This system provides the scaffolding for emergent storytelling:
 
 - [x] **US-NAR-001**: As a DM, I can create narrative events with trigger conditions
   - *Implementation*: NarrativeEvent entity with NarrativeTrigger, TriggerLogic
-  - *Files*: `Engine/src/domain/entities/narrative_event.rs`
+  - *Files*: `crates/domain/src/entities/narrative_event.rs`
 
 - [x] **US-NAR-002**: As a DM, I can define multiple outcomes with different effects
   - *Implementation*: EventOutcome with conditions and EventEffect list
-  - *Files*: `Engine/src/domain/entities/narrative_event.rs`
+  - *Files*: `crates/domain/src/entities/narrative_event.rs`
 
 - [x] **US-NAR-003**: As a DM, I can chain events into sequences
   - *Implementation*: EventChain entity with CONTAINS_EVENT edges
-  - *Files*: `Engine/src/domain/entities/event_chain.rs`
+  - *Files*: `crates/domain/src/entities/event_chain.rs`
 
 - [x] **US-NAR-004**: As a DM, the Engine detects when trigger conditions are met
   - *Implementation*: TriggerEvaluationService evaluates triggers against GameStateSnapshot
-  - *Files*: `Engine/src/application/services/trigger_evaluation_service.rs`
+  - *Files*: `crates/engine/src/entities/narrative.rs`
 
 - [x] **US-NAR-005**: As a DM, the LLM can suggest triggering events during dialogue
   - *Implementation*: LLM outputs `<narrative_event_suggestion>` tags
-  - *Files*: `Engine/src/application/services/llm_service.rs`
+  - *Files*: `crates/engine/src/use_cases/conversation/llm_queue.rs`
 
 - [x] **US-NAR-006**: As a DM, I can approve/reject event triggers before they execute
   - *Implementation*: NarrativeEventSuggestionDecision WebSocket message
-  - *Files*: `Engine/src/infrastructure/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`
 
 - [x] **US-NAR-007**: As a DM, I can browse and manage a narrative event library
   - *Implementation*: NarrativeEventLibrary with search, filters, favorites
-  - *Files*: `Player/src/presentation/components/story_arc/narrative_event_library.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/story_arc/narrative_event_library.rs`
 
 - [x] **US-NAR-008**: As a DM, I can visualize event chains as flowcharts
   - *Implementation*: EventChainVisualizer component
-  - *Files*: `Player/src/presentation/components/story_arc/event_chain_visualizer.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/story_arc/event_chain_visualizer.rs`
+
+- [x] **US-NAR-009**: As a DM, I can use a visual builder for trigger conditions
+  - *Implementation*: TriggerBuilder component with schema-driven form generation
+  - *Files*: `crates/player-ui/src/presentation/components/story_arc/trigger_builder.rs`, `crates/protocol/src/types.rs` (TriggerSchema)
 
 ### Pending
 
-- [ ] **US-NAR-009**: As a DM, I can use a visual builder for trigger conditions
-  - *Notes*: Basic trigger display exists, visual builder not implemented
+- [x] **US-NAR-010**: SetFlag effect with flag storage system
+  - *Status*: Implemented - Flag entity with Neo4j storage
+  - *Files*: `crates/engine/src/entities/flag.rs`, `crates/engine/src/infrastructure/neo4j/flag_repo.rs`
+
+- [ ] **US-NAR-011**: StartCombat effect requires combat system
+  - *Notes*: Effect type exists but execution stubs - needs combat system implementation
+
+- [ ] **US-NAR-012**: AddReward effect requires reward/XP system  
+  - *Notes*: Effect type exists but execution stubs - needs reward system implementation
 
 ---
 
@@ -167,7 +184,7 @@ This system provides the scaffolding for emergent storytelling:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending (US-NAR-009 - trigger schema exists, visual builder not implemented)
+**Status**: ✅ Implemented (US-NAR-009)
 
 ---
 
@@ -211,6 +228,11 @@ This system provides the scaffolding for emergent storytelling:
 (event:NarrativeEvent)-[:TIED_TO_REGION]->(region:Region)
 (event:NarrativeEvent)-[:TIED_TO_SCENE]->(scene:Scene)
 (event:NarrativeEvent)-[:BELONGS_TO_ACT]->(act:Act)
+
+// Story events (including dialogue turns) anchor to conversation, scene, and time
+(story:StoryEvent)-[:PART_OF_CONVERSATION]->(conversation:Conversation)
+(story:StoryEvent)-[:OCCURRED_IN_SCENE]->(scene:Scene)
+(story:StoryEvent)-[:OCCURRED_AT]->(time:GameTime)
 
 // Event features NPCs
 (event:NarrativeEvent)-[:FEATURES_NPC {
@@ -330,12 +352,14 @@ pub enum EventEffect {
 | EventChain Entity | ✅ | ✅ | Sequencing, branching |
 | NarrativeEvent Repository | ✅ | - | Neo4j with all edges |
 | TriggerEvaluationService | ✅ | - | Evaluate against state |
-| EventEffectExecutor | ✅ | - | Execute all effect types |
+| EventEffectExecutor | ⏳ | - | StartCombat/AddReward are stubbed |
+| WebSocket Request Handlers | ⏳ | - | NarrativeEvent/EventChain requests not wired |
 | LLM Event Suggestions | ✅ | - | Parse XML tags |
 | Event Library UI | - | ✅ | Search, filter, favorites |
 | Event Chain Editor | - | ✅ | Add/remove events |
 | Event Chain Visualizer | - | ✅ | Flowchart view |
 | Pending Events Widget | - | ✅ | Director sidebar |
+| Visual Trigger Builder | ✅ | ✅ | Schema endpoint + TriggerBuilder component |
 
 ---
 
@@ -345,23 +369,22 @@ pub enum EventEffect {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/entities/narrative_event.rs` | Event entity |
-| Domain | `src/domain/entities/event_chain.rs` | Chain entity |
-| Application | `src/application/services/narrative_event_service.rs` | CRUD |
-| Application | `src/application/services/trigger_evaluation_service.rs` | Trigger eval |
-| Application | `src/application/services/event_effect_executor.rs` | Execute effects |
-| Infrastructure | `src/infrastructure/persistence/narrative_event_repository.rs` | Neo4j |
-| Infrastructure | `src/infrastructure/http/narrative_event_routes.rs` | REST |
+| Domain | `crates/domain/src/entities/narrative_event.rs` | Event entity, EventEffect enum |
+| Domain | `crates/domain/src/entities/event_chain.rs` | Chain entity |
+| Entity | `crates/engine/src/entities/narrative.rs` | Narrative operations, trigger checks |
+| Use Case | `crates/engine/src/use_cases/narrative/execute_effects.rs` | Execute all effect types |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/narrative_repo.rs` | Neo4j repo |
+| Infrastructure | `crates/engine/src/infrastructure/ports.rs` | NarrativeRepo trait |
 
 ### Player
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Application | `src/application/services/narrative_event_service.rs` | API calls |
-| Presentation | `src/presentation/components/story_arc/narrative_event_library.rs` | Library |
-| Presentation | `src/presentation/components/story_arc/event_chain_editor.rs` | Editor |
-| Presentation | `src/presentation/components/story_arc/event_chain_visualizer.rs` | Visualizer |
-| Presentation | `src/presentation/components/story_arc/pending_events_widget.rs` | Widget |
+| Application | `crates/player/src/application/services/narrative_event_service.rs` | API calls |
+| Presentation | `crates/player/src/ui/presentation/components/story_arc/narrative_event_library.rs` | Library |
+| Presentation | `crates/player/src/ui/presentation/components/story_arc/event_chain_editor.rs` | Editor |
+| Presentation | `crates/player/src/ui/presentation/components/story_arc/event_chain_visualizer.rs` | Visualizer |
+| Presentation | `crates/player/src/ui/presentation/components/story_arc/pending_events_widget.rs` | Widget |
 
 ---
 
@@ -376,4 +399,5 @@ pub enum EventEffect {
 
 | Date | Change |
 |------|--------|
+| 2026-01-05 | US-NAR-009 complete - Visual Trigger Condition Builder |
 | 2025-12-18 | Initial version extracted from MVP.md |

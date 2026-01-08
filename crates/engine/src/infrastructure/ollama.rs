@@ -3,9 +3,10 @@
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
-use crate::application::ports::outbound::{
-    FinishReason, LlmPort, LlmRequest, LlmResponse, MessageRole, TokenUsage, ToolCall,
+use crate::infrastructure::ports::{
+    FinishReason, LlmError, LlmPort, LlmRequest, LlmResponse, MessageRole, TokenUsage, ToolCall,
     ToolDefinition,
 };
 
@@ -19,29 +20,23 @@ pub struct OllamaClient {
 
 impl OllamaClient {
     pub fn new(base_url: &str, model: &str) -> Self {
+        // Use 120 second timeout for LLM requests (they can be slow)
+        let client = Client::builder()
+            .timeout(Duration::from_secs(120))
+            .build()
+            .unwrap_or_else(|_| Client::new());
+
         Self {
-            client: Client::new(),
+            client,
             base_url: base_url.trim_end_matches('/').to_string(),
             model: model.to_string(),
         }
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum OllamaError {
-    #[error("HTTP request failed: {0}")]
-    HttpError(#[from] reqwest::Error),
-    #[error("API error: {0}")]
-    ApiError(String),
-    #[error("Parse error: {0}")]
-    ParseError(#[from] serde_json::Error),
-}
-
 #[async_trait]
 impl LlmPort for OllamaClient {
-    type Error = OllamaError;
-
-    async fn generate(&self, request: LlmRequest) -> Result<LlmResponse, Self::Error> {
+    async fn generate(&self, request: LlmRequest) -> Result<LlmResponse, LlmError> {
         let api_request = OpenAIChatRequest {
             model: self.model.clone(),
             messages: build_messages(&request),
@@ -55,14 +50,21 @@ impl LlmPort for OllamaClient {
             .post(format!("{}/chat/completions", self.base_url))
             .json(&api_request)
             .send()
-            .await?;
+            .await
+            .map_err(|e| LlmError::RequestFailed(e.to_string()))?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await?;
-            return Err(OllamaError::ApiError(error_text));
+            let error_text = response
+                .text()
+                .await
+                .map_err(|e| LlmError::RequestFailed(e.to_string()))?;
+            return Err(LlmError::RequestFailed(error_text));
         }
 
-        let api_response: OpenAIChatResponse = response.json().await?;
+        let api_response: OpenAIChatResponse = response
+            .json()
+            .await
+            .map_err(|e| LlmError::InvalidResponse(e.to_string()))?;
 
         Ok(convert_response(api_response))
     }
@@ -71,7 +73,7 @@ impl LlmPort for OllamaClient {
         &self,
         request: LlmRequest,
         tools: Vec<ToolDefinition>,
-    ) -> Result<LlmResponse, Self::Error> {
+    ) -> Result<LlmResponse, LlmError> {
         let api_tools: Vec<OpenAITool> = tools
             .into_iter()
             .map(|t| OpenAITool {
@@ -97,14 +99,21 @@ impl LlmPort for OllamaClient {
             .post(format!("{}/chat/completions", self.base_url))
             .json(&api_request)
             .send()
-            .await?;
+            .await
+            .map_err(|e| LlmError::RequestFailed(e.to_string()))?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await?;
-            return Err(OllamaError::ApiError(error_text));
+            let error_text = response
+                .text()
+                .await
+                .map_err(|e| LlmError::RequestFailed(e.to_string()))?;
+            return Err(LlmError::RequestFailed(error_text));
         }
 
-        let api_response: OpenAIChatResponse = response.json().await?;
+        let api_response: OpenAIChatResponse = response
+            .json()
+            .await
+            .map_err(|e| LlmError::InvalidResponse(e.to_string()))?;
 
         Ok(convert_response(api_response))
     }
@@ -127,6 +136,7 @@ fn build_messages(request: &LlmRequest) -> Vec<OpenAIMessage> {
                 MessageRole::User => "user",
                 MessageRole::Assistant => "assistant",
                 MessageRole::System => "system",
+                MessageRole::Unknown => "user", // Default unknown roles to user
             }
             .to_string(),
             content: Some(msg.content.clone()),
@@ -172,7 +182,9 @@ fn convert_response(response: OpenAIChatResponse) -> LlmResponse {
     }
 }
 
+// =============================================================================
 // OpenAI API types
+// =============================================================================
 
 #[derive(Debug, Serialize)]
 struct OpenAIChatRequest {

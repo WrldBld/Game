@@ -18,7 +18,7 @@ How this system affects player experience. What gameplay loop it enables. Why it
 
 - [x] **US-001**: As a [role], I can [action] so that [benefit]
   - *Implementation*: Brief summary of how it was done
-  - *Files*: `Engine/src/...`, `Player/src/...`
+  - *Files*: `crates/engine/src/...`, `crates/player-*/src/...`
 
 - [x] **US-002**: As a [role], I can [action] so that [benefit]
   - *Implementation*: Summary
@@ -114,26 +114,28 @@ How this system affects player experience. What gameplay loop it enables. Why it
 
 ## Key Files
 
-### Engine
+### Engine (Simplified Architecture)
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/entities/xxx.rs` | Entity definition |
-| Domain | `src/domain/value_objects/xxx.rs` | Value objects |
-| Application | `src/application/services/xxx_service.rs` | Business logic |
-| Application | `src/application/ports/outbound/repository_port.rs` | Port trait |
-| Infrastructure | `src/infrastructure/persistence/xxx_repository.rs` | Neo4j impl |
-| Infrastructure | `src/infrastructure/http/xxx_routes.rs` | REST routes |
-| Infrastructure | `src/infrastructure/websocket/messages.rs` | WS messages |
+| Domain | `crates/domain/src/entities/xxx.rs` | Entity definition |
+| Domain | `crates/domain/src/value_objects/xxx.rs` | Value objects |
+| Entity | `crates/engine/src/entities/xxx.rs` | Entity operations (wraps repo) |
+| Use Case | `crates/engine/src/use_cases/xxx/mod.rs` | Orchestration logic |
+| Ports | `crates/engine/src/infrastructure/ports.rs` | All port traits |
+| Repository | `crates/engine/src/infrastructure/neo4j/xxx_repo.rs` | Neo4j implementation |
+| API | `crates/engine/src/api/websocket/mod.rs` | WebSocket handlers |
+| API | `crates/engine/src/api/http.rs` | HTTP routes |
 
 ### Player
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Application | `src/application/services/xxx_service.rs` | Client service |
-| Application | `src/application/dto/xxx.rs` | Data types |
-| Presentation | `src/presentation/components/xxx.rs` | UI component |
-| Presentation | `src/presentation/state/xxx_state.rs` | Reactive state |
+| Ports | `crates/player-ports/src/outbound/*.rs` | Port traits |
+| Application | `crates/player-app/src/application/services/xxx_service.rs` | Client service |
+| Adapters | `crates/player-adapters/src/infrastructure/*.rs` | API/WS/platform impls |
+| UI | `crates/player-ui/src/presentation/components/xxx.rs` | UI component |
+| UI | `crates/player-ui/src/presentation/state/xxx_state.rs` | Reactive state |
 
 ---
 

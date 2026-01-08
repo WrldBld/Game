@@ -4,6 +4,8 @@
 
 The Dialogue System powers NPC conversations using an LLM (Ollama). When a player speaks to an NPC, the Engine builds rich context from the graph database (character motivations, relationships, location, narrative events) and sends it to the LLM. The generated response goes to the DM for approval before the player sees it. The LLM can also suggest tool calls (give items, change relationships) and challenge/event triggers.
 
+Conversations are persisted as first-class graph nodes tied to scenes and game time so dialogue history can drive narrative triggers, time-based availability, and scene continuity.
+
 ---
 
 ## Game Design
@@ -24,55 +26,74 @@ This is the heart of the AI game master experience:
 
 - [x] **US-DLG-001**: As a player, I can speak to NPCs and receive contextual responses
   - *Implementation*: PlayerAction → LLMQueueService → Ollama → DM approval → DialogueResponse
-  - *Files*: `Engine/src/application/services/llm_queue_service.rs`
+  - *Files*: `crates/engine/src/use_cases/conversation/llm_queue.rs`
 
 - [x] **US-DLG-002**: As a DM, I can approve LLM responses before players see them
   - *Implementation*: ApprovalRequired WebSocket message, ApprovalDecision handling
-  - *Files*: `Engine/src/infrastructure/websocket.rs`, `Player/src/presentation/components/dm_panel/approval_popup.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`, `crates/player-ui/src/presentation/components/dm_panel/approval_popup.rs`
 
 - [x] **US-DLG-003**: As a DM, I can modify LLM responses before approving
   - *Implementation*: AcceptWithModification decision type, modified dialogue text
-  - *Files*: `Engine/src/infrastructure/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`
 
 - [x] **US-DLG-004**: As a DM, I can reject and request regeneration with feedback
   - *Implementation*: Reject decision type, feedback included in retry, max 3 retries
-  - *Files*: `Engine/src/infrastructure/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`
 
 - [x] **US-DLG-005**: As a DM, I can take over and write my own response
   - *Implementation*: TakeOver decision type, DM-written dialogue
-  - *Files*: `Engine/src/infrastructure/websocket.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`
 
 - [x] **US-DLG-006**: As a DM, I can approve/reject LLM tool call suggestions
   - *Implementation*: ProposedToolInfo in approval, approved_tools filtering
-  - *Files*: `Engine/src/application/services/tool_execution_service.rs`
+  - *Files*: `crates/engine/src/use_cases/conversation/tool_execution.rs`
 
 - [x] **US-DLG-007**: As a DM, I can set directorial notes that guide the LLM
   - *Implementation*: DirectorialNotes value object, included in LLM system prompt
-  - *Files*: `Engine/src/domain/value_objects/directorial.rs`
+  - *Files*: `crates/domain/src/value_objects/directorial.rs`
 
 - [x] **US-DLG-008**: As a player, I see a "thinking" indicator while LLM processes
   - *Implementation*: LLMProcessing WebSocket message, UI shows animated indicator
-  - *Files*: `Player/src/presentation/views/pc_view.rs`
+  - *Files*: `crates/player-ui/src/presentation/views/pc_view.rs`
 
 - [x] **US-DLG-009**: As a DM, I can configure token budgets per context category
   - *Implementation*: Settings API at `/api/settings` and `/api/worlds/{world_id}/settings` exposes all 10 ContextBudgetConfig fields; metadata endpoint provides field descriptions for UI rendering
-  - *Files*: `Engine/src/domain/value_objects/context_budget.rs`, `Engine/src/infrastructure/http/settings_routes.rs`
+  - *Files*: `crates/domain/src/value_objects/context_budget.rs`, `crates/engine/src/api/http.rs`
 
-### Pending (Dialogue Tracking Enhancement)
+- [x] **US-DLG-010**: As a DM, I can customize the LLM response format through configurable templates
+  - *Implementation*: `PromptBuilder` resolves `dialogue.response_format`, `dialogue.challenge_suggestion_format`, and `dialogue.narrative_event_format` templates via `PromptTemplateService`
+  - *Files*: `crates/engine/src/use_cases/conversation/prompt_builder.rs`, `crates/domain/src/value_objects/prompt_templates.rs`
 
-- [ ] **US-DLG-010**: As a system, I persist dialogue exchanges as StoryEvents for later querying
-  - *Implementation*: Call `record_dialogue_exchange` in DMApprovalQueueService after approval
-  - *Files*: `Engine/src/application/services/dm_approval_queue_service.rs`, `Engine/src/application/services/story_event_service.rs`
+### Implemented (Dialogue Tracking Enhancement)
 
-- [ ] **US-DLG-011**: As a system, I can query the last dialogues with a specific NPC
-  - *Implementation*: Add `get_dialogues_with_npc` method to StoryEventRepository
-  - *Files*: `Engine/src/application/ports/outbound/story_event_repository_port.rs`, `Engine/src/infrastructure/persistence/story_event_repository.rs`
+- [x] **US-DLG-011**: As a system, I persist dialogue exchanges as StoryEvents for later querying
+  - *Implementation*: `record_dialogue_exchange()` in Narrative entity, called from WebSocket approval handler
+  - *Files*: `crates/engine/src/entities/narrative.rs`, `crates/engine/src/api/websocket/mod.rs`
+  - *Completed*: 2026-01-03 implemented in simplified architecture
 
-- [ ] **US-DLG-012**: As a system, I track (PC)-[:SPOKE_TO]->(NPC) relationships with last dialogue metadata
-  - *Implementation*: SPOKE_TO edge with `last_dialogue_at`, `last_topic`, `conversation_count`
-  - *Files*: `Engine/src/infrastructure/persistence/story_event_repository.rs`
+- [x] **US-DLG-012**: As a system, I can query the last dialogues with a specific NPC
+  - *Implementation*: `get_dialogues_with_npc()` in NarrativeRepo trait
+  - *Files*: `crates/engine/src/infrastructure/ports.rs`, `crates/engine/src/infrastructure/neo4j/narrative_repo.rs`
+  - *Completed*: 2026-01-03 implemented in simplified architecture
 
-> **Note**: These dialogue tracking enhancements are required by the [Staging System](./staging-system.md) to provide LLM context about recent NPC interactions (e.g., if an NPC said they'd be somewhere else).
+- [x] **US-DLG-013**: As a system, I track (PC)-[:SPOKE_TO]->(NPC) relationships with last dialogue metadata
+  - *Implementation*: `update_spoke_to()` creates/updates SPOKE_TO edge with `first_dialogue_at`, `last_dialogue_at`, `last_topic`, `conversation_count`
+  - *Files*: `crates/engine/src/infrastructure/ports.rs`, `crates/engine/src/infrastructure/neo4j/narrative_repo.rs`
+  - *Completed*: 2026-01-03 implemented in simplified architecture
+
+- [x] **US-DLG-014**: Capture player dialogue text in exchange records
+  - *Implementation*: `ApprovalRequestData.player_dialogue` passed through approval flow
+  - *Completed*: 2026-01-03 data now captured from original player action
+
+- [x] **US-DLG-015**: Extract topics from dialogue content
+  - *Implementation*: `ApprovalRequestData.topics` passed through approval flow
+  - *Completed*: 2026-01-03 topics now captured from LLM response
+
+- [x] **US-DLG-016**: Include scene/location/game_time context in records
+  - *Implementation*: `ApprovalRequestData` includes `scene_id`, `location_id`, `game_time` fields
+  - *Completed*: 2026-01-03 context now available (graph edges for scene/location TBD)
+
+> **Note**: Dialogue history is stored in Conversation + DialogueTurn nodes, with StoryEvents linked for narrative history queries. Scene and GameTime edges are part of the model.
 
 ---
 
@@ -143,6 +164,42 @@ This is the heart of the AI game master experience:
 ---
 
 ## Data Model
+
+### Conversation + DialogueTurn Nodes
+
+```cypher
+(:Conversation {
+    id: "uuid",
+    started_at: datetime(),
+    ended_at: datetime(),
+    topic_hint: "Baron's whereabouts",
+    is_active: true,
+    last_updated_at: datetime()
+})
+
+(:DialogueTurn {
+    id: "uuid",
+    speaker_id: "uuid",
+    speaker_type: "pc|npc",
+    text: "The Baron? A dangerous man...",
+    order: 3,
+    is_dm_override: false,
+    is_llm_generated: true,
+    game_time: datetime()
+})
+```
+
+### Conversation Context Edges
+
+```cypher
+(pc:PlayerCharacter)-[:PARTICIPATED_IN]->(conversation:Conversation)
+(npc:Character)-[:PARTICIPATED_IN]->(conversation:Conversation)
+(conversation)-[:IN_SCENE]->(scene:Scene)
+(conversation)-[:AT_LOCATION]->(location:Location)
+(conversation)-[:AT_REGION]->(region:Region)
+(conversation)-[:HAS_TURN {order: 3}]->(turn:DialogueTurn)
+(turn)-[:OCCURRED_AT]->(time:GameTime)
+```
 
 ### Context Categories
 
@@ -222,21 +279,25 @@ pub enum GameTool {
 
 | Component | Engine | Player | Notes |
 |-----------|--------|--------|-------|
-| LLMContextService | ✅ | - | Graph-based context building |
+| PromptContextService | ✅ | - | Graph-based context building |
 | ContextBudgetConfig | ✅ | - | Token limits per category |
 | Token Counter | ✅ | - | Multiple counting methods |
 | Summarization | ✅ | - | Auto-summarize when over budget |
 | Prompt Builder | ✅ | - | System prompt with all categories |
+| NPC Mood in Prompts | ✅ | - | Wired in build_prompt_from_action (2025-12-26) |
+| Actantial Context | ✅ | - | Wired in build_prompt_from_action (2025-12-26) |
+| Featured NPC Names | ✅ | - | Included in narrative event context (2025-12-26) |
 | Tool Parsing | ✅ | - | Parse LLM tool suggestions |
 | Tool Execution | ✅ | - | Execute approved tools |
 | DM Approval Flow | ✅ | ✅ | Full approval UI |
 | Conversation History | ✅ | ✅ | 30-turn limit (in-memory) |
-| Dialogue Persistence | ⏳ | - | Store as StoryEvent::DialogueExchange |
-| NPC Dialogue Queries | ⏳ | - | get_dialogues_with_npc method |
-| SPOKE_TO Edges | ⏳ | - | Track PC-NPC conversation metadata |
+| Dialogue Persistence | ✅ | - | `record_dialogue_exchange()` creates StoryEvent::DialogueExchange |
+| NPC Dialogue Queries | ✅ | - | `get_dialogues_with_npc()`, `get_dialogue_summary_for_npc()` |
+| SPOKE_TO Edges | ✅ | - | `update_spoke_to_edge()` tracks PC-NPC metadata |
 | Directorial Notes | ✅ | ✅ | DM guidance |
 | Dialogue Display | - | ✅ | Typewriter effect |
 | Choice Selection | - | ✅ | Player choices |
+| Region Items in Context | ⏳ | - | Hardcoded to empty; needs WorldStateManager |
 
 ---
 
@@ -246,16 +307,16 @@ pub enum GameTool {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/value_objects/llm_context.rs` | Context structures |
-| Domain | `src/domain/value_objects/context_budget.rs` | Budget config |
-| Domain | `src/domain/value_objects/game_tools.rs` | Tool definitions |
-| Domain | `src/domain/value_objects/directorial.rs` | Directorial notes |
-| Application | `src/application/services/llm_context_service.rs` | Build context |
-| Application | `src/application/services/llm/prompt_builder.rs` | Build prompts |
-| Application | `src/application/services/llm_queue_service.rs` | LLM processing |
-| Application | `src/application/services/tool_execution_service.rs` | Execute tools |
-| Infrastructure | `src/infrastructure/ollama.rs` | LLM client |
-| Infrastructure | `src/infrastructure/websocket.rs` | Approval handling |
+| Domain | `crates/domain/src/value_objects/llm_context.rs` | Context structures |
+| Domain | `crates/domain/src/value_objects/context_budget.rs` | Budget config |
+| Domain | `crates/domain/src/value_objects/game_tools.rs` | Tool definitions |
+| Domain | `crates/domain/src/value_objects/directorial.rs` | Directorial notes |
+| Entity | `crates/engine/src/entities/llm.rs` | LLM operations |
+| Use Case | `crates/engine/src/use_cases/conversation/prompt_builder.rs` | Build prompts |
+| Use Case | `crates/engine/src/use_cases/conversation/llm_queue.rs` | LLM processing |
+| Use Case | `crates/engine/src/use_cases/conversation/tool_execution.rs` | Execute tools |
+| Infrastructure | `crates/engine/src/infrastructure/ollama.rs` | LLM client |
+| API | `crates/engine/src/api/websocket/mod.rs` | Approval handling |
 
 ### Player
 
@@ -271,7 +332,7 @@ pub enum GameTool {
 
 ## Related Systems
 
-- **Depends on**: [Character System](./character-system.md) (NPC context), [Navigation System](./navigation-system.md) (location context), [Challenge System](./challenge-system.md) (challenge suggestions), [Narrative System](./narrative-system.md) (event suggestions)
+- **Depends on**: [Character System](./character-system.md) (NPC context), [Navigation System](./navigation-system.md) (location context), [Challenge System](./challenge-system.md) (challenge suggestions), [Narrative System](./narrative-system.md) (event suggestions), [Prompt Template System](./prompt-template-system.md) (configurable response format)
 - **Provides data to**: [Staging System](./staging-system.md) (dialogue history for LLM context in presence decisions)
 - **Used by**: [Scene System](./scene-system.md) (dialogue in scenes)
 
@@ -283,3 +344,6 @@ pub enum GameTool {
 |------|--------|
 | 2025-12-18 | Initial version extracted from MVP.md |
 | 2025-12-19 | Added dialogue tracking enhancements for Staging System |
+| 2025-12-26 | Marked NPC mood, actantial context, and featured NPC names as implemented |
+| 2025-12-26 | Code review: US-DLG-011/012/013 confirmed as IMPLEMENTED |
+| 2025-12-26 | Added US-DLG-014/015/016 for remaining data quality gaps |

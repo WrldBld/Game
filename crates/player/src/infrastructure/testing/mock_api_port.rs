@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::application::ports::outbound::{ApiError, ApiPort};
+use crate::ports::outbound::{ApiError, ApiPort};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Method {
@@ -131,8 +131,9 @@ impl MockApiPort {
 
     fn decode<T: DeserializeOwned>(resp: Response) -> Result<T, ApiError> {
         match resp {
-            Response::Json(v) => serde_json::from_value::<T>(v)
-                .map_err(|e| ApiError::ParseError(e.to_string())),
+            Response::Json(v) => {
+                serde_json::from_value::<T>(v).map_err(|e| ApiError::ParseError(e.to_string()))
+            }
             Response::Err(e) => Err(e),
             Response::NotFound => Err(ApiError::HttpError(404, "Not found".to_string())),
             Response::Ok => Err(ApiError::ParseError("Expected JSON response".to_string())),
@@ -325,7 +326,10 @@ impl ApiPort for MockApiPort {
         }
     }
 
-    async fn put_empty_with_response<T: DeserializeOwned>(&self, path: &str) -> Result<T, ApiError> {
+    async fn put_empty_with_response<T: DeserializeOwned>(
+        &self,
+        path: &str,
+    ) -> Result<T, ApiError> {
         self.record("PUT_EMPTY_WITH_RESPONSE", path, None);
         let resp = self.take_response(Key {
             method: Method::PutEmptyWithResponse,
@@ -339,7 +343,8 @@ impl ApiPort for MockApiPort {
         path: &str,
         body: &B,
     ) -> Result<T, ApiError> {
-        self.record("PATCH", path, Some(body));
+        let json_body = serde_json::to_value(body).ok();
+        self.record("PATCH", path, json_body);
         let resp = self.take_response(Key {
             method: Method::Patch,
             path: path.to_string(),
@@ -361,4 +366,3 @@ impl ApiPort for MockApiPort {
         }
     }
 }
-

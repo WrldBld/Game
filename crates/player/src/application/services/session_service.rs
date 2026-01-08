@@ -5,29 +5,25 @@
 //! - Sending JoinSession messages
 //! - Processing server messages and updating application state
 //!
-//! NOTE: This service currently has some architecture violations that will be
-//! addressed in Phase 16. Specifically:
-//! - Uses infrastructure types (WorldSnapshot, ServerMessage)
-//! - This service publishes raw JSON; presentation parses into message DTOs
+//! # Event Types
+//!
+//! This service emits `PlayerEvent` (from player-ports) which is the application-layer
+//! representation of server events. The translation from wire format (`ServerMessage`)
+//! to `PlayerEvent` happens in the adapters layer, keeping this service focused on
+//! session orchestration without protocol dependencies.
 
 use std::sync::Arc;
 
 use anyhow::Result;
 
-use crate::application::ports::outbound::{
-    ConnectionState as PortConnectionState, GameConnectionPort, ParticipantRole as PortParticipantRole,
-};
+use crate::ports::outbound::player_events::PlayerEvent;
+use crate::ports::outbound::{ConnectionState as PortConnectionState, GameConnectionPort};
 
-use crate::application::dto::AppConnectionStatus;
+use crate::application::dto::{AppConnectionStatus, ParticipantRole};
 use futures_channel::mpsc;
 
 /// Default WebSocket URL for the Engine server
 pub const DEFAULT_ENGINE_URL: &str = "ws://localhost:3000/ws";
-
-// Re-export port types for external use
-pub use crate::application::ports::outbound::{
-    ParticipantRole as ParticipantRolePort,
-};
 
 /// Convert port ConnectionState to application ConnectionStatus
 pub fn port_connection_state_to_status(state: PortConnectionState) -> AppConnectionStatus {
@@ -45,13 +41,18 @@ pub fn port_connection_state_to_status(state: PortConnectionState) -> AppConnect
 pub enum SessionEvent {
     /// Connection state changed (uses port type)
     StateChanged(PortConnectionState),
-    /// Raw server message payload (JSON)
-    MessageReceived(serde_json::Value),
+    /// Server event received (application-layer type)
+    ///
+    /// The translation from wire format (ServerMessage) to PlayerEvent
+    /// is performed by the adapters layer before delivery.
+    MessageReceived(PlayerEvent),
 }
 
 /// Session service for managing Engine connection (cross-platform).
 ///
-/// This service depends only on the `GameConnectionPort` abstraction.
+/// This service depends on the `GameConnectionPort` abstraction.
+/// The ISP sub-traits (ConnectionLifecyclePort, SessionCommandPort) are available
+/// via blanket implementations on GameConnectionPort.
 pub struct SessionService {
     connection: Arc<dyn GameConnectionPort>,
 }
@@ -68,8 +69,8 @@ impl SessionService {
     pub async fn connect(
         &self,
         user_id: String,
-        role: PortParticipantRole,
-        world_id: Option<String>,
+        role: ParticipantRole,
+        world_id: String,
     ) -> Result<mpsc::UnboundedReceiver<SessionEvent>> {
         let (tx, rx) = mpsc::unbounded::<SessionEvent>();
 
@@ -83,16 +84,16 @@ impl SessionService {
             self.connection.on_state_change(Box::new(move |state| {
                 let _ = tx.unbounded_send(SessionEvent::StateChanged(state));
                 if matches!(state, PortConnectionState::Connected) {
-                    let _ = connection.join_session(&user_id_for_join, role, world_id_for_join.clone());
+                    let _ = connection.join_world(&world_id_for_join, &user_id_for_join, role);
                 }
             }));
         }
 
-        // Forward raw messages
+        // Forward server events (already translated by adapters layer)
         {
             let tx = tx.clone();
-            self.connection.on_message(Box::new(move |value| {
-                let _ = tx.unbounded_send(SessionEvent::MessageReceived(value));
+            self.connection.on_message(Box::new(move |event| {
+                let _ = tx.unbounded_send(SessionEvent::MessageReceived(event));
             }));
         }
 

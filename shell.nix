@@ -1,5 +1,10 @@
 { pkgs ? import <nixpkgs> {} }:
 
+let
+  isDarwin = pkgs.stdenv.isDarwin;
+  isLinux = pkgs.stdenv.isLinux;
+in
+
 pkgs.mkShell {
   name = "wrldbldr-dev";
 
@@ -12,8 +17,6 @@ pkgs.mkShell {
     rust-analyzer
 
     # Build essentials
-    gcc
-    binutils  # Provides ld
     pkg-config
     llvmPackages.lld  # Fast linker
     
@@ -27,12 +30,15 @@ pkgs.mkShell {
     # Task runner
     go-task
 
+    # Code statistics
+    tokei
+
     # Process manager for running multiple services
     overmind
     tmux  # Required by overmind
 
     # Frontend tooling (for Player web builds)
-    trunk          # WASM bundler for Dioxus
+    dioxus-cli
     wasm-bindgen-cli
     binaryen       # wasm-opt
 
@@ -40,6 +46,21 @@ pkgs.mkShell {
     nodejs_20
     nodePackages.npm
 
+    # Python (for repo tooling / scripts)
+    python3
+    python3Packages.pip
+    python3Packages.virtualenv
+  ] 
+  # macOS-specific dependencies
+  # Note: Apple frameworks are automatically provided by the system SDK
+  ++ lib.optionals isDarwin [
+    libiconv
+  ]
+  # Linux-specific dependencies
+  ++ lib.optionals isLinux [
+    gcc
+    binutils  # Provides ld
+    
     # GTK and related libs (for Dioxus desktop)
     gtk3
     glib
@@ -50,7 +71,7 @@ pkgs.mkShell {
     webkitgtk_4_1
     libsoup_3
 
-    # Wayland support (for Linux desktop)
+    # Wayland support
     wayland
     wayland-protocols
     libxkbcommon
@@ -61,7 +82,7 @@ pkgs.mkShell {
     xorg.libXrandr
     xorg.libXi
 
-    # Additional libs that may be needed
+    # Additional libs
     dbus
     at-spi2-atk
   ];
@@ -77,7 +98,8 @@ pkgs.mkShell {
     # SQLite
     export SQLITE3_LIB_DIR="${pkgs.sqlite.out}/lib"
 
-    # GTK/GLib for Dioxus desktop
+    ${if isLinux then ''
+    # GTK/GLib for Dioxus desktop (Linux only)
     export GIO_MODULE_DIR="${pkgs.glib-networking}/lib/gio/modules"
     export GIO_EXTRA_MODULES="${pkgs.glib-networking}/lib/gio/modules"
     
@@ -86,11 +108,20 @@ pkgs.mkShell {
 
     # Wayland/X11
     export LD_LIBRARY_PATH="${pkgs.wayland}/lib:${pkgs.libxkbcommon}/lib:$LD_LIBRARY_PATH"
+    '' else ""}
+    
+    ${if isDarwin then ''
+    # macOS-specific library paths
+    export DYLD_LIBRARY_PATH="${pkgs.openssl.out}/lib:${pkgs.sqlite.out}/lib:''${DYLD_LIBRARY_PATH:-}"
+    
+    # macOS frameworks are automatically linked via nix-darwin
+    '' else ""}
     
     # Ensure cargo binaries are in PATH
     export PATH="$HOME/.cargo/bin:$PATH"
 
     echo "WrldBldr development environment loaded!"
+    echo "Platform: ${if isDarwin then "macOS (nix-darwin)" else "Linux"}"
     echo ""
     echo "Available tasks:"
     echo "  task backend     - Run the Engine backend"

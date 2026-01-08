@@ -1,14 +1,19 @@
 //! Character Service - Application service for character management
 //!
 //! This service provides use case implementations for listing, creating,
-//! updating, and fetching characters. It abstracts away the HTTP client
+//! updating, and fetching characters. It abstracts away the WebSocket client
 //! details from the presentation layer.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::sync::Arc;
 
-use crate::application::dto::{FieldValue, InventoryItemData};
-use crate::application::ports::outbound::{ApiError, ApiPort};
+use crate::application::dto::requests::{
+    ChangeArchetypeRequest, CreateCharacterRequest, UpdateCharacterRequest,
+};
+use crate::application::dto::{CharacterSheetDataApi, InventoryItemData};
+use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
+use crate::ports::outbound::GameConnectionPort;
+use wrldbldr_protocol::{CharacterRequest, RequestPayload};
 
 /// Character summary for list views
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -16,13 +21,6 @@ pub struct CharacterSummary {
     pub id: String,
     pub name: String,
     pub archetype: Option<String>,
-}
-
-/// Character sheet data from API
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct CharacterSheetDataApi {
-    #[serde(default)]
-    pub values: HashMap<String, FieldValue>,
 }
 
 /// Full character data for create/edit forms via API
@@ -52,32 +50,51 @@ pub struct CharacterFormData {
 /// Character service for managing characters
 ///
 /// This service provides methods for character-related operations
-/// while depending only on the `ApiPort` trait, not concrete
+/// while depending only on the `GameConnectionPort` trait, not concrete
 /// infrastructure implementations.
-pub struct CharacterService<A: ApiPort> {
-    api: A,
+#[derive(Clone)]
+pub struct CharacterService {
+    connection: Arc<dyn GameConnectionPort>,
 }
 
-impl<A: ApiPort> CharacterService<A> {
-    /// Create a new CharacterService with the given API port
-    pub fn new(api: A) -> Self {
-        Self { api }
+impl CharacterService {
+    /// Create a new CharacterService with the given game connection
+    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
+        Self { connection }
     }
 
     /// List all characters in a world
-    pub async fn list_characters(&self, world_id: &str) -> Result<Vec<CharacterSummary>, ApiError> {
-        let path = format!("/api/worlds/{}/characters", world_id);
-        self.api.get(&path).await
+    pub async fn list_characters(
+        &self,
+        world_id: &str,
+    ) -> Result<Vec<CharacterSummary>, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Character(CharacterRequest::ListCharacters {
+                    world_id: world_id.to_string(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse()
     }
 
     /// Get a single character by ID
     pub async fn get_character(
         &self,
         character_id: &str,
-    ) -> Result<CharacterFormData, ApiError> {
-        // Engine exposes GET /api/characters/{id} for single-character fetch
-        let path = format!("/api/characters/{}", character_id);
-        self.api.get(&path).await
+    ) -> Result<CharacterFormData, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Character(CharacterRequest::GetCharacter {
+                    character_id: character_id.to_string(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse()
     }
 
     /// Create a new character
@@ -85,9 +102,26 @@ impl<A: ApiPort> CharacterService<A> {
         &self,
         world_id: &str,
         character: &CharacterFormData,
-    ) -> Result<CharacterFormData, ApiError> {
-        let path = format!("/api/worlds/{}/characters", world_id);
-        self.api.post(&path, character).await
+    ) -> Result<CharacterFormData, ServiceError> {
+        let request = CreateCharacterRequest {
+            name: character.name.clone(),
+            description: character.description.clone(),
+            archetype: character.archetype.clone(),
+            sprite_asset: character.sprite_asset.clone(),
+            portrait_asset: character.portrait_asset.clone(),
+        };
+
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Character(CharacterRequest::CreateCharacter {
+                    world_id: world_id.to_string(),
+                    data: request.into(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse()
     }
 
     /// Update an existing character
@@ -95,15 +129,41 @@ impl<A: ApiPort> CharacterService<A> {
         &self,
         character_id: &str,
         character: &CharacterFormData,
-    ) -> Result<CharacterFormData, ApiError> {
-        let path = format!("/api/characters/{}", character_id);
-        self.api.put(&path, character).await
+    ) -> Result<CharacterFormData, ServiceError> {
+        let request = UpdateCharacterRequest {
+            name: Some(character.name.clone()),
+            description: character.description.clone(),
+            sprite_asset: character.sprite_asset.clone(),
+            portrait_asset: character.portrait_asset.clone(),
+            is_alive: None,
+            is_active: None,
+        };
+
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Character(CharacterRequest::UpdateCharacter {
+                    character_id: character_id.to_string(),
+                    data: request.into(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse()
     }
 
     /// Delete a character
-    pub async fn delete_character(&self, character_id: &str) -> Result<(), ApiError> {
-        let path = format!("/api/characters/{}", character_id);
-        self.api.delete(&path).await
+    pub async fn delete_character(&self, character_id: &str) -> Result<(), ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Character(CharacterRequest::DeleteCharacter {
+                    character_id: character_id.to_string(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse_empty()
     }
 
     /// Change a character's archetype
@@ -112,35 +172,39 @@ impl<A: ApiPort> CharacterService<A> {
         character_id: &str,
         new_archetype: &str,
         reason: &str,
-    ) -> Result<(), ApiError> {
-        #[derive(Serialize)]
-        struct ArchetypeRequest {
-            archetype: String,
-            reason: String,
-        }
-
-        let path = format!("/api/characters/{}/archetype", character_id);
-        let request = ArchetypeRequest {
-            archetype: new_archetype.to_string(),
+    ) -> Result<(), ServiceError> {
+        let request = ChangeArchetypeRequest {
+            new_archetype: new_archetype.to_string(),
             reason: reason.to_string(),
         };
-        self.api.post_no_response(&path, &request).await
+
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Character(CharacterRequest::ChangeArchetype {
+                    character_id: character_id.to_string(),
+                    data: request.into(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse_empty()
     }
 
     /// Get a character's inventory
     pub async fn get_inventory(
         &self,
         character_id: &str,
-    ) -> Result<Vec<InventoryItemData>, ApiError> {
-        let path = format!("/api/characters/{}/inventory", character_id);
-        self.api.get(&path).await
-    }
-}
-
-impl<A: ApiPort + Clone> Clone for CharacterService<A> {
-    fn clone(&self) -> Self {
-        Self {
-            api: self.api.clone(),
-        }
+    ) -> Result<Vec<InventoryItemData>, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Character(CharacterRequest::GetCharacterInventory {
+                    character_id: character_id.to_string(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse()
     }
 }

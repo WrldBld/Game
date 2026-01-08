@@ -1,447 +1,276 @@
-//! ComfyUI client for AI asset generation
+//! ComfyUI image generation client
+//!
+//! Implements the ImageGenPort trait for AI asset generation using ComfyUI's API.
 
-use anyhow::Result;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
-use uuid::Uuid;
 
-use crate::application::ports::outbound::{
-    ComfyUIPort, GeneratedImage, HistoryResponse as PortHistoryResponse, NodeOutput as PortNodeOutput,
-    PromptHistory as PortPromptHistory, PromptStatus as PortPromptStatus, QueuePromptResponse,
-};
-use crate::domain::value_objects::ComfyUIConfig;
-
-// =============================================================================
-// Circuit Breaker Constants
-// =============================================================================
-
-/// Number of consecutive failures before opening the circuit breaker
-const CIRCUIT_BREAKER_FAILURE_THRESHOLD: u8 = 5;
-
-/// Duration in seconds to keep circuit breaker open before allowing retry
-const CIRCUIT_BREAKER_OPEN_DURATION_SECS: i64 = 60;
-
-/// Duration in seconds for health check cache validity
-const HEALTH_CHECK_CACHE_TTL_SECS: i64 = 30;
-
-/// Connection state for ComfyUI
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-pub enum ComfyUIConnectionState {
-    Connected,
-    Degraded { consecutive_failures: u8 },
-    Disconnected,
-    CircuitOpen { until: DateTime<Utc> },
-}
-
-/// Circuit breaker state
-#[derive(Debug, Clone)]
-enum CircuitBreakerState {
-    Closed,
-    Open { until: DateTime<Utc> },
-    HalfOpen,
-}
-
-/// Circuit breaker for ComfyUI operations
-#[derive(Debug, Clone)]
-struct CircuitBreaker {
-    state: Arc<Mutex<CircuitBreakerState>>,
-    failure_count: Arc<Mutex<u8>>,
-    last_failure: Arc<Mutex<Option<DateTime<Utc>>>>,
-}
-
-impl CircuitBreaker {
-    fn new() -> Self {
-        Self {
-            state: Arc::new(Mutex::new(CircuitBreakerState::Closed)),
-            failure_count: Arc::new(Mutex::new(0)),
-            last_failure: Arc::new(Mutex::new(None)),
-        }
-    }
-
-    /// Check if circuit is open (should reject requests)
-    fn is_open(&self) -> bool {
-        let state = self.state.lock().unwrap_or_else(|p| p.into_inner());
-        match *state {
-            CircuitBreakerState::Open { until } => {
-                if Utc::now() < until {
-                    true
-                } else {
-                    // Circuit should transition to half-open, but we'll check on next call
-                    false
-                }
-            }
-            _ => false,
-        }
-    }
-
-    /// Check if circuit allows requests (closed or half-open)
-    fn check_circuit(&self) -> Result<(), ComfyUIError> {
-        let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
-        match *state {
-            CircuitBreakerState::Open { until } => {
-                if Utc::now() >= until {
-                    // Transition to half-open
-                    *state = CircuitBreakerState::HalfOpen;
-                    Ok(())
-                } else {
-                    Err(ComfyUIError::CircuitOpen)
-                }
-            }
-            _ => Ok(()),
-        }
-    }
-
-    /// Record a successful operation
-    fn record_success(&self) {
-        let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
-        let mut failure_count = self.failure_count.lock().unwrap_or_else(|p| p.into_inner());
-        *failure_count = 0;
-        *state = CircuitBreakerState::Closed;
-    }
-
-    /// Record a failed operation
-    fn record_failure(&self) {
-        let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
-        let mut failure_count = self.failure_count.lock().unwrap_or_else(|p| p.into_inner());
-        *failure_count += 1;
-        *self.last_failure.lock().unwrap_or_else(|p| p.into_inner()) = Some(Utc::now());
-
-        if *failure_count >= CIRCUIT_BREAKER_FAILURE_THRESHOLD {
-            *state = CircuitBreakerState::Open {
-                until: Utc::now() + chrono::Duration::seconds(CIRCUIT_BREAKER_OPEN_DURATION_SECS),
-            };
-        }
-    }
-}
+use crate::infrastructure::ports::{ImageGenError, ImageGenPort, ImageRequest, ImageResult};
 
 /// Client for ComfyUI API
 #[derive(Clone)]
 pub struct ComfyUIClient {
     client: Client,
     base_url: String,
-    config: Arc<Mutex<ComfyUIConfig>>,
-    circuit_breaker: Arc<CircuitBreaker>,
-    last_health_check: Arc<Mutex<Option<(DateTime<Utc>, bool)>>>,
 }
 
 impl ComfyUIClient {
     pub fn new(base_url: &str) -> Self {
-        Self::with_config(base_url, ComfyUIConfig::default())
-    }
+        let client = Client::builder()
+            .timeout(Duration::from_secs(300)) // 5 minute timeout for generation
+            .build()
+            .unwrap_or_else(|_| Client::new());
 
-    pub fn with_config(base_url: &str, config: ComfyUIConfig) -> Self {
         Self {
-            client: Client::new(),
+            client,
             base_url: base_url.trim_end_matches('/').to_string(),
-            config: Arc::new(Mutex::new(config)),
-            circuit_breaker: Arc::new(CircuitBreaker::new()),
-            last_health_check: Arc::new(Mutex::new(None)),
         }
     }
 
-    /// Get a copy of the current config
-    pub fn config(&self) -> ComfyUIConfig {
-        self.config.lock().unwrap_or_else(|p| p.into_inner()).clone()
+    /// Queue a workflow for execution
+    async fn queue_prompt(
+        &self,
+        workflow: serde_json::Value,
+    ) -> Result<QueueResponse, ImageGenError> {
+        let client_id = uuid::Uuid::new_v4().to_string();
+        let request = QueuePromptRequest {
+            prompt: workflow,
+            client_id,
+        };
+
+        let response = self
+            .client
+            .post(format!("{}/prompt", self.base_url))
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| ImageGenError::GenerationFailed(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ImageGenError::GenerationFailed(error_text));
+        }
+
+        response
+            .json()
+            .await
+            .map_err(|e| ImageGenError::GenerationFailed(e.to_string()))
     }
 
-    /// Update the config
-    pub fn update_config(&self, new_config: ComfyUIConfig) -> Result<(), String> {
-        new_config.validate()?;
-        *self.config.lock().unwrap_or_else(|p| p.into_inner()) = new_config;
-        Ok(())
+    /// Get the history of a completed prompt
+    async fn get_history(&self, prompt_id: &str) -> Result<HistoryResponse, ImageGenError> {
+        let response = self
+            .client
+            .get(format!("{}/history/{}", self.base_url, prompt_id))
+            .send()
+            .await
+            .map_err(|e| ImageGenError::GenerationFailed(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ImageGenError::GenerationFailed(error_text));
+        }
+
+        response
+            .json()
+            .await
+            .map_err(|e| ImageGenError::GenerationFailed(e.to_string()))
     }
 
-    /// Get cached health check result or perform new check
-    async fn cached_health_check(&self) -> Result<bool, ComfyUIError> {
-        // Check cache first (5 second TTL)
-        {
-            let cache = self.last_health_check.lock().unwrap_or_else(|p| p.into_inner());
-            if let Some((timestamp, result)) = cache.as_ref() {
-                let age = Utc::now().signed_duration_since(*timestamp);
-                if age.num_seconds() < 5 {
-                    return Ok(*result);
+    /// Download a generated image
+    async fn get_image(
+        &self,
+        filename: &str,
+        subfolder: &str,
+        folder_type: &str,
+    ) -> Result<Vec<u8>, ImageGenError> {
+        let response = self
+            .client
+            .get(format!("{}/view", self.base_url))
+            .query(&[
+                ("filename", filename),
+                ("subfolder", subfolder),
+                ("type", folder_type),
+            ])
+            .send()
+            .await
+            .map_err(|e| ImageGenError::GenerationFailed(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(ImageGenError::GenerationFailed(error_text));
+        }
+
+        response
+            .bytes()
+            .await
+            .map(|b| b.to_vec())
+            .map_err(|e| ImageGenError::GenerationFailed(e.to_string()))
+    }
+
+    /// Wait for a prompt to complete and return the first image
+    async fn wait_for_completion(&self, prompt_id: &str) -> Result<ImageOutput, ImageGenError> {
+        const MAX_ATTEMPTS: u32 = 120; // 2 minutes with 1 second intervals
+        const POLL_INTERVAL: Duration = Duration::from_secs(1);
+
+        for _ in 0..MAX_ATTEMPTS {
+            let history = self.get_history(prompt_id).await?;
+
+            if let Some(prompt_history) = history.prompts.get(prompt_id) {
+                if prompt_history.status.completed {
+                    // Find the first image output
+                    for output in prompt_history.outputs.values() {
+                        if let Some(images) = &output.images {
+                            if let Some(image) = images.first() {
+                                return Ok(image.clone());
+                            }
+                        }
+                    }
+                    return Err(ImageGenError::GenerationFailed(
+                        "No images in output".to_string(),
+                    ));
                 }
             }
+
+            sleep(POLL_INTERVAL).await;
         }
 
-        // Perform health check
-        let result = self.health_check_internal().await;
-        let is_healthy = result.is_ok() && result.unwrap_or(false);
-
-        // Update cache
-        {
-            let mut cache = self.last_health_check.lock().unwrap_or_else(|p| p.into_inner());
-            *cache = Some((Utc::now(), is_healthy));
-        }
-
-        if is_healthy {
-            Ok(true)
-        } else {
-            Err(ComfyUIError::ServiceUnavailable)
-        }
+        Err(ImageGenError::GenerationFailed(
+            "Generation timed out".to_string(),
+        ))
     }
 
-    /// Internal health check implementation
-    async fn health_check_internal(&self) -> Result<bool, ComfyUIError> {
+    /// Build a simple workflow for image generation
+    fn build_workflow(request: &ImageRequest) -> serde_json::Value {
+        // This is a simplified workflow template
+        // In production, you'd load workflow JSON from files based on request.workflow
+        serde_json::json!({
+            "3": {
+                "inputs": {
+                    "seed": rand::random::<u32>(),
+                    "steps": 20,
+                    "cfg": 8.0,
+                    "sampler_name": "euler",
+                    "scheduler": "normal",
+                    "denoise": 1.0,
+                    "model": ["4", 0],
+                    "positive": ["6", 0],
+                    "negative": ["7", 0],
+                    "latent_image": ["5", 0]
+                },
+                "class_type": "KSampler"
+            },
+            "4": {
+                "inputs": {
+                    "ckpt_name": "v1-5-pruned-emaonly.ckpt"
+                },
+                "class_type": "CheckpointLoaderSimple"
+            },
+            "5": {
+                "inputs": {
+                    "width": request.width,
+                    "height": request.height,
+                    "batch_size": 1
+                },
+                "class_type": "EmptyLatentImage"
+            },
+            "6": {
+                "inputs": {
+                    "text": request.prompt,
+                    "clip": ["4", 1]
+                },
+                "class_type": "CLIPTextEncode"
+            },
+            "7": {
+                "inputs": {
+                    "text": "bad quality, blurry, ugly",
+                    "clip": ["4", 1]
+                },
+                "class_type": "CLIPTextEncode"
+            },
+            "8": {
+                "inputs": {
+                    "samples": ["3", 0],
+                    "vae": ["4", 2]
+                },
+                "class_type": "VAEDecode"
+            },
+            "9": {
+                "inputs": {
+                    "filename_prefix": "wrldbldr",
+                    "images": ["8", 0]
+                },
+                "class_type": "SaveImage"
+            }
+        })
+    }
+}
+
+#[async_trait]
+impl ImageGenPort for ComfyUIClient {
+    async fn generate(&self, request: ImageRequest) -> Result<ImageResult, ImageGenError> {
+        // Build workflow from request
+        let workflow = Self::build_workflow(&request);
+
+        // Queue the prompt
+        let queue_response = self.queue_prompt(workflow).await?;
+
+        // Wait for completion
+        let image_output = self.wait_for_completion(&queue_response.prompt_id).await?;
+
+        // Download the image
+        let image_data = self
+            .get_image(
+                &image_output.filename,
+                &image_output.subfolder,
+                &image_output.r#type,
+            )
+            .await?;
+
+        // Determine format from filename
+        let format = if image_output.filename.ends_with(".png") {
+            "png"
+        } else if image_output.filename.ends_with(".jpg")
+            || image_output.filename.ends_with(".jpeg")
+        {
+            "jpeg"
+        } else {
+            "png"
+        }
+        .to_string();
+
+        Ok(ImageResult { image_data, format })
+    }
+
+    async fn check_health(&self) -> Result<bool, ImageGenError> {
         let response = self
             .client
             .get(format!("{}/system_stats", self.base_url))
             .timeout(Duration::from_secs(5))
             .send()
-            .await?;
+            .await
+            .map_err(|_| ImageGenError::Unavailable)?;
 
         Ok(response.status().is_success())
     }
-
-    /// Retry wrapper with exponential backoff
-    async fn with_retry<T, F, Fut>(&self, operation: F) -> Result<T, ComfyUIError>
-    where
-        F: Fn() -> Fut,
-        Fut: std::future::Future<Output = Result<T, ComfyUIError>>,
-    {
-        let mut last_error: Option<String> = None;
-
-        let config = self.config.lock().unwrap_or_else(|p| p.into_inner()).clone();
-        for attempt in 0..=config.max_retries {
-            // Check circuit breaker
-            if let Err(e) = self.circuit_breaker.check_circuit() {
-                return Err(e);
-            }
-
-            match operation().await {
-                Ok(result) => {
-                    self.circuit_breaker.record_success();
-                    return Ok(result);
-                }
-                Err(e) => {
-                    // Don't retry on non-transient errors
-                    match &e {
-                        ComfyUIError::ApiError(_) => {
-                            // 4xx errors are not retryable
-                            self.circuit_breaker.record_failure();
-                            return Err(e);
-                        }
-                        ComfyUIError::ServiceUnavailable
-                        | ComfyUIError::HttpError(_)
-                        | ComfyUIError::Timeout(_) => {
-                            // These are retryable
-                            last_error = Some(format!("{:?}", e));
-                        }
-                        ComfyUIError::CircuitOpen => {
-                            return Err(e);
-                        }
-                        ComfyUIError::MaxRetriesExceeded(_) => {
-                            return Err(e);
-                        }
-                    }
-
-                    // If this was the last attempt, return error
-                    if attempt >= config.max_retries {
-                        self.circuit_breaker.record_failure();
-                        return Err(ComfyUIError::MaxRetriesExceeded(config.max_retries));
-                    }
-
-                    // Exponential backoff: base * 3^attempt
-                    let delay_seconds = config.base_delay_seconds as u64 * 3_u64.pow(attempt as u32);
-                    sleep(Duration::from_secs(delay_seconds)).await;
-                }
-            }
-        }
-
-        let config = self.config.lock().unwrap_or_else(|p| p.into_inner()).clone();
-        self.circuit_breaker.record_failure();
-        Err(ComfyUIError::MaxRetriesExceeded(config.max_retries))
-    }
-
-    /// Get current connection state
-    pub fn connection_state(&self) -> ComfyUIConnectionState {
-        if self.circuit_breaker.is_open() {
-            let state = self.circuit_breaker.state.lock().unwrap_or_else(|p| p.into_inner());
-            if let CircuitBreakerState::Open { until } = *state {
-                return ComfyUIConnectionState::CircuitOpen { until };
-            }
-        }
-
-        let cache = self.last_health_check.lock().unwrap_or_else(|p| p.into_inner());
-        if let Some((timestamp, is_healthy)) = cache.as_ref() {
-            let age = Utc::now().signed_duration_since(*timestamp);
-            if age.num_seconds() < HEALTH_CHECK_CACHE_TTL_SECS {
-                if *is_healthy {
-                    ComfyUIConnectionState::Connected
-                } else {
-                    ComfyUIConnectionState::Disconnected
-                }
-            } else {
-                ComfyUIConnectionState::Disconnected
-            }
-        } else {
-            ComfyUIConnectionState::Disconnected
-        }
-    }
-
-    /// Queue a workflow for execution
-    pub async fn queue_prompt(
-        &self,
-        workflow: serde_json::Value,
-    ) -> Result<QueueResponse, ComfyUIError> {
-        // Health check before queuing
-        self.cached_health_check().await?;
-
-        let config = self.config.lock().unwrap_or_else(|p| p.into_inner()).clone();
-        self.with_retry(|| {
-            let client = self.client.clone();
-            let base_url = self.base_url.clone();
-            let config = config.clone();
-            let workflow = workflow.clone();
-            async move {
-                let client_id = Uuid::new_v4().to_string();
-                let request = QueuePromptRequest {
-                    prompt: workflow,
-                    client_id: client_id.clone(),
-                };
-
-                let response = client
-                    .post(format!("{}/prompt", base_url))
-                    .json(&request)
-                    .timeout(Duration::from_secs(config.queue_timeout_seconds as u64))
-                    .send()
-                    .await
-                    .map_err(|e| {
-                        if e.is_timeout() {
-                            ComfyUIError::Timeout(config.queue_timeout_seconds)
-                        } else {
-                            ComfyUIError::HttpError(e)
-                        }
-                    })?;
-
-                if !response.status().is_success() {
-                    let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-                    return Err(ComfyUIError::ApiError(error_text));
-                }
-
-                let queue_response: QueueResponse = response.json().await.map_err(|e| {
-                    ComfyUIError::HttpError(reqwest::Error::from(e))
-                })?;
-                Ok(queue_response)
-            }
-        })
-        .await
-    }
-
-    /// Get the history of a completed prompt
-    pub async fn get_history(&self, prompt_id: &str) -> Result<HistoryResponse, ComfyUIError> {
-        let prompt_id = prompt_id.to_string();
-        let config = self.config.lock().unwrap_or_else(|p| p.into_inner()).clone();
-        self.with_retry(|| {
-            let client = self.client.clone();
-            let base_url = self.base_url.clone();
-            let config = config.clone();
-            let prompt_id = prompt_id.clone();
-            async move {
-                let response = client
-                    .get(format!("{}/history/{}", base_url, prompt_id))
-                    .timeout(Duration::from_secs(config.history_timeout_seconds as u64))
-                    .send()
-                    .await
-                    .map_err(|e| {
-                        if e.is_timeout() {
-                            ComfyUIError::Timeout(config.history_timeout_seconds)
-                        } else {
-                            ComfyUIError::HttpError(e)
-                        }
-                    })?;
-
-                if !response.status().is_success() {
-                    let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-                    return Err(ComfyUIError::ApiError(error_text));
-                }
-
-                let history: HistoryResponse = response.json().await.map_err(|e| {
-                    ComfyUIError::HttpError(reqwest::Error::from(e))
-                })?;
-                Ok(history)
-            }
-        })
-        .await
-    }
-
-    /// Download a generated image
-    pub async fn get_image(
-        &self,
-        filename: &str,
-        subfolder: &str,
-        folder_type: &str,
-    ) -> Result<Vec<u8>, ComfyUIError> {
-        let filename = filename.to_string();
-        let subfolder = subfolder.to_string();
-        let folder_type = folder_type.to_string();
-        let config = self.config.lock().unwrap_or_else(|p| p.into_inner()).clone();
-        self.with_retry(|| {
-            let client = self.client.clone();
-            let base_url = self.base_url.clone();
-            let config = config.clone();
-            let filename = filename.clone();
-            let subfolder = subfolder.clone();
-            let folder_type = folder_type.clone();
-            async move {
-                let response = client
-                    .get(format!("{}/view", base_url))
-                    .query(&[
-                        ("filename", filename.as_str()),
-                        ("subfolder", subfolder.as_str()),
-                        ("type", folder_type.as_str()),
-                    ])
-                    .timeout(Duration::from_secs(config.image_timeout_seconds as u64))
-                    .send()
-                    .await
-                    .map_err(|e| {
-                        if e.is_timeout() {
-                            ComfyUIError::Timeout(config.image_timeout_seconds)
-                        } else {
-                            ComfyUIError::HttpError(e)
-                        }
-                    })?;
-
-                if !response.status().is_success() {
-                    let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-                    return Err(ComfyUIError::ApiError(error_text));
-                }
-
-                let bytes = response.bytes().await.map_err(|e| {
-                    ComfyUIError::HttpError(reqwest::Error::from(e))
-                })?;
-                Ok(bytes.to_vec())
-            }
-        })
-        .await
-    }
-
-    /// Check if the server is available (public method, uses caching)
-    pub async fn health_check(&self) -> Result<bool, ComfyUIError> {
-        self.cached_health_check().await
-    }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum ComfyUIError {
-    #[error("HTTP request failed: {0}")]
-    HttpError(#[from] reqwest::Error),
-    #[error("API error: {0}")]
-    ApiError(String),
-    #[error("ComfyUI service unavailable")]
-    ServiceUnavailable,
-    #[error("Circuit breaker open - ComfyUI failing")]
-    CircuitOpen,
-    #[error("Request timeout after {0} seconds")]
-    Timeout(u16),
-    #[error("Max retries ({0}) exceeded")]
-    MaxRetriesExceeded(u8),
-}
+// =============================================================================
+// ComfyUI API types
+// =============================================================================
 
 #[derive(Debug, Serialize)]
 struct QueuePromptRequest {
@@ -450,176 +279,39 @@ struct QueuePromptRequest {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct QueueResponse {
-    pub prompt_id: String,
-    pub number: u32,
+struct QueueResponse {
+    prompt_id: String,
+    #[allow(dead_code)]
+    number: u32,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct HistoryResponse {
+struct HistoryResponse {
     #[serde(flatten)]
-    pub prompts: std::collections::HashMap<String, PromptHistory>,
+    prompts: HashMap<String, PromptHistory>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct PromptHistory {
-    pub outputs: std::collections::HashMap<String, NodeOutput>,
-    pub status: PromptStatus,
+struct PromptHistory {
+    outputs: HashMap<String, NodeOutput>,
+    status: PromptStatus,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct NodeOutput {
-    pub images: Option<Vec<ImageOutput>>,
+struct NodeOutput {
+    images: Option<Vec<ImageOutput>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ImageOutput {
+    filename: String,
+    subfolder: String,
+    r#type: String,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ImageOutput {
-    pub filename: String,
-    pub subfolder: String,
-    pub r#type: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct PromptStatus {
-    pub status_str: String,
-    pub completed: bool,
-}
-
-/// Types of workflows for asset generation
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WorkflowType {
-    CharacterSprite,
-    CharacterPortrait,
-    SceneBackdrop,
-    Tilesheet,
-}
-
-impl WorkflowType {
-    /// Get the default workflow filename for this type
-    pub fn workflow_file(&self) -> &'static str {
-        match self {
-            Self::CharacterSprite => "character_sprite.json",
-            Self::CharacterPortrait => "character_portrait.json",
-            Self::SceneBackdrop => "scene_backdrop.json",
-            Self::Tilesheet => "tilesheet.json",
-        }
-    }
-}
-
-/// Request for asset generation
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GenerationRequest {
-    pub workflow_type: String,
-    pub prompt: String,
-    pub negative_prompt: Option<String>,
-    pub width: u32,
-    pub height: u32,
-    pub seed: Option<i64>,
-}
-
-impl GenerationRequest {
-    pub fn character_sprite(prompt: impl Into<String>) -> Self {
-        Self {
-            workflow_type: "character_sprite".to_string(),
-            prompt: prompt.into(),
-            negative_prompt: None,
-            width: 512,
-            height: 512,
-            seed: None,
-        }
-    }
-
-    pub fn character_portrait(prompt: impl Into<String>) -> Self {
-        Self {
-            workflow_type: "character_portrait".to_string(),
-            prompt: prompt.into(),
-            negative_prompt: None,
-            width: 256,
-            height: 256,
-            seed: None,
-        }
-    }
-
-    pub fn scene_backdrop(prompt: impl Into<String>) -> Self {
-        Self {
-            workflow_type: "scene_backdrop".to_string(),
-            prompt: prompt.into(),
-            negative_prompt: None,
-            width: 1920,
-            height: 1080,
-            seed: None,
-        }
-    }
-
-    pub fn tilesheet(prompt: impl Into<String>) -> Self {
-        Self {
-            workflow_type: "tilesheet".to_string(),
-            prompt: prompt.into(),
-            negative_prompt: None,
-            width: 512,
-            height: 512,
-            seed: None,
-        }
-    }
-}
-
-// =============================================================================
-// ComfyUIPort Implementation
-// =============================================================================
-
-#[async_trait]
-impl ComfyUIPort for ComfyUIClient {
-    async fn queue_prompt(&self, workflow: serde_json::Value) -> Result<QueuePromptResponse> {
-        // Call the inherent method using ComfyUIClient:: syntax to avoid recursion
-        let response = ComfyUIClient::queue_prompt(self, workflow).await?;
-        Ok(QueuePromptResponse {
-            prompt_id: response.prompt_id,
-        })
-    }
-
-    async fn get_history(&self, prompt_id: &str) -> Result<PortHistoryResponse> {
-        // Call the inherent method using ComfyUIClient:: syntax to avoid recursion
-        let response = ComfyUIClient::get_history(self, prompt_id).await?;
-
-        // Convert infrastructure types to port types
-        let prompts = response
-            .prompts
-            .into_iter()
-            .map(|(id, history)| {
-                let port_history = PortPromptHistory {
-                    status: PortPromptStatus {
-                        completed: history.status.completed,
-                    },
-                    outputs: history
-                        .outputs
-                        .into_iter()
-                        .map(|(node_id, output)| {
-                            let port_output = PortNodeOutput {
-                                images: output.images.map(|images| {
-                                    images
-                                        .into_iter()
-                                        .map(|img| GeneratedImage {
-                                            filename: img.filename,
-                                            subfolder: img.subfolder,
-                                            r#type: img.r#type,
-                                        })
-                                        .collect()
-                                }),
-                            };
-                            (node_id, port_output)
-                        })
-                        .collect(),
-                };
-                (id, port_history)
-            })
-            .collect();
-
-        Ok(PortHistoryResponse { prompts })
-    }
-
-    async fn get_image(&self, filename: &str, subfolder: &str, folder_type: &str) -> Result<Vec<u8>> {
-        // Call the inherent method using ComfyUIClient:: syntax to avoid recursion
-        let image_data = ComfyUIClient::get_image(self, filename, subfolder, folder_type).await?;
-        Ok(image_data)
-    }
+struct PromptStatus {
+    #[allow(dead_code)]
+    status_str: String,
+    completed: bool,
 }

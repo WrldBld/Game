@@ -1,0 +1,23 @@
+[package]
+name = "wrldbldr-domain"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "WrldBldr Domain - Core domain types, value objects, and invariants"
+
+[dependencies]
+# Note: wrldbldr-domain-types and wrldbldr-common have been merged into this crate
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+# NOTE: anyhow removed for hexagonal architecture purity - domain uses thiserror instead
+# NOTE: rand removed for hexagonal architecture purity - RNG is now injected via closure
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[features]
+default = []
+
+[lints]
+workspace = true

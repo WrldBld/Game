@@ -1,12 +1,16 @@
 //! Observation Service - Application service for NPC observations
 //!
-//! US-OBS-004/005: Fetch and manage PC observations of NPCs.
+//! US-OBS-004/005: Fetch and manage PC observations of NPCs via WebSocket.
+
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::application::ports::outbound::{ApiError, ApiPort};
+use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
+use crate::ports::outbound::GameConnectionPort;
+use wrldbldr_protocol::{ObservationRequest, RequestPayload};
 
-/// Summary of an NPC observation from the API
+/// Summary of an NPC observation from the engine
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ObservationSummary {
     pub npc_id: String,
@@ -21,30 +25,35 @@ pub struct ObservationSummary {
 }
 
 /// Observation service for managing NPC observations
-pub struct ObservationService<A: ApiPort> {
-    api: A,
+///
+/// This service provides methods for observation-related operations
+/// using WebSocket request/response pattern via the `GameConnectionPort`.
+#[derive(Clone)]
+pub struct ObservationService {
+    connection: Arc<dyn GameConnectionPort>,
 }
 
-impl<A: ApiPort> ObservationService<A> {
-    /// Create a new ObservationService with the given API port
-    pub fn new(api: A) -> Self {
-        Self { api }
+impl ObservationService {
+    /// Create a new ObservationService with the given connection
+    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
+        Self { connection }
     }
 
     /// Get all observations for a player character
     pub async fn list_observations(
         &self,
         pc_id: &str,
-    ) -> Result<Vec<ObservationSummary>, ApiError> {
-        let path = format!("/api/player-characters/{}/observations", pc_id);
-        self.api.get(&path).await
-    }
-}
+    ) -> Result<Vec<ObservationSummary>, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Observation(ObservationRequest::ListObservations {
+                    pc_id: pc_id.to_string(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
 
-impl<A: ApiPort + Clone> Clone for ObservationService<A> {
-    fn clone(&self) -> Self {
-        Self {
-            api: self.api.clone(),
-        }
+        result.parse()
     }
 }

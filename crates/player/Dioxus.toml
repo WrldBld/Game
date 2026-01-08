@@ -1,0 +1,66 @@
+[application]
+name = "wrldbldr-player"
+default_platform = "web"
+
+# Web `build` & `serve` dist path
+out_dir = "dist"
+
+# resource (static) file folder
+asset_dir = "../player-ui/assets"
+
+[web.wasm_opt]
+# The level wasm-opt should target. z is the smallest (best for production). 4 is the fastest.
+level = "z"
+
+[web.app]
+
+# HTML title tag content
+title = "WrldBldr Player"
+
+[web.resource]
+style = ["/assets/css/output.css"]
+
+[web.resource.dev]
+style = []
+script = []
+
+[web.watcher]
+
+index_on_404 = true
+
+watch_path = [
+  "src",
+  "assets",
+  "../player-ui/src",
+  "../player-ui/assets",
+  "../player-ui/styles",
+]
+
+[bundle]
+# Bundle identifier
+identifier = "io.wrldbldr.player"
+
+# Bundle publisher
+publisher = "WrldBldr"
+
+# Bundle icon
+# Icon will be added when assets are created
+# icon = ["assets/icons/icon.png"]
+
+# Bundle resources
+resources = []
+
+# Bundle copyright
+copyright = ""
+
+# Bundle category
+category = "Game"
+
+[bundle.metadata]
+# Bundle short description
+short_description = "WrldBldr Player - AI-powered TTRPG client"
+
+# Bundle long description
+long_description = """
+WrldBldr Player is the client application for WrldBldr, an AI-powered tabletop role-playing game engine. Connect to game sessions, control characters, and experience dynamic storytelling.
+"""

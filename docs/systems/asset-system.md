@@ -23,44 +23,45 @@ AI-generated art enhances immersion:
 
 - [x] **US-AST-001**: As a DM, I can upload ComfyUI workflows for different asset types
   - *Implementation*: WorkflowConfiguration entity with slot-based management
-  - *Files*: `Engine/src/domain/entities/workflow_config.rs`
+  - *Files*: `crates/domain/src/entities/workflow_config.rs`
 
 - [x] **US-AST-002**: As a DM, I can queue image generation with prompts
   - *Implementation*: GenerationBatch entity, AssetGenerationQueue
-  - *Files*: `Engine/src/application/services/asset_generation_queue_service.rs`
+  - *Files*: `crates/engine/src/use_cases/assets/queue.rs`
 
 - [x] **US-AST-003**: As a DM, I can see real-time generation progress
   - *Implementation*: GenerationQueued/Progress/Complete/Failed WebSocket messages
-  - *Files*: `Player/src/presentation/components/creator/generation_queue.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/creator/generation_queue.rs`
 
 - [x] **US-AST-004**: As a DM, I can browse generated assets in a gallery
   - *Implementation*: AssetGallery with filtering, thumbnails, context menu
-  - *Files*: `Player/src/presentation/components/creator/asset_gallery.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/creator/asset_gallery.rs`
 
 - [x] **US-AST-005**: As a DM, I can set a generated asset as active for an entity
   - *Implementation*: Asset activation sets portrait_asset/sprite_asset/backdrop_asset
-  - *Files*: `Engine/src/application/services/asset_service.rs`
+  - *Files*: `crates/engine/src/entities/assets.rs`
 
 - [x] **US-AST-006**: As a DM, I can cancel/retry/clear generation batches
   - *Implementation*: Batch management UI with status-appropriate actions
-  - *Files*: `Player/src/presentation/components/creator/generation_queue.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/creator/generation_queue.rs`
 
 - [x] **US-AST-007**: As a DM, I can use style references for consistent art
   - *Implementation*: StyleReferenceMapping, IPAdapter detection
-  - *Files*: `Engine/src/infrastructure/comfyui.rs`
+  - *Files*: `crates/engine/src/infrastructure/comfyui.rs`
 
 - [x] **US-AST-008**: As a DM, I can see ComfyUI connection status
   - *Implementation*: ComfyUIBanner component with health indicator
-  - *Files*: `Player/src/presentation/components/creator/comfyui_banner.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/creator/comfyui_banner.rs`
 
 - [x] **US-AST-009**: As a DM, I can quick-generate from Director Mode
   - *Implementation*: DirectorGenerateModal, generate buttons on NPC panel
-  - *Files*: `Player/src/presentation/components/dm_panel/director_generate_modal.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/dm_panel/director_generate_modal.rs`
+
+- [x] **US-AST-010**: As a DM, I can edit workflow parameters in the UI
+  - *Implementation*: Enhanced WorkflowConfigEditor with editable mappings, lock toggles, style detection
+  - *Files*: `crates/player-ui/src/presentation/components/settings/workflow_config_editor.rs`
 
 ### Pending
-
-- [ ] **US-AST-010**: As a DM, I can edit workflow parameters in the UI
-  - *Notes*: Workflow config editor exists but advanced editing limited
 
 ---
 
@@ -173,7 +174,7 @@ AI-generated art enhances immersion:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending (US-AST-010 - basic workflow config exists)
+**Status**: ✅ Implemented (US-AST-010)
 
 ---
 
@@ -290,7 +291,7 @@ pub enum BatchStatus {
 | Asset Gallery UI | - | ✅ | Filter, context menu |
 | Generation Queue UI | - | ✅ | Progress, actions |
 | ComfyUI Banner | - | ✅ | Health indicator |
-| Workflow Editor | - | ✅ | Basic config |
+| Workflow Editor | - | ✅ | Full editor with mappings, locks, style detection |
 
 ---
 
@@ -300,15 +301,13 @@ pub enum BatchStatus {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/entities/gallery_asset.rs` | Asset entity |
-| Domain | `src/domain/entities/generation_batch.rs` | Batch entity |
-| Domain | `src/domain/entities/workflow_config.rs` | Workflow entity |
-| Application | `src/application/services/asset_service.rs` | Asset CRUD |
-| Application | `src/application/services/generation_service.rs` | Generation logic |
-| Application | `src/application/services/asset_generation_queue_service.rs` | Queue |
-| Application | `src/application/services/workflow_service.rs` | Workflow exec |
-| Infrastructure | `src/infrastructure/comfyui.rs` | ComfyUI client |
-| Infrastructure | `src/infrastructure/persistence/asset_repository.rs` | Neo4j |
+| Domain | `crates/domain/src/entities/gallery_asset.rs` | Asset entity |
+| Domain | `crates/domain/src/entities/generation_batch.rs` | Batch entity |
+| Domain | `crates/domain/src/entities/workflow_config.rs` | Workflow entity |
+| Entity | `crates/engine/src/entities/assets.rs` | Asset operations |
+| Use Case | `crates/engine/src/use_cases/assets/queue.rs` | Generation queue |
+| Infrastructure | `crates/engine/src/infrastructure/comfyui.rs` | ComfyUI client |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/asset_repo.rs` | Neo4j persistence |
 
 ### Player
 
@@ -336,4 +335,5 @@ pub enum BatchStatus {
 
 | Date | Change |
 |------|--------|
+| 2026-01-05 | US-AST-010 complete - Advanced Workflow Parameter Editor |
 | 2025-12-18 | Initial version extracted from MVP.md |

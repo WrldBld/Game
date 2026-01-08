@@ -24,7 +24,25 @@
 use serde::{de::DeserializeOwned, Serialize};
 
 use super::api::get_engine_url;
-use crate::application::ports::outbound::api_port::ApiError;
+use crate::ports::outbound::ApiError;
+
+// Desktop: Use a shared static client for connection reuse and proper timeouts
+#[cfg(not(target_arch = "wasm32"))]
+mod desktop_client {
+    use std::sync::LazyLock;
+    use std::time::Duration;
+
+    /// Shared HTTP client with 30 second timeout for connection reuse
+    pub static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+        reqwest::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new())
+    });
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+use desktop_client::CLIENT;
 
 /// Unified HTTP client for Engine API
 ///
@@ -53,9 +71,9 @@ impl HttpClient {
 
             let mut request = Request::get(&url);
             // Attach anonymous user header if available (WASM only)
-            if let Some(user_id) =
-                crate::infrastructure::storage::load(crate::infrastructure::storage::STORAGE_KEY_USER_ID)
-            {
+            if let Some(user_id) = crate::infrastructure::storage::load(
+                crate::infrastructure::storage::STORAGE_KEY_USER_ID,
+            ) {
                 request = request.header("X-User-Id", &user_id);
             }
 
@@ -79,8 +97,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .get(&url)
                 .send()
                 .await
@@ -99,19 +116,22 @@ impl HttpClient {
     }
 
     /// POST request with JSON body, returns deserialized JSON response
-    pub async fn post<T: DeserializeOwned, B: Serialize>(path: &str, body: &B) -> Result<T, ApiError> {
+    pub async fn post<T: DeserializeOwned, B: Serialize>(
+        path: &str,
+        body: &B,
+    ) -> Result<T, ApiError> {
         let url = Self::build_url(path);
 
         #[cfg(target_arch = "wasm32")]
         {
             use gloo_net::http::Request;
 
-            let body_str = serde_json::to_string(body)
-                .map_err(|e| ApiError::SerializeError(e.to_string()))?;
+            let body_str =
+                serde_json::to_string(body).map_err(|e| ApiError::SerializeError(e.to_string()))?;
             let mut request = Request::post(&url).header("Content-Type", "application/json");
-            if let Some(user_id) =
-                crate::infrastructure::storage::load(crate::infrastructure::storage::STORAGE_KEY_USER_ID)
-            {
+            if let Some(user_id) = crate::infrastructure::storage::load(
+                crate::infrastructure::storage::STORAGE_KEY_USER_ID,
+            ) {
                 request = request.header("X-User-Id", &user_id);
             }
 
@@ -137,8 +157,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .post(&url)
                 .json(body)
                 .send()
@@ -165,12 +184,12 @@ impl HttpClient {
         {
             use gloo_net::http::Request;
 
-            let body_str = serde_json::to_string(body)
-                .map_err(|e| ApiError::SerializeError(e.to_string()))?;
+            let body_str =
+                serde_json::to_string(body).map_err(|e| ApiError::SerializeError(e.to_string()))?;
             let mut request = Request::post(&url).header("Content-Type", "application/json");
-            if let Some(user_id) =
-                crate::infrastructure::storage::load(crate::infrastructure::storage::STORAGE_KEY_USER_ID)
-            {
+            if let Some(user_id) = crate::infrastructure::storage::load(
+                crate::infrastructure::storage::STORAGE_KEY_USER_ID,
+            ) {
                 request = request.header("X-User-Id", &user_id);
             }
 
@@ -193,8 +212,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .post(&url)
                 .json(body)
                 .send()
@@ -219,13 +237,14 @@ impl HttpClient {
             use gloo_net::http::Request;
 
             let mut request = Request::post(&url);
-            if let Some(user_id) =
-                crate::infrastructure::storage::load(crate::infrastructure::storage::STORAGE_KEY_USER_ID)
-            {
+            if let Some(user_id) = crate::infrastructure::storage::load(
+                crate::infrastructure::storage::STORAGE_KEY_USER_ID,
+            ) {
                 request = request.header("X-User-Id", &user_id);
             }
 
-            let response = request.send()
+            let response = request
+                .send()
                 .await
                 .map_err(|e| ApiError::RequestFailed(e.to_string()))?;
 
@@ -241,8 +260,9 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client.post(&url).send()
+            let response = CLIENT
+                .post(&url)
+                .send()
                 .await
                 .map_err(|e| ApiError::RequestFailed(e.to_string()))?;
 
@@ -256,20 +276,23 @@ impl HttpClient {
     }
 
     /// PUT request with JSON body, returns deserialized JSON response
-    pub async fn put<T: DeserializeOwned, B: Serialize>(path: &str, body: &B) -> Result<T, ApiError> {
+    pub async fn put<T: DeserializeOwned, B: Serialize>(
+        path: &str,
+        body: &B,
+    ) -> Result<T, ApiError> {
         let url = Self::build_url(path);
 
         #[cfg(target_arch = "wasm32")]
         {
             use gloo_net::http::Request;
 
-            let body_str = serde_json::to_string(body)
-                .map_err(|e| ApiError::SerializeError(e.to_string()))?;
+            let body_str =
+                serde_json::to_string(body).map_err(|e| ApiError::SerializeError(e.to_string()))?;
 
             let mut request = Request::put(&url).header("Content-Type", "application/json");
-            if let Some(user_id) =
-                crate::infrastructure::storage::load(crate::infrastructure::storage::STORAGE_KEY_USER_ID)
-            {
+            if let Some(user_id) = crate::infrastructure::storage::load(
+                crate::infrastructure::storage::STORAGE_KEY_USER_ID,
+            ) {
                 request = request.header("X-User-Id", &user_id);
             }
 
@@ -295,8 +318,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .put(&url)
                 .json(body)
                 .send()
@@ -323,13 +345,13 @@ impl HttpClient {
         {
             use gloo_net::http::Request;
 
-            let body_str = serde_json::to_string(body)
-                .map_err(|e| ApiError::SerializeError(e.to_string()))?;
+            let body_str =
+                serde_json::to_string(body).map_err(|e| ApiError::SerializeError(e.to_string()))?;
 
             let mut request = Request::put(&url).header("Content-Type", "application/json");
-            if let Some(user_id) =
-                crate::infrastructure::storage::load(crate::infrastructure::storage::STORAGE_KEY_USER_ID)
-            {
+            if let Some(user_id) = crate::infrastructure::storage::load(
+                crate::infrastructure::storage::STORAGE_KEY_USER_ID,
+            ) {
                 request = request.header("X-User-Id", &user_id);
             }
 
@@ -352,8 +374,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .put(&url)
                 .json(body)
                 .send()
@@ -378,9 +399,9 @@ impl HttpClient {
             use gloo_net::http::Request;
 
             let mut request = Request::put(&url);
-            if let Some(user_id) =
-                crate::infrastructure::storage::load(crate::infrastructure::storage::STORAGE_KEY_USER_ID)
-            {
+            if let Some(user_id) = crate::infrastructure::storage::load(
+                crate::infrastructure::storage::STORAGE_KEY_USER_ID,
+            ) {
                 request = request.header("X-User-Id", &user_id);
             }
 
@@ -401,8 +422,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .put(&url)
                 .send()
                 .await
@@ -426,9 +446,9 @@ impl HttpClient {
             use gloo_net::http::Request;
 
             let mut request = Request::put(&url);
-            if let Some(user_id) =
-                crate::infrastructure::storage::load(crate::infrastructure::storage::STORAGE_KEY_USER_ID)
-            {
+            if let Some(user_id) = crate::infrastructure::storage::load(
+                crate::infrastructure::storage::STORAGE_KEY_USER_ID,
+            ) {
                 request = request.header("X-User-Id", &user_id);
             }
 
@@ -452,8 +472,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .put(&url)
                 .send()
                 .await
@@ -485,9 +504,9 @@ impl HttpClient {
             use gloo_net::http::Request;
 
             let mut request = Request::patch(&url).header("Content-Type", "application/json");
-            if let Some(user_id) =
-                crate::infrastructure::storage::load(crate::infrastructure::storage::STORAGE_KEY_USER_ID)
-            {
+            if let Some(user_id) = crate::infrastructure::storage::load(
+                crate::infrastructure::storage::STORAGE_KEY_USER_ID,
+            ) {
                 request = request.header("X-User-Id", &user_id);
             }
 
@@ -513,8 +532,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .patch(&url)
                 .header("Content-Type", "application/json")
                 .body(json_body)
@@ -546,9 +564,9 @@ impl HttpClient {
             use gloo_net::http::Request;
 
             let mut request = Request::delete(&url);
-            if let Some(user_id) =
-                crate::infrastructure::storage::load(crate::infrastructure::storage::STORAGE_KEY_USER_ID)
-            {
+            if let Some(user_id) = crate::infrastructure::storage::load(
+                crate::infrastructure::storage::STORAGE_KEY_USER_ID,
+            ) {
                 request = request.header("X-User-Id", &user_id);
             }
 
@@ -569,8 +587,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .delete(&url)
                 .send()
                 .await
@@ -580,7 +597,10 @@ impl HttpClient {
             if response.status().is_success() {
                 Ok(())
             } else {
-                Err(ApiError::HttpError(status, format!("DELETE {} failed", path)))
+                Err(ApiError::HttpError(
+                    status,
+                    format!("DELETE {} failed", path),
+                ))
             }
         }
     }
@@ -594,9 +614,9 @@ impl HttpClient {
             use gloo_net::http::Request;
 
             let mut request = Request::get(&url);
-            if let Some(user_id) =
-                crate::infrastructure::storage::load(crate::infrastructure::storage::STORAGE_KEY_USER_ID)
-            {
+            if let Some(user_id) = crate::infrastructure::storage::load(
+                crate::infrastructure::storage::STORAGE_KEY_USER_ID,
+            ) {
                 request = request.header("X-User-Id", &user_id);
             }
 
@@ -625,8 +645,7 @@ impl HttpClient {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let client = reqwest::Client::new();
-            let response = client
+            let response = CLIENT
                 .get(&url)
                 .send()
                 .await
@@ -654,7 +673,8 @@ impl HttpClient {
 // ApiPort Implementation
 // ============================================================================
 
-use crate::application::ports::outbound::ApiPort;
+use crate::ports::outbound::ApiPort;
+use crate::ports::outbound::RawApiPort;
 
 /// API adapter that implements the ApiPort trait
 ///
@@ -738,5 +758,76 @@ impl ApiPort for ApiAdapter {
 
     async fn delete(&self, path: &str) -> Result<(), ApiError> {
         HttpClient::delete(path).await
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+impl RawApiPort for ApiAdapter {
+    async fn get_json(&self, path: &str) -> Result<serde_json::Value, ApiError> {
+        self.get(path).await
+    }
+
+    async fn get_optional_json(&self, path: &str) -> Result<Option<serde_json::Value>, ApiError> {
+        self.get_optional(path).await
+    }
+
+    async fn post_json(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ApiError> {
+        self.post(path, body).await
+    }
+
+    async fn post_no_response_json(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<(), ApiError> {
+        self.post_no_response(path, body).await
+    }
+
+    async fn post_empty(&self, path: &str) -> Result<(), ApiError> {
+        ApiPort::post_empty(self, path).await
+    }
+
+    async fn put_json(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ApiError> {
+        self.put(path, body).await
+    }
+
+    async fn put_no_response_json(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<(), ApiError> {
+        self.put_no_response(path, body).await
+    }
+
+    async fn put_empty(&self, path: &str) -> Result<(), ApiError> {
+        ApiPort::put_empty(self, path).await
+    }
+
+    async fn put_empty_with_response_json(
+        &self,
+        path: &str,
+    ) -> Result<serde_json::Value, ApiError> {
+        self.put_empty_with_response(path).await
+    }
+
+    async fn patch_json(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ApiError> {
+        self.patch(path, body).await
+    }
+
+    async fn delete(&self, path: &str) -> Result<(), ApiError> {
+        ApiPort::delete(self, path).await
     }
 }

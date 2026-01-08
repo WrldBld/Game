@@ -6,7 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::application::ports::outbound::{ApiError, ApiPort};
+use crate::ports::outbound::{ApiError, ApiPort};
 
 /// Asset data from API
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -101,7 +101,9 @@ impl<A: ApiPort> AssetService<A> {
 
     /// Cancel a generation batch
     pub async fn cancel_batch(&self, batch_id: &str) -> Result<(), ApiError> {
-        self.api.delete(&format!("/api/assets/batch/{}", batch_id)).await
+        self.api
+            .delete(&format!("/api/assets/batch/{}", batch_id))
+            .await
     }
 
     /// Retry a failed generation batch
@@ -114,7 +116,10 @@ impl<A: ApiPort> AssetService<A> {
         }
         let response: RetryResponse = self
             .api
-            .post(&format!("/api/assets/batch/{}/retry", batch_id), &EmptyBody {})
+            .post(
+                &format!("/api/assets/batch/{}/retry", batch_id),
+                &EmptyBody {},
+            )
             .await?;
         Ok(response.id)
     }

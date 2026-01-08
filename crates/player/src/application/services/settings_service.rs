@@ -4,8 +4,8 @@
 //! updating the Engine's application settings. It abstracts away
 //! the HTTP client details from the presentation layer.
 
-use crate::application::dto::{AppSettings, SettingsMetadataResponse};
-use crate::application::ports::outbound::{ApiError, ApiPort};
+use crate::application::dto::{AppSettings, SettingsFieldMetadata};
+use crate::ports::outbound::{ApiError, ApiPort};
 
 /// Settings service for managing Engine application settings
 ///
@@ -74,7 +74,11 @@ impl<A: ApiPort> SettingsService<A> {
     ///
     /// # Returns
     /// The updated settings as confirmed by the Engine
-    pub async fn update_for_world(&self, world_id: &str, settings: &AppSettings) -> Result<AppSettings, ApiError> {
+    pub async fn update_for_world(
+        &self,
+        world_id: &str,
+        settings: &AppSettings,
+    ) -> Result<AppSettings, ApiError> {
         let path = format!("/api/worlds/{}/settings", world_id);
         self.api.put(&path, settings).await
     }
@@ -105,7 +109,7 @@ impl<A: ApiPort> SettingsService<A> {
     /// - Field types and validation constraints
     /// - Category groupings
     /// - Whether fields require restart
-    pub async fn get_metadata(&self) -> Result<SettingsMetadataResponse, ApiError> {
+    pub async fn get_metadata(&self) -> Result<Vec<SettingsFieldMetadata>, ApiError> {
         self.api.get("/api/settings/metadata").await
     }
 }

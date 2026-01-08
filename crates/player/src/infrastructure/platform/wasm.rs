@@ -3,10 +3,11 @@
 //! Provides platform-specific implementations for web browsers using
 //! js_sys and web_sys crates.
 
-use crate::application::ports::outbound::platform::{
-    DocumentProvider, EngineConfigProvider, ConnectionFactoryProvider, LogProvider,
-    Platform, RandomProvider, SleepProvider, StorageProvider, TimeProvider,
+use crate::ports::outbound::platform::{
+    ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider,
+    SleepProvider, StorageProvider, TimeProvider,
 };
+use crate::state::Platform;
 use std::{future::Future, pin::Pin, sync::Arc};
 
 /// WASM time provider using js_sys::Date
@@ -136,8 +137,13 @@ impl EngineConfigProvider for WasmEngineConfigProvider {
 pub struct WasmConnectionFactoryProvider;
 
 impl ConnectionFactoryProvider for WasmConnectionFactoryProvider {
-    fn create_game_connection(&self, server_url: &str) -> Arc<dyn crate::application::ports::outbound::GameConnectionPort> {
-        crate::infrastructure::connection_factory::ConnectionFactory::create_game_connection(server_url)
+    fn create_game_connection(
+        &self,
+        server_url: &str,
+    ) -> Arc<dyn crate::ports::outbound::GameConnectionPort> {
+        crate::infrastructure::connection_factory::ConnectionFactory::create_game_connection(
+            server_url,
+        )
     }
 }
 

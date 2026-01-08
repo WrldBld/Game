@@ -1,0 +1,10 @@
+[
+  {"id": "1", "content": "Phase 5: Add ConnectionId to domain/ids.rs", "status": "completed", "priority": "high"},
+  {"id": "2", "content": "Phase 5: Update ConnectionInfo to use typed IDs", "status": "completed", "priority": "high"},
+  {"id": "3", "content": "Phase 5: Update WorldConnectionState to use ConnectionId", "status": "completed", "priority": "high"},
+  {"id": "4", "content": "Phase 5: Update WorldConnectionManager HashMaps to use typed IDs", "status": "completed", "priority": "high"},
+  {"id": "5", "content": "Phase 5: Update BroadcastError to use typed IDs", "status": "completed", "priority": "high"},
+  {"id": "6", "content": "Phase 5: Update method signatures and implementations", "status": "completed", "priority": "high"},
+  {"id": "7", "content": "Phase 5: Update ConnectionManagerError in engine-ports", "status": "completed", "priority": "high"},
+  {"id": "8", "content": "Phase 5: Verify compilation and tests pass", "status": "completed", "priority": "high"}
+]

@@ -23,40 +23,46 @@ The visual novel format provides:
 
 - [x] **US-SCN-001**: As a player, I see scenes with backdrop images
   - *Implementation*: Backdrop component renders scene backdrop_asset
-  - *Files*: `Player/src/presentation/components/visual_novel/backdrop.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/visual_novel/backdrop.rs`
 
 - [x] **US-SCN-002**: As a player, I see character sprites positioned in the scene
   - *Implementation*: CharacterLayer renders sprites at positions from CharacterLayerData
-  - *Files*: `Player/src/presentation/components/visual_novel/character_sprite.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/visual_novel/character_sprite.rs`
 
 - [x] **US-SCN-003**: As a player, I see dialogue with typewriter animation
   - *Implementation*: DialogueBox with char-by-char reveal, configurable speed
-  - *Files*: `Player/src/presentation/components/visual_novel/dialogue_box.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/visual_novel/dialogue_box.rs`
 
 - [x] **US-SCN-004**: As a player, I can select dialogue choices
   - *Implementation*: ChoiceMenu renders choices, sends PlayerAction on selection
-  - *Files*: `Player/src/presentation/components/visual_novel/choice_menu.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/visual_novel/choice_menu.rs`
 
 - [x] **US-SCN-005**: As a player, I can interact with scene elements (talk, examine, travel)
   - *Implementation*: ActionPanel with interaction buttons based on scene data
-  - *Files*: `Player/src/presentation/components/action_panel.rs`
+  - *Files*: `crates/player-ui/src/presentation/components/action_panel.rs`
 
 - [x] **US-SCN-006**: As a DM, I can create scenes tied to locations
   - *Implementation*: Scene entity with AT_LOCATION edge
-  - *Files*: `Engine/src/domain/entities/scene.rs`
+  - *Files*: `crates/domain/src/entities/scene.rs`
 
 - [x] **US-SCN-007**: As a DM, I can feature characters in scenes with roles
   - *Implementation*: FEATURES_CHARACTER edge with role and entrance_cue
-  - *Files*: `Engine/src/infrastructure/persistence/scene_repository.rs`
+  - *Files*: `crates/engine/src/infrastructure/neo4j/scene_repo.rs`
 
 - [x] **US-SCN-008**: As a DM, scenes resolve based on PC location
-  - *Implementation*: SceneResolutionService finds applicable scene
-  - *Files*: `Engine/src/application/services/scene_resolution_service.rs`
+  - *Implementation*: Scene entity `resolve_scene()` method, integrated in EnterRegion use case
+  - *Files*: `crates/engine/src/entities/scene.rs`, `crates/engine/src/use_cases/movement/enter_region.rs`
+
+- [x] **US-SCN-009**: As a DM, I can set entry conditions for scenes
+  - *Implementation*: SceneCondition enum fully evaluated in Scene::resolve_scene()
+  - *Conditions*: CompletedScene, HasItem, KnowsCharacter, FlagSet, Custom
+  - *Files*: `crates/engine/src/entities/scene.rs`, `crates/engine/src/infrastructure/neo4j/scene_repo.rs`
 
 ### Pending
 
-- [ ] **US-SCN-009**: As a DM, I can set entry conditions for scenes
-  - *Notes*: SceneCondition enum exists but evaluation not fully implemented
+- [x] **US-SCN-010**: Flag storage system for FlagSet condition
+  - *Status*: Implemented - Flag entity with Neo4j storage in `flag.rs` and `flag_repo.rs`
+  - *Files*: `crates/engine/src/entities/flag.rs`, `crates/engine/src/infrastructure/neo4j/flag_repo.rs`
 
 ---
 
@@ -162,7 +168,7 @@ The visual novel format provides:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ⏳ Pending (US-SCN-009 - SceneCondition enum exists, evaluation not implemented)
+**Status**: ⏳ Pending (Editor UI. Engine evaluates built-in conditions; `Custom` is treated as unmet.)
 
 ---
 
@@ -207,6 +213,10 @@ The visual novel format provides:
 
 // Interaction belongs to scene
 (interaction:InteractionTemplate)-[:BELONGS_TO_SCENE]->(scene:Scene)
+
+// Conversations occur within scenes
+(conversation:Conversation)-[:IN_SCENE]->(scene:Scene)
+(turn:DialogueTurn)-[:OCCURRED_IN_SCENE]->(scene:Scene)
 
 // Interaction targets
 (interaction:InteractionTemplate)-[:TARGETS_CHARACTER]->(character:Character)
@@ -298,7 +308,7 @@ pub enum CharacterPosition {
 | Scene Entity | ✅ | ✅ | Full property support |
 | InteractionTemplate | ✅ | ✅ | Targets, requirements |
 | Scene Repository | ✅ | - | Neo4j with all edges |
-| SceneResolutionService | ✅ | - | Location-based resolution |
+| SceneResolutionService | ✅ | - | Scene.resolve_scene() with condition evaluation |
 | SceneService | ✅ | ✅ | CRUD operations |
 | Backdrop Component | - | ✅ | Image rendering |
 | CharacterLayer | - | ✅ | Sprite positioning |
@@ -314,12 +324,11 @@ pub enum CharacterPosition {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `src/domain/entities/scene.rs` | Scene entity |
-| Domain | `src/domain/entities/interaction.rs` | Interaction entity |
-| Application | `src/application/services/scene_service.rs` | Scene CRUD |
-| Application | `src/application/services/scene_resolution_service.rs` | Resolution |
-| Infrastructure | `src/infrastructure/persistence/scene_repository.rs` | Neo4j |
-| Infrastructure | `src/infrastructure/persistence/interaction_repository.rs` | Neo4j |
+| Domain | `crates/domain/src/entities/scene.rs` | Scene entity, SceneCondition enum |
+| Entity | `crates/engine/src/entities/scene.rs` | Scene operations, resolve_scene() |
+| Use Case | `crates/engine/src/use_cases/movement/enter_region.rs` | Scene resolution integration |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/scene_repo.rs` | Neo4j scene repo with COMPLETED_SCENE tracking |
+| Infrastructure | `crates/engine/src/infrastructure/ports.rs` | SceneRepo trait |
 
 ### Player
 

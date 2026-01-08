@@ -1,0 +1,100 @@
+use super::*;
+
+pub(super) async fn handle_approval_decision(
+    state: &WsState,
+    connection_id: Uuid,
+    request_id: String,
+    decision: wrldbldr_protocol::ApprovalDecision,
+) -> Option<ServerMessage> {
+    // Get connection info - only DMs can make approval decisions
+    let conn_info = match state.connections.get(connection_id).await {
+        Some(info) => info,
+        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+    };
+
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
+    }
+
+    // Parse request ID as approval UUID
+    let approval_id = match parse_id(&request_id, |u| u, "Invalid request ID") {
+        Ok(id) => id,
+        Err(e) => return Some(e),
+    };
+
+    // Convert protocol decision to domain decision
+    let domain_decision = match decision {
+        wrldbldr_protocol::ApprovalDecision::Accept => wrldbldr_domain::DmApprovalDecision::Accept,
+        wrldbldr_protocol::ApprovalDecision::AcceptWithRecipients { item_recipients } => {
+            wrldbldr_domain::DmApprovalDecision::AcceptWithRecipients { item_recipients }
+        }
+        wrldbldr_protocol::ApprovalDecision::Reject { feedback } => {
+            wrldbldr_domain::DmApprovalDecision::Reject { feedback }
+        }
+        wrldbldr_protocol::ApprovalDecision::AcceptWithModification {
+            modified_dialogue,
+            approved_tools,
+            rejected_tools,
+            item_recipients,
+        } => wrldbldr_domain::DmApprovalDecision::AcceptWithModification {
+            modified_dialogue,
+            approved_tools,
+            rejected_tools,
+            item_recipients,
+        },
+        wrldbldr_protocol::ApprovalDecision::TakeOver { dm_response } => {
+            wrldbldr_domain::DmApprovalDecision::TakeOver { dm_response }
+        }
+        wrldbldr_protocol::ApprovalDecision::Unknown => {
+            return Some(error_response(
+                "INVALID_DECISION",
+                "Unknown approval decision type",
+            ));
+        }
+    };
+
+    match state
+        .app
+        .use_cases
+        .approval
+        .decision_flow
+        .execute(approval_id, domain_decision)
+        .await
+    {
+        Ok(result) => {
+            if result.approved {
+                let dialogue = result.final_dialogue.clone().unwrap_or_default();
+                let world_id = result.world_id;
+
+                // Send ResponseApproved to DMs (shows what tools were executed)
+                let dm_msg = ServerMessage::ResponseApproved {
+                    npc_dialogue: dialogue.clone(),
+                    executed_tools: result.approved_tools.clone(),
+                };
+                state.connections.broadcast_to_dms(world_id, dm_msg).await;
+
+                // Send DialogueResponse to all players (for visual novel display)
+                if !dialogue.is_empty() {
+                    let dialogue_msg = ServerMessage::DialogueResponse {
+                        speaker_id: result.npc_id.unwrap_or_default(),
+                        speaker_name: result.npc_name.unwrap_or_else(|| "Unknown".to_string()),
+                        text: dialogue,
+                        choices: vec![], // Free-form input mode
+                    };
+                    state
+                        .connections
+                        .broadcast_to_world(world_id, dialogue_msg)
+                        .await;
+                }
+            }
+            None
+        }
+        Err(crate::use_cases::approval::ApprovalDecisionError::ApprovalNotFound) => {
+            Some(error_response("NOT_FOUND", "Approval request not found"))
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "Approval decision failed");
+            Some(error_response("APPROVAL_ERROR", &e.to_string()))
+        }
+    }
+}

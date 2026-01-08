@@ -1,15 +1,18 @@
 //! Story Event Service - Application service for story event management
 //!
 //! This service provides use case implementations for listing, creating,
-//! and managing story events (timeline events). It abstracts away the HTTP client
-//! details from the presentation layer.
+//! and managing story events (timeline events) via WebSocket request/response pattern.
+
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
 use crate::application::dto::StoryEventData;
-use crate::application::ports::outbound::{ApiError, ApiPort};
+use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
+use crate::ports::outbound::GameConnectionPort;
+use wrldbldr_protocol::{RequestPayload, StoryEventRequest};
 
-/// Paginated response wrapper from Engine API
+/// Paginated response wrapper from Engine
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaginatedStoryEventsResponse {
     pub events: Vec<StoryEventData>,
@@ -29,64 +32,89 @@ pub struct CreateDmMarkerRequest {
     pub tags: Vec<String>,
 }
 
+// From impl for protocol conversion at the boundary
+impl From<&CreateDmMarkerRequest> for wrldbldr_protocol::requests::CreateDmMarkerData {
+    fn from(req: &CreateDmMarkerRequest) -> Self {
+        Self {
+            title: req.title.clone(),
+            content: Some(req.note.clone()),
+        }
+    }
+}
+
 /// Story event service for managing story events
 ///
 /// This service provides methods for story event-related operations
-/// while depending only on the `ApiPort` trait, not concrete
-/// infrastructure implementations.
-pub struct StoryEventService<A: ApiPort> {
-    api: A,
+/// using WebSocket request/response pattern via the `GameConnectionPort`.
+#[derive(Clone)]
+pub struct StoryEventService {
+    connection: Arc<dyn GameConnectionPort>,
 }
 
-impl<A: ApiPort> StoryEventService<A> {
-    /// Create a new StoryEventService with the given API port
-    pub fn new(api: A) -> Self {
-        Self { api }
+impl StoryEventService {
+    /// Create a new StoryEventService with the given connection
+    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
+        Self { connection }
     }
 
-    /// List all story events for a world, optionally filtered by session
+    /// List all story events for a world
     pub async fn list_story_events(
         &self,
         world_id: &str,
-        session_id: Option<&str>,
-    ) -> Result<Vec<StoryEventData>, ApiError> {
-        let path = if let Some(sid) = session_id {
-            format!("/api/worlds/{}/story-events?session_id={}", world_id, sid)
-        } else {
-            format!("/api/worlds/{}/story-events", world_id)
-        };
+    ) -> Result<Vec<StoryEventData>, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::StoryEvent(StoryEventRequest::ListStoryEvents {
+                    world_id: world_id.to_string(),
+                    page: None,
+                    page_size: None,
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
 
-        let paginated: PaginatedStoryEventsResponse = self.api.get(&path).await?;
-        Ok(paginated.events)
+        // The response might be paginated or just a list
+        result.parse()
     }
 
     /// Toggle event visibility
-    pub async fn toggle_event_visibility(&self, event_id: &str) -> Result<(), ApiError> {
-        let path = format!("/api/story-events/{}/visibility", event_id);
-        self.api.put_empty(&path).await
+    pub async fn toggle_event_visibility(
+        &self,
+        event_id: &str,
+        visible: bool,
+    ) -> Result<(), ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::StoryEvent(StoryEventRequest::SetStoryEventVisibility {
+                    event_id: event_id.to_string(),
+                    visible,
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse_empty()
     }
 
     /// Create a DM marker
     pub async fn create_dm_marker(
         &self,
         world_id: &str,
-        session_id: Option<&str>,
         request: &CreateDmMarkerRequest,
-    ) -> Result<(), ApiError> {
-        let path = if let Some(sid) = session_id {
-            format!("/api/sessions/{}/story-events", sid)
-        } else {
-            format!("/api/worlds/{}/story-events", world_id)
-        };
+    ) -> Result<(), ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::StoryEvent(StoryEventRequest::CreateDmMarker {
+                    world_id: world_id.to_string(),
+                    data: request.into(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
 
-        self.api.post_no_response(&path, request).await
-    }
-}
-
-impl<A: ApiPort + Clone> Clone for StoryEventService<A> {
-    fn clone(&self) -> Self {
-        Self {
-            api: self.api.clone(),
-        }
+        result.parse_empty()
     }
 }

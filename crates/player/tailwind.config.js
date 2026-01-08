@@ -2,8 +2,7 @@
 module.exports = {
   content: [
     "./src/**/*.rs",
-    "./index.html",
-    "./assets/**/*.html",
+    "../player-runner/index.html",
   ],
   theme: {
     extend: {

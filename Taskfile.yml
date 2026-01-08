@@ -1,5 +1,7 @@
 # https://taskfile.dev
-version: '3'
+version: "3"
+
+dotenv: [".env", ".env.local"]
 
 vars:
   ENGINE_DIR: ./crates/engine
@@ -8,6 +10,7 @@ vars:
 
 env:
   RUST_LOG: info,wrldbldr_engine=debug,wrldbldr_player=debug
+  NEO4J_PASSWORD: wrldbldr123
 
 tasks:
   # ===========================================================================
@@ -24,23 +27,37 @@ tasks:
     desc: Run the Engine backend server
     dir: "{{.ENGINE_DIR}}"
     cmds:
-      - cargo run --bin wrldbldr-engine
+      - cargo run -p wrldbldr-engine --bin wrldbldr-engine
     env:
       RUST_LOG: info,wrldbldr_engine=debug
+      NEO4J_PASSWORD: wrldbldr123
 
   web:dev:
     desc: Run the Player frontend in web/WASM mode with hot reload
-    dir: "{{.PLAYER_DIR}}"
     cmds:
-      - trunk serve --open
+      - task: css:build
+      - dx serve --web --open
+    dir: "{{.PLAYER_DIR}}"
     env:
       RUST_LOG: info,wrldbldr_player=debug
+      NEO4J_PASSWORD: wrldbldr123
+
+  web:dev:headless:
+    desc: Run the Player frontend web dev (no auto-open)
+    cmds:
+      - task: css:build
+      - dx serve --web --open=false
+    dir: "{{.PLAYER_DIR}}"
+    env:
+      RUST_LOG: info,wrldbldr_player=debug
+      NEO4J_PASSWORD: wrldbldr123
 
   desktop:dev:
     desc: Run the Player frontend in desktop mode
-    dir: "{{.PLAYER_DIR}}"
     cmds:
-      - cargo run --bin wrldbldr-player
+      - task: css:build
+      - cargo run -p wrldbldr-player --bin wrldbldr-player
+    dir: "{{.PLAYER_DIR}}"
     env:
       RUST_LOG: info,wrldbldr_player=debug
 
@@ -50,11 +67,15 @@ tasks:
 
   build:
     desc: Build all crates (debug mode)
+    deps:
+      - arch-check
     cmds:
       - cargo build --workspace
 
   build:release:
     desc: Build all crates (release mode)
+    deps:
+      - arch-check
     cmds:
       - cargo build --workspace --release
 
@@ -66,13 +87,15 @@ tasks:
   build:player:
     desc: Build the Player frontend (native)
     cmds:
-      - cargo build -p wrldbldr-player
+      - task: css:build
+      - cargo build -p wrldbldr-player --bin wrldbldr-player
 
   build:web:
     desc: Build the Player frontend for web/WASM
     dir: "{{.PLAYER_DIR}}"
     cmds:
-      - trunk build --release
+      - task: css:build
+      - dx build --web --release
 
   # ===========================================================================
   # Check & Test Tasks
@@ -119,6 +142,15 @@ tasks:
       - cargo test -p wrldbldr-protocol
 
   # ===========================================================================
+  # Architecture Enforcement
+  # ===========================================================================
+
+  arch-check:
+    desc: Validate hexagonal architecture dependencies
+    cmds:
+      - cargo xtask arch-check
+
+  # ===========================================================================
   # Code Quality
   # ===========================================================================
 
@@ -144,6 +176,51 @@ tasks:
       - task: clippy
 
   # ===========================================================================
+  # Statistics
+  # ===========================================================================
+
+  stats:
+    desc: "Count lines of code per crate and show total (requires tokei: cargo install tokei)"
+    cmds:
+      - |
+        if command -v tokei > /dev/null 2>&1; then
+          echo "=== Lines of Code Statistics ==="
+          echo ""
+          total=0
+          for crate in crates/*/; do
+            if [ -d "$crate/src" ] || [ -f "$crate/Cargo.toml" ]; then
+              crate_name=$(basename "$crate")
+              rust_lines=$(tokei "$crate" --output json 2>/dev/null | jq -r '.Rust.code // 0' 2>/dev/null || echo "0")
+              if [ "$rust_lines" != "0" ] && [ -n "$rust_lines" ]; then
+                printf "%-25s %8s lines\n" "$crate_name" "$rust_lines"
+                total=$((total + rust_lines))
+              fi
+            fi
+          done
+          echo "─────────────────────────────────────────"
+          printf "%-25s %8s lines\n" "TOTAL" "$total"
+        else
+          echo "Error: tokei is not installed."
+          echo "Install it with: cargo install tokei"
+          echo ""
+          echo "Alternatively, using basic line count:"
+          echo ""
+          total=0
+          for crate in crates/*/; do
+            if [ -d "$crate/src" ]; then
+              crate_name=$(basename "$crate")
+              count=$(find "$crate/src" -name "*.rs" -type f 2>/dev/null | xargs cat 2>/dev/null | wc -l || echo "0")
+              if [ "$count" != "0" ] && [ -n "$count" ]; then
+                printf "%-25s %8s lines\n" "$crate_name" "$count"
+                total=$((total + count))
+              fi
+            fi
+          done
+          echo "─────────────────────────────────────────"
+          printf "%-25s %8s lines\n" "TOTAL" "$total"
+        fi
+
+  # ===========================================================================
   # Frontend Tooling
   # ===========================================================================
 
@@ -151,16 +228,16 @@ tasks:
     desc: Build Tailwind CSS
     dir: "{{.PLAYER_DIR}}"
     cmds:
-      - npx tailwindcss -i styles/input.css -o styles/output.css
+      - npm run build:css
 
   css:watch:
     desc: Watch and rebuild Tailwind CSS
     dir: "{{.PLAYER_DIR}}"
     cmds:
-      - npx tailwindcss -i styles/input.css -o styles/output.css --watch
+      - npm run watch:css
 
   npm:install:
-    desc: Install npm dependencies for Player
+    desc: Install npm dependencies for Player UI
     dir: "{{.PLAYER_DIR}}"
     cmds:
       - npm install
@@ -174,6 +251,18 @@ tasks:
     dir: ./docker
     cmds:
       - docker-compose up -d
+
+  docker:deps:up:
+    desc: Start Docker dependencies (Neo4j)
+    dir: ./docker
+    cmds:
+      - docker-compose up -d neo4j
+
+  docker:deps:down:
+    desc: Stop Docker dependencies (Neo4j)
+    dir: ./docker
+    cmds:
+      - docker-compose stop neo4j
 
   docker:down:
     desc: Stop Docker services
@@ -197,7 +286,7 @@ tasks:
       - cargo clean
 
   clean:player:
-    desc: Clean Player build artifacts (including trunk dist)
+    desc: Clean Player build artifacts (including dx dist)
     dir: "{{.PLAYER_DIR}}"
     cmds:
       - cargo clean

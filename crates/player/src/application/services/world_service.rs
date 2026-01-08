@@ -1,12 +1,19 @@
 //! World Service - Application service for world management
 //!
 //! This service provides use case implementations for listing, loading,
-//! and creating worlds. It abstracts away the HTTP client details from
-//! the presentation layer.
+//! and creating worlds. It uses WebSocket for real-time operations and
+//! REST for specific endpoints that remain HTTP-only.
+
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::application::ports::outbound::{ApiError, ApiPort};
+use crate::ports::outbound::{ApiError, GameConnectionPort, RawApiPort};
+use wrldbldr_protocol::ErrorCode;
+use wrldbldr_protocol::{RequestPayload, WorldRequest};
+
+use crate::application::dto::requests::CreateWorldRequest;
+use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 
 /// Summary of a world for list views
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -16,79 +23,47 @@ pub struct WorldSummary {
     pub description: Option<String>,
 }
 
-/// Request to create a new world
-#[derive(Clone, Debug, Serialize)]
-pub struct CreateWorldRequest {
-    pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rule_system: Option<serde_json::Value>,
-}
-
-/// Response from creating a world
-#[derive(Clone, Debug, Deserialize)]
-pub struct CreateWorldResponse {
-    pub id: String,
-    pub name: String,
-}
-
-/// Summary of an active session
-#[derive(Clone, Debug, PartialEq, Deserialize)]
-pub struct SessionInfo {
-    pub session_id: String,
-    pub world_id: String,
-    pub dm_user_id: String,
-    pub active_player_count: usize,
-    pub created_at: i64,
-}
-
-/// Request to create or resume a session
-#[derive(Clone, Debug, Serialize)]
-pub struct CreateSessionRequest {
-    pub dm_user_id: String,
-}
-
-/// Response from session creation/resumption
-#[derive(Clone, Debug, Deserialize)]
-pub struct CreateSessionResponse {
-    pub session_id: String,
-    pub world_id: String,
-}
-
 /// World service for managing worlds
 ///
-/// This service provides methods for world-related operations
-/// while depending only on the `ApiPort` trait, not concrete
-/// infrastructure implementations.
-pub struct WorldService<A: ApiPort> {
-    api: A,
+/// This service provides methods for world-related operations.
+/// Most operations use WebSocket via `GameConnectionPort`, while
+/// a few REST-only endpoints use `RawApiPort`.
+pub struct WorldService {
+    connection: Arc<dyn GameConnectionPort>,
+    api: Arc<dyn RawApiPort>,
 }
 
-impl<A: ApiPort> WorldService<A> {
-    /// Create a new WorldService with the given API port
-    pub fn new(api: A) -> Self {
-        Self { api }
+impl WorldService {
+    /// Create a new WorldService with the given ports
+    pub fn new(connection: Arc<dyn GameConnectionPort>, api: Arc<dyn RawApiPort>) -> Self {
+        Self { connection, api }
     }
 
     /// List all available worlds
-    pub async fn list_worlds(&self) -> Result<Vec<WorldSummary>, ApiError> {
-        self.api.get("/api/worlds").await
+    pub async fn list_worlds(&self) -> Result<Vec<WorldSummary>, ServiceError> {
+        let value = self
+            .api
+            .get_json("/api/worlds")
+            .await
+            .map_err(|e: ApiError| ServiceError::ServerError {
+                code: ErrorCode::InternalError,
+                message: e.to_string(),
+            })?;
+        serde_json::from_value(value).map_err(|e| ServiceError::ParseError(e.to_string()))
     }
 
     /// Get a world by ID (returns basic info)
-    pub async fn get_world(&self, id: &str) -> Result<Option<WorldSummary>, ApiError> {
-        let path = format!("/api/worlds/{}", id);
-        self.api.get_optional(&path).await
-    }
-
-    /// Load a full world snapshot for gameplay
-    ///
-    /// Returns the raw JSON value which can be parsed by the caller
-    /// into the appropriate WorldSnapshot type.
-    pub async fn load_world_snapshot(&self, id: &str) -> Result<serde_json::Value, ApiError> {
-        let path = format!("/api/worlds/{}/export/raw", id);
-        self.api.get(&path).await
+    pub async fn get_world(&self, id: &str) -> Result<Option<WorldSummary>, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::World(WorldRequest::GetWorld {
+                    world_id: id.to_string(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse_optional()
     }
 
     /// Create a new world
@@ -96,7 +71,7 @@ impl<A: ApiPort> WorldService<A> {
     /// # Arguments
     /// * `name` - The name of the world
     /// * `description` - Optional description
-    /// * `rule_system` - Optional rule system configuration as JSON
+    /// * `_rule_system` - Optional rule system configuration (not yet supported via WebSocket)
     ///
     /// # Returns
     /// The ID of the created world
@@ -104,25 +79,51 @@ impl<A: ApiPort> WorldService<A> {
         &self,
         name: &str,
         description: Option<&str>,
-        rule_system: Option<serde_json::Value>,
-    ) -> Result<String, ApiError> {
+        _rule_system: Option<serde_json::Value>,
+    ) -> Result<String, ServiceError> {
+        // Note: rule_system is not yet part of the protocol
         let request = CreateWorldRequest {
             name: name.to_string(),
             description: description.map(|s| s.to_string()),
-            rule_system,
+            setting: None,
         };
 
-        let response: CreateWorldResponse = self.api.post("/api/worlds", &request).await?;
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::World(WorldRequest::CreateWorld {
+                    data: request.into(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        #[derive(Deserialize)]
+        struct CreateResponse {
+            id: String,
+        }
+
+        let response: CreateResponse = result.parse()?;
         Ok(response.id)
     }
 
     /// Delete a world by ID
-    pub async fn delete_world(&self, id: &str) -> Result<(), ApiError> {
-        let path = format!("/api/worlds/{}", id);
-        self.api.delete(&path).await
+    pub async fn delete_world(&self, id: &str) -> Result<(), ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::World(WorldRequest::DeleteWorld {
+                    world_id: id.to_string(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse_empty()
     }
 
     /// Fetch a rule system preset configuration
+    ///
+    /// This remains a REST call as rule system presets are static configuration.
     ///
     /// # Arguments
     /// * `system_type` - The type (D20, D100, Narrative, Custom)
@@ -133,42 +134,32 @@ impl<A: ApiPort> WorldService<A> {
         variant: &str,
     ) -> Result<serde_json::Value, ApiError> {
         let path = format!("/api/rule-systems/{}/presets/{}", system_type, variant);
-        self.api.get(&path).await
+        self.api.get_json(&path).await
     }
 
     /// Fetch the character sheet template for a world
-    pub async fn get_sheet_template(&self, world_id: &str) -> Result<serde_json::Value, ApiError> {
-        let path = format!("/api/worlds/{}/sheet-template", world_id);
-        self.api.get(&path).await
-    }
-
-    /// List all active sessions across all worlds
-    pub async fn list_sessions(&self) -> Result<Vec<SessionInfo>, ApiError> {
-        self.api.get("/api/sessions").await
-    }
-
-    /// Create or resume a session for a world
-    ///
-    /// # Arguments
-    /// * `world_id` - The world ID
-    /// * `dm_user_id` - The user ID of the dungeon master
-    pub async fn create_session(
+    pub async fn get_sheet_template(
         &self,
         world_id: &str,
-        dm_user_id: &str,
-    ) -> Result<CreateSessionResponse, ApiError> {
-        let path = format!("/api/worlds/{}/sessions", world_id);
-        let request = CreateSessionRequest {
-            dm_user_id: dm_user_id.to_string(),
-        };
-        self.api.post(&path, &request).await
+    ) -> Result<serde_json::Value, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::World(WorldRequest::GetSheetTemplate {
+                    world_id: world_id.to_string(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+        result.parse()
     }
 }
 
-impl<A: ApiPort + Clone> Clone for WorldService<A> {
+impl Clone for WorldService {
     fn clone(&self) -> Self {
         Self {
-            api: self.api.clone(),
+            connection: Arc::clone(&self.connection),
+            api: Arc::clone(&self.api),
         }
     }
 }

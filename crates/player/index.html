@@ -1,89 +1,322 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="description" content="WrldBldr Player - TTRPG Gameplay Client">
-    <meta name="theme-color" content="#2e3034">
+<html>
+    <head>
+        <title>{app_title}</title>
+        <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <meta name="description" content="WrldBldr Player - TTRPG Gameplay Client">
+        <meta name="theme-color" content="#2e3034">
 
-    <!-- PWA support for mobile -->
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="WrldBldr">
+        <!-- PWA support for mobile -->
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="WrldBldr">
 
-    <title>WrldBldr Player</title>
+        <!-- Fonts are bundled locally under crates/player/assets/fonts -->
 
-    <!-- Preconnect to font providers -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <style>
 
-    <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
-
-    <!-- Tailwind CSS output -->
-    <link data-trunk rel="css" href="assets/css/output.css">
-
-    <!-- App icon -->
-    <link rel="icon" type="image/png" href="assets/icons/favicon.png">
-    <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
-
-    <!-- Trunk will inject the WASM loader here -->
-    <link data-trunk rel="rust" data-wasm-opt="z"/>
-</head>
-<body>
-    <!-- Loading screen shown while WASM loads -->
-    <div id="loading" class="fixed inset-0 bg-ink-900 flex items-center justify-center z-50">
-        <div class="text-center">
-            <h1 class="font-fantasy text-gold-400 text-3xl mb-4">WrldBldr</h1>
-            <div class="w-48 h-1 bg-ink-700 rounded-full overflow-hidden">
-                <div class="h-full bg-gold-500 animate-pulse" style="width: 100%"></div>
-            </div>
-            <p class="text-parchment-300 mt-4 text-sm">Loading adventure...</p>
-        </div>
-    </div>
-
-    <!-- Dioxus will mount here -->
-    <div id="main"></div>
-
-    <script>
-        // Hide loading screen once app is ready
-        document.addEventListener('DOMContentLoaded', function() {
-            // Dioxus will hide this when mounted
-            setTimeout(function() {
-                var loading = document.getElementById('loading');
-                if (loading) {
-                    loading.style.opacity = '0';
-                    loading.style.transition = 'opacity 0.3s ease-out';
-                    setTimeout(function() {
-                        loading.style.display = 'none';
-                    }, 300);
-                }
-            }, 1000);
-        });
-
-        // Prevent pull-to-refresh on mobile (for app-like feel)
-        document.body.addEventListener('touchmove', function(e) {
-            if (e.target === document.body) {
-                e.preventDefault();
+            #dx-toast-template {
+                display: none;
+                visibility: hidden;
             }
-        }, { passive: false });
-    </script>
 
-    <!-- Inline critical styles for loading screen -->
-    <style>
-        .bg-ink-900 { background-color: #2e3034; }
-        .text-gold-400 { color: #fbbf24; }
-        .text-parchment-300 { color: #e9d9b5; }
-        .bg-ink-700 { background-color: #3f4148; }
-        .bg-gold-500 { background-color: #d4af37; }
-        .font-fantasy { font-family: 'Cinzel', Georgia, serif; }
+            .dx-toast {
+                position: absolute;
+                top: 10px;
+                right: 0;
+                padding-right: 10px;
+                user-select: none;
+                /* transition: transform 0.2s ease; */
+                z-index: 2147483647;
+            }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-    </style>
-</body>
+            .dx-toast .dx-toast-inner {
+                /* transition: right 0.2s ease-out; */
+                position: fixed;
+
+                background-color: #181B20;
+                color: #ffffff;
+                font-family: "Inter", sans-serif;
+
+                display: grid;
+                grid-template-columns: auto auto;
+                max-width: 400px;
+                min-height: 56px;
+                border-radius: 5px;
+            }
+
+            .dx-toast .dx-toast-inner {
+                cursor: pointer;
+                margin-right: 10px;
+            }
+
+            .dx-toast .dx-toast-level-bar-container {
+                height: 100%;
+                width: 6px;
+            }
+
+            .dx-toast .dx-toast-level-bar-container .dx-toast-level-bar {
+                width: 100%;
+                height: 100%;
+                border-radius: 5px 0px 0px 5px;
+            }
+
+            .dx-toast .dx-toast-content {
+                padding: 8px;
+            }
+
+            .dx-toast .dx-toast-header {
+                display: flex;
+                flex-direction: row;
+                justify-content: start;
+                align-items: end;
+                margin-bottom: 10px;
+            }
+
+            .dx-toast .dx-toast-header>svg {
+                height: 18px;
+                margin-right: 5px;
+            }
+
+            .dx-toast .dx-toast-header .dx-toast-header-text {
+                font-size: 14px;
+                font-weight: 700;
+                padding: 0;
+                margin: 0;
+            }
+
+            .dx-toast .dx-toast-msg {
+                font-size: 11px;
+                font-weight: 400;
+                padding: 0;
+                margin: 0;
+            }
+
+            .dx-toast-level-bar.info {
+                background-color: #428EFF;
+            }
+
+            .dx-toast-level-bar.success {
+                background-color: #42FF65;
+            }
+
+            .dx-toast-level-bar.error {
+                background-color: #FF4242;
+            }
+
+            /* WrldBldr splash / loading overlay */
+            #wrldbldr-splash {
+                position: fixed;
+                inset: 0;
+                display: grid;
+                place-items: center;
+                background: radial-gradient(1200px 600px at 50% 25%, #1b2029 0%, #0f1115 55%, #0b0d10 100%);
+                color: #ffffff;
+                font-family: "Inter", sans-serif;
+                z-index: 2147483000; /* below DX toast */
+            }
+
+            #wrldbldr-splash.hidden {
+                opacity: 0;
+                visibility: hidden;
+                pointer-events: none;
+                transition: opacity 200ms ease, visibility 0ms linear 200ms;
+            }
+
+            /* Keep this screen independent of tailwind output.css. */
+            .wrldbldr-splash-inner {
+                text-align: center;
+                padding: 24px;
+            }
+
+            .wrldbldr-splash-mark {
+                font-family: "Cinzel", Georgia, serif;
+                font-size: 32px;
+                font-weight: 700;
+                letter-spacing: 0.02em;
+                margin-bottom: 12px;
+                color: #fbbf24;
+            }
+
+            .wrldbldr-splash-progress-track {
+                width: 192px;
+                height: 4px;
+                background-color: #3f4148;
+                border-radius: 9999px;
+                overflow: hidden;
+                margin: 0 auto;
+            }
+
+            .wrldbldr-splash-progress-bar {
+                height: 100%;
+                width: 100%;
+                background-color: #d4af37;
+                animation: wrldbldr-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            }
+
+            .wrldbldr-splash-sub {
+                font-family: "Lora", Georgia, serif;
+                font-size: 13px;
+                font-weight: 500;
+                opacity: 0.9;
+                margin-top: 14px;
+                color: #e9d9b5;
+            }
+
+            @keyframes wrldbldr-pulse {
+                0%, 100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.5;
+                }
+            }
+        </style>
+        <script>
+            const STORAGE_KEY = "SCHEDULED-DX-TOAST";
+            let currentTimeout = null;
+            let currentToastId = 0;
+
+            // Show a toast, removing the previous one.
+            function showDXToast(headerText, message, progressLevel, durationMs) {
+                document.getElementById("__dx-toast-decor").className = `dx-toast-level-bar ${progressLevel}`;
+                document.getElementById("__dx-toast-text").innerText = headerText;
+                document.getElementById("__dx-toast-msg").innerText = message;
+                document.getElementById("__dx-toast-inner").style.right = "0";
+                document.getElementById("__dx-toast").removeAttribute("aria-hidden");
+                document.getElementById("__dx-toast").addEventListener("click", closeDXToast);
+
+
+                // Wait a bit of time so animation plays correctly.
+                setTimeout(
+                    () => {
+                        let ourToastId = currentToastId;
+                        currentTimeout = setTimeout(() => {
+                            if (ourToastId == currentToastId) {
+                                closeDXToast();
+                            }
+                        }, durationMs);
+                    },
+                    100
+                );
+
+                currentToastId += 1;
+            }
+
+            // Schedule a toast to be displayed after reload.
+            function scheduleDXToast(headerText, message, level, durationMs) {
+                let data = {
+                    headerText,
+                    message,
+                    level,
+                    durationMs,
+                };
+
+                let jsonData = JSON.stringify(data);
+                sessionStorage.setItem(STORAGE_KEY, jsonData);
+            }
+
+            // Close the current toast.
+            function closeDXToast() {
+                document.getElementById("__dx-toast-inner").style.right = "-1000px";
+                document.getElementById("__dx-toast").setAttribute("aria-hidden", "true");
+                clearTimeout(currentTimeout);
+            }
+
+            // Handle any scheduled toasts after reload.
+            let potentialData = sessionStorage.getItem(STORAGE_KEY);
+            if (potentialData) {
+                sessionStorage.removeItem(STORAGE_KEY);
+                let data = JSON.parse(potentialData);
+                showDXToast(data.headerText, data.message, data.level, data.durationMs);
+            }
+
+            window.scheduleDXToast = scheduleDXToast;
+            window.showDXToast = showDXToast;
+            window.closeDXToast = closeDXToast;
+
+            // Hide splash once Dioxus has mounted into #main.
+            // (Dioxus injects scripts after this HTML, so we watch for #main content.)
+            function hideWrldBldrSplash() {
+                const splash = document.getElementById("wrldbldr-splash");
+                if (!splash) return;
+                splash.classList.add("hidden");
+            }
+
+            // Prevent pull-to-refresh on mobile (app-like feel).
+            // Mirrors the old Player index.html behavior.
+            document.addEventListener("DOMContentLoaded", function () {
+                document.body.addEventListener(
+                    "touchmove",
+                    function (e) {
+                        if (e.target === document.body) {
+                            e.preventDefault();
+                        }
+                    },
+                    { passive: false }
+                );
+            });
+
+            function observeMainMount() {
+                const main = document.getElementById("main");
+                if (!main) return;
+
+                if (main.childNodes && main.childNodes.length > 0) {
+                    hideWrldBldrSplash();
+                    return;
+                }
+
+                const obs = new MutationObserver(() => {
+                    if (main.childNodes && main.childNodes.length > 0) {
+                        obs.disconnect();
+                        hideWrldBldrSplash();
+                    }
+                });
+
+                obs.observe(main, { childList: true, subtree: true });
+
+                // Failsafe: don’t leave a stuck overlay forever.
+                setTimeout(hideWrldBldrSplash, 8000);
+            }
+
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", observeMainMount);
+            } else {
+                observeMainMount();
+            }
+        </script>
+    </head>
+    <body>
+        <div id="wrldbldr-splash">
+            <div class="wrldbldr-splash-inner">
+                <div class="wrldbldr-splash-mark">WrldBldr</div>
+                <div class="wrldbldr-splash-progress-track" aria-hidden="true">
+                    <div class="wrldbldr-splash-progress-bar"></div>
+                </div>
+                <div class="wrldbldr-splash-sub">Loading adventure...</div>
+            </div>
+        </div>
+        <div id="__dx-toast" class="dx-toast" aria-hidden="true">
+            <div id="__dx-toast-inner" class="dx-toast-inner" style="right:-1000px;">
+                <div class="dx-toast-level-bar-container">
+                    <div id="__dx-toast-decor" class="dx-toast-level-bar __info"></div>
+                </div>
+                <div class="dx-toast-content">
+                    <div class="dx-toast-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" preserveAspectRatio="none">
+                            <path d="M22.158 1.783c0 3.077-.851 5.482-2.215 7.377s-3.32 3.557-5.447 5.33-4.425 3.657-6.252 6.195-3.102 5.515-3.102 9.532h4.699c0-3.077.853-5.377 2.217-7.272s3.32-3.557 5.447-5.33 4.425-3.657 6.252-6.195 3.102-5.62 3.102-9.637z" fill="#e96020"/>
+                            <path d="M9.531 25.927c-.635 0-1.021.515-1.02 1.15s.385 1.151 1.02 1.15H22.47a1.151 1.151 0 1 0 0-2.301zm1.361-4.076c-.608 0-.954.558-.953 1.166s.346 1.035.953 1.035h10.217a1.101 1.101 0 1 0 0-2.201zm0-13.594a1.101 1.101 0 1 0 0 2.201h10.217c.607 0 .953-.598.953-1.205s-.345-.996-.953-.996zM9.531 4.021A1.15 1.15 0 0 0 8.38 5.17a1.15 1.15 0 0 0 1.15 1.15h12.94c.635 0 1.021-.498 1.02-1.133s-.386-1.166-1.02-1.166z" fill="#2d323b"/>
+                            <path d="M5.142 1.783c0 4.016 1.275 7.099 3.102 9.637s4.125 4.422 6.252 6.195 4.083 3.656 5.447 5.551 2.215 3.974 2.215 7.051h4.701c0-4.016-1.275-7.038-3.102-9.576s-4.125-4.422-6.252-6.195-4.083-3.435-5.447-5.33S9.841 4.86 9.841 1.783z" fill="#00a8d6"/>
+                        </svg>
+                        <h3 id="__dx-toast-text" class="dx-toast-header-text">Your app is being rebuilt.</h3>
+                    </div>
+                    <p id="__dx-toast-msg" class="dx-toast-msg">A non-hot-reloadable change occurred and we must rebuild.</p>
+                </div>
+            </div>
+        </div>
+        <div id="main"></div>
+    </body>
 </html>

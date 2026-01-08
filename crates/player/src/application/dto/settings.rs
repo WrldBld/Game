@@ -5,6 +5,23 @@
 
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum BatchQueueFailurePolicy {
+    /// Any failure while queueing prompts fails the entire batch.
+    AllOrNothing,
+    /// Continue queueing remaining prompts; fail only if none queued successfully.
+    BestEffort,
+
+    /// Forward-compatibility fallback for newer variants.
+    #[serde(other)]
+    Unknown,
+}
+
+fn default_batch_queue_failure_policy() -> BatchQueueFailurePolicy {
+    BatchQueueFailurePolicy::AllOrNothing
+}
+
 /// Token budget configuration for LLM context building
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ContextBudgetConfig {
@@ -65,7 +82,6 @@ pub struct AppSettings {
     // ============================================================================
     // Session & Conversation
     // ============================================================================
-
     /// Maximum number of conversation turns to store in session memory
     pub max_conversation_turns: usize,
 
@@ -76,7 +92,6 @@ pub struct AppSettings {
     // ============================================================================
     // Circuit Breaker & Health
     // ============================================================================
-
     /// Number of consecutive failures before circuit breaker opens
     pub circuit_breaker_failure_threshold: u32,
 
@@ -89,7 +104,6 @@ pub struct AppSettings {
     // ============================================================================
     // Validation Limits
     // ============================================================================
-
     /// Maximum allowed length for name fields
     pub max_name_length: usize,
 
@@ -99,7 +113,6 @@ pub struct AppSettings {
     // ============================================================================
     // Animation
     // ============================================================================
-
     /// Delay (in milliseconds) between sentences in typewriter effect
     pub typewriter_sentence_delay_ms: u64,
 
@@ -112,14 +125,12 @@ pub struct AppSettings {
     // ============================================================================
     // Game Defaults
     // ============================================================================
-
     /// Default maximum value for character stats
     pub default_max_stat_value: i32,
 
     // ============================================================================
     // Challenge System
     // ============================================================================
-
     /// Number of outcome branches to generate for each challenge result tier
     #[serde(default = "default_outcome_branch_count")]
     pub outcome_branch_count: usize,
@@ -135,7 +146,6 @@ pub struct AppSettings {
     // ============================================================================
     // LLM Settings
     // ============================================================================
-
     /// Max tokens per outcome branch when generating suggestions
     #[serde(default = "default_suggestion_tokens_per_branch")]
     pub suggestion_tokens_per_branch: u32,
@@ -143,13 +153,35 @@ pub struct AppSettings {
     /// Token budget configuration for LLM context building
     #[serde(default)]
     pub context_budget: ContextBudgetConfig,
+
+    // ============================================================================
+    // Asset Generation
+    // ============================================================================
+    /// Default style reference asset ID for image generation
+    /// When set, new asset generations will use this asset's style by default
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub style_reference_asset_id: Option<String>,
+
+    /// Policy for how to handle failures while queueing prompts for a batch.
+    #[serde(default = "default_batch_queue_failure_policy")]
+    pub batch_queue_failure_policy: BatchQueueFailurePolicy,
 }
 
-fn default_outcome_branch_count() -> usize { 2 }
-fn default_outcome_branch_min() -> usize { 1 }
-fn default_outcome_branch_max() -> usize { 4 }
-fn default_conversation_history_turns() -> usize { 20 }
-fn default_suggestion_tokens_per_branch() -> u32 { 200 }
+fn default_outcome_branch_count() -> usize {
+    2
+}
+fn default_outcome_branch_min() -> usize {
+    1
+}
+fn default_outcome_branch_max() -> usize {
+    4
+}
+fn default_conversation_history_turns() -> usize {
+    20
+}
+fn default_suggestion_tokens_per_branch() -> u32 {
+    200
+}
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -171,6 +203,8 @@ impl Default for AppSettings {
             outcome_branch_max: 4,
             suggestion_tokens_per_branch: 200,
             context_budget: ContextBudgetConfig::default(),
+            style_reference_asset_id: None,
+            batch_queue_failure_policy: default_batch_queue_failure_policy(),
         }
     }
 }
@@ -198,10 +232,4 @@ pub struct SettingsFieldMetadata {
     pub category: String,
     /// Whether changing this setting requires a restart
     pub requires_restart: bool,
-}
-
-/// Response from the settings metadata endpoint
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SettingsMetadataResponse {
-    pub fields: Vec<SettingsFieldMetadata>,
 }

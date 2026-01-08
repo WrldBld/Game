@@ -1,226 +1,242 @@
 //! Suggestion Service - Application service for AI-powered content suggestions
 //!
-//! This service provides use case implementations for fetching content suggestions
-//! from the Engine API. It abstracts away the HTTP client details from the
-//! presentation layer.
+//! This service provides use case implementations for enqueuing content suggestions
+//! via WebSocket. All suggestions are processed asynchronously through the LLM queue.
+//! Results are delivered via WebSocket events (SuggestionCompleted, SuggestionFailed).
+//!
+//! ## Architecture
+//!
+//! All suggestion requests are async/queued:
+//! 1. Client calls a suggestion method (e.g., `suggest_character_name`)
+//! 2. Service sends `EnqueueContentSuggestion` request via WebSocket
+//! 3. Engine returns `request_id` immediately
+//! 4. Engine processes suggestion via LLM queue
+//! 5. Results delivered via WebSocket events (SuggestionCompleted/SuggestionFailed)
+//!
+//! ## Auto-Enrichment
+//!
+//! The engine automatically enriches the suggestion context with world data
+//! when `world_id` is provided but `world_setting` is not. This provides
+//! better suggestion quality without requiring the UI to fetch world data.
 
-use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
-use crate::application::ports::outbound::{ApiError, ApiPort};
+use serde::Deserialize;
 
-/// Context for generating suggestions
-#[derive(Clone, Default, Debug, PartialEq, Serialize)]
-pub struct SuggestionContext {
-    /// Type of entity (e.g., "character", "location", "tavern", "forest")
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub entity_type: Option<String>,
-    /// Name of the entity (if already set)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub entity_name: Option<String>,
-    /// World/setting name or type
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub world_setting: Option<String>,
-    /// Hints or keywords to guide generation (e.g., archetype)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hints: Option<String>,
-    /// Additional context from other fields
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub additional_context: Option<String>,
-}
+use crate::application::dto::requests::SuggestionContext;
+use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
+use crate::ports::outbound::GameConnectionPort;
+use wrldbldr_protocol::{AiRequest, RequestPayload};
 
-/// Response from suggestion API (synchronous)
-#[derive(Clone, Debug, Deserialize)]
-pub struct SuggestionResponse {
-    pub suggestions: Vec<String>,
-}
-
-/// Response from queued suggestion API
+/// Response from queued suggestion (immediate response, results via events)
 #[derive(Clone, Debug, Deserialize)]
 pub struct SuggestionQueuedResponse {
     pub request_id: String,
     pub status: String,
 }
 
-/// Suggestion service for fetching AI-powered content suggestions
-///
-/// This service provides methods for suggestion-related operations
-/// while depending only on the `ApiPort` trait, not concrete
-/// infrastructure implementations.
-pub struct SuggestionService<A: ApiPort> {
-    api: A,
+/// Response from cancel suggestion
+#[derive(Clone, Debug, Deserialize)]
+struct CancelResponse {
+    cancelled: bool,
 }
 
-impl<A: ApiPort> SuggestionService<A> {
-    /// Create a new SuggestionService with the given API port
-    pub fn new(api: A) -> Self {
-        Self { api }
+/// Suggestion service for enqueuing AI-powered content suggestions
+///
+/// All suggestions are processed asynchronously through the LLM queue.
+/// This service returns a request_id immediately; results are delivered
+/// via WebSocket events (SuggestionQueued, SuggestionProgress,
+/// SuggestionCompleted, SuggestionFailed).
+#[derive(Clone)]
+pub struct SuggestionService {
+    connection: Arc<dyn GameConnectionPort>,
+}
+
+impl SuggestionService {
+    /// Create a new SuggestionService with the given connection
+    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
+        Self { connection }
     }
 
-    /// Get character name suggestions
+    // =========================================================================
+    // Character Suggestions
+    // =========================================================================
+
+    /// Enqueue a character name suggestion request
+    ///
+    /// Returns a request_id for tracking. Results delivered via WebSocket events.
     pub async fn suggest_character_name(
         &self,
-        context: &SuggestionContext,
-    ) -> Result<Vec<String>, ApiError> {
-        let response: SuggestionResponse = self
-            .api
-            .post("/api/suggest/character/name", context)
-            .await?;
-        Ok(response.suggestions)
-    }
-
-    /// Get character description suggestions
-    pub async fn suggest_character_description(
-        &self,
-        context: &SuggestionContext,
-    ) -> Result<Vec<String>, ApiError> {
-        let response: SuggestionResponse = self
-            .api
-            .post("/api/suggest/character/description", context)
-            .await?;
-        Ok(response.suggestions)
-    }
-
-    /// Get character wants suggestions
-    pub async fn suggest_character_wants(
-        &self,
-        context: &SuggestionContext,
-    ) -> Result<Vec<String>, ApiError> {
-        let response: SuggestionResponse = self
-            .api
-            .post("/api/suggest/character/wants", context)
-            .await?;
-        Ok(response.suggestions)
-    }
-
-    /// Get character fears suggestions
-    pub async fn suggest_character_fears(
-        &self,
-        context: &SuggestionContext,
-    ) -> Result<Vec<String>, ApiError> {
-        let response: SuggestionResponse = self
-            .api
-            .post("/api/suggest/character/fears", context)
-            .await?;
-        Ok(response.suggestions)
-    }
-
-    /// Get character backstory suggestions
-    pub async fn suggest_character_backstory(
-        &self,
-        context: &SuggestionContext,
-    ) -> Result<Vec<String>, ApiError> {
-        let response: SuggestionResponse = self
-            .api
-            .post("/api/suggest/character/backstory", context)
-            .await?;
-        Ok(response.suggestions)
-    }
-
-    /// Get location name suggestions
-    pub async fn suggest_location_name(
-        &self,
-        context: &SuggestionContext,
-    ) -> Result<Vec<String>, ApiError> {
-        let response: SuggestionResponse = self
-            .api
-            .post("/api/suggest/location/name", context)
-            .await?;
-        Ok(response.suggestions)
-    }
-
-    /// Get location description suggestions
-    pub async fn suggest_location_description(
-        &self,
-        context: &SuggestionContext,
-    ) -> Result<Vec<String>, ApiError> {
-        let response: SuggestionResponse = self
-            .api
-            .post("/api/suggest/location/description", context)
-            .await?;
-        Ok(response.suggestions)
-    }
-
-    /// Get location atmosphere suggestions
-    pub async fn suggest_location_atmosphere(
-        &self,
-        context: &SuggestionContext,
-    ) -> Result<Vec<String>, ApiError> {
-        let response: SuggestionResponse = self
-            .api
-            .post("/api/suggest/location/atmosphere", context)
-            .await?;
-        Ok(response.suggestions)
-    }
-
-    /// Get location features suggestions
-    pub async fn suggest_location_features(
-        &self,
-        context: &SuggestionContext,
-    ) -> Result<Vec<String>, ApiError> {
-        let response: SuggestionResponse = self
-            .api
-            .post("/api/suggest/location/features", context)
-            .await?;
-        Ok(response.suggestions)
-    }
-
-    /// Get location secrets suggestions
-    pub async fn suggest_location_secrets(
-        &self,
-        context: &SuggestionContext,
-    ) -> Result<Vec<String>, ApiError> {
-        let response: SuggestionResponse = self
-            .api
-            .post("/api/suggest/location/secrets", context)
-            .await?;
-        Ok(response.suggestions)
-    }
-
-    /// Enqueue a suggestion request (async, returns request_id)
-    /// 
-    /// This method queues the suggestion request instead of waiting for results.
-    /// Results will be delivered via WebSocket events.
-    /// 
-    /// The `world_id` is required for routing the response back to the correct
-    /// clients (all sessions viewing this world).
-    pub async fn enqueue_suggestion(
-        &self,
-        field_type: &str,
         world_id: &str,
         context: &SuggestionContext,
-    ) -> Result<String, ApiError> {
-        #[derive(Serialize)]
-        struct UnifiedRequest {
-            #[serde(rename = "suggestion_type")]
-            suggestion_type: String,
-            world_id: String,
-            #[serde(flatten)]
-            context: SuggestionContext,
-        }
-        
-        let request = UnifiedRequest {
-            suggestion_type: field_type.to_string(),
-            world_id: world_id.to_string(),
-            context: context.clone(),
-        };
-        
-        let response: SuggestionQueuedResponse = self
-            .api
-            .post("/api/suggest", &request)
+    ) -> Result<String, ServiceError> {
+        self.enqueue_suggestion("character_name", world_id, context)
+            .await
+    }
+
+    /// Enqueue a character description suggestion request
+    ///
+    /// Returns a request_id for tracking. Results delivered via WebSocket events.
+    pub async fn suggest_character_description(
+        &self,
+        world_id: &str,
+        context: &SuggestionContext,
+    ) -> Result<String, ServiceError> {
+        self.enqueue_suggestion("character_description", world_id, context)
+            .await
+    }
+
+    /// Enqueue a character wants suggestion request
+    ///
+    /// Returns a request_id for tracking. Results delivered via WebSocket events.
+    pub async fn suggest_character_wants(
+        &self,
+        world_id: &str,
+        context: &SuggestionContext,
+    ) -> Result<String, ServiceError> {
+        self.enqueue_suggestion("character_wants", world_id, context)
+            .await
+    }
+
+    /// Enqueue a character fears suggestion request
+    ///
+    /// Returns a request_id for tracking. Results delivered via WebSocket events.
+    pub async fn suggest_character_fears(
+        &self,
+        world_id: &str,
+        context: &SuggestionContext,
+    ) -> Result<String, ServiceError> {
+        self.enqueue_suggestion("character_fears", world_id, context)
+            .await
+    }
+
+    /// Enqueue a character backstory suggestion request
+    ///
+    /// Returns a request_id for tracking. Results delivered via WebSocket events.
+    pub async fn suggest_character_backstory(
+        &self,
+        world_id: &str,
+        context: &SuggestionContext,
+    ) -> Result<String, ServiceError> {
+        self.enqueue_suggestion("character_backstory", world_id, context)
+            .await
+    }
+
+    // =========================================================================
+    // Location Suggestions
+    // =========================================================================
+
+    /// Enqueue a location name suggestion request
+    ///
+    /// Returns a request_id for tracking. Results delivered via WebSocket events.
+    pub async fn suggest_location_name(
+        &self,
+        world_id: &str,
+        context: &SuggestionContext,
+    ) -> Result<String, ServiceError> {
+        self.enqueue_suggestion("location_name", world_id, context)
+            .await
+    }
+
+    /// Enqueue a location description suggestion request
+    ///
+    /// Returns a request_id for tracking. Results delivered via WebSocket events.
+    pub async fn suggest_location_description(
+        &self,
+        world_id: &str,
+        context: &SuggestionContext,
+    ) -> Result<String, ServiceError> {
+        self.enqueue_suggestion("location_description", world_id, context)
+            .await
+    }
+
+    /// Enqueue a location atmosphere suggestion request
+    ///
+    /// Returns a request_id for tracking. Results delivered via WebSocket events.
+    pub async fn suggest_location_atmosphere(
+        &self,
+        world_id: &str,
+        context: &SuggestionContext,
+    ) -> Result<String, ServiceError> {
+        self.enqueue_suggestion("location_atmosphere", world_id, context)
+            .await
+    }
+
+    /// Enqueue a location features suggestion request
+    ///
+    /// Returns a request_id for tracking. Results delivered via WebSocket events.
+    pub async fn suggest_location_features(
+        &self,
+        world_id: &str,
+        context: &SuggestionContext,
+    ) -> Result<String, ServiceError> {
+        self.enqueue_suggestion("location_features", world_id, context)
+            .await
+    }
+
+    /// Enqueue a location secrets suggestion request
+    ///
+    /// Returns a request_id for tracking. Results delivered via WebSocket events.
+    pub async fn suggest_location_secrets(
+        &self,
+        world_id: &str,
+        context: &SuggestionContext,
+    ) -> Result<String, ServiceError> {
+        self.enqueue_suggestion("location_secrets", world_id, context)
+            .await
+    }
+
+    // =========================================================================
+    // Generic Suggestion Methods
+    // =========================================================================
+
+    /// Enqueue a suggestion request (generic method)
+    ///
+    /// This is the core method that all specific suggestion methods delegate to.
+    /// Returns the request_id for tracking. Results will be delivered via
+    /// WebSocket events (SuggestionCompleted, SuggestionFailed).
+    ///
+    /// # Arguments
+    /// * `suggestion_type` - Type of suggestion (e.g., "character_name", "location_description")
+    /// * `world_id` - World ID for routing and context enrichment
+    /// * `context` - Context information to help the LLM generate suggestions
+    pub async fn enqueue_suggestion(
+        &self,
+        suggestion_type: &str,
+        world_id: &str,
+        context: &SuggestionContext,
+    ) -> Result<String, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Ai(AiRequest::EnqueueContentSuggestion {
+                    world_id: world_id.to_string(),
+                    suggestion_type: suggestion_type.to_string(),
+                    context: context.clone().into(),
+                }),
+                get_request_timeout_ms(),
+            )
             .await?;
+
+        let response: SuggestionQueuedResponse = result.parse()?;
         Ok(response.request_id)
     }
 
     /// Cancel a pending suggestion request
-    pub async fn cancel_suggestion(&self, request_id: &str) -> Result<(), ApiError> {
-        self.api.delete(&format!("/api/suggest/{}/cancel", request_id)).await
-    }
-}
+    ///
+    /// Returns true if the request was found and cancelled.
+    pub async fn cancel_suggestion(&self, request_id: &str) -> Result<bool, ServiceError> {
+        let result = self
+            .connection
+            .request_with_timeout(
+                RequestPayload::Ai(AiRequest::CancelContentSuggestion {
+                    request_id: request_id.to_string(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
 
-impl<A: ApiPort + Clone> Clone for SuggestionService<A> {
-    fn clone(&self) -> Self {
-        Self {
-            api: self.api.clone(),
-        }
+        let response: CancelResponse = result.parse()?;
+        Ok(response.cancelled)
     }
 }
