@@ -8,6 +8,7 @@
 //! 3. DM Approval Queue -> (handled by DM via WebSocket)
 
 use std::sync::Arc;
+use uuid::Uuid;
 use wrldbldr_domain::{
     CharacterContext, GamePromptRequest, LlmRequestData, LlmRequestType, PlayerActionContext,
     PlayerActionData, SceneContext, WorldId,
@@ -71,6 +72,8 @@ pub struct ProcessPlayerAction {
     character: Arc<crate::entities::Character>,
     player_character: Arc<crate::entities::PlayerCharacter>,
     staging: Arc<crate::entities::Staging>,
+    scene: Arc<crate::entities::Scene>,
+    world: Arc<crate::entities::World>,
 }
 
 impl ProcessPlayerAction {
@@ -79,12 +82,16 @@ impl ProcessPlayerAction {
         character: Arc<crate::entities::Character>,
         player_character: Arc<crate::entities::PlayerCharacter>,
         staging: Arc<crate::entities::Staging>,
+        scene: Arc<crate::entities::Scene>,
+        world: Arc<crate::entities::World>,
     ) -> Self {
         Self {
             queue,
             character,
             player_character,
             staging,
+            scene,
+            world,
         }
     }
 
@@ -144,22 +151,39 @@ impl ProcessPlayerAction {
         &self,
         action_data: &PlayerActionData,
     ) -> Result<GamePromptRequest, QueueError> {
-        // Get PC name if pc_id is provided
-        let pc_name = if let Some(pc_id) = action_data.pc_id {
-            self.player_character
-                .get(pc_id)
-                .await?
-                .map(|pc| pc.name)
-                .unwrap_or_else(|| "Unknown Player".to_string())
+        let pc = if let Some(pc_id) = action_data.pc_id {
+            self.player_character.get(pc_id).await?
         } else {
-            "Unknown Player".to_string()
+            None
         };
 
-        // Get target NPC name (use provided target or default)
-        let target_name = action_data
+        let pc_name = pc
+            .as_ref()
+            .map(|pc| pc.name.clone())
+            .unwrap_or_else(|| "Unknown Player".to_string());
+
+        let (pc_location_id, _pc_region_id) = pc
+            .as_ref()
+            .map(|pc| (Some(pc.current_location_id), pc.current_region_id))
+            .unwrap_or((None, None));
+
+        let npc_id = action_data
             .target
-            .clone()
-            .unwrap_or_else(|| "the NPC".to_string());
+            .as_deref()
+            .and_then(parse_typed_id::<wrldbldr_domain::CharacterId>);
+
+        let target_name = match npc_id {
+            Some(id) => self
+                .character
+                .get(id)
+                .await?
+                .map(|npc| npc.name)
+                .unwrap_or_else(|| "the NPC".to_string()),
+            None => action_data
+                .target
+                .clone()
+                .unwrap_or_else(|| "the NPC".to_string()),
+        };
 
         // Get player dialogue
         let dialogue = action_data
@@ -176,10 +200,25 @@ impl ProcessPlayerAction {
 
         // Build minimal scene context
         // In a full implementation, we would load scene details from the database
+        let current_scene = self.scene.get_current(action_data.world_id).await?;
+        let game_time = self
+            .world
+            .get(action_data.world_id)
+            .await?
+            .map(|world| world.game_time);
+        let game_time_display = game_time.as_ref().map(|gt| gt.display_date());
+        let time_context = game_time
+            .as_ref()
+            .map(|gt| gt.time_of_day().display_name().to_string())
+            .unwrap_or_else(|| "Present".to_string());
+
         let scene_context = SceneContext {
-            scene_name: "Current Scene".to_string(),
+            scene_name: current_scene
+                .as_ref()
+                .map(|scene| scene.name.clone())
+                .unwrap_or_else(|| "Current Scene".to_string()),
             location_name: "Current Location".to_string(),
-            time_context: "Present".to_string(),
+            time_context,
             present_characters: vec![pc_name.clone(), target_name.clone()],
             region_items: vec![],
         };
@@ -187,7 +226,7 @@ impl ProcessPlayerAction {
         // Build responding character context
         // In a full implementation, we would load the NPC's full context
         let responding_character = CharacterContext {
-            character_id: None,
+            character_id: npc_id.map(|id| id.to_string()),
             name: target_name.clone(),
             archetype: "NPC".to_string(),
             current_mood: None,
@@ -217,9 +256,9 @@ impl ProcessPlayerAction {
             active_challenges: vec![],
             active_narrative_events: vec![],
             context_budget: None,
-            scene_id: None,
-            location_id: None,
-            game_time: None,
+            scene_id: current_scene.as_ref().map(|scene| scene.id.to_string()),
+            location_id: pc_location_id.map(|id| id.to_string()),
+            game_time: game_time_display,
         })
     }
 
@@ -527,6 +566,30 @@ impl ProcessLlmRequest {
                     .await
                     .map_err(|e| QueueError::LlmError(e.to_string()))?;
 
+                let (npc_id, npc_name, player_dialogue, scene_id, location_id, game_time) =
+                    if let Some(ref prompt) = request_data.prompt {
+                        let npc_id = prompt
+                            .responding_character
+                            .character_id
+                            .as_deref()
+                            .and_then(parse_typed_id::<wrldbldr_domain::CharacterId>);
+                        let npc_name = prompt.responding_character.name.clone();
+                        let player_dialogue = prompt.player_action.dialogue.clone();
+                        let scene_id = prompt
+                            .scene_id
+                            .as_deref()
+                            .and_then(parse_typed_id::<wrldbldr_domain::SceneId>);
+                        let location_id = prompt
+                            .location_id
+                            .as_deref()
+                            .and_then(parse_typed_id::<wrldbldr_domain::LocationId>);
+                        let game_time = prompt.game_time.clone();
+
+                        (npc_id, npc_name, player_dialogue, scene_id, location_id, game_time)
+                    } else {
+                        (None, String::new(), None, None, None, None)
+                    };
+
                 // Create approval request
                 let approval_data = wrldbldr_domain::ApprovalRequestData {
                     world_id: request_data.world_id,
@@ -534,8 +597,8 @@ impl ProcessLlmRequest {
                     decision_type: wrldbldr_domain::ApprovalDecisionType::NpcResponse,
                     urgency: wrldbldr_domain::ApprovalUrgency::AwaitingPlayer,
                     pc_id: request_data.pc_id,
-                    npc_id: None,
-                    npc_name: String::new(),
+                    npc_id,
+                    npc_name,
                     proposed_dialogue: llm_response.content.clone(),
                     internal_reasoning: String::new(),
                     proposed_tools: vec![],
@@ -543,10 +606,10 @@ impl ProcessLlmRequest {
                     challenge_suggestion: None,
                     narrative_event_suggestion: None,
                     challenge_outcome: None,
-                    player_dialogue: None,
-                    scene_id: None,
-                    location_id: None,
-                    game_time: None,
+                    player_dialogue,
+                    scene_id,
+                    location_id,
+                    game_time,
                     topics: vec![],
                 };
 
@@ -627,6 +690,10 @@ fn build_suggestion_prompt(
             other, entity_name, entity_type, world_setting, hints, extra
         ),
     }
+}
+
+fn parse_typed_id<T: From<Uuid>>(value: &str) -> Option<T> {
+    Uuid::parse_str(value).ok().map(T::from)
 }
 
 #[derive(Debug, thiserror::Error)]

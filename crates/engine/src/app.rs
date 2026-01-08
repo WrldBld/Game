@@ -100,6 +100,7 @@ impl App {
         let narrative = Arc::new(entities::Narrative::new(
             repos.narrative.clone(),
             repos.location.clone(),
+            repos.world.clone(),
             repos.player_character.clone(),
             repos.observation.clone(),
             repos.challenge.clone(),
@@ -214,7 +215,11 @@ impl App {
         );
 
         let player_action = use_cases::PlayerActionUseCases::new(Arc::new(
-            use_cases::player_action::HandlePlayerAction::new(conversation_start),
+            use_cases::player_action::HandlePlayerAction::new(
+                conversation_start,
+                queue_port.clone(),
+                clock.clone(),
+            ),
         ));
 
         let actantial = use_cases::ActantialUseCases::new(
@@ -307,6 +312,8 @@ impl App {
                 character.clone(),
                 player_character.clone(),
                 staging.clone(),
+                scene.clone(),
+                world.clone(),
             )),
             Arc::new(use_cases::queues::ProcessLlmRequest::new(
                 queue_port.clone(),

@@ -301,6 +301,7 @@ mod tests {
         let narrative = Arc::new(entities::Narrative::new(
             Arc::new(MockNarrativeRepo::new()),
             location_repo.clone(),
+            Arc::new(MockWorldRepo::new()),
             Arc::new(MockPlayerCharacterRepo::new()),
             Arc::new(MockObservationRepo::new()),
             Arc::new(MockChallengeRepo::new()),

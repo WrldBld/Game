@@ -251,6 +251,38 @@ Node labels and properties in this document are intended to reflect the live per
     is_hidden: false,
     tags_json: "[...]"         // JSON
 })
+
+(:Conversation {
+    id: "uuid",
+    world_id: "uuid",
+    started_at: datetime(),
+    ended_at: "" | datetime(),
+    topic_hint: "" | "...",
+    is_active: true,
+    last_updated_at: datetime()
+})
+
+(:DialogueTurn {
+    id: "uuid",
+    conversation_id: "uuid",
+    speaker_id: "uuid",
+    speaker_type: "pc" | "npc",
+    text: "The Baron? A dangerous man...",
+    order: 3,
+    is_dm_override: false,
+    is_llm_generated: true,
+    game_time: datetime()
+})
+
+(:GameTime {
+    id: "uuid",
+    world_id: "uuid",
+    day: 3,
+    hour: 19,
+    minute: 0,
+    period: "Evening",
+    label: "Day 3, Evening (19:00)"
+})
 ```
 
 ### Assets
@@ -356,6 +388,7 @@ Node labels and properties in this document are intended to reflect the live per
 (world)-[:CONTAINS_CHALLENGE]->(challenge)
 (world)-[:CONTAINS_GOAL]->(goal)
 (act)-[:CONTAINS_SCENE {order: 1}]->(scene)
+(world)-[:HAS_CONVERSATION]->(conversation)
 ```
 
 ### Location Hierarchy
@@ -484,6 +517,15 @@ Node labels and properties in this document are intended to reflect the live per
 (interaction)-[:TARGETS_REGION]->(region)
 (interaction)-[:REQUIRES_ITEM {consumed: false}]->(item)
 (interaction)-[:REQUIRES_CHARACTER_PRESENT]->(character)
+
+// Conversations within scenes
+(conversation:Conversation)-[:IN_SCENE]->(scene:Scene)
+(conversation:Conversation)-[:AT_LOCATION]->(location:Location)
+(conversation:Conversation)-[:AT_REGION]->(region:Region)
+(pc:PlayerCharacter)-[:PARTICIPATED_IN]->(conversation:Conversation)
+(npc:Character)-[:PARTICIPATED_IN]->(conversation:Conversation)
+(conversation:Conversation)-[:HAS_TURN {order: 3}]->(turn:DialogueTurn)
+(turn:DialogueTurn)-[:OCCURRED_AT]->(time:GameTime)
 ```
 
 ### Challenge Relationships
@@ -525,18 +567,21 @@ Node labels and properties in this document are intended to reflect the live per
 
 (story_event)-[:OCCURRED_AT]->(location)
 (story_event)-[:OCCURRED_IN_SCENE]->(scene)
+(story_event)-[:OCCURRED_AT]->(time:GameTime)
 (story_event)-[:OCCURRED_IN_SESSION]->(session)
 (story_event)-[:INVOLVES {role: "Speaker"}]->(character)
 
 (story_event)-[:TRIGGERED_BY_NARRATIVE]->(narrative_event)
 (story_event)-[:RECORDS_CHALLENGE]->(challenge)
+
+(story_event)-[:PART_OF_CONVERSATION]->(conversation:Conversation)
 ```
 
 > Note: `Session` nodes are referenced by queries/edges (e.g. `OCCURRED_IN_SESSION`, `HAS_PC`), but this repository does not currently create them (`CREATE (s:Session ...)` is absent).
 
 ### Observation
 
-Observation is currently persisted as properties on `Character` (see `wrldbldr_domain::entities::NpcObservation`) rather than via an `OBSERVED_NPC` edge.
+Observation is persisted via `OBSERVED_NPC` edges from PCs to NPCs, with game time and reveal flags stored on the edge.
 
 ### Scene Completion
 
@@ -572,6 +617,10 @@ Observation is currently persisted as properties on `Character` (see `wrldbldr_d
     last_topic: "...",
     conversation_count: 5
 }]->(character:Character)
+
+(conversation:Conversation)-[:IN_SCENE]->(scene:Scene)
+(conversation:Conversation)-[:HAS_TURN]->(turn:DialogueTurn)
+(turn:DialogueTurn)-[:OCCURRED_AT]->(time:GameTime)
 ```
 
 ### Staging (NPC Presence)
@@ -657,6 +706,9 @@ Engine startup calls `Neo4jConnection::initialize_schema()` which runs a set of 
 - `StoryEvent(id)` unique
 - `NarrativeEvent(id)` unique
 - `EventChain(id)` unique
+- `Conversation(id)` unique
+- `DialogueTurn(id)` unique
+- `GameTime(id)` unique
 - `SheetTemplate(id)` unique
 - `Item(id)` unique
 - `GridMap(id)` unique
@@ -678,6 +730,9 @@ Engine startup calls `Neo4jConnection::initialize_schema()` which runs a set of 
 - `StoryEvent(world_id)`
 - `NarrativeEvent(world_id)`
 - `EventChain(world_id)`
+- `Conversation(world_id)`
+- `DialogueTurn(conversation_id)`
+- `GameTime(world_id)`
 - `Scene(act_id)`
 - `SheetTemplate(world_id)`
 - `PlayerCharacter(world_id)`

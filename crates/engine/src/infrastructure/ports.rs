@@ -535,6 +535,22 @@ pub trait NarrativeRepo: Send + Sync {
         last_topic: Option<String>,
     ) -> Result<(), RepoError>;
 
+    async fn record_dialogue_context(
+        &self,
+        world_id: WorldId,
+        story_event_id: StoryEventId,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        player_dialogue: String,
+        npc_dialogue: String,
+        topics: Vec<String>,
+        scene_id: Option<SceneId>,
+        location_id: Option<LocationId>,
+        region_id: Option<RegionId>,
+        game_time: Option<GameTime>,
+        timestamp: DateTime<Utc>,
+    ) -> Result<(), RepoError>;
+
     // Triggers
     async fn get_triggers_for_region(
         &self,

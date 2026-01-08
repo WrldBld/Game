@@ -100,6 +100,7 @@ This supports mystery scenarios where players must investigate to find people.
 (pc:PlayerCharacter)-[:OBSERVED_NPC {
     location_id: "uuid",
     region_id: "uuid",
+    conversation_id: "uuid",
     game_time: datetime(),
     observation_type: "direct",  // direct, heard_about, deduced
     is_revealed_to_player: true,  // false => show "Unknown Figure"

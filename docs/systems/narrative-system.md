@@ -229,6 +229,11 @@ This system provides the scaffolding for emergent storytelling:
 (event:NarrativeEvent)-[:TIED_TO_SCENE]->(scene:Scene)
 (event:NarrativeEvent)-[:BELONGS_TO_ACT]->(act:Act)
 
+// Story events (including dialogue turns) anchor to conversation, scene, and time
+(story:StoryEvent)-[:PART_OF_CONVERSATION]->(conversation:Conversation)
+(story:StoryEvent)-[:OCCURRED_IN_SCENE]->(scene:Scene)
+(story:StoryEvent)-[:OCCURRED_AT]->(time:GameTime)
+
 // Event features NPCs
 (event:NarrativeEvent)-[:FEATURES_NPC {
     role: "Primary"

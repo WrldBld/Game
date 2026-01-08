@@ -68,6 +68,11 @@ impl TestAppRepos {
             .expect_get_current()
             .returning(|_world_id| Ok(None));
 
+        let mut narrative_repo = MockNarrativeRepo::new();
+        narrative_repo
+            .expect_record_dialogue_context()
+            .returning(|_, _, _, _, _, _, _, _, _, _, _, _| Ok(()));
+
         Self {
             world_repo,
             character_repo,
@@ -79,7 +84,7 @@ impl TestAppRepos {
             interaction_repo: MockInteractionRepo::new(),
             settings_repo: MockSettingsRepo::new(),
             challenge_repo: MockChallengeRepo::new(),
-            narrative_repo: MockNarrativeRepo::new(),
+            narrative_repo,
             staging_repo: MockStagingRepo::new(),
             observation_repo: MockObservationRepo::new(),
             item_repo: MockItemRepo::new(),
@@ -466,6 +471,7 @@ pub(crate) fn build_test_app_with_ports(
     let narrative = Arc::new(crate::entities::Narrative::new(
         narrative_repo.clone(),
         location_repo.clone(),
+        world_repo.clone(),
         player_character_repo.clone(),
         observation_repo.clone(),
         challenge_repo.clone(),
@@ -582,7 +588,11 @@ pub(crate) fn build_test_app_with_ports(
     );
 
     let player_action = crate::use_cases::PlayerActionUseCases::new(Arc::new(
-        crate::use_cases::player_action::HandlePlayerAction::new(conversation_start),
+        crate::use_cases::player_action::HandlePlayerAction::new(
+            conversation_start,
+            queue.clone(),
+            clock.clone(),
+        ),
     ));
 
     let actantial = crate::use_cases::ActantialUseCases::new(
@@ -676,6 +686,8 @@ pub(crate) fn build_test_app_with_ports(
             character.clone(),
             player_character.clone(),
             staging.clone(),
+            scene.clone(),
+            world.clone(),
         )),
         Arc::new(crate::use_cases::queues::ProcessLlmRequest::new(
             queue.clone(),

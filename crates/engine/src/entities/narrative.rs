@@ -10,7 +10,7 @@ use wrldbldr_domain::{
 
 use crate::infrastructure::ports::{
     ChallengeRepo, ClockPort, FlagRepo, LocationRepo, NarrativeRepo, ObservationRepo,
-    PlayerCharacterRepo, RepoError, SceneRepo,
+    PlayerCharacterRepo, RepoError, SceneRepo, WorldRepo,
 };
 
 /// Narrative entity operations.
@@ -19,6 +19,7 @@ use crate::infrastructure::ports::{
 pub struct Narrative {
     repo: Arc<dyn NarrativeRepo>,
     location_repo: Arc<dyn LocationRepo>,
+    world_repo: Arc<dyn WorldRepo>,
     player_character_repo: Arc<dyn PlayerCharacterRepo>,
     observation_repo: Arc<dyn ObservationRepo>,
     challenge_repo: Arc<dyn ChallengeRepo>,
@@ -36,7 +37,7 @@ mod trigger_tests {
 
     use crate::infrastructure::ports::{
         ClockPort, MockChallengeRepo, MockFlagRepo, MockLocationRepo, MockNarrativeRepo,
-        MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
+        MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo, MockWorldRepo,
     };
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -60,6 +61,7 @@ mod trigger_tests {
             .returning(|_, _| Ok(vec![]));
 
         let location_repo = MockLocationRepo::new();
+        let world_repo = MockWorldRepo::new();
         let player_character_repo = MockPlayerCharacterRepo::new();
         let observation_repo = MockObservationRepo::new();
         let challenge_repo = MockChallengeRepo::new();
@@ -71,6 +73,7 @@ mod trigger_tests {
         let narrative = super::Narrative::new(
             Arc::new(narrative_repo),
             Arc::new(location_repo),
+            Arc::new(world_repo),
             Arc::new(player_character_repo),
             Arc::new(observation_repo),
             Arc::new(challenge_repo),
@@ -91,6 +94,7 @@ impl Narrative {
     pub fn new(
         repo: Arc<dyn NarrativeRepo>,
         location_repo: Arc<dyn LocationRepo>,
+        world_repo: Arc<dyn WorldRepo>,
         player_character_repo: Arc<dyn PlayerCharacterRepo>,
         observation_repo: Arc<dyn ObservationRepo>,
         challenge_repo: Arc<dyn ChallengeRepo>,
@@ -101,6 +105,7 @@ impl Narrative {
         Self {
             repo,
             location_repo,
+            world_repo,
             player_character_repo,
             observation_repo,
             challenge_repo,
@@ -224,20 +229,30 @@ impl Narrative {
         player_dialogue: String,
         npc_response: String,
         topics: Vec<String>,
-        _scene_id: Option<SceneId>,
-        _location_id: Option<LocationId>,
+        scene_id: Option<SceneId>,
+        location_id: Option<LocationId>,
         game_time: Option<String>,
     ) -> Result<StoryEventId, RepoError> {
         let event_id = StoryEventId::new();
         let timestamp = self.clock.now();
 
         // Get PC name from repo
-        let pc_name = self
-            .player_character_repo
-            .get(pc_id)
-            .await?
-            .map(|pc| pc.name)
+        let pc = self.player_character_repo.get(pc_id).await?;
+        let pc_name = pc
+            .as_ref()
+            .map(|pc| pc.name.clone())
             .unwrap_or_else(|| "Player".to_string());
+
+        let (pc_location_id, pc_region_id) = pc
+            .as_ref()
+            .map(|pc| (Some(pc.current_location_id), pc.current_region_id))
+            .unwrap_or((None, None));
+
+        let world_game_time = self
+            .world_repo
+            .get(world_id)
+            .await?
+            .map(|world| world.game_time);
 
         // Build summary from dialogue
         let summary = format!(
@@ -247,6 +262,12 @@ impl Narrative {
             truncate_dialogue(&player_dialogue, 50),
             truncate_dialogue(&npc_response, 50),
         );
+
+        let player_text = player_dialogue.clone();
+        let npc_text = npc_response.clone();
+        let topics_for_context = topics.clone();
+
+        let fallback_game_time = world_game_time.as_ref().map(|gt| gt.display_date());
 
         let event = StoryEvent {
             id: event_id,
@@ -260,7 +281,7 @@ impl Narrative {
                 tone: None,
             },
             timestamp,
-            game_time,
+            game_time: game_time.or(fallback_game_time),
             summary,
             is_hidden: false,
             tags: vec!["dialogue".to_string()],
@@ -274,6 +295,39 @@ impl Narrative {
         self.repo
             .update_spoke_to(pc_id, npc_id, timestamp, last_topic)
             .await?;
+
+        let resolved_scene_id = if scene_id.is_some() {
+            scene_id
+        } else {
+            self.scene_repo
+                .get_current(world_id)
+                .await?
+                .map(|scene| scene.id)
+        };
+
+        let resolved_location_id = location_id.or(pc_location_id);
+        let resolved_region_id = pc_region_id;
+
+        if let Err(e) = self
+            .repo
+            .record_dialogue_context(
+                world_id,
+                event_id,
+                pc_id,
+                npc_id,
+                player_text,
+                npc_text,
+                topics_for_context,
+                resolved_scene_id,
+                resolved_location_id,
+                resolved_region_id,
+                world_game_time.clone(),
+                timestamp,
+            )
+            .await
+        {
+            tracing::error!(error = %e, "Failed to record dialogue conversation context");
+        }
 
         Ok(event_id)
     }

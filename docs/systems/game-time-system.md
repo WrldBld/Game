@@ -237,6 +237,26 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
 
 ## Data Model
 
+### Neo4j Nodes (GameTime)
+
+```cypher
+(:GameTime {
+    id: "uuid",
+    day: 3,
+    hour: 19,
+    period: "Evening",
+    label: "Day 3, Evening (19:00)"
+})
+```
+
+### Neo4j Edges (Time Anchors)
+
+```cypher
+(conversation:Conversation)-[:OCCURRED_AT]->(time:GameTime)
+(turn:DialogueTurn)-[:OCCURRED_AT]->(time:GameTime)
+(event:StoryEvent)-[:OCCURRED_AT]->(time:GameTime)
+```
+
 ### Domain Types
 
 ```rust

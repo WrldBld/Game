@@ -3,7 +3,7 @@
 //! Handles NarrativeEvents, EventChains, and StoryEvents.
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Timelike, Utc};
 use neo4rs::{query, Graph, Node, Row};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -624,6 +624,393 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .run(q)
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn record_dialogue_context(
+        &self,
+        world_id: WorldId,
+        story_event_id: StoryEventId,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        player_dialogue: String,
+        npc_dialogue: String,
+        topics: Vec<String>,
+        scene_id: Option<SceneId>,
+        location_id: Option<LocationId>,
+        region_id: Option<RegionId>,
+        game_time: Option<GameTime>,
+        timestamp: DateTime<Utc>,
+    ) -> Result<(), RepoError> {
+        let scene_id_str = scene_id.map(|id| id.to_string()).unwrap_or_default();
+        let location_id_str = location_id.map(|id| id.to_string()).unwrap_or_default();
+        let region_id_str = region_id.map(|id| id.to_string()).unwrap_or_default();
+        let topic_hint = topics.first().cloned().unwrap_or_default();
+
+        let mut conversation_id = None;
+
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation {is_active: true})<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
+            OPTIONAL MATCH (c)-[:IN_SCENE]->(scene:Scene)
+            OPTIONAL MATCH (c)-[:AT_LOCATION]->(location:Location)
+            OPTIONAL MATCH (c)-[:AT_REGION]->(region:Region)
+            WHERE ($scene_id = '' OR scene.id = $scene_id)
+              AND ($location_id = '' OR location.id = $location_id)
+              AND ($region_id = '' OR region.id = $region_id)
+            RETURN c.id as id
+            ORDER BY c.last_updated_at DESC
+            LIMIT 1",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("npc_id", npc_id.to_string())
+        .param("scene_id", scene_id_str.clone())
+        .param("location_id", location_id_str.clone())
+        .param("region_id", region_id_str.clone());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let id: String = row.get("id").map_err(|e| RepoError::Database(e.to_string()))?;
+            conversation_id = Some(id);
+        }
+
+        let conversation_id = if let Some(existing_id) = conversation_id {
+            let q = query(
+                "MATCH (c:Conversation {id: $id})
+                SET c.last_updated_at = $timestamp,
+                    c.topic_hint = CASE
+                        WHEN c.topic_hint IS NULL OR c.topic_hint = '' THEN $topic_hint
+                        ELSE c.topic_hint
+                    END",
+            )
+            .param("id", existing_id.clone())
+            .param("timestamp", timestamp.to_rfc3339())
+            .param("topic_hint", topic_hint.clone());
+
+            self.graph
+                .run(q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+
+            existing_id
+        } else {
+            let new_id = Uuid::new_v4().to_string();
+            let q = query(
+                "MATCH (w:World {id: $world_id})
+                MATCH (pc:PlayerCharacter {id: $pc_id})
+                MATCH (npc:Character {id: $npc_id})
+                CREATE (c:Conversation {
+                    id: $conversation_id,
+                    world_id: $world_id,
+                    started_at: $timestamp,
+                    ended_at: '',
+                    topic_hint: $topic_hint,
+                    is_active: true,
+                    last_updated_at: $timestamp
+                })
+                MERGE (w)-[:HAS_CONVERSATION]->(c)
+                MERGE (pc)-[:PARTICIPATED_IN]->(c)
+                MERGE (npc)-[:PARTICIPATED_IN]->(c)",
+            )
+            .param("world_id", world_id.to_string())
+            .param("pc_id", pc_id.to_string())
+            .param("npc_id", npc_id.to_string())
+            .param("conversation_id", new_id.clone())
+            .param("timestamp", timestamp.to_rfc3339())
+            .param("topic_hint", topic_hint.clone());
+
+            self.graph
+                .run(q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+
+            new_id
+        };
+
+        if !scene_id_str.is_empty() {
+            let q = query(
+                "MATCH (c:Conversation {id: $conversation_id})
+                MATCH (scene:Scene {id: $scene_id})
+                MERGE (c)-[:IN_SCENE]->(scene)",
+            )
+            .param("conversation_id", conversation_id.clone())
+            .param("scene_id", scene_id_str.clone());
+
+            self.graph
+                .run(q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+        }
+
+        if !location_id_str.is_empty() {
+            let q = query(
+                "MATCH (c:Conversation {id: $conversation_id})
+                MATCH (location:Location {id: $location_id})
+                MERGE (c)-[:AT_LOCATION]->(location)",
+            )
+            .param("conversation_id", conversation_id.clone())
+            .param("location_id", location_id_str.clone());
+
+            self.graph
+                .run(q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+        }
+
+        if !region_id_str.is_empty() {
+            let q = query(
+                "MATCH (c:Conversation {id: $conversation_id})
+                MATCH (region:Region {id: $region_id})
+                MERGE (c)-[:AT_REGION]->(region)",
+            )
+            .param("conversation_id", conversation_id.clone())
+            .param("region_id", region_id_str.clone());
+
+            self.graph
+                .run(q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+        }
+
+        let mut time_node_id = None;
+        let mut turn_game_time = timestamp.to_rfc3339();
+
+        if let Some(gt) = game_time {
+            let time_id = Uuid::new_v4().to_string();
+            let current = gt.current();
+            let day = gt.day_ordinal() as i64;
+            let hour = current.hour() as i64;
+            let minute = current.minute() as i64;
+            let period = gt.time_of_day().display_name().to_string();
+            let label = format!("Day {}, {} ({:02}:{:02})", day, period, hour, minute);
+            turn_game_time = current.to_rfc3339();
+
+            let q = query(
+                "MERGE (t:GameTime {world_id: $world_id, day: $day, hour: $hour, minute: $minute})
+                ON CREATE SET
+                    t.id = $id,
+                    t.period = $period,
+                    t.label = $label
+                ON MATCH SET
+                    t.period = $period,
+                    t.label = $label
+                RETURN t.id as id",
+            )
+            .param("world_id", world_id.to_string())
+            .param("day", day)
+            .param("hour", hour)
+            .param("minute", minute)
+            .param("id", time_id.clone())
+            .param("period", period)
+            .param("label", label);
+
+            let mut result = self
+                .graph
+                .execute(q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+
+            if let Some(row) = result
+                .next()
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?
+            {
+                let id: String =
+                    row.get("id").map_err(|e| RepoError::Database(e.to_string()))?;
+                time_node_id = Some(id);
+            }
+        }
+
+        if let Some(ref time_id) = time_node_id {
+            let q = query(
+                "MATCH (c:Conversation {id: $conversation_id})
+                MATCH (t:GameTime {id: $time_id})
+                MERGE (c)-[:OCCURRED_AT]->(t)",
+            )
+            .param("conversation_id", conversation_id.clone())
+            .param("time_id", time_id.clone());
+
+            self.graph
+                .run(q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+        }
+
+        let last_order = {
+            let q = query(
+                "MATCH (c:Conversation {id: $conversation_id})-[:HAS_TURN]->(t:DialogueTurn)
+                RETURN COALESCE(max(t.order), 0) as last_order",
+            )
+            .param("conversation_id", conversation_id.clone());
+
+            let mut result = self
+                .graph
+                .execute(q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+
+            if let Some(row) = result
+                .next()
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?
+            {
+                row.get("last_order")
+                    .map_err(|e| RepoError::Database(e.to_string()))?
+            } else {
+                0
+            }
+        };
+
+        let player_order = last_order + 1;
+        let npc_order = last_order + 2;
+        let player_turn_id = Uuid::new_v4().to_string();
+        let npc_turn_id = Uuid::new_v4().to_string();
+
+        let q = query(
+            "MATCH (c:Conversation {id: $conversation_id})
+            CREATE (player:DialogueTurn {
+                id: $player_turn_id,
+                conversation_id: $conversation_id,
+                speaker_id: $pc_id,
+                speaker_type: 'pc',
+                text: $player_text,
+                order: $player_order,
+                is_dm_override: false,
+                is_llm_generated: false,
+                game_time: $game_time
+            })
+            CREATE (npc:DialogueTurn {
+                id: $npc_turn_id,
+                conversation_id: $conversation_id,
+                speaker_id: $npc_id,
+                speaker_type: 'npc',
+                text: $npc_text,
+                order: $npc_order,
+                is_dm_override: false,
+                is_llm_generated: true,
+                game_time: $game_time
+            })
+            MERGE (c)-[:HAS_TURN {order: $player_order}]->(player)
+            MERGE (c)-[:HAS_TURN {order: $npc_order}]->(npc)",
+        )
+        .param("conversation_id", conversation_id.clone())
+        .param("player_turn_id", player_turn_id.clone())
+        .param("npc_turn_id", npc_turn_id.clone())
+        .param("pc_id", pc_id.to_string())
+        .param("npc_id", npc_id.to_string())
+        .param("player_text", player_dialogue)
+        .param("npc_text", npc_dialogue)
+        .param("player_order", player_order)
+        .param("npc_order", npc_order)
+        .param("game_time", turn_game_time);
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        if !scene_id_str.is_empty() {
+            let q = query(
+                "MATCH (scene:Scene {id: $scene_id})
+                MATCH (player:DialogueTurn {id: $player_turn_id})
+                MATCH (npc:DialogueTurn {id: $npc_turn_id})
+                MERGE (player)-[:OCCURRED_IN_SCENE]->(scene)
+                MERGE (npc)-[:OCCURRED_IN_SCENE]->(scene)",
+            )
+            .param("scene_id", scene_id_str.clone())
+            .param("player_turn_id", player_turn_id.clone())
+            .param("npc_turn_id", npc_turn_id.clone());
+
+            self.graph
+                .run(q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+        }
+
+        if let Some(ref time_id) = time_node_id {
+            let q = query(
+                "MATCH (t:GameTime {id: $time_id})
+                MATCH (player:DialogueTurn {id: $player_turn_id})
+                MATCH (npc:DialogueTurn {id: $npc_turn_id})
+                MERGE (player)-[:OCCURRED_AT]->(t)
+                MERGE (npc)-[:OCCURRED_AT]->(t)",
+            )
+            .param("time_id", time_id.clone())
+            .param("player_turn_id", player_turn_id.clone())
+            .param("npc_turn_id", npc_turn_id.clone());
+
+            self.graph
+                .run(q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+        }
+
+        let q = query(
+            "MATCH (e:StoryEvent {id: $story_event_id})
+            MATCH (c:Conversation {id: $conversation_id})
+            MERGE (e)-[:PART_OF_CONVERSATION]->(c)",
+        )
+        .param("story_event_id", story_event_id.to_string())
+        .param("conversation_id", conversation_id.clone());
+
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        if !scene_id_str.is_empty() {
+            let q = query(
+                "MATCH (e:StoryEvent {id: $story_event_id})
+                MATCH (scene:Scene {id: $scene_id})
+                MERGE (e)-[:OCCURRED_IN_SCENE]->(scene)",
+            )
+            .param("story_event_id", story_event_id.to_string())
+            .param("scene_id", scene_id_str.clone());
+
+            self.graph
+                .run(q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+        }
+
+        if !location_id_str.is_empty() {
+            let q = query(
+                "MATCH (e:StoryEvent {id: $story_event_id})
+                MATCH (location:Location {id: $location_id})
+                MERGE (e)-[:OCCURRED_AT]->(location)",
+            )
+            .param("story_event_id", story_event_id.to_string())
+            .param("location_id", location_id_str);
+
+            self.graph
+                .run(q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+        }
+
+        if let Some(ref time_id) = time_node_id {
+            let q = query(
+                "MATCH (e:StoryEvent {id: $story_event_id})
+                MATCH (t:GameTime {id: $time_id})
+                MERGE (e)-[:OCCURRED_AT]->(t)",
+            )
+            .param("story_event_id", story_event_id.to_string())
+            .param("time_id", time_id.clone());
+
+            self.graph
+                .run(q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+        }
+
         Ok(())
     }
 

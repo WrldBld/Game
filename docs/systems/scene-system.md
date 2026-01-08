@@ -214,6 +214,10 @@ The visual novel format provides:
 // Interaction belongs to scene
 (interaction:InteractionTemplate)-[:BELONGS_TO_SCENE]->(scene:Scene)
 
+// Conversations occur within scenes
+(conversation:Conversation)-[:IN_SCENE]->(scene:Scene)
+(turn:DialogueTurn)-[:OCCURRED_IN_SCENE]->(scene:Scene)
+
 // Interaction targets
 (interaction:InteractionTemplate)-[:TARGETS_CHARACTER]->(character:Character)
 (interaction:InteractionTemplate)-[:TARGETS_ITEM]->(item:Item)

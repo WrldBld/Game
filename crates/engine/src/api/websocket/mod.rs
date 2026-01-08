@@ -18,6 +18,7 @@ use uuid::Uuid;
 mod ws_challenge;
 mod ws_core;
 mod ws_creator;
+mod ws_conversation;
 mod ws_dm;
 mod ws_event_chain;
 mod ws_actantial;
@@ -479,6 +480,18 @@ async fn handle_message(
                 dialogue,
             )
             .await
+        }
+
+        ClientMessage::StartConversation { npc_id, message } => {
+            ws_conversation::handle_start_conversation(state, connection_id, npc_id, message).await
+        }
+
+        ClientMessage::ContinueConversation { npc_id, message } => {
+            ws_conversation::handle_continue_conversation(state, connection_id, npc_id, message).await
+        }
+
+        ClientMessage::PerformInteraction { interaction_id } => {
+            ws_conversation::handle_perform_interaction(state, connection_id, interaction_id).await
         }
 
         // Forward compatibility - return error so client doesn't hang
@@ -1096,6 +1109,7 @@ mod ws_integration_tests_inline {
         let narrative = Arc::new(crate::entities::Narrative::new(
             narrative_repo.clone(),
             location_repo.clone(),
+            world_repo.clone(),
             player_character_repo.clone(),
             observation_repo.clone(),
             challenge_repo.clone(),
@@ -1211,7 +1225,11 @@ mod ws_integration_tests_inline {
         );
 
         let player_action = crate::use_cases::PlayerActionUseCases::new(Arc::new(
-            crate::use_cases::player_action::HandlePlayerAction::new(conversation_start),
+            crate::use_cases::player_action::HandlePlayerAction::new(
+                conversation_start,
+                queue.clone(),
+                clock.clone(),
+            ),
         ));
 
         let actantial = crate::use_cases::ActantialUseCases::new(
@@ -1309,6 +1327,8 @@ mod ws_integration_tests_inline {
                 character.clone(),
                 player_character.clone(),
                 staging.clone(),
+                scene.clone(),
+                world.clone(),
             )),
             Arc::new(crate::use_cases::queues::ProcessLlmRequest::new(
                 queue.clone(),

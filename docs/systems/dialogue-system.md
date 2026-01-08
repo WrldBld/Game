@@ -4,6 +4,8 @@
 
 The Dialogue System powers NPC conversations using an LLM (Ollama). When a player speaks to an NPC, the Engine builds rich context from the graph database (character motivations, relationships, location, narrative events) and sends it to the LLM. The generated response goes to the DM for approval before the player sees it. The LLM can also suggest tool calls (give items, change relationships) and challenge/event triggers.
 
+Conversations are persisted as first-class graph nodes tied to scenes and game time so dialogue history can drive narrative triggers, time-based availability, and scene continuity.
+
 ---
 
 ## Game Design
@@ -91,7 +93,7 @@ This is the heart of the AI game master experience:
   - *Implementation*: `ApprovalRequestData` includes `scene_id`, `location_id`, `game_time` fields
   - *Completed*: 2026-01-03 context now available (graph edges for scene/location TBD)
 
-> **Note**: Core dialogue persistence works for LLM context. Graph edges for OCCURRED_IN_SCENE and OCCURRED_AT are defined but not yet created during save.
+> **Note**: Dialogue history is stored in Conversation + DialogueTurn nodes, with StoryEvents linked for narrative history queries. Scene and GameTime edges are part of the model.
 
 ---
 
@@ -162,6 +164,42 @@ This is the heart of the AI game master experience:
 ---
 
 ## Data Model
+
+### Conversation + DialogueTurn Nodes
+
+```cypher
+(:Conversation {
+    id: "uuid",
+    started_at: datetime(),
+    ended_at: datetime(),
+    topic_hint: "Baron's whereabouts",
+    is_active: true,
+    last_updated_at: datetime()
+})
+
+(:DialogueTurn {
+    id: "uuid",
+    speaker_id: "uuid",
+    speaker_type: "pc|npc",
+    text: "The Baron? A dangerous man...",
+    order: 3,
+    is_dm_override: false,
+    is_llm_generated: true,
+    game_time: datetime()
+})
+```
+
+### Conversation Context Edges
+
+```cypher
+(pc:PlayerCharacter)-[:PARTICIPATED_IN]->(conversation:Conversation)
+(npc:Character)-[:PARTICIPATED_IN]->(conversation:Conversation)
+(conversation)-[:IN_SCENE]->(scene:Scene)
+(conversation)-[:AT_LOCATION]->(location:Location)
+(conversation)-[:AT_REGION]->(region:Region)
+(conversation)-[:HAS_TURN {order: 3}]->(turn:DialogueTurn)
+(turn)-[:OCCURRED_AT]->(time:GameTime)
+```
 
 ### Context Categories
 
