@@ -286,3 +286,133 @@ impl From<crate::infrastructure::ports::RepoError> for ApiError {
         ApiError::Internal(e.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use chrono::Utc;
+    use tower::ServiceExt;
+
+    use crate::api::websocket::test_support::TestAppRepos;
+    use crate::infrastructure::ports::MockWorldRepo;
+
+    fn build_router_with_repos(mut repos: TestAppRepos) -> Router {
+        repos
+            .settings_repo
+            .expect_get_global()
+            .returning(|| Ok(None));
+
+        let app = crate::api::websocket::test_support::build_test_app(repos, Utc::now());
+        routes().with_state(app)
+    }
+
+    async fn read_body_json<T: serde::de::DeserializeOwned>(
+        response: axum::response::Response,
+    ) -> T {
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        serde_json::from_slice(&body).unwrap()
+    }
+
+    #[tokio::test]
+    async fn get_settings_returns_defaults() {
+        let repos = TestAppRepos::new(MockWorldRepo::new());
+        let router = build_router_with_repos(repos);
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/settings")
+                    .method(axum::http::Method::GET)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let settings: wrldbldr_domain::AppSettings = read_body_json(response).await;
+        assert_eq!(settings, wrldbldr_domain::AppSettings::default());
+    }
+
+    #[tokio::test]
+    async fn get_settings_metadata_returns_entries() {
+        let repos = TestAppRepos::new(MockWorldRepo::new());
+        let router = build_router_with_repos(repos);
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/settings/metadata")
+                    .method(axum::http::Method::GET)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let metadata: Vec<wrldbldr_domain::SettingsFieldMetadata> =
+            read_body_json(response).await;
+        assert!(!metadata.is_empty());
+    }
+
+    #[tokio::test]
+    async fn update_world_settings_rejects_mismatched_world_id() {
+        let mut repos = TestAppRepos::new(MockWorldRepo::new());
+        repos
+            .settings_repo
+            .expect_save_for_world()
+            .times(0);
+
+        let app = crate::api::websocket::test_support::build_test_app(repos, Utc::now());
+        let router: Router = routes().with_state(app);
+
+        let world_id = Uuid::new_v4();
+        let other_world_id = Uuid::new_v4();
+        let mut settings = wrldbldr_domain::AppSettings::default();
+        settings.world_id = Some(wrldbldr_domain::WorldId::from_uuid(other_world_id));
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri(format!("/api/worlds/{}/settings", world_id))
+                    .method(axum::http::Method::PUT)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(serde_json::to_vec(&settings).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn get_rule_system_preset_returns_config() {
+        let repos = TestAppRepos::new(MockWorldRepo::new());
+        let router = build_router_with_repos(repos);
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/rule-systems/D20/presets/Dnd5e")
+                    .method(axum::http::Method::GET)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let preset: serde_json::Value = read_body_json(response).await;
+        assert_eq!(preset["variant"], "dnd5e");
+        assert_eq!(preset["config"]["system_type"], "d20");
+    }
+}
