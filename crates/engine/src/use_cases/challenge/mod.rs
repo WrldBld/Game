@@ -9,10 +9,12 @@
 
 use std::sync::Arc;
 
+use uuid::Uuid;
 use wrldbldr_domain::{
     ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency, ChallengeId, ChallengeOutcomeData,
-    OutcomeTrigger, OutcomeType, PlayerCharacterId, ProposedTool, WorldId,
+    DiceRollInput, OutcomeTrigger, OutcomeType, PlayerCharacterId, ProposedTool, WorldId,
 };
+use wrldbldr_domain::value_objects::DiceParseError;
 
 mod crud;
 
@@ -26,6 +28,7 @@ pub struct ChallengeUseCases {
     pub roll: Arc<RollChallenge>,
     pub resolve: Arc<ResolveOutcome>,
     pub trigger_prompt: Arc<TriggerChallengePrompt>,
+    pub outcome_decision: Arc<OutcomeDecision>,
     pub ops: Arc<ChallengeOps>,
 }
 
@@ -34,12 +37,14 @@ impl ChallengeUseCases {
         roll: Arc<RollChallenge>,
         resolve: Arc<ResolveOutcome>,
         trigger_prompt: Arc<TriggerChallengePrompt>,
+        outcome_decision: Arc<OutcomeDecision>,
         ops: Arc<ChallengeOps>,
     ) -> Self {
         Self {
             roll,
             resolve,
             trigger_prompt,
+            outcome_decision,
             ops,
         }
     }
@@ -291,6 +296,27 @@ impl RollChallenge {
             roll_breakdown: outcome_data.roll_breakdown,
         })
     }
+
+    pub async fn execute_with_input(
+        &self,
+        world_id: WorldId,
+        challenge_id: ChallengeId,
+        pc_id: PlayerCharacterId,
+        input: DiceRollInput,
+    ) -> Result<RollResult, ChallengeError> {
+        let roll_result = input
+            .resolve(|min, max| self.random.gen_range(min, max))
+            .map_err(ChallengeError::DiceParse)?;
+
+        self.execute(
+            world_id,
+            challenge_id,
+            pc_id,
+            Some(roll_result.dice_total),
+            roll_result.modifier_applied,
+        )
+        .await
+    }
 }
 
 /// Resolve challenge outcome use case.
@@ -508,6 +534,196 @@ impl ResolveOutcome {
     }
 }
 
+/// Decision flow for challenge outcome approvals.
+pub struct OutcomeDecision {
+    queue: Arc<dyn QueuePort>,
+    resolve: Arc<ResolveOutcome>,
+}
+
+impl OutcomeDecision {
+    pub fn new(queue: Arc<dyn QueuePort>, resolve: Arc<ResolveOutcome>) -> Self {
+        Self { queue, resolve }
+    }
+
+    pub async fn execute(
+        &self,
+        world_id: WorldId,
+        resolution_id: String,
+        decision: wrldbldr_protocol::ChallengeOutcomeDecisionData,
+    ) -> Result<OutcomeDecisionResult, OutcomeDecisionError> {
+        let approval_id = Uuid::parse_str(&resolution_id)
+            .map_err(|_| OutcomeDecisionError::InvalidResolutionId)?;
+
+        let approval_data = self
+            .queue
+            .get_approval_request(approval_id)
+            .await
+            .map_err(|e| OutcomeDecisionError::QueueError(e.to_string()))?
+            .ok_or(OutcomeDecisionError::ApprovalNotFound)?;
+
+        let outcome_data = approval_data
+            .challenge_outcome
+            .ok_or(OutcomeDecisionError::MissingOutcomeData)?;
+
+        let challenge_id = parse_challenge_id_str(&outcome_data.challenge_id)
+            .ok_or(OutcomeDecisionError::InvalidChallengeId)?;
+        let outcome_type = parse_outcome_type(&outcome_data.outcome_type);
+
+        match decision {
+            wrldbldr_protocol::ChallengeOutcomeDecisionData::Accept => {
+                let pc_id = approval_data.pc_id.ok_or(OutcomeDecisionError::MissingPcId)?;
+                self.resolve
+                    .execute_for_pc(challenge_id, outcome_type.clone(), pc_id)
+                    .await
+                    .map_err(OutcomeDecisionError::Resolve)?;
+
+                if let Err(e) = self.queue.mark_complete(approval_id).await {
+                    tracing::warn!(error = %e, "Failed to mark approval request as complete");
+                }
+
+                Ok(OutcomeDecisionResult::Resolved(ChallengeResolvedPayload {
+                    challenge_id: outcome_data.challenge_id.clone(),
+                    challenge_name: outcome_data.challenge_name.clone(),
+                    character_name: outcome_data.character_name.clone(),
+                    roll: outcome_data.roll,
+                    modifier: outcome_data.modifier,
+                    total: outcome_data.total,
+                    outcome: outcome_type_to_str(&outcome_type).to_string(),
+                    outcome_description: outcome_data.outcome_description.clone(),
+                    roll_breakdown: outcome_data.roll_breakdown.clone(),
+                }))
+            }
+            wrldbldr_protocol::ChallengeOutcomeDecisionData::Edit { modified_description } => {
+                let pc_id = approval_data.pc_id.ok_or(OutcomeDecisionError::MissingPcId)?;
+                self.resolve
+                    .execute_for_pc(challenge_id, outcome_type.clone(), pc_id)
+                    .await
+                    .map_err(OutcomeDecisionError::Resolve)?;
+
+                if let Err(e) = self.queue.mark_complete(approval_id).await {
+                    tracing::warn!(error = %e, "Failed to mark approval request as complete");
+                }
+
+                Ok(OutcomeDecisionResult::Resolved(ChallengeResolvedPayload {
+                    challenge_id: outcome_data.challenge_id.clone(),
+                    challenge_name: outcome_data.challenge_name.clone(),
+                    character_name: outcome_data.character_name.clone(),
+                    roll: outcome_data.roll,
+                    modifier: outcome_data.modifier,
+                    total: outcome_data.total,
+                    outcome: outcome_type_to_str(&outcome_type).to_string(),
+                    outcome_description: modified_description,
+                    roll_breakdown: outcome_data.roll_breakdown.clone(),
+                }))
+            }
+            wrldbldr_protocol::ChallengeOutcomeDecisionData::Suggest { guidance } => {
+                let llm_request = wrldbldr_domain::LlmRequestData {
+                    request_type: wrldbldr_domain::LlmRequestType::OutcomeSuggestion {
+                        resolution_id: approval_id,
+                        world_id,
+                        challenge_name: outcome_data.challenge_name.clone(),
+                        current_description: outcome_data.outcome_description.clone(),
+                        guidance: guidance.clone(),
+                    },
+                    world_id,
+                    pc_id: approval_data.pc_id,
+                    prompt: None,
+                    suggestion_context: Some(wrldbldr_domain::SuggestionContext {
+                        entity_type: Some("challenge_outcome".to_string()),
+                        entity_name: Some(outcome_data.challenge_name.clone()),
+                        world_setting: None,
+                        hints: guidance.clone(),
+                        additional_context: Some(format!(
+                            "Current outcome: {} ({})\nRoll: {} + {} = {}",
+                            outcome_data.outcome_description,
+                            outcome_data.outcome_type,
+                            outcome_data.roll,
+                            outcome_data.modifier,
+                            outcome_data.total
+                        )),
+                        world_id: Some(world_id),
+                    }),
+                    callback_id: format!("outcome_suggestion:{}", approval_id),
+                };
+
+                self.queue
+                    .enqueue_llm_request(&llm_request)
+                    .await
+                    .map_err(|e| OutcomeDecisionError::QueueError(e.to_string()))?;
+
+                Ok(OutcomeDecisionResult::Queued)
+            }
+            wrldbldr_protocol::ChallengeOutcomeDecisionData::Unknown => {
+                Err(OutcomeDecisionError::InvalidDecision)
+            }
+        }
+    }
+}
+
+pub enum OutcomeDecisionResult {
+    Resolved(ChallengeResolvedPayload),
+    Queued,
+}
+
+pub struct ChallengeResolvedPayload {
+    pub challenge_id: String,
+    pub challenge_name: String,
+    pub character_name: String,
+    pub roll: i32,
+    pub modifier: i32,
+    pub total: i32,
+    pub outcome: String,
+    pub outcome_description: String,
+    pub roll_breakdown: Option<String>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum OutcomeDecisionError {
+    #[error("Approval request not found")]
+    ApprovalNotFound,
+    #[error("Invalid resolution ID")]
+    InvalidResolutionId,
+    #[error("Invalid challenge ID")]
+    InvalidChallengeId,
+    #[error("No challenge outcome data in approval request")]
+    MissingOutcomeData,
+    #[error("Missing target PC")]
+    MissingPcId,
+    #[error("Invalid decision")]
+    InvalidDecision,
+    #[error("Queue error: {0}")]
+    QueueError(String),
+    #[error("Resolve error: {0}")]
+    Resolve(#[from] ChallengeError),
+}
+
+fn parse_challenge_id_str(id_str: &str) -> Option<ChallengeId> {
+    Uuid::parse_str(id_str)
+        .ok()
+        .map(ChallengeId::from_uuid)
+}
+
+fn parse_outcome_type(outcome_type: &str) -> OutcomeType {
+    match outcome_type {
+        "CriticalSuccess" => OutcomeType::CriticalSuccess,
+        "Success" => OutcomeType::Success,
+        "Partial" => OutcomeType::Partial,
+        "Failure" => OutcomeType::Failure,
+        "CriticalFailure" => OutcomeType::CriticalFailure,
+        _ => OutcomeType::Success,
+    }
+}
+
+fn outcome_type_to_str(outcome_type: &OutcomeType) -> &'static str {
+    match outcome_type {
+        OutcomeType::CriticalSuccess => "critical_success",
+        OutcomeType::Success => "success",
+        OutcomeType::Partial => "partial",
+        OutcomeType::Failure => "failure",
+        OutcomeType::CriticalFailure => "critical_failure",
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ChallengeError {
     #[error("Challenge not found")]
@@ -516,6 +732,8 @@ pub enum ChallengeError {
     PlayerCharacterNotFound,
     #[error("Missing target player character for challenge outcome")]
     MissingTargetPc,
+    #[error("Dice parse error: {0}")]
+    DiceParse(#[from] DiceParseError),
     #[error("Queue error: {0}")]
     QueueError(String),
     #[error("Repository error: {0}")]

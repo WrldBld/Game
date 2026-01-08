@@ -1,4 +1,5 @@
 use super::*;
+use crate::use_cases::narrative::decision::NarrativeDecisionError;
 use crate::api::connections::ConnectionInfo;
 use serde_json::json;
 use wrldbldr_domain::{self as domain, NarrativeTrigger};
@@ -236,6 +237,80 @@ pub(super) async fn handle_narrative_event_request(
         NarrativeEventRequest::GetTriggerSchema => {
             let schema = TriggerSchema::generate();
             Ok(ResponseResult::success(json!(schema)))
+        }
+    }
+}
+
+pub(super) async fn handle_narrative_event_decision(
+    state: &WsState,
+    connection_id: Uuid,
+    request_id: String,
+    event_id: String,
+    approved: bool,
+    selected_outcome: Option<String>,
+) -> Option<ServerMessage> {
+    // Get connection info - only DMs can make decisions
+    let conn_info = match state.connections.get(connection_id).await {
+        Some(info) => info,
+        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+    };
+
+    if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
+    }
+
+    // Parse request ID as approval UUID
+    let approval_id = match parse_id(&request_id, |u| u, "Invalid request ID") {
+        Ok(id) => id,
+        Err(e) => return Some(e),
+    };
+
+    let decision = if approved {
+        wrldbldr_domain::DmApprovalDecision::Accept
+    } else {
+        wrldbldr_domain::DmApprovalDecision::Reject {
+            feedback: "Narrative event rejected by DM".to_string(),
+        }
+    };
+
+    let narrative_event_id = match parse_id(
+        &event_id,
+        NarrativeEventId::from_uuid,
+        "Invalid event ID",
+    ) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
+    };
+
+    match state
+        .app
+        .use_cases
+        .narrative
+        .decision_flow
+        .execute(approval_id, decision, narrative_event_id, selected_outcome)
+        .await
+    {
+        Ok(result) => {
+            if let Some(triggered) = result.triggered {
+                let msg = ServerMessage::NarrativeEventTriggered {
+                    event_id: triggered.event_id,
+                    event_name: triggered.event_name,
+                    outcome_description: triggered.outcome_description,
+                    scene_direction: triggered.scene_direction,
+                };
+                state
+                    .connections
+                    .broadcast_to_world(result.world_id, msg)
+                    .await;
+            }
+            None
+        }
+        Err(NarrativeDecisionError::ApprovalNotFound) => {
+            Some(error_response("NOT_FOUND", "Approval request not found"))
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "Narrative event decision failed");
+            Some(error_response("APPROVAL_ERROR", &e.to_string()))
         }
     }
 }

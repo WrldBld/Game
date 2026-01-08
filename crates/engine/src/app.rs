@@ -229,6 +229,18 @@ impl App {
             character.clone(),
         )));
 
+        let resolve_outcome = Arc::new(use_cases::challenge::ResolveOutcome::new(
+            challenge.clone(),
+            inventory.clone(),
+            observation.clone(),
+            scene.clone(),
+            player_character.clone(),
+        ));
+        let outcome_decision = Arc::new(use_cases::challenge::OutcomeDecision::new(
+            queue_port.clone(),
+            resolve_outcome.clone(),
+        ));
+
         let challenge_uc = use_cases::ChallengeUseCases::new(
             Arc::new(use_cases::challenge::RollChallenge::new(
                 challenge.clone(),
@@ -237,24 +249,24 @@ impl App {
                 random.clone(),
                 clock.clone(),
             )),
-            Arc::new(use_cases::challenge::ResolveOutcome::new(
-                challenge.clone(),
-                inventory.clone(),
-                observation.clone(),
-                scene.clone(),
-                player_character.clone(),
-            )),
+            resolve_outcome,
             Arc::new(use_cases::challenge::TriggerChallengePrompt::new(
                 challenge.clone(),
             )),
+            outcome_decision,
             Arc::new(use_cases::challenge::ChallengeOps::new(
                 challenge.clone(),
             )),
         );
 
+        let approve_suggestion =
+            Arc::new(use_cases::approval::ApproveSuggestion::new(queue_port.clone()));
         let approval = use_cases::ApprovalUseCases::new(
             Arc::new(use_cases::approval::ApproveStaging::new(staging.clone())),
-            Arc::new(use_cases::approval::ApproveSuggestion::new(
+            approve_suggestion.clone(),
+            Arc::new(use_cases::approval::ApprovalDecisionFlow::new(
+                approve_suggestion.clone(),
+                narrative.clone(),
                 queue_port.clone(),
             )),
         );
@@ -297,7 +309,7 @@ impl App {
                 staging.clone(),
             )),
             Arc::new(use_cases::queues::ProcessLlmRequest::new(
-                queue_port,
+                queue_port.clone(),
                 llm.clone(),
             )),
         );
@@ -318,8 +330,18 @@ impl App {
             execute_effects.clone(),
         ));
         let narrative_chains = Arc::new(use_cases::narrative::EventChainOps::new(narrative.clone()));
-        let narrative_uc =
-            use_cases::NarrativeUseCases::new(execute_effects, narrative_events, narrative_chains);
+        let narrative_decision = Arc::new(use_cases::narrative::NarrativeDecisionFlow::new(
+            approve_suggestion.clone(),
+            queue_port.clone(),
+            narrative.clone(),
+            execute_effects.clone(),
+        ));
+        let narrative_uc = use_cases::NarrativeUseCases::new(
+            execute_effects,
+            narrative_events,
+            narrative_chains,
+            narrative_decision,
+        );
 
         let time_control = Arc::new(use_cases::time::TimeControl::new(world.clone()));
         let time_suggestions = Arc::new(use_cases::time::TimeSuggestions::new(time_control.clone()));

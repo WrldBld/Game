@@ -595,6 +595,18 @@ pub(crate) fn build_test_app_with_ports(
         crate::use_cases::ai::SuggestionOps::new(queue.clone(), world.clone(), character.clone()),
     ));
 
+    let resolve_outcome = Arc::new(crate::use_cases::challenge::ResolveOutcome::new(
+        challenge.clone(),
+        inventory.clone(),
+        observation.clone(),
+        scene.clone(),
+        player_character.clone(),
+    ));
+    let outcome_decision = Arc::new(crate::use_cases::challenge::OutcomeDecision::new(
+        queue.clone(),
+        resolve_outcome.clone(),
+    ));
+
     let challenge_uc = crate::use_cases::ChallengeUseCases::new(
         Arc::new(crate::use_cases::challenge::RollChallenge::new(
             challenge.clone(),
@@ -603,26 +615,26 @@ pub(crate) fn build_test_app_with_ports(
             random,
             clock.clone(),
         )),
-        Arc::new(crate::use_cases::challenge::ResolveOutcome::new(
-            challenge.clone(),
-            inventory.clone(),
-            observation.clone(),
-            scene.clone(),
-            player_character.clone(),
-        )),
+        resolve_outcome,
         Arc::new(crate::use_cases::challenge::TriggerChallengePrompt::new(
             challenge.clone(),
         )),
+        outcome_decision,
         Arc::new(crate::use_cases::challenge::ChallengeOps::new(
             challenge.clone(),
         )),
     );
 
+    let approve_suggestion =
+        Arc::new(crate::use_cases::approval::ApproveSuggestion::new(queue.clone()));
     let approval = crate::use_cases::ApprovalUseCases::new(
         Arc::new(crate::use_cases::approval::ApproveStaging::new(
             staging.clone(),
         )),
-        Arc::new(crate::use_cases::approval::ApproveSuggestion::new(
+        approve_suggestion.clone(),
+        Arc::new(crate::use_cases::approval::ApprovalDecisionFlow::new(
+            approve_suggestion,
+            narrative.clone(),
             queue.clone(),
         )),
     );
@@ -688,8 +700,18 @@ pub(crate) fn build_test_app_with_ports(
     ));
     let narrative_chains =
         Arc::new(crate::use_cases::narrative::EventChainOps::new(narrative.clone()));
-    let narrative_uc =
-        crate::use_cases::NarrativeUseCases::new(execute_effects, narrative_events, narrative_chains);
+    let narrative_decision = Arc::new(crate::use_cases::narrative::NarrativeDecisionFlow::new(
+        approve_suggestion.clone(),
+        queue.clone(),
+        narrative.clone(),
+        execute_effects.clone(),
+    ));
+    let narrative_uc = crate::use_cases::NarrativeUseCases::new(
+        execute_effects,
+        narrative_events,
+        narrative_chains,
+        narrative_decision,
+    );
 
     let time_control = Arc::new(crate::use_cases::time::TimeControl::new(world.clone()));
     let time_suggestions =

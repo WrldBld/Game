@@ -1,10 +1,12 @@
 //! Narrative use cases - Event triggering and effect execution.
 
 pub mod chains;
+pub mod decision;
 pub mod execute_effects;
 pub mod events;
 
 pub use chains::{EventChainError, EventChainOps};
+pub use decision::{NarrativeDecisionFlow, NarrativeDecisionOutcome, NarrativeTriggeredPayload};
 pub use execute_effects::{
     EffectExecutionContext, EffectExecutionResult, EffectExecutionSummary, ExecuteEffects,
 };
@@ -17,6 +19,7 @@ pub struct NarrativeUseCases {
     pub execute_effects: Arc<ExecuteEffects>,
     pub events: Arc<NarrativeEventOps>,
     pub chains: Arc<EventChainOps>,
+    pub decision_flow: Arc<NarrativeDecisionFlow>,
 }
 
 impl NarrativeUseCases {
@@ -24,11 +27,13 @@ impl NarrativeUseCases {
         execute_effects: Arc<ExecuteEffects>,
         events: Arc<NarrativeEventOps>,
         chains: Arc<EventChainOps>,
+        decision_flow: Arc<NarrativeDecisionFlow>,
     ) -> Self {
         Self {
             execute_effects,
             events,
             chains,
+            decision_flow,
         }
     }
 }

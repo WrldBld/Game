@@ -18,17 +18,24 @@ use uuid::Uuid;
 mod ws_challenge;
 mod ws_core;
 mod ws_creator;
+mod ws_dm;
 mod ws_event_chain;
 mod ws_actantial;
+mod ws_inventory;
 mod ws_location;
 mod ws_lore;
+mod ws_movement;
 mod ws_narrative_event;
+mod ws_player_action;
 mod ws_player;
+mod ws_session;
 mod ws_scene;
 mod ws_skill;
 mod ws_story_events;
+mod ws_staging;
+mod ws_time;
+mod ws_approval;
 
-use crate::use_cases::narrative::EffectExecutionContext;
 use wrldbldr_domain::{
     ActId, ChallengeId, CharacterId, EventChainId, GoalId, InteractionId, ItemId, LocationId,
     MoodState, NarrativeEventId, PlayerCharacterId, RegionId, SceneId, SkillId, StagingSource,
@@ -41,7 +48,6 @@ use wrldbldr_protocol::{
 
 use super::connections::ConnectionManager;
 use crate::app::App;
-use crate::use_cases::movement::{EnterRegionError, StagingStatus};
 use crate::use_cases::staging::PendingStagingRequest;
 
 /// Buffer size for per-connection message channel.
@@ -156,28 +162,18 @@ async fn handle_message(
             role,
             pc_id,
             spectate_pc_id,
-        } => handle_join_world(state, connection_id, world_id, role, pc_id, spectate_pc_id).await,
+        } => {
+            ws_session::handle_join_world(state, connection_id, world_id, role, pc_id, spectate_pc_id)
+                .await
+        }
 
         ClientMessage::LeaveWorld => {
-            // Broadcast UserLeft to other world members before leaving
-            if let Some(conn_info) = state.connections.get(connection_id).await {
-                if let Some(world_id) = conn_info.world_id {
-                    let user_left_msg = ServerMessage::UserLeft {
-                        user_id: conn_info.user_id,
-                    };
-                    state
-                        .connections
-                        .broadcast_to_world_except(world_id, connection_id, user_left_msg)
-                        .await;
-                }
-            }
-            state.connections.leave_world(connection_id).await;
-            None
+            ws_session::handle_leave_world(state, connection_id).await
         }
 
         // Movement
         ClientMessage::MoveToRegion { pc_id, region_id } => {
-            handle_move_to_region(state, connection_id, pc_id, region_id).await
+            ws_movement::handle_move_to_region(state, connection_id, pc_id, region_id).await
         }
 
         ClientMessage::ExitToLocation {
@@ -185,16 +181,22 @@ async fn handle_message(
             location_id,
             arrival_region_id,
         } => {
-            handle_exit_to_location(state, connection_id, pc_id, location_id, arrival_region_id)
-                .await
+            ws_movement::handle_exit_to_location(
+                state,
+                connection_id,
+                pc_id,
+                location_id,
+                arrival_region_id,
+            )
+            .await
         }
 
         // Inventory
         ClientMessage::EquipItem { pc_id, item_id } => {
-            handle_inventory_action(
+            ws_inventory::handle_inventory_action(
                 state,
                 connection_id,
-                InventoryAction::Equip,
+                ws_inventory::InventoryAction::Equip,
                 &pc_id,
                 &item_id,
                 1,
@@ -202,10 +204,10 @@ async fn handle_message(
             .await
         }
         ClientMessage::UnequipItem { pc_id, item_id } => {
-            handle_inventory_action(
+            ws_inventory::handle_inventory_action(
                 state,
                 connection_id,
-                InventoryAction::Unequip,
+                ws_inventory::InventoryAction::Unequip,
                 &pc_id,
                 &item_id,
                 1,
@@ -217,10 +219,10 @@ async fn handle_message(
             item_id,
             quantity,
         } => {
-            handle_inventory_action(
+            ws_inventory::handle_inventory_action(
                 state,
                 connection_id,
-                InventoryAction::Drop,
+                ws_inventory::InventoryAction::Drop,
                 &pc_id,
                 &item_id,
                 quantity,
@@ -228,10 +230,10 @@ async fn handle_message(
             .await
         }
         ClientMessage::PickupItem { pc_id, item_id } => {
-            handle_inventory_action(
+            ws_inventory::handle_inventory_action(
                 state,
                 connection_id,
-                InventoryAction::Pickup,
+                ws_inventory::InventoryAction::Pickup,
                 &pc_id,
                 &item_id,
                 1,
@@ -247,19 +249,28 @@ async fn handle_message(
 
         // Challenge handlers
         ClientMessage::ChallengeRoll { challenge_id, roll } => {
-            handle_challenge_roll(state, connection_id, challenge_id, roll).await
+            ws_challenge::handle_challenge_roll(state, connection_id, challenge_id, roll).await
         }
 
         ClientMessage::ChallengeRollInput {
             challenge_id,
             input_type,
-        } => handle_challenge_roll_input(state, connection_id, challenge_id, input_type).await,
+        } => {
+            ws_challenge::handle_challenge_roll_input(state, connection_id, challenge_id, input_type)
+                .await
+        }
 
         ClientMessage::TriggerChallenge {
             challenge_id,
             target_character_id,
         } => {
-            handle_trigger_challenge(state, connection_id, challenge_id, target_character_id).await
+            ws_challenge::handle_trigger_challenge(
+                state,
+                connection_id,
+                challenge_id,
+                target_character_id,
+            )
+            .await
         }
 
         // Staging handlers
@@ -271,7 +282,7 @@ async fn handle_message(
             location_state_id,
             region_state_id,
         } => {
-            handle_staging_approval(
+            ws_staging::handle_staging_approval(
                 state,
                 connection_id,
                 request_id,
@@ -287,7 +298,9 @@ async fn handle_message(
         ClientMessage::StagingRegenerateRequest {
             request_id,
             guidance,
-        } => handle_staging_regenerate(state, connection_id, request_id, guidance).await,
+        } => {
+            ws_staging::handle_staging_regenerate(state, connection_id, request_id, guidance).await
+        }
 
         ClientMessage::PreStageRegion {
             region_id,
@@ -296,7 +309,7 @@ async fn handle_message(
             location_state_id,
             region_state_id,
         } => {
-            handle_pre_stage_region(
+            ws_staging::handle_pre_stage_region(
                 state,
                 connection_id,
                 region_id,
@@ -312,14 +325,14 @@ async fn handle_message(
         ClientMessage::ApprovalDecision {
             request_id,
             decision,
-        } => handle_approval_decision(state, connection_id, request_id, decision).await,
+        } => ws_approval::handle_approval_decision(state, connection_id, request_id, decision).await,
 
         ClientMessage::ChallengeSuggestionDecision {
             request_id,
             approved,
             modified_difficulty,
         } => {
-            handle_challenge_suggestion_decision(
+            ws_challenge::handle_challenge_suggestion_decision(
                 state,
                 connection_id,
                 request_id,
@@ -332,7 +345,15 @@ async fn handle_message(
         ClientMessage::ChallengeOutcomeDecision {
             resolution_id,
             decision,
-        } => handle_challenge_outcome_decision(state, connection_id, resolution_id, decision).await,
+        } => {
+            ws_challenge::handle_challenge_outcome_decision(
+                state,
+                connection_id,
+                resolution_id,
+                decision,
+            )
+            .await
+        }
 
         ClientMessage::NarrativeEventSuggestionDecision {
             request_id,
@@ -340,7 +361,7 @@ async fn handle_message(
             approved,
             selected_outcome,
         } => {
-            handle_narrative_event_decision(
+            ws_narrative_event::handle_narrative_event_decision(
                 state,
                 connection_id,
                 request_id,
@@ -353,7 +374,7 @@ async fn handle_message(
 
         // DM action handlers
         ClientMessage::DirectorialUpdate { context } => {
-            handle_directorial_update(state, connection_id, context).await
+            ws_dm::handle_directorial_update(state, connection_id, context).await
         }
 
         ClientMessage::TriggerApproachEvent {
@@ -362,7 +383,7 @@ async fn handle_message(
             description,
             reveal,
         } => {
-            handle_trigger_approach_event(
+            ws_dm::handle_trigger_approach_event(
                 state,
                 connection_id,
                 npc_id,
@@ -376,7 +397,7 @@ async fn handle_message(
         ClientMessage::TriggerLocationEvent {
             region_id,
             description,
-        } => handle_trigger_location_event(state, connection_id, region_id, description).await,
+        } => ws_dm::handle_trigger_location_event(state, connection_id, region_id, description).await,
 
         ClientMessage::ShareNpcLocation {
             pc_id,
@@ -385,7 +406,7 @@ async fn handle_message(
             region_id,
             notes,
         } => {
-            handle_share_npc_location(
+            ws_dm::handle_share_npc_location(
                 state,
                 connection_id,
                 pc_id,
@@ -403,35 +424,62 @@ async fn handle_message(
             day,
             hour,
             notify_players,
-        } => handle_set_game_time(state, connection_id, world_id, day, hour, notify_players).await,
+        } => {
+            ws_time::handle_set_game_time(
+                state,
+                connection_id,
+                world_id,
+                day,
+                hour,
+                notify_players,
+            )
+            .await
+        }
 
         ClientMessage::SkipToPeriod { world_id, period } => {
-            handle_skip_to_period(state, connection_id, world_id, period).await
+            ws_time::handle_skip_to_period(state, connection_id, world_id, period).await
         }
 
         ClientMessage::PauseGameTime { world_id, paused } => {
-            handle_pause_game_time(state, connection_id, world_id, paused).await
+            ws_time::handle_pause_game_time(state, connection_id, world_id, paused).await
         }
 
         ClientMessage::SetTimeMode { world_id, mode } => {
-            handle_set_time_mode(state, connection_id, world_id, mode).await
+            ws_time::handle_set_time_mode(state, connection_id, world_id, mode).await
         }
 
         ClientMessage::SetTimeCosts { world_id, costs } => {
-            handle_set_time_costs(state, connection_id, world_id, costs).await
+            ws_time::handle_set_time_costs(state, connection_id, world_id, costs).await
         }
 
         ClientMessage::RespondToTimeSuggestion {
             suggestion_id,
             decision,
-        } => handle_respond_to_time_suggestion(state, connection_id, suggestion_id, decision).await,
+        } => {
+            ws_time::handle_respond_to_time_suggestion(
+                state,
+                connection_id,
+                suggestion_id,
+                decision,
+            )
+            .await
+        }
 
         // Player action handler
         ClientMessage::PlayerAction {
             action_type,
             target,
             dialogue,
-        } => handle_player_action(state, connection_id, action_type, target, dialogue).await,
+        } => {
+            ws_player_action::handle_player_action(
+                state,
+                connection_id,
+                action_type,
+                target,
+                dialogue,
+            )
+            .await
+        }
 
         // Forward compatibility - return error so client doesn't hang
         ClientMessage::Unknown => {
@@ -453,265 +501,13 @@ async fn handle_message(
     }
 }
 
-// =============================================================================
-// Handler Implementations
-// =============================================================================
-
-async fn handle_join_world(
-    state: &WsState,
-    connection_id: Uuid,
-    world_id: Uuid,
-    role: ProtoWorldRole,
-    pc_id: Option<Uuid>,
-    _spectate_pc_id: Option<Uuid>,
-) -> Option<ServerMessage> {
-    let world_id_typed = WorldId::from_uuid(world_id);
-
-    let pc_id_typed = pc_id.map(PlayerCharacterId::from_uuid);
-
-    let ctx = crate::use_cases::session::JoinWorldContext {
-        connections: &state.connections,
-    };
-    let input = crate::use_cases::session::JoinWorldInput {
-        connection_id,
-        world_id: world_id_typed,
-        role,
-        pc_id: pc_id_typed,
-    };
-
-    let join_result = match state.app.use_cases.session.join_world_flow.execute(&ctx, input).await {
-        Ok(result) => result,
-        Err(crate::use_cases::session::JoinWorldFlowError::WorldNotFound) => {
-            return Some(ServerMessage::WorldJoinFailed {
-                world_id,
-                error: wrldbldr_protocol::JoinError::WorldNotFound,
-            })
-        }
-        Err(crate::use_cases::session::JoinWorldFlowError::JoinError(e)) => {
-            return Some(ServerMessage::WorldJoinFailed { world_id, error: e })
-        }
-        Err(crate::use_cases::session::JoinWorldFlowError::Repo(e)) => {
-            tracing::error!(error = %e, "Failed to build world snapshot");
-            return Some(ServerMessage::WorldJoinFailed {
-                world_id,
-                error: wrldbldr_protocol::JoinError::Unknown,
-            });
-        }
-    };
-
-    if let Some(joined) = join_result.user_joined {
-        let user_joined_msg = ServerMessage::UserJoined {
-            user_id: joined.user_id,
-            username: None,
-            role: joined.role,
-            pc: joined.pc,
-        };
-        state
-            .connections
-            .broadcast_to_world_except(world_id_typed, connection_id, user_joined_msg)
-            .await;
-    }
-
-    Some(ServerMessage::WorldJoined {
-        world_id,
-        snapshot: join_result.snapshot,
-        connected_users: join_result.connected_users,
-        your_role: role,
-        your_pc: join_result.your_pc,
-    })
-}
-
-async fn handle_move_to_region(
-    state: &WsState,
-    connection_id: Uuid,
-    pc_id: String,
-    region_id: String,
-) -> Option<ServerMessage> {
-    // Parse IDs
-    let pc_uuid = match parse_pc_id(&pc_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-    let region_uuid = match parse_region_id(&region_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    // Get connection info to verify authorization
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    // Verify the PC belongs to this connection (or is DM)
-    if !conn_info.is_dm() && conn_info.pc_id != Some(pc_uuid) {
-        return Some(error_response("UNAUTHORIZED", "Cannot control this PC"));
-    }
-
-    // Execute movement use case
-    match state
-        .app
-        .use_cases
-        .movement
-        .enter_region
-        .execute(pc_uuid, region_uuid)
-        .await
-    {
-        Ok(result) => {
-            // Check staging status
-            match result.staging_status {
-                StagingStatus::Pending { previous_staging } => {
-                    let world_id = result.pc.world_id;
-                    let ctx = crate::use_cases::staging::StagingApprovalContext {
-                        connections: &state.connections,
-                        pending_time_suggestions: &state.pending_time_suggestions,
-                        pending_staging_requests: &state.pending_staging_requests,
-                    };
-                    let input = crate::use_cases::staging::StagingApprovalInput {
-                        world_id,
-                        region: result.region.clone(),
-                        pc: result.pc.clone(),
-                        previous_staging,
-                        time_suggestion: result.time_suggestion.clone(),
-                        guidance: None,
-                    };
-
-                    match state
-                        .app
-                        .use_cases
-                        .staging
-                        .request_approval
-                        .execute(&ctx, input)
-                        .await
-                    {
-                        Ok(msg) => Some(msg),
-                        Err(e) => Some(error_response("STAGING_ERROR", &e.to_string())),
-                    }
-                }
-                StagingStatus::Ready => {
-                    let scene_change = state
-                        .app
-                        .use_cases
-                        .scene_change
-                        .build_scene_change(&result.region, result.npcs, true)
-                        .await;
-
-                    // Broadcast time suggestion to DMs if present
-                    if let Some(ref time_suggestion) = result.time_suggestion {
-                        if let Some(world_id) = conn_info.world_id {
-                            state
-                                .pending_time_suggestions
-                                .write()
-                                .await
-                                .insert(time_suggestion.id, time_suggestion.clone());
-                            let suggestion_msg = ServerMessage::TimeSuggestion {
-                                data: time_suggestion.to_protocol(),
-                            };
-                            state
-                                .connections
-                                .broadcast_to_dms(world_id, suggestion_msg)
-                                .await;
-                        }
-                    }
-
-                    Some(ServerMessage::SceneChanged {
-                        pc_id: pc_id.clone(),
-                        region: scene_change.region,
-                        npcs_present: scene_change.npcs_present,
-                        navigation: scene_change.navigation,
-                        region_items: scene_change.region_items,
-                    })
-                }
-            }
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "Movement failed");
-            match e {
-                EnterRegionError::MovementBlocked(reason) => Some(ServerMessage::MovementBlocked {
-                    pc_id: pc_id.clone(),
-                    reason,
-                }),
-                _ => Some(error_response("MOVEMENT_FAILED", &e.to_string())),
-            }
-        }
-    }
-}
-
-async fn handle_exit_to_location(
-    state: &WsState,
-    connection_id: Uuid,
-    pc_id: String,
-    location_id: String,
-    arrival_region_id: Option<String>,
-) -> Option<ServerMessage> {
-    // Parse IDs
-    let pc_uuid = match parse_pc_id(&pc_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-    let location_uuid = match parse_location_id(&location_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-    let arrival_uuid = match &arrival_region_id {
-        Some(id) => match parse_region_id(id) {
-            Ok(r) => Some(r),
-            Err(e) => return Some(e),
-        },
-        None => None,
-    };
-
-    // Get connection info
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    // Verify authorization
-    if !conn_info.is_dm() && conn_info.pc_id != Some(pc_uuid) {
-        return Some(error_response("UNAUTHORIZED", "Cannot control this PC"));
-    }
-
-    // Execute movement use case
-    match state
-        .app
-        .use_cases
-        .movement
-        .exit_location
-        .execute(pc_uuid, location_uuid, arrival_uuid)
-        .await
-    {
-        Ok(result) => {
-            let scene_change = state
-                .app
-                .use_cases
-                .scene_change
-                .build_scene_change(&result.region, result.npcs, false)
-                .await;
-
-            Some(ServerMessage::SceneChanged {
-                pc_id: pc_id.clone(),
-                region: scene_change.region,
-                npcs_present: scene_change.npcs_present,
-                navigation: scene_change.navigation,
-                region_items: scene_change.region_items,
-            })
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "Exit to location failed");
-            Some(error_response("MOVEMENT_FAILED", &e.to_string()))
-        }
-    }
-}
-
 async fn handle_request(
     state: &WsState,
     connection_id: Uuid,
     request_id: String,
     payload: RequestPayload,
 ) -> Option<ServerMessage> {
-    // Get connection info
-    let _conn_info = match state.connections.get(connection_id).await {
+    let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
         None => {
             return Some(ServerMessage::Response {
@@ -723,84 +519,81 @@ async fn handle_request(
 
     let dispatched: Result<ResponseResult, ServerMessage> = match payload {
         RequestPayload::Lore(req) => {
-            ws_lore::handle_lore_request(state, &request_id, &_conn_info, req).await
+            ws_lore::handle_lore_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::StoryEvent(req) => {
-            ws_story_events::handle_story_event_request(state, &request_id, &_conn_info, req).await
+            ws_story_events::handle_story_event_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::World(req) => {
-            ws_core::handle_world_request(state, &request_id, &_conn_info, req).await
+            ws_core::handle_world_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Character(req) => {
-            ws_core::handle_character_request(state, &request_id, &_conn_info, req).await
+            ws_core::handle_character_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Location(req) => {
-            ws_location::handle_location_request(state, &request_id, &_conn_info, req).await
+            ws_location::handle_location_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Region(req) => {
-            ws_location::handle_region_request(state, &request_id, &_conn_info, req).await
+            ws_location::handle_region_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Time(req) => {
-            ws_core::handle_time_request(state, &request_id, &_conn_info, req).await
+            ws_core::handle_time_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Npc(req) => {
-            ws_core::handle_npc_request(state, &request_id, &_conn_info, req).await
+            ws_core::handle_npc_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Items(req) => {
-            ws_core::handle_items_request(state, &request_id, &_conn_info, req).await
+            ws_core::handle_items_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::PlayerCharacter(req) => {
-            ws_player::handle_player_character_request(state, &request_id, &_conn_info, req).await
+            ws_player::handle_player_character_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Relationship(req) => {
-            ws_player::handle_relationship_request(state, &request_id, &_conn_info, req).await
+            ws_player::handle_relationship_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Observation(req) => {
-            ws_player::handle_observation_request(state, &request_id, &_conn_info, req).await
+            ws_player::handle_observation_request(state, &request_id, &conn_info, req).await
         }
-
         RequestPayload::Generation(req) => {
-            ws_creator::handle_generation_request(state, &request_id, &_conn_info, req).await
+            ws_creator::handle_generation_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Ai(req) => {
-            ws_creator::handle_ai_request(state, &request_id, &_conn_info, req).await
+            ws_creator::handle_ai_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Expression(req) => {
-            ws_creator::handle_expression_request(state, &request_id, &_conn_info, req).await
+            ws_creator::handle_expression_request(state, &request_id, &conn_info, req).await
         }
-
         RequestPayload::Challenge(req) => {
-            ws_challenge::handle_challenge_request(state, &request_id, &_conn_info, req).await
+            ws_challenge::handle_challenge_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::NarrativeEvent(req) => {
-            ws_narrative_event::handle_narrative_event_request(state, &request_id, &_conn_info, req)
+            ws_narrative_event::handle_narrative_event_request(state, &request_id, &conn_info, req)
                 .await
         }
         RequestPayload::EventChain(req) => {
-            ws_event_chain::handle_event_chain_request(state, &request_id, &_conn_info, req).await
+            ws_event_chain::handle_event_chain_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Goal(req) => {
-            ws_actantial::handle_goal_request(state, &request_id, &_conn_info, req).await
+            ws_actantial::handle_goal_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Want(req) => {
-            ws_actantial::handle_want_request(state, &request_id, &_conn_info, req).await
+            ws_actantial::handle_want_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Actantial(req) => {
-            ws_actantial::handle_actantial_request(state, &request_id, &_conn_info, req).await
+            ws_actantial::handle_actantial_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Scene(req) => {
-            ws_scene::handle_scene_request(state, &request_id, &_conn_info, req).await
+            ws_scene::handle_scene_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Act(req) => {
-            ws_scene::handle_act_request(state, &request_id, &_conn_info, req).await
+            ws_scene::handle_act_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Interaction(req) => {
-            ws_scene::handle_interaction_request(state, &request_id, &_conn_info, req).await
+            ws_scene::handle_interaction_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Skill(req) => {
-            ws_skill::handle_skill_request(state, &request_id, &_conn_info, req).await
+            ws_skill::handle_skill_request(state, &request_id, &conn_info, req).await
         }
-
         RequestPayload::Unknown => Ok(ResponseResult::error(
             ErrorCode::BadRequest,
             "This request type is not yet implemented",
@@ -814,1946 +607,6 @@ async fn handle_request(
 }
 
 // =============================================================================
-// Inventory Handler
-// =============================================================================
-
-#[derive(Debug)]
-enum InventoryAction {
-    Equip,
-    Unequip,
-    Drop,
-    Pickup,
-}
-
-async fn handle_inventory_action(
-    state: &WsState,
-    connection_id: Uuid,
-    action: InventoryAction,
-    pc_id: &str,
-    item_id: &str,
-    quantity: u32,
-) -> Option<ServerMessage> {
-    // Parse IDs
-    let pc_uuid = match parse_pc_id(pc_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-    let item_uuid = match parse_item_id(item_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    // Get connection info
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    // Verify authorization
-    if !conn_info.is_dm() && conn_info.pc_id != Some(pc_uuid) {
-        return Some(error_response("UNAUTHORIZED", "Cannot control this PC"));
-    }
-
-    // Execute the inventory action
-    let result = match action {
-        InventoryAction::Equip => state
-            .app
-            .use_cases
-            .inventory
-            .actions
-            .equip(pc_uuid, item_uuid)
-            .await,
-        InventoryAction::Unequip => state
-            .app
-            .use_cases
-            .inventory
-            .actions
-            .unequip(pc_uuid, item_uuid)
-            .await,
-        InventoryAction::Drop => state
-            .app
-            .use_cases
-            .inventory
-            .actions
-            .drop_item(pc_uuid, item_uuid, quantity)
-            .await,
-        InventoryAction::Pickup => state
-            .app
-            .use_cases
-            .inventory
-            .actions
-            .pickup(pc_uuid, item_uuid)
-            .await,
-    };
-
-    match result {
-        Ok(action_result) => match action {
-            InventoryAction::Equip => Some(ServerMessage::ItemEquipped {
-                pc_id: pc_id.to_string(),
-                item_id: item_id.to_string(),
-                item_name: action_result.item_name,
-            }),
-            InventoryAction::Unequip => Some(ServerMessage::ItemUnequipped {
-                pc_id: pc_id.to_string(),
-                item_id: item_id.to_string(),
-                item_name: action_result.item_name,
-            }),
-            InventoryAction::Drop => Some(ServerMessage::ItemDropped {
-                pc_id: pc_id.to_string(),
-                item_id: item_id.to_string(),
-                item_name: action_result.item_name,
-                quantity: action_result.quantity,
-            }),
-            InventoryAction::Pickup => Some(ServerMessage::ItemPickedUp {
-                pc_id: pc_id.to_string(),
-                item_id: item_id.to_string(),
-                item_name: action_result.item_name,
-            }),
-        },
-        Err(e) => {
-            tracing::error!(error = %e, action = ?action, "Inventory action failed");
-            Some(error_response("INVENTORY_ERROR", &e.to_string()))
-        }
-    }
-}
-
-// =============================================================================
-// Challenge Handlers
-// =============================================================================
-
-async fn handle_challenge_roll(
-    state: &WsState,
-    connection_id: Uuid,
-    challenge_id: String,
-    roll: i32,
-) -> Option<ServerMessage> {
-    // Parse challenge ID
-    let challenge_uuid = match parse_challenge_id(&challenge_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    // Get connection info
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    // Get the world ID from connection
-    let world_id = match conn_info.world_id {
-        Some(id) => id,
-        None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
-    };
-
-    // Get PC ID from connection (required for challenge rolls)
-    let pc_id = match conn_info.pc_id {
-        Some(id) => id,
-        None => return Some(error_response("NO_PC", "Must have a PC to roll challenges")),
-    };
-
-    // Execute the roll challenge use case
-    // For legacy ChallengeRoll, we use client-provided roll with 0 modifier
-    match state
-        .app
-        .use_cases
-        .challenge
-        .roll
-        .execute(
-            world_id,
-            challenge_uuid,
-            pc_id,
-            Some(roll),
-            0, // No modifier for legacy roll
-        )
-        .await
-    {
-        Ok(result) => {
-            // If approval is required, notify DMs
-            if result.requires_approval {
-                if let Some(approval_id) = result.approval_queue_id {
-                    let dm_msg = ServerMessage::ChallengeOutcomePending {
-                        resolution_id: approval_id.to_string(),
-                        challenge_id: result.challenge_id.to_string(),
-                        challenge_name: result.challenge_name.clone(),
-                        character_id: result.character_id.to_string(),
-                        character_name: result.character_name.clone(),
-                        roll: result.roll,
-                        modifier: result.modifier,
-                        total: result.total,
-                        outcome_type: format!("{:?}", result.outcome_type),
-                        outcome_description: result.outcome_description.clone(),
-                        outcome_triggers: result
-                            .outcome_triggers
-                            .iter()
-                            .map(|t| wrldbldr_protocol::ProposedToolInfo {
-                                id: t.id.clone(),
-                                name: t.name.clone(),
-                                description: t.description.clone(),
-                                arguments: t.arguments.clone(),
-                            })
-                            .collect(),
-                        roll_breakdown: result.roll_breakdown.clone(),
-                    };
-                    state.connections.broadcast_to_dms(world_id, dm_msg).await;
-                }
-            }
-
-            Some(ServerMessage::ChallengeRollSubmitted {
-                challenge_id,
-                challenge_name: result.challenge_name,
-                roll: result.roll,
-                modifier: result.modifier,
-                total: result.total,
-                outcome_type: format!("{:?}", result.outcome_type),
-                status: if result.requires_approval {
-                    "pending_approval".to_string()
-                } else {
-                    "resolved".to_string()
-                },
-            })
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "Challenge roll failed");
-            Some(error_response("CHALLENGE_ROLL_FAILED", &e.to_string()))
-        }
-    }
-}
-
-async fn handle_challenge_roll_input(
-    state: &WsState,
-    connection_id: Uuid,
-    challenge_id: String,
-    input_type: wrldbldr_protocol::DiceInputType,
-) -> Option<ServerMessage> {
-    // Parse challenge ID
-    let challenge_uuid = match parse_challenge_id(&challenge_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    // Get connection info
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    // Get the world ID from connection
-    let world_id = match conn_info.world_id {
-        Some(id) => id,
-        None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
-    };
-
-    // Get PC ID from connection
-    let pc_id = match conn_info.pc_id {
-        Some(id) => id,
-        None => return Some(error_response("NO_PC", "Must have a PC to roll challenges")),
-    };
-
-    // Determine roll value based on input type
-    let (client_roll, modifier) = match input_type {
-        wrldbldr_protocol::DiceInputType::Manual(value) => (Some(value), 0),
-        wrldbldr_protocol::DiceInputType::Formula(formula) => {
-            // For formula-based rolls, let the server roll
-            // The formula could contain modifiers like "1d20+5"
-            // For now, we'll parse simple modifiers from the formula
-            let modifier = parse_modifier_from_formula(&formula);
-            (None, modifier)
-        }
-        wrldbldr_protocol::DiceInputType::Unknown => {
-            return Some(error_response("INVALID_INPUT", "Unknown dice input type"));
-        }
-    };
-
-    // Execute the roll challenge use case
-    match state
-        .app
-        .use_cases
-        .challenge
-        .roll
-        .execute(world_id, challenge_uuid, pc_id, client_roll, modifier)
-        .await
-    {
-        Ok(result) => {
-            // If approval is required, notify DMs
-            if result.requires_approval {
-                if let Some(approval_id) = result.approval_queue_id {
-                    let dm_msg = ServerMessage::ChallengeOutcomePending {
-                        resolution_id: approval_id.to_string(),
-                        challenge_id: result.challenge_id.to_string(),
-                        challenge_name: result.challenge_name.clone(),
-                        character_id: result.character_id.to_string(),
-                        character_name: result.character_name.clone(),
-                        roll: result.roll,
-                        modifier: result.modifier,
-                        total: result.total,
-                        outcome_type: format!("{:?}", result.outcome_type),
-                        outcome_description: result.outcome_description.clone(),
-                        outcome_triggers: result
-                            .outcome_triggers
-                            .iter()
-                            .map(|t| wrldbldr_protocol::ProposedToolInfo {
-                                id: t.id.clone(),
-                                name: t.name.clone(),
-                                description: t.description.clone(),
-                                arguments: t.arguments.clone(),
-                            })
-                            .collect(),
-                        roll_breakdown: result.roll_breakdown.clone(),
-                    };
-                    state.connections.broadcast_to_dms(world_id, dm_msg).await;
-                }
-            }
-
-            Some(ServerMessage::ChallengeRollSubmitted {
-                challenge_id,
-                challenge_name: result.challenge_name,
-                roll: result.roll,
-                modifier: result.modifier,
-                total: result.total,
-                outcome_type: format!("{:?}", result.outcome_type),
-                status: if result.requires_approval {
-                    "pending_approval".to_string()
-                } else {
-                    "resolved".to_string()
-                },
-            })
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "Challenge roll input failed");
-            Some(error_response("CHALLENGE_ROLL_FAILED", &e.to_string()))
-        }
-    }
-}
-
-async fn handle_trigger_challenge(
-    state: &WsState,
-    connection_id: Uuid,
-    challenge_id: String,
-    target_character_id: String,
-) -> Option<ServerMessage> {
-    // Parse challenge ID
-    let challenge_uuid = match parse_challenge_id(&challenge_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    // Parse target character ID (could be PC or NPC, but we use PlayerCharacterId for PCs)
-    let _target_uuid = match parse_pc_id(&target_character_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    // Get connection info
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    // Only DMs can trigger challenges manually
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    let prompt_data = match state
-        .app
-        .use_cases
-        .challenge
-        .trigger_prompt
-        .execute(challenge_uuid)
-        .await
-    {
-        Ok(data) => data,
-        Err(crate::use_cases::challenge::ChallengeError::NotFound) => {
-            return Some(error_response("NOT_FOUND", "Challenge not found"))
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "Failed to fetch challenge");
-            return Some(error_response(
-                "INTERNAL_ERROR",
-                "Failed to fetch challenge",
-            ));
-        }
-    };
-
-    // Get target PC's connection to send them the challenge prompt
-    // For now, we broadcast to the world - the client filters by pc_id
-    if let Some(world_id) = conn_info.world_id {
-        let prompt = ServerMessage::ChallengePrompt {
-            challenge_id: prompt_data.challenge_id.to_string(),
-            challenge_name: prompt_data.challenge_name.clone(),
-            skill_name: prompt_data.skill_name.clone(),
-            difficulty_display: prompt_data.difficulty_display.clone(),
-            description: prompt_data.description.clone(),
-            character_modifier: prompt_data.character_modifier,
-            suggested_dice: prompt_data.suggested_dice.clone(),
-            rule_system_hint: prompt_data.rule_system_hint.clone(),
-        };
-
-        // Broadcast to world connections (target player will see it)
-        state.connections.broadcast_to_world(world_id, prompt).await;
-    }
-
-    // Confirm to DM that challenge was triggered
-    Some(ServerMessage::AdHocChallengeCreated {
-        challenge_id,
-        challenge_name: prompt_data.challenge_name,
-        target_pc_id: target_character_id,
-    })
-}
-
-/// Parse modifier from a dice formula like "1d20+5" or "2d6-2"
-fn parse_modifier_from_formula(formula: &str) -> i32 {
-    // Simple parsing: look for +N or -N at the end
-    if let Some(plus_idx) = formula.rfind('+') {
-        if let Ok(modifier) = formula[plus_idx + 1..].trim().parse::<i32>() {
-            return modifier;
-        }
-    }
-    if let Some(minus_idx) = formula.rfind('-') {
-        if let Ok(modifier) = formula[minus_idx + 1..].trim().parse::<i32>() {
-            return -modifier;
-        }
-    }
-    0
-}
-
-// =============================================================================
-// Staging Handlers
-// =============================================================================
-
-fn parse_staging_source(source: &str) -> StagingSource {
-    match source.to_lowercase().as_str() {
-        "rule" | "rulebased" | "rule_based" => StagingSource::RuleBased,
-        "llm" | "llmbased" | "llm_based" => StagingSource::LlmBased,
-        "prestaged" | "pre_staged" | "prestage" | "pre_stage" => StagingSource::PreStaged,
-        "dm" | "dmcustomized" | "dm_customized" | "custom" | "customized" => {
-            StagingSource::DmCustomized
-        }
-        _ => StagingSource::DmCustomized,
-    }
-}
-
-async fn handle_staging_approval(
-    state: &WsState,
-    connection_id: Uuid,
-    request_id: String,
-    approved_npcs: Vec<wrldbldr_protocol::ApprovedNpcInfo>,
-    ttl_hours: i32,
-    source: String,
-    location_state_id: Option<String>,
-    region_state_id: Option<String>,
-) -> Option<ServerMessage> {
-    // Get connection info - only DMs can approve staging
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    // request_id is a correlation token; resolve it to a region_id.
-    let pending = {
-        let mut guard = state.pending_staging_requests.write().await;
-        guard.remove(&request_id)
-    };
-
-    let (region_id, location_id) = if let Some(pending) = pending {
-        (pending.region_id, Some(pending.location_id))
-    } else {
-        // Backward-compat: allow request_id to be the region_id.
-        let region_id = match parse_region_id(&request_id) {
-            Ok(id) => id,
-            Err(e) => return Some(e),
-        };
-        (region_id, None)
-    };
-
-    let world_id = match conn_info.world_id {
-        Some(id) => id,
-        None => return Some(error_response("NOT_CONNECTED", "World not joined")),
-    };
-
-    let input = crate::use_cases::staging::ApproveStagingInput {
-        region_id,
-        location_id,
-        world_id,
-        approved_by: conn_info.user_id.clone(),
-        ttl_hours,
-        source: parse_staging_source(&source),
-        approved_npcs,
-        location_state_id,
-        region_state_id,
-    };
-
-    let payload = match state.app.use_cases.staging.approve.execute(input).await {
-        Ok(result) => result,
-        Err(crate::use_cases::staging::StagingError::RegionNotFound) => {
-            return Some(error_response("NOT_FOUND", "Region not found"))
-        }
-        Err(crate::use_cases::staging::StagingError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"))
-        }
-        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
-    };
-
-    state
-        .connections
-        .broadcast_to_world(
-            world_id,
-            ServerMessage::StagingReady {
-                region_id: payload.region_id.to_string(),
-                npcs_present: payload.npcs_present,
-                visual_state: payload.visual_state,
-            },
-        )
-        .await;
-
-    None // No direct response needed - we broadcasted
-}
-
-async fn handle_staging_regenerate(
-    state: &WsState,
-    connection_id: Uuid,
-    request_id: String,
-    guidance: String,
-) -> Option<ServerMessage> {
-    // Get connection info - only DMs can request regeneration
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    // request_id is a correlation token; resolve it to a region_id.
-    let pending = {
-        let guard = state.pending_staging_requests.read().await;
-        guard.get(&request_id).copied()
-    };
-
-    let region_id = if let Some(pending) = pending {
-        pending.region_id
-    } else {
-        // Backward-compat: allow request_id to be the region_id.
-        match parse_region_id(&request_id) {
-            Ok(id) => id,
-            Err(e) => return Some(e),
-        }
-    };
-
-    let guidance_opt = if guidance.is_empty() {
-        None
-    } else {
-        Some(guidance.as_str())
-    };
-
-    let llm_based_npcs = match state
-        .app
-        .use_cases
-        .staging
-        .regenerate
-        .execute(region_id, guidance_opt)
-        .await
-    {
-        Ok(npcs) => npcs,
-        Err(crate::use_cases::staging::StagingError::RegionNotFound) => {
-            return Some(error_response("NOT_FOUND", "Region not found"))
-        }
-        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
-    };
-
-    Some(ServerMessage::StagingRegenerated {
-        request_id,
-        llm_based_npcs,
-    })
-}
-
-async fn handle_pre_stage_region(
-    state: &WsState,
-    connection_id: Uuid,
-    region_id: String,
-    npcs: Vec<wrldbldr_protocol::ApprovedNpcInfo>,
-    ttl_hours: i32,
-    location_state_id: Option<String>,
-    region_state_id: Option<String>,
-) -> Option<ServerMessage> {
-    // Get connection info - only DMs can pre-stage
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    // Parse region ID
-    let region_uuid = match parse_region_id(&region_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    let world_id = match conn_info.world_id {
-        Some(id) => id,
-        None => return Some(error_response("NOT_CONNECTED", "World not joined")),
-    };
-
-    let input = crate::use_cases::staging::ApproveStagingInput {
-        region_id: region_uuid,
-        location_id: None,
-        world_id,
-        approved_by: conn_info.user_id.clone(),
-        ttl_hours,
-        source: StagingSource::PreStaged,
-        approved_npcs: npcs,
-        location_state_id,
-        region_state_id,
-    };
-
-    if let Err(e) = state.app.use_cases.staging.approve.execute(input).await {
-        return Some(match e {
-            crate::use_cases::staging::StagingError::RegionNotFound => {
-                error_response("NOT_FOUND", "Region not found")
-            }
-            crate::use_cases::staging::StagingError::WorldNotFound => {
-                error_response("NOT_FOUND", "World not found")
-            }
-            _ => error_response("REPO_ERROR", &e.to_string()),
-        });
-    }
-
-    None
-}
-
-// =============================================================================
-// Approval Handlers
-// =============================================================================
-
-async fn handle_approval_decision(
-    state: &WsState,
-    connection_id: Uuid,
-    request_id: String,
-    decision: wrldbldr_protocol::ApprovalDecision,
-) -> Option<ServerMessage> {
-    // Get connection info - only DMs can make approval decisions
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    // Parse request ID as approval UUID
-    let approval_id = match parse_id(&request_id, |u| u, "Invalid request ID") {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    // Convert protocol decision to domain decision
-    let domain_decision = match decision {
-        wrldbldr_protocol::ApprovalDecision::Accept => wrldbldr_domain::DmApprovalDecision::Accept,
-        wrldbldr_protocol::ApprovalDecision::AcceptWithRecipients { item_recipients } => {
-            wrldbldr_domain::DmApprovalDecision::AcceptWithRecipients { item_recipients }
-        }
-        wrldbldr_protocol::ApprovalDecision::Reject { feedback } => {
-            wrldbldr_domain::DmApprovalDecision::Reject { feedback }
-        }
-        wrldbldr_protocol::ApprovalDecision::AcceptWithModification {
-            modified_dialogue,
-            approved_tools,
-            rejected_tools,
-            item_recipients,
-        } => wrldbldr_domain::DmApprovalDecision::AcceptWithModification {
-            modified_dialogue,
-            approved_tools,
-            rejected_tools,
-            item_recipients,
-        },
-        wrldbldr_protocol::ApprovalDecision::TakeOver { dm_response } => {
-            wrldbldr_domain::DmApprovalDecision::TakeOver { dm_response }
-        }
-        wrldbldr_protocol::ApprovalDecision::Unknown => {
-            return Some(error_response(
-                "INVALID_DECISION",
-                "Unknown approval decision type",
-            ));
-        }
-    };
-
-    // Get the original approval request data for dialogue recording
-    let approval_data = match state.app.queue.get_approval_request(approval_id).await {
-        Ok(Some(data)) => Some(data),
-        Ok(None) => None,
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to get approval request data for dialogue recording");
-            None
-        }
-    };
-
-    // Execute approval use case
-    match state
-        .app
-        .use_cases
-        .approval
-        .approve_suggestion
-        .execute(approval_id, domain_decision)
-        .await
-    {
-        Ok(result) => {
-            if result.approved {
-                if let Some(world_id) = conn_info.world_id {
-                    let dialogue = result.final_dialogue.clone().unwrap_or_default();
-
-                    // Record dialogue exchange to story events for persistence
-                    if !dialogue.is_empty() {
-                        if let Some(ref data) = approval_data {
-                            if let Some(pc_id) = data.pc_id {
-                                if let Some(npc_id) = data.npc_id {
-                                    let player_dialogue =
-                                        data.player_dialogue.clone().unwrap_or_default();
-                                    if let Err(e) = state
-                                        .app
-                                        .entities
-                                        .narrative
-                                        .record_dialogue_exchange(
-                                            world_id,
-                                            pc_id,
-                                            npc_id,
-                                            data.npc_name.clone(),
-                                            player_dialogue,
-                                            dialogue.clone(),
-                                            data.topics.clone(),
-                                            data.scene_id,
-                                            data.location_id,
-                                            data.game_time.clone(),
-                                        )
-                                        .await
-                                    {
-                                        tracing::error!(error = %e, "Failed to record dialogue exchange");
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Send ResponseApproved to DMs (shows what tools were executed)
-                    let dm_msg = ServerMessage::ResponseApproved {
-                        npc_dialogue: dialogue.clone(),
-                        executed_tools: result.approved_tools.clone(),
-                    };
-                    state.connections.broadcast_to_dms(world_id, dm_msg).await;
-
-                    // Send DialogueResponse to all players (for visual novel display)
-                    if !dialogue.is_empty() {
-                        let dialogue_msg = ServerMessage::DialogueResponse {
-                            speaker_id: result.npc_id.unwrap_or_default(),
-                            speaker_name: result.npc_name.unwrap_or_else(|| "Unknown".to_string()),
-                            text: dialogue,
-                            choices: vec![], // Free-form input mode
-                        };
-                        state
-                            .connections
-                            .broadcast_to_world(world_id, dialogue_msg)
-                            .await;
-                    }
-                }
-            }
-            None // No direct response - we broadcasted
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "Approval decision failed");
-            Some(error_response("APPROVAL_ERROR", &e.to_string()))
-        }
-    }
-}
-
-async fn handle_challenge_suggestion_decision(
-    state: &WsState,
-    connection_id: Uuid,
-    request_id: String,
-    approved: bool,
-    _modified_difficulty: Option<String>,
-) -> Option<ServerMessage> {
-    // Get connection info - only DMs can make decisions
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    // Parse request ID as approval UUID
-    let approval_id = match parse_id(&request_id, |u| u, "Invalid request ID") {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    let decision = if approved {
-        wrldbldr_domain::DmApprovalDecision::Accept
-    } else {
-        wrldbldr_domain::DmApprovalDecision::Reject {
-            feedback: "Challenge rejected by DM".to_string(),
-        }
-    };
-
-    match state
-        .app
-        .use_cases
-        .approval
-        .approve_suggestion
-        .execute(approval_id, decision)
-        .await
-    {
-        Ok(_) => {
-            if !approved {
-                Some(ServerMessage::ChallengeDiscarded { request_id })
-            } else {
-                None
-            }
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "Challenge suggestion decision failed");
-            Some(error_response("APPROVAL_ERROR", &e.to_string()))
-        }
-    }
-}
-
-/// Handle DM decision on a challenge outcome (after dice roll, before triggers execute).
-async fn handle_challenge_outcome_decision(
-    state: &WsState,
-    connection_id: Uuid,
-    resolution_id: String,
-    decision: wrldbldr_protocol::ChallengeOutcomeDecisionData,
-) -> Option<ServerMessage> {
-    // Only DMs can approve challenge outcomes
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    // Parse resolution ID as approval queue UUID
-    let approval_id = match Uuid::parse_str(&resolution_id) {
-        Ok(id) => id,
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid resolution ID format")),
-    };
-
-    // Get the approval request data containing challenge outcome details
-    let approval_data = match state.app.queue.get_approval_request(approval_id).await {
-        Ok(Some(data)) => data,
-        Ok(None) => return Some(error_response("NOT_FOUND", "Approval request not found")),
-        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
-    };
-
-    // Extract challenge outcome data
-    let outcome_data = match &approval_data.challenge_outcome {
-        Some(data) => data,
-        None => {
-            return Some(error_response(
-                "INVALID_DATA",
-                "No challenge outcome data in approval request",
-            ))
-        }
-    };
-
-    // Parse challenge ID from stored data
-    let challenge_id = match parse_challenge_id(&outcome_data.challenge_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    // Parse outcome type from stored string
-    let outcome_type = match outcome_data.outcome_type.as_str() {
-        "CriticalSuccess" => wrldbldr_domain::OutcomeType::CriticalSuccess,
-        "Success" => wrldbldr_domain::OutcomeType::Success,
-        "Partial" => wrldbldr_domain::OutcomeType::Partial,
-        "Failure" => wrldbldr_domain::OutcomeType::Failure,
-        "CriticalFailure" => wrldbldr_domain::OutcomeType::CriticalFailure,
-        _ => wrldbldr_domain::OutcomeType::Success, // Default fallback
-    };
-
-    match decision {
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Accept => {
-            // Get PC ID for trigger execution
-            let pc_id = match approval_data.pc_id {
-                Some(id) => id,
-                None => {
-                    tracing::error!(
-                        approval_id = %approval_id,
-                        challenge_id = %challenge_id,
-                        "Missing pc_id on challenge outcome approval request"
-                    );
-                    return Some(error_response(
-                        "MISSING_PC_ID",
-                        "Challenge outcome is missing target PC context",
-                    ));
-                }
-            };
-
-            // Execute outcome triggers with PC context
-            if let Err(e) = state
-                .app
-                .use_cases
-                .challenge
-                .resolve
-                .execute_for_pc(challenge_id, outcome_type.clone(), pc_id)
-                .await
-            {
-                tracing::error!(error = %e, challenge_id = %challenge_id, "Failed to execute challenge outcome");
-                return Some(error_response("RESOLVE_ERROR", &e.to_string()));
-            }
-
-            // Mark the approval request as processed
-            if let Err(e) = state.app.queue.mark_complete(approval_id).await {
-                tracing::warn!(error = %e, "Failed to mark approval request as complete");
-            }
-
-            // Broadcast ChallengeResolved to all players in the world
-            if let Some(world_id) = conn_info.world_id {
-                let outcome_str = match outcome_type {
-                    wrldbldr_domain::OutcomeType::CriticalSuccess => "critical_success",
-                    wrldbldr_domain::OutcomeType::Success => "success",
-                    wrldbldr_domain::OutcomeType::Partial => "partial",
-                    wrldbldr_domain::OutcomeType::Failure => "failure",
-                    wrldbldr_domain::OutcomeType::CriticalFailure => "critical_failure",
-                };
-
-                let msg = ServerMessage::ChallengeResolved {
-                    challenge_id: challenge_id.to_string(),
-                    challenge_name: outcome_data.challenge_name.clone(),
-                    character_name: outcome_data.character_name.clone(),
-                    roll: outcome_data.roll,
-                    modifier: outcome_data.modifier,
-                    total: outcome_data.total,
-                    outcome: outcome_str.to_string(),
-                    outcome_description: outcome_data.outcome_description.clone(),
-                    roll_breakdown: outcome_data.roll_breakdown.clone(),
-                    individual_rolls: None,
-                };
-                state.connections.broadcast_to_world(world_id, msg).await;
-            }
-
-            None
-        }
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Edit {
-            modified_description,
-        } => {
-            // Get PC ID for trigger execution
-            let pc_id = match approval_data.pc_id {
-                Some(id) => id,
-                None => {
-                    tracing::error!(
-                        approval_id = %approval_id,
-                        challenge_id = %challenge_id,
-                        "Missing pc_id on challenge outcome approval request"
-                    );
-                    return Some(error_response(
-                        "MISSING_PC_ID",
-                        "Challenge outcome is missing target PC context",
-                    ));
-                }
-            };
-
-            tracing::info!(
-                challenge_id = %challenge_id,
-                modified_description = %modified_description,
-                "DM edited challenge outcome description"
-            );
-
-            // Execute outcome triggers with PC context
-            if let Err(e) = state
-                .app
-                .use_cases
-                .challenge
-                .resolve
-                .execute_for_pc(challenge_id, outcome_type.clone(), pc_id)
-                .await
-            {
-                return Some(error_response("RESOLVE_ERROR", &e.to_string()));
-            }
-
-            // Mark the approval request as processed
-            if let Err(e) = state.app.queue.mark_complete(approval_id).await {
-                tracing::warn!(error = %e, "Failed to mark approval request as complete");
-            }
-
-            // Broadcast ChallengeResolved with modified description
-            if let Some(world_id) = conn_info.world_id {
-                let outcome_str = match outcome_type {
-                    wrldbldr_domain::OutcomeType::CriticalSuccess => "critical_success",
-                    wrldbldr_domain::OutcomeType::Success => "success",
-                    wrldbldr_domain::OutcomeType::Partial => "partial",
-                    wrldbldr_domain::OutcomeType::Failure => "failure",
-                    wrldbldr_domain::OutcomeType::CriticalFailure => "critical_failure",
-                };
-
-                let msg = ServerMessage::ChallengeResolved {
-                    challenge_id: challenge_id.to_string(),
-                    challenge_name: outcome_data.challenge_name.clone(),
-                    character_name: outcome_data.character_name.clone(),
-                    roll: outcome_data.roll,
-                    modifier: outcome_data.modifier,
-                    total: outcome_data.total,
-                    outcome: outcome_str.to_string(),
-                    outcome_description: modified_description, // Use the DM's edited description
-                    roll_breakdown: outcome_data.roll_breakdown.clone(),
-                    individual_rolls: None,
-                };
-                state.connections.broadcast_to_world(world_id, msg).await;
-            }
-
-            None
-        }
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Suggest { guidance } => {
-            // Queue LLM request to generate alternative outcome descriptions
-            let world_id = match conn_info.world_id {
-                Some(id) => id,
-                None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
-            };
-
-            let llm_request = wrldbldr_domain::LlmRequestData {
-                request_type: wrldbldr_domain::LlmRequestType::OutcomeSuggestion {
-                    resolution_id: approval_id,
-                    world_id,
-                    challenge_name: outcome_data.challenge_name.clone(),
-                    current_description: outcome_data.outcome_description.clone(),
-                    guidance: guidance.clone(),
-                },
-                world_id,
-                pc_id: approval_data.pc_id,
-                prompt: None,
-                suggestion_context: Some(wrldbldr_domain::SuggestionContext {
-                    entity_type: Some("challenge_outcome".to_string()),
-                    entity_name: Some(outcome_data.challenge_name.clone()),
-                    world_setting: None,
-                    hints: guidance.clone(),
-                    additional_context: Some(format!(
-                        "Current outcome: {} ({})\nRoll: {} + {} = {}",
-                        outcome_data.outcome_description,
-                        outcome_data.outcome_type,
-                        outcome_data.roll,
-                        outcome_data.modifier,
-                        outcome_data.total
-                    )),
-                    world_id: Some(world_id),
-                }),
-                callback_id: format!("outcome_suggestion:{}", approval_id),
-            };
-
-            match state.app.queue.enqueue_llm_request(&llm_request).await {
-                Ok(request_id) => {
-                    tracing::info!(
-                        resolution_id = %resolution_id,
-                        request_id = %request_id,
-                        "Queued LLM request for outcome suggestions"
-                    );
-
-                    // Notify DM that suggestions are being generated
-                    // Note: The actual OutcomeSuggestionReady will be sent when the LLM responds
-                    // via the queue processor (requires background task implementation)
-                    None
-                }
-                Err(e) => {
-                    tracing::error!(error = %e, "Failed to queue LLM request for outcome suggestions");
-                    Some(error_response("QUEUE_ERROR", &e.to_string()))
-                }
-            }
-        }
-        wrldbldr_protocol::ChallengeOutcomeDecisionData::Unknown => Some(error_response(
-            "INVALID_DECISION",
-            "Unknown challenge outcome decision type",
-        )),
-    }
-}
-
-async fn handle_narrative_event_decision(
-    state: &WsState,
-    connection_id: Uuid,
-    request_id: String,
-    event_id: String,
-    approved: bool,
-    selected_outcome: Option<String>,
-) -> Option<ServerMessage> {
-    // Get connection info - only DMs can make decisions
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    // Parse request ID as approval UUID
-    let approval_id = match parse_id(&request_id, |u| u, "Invalid request ID") {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    let decision = if approved {
-        wrldbldr_domain::DmApprovalDecision::Accept
-    } else {
-        wrldbldr_domain::DmApprovalDecision::Reject {
-            feedback: "Narrative event rejected by DM".to_string(),
-        }
-    };
-
-    // Get the approval data for PC context
-    let approval_data = state
-        .app
-        .queue
-        .get_approval_request(approval_id)
-        .await
-        .ok()
-        .flatten();
-
-    match state
-        .app
-        .use_cases
-        .approval
-        .approve_suggestion
-        .execute(approval_id, decision)
-        .await
-    {
-        Ok(_) => {
-            if approved {
-                if let Some(world_id) = conn_info.world_id {
-                    // Parse the event ID to fetch the narrative event
-                    let narrative_event_id = match parse_id(
-                        &event_id,
-                        NarrativeEventId::from_uuid,
-                        "Invalid event ID",
-                    ) {
-                        Ok(id) => id,
-                        Err(e) => return Some(e),
-                    };
-
-                    // Fetch the narrative event
-                    let event = match state
-                        .app
-                        .entities
-                        .narrative
-                        .get_event(narrative_event_id)
-                        .await
-                    {
-                        Ok(Some(e)) => e,
-                        Ok(None) => {
-                            tracing::warn!(event_id = %event_id, "Narrative event not found");
-                            // Still broadcast the trigger, just without effect execution
-                            let msg = ServerMessage::NarrativeEventTriggered {
-                                event_id: event_id.clone(),
-                                event_name: String::new(),
-                                outcome_description: String::new(),
-                                scene_direction: String::new(),
-                            };
-                            state.connections.broadcast_to_world(world_id, msg).await;
-                            return None;
-                        }
-                        Err(e) => {
-                            tracing::error!(error = %e, "Failed to fetch narrative event");
-                            return Some(error_response("FETCH_ERROR", &e.to_string()));
-                        }
-                    };
-
-                    // Find the selected outcome
-                    let outcome_name = selected_outcome
-                        .or_else(|| {
-                            approval_data
-                                .as_ref()
-                                .and_then(|d| d.narrative_event_suggestion.as_ref())
-                                .and_then(|s| s.suggested_outcome.clone())
-                        })
-                        .or_else(|| event.default_outcome.clone())
-                        .unwrap_or_else(|| {
-                            event
-                                .outcomes
-                                .first()
-                                .map(|o| o.name.clone())
-                                .unwrap_or_default()
-                        });
-
-                    let outcome = event.outcomes.iter().find(|o| o.name == outcome_name);
-
-                    // Execute effects if we have an outcome with effects
-                    if let Some(outcome) = outcome {
-                        if !outcome.effects.is_empty() {
-                            // Build execution context
-                            let pc_id = approval_data.as_ref().and_then(|d| d.pc_id);
-
-                            if let Some(pc_id) = pc_id {
-                                let context = EffectExecutionContext {
-                                    pc_id,
-                                    world_id,
-                                    current_scene_id: approval_data
-                                        .as_ref()
-                                        .and_then(|d| d.scene_id),
-                                };
-
-                                let summary = state
-                                    .app
-                                    .use_cases
-                                    .narrative
-                                    .execute_effects
-                                    .execute(
-                                        narrative_event_id,
-                                        outcome_name.clone(),
-                                        &outcome.effects,
-                                        &context,
-                                    )
-                                    .await;
-
-                                tracing::info!(
-                                    event_id = %event_id,
-                                    outcome = %outcome_name,
-                                    success_count = summary.success_count,
-                                    failure_count = summary.failure_count,
-                                    "Executed narrative event effects"
-                                );
-                            } else {
-                                tracing::warn!(
-                                    event_id = %event_id,
-                                    "No PC context for effect execution, skipping effects"
-                                );
-                            }
-                        }
-                    }
-
-                    // Broadcast that the narrative event was triggered
-                    let msg = ServerMessage::NarrativeEventTriggered {
-                        event_id,
-                        event_name: event.name.clone(),
-                        outcome_description: outcome
-                            .map(|o| o.description.clone())
-                            .unwrap_or_default(),
-                        scene_direction: event.scene_direction.clone(),
-                    };
-                    state.connections.broadcast_to_world(world_id, msg).await;
-                }
-            }
-            None
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "Narrative event decision failed");
-            Some(error_response("APPROVAL_ERROR", &e.to_string()))
-        }
-    }
-}
-
-// =============================================================================
-// DM Action Handlers
-// =============================================================================
-
-async fn handle_directorial_update(
-    state: &WsState,
-    connection_id: Uuid,
-    context: wrldbldr_protocol::DirectorialContext,
-) -> Option<ServerMessage> {
-    // Get connection info - only DMs can update directorial context
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    let world_id = match conn_info.world_id {
-        Some(id) => id,
-        None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
-    };
-
-    let ctx = crate::use_cases::session::DirectorialUpdateContext {
-        connections: &state.connections,
-    };
-    let input = crate::use_cases::session::DirectorialUpdateInput {
-        world_id,
-        context,
-    };
-
-    // Store directorial context in per-world cache for LLM prompts.
-    state
-        .app
-        .use_cases
-        .session
-        .directorial_update
-        .execute(&ctx, input)
-        .await;
-
-    None
-}
-
-async fn handle_trigger_approach_event(
-    state: &WsState,
-    connection_id: Uuid,
-    npc_id: String,
-    target_pc_id: String,
-    description: String,
-    reveal: bool,
-) -> Option<ServerMessage> {
-    // Get connection info - only DMs can trigger approach events
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    // Parse target PC ID
-    let pc_uuid = match parse_pc_id(&target_pc_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    // Get NPC details
-    let npc_uuid = match parse_character_id(&npc_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    let approach = match state
-        .app
-        .use_cases
-        .npc
-        .approach_events
-        .build_event(npc_uuid, reveal)
-        .await
-    {
-        Ok(result) => result,
-        Err(e) => {
-            tracing::error!(error = %e, "Failed to build approach event");
-            return Some(error_response("APPROACH_EVENT_ERROR", &e.to_string()));
-        }
-    };
-
-    if let Some(err) = approach.lookup_error.as_ref() {
-        tracing::error!(error = %err, "Failed to load NPC for approach event");
-    }
-
-    // Send approach event to target PC
-    let msg = ServerMessage::ApproachEvent {
-        npc_id,
-        npc_name: approach.npc_name,
-        npc_sprite: approach.npc_sprite,
-        description,
-        reveal,
-    };
-
-    state.connections.send_to_pc(pc_uuid, msg).await;
-    None
-}
-
-async fn handle_trigger_location_event(
-    state: &WsState,
-    connection_id: Uuid,
-    region_id: String,
-    description: String,
-) -> Option<ServerMessage> {
-    // Get connection info - only DMs can trigger location events
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    let region_uuid = match parse_region_id(&region_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    let event = match state
-        .app
-        .use_cases
-        .location_events
-        .trigger
-        .execute(region_uuid, description)
-        .await
-    {
-        Ok(event) => event,
-        Err(crate::use_cases::location_events::LocationEventError::RegionNotFound) => {
-            return Some(error_response("NOT_FOUND", "Region not found"))
-        }
-        Err(e) => {
-            tracing::error!(error = %e, "Failed to trigger location event");
-            return Some(error_response("LOCATION_EVENT_ERROR", &e.to_string()));
-        }
-    };
-
-    // Broadcast location event to all in the world
-    if let Some(world_id) = conn_info.world_id {
-        let msg = ServerMessage::LocationEvent {
-            region_id: event.region_id.to_string(),
-            description: event.description,
-        };
-        state.connections.broadcast_to_world(world_id, msg).await;
-    }
-
-    None
-}
-
-async fn handle_share_npc_location(
-    state: &WsState,
-    connection_id: Uuid,
-    pc_id: String,
-    npc_id: String,
-    location_id: String,
-    region_id: String,
-    notes: Option<String>,
-) -> Option<ServerMessage> {
-    // Get connection info - only DMs can share NPC locations
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    let pc_uuid = match parse_pc_id(&pc_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    let npc_uuid = match parse_character_id(&npc_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    let location_uuid = match parse_location_id(&location_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    let region_uuid = match parse_region_id(&region_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    let share_result = match state
-        .app
-        .use_cases
-        .npc
-        .location_sharing
-        .share_location(pc_uuid, npc_uuid, location_uuid, region_uuid, notes.clone())
-        .await
-    {
-        Ok(result) => result,
-        Err(e) => {
-            tracing::error!(error = %e, "Failed to share NPC location");
-            return Some(error_response("NPC_LOCATION_ERROR", &e.to_string()));
-        }
-    };
-
-    if let Some(err) = share_result.observation_error.as_ref() {
-        tracing::error!(error = %err, "Failed to save NPC observation");
-    }
-
-    // Send to target PC
-    let msg = ServerMessage::NpcLocationShared {
-        npc_id,
-        npc_name: share_result.npc_name,
-        region_name: share_result.region_name,
-        notes: share_result.notes,
-    };
-
-    state.connections.send_to_pc(pc_uuid, msg).await;
-    None
-}
-
-// =============================================================================
-// Player Action Handler
-// =============================================================================
-
-async fn handle_player_action(
-    state: &WsState,
-    connection_id: Uuid,
-    action_type: String,
-    target: Option<String>,
-    dialogue: Option<String>,
-) -> Option<ServerMessage> {
-    // Get connection info
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    let world_id = match conn_info.world_id {
-        Some(id) => id,
-        None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
-    };
-
-    let pc_id = match conn_info.pc_id {
-        Some(id) => id,
-        None => return Some(error_response("NO_PC", "Must have a PC to perform actions")),
-    };
-
-    let target_npc = if action_type == "talk" {
-        match target.as_ref() {
-            Some(target_str) => match parse_character_id(target_str) {
-                Ok(id) => Some(id),
-                Err(e) => return Some(e),
-            },
-            None => None,
-        }
-    } else {
-        None
-    };
-
-    let processed = match state
-        .app
-        .use_cases
-        .player_action
-        .handle
-        .execute(
-            world_id,
-            pc_id,
-            conn_info.user_id.clone(),
-            action_type.clone(),
-            target_npc,
-            dialogue.clone(),
-        )
-        .await
-    {
-        Ok(result) => result,
-        Err(crate::use_cases::player_action::PlayerActionError::MissingTalkTarget) => {
-            return Some(error_response(
-                "MISSING_PARAMS",
-                "Talk action requires target NPC ID",
-            ))
-        }
-        Err(crate::use_cases::player_action::PlayerActionError::MissingTalkDialogue) => {
-            return Some(error_response(
-                "MISSING_PARAMS",
-                "Talk action requires dialogue",
-            ))
-        }
-        Err(crate::use_cases::player_action::PlayerActionError::Conversation(e)) => {
-            tracing::error!(error = %e, "Failed to start conversation");
-            return Some(error_response("CONVERSATION_ERROR", &e.to_string()));
-        }
-    };
-
-    tracing::info!(
-        connection_id = %connection_id,
-        action_id = %processed.action_id,
-        action_type = %processed.action_type,
-        target = ?target,
-        "Player action received"
-    );
-
-    // Acknowledge the action
-    let ack = ServerMessage::ActionReceived {
-        action_id: processed.action_id.to_string(),
-        player_id: processed.player_id.clone(),
-        action_type: processed.action_type.clone(),
-    };
-
-    // Notify DMs that action is queued
-    let queue_msg = ServerMessage::ActionQueued {
-        action_id: processed.action_id.to_string(),
-        player_name: processed.player_id,
-        action_type: processed.action_type,
-        queue_depth: processed.queue_depth,
-    };
-    state
-        .connections
-        .broadcast_to_dms(world_id, queue_msg)
-        .await;
-
-    Some(ack)
-}
-
-// =============================================================================
-// Time Control Handlers
-// =============================================================================
-
-async fn handle_set_game_time(
-    state: &WsState,
-    connection_id: Uuid,
-    world_id: String,
-    day: u32,
-    hour: u8,
-    notify_players: bool,
-) -> Option<ServerMessage> {
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    let world_id_typed = match parse_world_id(&world_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    let outcome = match state
-        .app
-        .use_cases
-        .time
-        .control
-        .set_game_time(world_id_typed, day, hour)
-        .await
-    {
-        Ok(result) => result,
-        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"));
-        }
-        Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
-    };
-
-    if notify_players {
-        let reason = wrldbldr_domain::TimeAdvanceReason::DmSetTime;
-        let advance_data = crate::use_cases::time::build_time_advance_data(
-            &outcome.previous_time,
-            &outcome.new_time,
-            outcome.minutes_advanced,
-            &reason,
-        );
-        let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
-        state
-            .connections
-            .broadcast_to_world(world_id_typed, update_msg)
-            .await;
-    }
-
-    tracing::info!(world_id = %world_id_typed, day = day, hour = hour, "Game time set");
-    None
-}
-
-async fn handle_skip_to_period(
-    state: &WsState,
-    connection_id: Uuid,
-    world_id: String,
-    period: String,
-) -> Option<ServerMessage> {
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    let world_id_typed = match parse_world_id(&world_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    let target_period = match period.to_lowercase().as_str() {
-        "morning" => wrldbldr_domain::TimeOfDay::Morning,
-        "afternoon" => wrldbldr_domain::TimeOfDay::Afternoon,
-        "evening" => wrldbldr_domain::TimeOfDay::Evening,
-        "night" => wrldbldr_domain::TimeOfDay::Night,
-        _ => {
-            return Some(error_response(
-                "INVALID_PERIOD",
-                "Use: morning, afternoon, evening, night",
-            ))
-        }
-    };
-
-    let outcome = match state
-        .app
-        .use_cases
-        .time
-        .control
-        .skip_to_period(world_id_typed, target_period)
-        .await
-    {
-        Ok(result) => result,
-        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"));
-        }
-        Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
-    };
-
-    let reason = wrldbldr_domain::TimeAdvanceReason::DmSkipToPeriod {
-        period: target_period,
-    };
-    let advance_data = crate::use_cases::time::build_time_advance_data(
-        &outcome.previous_time,
-        &outcome.new_time,
-        outcome.minutes_advanced,
-        &reason,
-    );
-    let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
-    state
-        .connections
-        .broadcast_to_world(world_id_typed, update_msg)
-        .await;
-
-    tracing::info!(world_id = %world_id_typed, period = %target_period, "Skipped to period");
-    None
-}
-
-async fn handle_pause_game_time(
-    state: &WsState,
-    connection_id: Uuid,
-    world_id: String,
-    paused: bool,
-) -> Option<ServerMessage> {
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    let world_id_typed = match parse_world_id(&world_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    match state
-        .app
-        .use_cases
-        .time
-        .control
-        .set_paused(world_id_typed, paused)
-        .await
-    {
-        Ok(_time) => {}
-        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"));
-        }
-        Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
-    }
-
-    let update_msg = ServerMessage::GameTimePaused {
-        world_id: world_id_typed.to_string(),
-        paused,
-    };
-    state
-        .connections
-        .broadcast_to_world(world_id_typed, update_msg)
-        .await;
-
-    tracing::info!(world_id = %world_id_typed, paused = paused, "Game time pause state changed");
-    None
-}
-
-async fn handle_set_time_mode(
-    state: &WsState,
-    connection_id: Uuid,
-    world_id: String,
-    mode: wrldbldr_protocol::types::TimeMode,
-) -> Option<ServerMessage> {
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    let world_id_typed = match parse_world_id(&world_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    let mut config = match state
-        .app
-        .use_cases
-        .time
-        .control
-        .get_time_config(world_id_typed)
-        .await
-    {
-        Ok(result) => result,
-        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"));
-        }
-        Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
-    };
-
-    config.mode = mode;
-
-    let update = match state
-        .app
-        .use_cases
-        .time
-        .control
-        .update_time_config(world_id_typed, config)
-        .await
-    {
-        Ok(result) => result,
-        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"));
-        }
-        Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
-    };
-
-    let update_msg = ServerMessage::TimeModeChanged {
-        world_id: world_id_typed.to_string(),
-        mode: update.normalized_config.mode,
-    };
-    state
-        .connections
-        .broadcast_to_world(world_id_typed, update_msg)
-        .await;
-
-    tracing::info!(world_id = %world_id_typed, mode = ?mode, "Time mode changed");
-    None
-}
-
-async fn handle_set_time_costs(
-    state: &WsState,
-    connection_id: Uuid,
-    world_id: String,
-    costs: wrldbldr_protocol::types::TimeCostConfig,
-) -> Option<ServerMessage> {
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    let world_id_typed = match parse_world_id(&world_id) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
-
-    let mut config = match state
-        .app
-        .use_cases
-        .time
-        .control
-        .get_time_config(world_id_typed)
-        .await
-    {
-        Ok(result) => result,
-        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"));
-        }
-        Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
-    };
-
-    config.time_costs = costs;
-
-    if let Err(e) = state
-        .app
-        .use_cases
-        .time
-        .control
-        .update_time_config(world_id_typed, config)
-        .await
-    {
-        return Some(match e {
-            crate::use_cases::time::TimeControlError::WorldNotFound => {
-                error_response("NOT_FOUND", "World not found")
-            }
-            _ => error_response("DATABASE_ERROR", &e.to_string()),
-        });
-    }
-
-    tracing::info!(world_id = %world_id_typed, "Time costs updated");
-    None
-}
-
-async fn handle_respond_to_time_suggestion(
-    state: &WsState,
-    connection_id: Uuid,
-    suggestion_id: String,
-    decision: wrldbldr_protocol::types::TimeSuggestionDecision,
-) -> Option<ServerMessage> {
-    let conn_info = match state.connections.get(connection_id).await {
-        Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
-    };
-
-    if let Err(e) = require_dm(&conn_info) {
-        return Some(e);
-    }
-
-    let world_id = match conn_info.world_id {
-        Some(id) => id,
-        None => return Some(error_response("NOT_IN_WORLD", "Must be in a world")),
-    };
-
-    let suggestion_uuid = match Uuid::parse_str(&suggestion_id) {
-        Ok(id) => id,
-        Err(_) => {
-            return Some(error_response(
-                "INVALID_SUGGESTION_ID",
-                "Invalid time suggestion ID",
-            ));
-        }
-    };
-
-    let resolution = match state
-        .app
-        .use_cases
-        .time
-        .suggestions
-        .resolve(&state.pending_time_suggestions, world_id, suggestion_uuid, decision)
-        .await
-    {
-        Ok(result) => result,
-        Err(crate::use_cases::time::TimeSuggestionError::NotFound) => {
-            return Some(error_response(
-                "TIME_SUGGESTION_NOT_FOUND",
-                "Time suggestion not found (maybe already resolved)",
-            ));
-        }
-        Err(crate::use_cases::time::TimeSuggestionError::WorldMismatch) => {
-            return Some(error_response(
-                "TIME_SUGGESTION_WORLD_MISMATCH",
-                "Time suggestion does not belong to this world",
-            ));
-        }
-        Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
-    };
-
-    let Some(resolution) = resolution else {
-        return None;
-    };
-
-    tracing::info!(
-        world_id = %world_id,
-        suggestion_id = %resolution.suggestion_id,
-        minutes = resolution.minutes_advanced,
-        "Time suggestion resolved"
-    );
-
-    let update_msg = ServerMessage::GameTimeAdvanced {
-        data: resolution.advance_data,
-    };
-    state
-        .connections
-        .broadcast_to_world(world_id, update_msg)
-        .await;
-
-    None
-}
-
-// =============================================================================
 // Helpers
 // =============================================================================
 
@@ -2762,6 +615,10 @@ fn error_response(code: &str, message: &str) -> ServerMessage {
         code: code.to_string(),
         message: message.to_string(),
     }
+}
+
+fn parse_staging_source(source: &str) -> StagingSource {
+    source.parse().unwrap_or(StagingSource::Unknown)
 }
 
 /// Parse a string ID into a typed domain ID, returning an error response on failure.
@@ -3371,6 +1228,18 @@ mod ws_integration_tests_inline {
             ),
         ));
 
+        let resolve_outcome = Arc::new(crate::use_cases::challenge::ResolveOutcome::new(
+            challenge.clone(),
+            inventory.clone(),
+            observation.clone(),
+            scene.clone(),
+            player_character.clone(),
+        ));
+        let outcome_decision = Arc::new(crate::use_cases::challenge::OutcomeDecision::new(
+            queue.clone(),
+            resolve_outcome.clone(),
+        ));
+
         let challenge_uc = crate::use_cases::ChallengeUseCases::new(
             Arc::new(crate::use_cases::challenge::RollChallenge::new(
                 challenge.clone(),
@@ -3379,26 +1248,26 @@ mod ws_integration_tests_inline {
                 random,
                 clock.clone(),
             )),
-            Arc::new(crate::use_cases::challenge::ResolveOutcome::new(
-                challenge.clone(),
-                inventory.clone(),
-                observation.clone(),
-                scene.clone(),
-                player_character.clone(),
-            )),
+            resolve_outcome,
             Arc::new(crate::use_cases::challenge::TriggerChallengePrompt::new(
                 challenge.clone(),
             )),
+            outcome_decision,
             Arc::new(crate::use_cases::challenge::ChallengeOps::new(
                 challenge.clone(),
             )),
         );
 
+        let approve_suggestion =
+            Arc::new(crate::use_cases::approval::ApproveSuggestion::new(queue.clone()));
         let approval = crate::use_cases::ApprovalUseCases::new(
             Arc::new(crate::use_cases::approval::ApproveStaging::new(
                 staging.clone(),
             )),
-            Arc::new(crate::use_cases::approval::ApproveSuggestion::new(
+            approve_suggestion.clone(),
+            Arc::new(crate::use_cases::approval::ApprovalDecisionFlow::new(
+                approve_suggestion,
+                narrative.clone(),
                 queue.clone(),
             )),
         );
@@ -3464,8 +1333,18 @@ mod ws_integration_tests_inline {
         ));
         let narrative_chains =
             Arc::new(crate::use_cases::narrative::EventChainOps::new(narrative.clone()));
-        let narrative_uc =
-            crate::use_cases::NarrativeUseCases::new(execute_effects, narrative_events, narrative_chains);
+        let narrative_decision = Arc::new(crate::use_cases::narrative::NarrativeDecisionFlow::new(
+            approve_suggestion.clone(),
+            queue.clone(),
+            narrative.clone(),
+            execute_effects.clone(),
+        ));
+        let narrative_uc = crate::use_cases::NarrativeUseCases::new(
+            execute_effects,
+            narrative_events,
+            narrative_chains,
+            narrative_decision,
+        );
 
         let time_control = Arc::new(crate::use_cases::time::TimeControl::new(world.clone()));
         let time_suggestions =

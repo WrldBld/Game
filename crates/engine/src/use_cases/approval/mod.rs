@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 use uuid::Uuid;
-use wrldbldr_domain::{CharacterId, DmApprovalDecision, RegionId};
+use wrldbldr_domain::{CharacterId, DmApprovalDecision, RegionId, WorldId};
 
 use crate::entities::Staging;
 use crate::infrastructure::ports::{QueuePort, RepoError};
@@ -16,16 +16,19 @@ use crate::infrastructure::ports::{QueuePort, RepoError};
 pub struct ApprovalUseCases {
     pub approve_staging: Arc<ApproveStaging>,
     pub approve_suggestion: Arc<ApproveSuggestion>,
+    pub decision_flow: Arc<ApprovalDecisionFlow>,
 }
 
 impl ApprovalUseCases {
     pub fn new(
         approve_staging: Arc<ApproveStaging>,
         approve_suggestion: Arc<ApproveSuggestion>,
+        decision_flow: Arc<ApprovalDecisionFlow>,
     ) -> Self {
         Self {
             approve_staging,
             approve_suggestion,
+            decision_flow,
         }
     }
 }
@@ -193,6 +196,92 @@ impl ApproveSuggestion {
     }
 }
 
+/// Full approval decision flow (approval + dialogue persistence).
+pub struct ApprovalDecisionFlow {
+    approve_suggestion: Arc<ApproveSuggestion>,
+    narrative: Arc<crate::entities::Narrative>,
+    queue: Arc<dyn QueuePort>,
+}
+
+impl ApprovalDecisionFlow {
+    pub fn new(
+        approve_suggestion: Arc<ApproveSuggestion>,
+        narrative: Arc<crate::entities::Narrative>,
+        queue: Arc<dyn QueuePort>,
+    ) -> Self {
+        Self {
+            approve_suggestion,
+            narrative,
+            queue,
+        }
+    }
+
+    pub async fn execute(
+        &self,
+        approval_id: Uuid,
+        decision: DmApprovalDecision,
+    ) -> Result<ApprovalDecisionOutcome, ApprovalDecisionError> {
+        let approval_data = self
+            .queue
+            .get_approval_request(approval_id)
+            .await
+            .map_err(|e| ApprovalDecisionError::QueueError(e.to_string()))?
+            .ok_or(ApprovalDecisionError::ApprovalNotFound)?;
+
+        let result = self
+            .approve_suggestion
+            .execute(approval_id, decision)
+            .await
+            .map_err(ApprovalDecisionError::Approval)?;
+
+        if result.approved {
+            let dialogue = result.final_dialogue.clone().unwrap_or_default();
+            if !dialogue.is_empty() {
+                if let (Some(pc_id), Some(npc_id)) = (approval_data.pc_id, approval_data.npc_id) {
+                    let player_dialogue =
+                        approval_data.player_dialogue.clone().unwrap_or_default();
+                    if let Err(e) = self
+                        .narrative
+                        .record_dialogue_exchange(
+                            approval_data.world_id,
+                            pc_id,
+                            npc_id,
+                            approval_data.npc_name.clone(),
+                            player_dialogue,
+                            dialogue,
+                            approval_data.topics.clone(),
+                            approval_data.scene_id,
+                            approval_data.location_id,
+                            approval_data.game_time.clone(),
+                        )
+                        .await
+                    {
+                        tracing::error!(error = %e, "Failed to record dialogue exchange");
+                    }
+                }
+            }
+        }
+
+        Ok(ApprovalDecisionOutcome {
+            world_id: approval_data.world_id,
+            approved: result.approved,
+            final_dialogue: result.final_dialogue,
+            approved_tools: result.approved_tools,
+            npc_id: result.npc_id,
+            npc_name: result.npc_name,
+        })
+    }
+}
+
+pub struct ApprovalDecisionOutcome {
+    pub world_id: WorldId,
+    pub approved: bool,
+    pub final_dialogue: Option<String>,
+    pub approved_tools: Vec<String>,
+    pub npc_id: Option<String>,
+    pub npc_name: Option<String>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ApprovalError {
     #[error("Item not found")]
@@ -205,4 +294,14 @@ pub enum ApprovalError {
     QueueError(String),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ApprovalDecisionError {
+    #[error("Approval request not found")]
+    ApprovalNotFound,
+    #[error("Queue error: {0}")]
+    QueueError(String),
+    #[error("Approval error: {0}")]
+    Approval(#[from] ApprovalError),
 }
