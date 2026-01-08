@@ -1300,21 +1300,14 @@ async fn handle_staging_approval(
     };
 
     let (region_id, location_id) = if let Some(pending) = pending {
-        (pending.region_id, pending.location_id)
+        (pending.region_id, Some(pending.location_id))
     } else {
         // Backward-compat: allow request_id to be the region_id.
         let region_id = match parse_region_id(&request_id) {
             Ok(id) => id,
             Err(e) => return Some(e),
         };
-
-        // Get region to find location_id (needed for setting location state)
-        let region = match state.app.entities.location.get_region(region_id).await {
-            Ok(Some(r)) => r,
-            Ok(None) => return Some(error_response("NOT_FOUND", "Region not found")),
-            Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
-        };
-        (region_id, region.location_id)
+        (region_id, None)
     };
 
     let world_id = match conn_info.world_id {
@@ -1336,6 +1329,12 @@ async fn handle_staging_approval(
 
     let payload = match state.app.use_cases.staging.approve.execute(input).await {
         Ok(result) => result,
+        Err(crate::use_cases::staging::StagingError::RegionNotFound) => {
+            return Some(error_response("NOT_FOUND", "Region not found"))
+        }
+        Err(crate::use_cases::staging::StagingError::WorldNotFound) => {
+            return Some(error_response("NOT_FOUND", "World not found"))
+        }
         Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
     };
 
@@ -1443,17 +1442,9 @@ async fn handle_pre_stage_region(
         None => return Some(error_response("NOT_CONNECTED", "World not joined")),
     };
 
-    // Determine location_id for this region.
-    let region = match state.app.entities.location.get_region(region_uuid).await {
-        Ok(Some(r)) => r,
-        Ok(None) => return Some(error_response("NOT_FOUND", "Region not found")),
-        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
-    };
-    let location_id = region.location_id;
-
     let input = crate::use_cases::staging::ApproveStagingInput {
         region_id: region_uuid,
-        location_id,
+        location_id: None,
         world_id,
         approved_by: conn_info.user_id.clone(),
         ttl_hours,
@@ -1464,7 +1455,15 @@ async fn handle_pre_stage_region(
     };
 
     if let Err(e) = state.app.use_cases.staging.approve.execute(input).await {
-        return Some(error_response("REPO_ERROR", &e.to_string()));
+        return Some(match e {
+            crate::use_cases::staging::StagingError::RegionNotFound => {
+                error_response("NOT_FOUND", "Region not found")
+            }
+            crate::use_cases::staging::StagingError::WorldNotFound => {
+                error_response("NOT_FOUND", "World not found")
+            }
+            _ => error_response("REPO_ERROR", &e.to_string()),
+        });
     }
 
     None
@@ -2190,21 +2189,30 @@ async fn handle_trigger_approach_event(
         Err(e) => return Some(e),
     };
 
-    let (npc_name, npc_sprite) = match state.app.entities.character.get(npc_uuid).await {
-        Ok(Some(c)) => (c.name.clone(), c.sprite_asset.clone()),
-        Ok(None) => (String::new(), None),
-        Err(_) => (String::new(), None),
+    let approach = match state
+        .app
+        .use_cases
+        .npc
+        .approach_events
+        .build_event(npc_uuid, reveal)
+        .await
+    {
+        Ok(result) => result,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to build approach event");
+            return Some(error_response("APPROACH_EVENT_ERROR", &e.to_string()));
+        }
     };
+
+    if let Some(err) = approach.lookup_error.as_ref() {
+        tracing::error!(error = %err, "Failed to load NPC for approach event");
+    }
 
     // Send approach event to target PC
     let msg = ServerMessage::ApproachEvent {
         npc_id,
-        npc_name: if reveal {
-            npc_name
-        } else {
-            "Unknown Figure".to_string()
-        },
-        npc_sprite: if reveal { npc_sprite } else { None },
+        npc_name: approach.npc_name,
+        npc_sprite: approach.npc_sprite,
         description,
         reveal,
     };
@@ -3562,6 +3570,7 @@ mod ws_integration_tests_inline {
                 staging.clone(),
                 world.clone(),
                 character.clone(),
+                location.clone(),
                 location_state.clone(),
                 region_state.clone(),
             )),
@@ -3584,6 +3593,9 @@ mod ws_integration_tests_inline {
                 location.clone(),
                 observation.clone(),
                 clock.clone(),
+            )),
+            Arc::new(crate::use_cases::npc::NpcApproachEvents::new(
+                character.clone(),
             )),
         );
 

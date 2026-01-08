@@ -138,12 +138,8 @@ impl RequestStagingApproval {
             .map(|l| l.name)
             .unwrap_or_else(|| "Unknown Location".to_string());
 
-        let rule_based_npcs = generate_rule_based_suggestions(
-            &self.character,
-            &self.staging,
-            input.region.id,
-        )
-        .await;
+        let rule_based_npcs =
+            generate_rule_based_suggestions(&self.character, &self.staging, input.region.id).await;
         let llm_based_npcs = generate_llm_based_suggestions(
             &self.character,
             self.llm.as_ref(),
@@ -247,7 +243,8 @@ impl RequestStagingApproval {
             .await
             .unwrap_or_default();
 
-        let context = StateResolutionContext::new(world_id, game_time).with_world_flags(world_flags);
+        let context =
+            StateResolutionContext::new(world_id, game_time).with_world_flags(world_flags);
 
         let resolution = match self
             .visual_state
@@ -381,6 +378,7 @@ pub struct ApproveStagingRequest {
     staging: Arc<Staging>,
     world: Arc<World>,
     character: Arc<Character>,
+    location: Arc<Location>,
     location_state: Arc<LocationStateEntity>,
     region_state: Arc<RegionStateEntity>,
 }
@@ -390,6 +388,7 @@ impl ApproveStagingRequest {
         staging: Arc<Staging>,
         world: Arc<World>,
         character: Arc<Character>,
+        location: Arc<Location>,
         location_state: Arc<LocationStateEntity>,
         region_state: Arc<RegionStateEntity>,
     ) -> Self {
@@ -397,6 +396,7 @@ impl ApproveStagingRequest {
             staging,
             world,
             character,
+            location,
             location_state,
             region_state,
         }
@@ -412,16 +412,26 @@ impl ApproveStagingRequest {
             .await?
             .ok_or(StagingError::WorldNotFound)?;
 
+        let location_id = match input.location_id {
+            Some(id) => id,
+            None => {
+                let region = self
+                    .location
+                    .get_region(input.region_id)
+                    .await?
+                    .ok_or(StagingError::RegionNotFound)?;
+                region.location_id
+            }
+        };
+
         let current_game_time = world.game_time.current();
         let approved_at = chrono::Utc::now();
 
-        let staged_npcs = self
-            .build_staged_npcs(&input.approved_npcs)
-            .await;
+        let staged_npcs = self.build_staged_npcs(&input.approved_npcs).await;
 
         let staging = wrldbldr_domain::Staging::new(
             input.region_id,
-            input.location_id,
+            location_id,
             input.world_id,
             current_game_time,
             input.approved_by.clone(),
@@ -441,7 +451,7 @@ impl ApproveStagingRequest {
                 let loc_state_id = wrldbldr_domain::LocationStateId::from_uuid(loc_uuid);
                 if let Err(e) = self
                     .location_state
-                    .set_active(input.location_id, loc_state_id)
+                    .set_active(location_id, loc_state_id)
                     .await
                 {
                     tracing::warn!(error = %e, "Failed to set active location state");
@@ -464,7 +474,7 @@ impl ApproveStagingRequest {
 
         let npcs_present = self.build_npcs_present(&input.approved_npcs).await;
         let visual_state = self
-            .build_visual_state_for_staging(input.location_id, input.region_id)
+            .build_visual_state_for_staging(location_id, input.region_id)
             .await;
 
         Ok(StagingReadyPayload {
@@ -487,12 +497,7 @@ impl ApproveStagingRequest {
             };
             let character_id = CharacterId::from_uuid(char_uuid);
 
-            let character = self
-                .character
-                .get(character_id)
-                .await
-                .ok()
-                .flatten();
+            let character = self.character.get(character_id).await.ok().flatten();
             let (name, sprite_asset, portrait_asset, default_mood) = match character {
                 Some(c) => (c.name, c.sprite_asset, c.portrait_asset, c.default_mood),
                 None => (
@@ -528,21 +533,20 @@ impl ApproveStagingRequest {
         let mut npcs_present = Vec::new();
         for npc_info in approved_npcs {
             if npc_info.is_present && !npc_info.is_hidden_from_players {
-                let (name, sprite_asset, portrait_asset) = if let Ok(char_id) =
-                    Uuid::parse_str(&npc_info.character_id)
-                {
-                    let char_id = CharacterId::from_uuid(char_id);
-                    match self.character.get(char_id).await {
-                        Ok(Some(character)) => (
-                            character.name,
-                            character.sprite_asset,
-                            character.portrait_asset,
-                        ),
-                        _ => (String::new(), None, None),
-                    }
-                } else {
-                    (String::new(), None, None)
-                };
+                let (name, sprite_asset, portrait_asset) =
+                    if let Ok(char_id) = Uuid::parse_str(&npc_info.character_id) {
+                        let char_id = CharacterId::from_uuid(char_id);
+                        match self.character.get(char_id).await {
+                            Ok(Some(character)) => (
+                                character.name,
+                                character.sprite_asset,
+                                character.portrait_asset,
+                            ),
+                            _ => (String::new(), None, None),
+                        }
+                    } else {
+                        (String::new(), None, None)
+                    };
 
                 npcs_present.push(NpcPresentInfo {
                     character_id: npc_info.character_id.clone(),
@@ -569,12 +573,7 @@ impl ApproveStagingRequest {
             .await
             .ok()
             .flatten();
-        let region_state = self
-            .region_state
-            .get_active(region_id)
-            .await
-            .ok()
-            .flatten();
+        let region_state = self.region_state.get_active(region_id).await.ok().flatten();
 
         if location_state.is_none() && region_state.is_none() {
             return None;
@@ -590,14 +589,12 @@ impl ApproveStagingRequest {
                     ambient_sound: s.ambient_sound,
                 }
             }),
-            region_state: region_state.map(|s| {
-                wrldbldr_protocol::types::ResolvedStateInfoData {
-                    id: s.id.to_string(),
-                    name: s.name,
-                    backdrop_override: s.backdrop_override,
-                    atmosphere_override: s.atmosphere_override,
-                    ambient_sound: s.ambient_sound,
-                }
+            region_state: region_state.map(|s| wrldbldr_protocol::types::ResolvedStateInfoData {
+                id: s.id.to_string(),
+                name: s.name,
+                backdrop_override: s.backdrop_override,
+                atmosphere_override: s.atmosphere_override,
+                ambient_sound: s.ambient_sound,
             }),
         })
     }
@@ -605,7 +602,7 @@ impl ApproveStagingRequest {
 
 pub struct ApproveStagingInput {
     pub region_id: RegionId,
-    pub location_id: LocationId,
+    pub location_id: Option<LocationId>,
     pub world_id: WorldId,
     pub approved_by: String,
     pub ttl_hours: i32,

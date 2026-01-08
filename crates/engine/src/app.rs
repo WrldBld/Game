@@ -352,6 +352,7 @@ impl App {
                 staging.clone(),
                 world.clone(),
                 character.clone(),
+                location.clone(),
                 location_state.clone(),
                 region_state.clone(),
             )),
@@ -375,6 +376,7 @@ impl App {
                 observation.clone(),
                 clock.clone(),
             )),
+            Arc::new(use_cases::npc::NpcApproachEvents::new(character.clone())),
         );
 
         let inventory_ops = Arc::new(use_cases::inventory::InventoryOps::new(inventory.clone()));

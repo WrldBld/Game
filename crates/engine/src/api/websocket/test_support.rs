@@ -726,6 +726,7 @@ pub(crate) fn build_test_app_with_ports(
             staging.clone(),
             world.clone(),
             character.clone(),
+            location.clone(),
             location_state.clone(),
             region_state.clone(),
         )),
@@ -748,6 +749,9 @@ pub(crate) fn build_test_app_with_ports(
             location.clone(),
             observation.clone(),
             clock.clone(),
+        )),
+        Arc::new(crate::use_cases::npc::NpcApproachEvents::new(
+            character.clone(),
         )),
     );
 

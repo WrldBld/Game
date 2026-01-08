@@ -18,6 +18,7 @@ pub struct NpcUseCases {
     pub mood: Arc<NpcMood>,
     pub region_relationships: Arc<NpcRegionRelationships>,
     pub location_sharing: Arc<NpcLocationSharing>,
+    pub approach_events: Arc<NpcApproachEvents>,
 }
 
 impl NpcUseCases {
@@ -26,12 +27,14 @@ impl NpcUseCases {
         mood: Arc<NpcMood>,
         region_relationships: Arc<NpcRegionRelationships>,
         location_sharing: Arc<NpcLocationSharing>,
+        approach_events: Arc<NpcApproachEvents>,
     ) -> Self {
         Self {
             disposition,
             mood,
             region_relationships,
             location_sharing,
+            approach_events,
         }
     }
 }
@@ -331,6 +334,49 @@ impl NpcLocationSharing {
     }
 }
 
+/// Build NPC approach event details.
+pub struct NpcApproachEvents {
+    character: Arc<Character>,
+}
+
+impl NpcApproachEvents {
+    pub fn new(character: Arc<Character>) -> Self {
+        Self { character }
+    }
+
+    pub async fn build_event(
+        &self,
+        npc_id: CharacterId,
+        reveal: bool,
+    ) -> Result<NpcApproachEventResult, NpcError> {
+        if !reveal {
+            return Ok(NpcApproachEventResult {
+                npc_name: "Unknown Figure".to_string(),
+                npc_sprite: None,
+                lookup_error: None,
+            });
+        }
+
+        match self.character.get(npc_id).await {
+            Ok(Some(npc)) => Ok(NpcApproachEventResult {
+                npc_name: npc.name,
+                npc_sprite: npc.sprite_asset,
+                lookup_error: None,
+            }),
+            Ok(None) => Ok(NpcApproachEventResult {
+                npc_name: "Unknown NPC".to_string(),
+                npc_sprite: None,
+                lookup_error: None,
+            }),
+            Err(e) => Ok(NpcApproachEventResult {
+                npc_name: "Unknown NPC".to_string(),
+                npc_sprite: None,
+                lookup_error: Some(e.to_string()),
+            }),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct NpcDispositionUpdate {
     pub npc_id: CharacterId,
@@ -360,6 +406,13 @@ pub struct NpcLocationShareResult {
     pub region_name: String,
     pub notes: Option<String>,
     pub observation_error: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NpcApproachEventResult {
+    pub npc_name: String,
+    pub npc_sprite: Option<String>,
+    pub lookup_error: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
