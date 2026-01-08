@@ -309,10 +309,9 @@ impl App {
         let narrative_uc =
             use_cases::NarrativeUseCases::new(execute_effects, narrative_events, narrative_chains);
 
-        let time_uc = use_cases::TimeUseCases::new(
-            suggest_time,
-            Arc::new(use_cases::time::TimeControl::new(world.clone())),
-        );
+        let time_control = Arc::new(use_cases::time::TimeControl::new(world.clone()));
+        let time_suggestions = Arc::new(use_cases::time::TimeSuggestions::new(time_control.clone()));
+        let time_uc = use_cases::TimeUseCases::new(suggest_time, time_control, time_suggestions);
 
         let visual_state_uc = use_cases::VisualStateUseCases::new(Arc::new(
             use_cases::visual_state::ResolveVisualState::new(

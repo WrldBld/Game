@@ -14,19 +14,26 @@ use wrldbldr_domain::{
 };
 
 use crate::entities::{World, WorldError};
+use crate::infrastructure::ports::QueueError;
 use crate::infrastructure::ports::{ClockPort, RepoError};
 
 /// Container for time use cases.
 pub struct TimeUseCases {
     pub suggest_time: Arc<SuggestTime>,
     pub control: Arc<TimeControl>,
+    pub suggestions: Arc<TimeSuggestions>,
 }
 
 impl TimeUseCases {
-    pub fn new(suggest_time: Arc<SuggestTime>, control: Arc<TimeControl>) -> Self {
+    pub fn new(
+        suggest_time: Arc<SuggestTime>,
+        control: Arc<TimeControl>,
+        suggestions: Arc<TimeSuggestions>,
+    ) -> Self {
         Self {
             suggest_time,
             control,
+            suggestions,
         }
     }
 }
@@ -376,6 +383,100 @@ pub enum TimeControlError {
     Repo(#[from] RepoError),
     #[error("World error: {0}")]
     World(#[from] WorldError),
+}
+
+// =============================================================================
+// Time Suggestions
+// =============================================================================
+
+/// In-memory store + approval flow for time suggestions.
+pub struct TimeSuggestions {
+    control: Arc<TimeControl>,
+}
+
+impl TimeSuggestions {
+    pub fn new(control: Arc<TimeControl>) -> Self {
+        Self { control }
+    }
+
+    pub async fn resolve(
+        &self,
+        store: &tokio::sync::RwLock<std::collections::HashMap<Uuid, TimeSuggestion>>,
+        world_id: WorldId,
+        suggestion_id: Uuid,
+        decision: wrldbldr_protocol::types::TimeSuggestionDecision,
+    ) -> Result<Option<TimeSuggestionResolution>, TimeSuggestionError> {
+        let suggestion = {
+            let mut guard = store.write().await;
+            match guard.remove(&suggestion_id) {
+                Some(s) => s,
+                None => return Err(TimeSuggestionError::NotFound),
+            }
+        };
+
+        if suggestion.world_id != world_id {
+            return Err(TimeSuggestionError::WorldMismatch);
+        }
+
+        let minutes_to_advance: u32 = match decision {
+            wrldbldr_protocol::types::TimeSuggestionDecision::Skip
+            | wrldbldr_protocol::types::TimeSuggestionDecision::Unknown => 0,
+            wrldbldr_protocol::types::TimeSuggestionDecision::Approve => suggestion.suggested_minutes,
+            wrldbldr_protocol::types::TimeSuggestionDecision::Modify { minutes } => minutes,
+        };
+
+        if minutes_to_advance == 0 {
+            return Ok(None);
+        }
+
+        let reason = crate::use_cases::time::time_advance_reason_for_action(
+            &suggestion.action_type,
+            &suggestion.action_description,
+        );
+
+        let result = self
+            .control
+            .advance_minutes(world_id, minutes_to_advance, reason.clone())
+            .await?;
+
+        let advance_data = crate::use_cases::time::build_time_advance_data(
+            &result.previous_time,
+            &result.new_time,
+            result.minutes_advanced,
+            &reason,
+        );
+
+        Ok(Some(TimeSuggestionResolution {
+            world_id,
+            suggestion_id,
+            minutes_advanced: minutes_to_advance,
+            advance_data,
+        }))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TimeSuggestionResolution {
+    pub world_id: WorldId,
+    pub suggestion_id: Uuid,
+    pub minutes_advanced: u32,
+    pub advance_data: wrldbldr_protocol::types::TimeAdvanceData,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum TimeSuggestionError {
+    #[error("Time suggestion not found")]
+    NotFound,
+    #[error("Time suggestion world mismatch")]
+    WorldMismatch,
+    #[error("Time control error: {0}")]
+    Control(#[from] TimeControlError),
+    #[error("Repository error: {0}")]
+    Repo(#[from] RepoError),
+    #[error("World error: {0}")]
+    World(#[from] WorldError),
+    #[error("Queue error: {0}")]
+    Queue(#[from] QueueError),
 }
 
 fn normalize_protocol_time_config(

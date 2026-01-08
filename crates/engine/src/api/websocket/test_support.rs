@@ -601,6 +601,9 @@ pub(crate) fn build_test_app_with_ports(
         Arc::new(crate::use_cases::challenge::TriggerChallengePrompt::new(
             challenge.clone(),
         )),
+        Arc::new(crate::use_cases::challenge::ChallengeOps::new(
+            challenge.clone(),
+        )),
     );
 
     let approval = crate::use_cases::ApprovalUseCases::new(
@@ -676,10 +679,11 @@ pub(crate) fn build_test_app_with_ports(
     let narrative_uc =
         crate::use_cases::NarrativeUseCases::new(execute_effects, narrative_events, narrative_chains);
 
-    let time_uc = crate::use_cases::TimeUseCases::new(
-        suggest_time,
-        Arc::new(crate::use_cases::time::TimeControl::new(world.clone())),
-    );
+    let time_control = Arc::new(crate::use_cases::time::TimeControl::new(world.clone()));
+    let time_suggestions =
+        Arc::new(crate::use_cases::time::TimeSuggestions::new(time_control.clone()));
+    let time_uc =
+        crate::use_cases::TimeUseCases::new(suggest_time, time_control, time_suggestions);
 
     let visual_state_uc = crate::use_cases::VisualStateUseCases::new(Arc::new(
         crate::use_cases::visual_state::ResolveVisualState::new(

@@ -2837,78 +2837,44 @@ async fn handle_respond_to_time_suggestion(
         }
     };
 
-    let suggestion = {
-        let mut guard = state.pending_time_suggestions.write().await;
-        match guard.remove(&suggestion_uuid) {
-            Some(s) => s,
-            None => {
-                return Some(error_response(
-                    "TIME_SUGGESTION_NOT_FOUND",
-                    "Time suggestion not found (maybe already resolved)",
-                ));
-            }
-        }
-    };
-
-    if suggestion.world_id != world_id {
-        tracing::warn!(
-            world_id = %world_id,
-            suggestion_world_id = %suggestion.world_id,
-            suggestion_id = %suggestion_id,
-            "Time suggestion world mismatch"
-        );
-        return Some(error_response(
-            "TIME_SUGGESTION_WORLD_MISMATCH",
-            "Time suggestion does not belong to this world",
-        ));
-    }
-
-    let minutes_to_advance: u32 = match decision {
-        wrldbldr_protocol::types::TimeSuggestionDecision::Skip
-        | wrldbldr_protocol::types::TimeSuggestionDecision::Unknown => 0,
-        wrldbldr_protocol::types::TimeSuggestionDecision::Approve => suggestion.suggested_minutes,
-        wrldbldr_protocol::types::TimeSuggestionDecision::Modify { minutes } => minutes,
-    };
-
-    tracing::info!(
-        world_id = %world_id,
-        suggestion_id = %suggestion_id,
-        minutes = minutes_to_advance,
-        action_type = %suggestion.action_type,
-        "Time suggestion resolved"
-    );
-
-    if minutes_to_advance == 0 {
-        return None;
-    }
-
-    let reason = crate::use_cases::time::time_advance_reason_for_action(
-        &suggestion.action_type,
-        &suggestion.action_description,
-    );
-
-    let result = match state
+    let resolution = match state
         .app
         .use_cases
         .time
-        .control
-        .advance_minutes(world_id, minutes_to_advance, reason.clone())
+        .suggestions
+        .resolve(&state.pending_time_suggestions, world_id, suggestion_uuid, decision)
         .await
     {
-        Ok(r) => r,
-        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"));
+        Ok(result) => result,
+        Err(crate::use_cases::time::TimeSuggestionError::NotFound) => {
+            return Some(error_response(
+                "TIME_SUGGESTION_NOT_FOUND",
+                "Time suggestion not found (maybe already resolved)",
+            ));
+        }
+        Err(crate::use_cases::time::TimeSuggestionError::WorldMismatch) => {
+            return Some(error_response(
+                "TIME_SUGGESTION_WORLD_MISMATCH",
+                "Time suggestion does not belong to this world",
+            ));
         }
         Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
     };
 
-    let advance_data = crate::use_cases::time::build_time_advance_data(
-        &result.previous_time,
-        &result.new_time,
-        result.minutes_advanced,
-        &reason,
+    let Some(resolution) = resolution else {
+        return None;
+    };
+
+    tracing::info!(
+        world_id = %world_id,
+        suggestion_id = %resolution.suggestion_id,
+        minutes = resolution.minutes_advanced,
+        "Time suggestion resolved"
     );
-    let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
+
+    let update_msg = ServerMessage::GameTimeAdvanced {
+        data: resolution.advance_data,
+    };
     state
         .connections
         .broadcast_to_world(world_id, update_msg)
@@ -3616,6 +3582,9 @@ mod ws_integration_tests_inline {
             Arc::new(crate::use_cases::challenge::TriggerChallengePrompt::new(
                 challenge.clone(),
             )),
+            Arc::new(crate::use_cases::challenge::ChallengeOps::new(
+                challenge.clone(),
+            )),
         );
 
         let approval = crate::use_cases::ApprovalUseCases::new(
@@ -3691,9 +3660,13 @@ mod ws_integration_tests_inline {
         let narrative_uc =
             crate::use_cases::NarrativeUseCases::new(execute_effects, narrative_events, narrative_chains);
 
+        let time_control = Arc::new(crate::use_cases::time::TimeControl::new(world.clone()));
+        let time_suggestions =
+            Arc::new(crate::use_cases::time::TimeSuggestions::new(time_control.clone()));
         let time_uc = crate::use_cases::TimeUseCases::new(
             suggest_time,
-            Arc::new(crate::use_cases::time::TimeControl::new(world.clone())),
+            time_control,
+            time_suggestions,
         );
 
         let visual_state_uc = crate::use_cases::VisualStateUseCases::new(Arc::new(

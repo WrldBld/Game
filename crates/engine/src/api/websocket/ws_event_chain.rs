@@ -39,10 +39,7 @@ pub(super) async fn handle_event_chain_request(
             require_dm_for_request(conn_info, request_id)?;
             let world_id_typed = parse_world_id_for_request(&world_id, request_id)?;
             let act_id = parse_optional_act_id(data.act_id.clone(), request_id)?;
-            let events = match data.events.as_ref() {
-                Some(values) => Some(parse_event_ids(values, request_id)?),
-                None => None,
-            };
+            let events = parse_event_ids(data.events.as_ref(), request_id)?;
             match state
                 .app
                 .use_cases
@@ -62,10 +59,7 @@ pub(super) async fn handle_event_chain_request(
             require_dm_for_request(conn_info, request_id)?;
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
             let act_id = parse_optional_act_id(data.act_id.clone(), request_id)?;
-            let events = match data.events.as_ref() {
-                Some(values) => Some(parse_event_ids(values, request_id)?),
-                None => None,
-            };
+            let events = parse_event_ids(data.events.as_ref(), request_id)?;
             match state
                 .app
                 .use_cases
@@ -239,12 +233,16 @@ pub(super) async fn handle_event_chain_request(
 }
 
 fn parse_event_ids(
-    raw: &[String],
+    raw: Option<&Vec<String>>,
     request_id: &str,
-) -> Result<Vec<NarrativeEventId>, ServerMessage> {
+) -> Result<Option<Vec<NarrativeEventId>>, ServerMessage> {
+    let Some(raw) = raw else {
+        return Ok(None);
+    };
     raw.iter()
         .map(|value| parse_narrative_event_id_from_str(value, request_id))
-        .collect()
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
 }
 
 fn parse_narrative_event_id_from_str(
