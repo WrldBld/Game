@@ -1,7 +1,8 @@
 use super::*;
 
 #[tokio::test]
-async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_without_staging_pending() {
+async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_without_staging_pending()
+{
     use wrldbldr_domain::value_objects::CampbellArchetype;
     use wrldbldr_domain::TimeMode;
 
@@ -27,7 +28,8 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     let mut region = wrldbldr_domain::Region::new(location_id, "Region");
     region.id = region_id;
 
-    let mut pc = wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now);
+    let mut pc =
+        wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now);
     pc.id = pc_id;
     pc.current_region_id = None;
 

@@ -108,8 +108,8 @@ impl BackoffState {
 
         let current_delay = self.delay_ms;
         self.attempts += 1;
-        self.delay_ms = ((self.delay_ms as f64) * BACKOFF_MULTIPLIER)
-            .min(MAX_RETRY_DELAY_MS as f64) as u64;
+        self.delay_ms =
+            ((self.delay_ms as f64) * BACKOFF_MULTIPLIER).min(MAX_RETRY_DELAY_MS as f64) as u64;
         Some(current_delay)
     }
 }

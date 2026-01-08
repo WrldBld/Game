@@ -1627,7 +1627,10 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
     }
 
     if !violations.is_empty() {
-        eprintln!("Player protocol isolation violations ({} files):", violations.len());
+        eprintln!(
+            "Player protocol isolation violations ({} files):",
+            violations.len()
+        );
         for v in &violations {
             eprintln!("  - {v}");
         }

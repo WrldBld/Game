@@ -18,6 +18,7 @@ pub fn routes() -> Router<Arc<App>> {
         .route("/api/worlds", get(list_worlds))
         .route("/api/worlds/{id}", get(get_world))
         .route("/api/worlds/{id}/export", get(export_world))
+        .route("/api/worlds/import", post(import_world))
         .route("/api/settings", get(get_settings).put(update_settings))
         .route("/api/settings/reset", post(reset_settings))
         .route("/api/settings/metadata", get(get_settings_metadata))
@@ -80,6 +81,22 @@ async fn export_world(
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
     Ok(Json(export))
+}
+
+async fn import_world(
+    State(app): State<Arc<App>>,
+    Json(payload): Json<crate::use_cases::world::WorldExport>,
+) -> Result<Json<ImportWorldResponse>, ApiError> {
+    let world_id = app
+        .use_cases
+        .world
+        .import
+        .execute(payload)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    Ok(Json(ImportWorldResponse {
+        id: world_id.to_string(),
+    }))
 }
 
 // =============================================================================
@@ -256,6 +273,11 @@ fn parse_rule_system_variant(value: &str) -> Result<wrldbldr_domain::RuleSystemV
     Ok(variant)
 }
 
+#[derive(serde::Serialize)]
+struct ImportWorldResponse {
+    id: String,
+}
+
 #[derive(Debug)]
 pub enum ApiError {
     NotFound,
@@ -301,7 +323,8 @@ mod tests {
         repos
             .settings_repo
             .expect_get_global()
-            .returning(|| Ok(None));
+            .returning(|| Ok(None))
+            .times(0..=1);
 
         let app = crate::api::websocket::test_support::build_test_app(repos, Utc::now());
         routes().with_state(app)
@@ -414,5 +437,42 @@ mod tests {
         let preset: serde_json::Value = read_body_json(response).await;
         assert_eq!(preset["variant"], "dnd5e");
         assert_eq!(preset["config"]["system_type"], "d20");
+    }
+
+    #[tokio::test]
+    async fn import_world_returns_id() {
+        let mut world_repo = MockWorldRepo::new();
+        world_repo.expect_save().times(1).returning(|_| Ok(()));
+
+        let repos = TestAppRepos::new(world_repo);
+        let router = build_router_with_repos(repos);
+
+        let world = wrldbldr_domain::World::new("Test World", "Desc", Utc::now());
+        let export = crate::use_cases::world::WorldExport {
+            world: world.clone(),
+            locations: Vec::new(),
+            regions: Vec::new(),
+            characters: Vec::new(),
+            items: Vec::new(),
+            narrative_events: Vec::new(),
+            format_version: 1,
+        };
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/worlds/import")
+                    .method(axum::http::Method::POST)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(serde_json::to_vec(&export).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let payload: serde_json::Value = read_body_json(response).await;
+        assert_eq!(payload["id"], world.id.to_string());
     }
 }

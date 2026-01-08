@@ -9,6 +9,6 @@ pub use crate::session_types::{
 };
 
 // Keep `crate::ports::session_types::...` working during the move.
-pub use crate::session_types as session_types;
+pub use crate::session_types;
 
 pub mod outbound;

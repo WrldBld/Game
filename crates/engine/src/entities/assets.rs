@@ -49,7 +49,10 @@ impl Assets {
     }
 
     /// Generate a new image asset.
-    pub async fn generate(&self, request: ImageRequest) -> Result<Vec<u8>, crate::infrastructure::ports::ImageGenError> {
+    pub async fn generate(
+        &self,
+        request: ImageRequest,
+    ) -> Result<Vec<u8>, crate::infrastructure::ports::ImageGenError> {
         let result = self.image_gen.generate(request).await?;
         Ok(result.image_data)
     }

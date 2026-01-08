@@ -33,10 +33,7 @@ pub struct EndConversation {
 }
 
 impl EndConversation {
-    pub fn new(
-        character: Arc<Character>,
-        player_character: Arc<PlayerCharacter>,
-    ) -> Self {
+    pub fn new(character: Arc<Character>, player_character: Arc<PlayerCharacter>) -> Self {
         Self {
             character,
             player_character,

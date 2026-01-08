@@ -12,12 +12,6 @@
 
 use dioxus::prelude::*;
 
-use crate::presentation::components::common::CharacterPicker;
-use crate::presentation::components::creator::suggestion_button::{
-    SuggestionButton, SuggestionType,
-};
-use crate::presentation::services::{use_actantial_service, use_character_service};
-use crate::presentation::state::use_game_state;
 use crate::application::dto::{
     ActantialActorData, ActantialRoleData, ActorTypeData, GoalData, NpcActantialContextData,
     SocialRelationData, WantData, WantTargetTypeData, WantVisibilityData,
@@ -26,6 +20,12 @@ use crate::application::services::{
     AddActantialViewRequest, CreateGoalRequest, CreateWantRequest, RemoveActantialViewRequest,
     SetWantTargetRequest, SuggestionContext, UpdateWantRequest,
 };
+use crate::presentation::components::common::CharacterPicker;
+use crate::presentation::components::creator::suggestion_button::{
+    SuggestionButton, SuggestionType,
+};
+use crate::presentation::services::{use_actantial_service, use_character_service};
+use crate::presentation::state::use_game_state;
 
 /// Props for the motivations tab
 #[derive(Props, Clone, PartialEq)]

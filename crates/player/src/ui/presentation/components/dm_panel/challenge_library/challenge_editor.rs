@@ -1,10 +1,10 @@
 //! Challenge editor form component
 
-use crate::presentation::services::use_challenge_service;
-use dioxus::prelude::*;
 use crate::application::dto::{
     ChallengeData, ChallengeDifficulty, ChallengeOutcomes, ChallengeType, SkillData,
 };
+use crate::presentation::services::use_challenge_service;
+use dioxus::prelude::*;
 
 /// Props for ChallengeFormModal
 #[derive(Props, Clone, PartialEq)]

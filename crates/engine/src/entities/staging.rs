@@ -1,8 +1,10 @@
 //! Staging entity operations.
 
-use std::sync::Arc;
 use chrono::{DateTime, Utc};
-use wrldbldr_domain::{CharacterId, RegionId, StagedNpc, Staging as DomainStaging, StagingId, WorldId};
+use std::sync::Arc;
+use wrldbldr_domain::{
+    CharacterId, RegionId, StagedNpc, Staging as DomainStaging, StagingId, WorldId,
+};
 
 use crate::infrastructure::ports::{RepoError, StagingRepo};
 
@@ -67,10 +69,7 @@ impl Staging {
     }
 
     /// Save a pending staging proposal.
-    pub async fn save_pending(
-        &self,
-        staging: &wrldbldr_domain::Staging,
-    ) -> Result<(), RepoError> {
+    pub async fn save_pending(&self, staging: &wrldbldr_domain::Staging) -> Result<(), RepoError> {
         self.repo.save_pending_staging(staging).await
     }
 
@@ -78,9 +77,9 @@ impl Staging {
     pub async fn delete_pending(&self, id: StagingId) -> Result<(), RepoError> {
         self.repo.delete_pending_staging(id).await
     }
-    
+
     /// Get the active (non-expired) staging for a region.
-    /// 
+    ///
     /// Returns `None` if no staging exists or if the current staging has expired.
     /// This is used to determine if DM approval is needed before showing scene.
     pub async fn get_active_staging(
@@ -88,11 +87,13 @@ impl Staging {
         region_id: RegionId,
         current_game_time: DateTime<Utc>,
     ) -> Result<Option<DomainStaging>, RepoError> {
-        self.repo.get_active_staging(region_id, current_game_time).await
+        self.repo
+            .get_active_staging(region_id, current_game_time)
+            .await
     }
-    
+
     /// Activate a staging after DM approval.
-    /// 
+    ///
     /// This replaces any existing current staging for the region.
     pub async fn activate_staging(
         &self,
@@ -110,24 +111,27 @@ impl Staging {
     /// - Marked as present (`is_present = true`)
     /// - Not hidden from players (`is_hidden_from_players = false`)
     ///
-    /// If no valid staging exists (none, or expired), returns an empty list. 
+    /// If no valid staging exists (none, or expired), returns an empty list.
     /// The WebSocket handler should trigger the DM approval workflow in this case.
     ///
     /// # Arguments
     /// * `region_id` - The region to resolve NPCs for
     /// * `current_game_time` - Current in-game time for TTL checking
     pub async fn resolve_for_region(
-        &self, 
+        &self,
         region_id: RegionId,
         current_game_time: DateTime<Utc>,
     ) -> Result<Vec<StagedNpc>, RepoError> {
         // Get active staging with TTL check
-        let staging = self.get_active_staging(region_id, current_game_time).await?;
-        
+        let staging = self
+            .get_active_staging(region_id, current_game_time)
+            .await?;
+
         match staging {
             Some(s) => {
                 // Filter to only present, visible NPCs
-                let visible_npcs: Vec<StagedNpc> = s.npcs
+                let visible_npcs: Vec<StagedNpc> = s
+                    .npcs
                     .into_iter()
                     .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
                     .collect();
@@ -158,7 +162,7 @@ impl Staging {
 
         Ok(present_npcs)
     }
-    
+
     /// Get staging history for a region (most recent first).
     ///
     /// Returns past stagings that are no longer active. Useful for:
@@ -172,11 +176,11 @@ impl Staging {
     ) -> Result<Vec<DomainStaging>, RepoError> {
         self.repo.get_staging_history(region_id, limit).await
     }
-    
+
     // =========================================================================
     // Mood Operations (Tier 2 of three-tier emotional model)
     // =========================================================================
-    
+
     /// Get an NPC's current mood in a region.
     ///
     /// The mood is stored on the INCLUDES_NPC edge in the active staging.
@@ -193,7 +197,7 @@ impl Staging {
     ) -> Result<wrldbldr_domain::MoodState, RepoError> {
         self.repo.get_npc_mood(region_id, npc_id).await
     }
-    
+
     /// Set an NPC's mood in a region's active staging.
     ///
     /// Updates the mood property on the INCLUDES_NPC edge. The NPC must be

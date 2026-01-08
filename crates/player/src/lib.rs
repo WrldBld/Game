@@ -12,7 +12,7 @@ pub mod ui;
 
 // Transitional root-level alias for moved modules.
 // Allows `crate::outbound::...` paths to keep compiling.
-pub use crate::ports::outbound as outbound;
+pub use crate::ports::outbound;
 
 pub use ui::presentation;
 pub use ui::routes;

@@ -1,10 +1,10 @@
 //! World selection and role selection route handlers
 
 use super::Route;
-use crate::use_platform;
-use dioxus::prelude::*;
 use crate::application::dto::ParticipantRole;
 use crate::ports::outbound::storage_keys;
+use crate::use_platform;
+use dioxus::prelude::*;
 
 /// Role selection route
 #[component]
@@ -91,9 +91,7 @@ pub fn WorldSelectRoute() -> Element {
 }
 
 /// Load user role from localStorage, defaults to Player
-fn load_role_from_storage(
-    platform: &dyn crate::ports::outbound::PlatformPort,
-) -> ParticipantRole {
+fn load_role_from_storage(platform: &dyn crate::ports::outbound::PlatformPort) -> ParticipantRole {
     if let Some(role_str) = platform.storage_load(storage_keys::ROLE) {
         match role_str.as_str() {
             "DungeonMaster" => return ParticipantRole::DungeonMaster,

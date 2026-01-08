@@ -3,13 +3,13 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
+use crate::application::dto::{FieldValue, SheetTemplate};
+use crate::application::services::CreatePlayerCharacterRequest;
 use crate::presentation::services::{
     use_location_service, use_player_character_service, use_world_service,
 };
 use crate::presentation::state::use_session_state;
 use crate::use_platform;
-use crate::application::dto::{FieldValue, SheetTemplate};
-use crate::application::services::CreatePlayerCharacterRequest;
 
 /// Wizard step enum
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -50,9 +50,8 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
     let mut sheet_loading = use_signal(|| false);
 
     // Form state - Step 3: Starting Location
-    let mut available_locations: Signal<
-        Vec<crate::application::services::LocationSummary>,
-    > = use_signal(Vec::new);
+    let mut available_locations: Signal<Vec<crate::application::services::LocationSummary>> =
+        use_signal(Vec::new);
     let mut selected_location_id: Signal<Option<String>> = use_signal(|| None);
     let mut locations_loading = use_signal(|| false);
 

@@ -2,10 +2,10 @@
 
 use super::world_session_layout::WorldSessionLayout;
 use super::Route;
+use crate::ports::session_types::ParticipantRole;
 use crate::presentation::state::SessionState;
 use crate::use_platform;
 use dioxus::prelude::*;
-use crate::ports::session_types::ParticipantRole;
 
 /// PC (Player Character) view route
 #[component]

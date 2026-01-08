@@ -38,7 +38,7 @@ impl Neo4jRegionStateRepo {
             .get("name")
             .map_err(|e| RepoError::Database(e.to_string()))?;
         let description: String = node.get_string_or("description", "");
-        
+
         let backdrop_override: Option<String> = node.get_optional_string("backdrop_override");
         let atmosphere_override: Option<String> = node.get_optional_string("atmosphere_override");
         let ambient_sound: Option<String> = node.get_optional_string("ambient_sound");
@@ -134,9 +134,18 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
         .param("world_id", state.world_id.to_string())
         .param("name", state.name.clone())
         .param("description", state.description.clone())
-        .param("backdrop_override", state.backdrop_override.clone().unwrap_or_default())
-        .param("atmosphere_override", state.atmosphere_override.clone().unwrap_or_default())
-        .param("ambient_sound", state.ambient_sound.clone().unwrap_or_default())
+        .param(
+            "backdrop_override",
+            state.backdrop_override.clone().unwrap_or_default(),
+        )
+        .param(
+            "atmosphere_override",
+            state.atmosphere_override.clone().unwrap_or_default(),
+        )
+        .param(
+            "ambient_sound",
+            state.ambient_sound.clone().unwrap_or_default(),
+        )
         .param("activation_rules", activation_rules_json)
         .param("activation_logic", activation_logic_json)
         .param("priority", state.priority as i64)
@@ -218,7 +227,11 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
         }
     }
 
-    async fn set_active(&self, region_id: RegionId, state_id: RegionStateId) -> Result<(), RepoError> {
+    async fn set_active(
+        &self,
+        region_id: RegionId,
+        state_id: RegionStateId,
+    ) -> Result<(), RepoError> {
         // Match region and target state FIRST to ensure they exist,
         // then delete old relationship and create new one atomically.
         // This prevents leaving the region without an active state if the target doesn't exist.
@@ -233,13 +246,19 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
         .param("region_id", region_id.to_string())
         .param("state_id", state_id.to_string());
 
-        let mut result = self.graph
+        let mut result = self
+            .graph
             .execute(q)
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
         // Check if the query matched anything (region and state both exist)
-        if result.next().await.map_err(|e| RepoError::Database(e.to_string()))?.is_none() {
+        if result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+            .is_none()
+        {
             return Err(RepoError::NotFound);
         }
 

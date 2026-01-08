@@ -3,9 +3,9 @@
 //! DM approval card for pending challenge outcomes. Displays roll results
 //! and allows DM to accept, edit, or request LLM suggestions.
 
+use crate::application::dto::ChallengeOutcomeDecision;
 use crate::presentation::state::PendingChallengeOutcome;
 use dioxus::prelude::*;
-use crate::application::dto::ChallengeOutcomeDecision;
 
 /// Props for ChallengeOutcomeApprovalCard
 #[derive(Props, Clone, PartialEq)]

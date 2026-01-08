@@ -256,7 +256,8 @@ pub(super) async fn handle_relationship_request(
                 return Err(e);
             }
 
-            let from_id = match parse_character_id_for_request(&data.from_character_id, request_id) {
+            let from_id = match parse_character_id_for_request(&data.from_character_id, request_id)
+            {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
@@ -393,9 +394,9 @@ pub(super) async fn handle_observation_request(
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
-                Err(crate::use_cases::management::ManagementError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Observation target not found"))
-                }
+                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Observation target not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),

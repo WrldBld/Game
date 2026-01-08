@@ -7,8 +7,8 @@
 
 use dioxus::prelude::*;
 
-use crate::presentation::components::dm_panel::director_generate_modal::DirectorGenerateModal;
 use crate::application::dto::CharacterData as SceneCharacterState;
+use crate::presentation::components::dm_panel::director_generate_modal::DirectorGenerateModal;
 
 /// NPC motivation state
 #[derive(Clone, PartialEq)]

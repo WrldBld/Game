@@ -6,8 +6,8 @@
 use dioxus::prelude::*;
 use wrldbldr_domain::{parse_dialogue, DialogueMarker, ParsedDialogue};
 
-use crate::use_platform;
 use crate::application::dto::DialogueChoice;
+use crate::use_platform;
 
 /// A marker with its trigger position in the clean text
 #[derive(Clone, Debug)]
@@ -132,7 +132,7 @@ impl DialogueState {
         self.positioned_markers.set(positioned);
         self.next_marker_index.set(0);
         self.current_action.set(None);
-        
+
         // Increment version to trigger typewriter restart
         let current_version = *self.dialogue_version.read();
         self.dialogue_version.set(current_version.wrapping_add(1));
@@ -280,12 +280,12 @@ impl Default for DialogueState {
 /// Restarts automatically when new dialogue arrives (detected via dialogue_version).
 pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
     let platform = use_platform();
-    
+
     // Read the version to establish dependency - effect re-runs when this changes
     let dialogue_version = *dialogue_state.dialogue_version.read();
     // Also keep a signal reference to check for version changes in the async loop
     let dialogue_version_signal = dialogue_state.dialogue_version;
-    
+
     let clean_text = dialogue_state.clean_text;
     let mut displayed_text = dialogue_state.displayed_text;
     let mut is_typing_signal = dialogue_state.is_typing;
@@ -299,7 +299,7 @@ pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
     use_effect(move || {
         // Capture the version this effect was started with
         let started_version = dialogue_version;
-        
+
         // Check if we should start typing (read current signal value)
         if !*is_typing_signal.read() {
             return;

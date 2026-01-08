@@ -181,9 +181,10 @@ impl AssetRepo for Neo4jAssetRepo {
         asset_id: AssetId,
     ) -> Result<(), RepoError> {
         // First, get the asset to determine its asset_type
-        let asset = self.get(asset_id).await?.ok_or_else(|| {
-            RepoError::Database(format!("Asset not found: {}", asset_id))
-        })?;
+        let asset = self
+            .get(asset_id)
+            .await?
+            .ok_or_else(|| RepoError::Database(format!("Asset not found: {}", asset_id)))?;
 
         // Deactivate all assets of the same type for this entity
         let deactivate_q = query(
@@ -204,9 +205,8 @@ impl AssetRepo for Neo4jAssetRepo {
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
         // Activate the specified asset
-        let activate_q =
-            query("MATCH (a:GalleryAsset {id: $id}) SET a.is_active = true")
-                .param("id", asset_id.to_string());
+        let activate_q = query("MATCH (a:GalleryAsset {id: $id}) SET a.is_active = true")
+            .param("id", asset_id.to_string());
 
         self.graph
             .run(activate_q)

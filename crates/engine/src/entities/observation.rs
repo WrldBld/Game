@@ -1,7 +1,7 @@
 //! Observation entity operations.
 
-use std::sync::Arc;
 use chrono::{DateTime, Utc};
+use std::sync::Arc;
 use wrldbldr_domain::{CharacterId, NpcObservation, PlayerCharacterId, StagedNpc};
 
 use crate::infrastructure::ports::{ClockPort, LocationRepo, ObservationRepo, RepoError};
@@ -107,12 +107,12 @@ impl Observation {
         let now = self.clock.now(); // Real time for created_at
 
         // Create observations for each present, visible NPC
-        for npc in npcs.iter().filter(|n| n.is_present && !n.is_hidden_from_players) {
+        for npc in npcs
+            .iter()
+            .filter(|n| n.is_present && !n.is_hidden_from_players)
+        {
             // Check if already observed to avoid duplicates
-            let already_observed = self
-                .repo
-                .has_observed(pc_id, npc.character_id)
-                .await?;
+            let already_observed = self.repo.has_observed(pc_id, npc.character_id).await?;
 
             if !already_observed {
                 let observation = NpcObservation::direct(

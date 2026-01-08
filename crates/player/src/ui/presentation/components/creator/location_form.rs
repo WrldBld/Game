@@ -4,10 +4,10 @@ use dioxus::prelude::*;
 
 use super::asset_gallery::AssetGallery;
 use super::suggestion_button::{SuggestionButton, SuggestionType};
-use crate::presentation::components::common::FormField;
-use crate::presentation::services::use_location_service;
 use crate::application::services::LocationFormData;
 use crate::application::services::SuggestionContext;
+use crate::presentation::components::common::FormField;
+use crate::presentation::services::use_location_service;
 
 /// Location types
 const LOCATION_TYPES: &[&str] = &[
@@ -30,9 +30,7 @@ const LOCATION_TYPES: &[&str] = &[
 pub fn LocationForm(
     location_id: String,
     world_id: String,
-    locations_signal: Signal<
-        Vec<crate::application::services::location_service::LocationSummary>,
-    >,
+    locations_signal: Signal<Vec<crate::application::services::location_service::LocationSummary>>,
     on_close: EventHandler<()>,
 ) -> Element {
     let is_new = location_id.is_empty();

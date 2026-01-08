@@ -5,8 +5,8 @@
 
 use dioxus::prelude::*;
 
-use wrldbldr_domain::{parse_dialogue_markers, validate_markers, ExpressionConfig};
 use crate::application::dto::DialogueChoice;
+use wrldbldr_domain::{parse_dialogue_markers, validate_markers, ExpressionConfig};
 
 /// Props for the ChoiceMenu component
 #[derive(Props, Clone, PartialEq)]

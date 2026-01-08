@@ -6,8 +6,8 @@
 mod resolve_state;
 
 pub use resolve_state::{
-    ResolveVisualState, StateResolutionContext, StateResolutionResult, ResolvedStateInfo,
-    SoftRuleContext,
+    ResolveVisualState, ResolvedStateInfo, SoftRuleContext, StateResolutionContext,
+    StateResolutionResult,
 };
 
 use std::sync::Arc;

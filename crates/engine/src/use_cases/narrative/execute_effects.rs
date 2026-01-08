@@ -10,7 +10,9 @@ use wrldbldr_domain::{
     RelationshipType, SceneId, WorldId,
 };
 
-use crate::entities::{Challenge, Character, Flag, Inventory, Narrative, Observation, PlayerCharacter, Scene};
+use crate::entities::{
+    Challenge, Character, Flag, Inventory, Narrative, Observation, PlayerCharacter, Scene,
+};
 use crate::infrastructure::ports::ClockPort;
 
 /// Result of executing a single effect.
@@ -124,16 +126,19 @@ impl ExecuteEffects {
 
         for effect in effects {
             let result = self.execute_single_effect(effect, context).await;
-            
+
             if result.requires_dm_action {
                 pending_dm_actions.push(result.description.clone());
             }
-            
+
             results.push(result);
         }
 
         let success_count = results.iter().filter(|r| r.success).count();
-        let failure_count = results.iter().filter(|r| !r.success && !r.requires_dm_action).count();
+        let failure_count = results
+            .iter()
+            .filter(|r| !r.success && !r.requires_dm_action)
+            .count();
 
         tracing::info!(
             event_id = %event_id,
@@ -176,7 +181,10 @@ impl ExecuteEffects {
                 .await
             }
 
-            EventEffect::TakeItem { item_name, quantity } => {
+            EventEffect::TakeItem {
+                item_name,
+                quantity,
+            } => {
                 self.execute_take_item(context.pc_id, item_name, *quantity)
                     .await
             }
@@ -503,7 +511,8 @@ impl ExecuteEffects {
 
                 // Apply sentiment change
                 let old_sentiment = relationship.sentiment;
-                relationship.sentiment = (relationship.sentiment + sentiment_change).clamp(-1.0, 1.0);
+                relationship.sentiment =
+                    (relationship.sentiment + sentiment_change).clamp(-1.0, 1.0);
 
                 // Add event to history
                 relationship.add_event(RelationshipEvent {
@@ -554,7 +563,11 @@ impl ExecuteEffects {
         if persist_to_journal {
             // Save as deduced info in the observation system
             let info_entry = format!("[{}] {}: {}", info_type, title, content);
-            match self.observation.record_deduced_info(pc_id, info_entry).await {
+            match self
+                .observation
+                .record_deduced_info(pc_id, info_entry)
+                .await
+            {
                 Ok(()) => EffectExecutionResult {
                     description: format!("Revealed {} '{}' (saved to journal)", info_type, title),
                     success: true,

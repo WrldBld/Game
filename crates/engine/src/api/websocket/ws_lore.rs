@@ -27,8 +27,7 @@ pub(super) async fn handle_lore_request(
         }
 
         LoreRequest::GetLore { lore_id } => {
-            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id")
-            {
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(e) => return Err(e),
             };
@@ -56,14 +55,7 @@ pub(super) async fn handle_lore_request(
                 Err(e) => return Err(e),
             };
 
-            match state
-                .app
-                .use_cases
-                .lore
-                .ops
-                .create(world_uuid, data)
-                .await
-            {
+            match state.app.use_cases.lore.ops.create(world_uuid, data).await {
                 Ok(result) => Ok(ResponseResult::success(result)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
@@ -77,27 +69,17 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id")
-            {
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(e) => return Err(e),
             };
 
-            match state
-                .app
-                .use_cases
-                .lore
-                .ops
-                .update(lore_uuid, data)
-                .await
-            {
+            match state.app.use_cases.lore.ops.update(lore_uuid, data).await {
                 Ok(result) => Ok(ResponseResult::success(result)),
-                Err(crate::use_cases::lore::LoreError::NotFound) => {
-                    Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::NotFound, "Lore not found"),
-                    })
-                }
+                Err(crate::use_cases::lore::LoreError::NotFound) => Err(ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(ErrorCode::NotFound, "Lore not found"),
+                }),
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
@@ -110,8 +92,7 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id")
-            {
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(e) => return Err(e),
             };
@@ -130,8 +111,7 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id")
-            {
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(e) => return Err(e),
             };
@@ -145,12 +125,10 @@ pub(super) async fn handle_lore_request(
                 .await
             {
                 Ok(result) => Ok(ResponseResult::success(result)),
-                Err(crate::use_cases::lore::LoreError::NotFound) => {
-                    Err(ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::NotFound, "Lore not found"),
-                    })
-                }
+                Err(crate::use_cases::lore::LoreError::NotFound) => Err(ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(ErrorCode::NotFound, "Lore not found"),
+                }),
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
@@ -260,13 +238,11 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            let char_uuid =
-                match parse_character_id_for_request(&character_id, request_id) {
-                    Ok(id) => id,
-                    Err(e) => return Err(e),
-                };
-            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id")
-            {
+            let char_uuid = match parse_character_id_for_request(&character_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(e) => return Err(e),
             };
@@ -306,13 +282,11 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            let char_uuid =
-                match parse_character_id_for_request(&character_id, request_id) {
-                    Ok(id) => id,
-                    Err(e) => return Err(e),
-                };
-            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id")
-            {
+            let char_uuid = match parse_character_id_for_request(&character_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(e) => return Err(e),
             };
@@ -334,13 +308,19 @@ pub(super) async fn handle_lore_request(
         }
 
         LoreRequest::GetCharacterLore { character_id } => {
-            let char_uuid =
-                match parse_character_id_for_request(&character_id, request_id) {
-                    Ok(id) => id,
-                    Err(e) => return Err(e),
-                };
+            let char_uuid = match parse_character_id_for_request(&character_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
 
-            match state.app.use_cases.lore.ops.get_character_lore(char_uuid).await {
+            match state
+                .app
+                .use_cases
+                .lore
+                .ops
+                .get_character_lore(char_uuid)
+                .await
+            {
                 Ok(data) => Ok(ResponseResult::success(data)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
@@ -350,13 +330,19 @@ pub(super) async fn handle_lore_request(
         }
 
         LoreRequest::GetLoreKnowers { lore_id } => {
-            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id")
-            {
+            let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(e) => return Err(e),
             };
 
-            match state.app.use_cases.lore.ops.get_lore_knowers(lore_uuid).await {
+            match state
+                .app
+                .use_cases
+                .lore
+                .ops
+                .get_lore_knowers(lore_uuid)
+                .await
+            {
                 Ok(data) => Ok(ResponseResult::success(data)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,

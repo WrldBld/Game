@@ -2,6 +2,7 @@
 
 use dioxus::prelude::*;
 
+use crate::application::dto::{ApprovalDecision, ApprovedNpcInfo, ChallengeData, SkillData};
 use crate::presentation::components::dm_panel::challenge_library::ChallengeLibrary;
 use crate::presentation::components::dm_panel::character_perspective::ViewAsData;
 use crate::presentation::components::dm_panel::decision_queue::DecisionQueuePanel;
@@ -20,9 +21,6 @@ use crate::presentation::services::{use_challenge_service, use_skill_service};
 use crate::presentation::state::{
     use_game_state, use_generation_state, use_session_state, GameState, PendingApproval,
     SessionState, ViewMode,
-};
-use crate::application::dto::{
-    ApprovalDecision, ApprovedNpcInfo, ChallengeData, SkillData,
 };
 
 /// The original Director mode content (directing gameplay)

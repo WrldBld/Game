@@ -15,12 +15,12 @@
 //! This is an approved exception per Architecture Remediation Plan Phase 3A:
 //! pure value objects from domain may be used directly in UI to avoid duplication.
 
+use crate::application::dto::DiceInput;
 use crate::presentation::state::challenge_state::ChallengeResultData;
 use crate::presentation::state::{use_session_state, RollSubmissionStatus};
 use crate::use_platform;
 use dioxus::prelude::*;
 use wrldbldr_domain::value_objects::DiceFormula;
-use crate::application::dto::DiceInput;
 
 /// Props for the ChallengeRollModal component
 #[derive(Props, Clone, PartialEq)]

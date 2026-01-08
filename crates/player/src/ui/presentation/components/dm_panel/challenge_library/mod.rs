@@ -17,8 +17,8 @@ pub use delete_modal::ConfirmDeleteChallengeModal;
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
-use crate::presentation::services::use_challenge_service;
 use crate::application::dto::{ChallengeData, ChallengeType, SkillData};
+use crate::presentation::services::use_challenge_service;
 
 /// Props for ChallengeLibrary
 #[derive(Props, Clone, PartialEq)]

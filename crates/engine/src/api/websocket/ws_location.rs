@@ -45,11 +45,10 @@ pub(super) async fn handle_location_request(
         }
 
         LocationRequest::GetLocation { location_id } => {
-            let location_id_typed =
-                match parse_location_id_for_request(&location_id, request_id) {
-                    Ok(id) => id,
-                    Err(e) => return Err(e),
-                };
+            let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
 
             match state
                 .app
@@ -121,23 +120,17 @@ pub(super) async fn handle_location_request(
                 return Err(e);
             }
 
-            let location_id_typed =
-                match parse_location_id_for_request(&location_id, request_id) {
-                    Ok(id) => id,
-                    Err(e) => return Err(e),
-                };
+            let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .update_location(
-                    location_id_typed,
-                    data.name,
-                    data.description,
-                    data.setting,
-                )
+                .update_location(location_id_typed, data.name, data.description, data.setting)
                 .await
             {
                 Ok(location) => Ok(ResponseResult::success(serde_json::json!({
@@ -149,9 +142,9 @@ pub(super) async fn handle_location_request(
                     "backdrop_asset": location.backdrop_asset,
                     "presence_cache_ttl_hours": location.presence_cache_ttl_hours,
                 }))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Location not found"))
-                }
+                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Location not found"),
+                ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
@@ -167,11 +160,10 @@ pub(super) async fn handle_location_request(
                 return Err(e);
             }
 
-            let location_id_typed =
-                match parse_location_id_for_request(&location_id, request_id) {
-                    Ok(id) => id,
-                    Err(e) => return Err(e),
-                };
+            let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
 
             match state
                 .app
@@ -182,9 +174,9 @@ pub(super) async fn handle_location_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Location not found"))
-                }
+                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Location not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -193,11 +185,10 @@ pub(super) async fn handle_location_request(
         }
 
         LocationRequest::GetLocationConnections { location_id } => {
-            let location_id_typed =
-                match parse_location_id_for_request(&location_id, request_id) {
-                    Ok(id) => id,
-                    Err(e) => return Err(e),
-                };
+            let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
 
             match state
                 .app
@@ -305,11 +296,10 @@ pub(super) async fn handle_region_request(
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
         RegionRequest::ListRegions { location_id } => {
-            let location_id_typed =
-                match parse_location_id_for_request(&location_id, request_id) {
-                    Ok(id) => id,
-                    Err(e) => return Err(e),
-                };
+            let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
 
             match state
                 .app
@@ -404,11 +394,10 @@ pub(super) async fn handle_region_request(
                 return Err(e);
             }
 
-            let location_id_typed =
-                match parse_location_id_for_request(&location_id, request_id) {
-                    Ok(id) => id,
-                    Err(e) => return Err(e),
-                };
+            let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
 
             match state
                 .app
@@ -488,9 +477,9 @@ pub(super) async fn handle_region_request(
                     "is_spawn_point": region.is_spawn_point,
                     "order": region.order,
                 }))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Region not found"))
-                }
+                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Region not found"),
+                ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
@@ -520,9 +509,9 @@ pub(super) async fn handle_region_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Region not found"))
-                }
+                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Region not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -567,7 +556,11 @@ pub(super) async fn handle_region_request(
             }
         }
 
-        RegionRequest::CreateRegionConnection { from_id, to_id, data } => {
+        RegionRequest::CreateRegionConnection {
+            from_id,
+            to_id,
+            data,
+        } => {
             if let Err(e) = require_dm_for_request(conn_info, request_id) {
                 return Err(e);
             }
@@ -657,9 +650,9 @@ pub(super) async fn handle_region_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Connection not found"))
-                }
+                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Connection not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -718,11 +711,10 @@ pub(super) async fn handle_region_request(
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
-            let location_id_typed =
-                match parse_location_id_for_request(&location_id, request_id) {
-                    Ok(id) => id,
-                    Err(e) => return Err(e),
-                };
+            let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
             let arrival_region_id_typed =
                 match parse_region_id_for_request(&arrival_region_id, request_id) {
                     Ok(id) => id,
@@ -763,11 +755,10 @@ pub(super) async fn handle_region_request(
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
-            let location_id_typed =
-                match parse_location_id_for_request(&location_id, request_id) {
-                    Ok(id) => id,
-                    Err(e) => return Err(e),
-                };
+            let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
 
             match state
                 .app

@@ -36,7 +36,7 @@ impl Neo4jLocationStateRepo {
             .get("name")
             .map_err(|e| RepoError::Database(e.to_string()))?;
         let description: String = node.get_string_or("description", "");
-        
+
         let backdrop_override: Option<String> = node.get_optional_string("backdrop_override");
         let atmosphere_override: Option<String> = node.get_optional_string("atmosphere_override");
         let ambient_sound: Option<String> = node.get_optional_string("ambient_sound");
@@ -132,9 +132,18 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
         .param("world_id", state.world_id.to_string())
         .param("name", state.name.clone())
         .param("description", state.description.clone())
-        .param("backdrop_override", state.backdrop_override.clone().unwrap_or_default())
-        .param("atmosphere_override", state.atmosphere_override.clone().unwrap_or_default())
-        .param("ambient_sound", state.ambient_sound.clone().unwrap_or_default())
+        .param(
+            "backdrop_override",
+            state.backdrop_override.clone().unwrap_or_default(),
+        )
+        .param(
+            "atmosphere_override",
+            state.atmosphere_override.clone().unwrap_or_default(),
+        )
+        .param(
+            "ambient_sound",
+            state.ambient_sound.clone().unwrap_or_default(),
+        )
         .param("map_overlay", state.map_overlay.clone().unwrap_or_default())
         .param("activation_rules", activation_rules_json)
         .param("activation_logic", activation_logic_json)
@@ -168,7 +177,10 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
         Ok(())
     }
 
-    async fn list_for_location(&self, location_id: LocationId) -> Result<Vec<LocationState>, RepoError> {
+    async fn list_for_location(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Vec<LocationState>, RepoError> {
         let q = query(
             "MATCH (s:LocationState {location_id: $location_id})
             RETURN s ORDER BY s.priority DESC, s.name",
@@ -193,7 +205,10 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
         Ok(states)
     }
 
-    async fn get_default(&self, location_id: LocationId) -> Result<Option<LocationState>, RepoError> {
+    async fn get_default(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Option<LocationState>, RepoError> {
         let q = query(
             "MATCH (s:LocationState {location_id: $location_id, is_default: true})
             RETURN s LIMIT 1",
@@ -217,7 +232,11 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
         }
     }
 
-    async fn set_active(&self, location_id: LocationId, state_id: LocationStateId) -> Result<(), RepoError> {
+    async fn set_active(
+        &self,
+        location_id: LocationId,
+        state_id: LocationStateId,
+    ) -> Result<(), RepoError> {
         // Match location and target state FIRST to ensure they exist,
         // then delete old relationship and create new one atomically.
         // This prevents leaving the location without an active state if the target doesn't exist.
@@ -232,13 +251,19 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
         .param("location_id", location_id.to_string())
         .param("state_id", state_id.to_string());
 
-        let mut result = self.graph
+        let mut result = self
+            .graph
             .execute(q)
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
         // Check if the query matched anything (location and state both exist)
-        if result.next().await.map_err(|e| RepoError::Database(e.to_string()))?.is_none() {
+        if result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+            .is_none()
+        {
             return Err(RepoError::NotFound);
         }
 
@@ -250,7 +275,10 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
         Ok(())
     }
 
-    async fn get_active(&self, location_id: LocationId) -> Result<Option<LocationState>, RepoError> {
+    async fn get_active(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Option<LocationState>, RepoError> {
         let q = query(
             "MATCH (loc:Location {id: $location_id})-[:ACTIVE_STATE]->(s:LocationState)
             RETURN s",

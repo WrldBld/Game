@@ -145,8 +145,8 @@ impl Neo4jLocationRepo {
         let is_locked: bool = row.get("is_locked").unwrap_or(false);
         let lock_description = row.get_optional_string("lock_description");
 
-        let from_id = uuid::Uuid::parse_str(&from_id_str)
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+        let from_id =
+            uuid::Uuid::parse_str(&from_id_str).map_err(|e| RepoError::Database(e.to_string()))?;
         let to_id =
             uuid::Uuid::parse_str(&to_id_str).map_err(|e| RepoError::Database(e.to_string()))?;
 
@@ -176,8 +176,8 @@ impl Neo4jLocationRepo {
         let description = row.get_optional_string("description");
         let lock_description = row.get_optional_string("lock_description");
 
-        let from_id = uuid::Uuid::parse_str(&from_id_str)
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+        let from_id =
+            uuid::Uuid::parse_str(&from_id_str).map_err(|e| RepoError::Database(e.to_string()))?;
         let to_id =
             uuid::Uuid::parse_str(&to_id_str).map_err(|e| RepoError::Database(e.to_string()))?;
 
@@ -457,7 +457,10 @@ impl LocationRepo for Neo4jLocationRepo {
     // Region Connections
     // =========================================================================
 
-    async fn get_connections(&self, region_id: RegionId) -> Result<Vec<RegionConnection>, RepoError> {
+    async fn get_connections(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<RegionConnection>, RepoError> {
         let q = query(
             "MATCH (from:Region {id: $id})-[rel:CONNECTED_TO_REGION]->(to:Region)
             RETURN from.id as from_id, to.id as to_id,
@@ -727,10 +730,7 @@ impl LocationRepo for Neo4jLocationRepo {
         Ok(())
     }
 
-    async fn get_region_exits(
-        &self,
-        region_id: RegionId,
-    ) -> Result<Vec<RegionExit>, RepoError> {
+    async fn get_region_exits(&self, region_id: RegionId) -> Result<Vec<RegionExit>, RepoError> {
         let q = query(
             "MATCH (r:Region {id: $id})-[rel:EXITS_TO_LOCATION]->(l:Location)
             RETURN r.id as from_region, l.id as to_location,
@@ -752,9 +752,15 @@ impl LocationRepo for Neo4jLocationRepo {
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?
         {
-            let from_region: String = row.get("from_region").map_err(|e| RepoError::Database(e.to_string()))?;
-            let to_location: String = row.get("to_location").map_err(|e| RepoError::Database(e.to_string()))?;
-            let arrival_region: String = row.get("arrival_region_id").map_err(|e| RepoError::Database(e.to_string()))?;
+            let from_region: String = row
+                .get("from_region")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let to_location: String = row
+                .get("to_location")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let arrival_region: String = row
+                .get("arrival_region_id")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
             let description: String = row.get("description").unwrap_or_default();
             let bidirectional: bool = row.get("bidirectional").unwrap_or(false);
 

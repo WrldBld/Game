@@ -27,15 +27,24 @@ impl Challenge {
         self.repo.delete(id).await
     }
 
-    pub async fn list_for_world(&self, world_id: WorldId) -> Result<Vec<domain::Challenge>, RepoError> {
+    pub async fn list_for_world(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<domain::Challenge>, RepoError> {
         self.repo.list_for_world(world_id).await
     }
 
-    pub async fn list_for_scene(&self, scene_id: SceneId) -> Result<Vec<domain::Challenge>, RepoError> {
+    pub async fn list_for_scene(
+        &self,
+        scene_id: SceneId,
+    ) -> Result<Vec<domain::Challenge>, RepoError> {
         self.repo.list_for_scene(scene_id).await
     }
 
-    pub async fn list_pending(&self, world_id: WorldId) -> Result<Vec<domain::Challenge>, RepoError> {
+    pub async fn list_pending(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<domain::Challenge>, RepoError> {
         self.repo.list_pending_for_world(world_id).await
     }
 

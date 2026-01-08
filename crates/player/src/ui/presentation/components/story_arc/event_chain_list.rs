@@ -1,9 +1,9 @@
 //! Event Chain List - Display all event chains with progress indicators
 
+use crate::application::services::EventChainData;
 use crate::presentation::services::use_event_chain_service;
 use dioxus::prelude::*;
 use tracing::info;
-use crate::application::services::EventChainData;
 
 #[derive(Props, Clone, PartialEq)]
 pub struct EventChainListProps {

@@ -3,8 +3,8 @@
 //! This service handles user identity management, including creating and
 //! persisting anonymous user IDs.
 
-use uuid::Uuid;
 use crate::ports::outbound::{storage_keys, StorageProvider};
+use uuid::Uuid;
 
 /// Service for managing user identity
 ///

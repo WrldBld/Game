@@ -1,10 +1,10 @@
 //! Event Chain Editor - Edit chain info and manage events
 
-use crate::presentation::services::use_event_chain_service;
-use dioxus::prelude::*;
 use crate::application::services::{
     CreateEventChainRequest, EventChainData, UpdateEventChainRequest,
 };
+use crate::presentation::services::use_event_chain_service;
+use dioxus::prelude::*;
 
 #[derive(Props, Clone, PartialEq)]
 pub struct EventChainEditorProps {

@@ -5,8 +5,8 @@
 
 use dioxus::prelude::*;
 
-use crate::presentation::services::{use_asset_service, use_settings_service};
 use crate::application::services::{Asset, GenerateRequest};
+use crate::presentation::services::{use_asset_service, use_settings_service};
 
 /// Props for DirectorGenerateModal
 #[derive(Props, Clone, PartialEq)]

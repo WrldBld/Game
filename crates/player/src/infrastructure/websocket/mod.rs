@@ -5,9 +5,9 @@
 //! - `wasm`: web-sys WebSocket based client
 //! - `message_builder`: shared ClientMessage construction logic
 
+mod core;
 mod message_builder;
 mod protocol;
-mod core;
 mod shared;
 
 #[cfg(not(target_arch = "wasm32"))]

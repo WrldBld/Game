@@ -6,16 +6,22 @@ use testcontainers::{core::WaitFor, runners::AsyncRunner, GenericImage};
 use tokio::time::sleep;
 use uuid::Uuid;
 use wrldbldr_domain::{
-    EventOutcome, NarrativeEvent, NarrativeEventId, NarrativeTrigger, NarrativeTriggerType,
-    LocationId, MoodState, RegionId, StagedNpc, Staging, StagingSource, TriggerLogic, WorldId,
+    EventOutcome, LocationId, MoodState, NarrativeEvent, NarrativeEventId, NarrativeTrigger,
+    NarrativeTriggerType, RegionId, StagedNpc, Staging, StagingSource, TriggerLogic, WorldId,
 };
 
-use crate::infrastructure::{clock::FixedClock, ports::{NarrativeRepo, StagingRepo}};
+use crate::infrastructure::{
+    clock::FixedClock,
+    ports::{NarrativeRepo, StagingRepo},
+};
 
 fn neo4j_image(password: &str) -> GenericImage {
     GenericImage::new("neo4j", "5")
         .with_env_var("NEO4J_AUTH", format!("neo4j/{password}"))
-        .with_env_var("NEO4J_dbms_connector_bolt_advertised__address", "localhost:7687")
+        .with_env_var(
+            "NEO4J_dbms_connector_bolt_advertised__address",
+            "localhost:7687",
+        )
         .with_exposed_port(7687)
         .with_wait_for(WaitFor::message_on_stdout("Started."))
 }

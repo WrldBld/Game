@@ -1,9 +1,7 @@
 //! Player Character entity operations.
 
 use std::sync::Arc;
-use wrldbldr_domain::{
-    self as domain, Item, LocationId, PlayerCharacterId, RegionId, WorldId,
-};
+use wrldbldr_domain::{self as domain, Item, LocationId, PlayerCharacterId, RegionId, WorldId};
 
 use crate::infrastructure::ports::{PlayerCharacterRepo, RepoError};
 

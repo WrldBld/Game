@@ -233,7 +233,11 @@ impl ImageGenPort for ComfyUIClient {
 
         // Download the image
         let image_data = self
-            .get_image(&image_output.filename, &image_output.subfolder, &image_output.r#type)
+            .get_image(
+                &image_output.filename,
+                &image_output.subfolder,
+                &image_output.r#type,
+            )
             .await?;
 
         // Determine format from filename

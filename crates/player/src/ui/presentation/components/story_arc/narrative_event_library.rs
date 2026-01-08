@@ -2,10 +2,10 @@
 
 use dioxus::prelude::*;
 
+use crate::application::dto::{CreateNarrativeEventRequest, NarrativeEventData};
 use crate::presentation::components::story_arc::narrative_event_card::NarrativeEventCard;
 use crate::presentation::components::story_arc::trigger_builder::TriggerBuilder;
 use crate::presentation::services::use_narrative_event_service;
-use crate::application::dto::{CreateNarrativeEventRequest, NarrativeEventData};
 
 #[derive(Props, Clone, PartialEq)]
 pub struct NarrativeEventLibraryProps {
@@ -285,7 +285,7 @@ fn NarrativeEventFormModal(props: NarrativeEventFormModalProps) -> Element {
     let mut scene_direction = use_signal(String::new);
     let mut is_saving = use_signal(|| false);
     let mut save_error: Signal<Option<String>> = use_signal(|| None);
-    
+
     // Trigger builder state
     let mut trigger_conditions: Signal<Vec<serde_json::Value>> = use_signal(Vec::new);
     let mut trigger_logic = use_signal(|| "all".to_string());
@@ -322,12 +322,16 @@ fn NarrativeEventFormModal(props: NarrativeEventFormModalProps) -> Element {
                     "atLeast" => serde_json::json!({"atLeast": at_least}),
                     _ => serde_json::json!("all"),
                 };
-                
+
                 let request = CreateNarrativeEventRequest {
                     name: name_val,
                     description: desc_val,
                     scene_direction: direction_val,
-                    trigger_conditions: if conditions.is_empty() { None } else { Some(conditions) },
+                    trigger_conditions: if conditions.is_empty() {
+                        None
+                    } else {
+                        Some(conditions)
+                    },
                     trigger_logic: Some(trigger_logic_value),
                     ..Default::default()
                 };
@@ -424,22 +428,22 @@ fn NarrativeEventFormModal(props: NarrativeEventFormModalProps) -> Element {
                                     r#type: "button",
                                     class: "flex items-center gap-2 text-blue-400 hover:text-blue-300 bg-transparent border-none cursor-pointer text-sm",
                                     onclick: move |_| show_triggers.set(!is_expanded),
-                                    
-                                    span { 
+
+                                    span {
                                         class: "text-xs",
                                         if is_expanded { "▼" } else { "▶" }
                                     }
                                     span { "Trigger Conditions" }
-                                    span { 
-                                        class: "text-gray-500 text-xs", 
-                                        "({condition_count} defined)" 
+                                    span {
+                                        class: "text-gray-500 text-xs",
+                                        "({condition_count} defined)"
                                     }
                                 }
                             }
                         }
 
                         if *show_triggers.read() {
-                            div { 
+                            div {
                                 class: "mt-4",
                                 TriggerBuilder {
                                     world_id: props.world_id.clone(),

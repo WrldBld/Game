@@ -2,8 +2,8 @@
 
 use dioxus::prelude::*;
 
-use crate::presentation::services::use_player_character_service;
 use crate::application::services::PlayerCharacterData;
+use crate::presentation::services::use_player_character_service;
 
 /// Props for PCManagementPanel
 #[derive(Props, Clone, PartialEq)]

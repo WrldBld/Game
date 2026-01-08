@@ -1,21 +1,39 @@
 use serde::{Deserialize, Serialize};
 
-use super::{
-    CreateLoreChunkData, CreateLoreData, UpdateLoreChunkData, UpdateLoreData,
-};
+use super::{CreateLoreChunkData, CreateLoreData, UpdateLoreChunkData, UpdateLoreData};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum LoreRequest {
-    ListLore { world_id: String },
-    GetLore { lore_id: String },
-    CreateLore { world_id: String, data: CreateLoreData },
-    UpdateLore { lore_id: String, data: UpdateLoreData },
-    DeleteLore { lore_id: String },
+    ListLore {
+        world_id: String,
+    },
+    GetLore {
+        lore_id: String,
+    },
+    CreateLore {
+        world_id: String,
+        data: CreateLoreData,
+    },
+    UpdateLore {
+        lore_id: String,
+        data: UpdateLoreData,
+    },
+    DeleteLore {
+        lore_id: String,
+    },
 
-    AddLoreChunk { lore_id: String, data: CreateLoreChunkData },
-    UpdateLoreChunk { chunk_id: String, data: UpdateLoreChunkData },
-    DeleteLoreChunk { chunk_id: String },
+    AddLoreChunk {
+        lore_id: String,
+        data: CreateLoreChunkData,
+    },
+    UpdateLoreChunk {
+        chunk_id: String,
+        data: UpdateLoreChunkData,
+    },
+    DeleteLoreChunk {
+        chunk_id: String,
+    },
 
     GrantLoreKnowledge {
         character_id: String,
@@ -31,6 +49,10 @@ pub enum LoreRequest {
         chunk_ids: Option<Vec<String>>,
     },
 
-    GetCharacterLore { character_id: String },
-    GetLoreKnowers { lore_id: String },
+    GetCharacterLore {
+        character_id: String,
+    },
+    GetLoreKnowers {
+        lore_id: String,
+    },
 }

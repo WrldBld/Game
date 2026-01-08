@@ -323,7 +323,10 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
         modifier: i32,
     ) -> Result<(), RepoError> {
         // Use explicit transaction to ensure read-modify-write is atomic
-        let mut txn = self.graph.start_txn().await
+        let mut txn = self
+            .graph
+            .start_txn()
+            .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
         // Step 1: Read current stats_json within transaction
@@ -333,30 +336,36 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
         )
         .param("id", id.to_string());
 
-        let mut result = txn.execute(read_q).await
+        let mut result = txn
+            .execute(read_q)
+            .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
-        let stats_json: String = if let Some(row) = result.next(txn.handle()).await
-            .map_err(|e| RepoError::Database(e.to_string()))? 
+        let stats_json: String = if let Some(row) = result
+            .next(txn.handle())
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
         {
             row.get("stats_json").unwrap_or_else(|_| "{}".to_string())
         } else {
             // Rollback not strictly needed for read-only, but good practice
-            txn.rollback().await.map_err(|e| RepoError::Database(e.to_string()))?;
+            txn.rollback()
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
             return Err(RepoError::NotFound);
         };
 
         // Step 2: Parse JSON, modify stat in Rust
-        let mut stats: std::collections::HashMap<String, i64> = serde_json::from_str(&stats_json)
-            .unwrap_or_default();
-        
+        let mut stats: std::collections::HashMap<String, i64> =
+            serde_json::from_str(&stats_json).unwrap_or_default();
+
         let current_value = stats.get(stat).copied().unwrap_or(0);
         let new_value = current_value + modifier as i64;
         stats.insert(stat.to_string(), new_value);
 
         // Step 3: Write updated JSON back within same transaction
-        let updated_json = serde_json::to_string(&stats)
-            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let updated_json =
+            serde_json::to_string(&stats).map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let write_q = query(
             "MATCH (pc:PlayerCharacter {id: $id})
@@ -365,11 +374,13 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
         .param("id", id.to_string())
         .param("stats_json", updated_json);
 
-        txn.run(write_q).await
+        txn.run(write_q)
+            .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
         // Commit the transaction
-        txn.commit().await
+        txn.commit()
+            .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
         tracing::info!(pc_id = %id, stat = %stat, modifier = %modifier, new_value = %new_value, "Modified stat");
@@ -453,5 +464,3 @@ fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
         last_active_at,
     })
 }
-
-

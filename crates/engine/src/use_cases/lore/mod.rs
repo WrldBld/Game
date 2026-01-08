@@ -7,8 +7,12 @@ use uuid::Uuid;
 
 use crate::entities::Lore;
 use crate::infrastructure::ports::RepoError;
-use wrldbldr_domain::{CharacterId, LoreCategory, LoreChunkId, LoreDiscoverySource, LoreId, LoreKnowledge, WorldId};
-use wrldbldr_protocol::requests::{CreateLoreChunkData, CreateLoreData, UpdateLoreChunkData, UpdateLoreData};
+use wrldbldr_domain::{
+    CharacterId, LoreCategory, LoreChunkId, LoreDiscoverySource, LoreId, LoreKnowledge, WorldId,
+};
+use wrldbldr_protocol::requests::{
+    CreateLoreChunkData, CreateLoreData, UpdateLoreChunkData, UpdateLoreData,
+};
 use wrldbldr_protocol::types::LoreDiscoverySourceData;
 
 /// Container for lore use cases.
@@ -92,11 +96,7 @@ impl LoreOps {
     }
 
     pub async fn update(&self, lore_id: LoreId, data: UpdateLoreData) -> Result<Value, LoreError> {
-        let mut lore = self
-            .lore
-            .get(lore_id)
-            .await?
-            .ok_or(LoreError::NotFound)?;
+        let mut lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
         if let Some(title) = data.title.as_ref() {
             lore.title = title.clone();
@@ -135,11 +135,7 @@ impl LoreOps {
         lore_id: LoreId,
         data: CreateLoreChunkData,
     ) -> Result<Value, LoreError> {
-        let mut lore = self
-            .lore
-            .get(lore_id)
-            .await?
-            .ok_or(LoreError::NotFound)?;
+        let mut lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
         let mut chunk = wrldbldr_domain::LoreChunk::new(&data.content)
             .with_order(data.order.unwrap_or(lore.chunks.len() as u32));
@@ -312,12 +308,17 @@ pub enum LoreError {
 
 fn lore_discovery_source(data: LoreDiscoverySourceData) -> LoreDiscoverySource {
     match data {
-        LoreDiscoverySourceData::ReadBook { book_name } => LoreDiscoverySource::ReadBook { book_name },
+        LoreDiscoverySourceData::ReadBook { book_name } => {
+            LoreDiscoverySource::ReadBook { book_name }
+        }
         LoreDiscoverySourceData::Conversation { npc_id, npc_name } => {
             let npc_uuid = Uuid::parse_str(&npc_id)
                 .map(CharacterId::from_uuid)
                 .unwrap_or_else(|_| CharacterId::new());
-            LoreDiscoverySource::Conversation { npc_id: npc_uuid, npc_name }
+            LoreDiscoverySource::Conversation {
+                npc_id: npc_uuid,
+                npc_name,
+            }
         }
         LoreDiscoverySourceData::Investigation => LoreDiscoverySource::Investigation,
         LoreDiscoverySourceData::DmGranted { reason } => LoreDiscoverySource::DmGranted { reason },

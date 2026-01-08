@@ -8,9 +8,9 @@
 
 use dioxus::prelude::*;
 
+use crate::application::dto::GameTime;
 use crate::presentation::game_time_format::{display_date, display_time, time_of_day};
 use crate::presentation::state::{use_game_state, use_session_state, TimeMode, TimeSuggestionData};
-use crate::application::dto::GameTime;
 
 /// Time Control Panel component for DM view
 #[component]

@@ -4,9 +4,9 @@
 //! the Engine's application settings. Settings are grouped by category
 //! for better organization.
 
+use crate::application::dto::{AppSettings, BatchQueueFailurePolicy};
 use crate::presentation::services::use_settings_service;
 use dioxus::prelude::*;
-use crate::application::dto::{AppSettings, BatchQueueFailurePolicy};
 
 /// Application Settings Panel component
 ///

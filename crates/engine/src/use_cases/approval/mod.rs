@@ -80,7 +80,9 @@ impl ApproveStaging {
     pub async fn clear_staging(&self, region_id: RegionId) -> Result<(), ApprovalError> {
         let current = self.staging.get_staged_npcs(region_id).await?;
         for npc in current {
-            self.staging.unstage_npc(region_id, npc.character_id).await?;
+            self.staging
+                .unstage_npc(region_id, npc.character_id)
+                .await?;
         }
         Ok(())
     }
@@ -130,19 +132,22 @@ impl ApproveSuggestion {
         decision: DmApprovalDecision,
     ) -> Result<SuggestionApprovalResult, ApprovalError> {
         // Get the queue item first to extract NPC info
-        let queue_item = self.queue
+        let queue_item = self
+            .queue
             .get_approval_request(approval_queue_id)
             .await
             .map_err(|e| ApprovalError::QueueError(e.to_string()))?;
-        
+
         let (npc_id, npc_name, original_dialogue) = queue_item
-            .map(|data| (
-                data.npc_id.map(|id| id.to_string()),
-                Some(data.npc_name),
-                Some(data.proposed_dialogue),
-            ))
+            .map(|data| {
+                (
+                    data.npc_id.map(|id| id.to_string()),
+                    Some(data.npc_name),
+                    Some(data.proposed_dialogue),
+                )
+            })
             .unwrap_or((None, None, None));
-        
+
         let (approved, final_dialogue, approved_tools) = match &decision {
             DmApprovalDecision::Accept => (true, original_dialogue, vec![]),
             DmApprovalDecision::AcceptWithRecipients { .. } => {
@@ -153,9 +158,15 @@ impl ApproveSuggestion {
                 modified_dialogue,
                 approved_tools,
                 ..
-            } => (true, Some(modified_dialogue.clone()), approved_tools.clone()),
+            } => (
+                true,
+                Some(modified_dialogue.clone()),
+                approved_tools.clone(),
+            ),
             DmApprovalDecision::Reject { .. } => (false, None, vec![]),
-            DmApprovalDecision::TakeOver { dm_response } => (true, Some(dm_response.clone()), vec![]),
+            DmApprovalDecision::TakeOver { dm_response } => {
+                (true, Some(dm_response.clone()), vec![])
+            }
         };
 
         // Mark the queue item based on decision

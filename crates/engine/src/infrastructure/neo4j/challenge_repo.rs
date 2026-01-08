@@ -157,8 +157,8 @@ impl From<TriggerCondition> for TriggerConditionStored {
 
 impl From<TriggerConditionStored> for TriggerCondition {
     fn from(value: TriggerConditionStored) -> Self {
-        let condition_type = serde_json::from_str(&value.condition_type_json)
-            .unwrap_or(TriggerType::Custom {
+        let condition_type =
+            serde_json::from_str(&value.condition_type_json).unwrap_or(TriggerType::Custom {
                 description: value.description.clone(),
             });
         Self {
@@ -268,10 +268,12 @@ impl ChallengeRepo for Neo4jChallengeRepo {
     }
 
     async fn save(&self, challenge: &Challenge) -> Result<(), RepoError> {
-        let difficulty_json = serde_json::to_string(&DifficultyStored::from(challenge.difficulty.clone()))
-            .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let outcomes_json = serde_json::to_string(&OutcomesStored::from(challenge.outcomes.clone()))
-            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let difficulty_json =
+            serde_json::to_string(&DifficultyStored::from(challenge.difficulty.clone()))
+                .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let outcomes_json =
+            serde_json::to_string(&OutcomesStored::from(challenge.outcomes.clone()))
+                .map_err(|e| RepoError::Serialization(e.to_string()))?;
         let triggers_json = serde_json::to_string(
             &challenge
                 .trigger_conditions
@@ -455,7 +457,10 @@ impl ChallengeRepo for Neo4jChallengeRepo {
         Ok(())
     }
 
-    async fn get_resolved_challenges(&self, world_id: WorldId) -> Result<Vec<ChallengeId>, RepoError> {
+    async fn get_resolved_challenges(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<ChallengeId>, RepoError> {
         // Get all challenges that have been resolved (active = false)
         let q = query(
             "MATCH (c:Challenge {world_id: $world_id, active: false})
@@ -463,11 +468,21 @@ impl ChallengeRepo for Neo4jChallengeRepo {
         )
         .param("world_id", world_id.to_string());
 
-        let mut result = self.graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
         let mut challenge_ids = Vec::new();
 
-        while let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
-            let id_str: String = row.get("id").map_err(|e| RepoError::Database(e.to_string()))?;
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let id_str: String = row
+                .get("id")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
             if let Ok(id) = id_str.parse::<uuid::Uuid>() {
                 challenge_ids.push(ChallengeId::from(id));
             }

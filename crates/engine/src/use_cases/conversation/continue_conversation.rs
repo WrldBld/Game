@@ -89,16 +89,25 @@ impl ContinueConversation {
             .ok_or(ConversationError::NpcNotFound)?;
 
         // 3. Verify the NPC is still in the same region as the PC
-        let pc_region_id = pc.current_region_id
+        let pc_region_id = pc
+            .current_region_id
             .ok_or(ConversationError::PlayerNotInRegion)?;
 
         // Get current game time for staging TTL check
-        let world_data = self.world.get(world_id).await?
+        let world_data = self
+            .world
+            .get(world_id)
+            .await?
             .ok_or(ConversationError::WorldNotFound)?;
         let current_game_time = world_data.game_time.current();
 
-        let staged_npcs = self.staging.resolve_for_region(pc_region_id, current_game_time).await?;
-        let npc_in_region = staged_npcs.iter().any(|staged| staged.character_id == npc_id);
+        let staged_npcs = self
+            .staging
+            .resolve_for_region(pc_region_id, current_game_time)
+            .await?;
+        let npc_in_region = staged_npcs
+            .iter()
+            .any(|staged| staged.character_id == npc_id);
 
         if !npc_in_region {
             // NPC left the region - conversation is over
@@ -128,5 +137,3 @@ impl ContinueConversation {
         })
     }
 }
-
-

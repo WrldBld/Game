@@ -3,12 +3,12 @@
 //! Provides platform-specific implementations for web browsers using
 //! js_sys and web_sys crates.
 
-use crate::state::Platform;
-use std::{future::Future, pin::Pin, sync::Arc};
 use crate::ports::outbound::platform::{
     ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider,
     SleepProvider, StorageProvider, TimeProvider,
 };
+use crate::state::Platform;
+use std::{future::Future, pin::Pin, sync::Arc};
 
 /// WASM time provider using js_sys::Date
 #[derive(Clone, Default)]

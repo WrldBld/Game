@@ -5,8 +5,8 @@
 
 use async_trait::async_trait;
 use neo4rs::{query, Graph};
-use wrldbldr_domain::*;
 use wrldbldr_domain::common::{parse_datetime_or, StringExt};
+use wrldbldr_domain::*;
 
 use crate::infrastructure::ports::{ClockPort, ObservationRepo, RepoError};
 
@@ -24,7 +24,10 @@ impl Neo4jObservationRepo {
 #[async_trait]
 impl ObservationRepo for Neo4jObservationRepo {
     /// Get all observations for a PC
-    async fn get_observations(&self, pc_id: PlayerCharacterId) -> Result<Vec<NpcObservation>, RepoError> {
+    async fn get_observations(
+        &self,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<NpcObservation>, RepoError> {
         let q = query(
             "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:OBSERVED_NPC]->(npc:Character)
             RETURN r.location_id as location_id, r.region_id as region_id,
@@ -36,29 +39,54 @@ impl ObservationRepo for Neo4jObservationRepo {
         )
         .param("pc_id", pc_id.to_string());
 
-        let mut result = self.graph.execute(q).await
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
         let mut observations = Vec::new();
         let now = self.clock.now();
 
-        while let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
-            let npc_id_str: String = row.get("npc_id").map_err(|e| RepoError::Database(e.to_string()))?;
-            let location_id_str: String = row.get("location_id").map_err(|e| RepoError::Database(e.to_string()))?;
-            let region_id_str: String = row.get("region_id").map_err(|e| RepoError::Database(e.to_string()))?;
-            let game_time_str: String = row.get("game_time").map_err(|e| RepoError::Database(e.to_string()))?;
-            let observation_type_str: String = row.get("observation_type").map_err(|e| RepoError::Database(e.to_string()))?;
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let npc_id_str: String = row
+                .get("npc_id")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let location_id_str: String = row
+                .get("location_id")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let region_id_str: String = row
+                .get("region_id")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let game_time_str: String = row
+                .get("game_time")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let observation_type_str: String = row
+                .get("observation_type")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
             let is_revealed_to_player: bool = row.get("is_revealed_to_player").unwrap_or(true);
             let notes: String = row.get("notes").unwrap_or_default();
-            let created_at_str: String = row.get("created_at").map_err(|e| RepoError::Database(e.to_string()))?;
+            let created_at_str: String = row
+                .get("created_at")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
 
             let observation = NpcObservation {
                 pc_id,
-                npc_id: CharacterId::from_uuid(uuid::Uuid::parse_str(&npc_id_str)
-                    .map_err(|e| RepoError::Database(e.to_string()))?),
-                location_id: LocationId::from_uuid(uuid::Uuid::parse_str(&location_id_str)
-                    .map_err(|e| RepoError::Database(e.to_string()))?),
-                region_id: RegionId::from_uuid(uuid::Uuid::parse_str(&region_id_str)
-                    .map_err(|e| RepoError::Database(e.to_string()))?),
+                npc_id: CharacterId::from_uuid(
+                    uuid::Uuid::parse_str(&npc_id_str)
+                        .map_err(|e| RepoError::Database(e.to_string()))?,
+                ),
+                location_id: LocationId::from_uuid(
+                    uuid::Uuid::parse_str(&location_id_str)
+                        .map_err(|e| RepoError::Database(e.to_string()))?,
+                ),
+                region_id: RegionId::from_uuid(
+                    uuid::Uuid::parse_str(&region_id_str)
+                        .map_err(|e| RepoError::Database(e.to_string()))?,
+                ),
                 game_time: parse_datetime_or(&game_time_str, now),
                 observation_type: observation_type_str
                     .parse()
@@ -75,7 +103,11 @@ impl ObservationRepo for Neo4jObservationRepo {
     }
 
     /// Delete an observation between a PC and NPC
-    async fn delete_observation(&self, pc_id: PlayerCharacterId, target_id: CharacterId) -> Result<(), RepoError> {
+    async fn delete_observation(
+        &self,
+        pc_id: PlayerCharacterId,
+        target_id: CharacterId,
+    ) -> Result<(), RepoError> {
         let q = query(
             "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:OBSERVED_NPC]->(npc:Character {id: $npc_id})
             DELETE r",
@@ -83,7 +115,10 @@ impl ObservationRepo for Neo4jObservationRepo {
         .param("pc_id", pc_id.to_string())
         .param("npc_id", target_id.to_string());
 
-        self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
         tracing::debug!("Deleted observation from PC {} to NPC {}", pc_id, target_id);
         Ok(())
     }
@@ -111,12 +146,19 @@ impl ObservationRepo for Neo4jObservationRepo {
         .param("notes", observation.notes.clone().unwrap_or_default())
         .param("created_at", observation.created_at.to_rfc3339());
 
-        self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
         Ok(())
     }
 
     /// Check if a PC has observed a specific NPC
-    async fn has_observed(&self, pc_id: PlayerCharacterId, target_id: CharacterId) -> Result<bool, RepoError> {
+    async fn has_observed(
+        &self,
+        pc_id: PlayerCharacterId,
+        target_id: CharacterId,
+    ) -> Result<bool, RepoError> {
         let q = query(
             "MATCH (pc:PlayerCharacter {id: $pc_id})-[r:OBSERVED_NPC]->(npc:Character {id: $npc_id})
             RETURN count(r) > 0 as has_observed",
@@ -124,10 +166,17 @@ impl ObservationRepo for Neo4jObservationRepo {
         .param("pc_id", pc_id.to_string())
         .param("npc_id", target_id.to_string());
 
-        let mut result = self.graph.execute(q).await
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
-        if let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
             let has_observed: bool = row.get("has_observed").unwrap_or(false);
             Ok(has_observed)
         } else {
@@ -137,7 +186,11 @@ impl ObservationRepo for Neo4jObservationRepo {
 
     /// Save deduced information from a challenge outcome.
     /// Creates a JournalEntry node linked to the PC for persistent info storage.
-    async fn save_deduced_info(&self, pc_id: PlayerCharacterId, info: String) -> Result<(), RepoError> {
+    async fn save_deduced_info(
+        &self,
+        pc_id: PlayerCharacterId,
+        info: String,
+    ) -> Result<(), RepoError> {
         let now = self.clock.now();
         let entry_id = uuid::Uuid::new_v4().to_string();
 
@@ -156,7 +209,10 @@ impl ObservationRepo for Neo4jObservationRepo {
         .param("info", info)
         .param("created_at", now.to_rfc3339());
 
-        self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
         Ok(())
     }
 }

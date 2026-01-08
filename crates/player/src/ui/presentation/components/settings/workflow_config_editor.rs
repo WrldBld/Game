@@ -11,10 +11,10 @@
 
 use dioxus::prelude::*;
 
-use crate::presentation::services::use_workflow_service;
 use crate::application::services::{
     InputDefault, PromptMapping, TestWorkflowResponse, WorkflowConfig, WorkflowInput,
 };
+use crate::presentation::services::use_workflow_service;
 
 /// Props for the WorkflowConfigEditor component
 #[derive(Props, Clone, PartialEq)]
@@ -116,7 +116,10 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
             error.set(None);
 
             if current_config.is_some() {
-                match svc.update_workflow_defaults(&slot, defaults, Some(locked)).await {
+                match svc
+                    .update_workflow_defaults(&slot, defaults, Some(locked))
+                    .await
+                {
                     Ok(updated_config) => {
                         config.set(Some(updated_config));
                         tracing::info!("Workflow defaults saved successfully");
@@ -326,11 +329,11 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
                             {
                                 let text_inputs = cfg.analysis.text_inputs.clone();
                                 let has_unmapped = text_inputs.iter().any(|input| {
-                                    !edited_mappings.read().iter().any(|m| 
+                                    !edited_mappings.read().iter().any(|m|
                                         m.node_id == input.node_id && m.input_name == input.input_name
                                     )
                                 });
-                                
+
                                 if has_unmapped {
                                     rsx! {
                                         button {
@@ -339,7 +342,7 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
                                             onclick: move |_| {
                                                 // Find first unmapped text input
                                                 if let Some(input) = text_inputs.iter().find(|input| {
-                                                    !edited_mappings.read().iter().any(|m| 
+                                                    !edited_mappings.read().iter().any(|m|
                                                         m.node_id == input.node_id && m.input_name == input.input_name
                                                     )
                                                 }) {
@@ -456,13 +459,13 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
                                         for path in edited_locked.read().iter() {
                                             div {
                                                 class: "flex items-center justify-between py-1.5 px-2 bg-amber-500 bg-opacity-10 rounded-md border border-amber-500 border-opacity-20",
-                                                
+
                                                 div {
                                                     class: "flex items-center gap-2",
                                                     span { class: "text-amber-500 text-xs", "🔒" }
                                                     span { class: "text-gray-300 text-sm font-mono", "{path}" }
                                                 }
-                                                
+
                                                 {
                                                     let path_to_remove = path.clone();
                                                     rsx! {
@@ -494,12 +497,12 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
                         let style_nodes: Vec<&WorkflowInputData> = cfg.analysis.inputs.iter()
                             .filter(|i| {
                                 let node_type = i.node_type.to_lowercase();
-                                node_type.contains("ipadapter") || 
+                                node_type.contains("ipadapter") ||
                                 node_type.contains("clipvision") ||
                                 node_type.contains("prepimage")
                             })
                             .collect();
-                        
+
                         if !style_nodes.is_empty() {
                             rsx! {
                                 CollapsibleSection {
@@ -518,9 +521,9 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
 
                                         div {
                                             class: "flex items-center gap-2 py-2 px-3 bg-green-500 bg-opacity-10 rounded-lg border border-green-500 border-opacity-30",
-                                            
+
                                             span { class: "text-green-400 text-lg", "✓" }
-                                            
+
                                             div {
                                                 span { class: "text-green-400 text-sm font-medium", "Style reference nodes detected" }
                                                 p { class: "text-gray-400 text-xs mt-1", "This workflow supports style reference images via IPAdapter." }
@@ -535,16 +538,16 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
                                         for node in style_nodes.iter() {
                                             div {
                                                 class: "flex items-center gap-2 py-1.5 px-2 bg-black bg-opacity-20 rounded-md",
-                                                
-                                                span { 
+
+                                                span {
                                                     class: "py-0.5 px-1.5 bg-purple-500 bg-opacity-30 text-purple-300 text-xs rounded",
-                                                    "{node.node_type}" 
+                                                    "{node.node_type}"
                                                 }
-                                                
+
                                                 if let Some(title) = &node.node_title {
                                                     span { class: "text-gray-400 text-sm", "{title}" }
                                                 }
-                                                
+
                                                 span { class: "text-gray-600 text-xs ml-auto", "Node {node.node_id}" }
                                             }
                                         }
@@ -566,7 +569,7 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
 
                                     div {
                                         class: "py-2 px-3 bg-gray-700 bg-opacity-30 rounded-lg",
-                                        
+
                                         p { class: "text-gray-400 text-sm", "No IPAdapter nodes detected" }
                                         p { class: "text-gray-500 text-xs mt-1", "Add IPAdapter nodes to your workflow to enable style reference support." }
                                     }
@@ -984,10 +987,10 @@ fn InputDefaultRowWithLock(props: InputDefaultRowWithLockProps) -> Element {
 
     rsx! {
         div {
-            class: if props.is_locked { 
-                "flex items-center gap-2 p-2 bg-amber-500 bg-opacity-10 rounded-md border border-amber-500 border-opacity-20" 
-            } else { 
-                "flex items-center gap-2 p-2 bg-black bg-opacity-20 rounded-md" 
+            class: if props.is_locked {
+                "flex items-center gap-2 p-2 bg-amber-500 bg-opacity-10 rounded-md border border-amber-500 border-opacity-20"
+            } else {
+                "flex items-center gap-2 p-2 bg-black bg-opacity-20 rounded-md"
             },
 
             // Lock toggle button

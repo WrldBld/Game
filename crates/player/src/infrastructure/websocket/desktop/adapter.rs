@@ -379,7 +379,11 @@ impl GameConnectionPort for DesktopGameConnection {
         modified_minutes: Option<u32>,
     ) -> Result<()> {
         self.spawn_send(
-            ClientMessageBuilder::respond_to_time_suggestion(suggestion_id, decision, modified_minutes),
+            ClientMessageBuilder::respond_to_time_suggestion(
+                suggestion_id,
+                decision,
+                modified_minutes,
+            ),
             "respond to time suggestion",
         );
         Ok(())

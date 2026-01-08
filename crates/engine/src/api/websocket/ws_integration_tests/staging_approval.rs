@@ -1,7 +1,8 @@
 use super::*;
 
 #[tokio::test]
-async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_receives_staging_ready() {
+async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_receives_staging_ready()
+{
     use wrldbldr_domain::value_objects::CampbellArchetype;
     use wrldbldr_domain::TimeMode;
 
@@ -30,7 +31,8 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let mut region = wrldbldr_domain::Region::new(location_id, "Unstaged Region");
     region.id = region_id;
 
-    let mut pc = wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now);
+    let mut pc =
+        wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now);
     pc.id = pc_id;
     pc.current_region_id = None; // initial spawn; skip connection validation
 

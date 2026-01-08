@@ -1,8 +1,8 @@
 //! Challenge list view components
 
+use crate::application::dto::{ChallengeData, ChallengeType};
 use dioxus::prelude::*;
 use std::collections::HashMap;
-use crate::application::dto::{ChallengeData, ChallengeType};
 
 /// Section for a challenge type
 #[derive(Props, Clone, PartialEq)]

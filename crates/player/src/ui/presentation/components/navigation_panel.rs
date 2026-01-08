@@ -7,9 +7,7 @@
 
 use dioxus::prelude::*;
 
-use crate::application::dto::{
-    GameTime, NavigationData, NavigationExit, NavigationTarget,
-};
+use crate::application::dto::{GameTime, NavigationData, NavigationExit, NavigationTarget};
 
 use crate::presentation::game_time_format;
 

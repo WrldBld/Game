@@ -4,6 +4,11 @@
 //! presentation state mutations. PlayerEvent is the application-layer
 //! representation of server messages, already translated from wire format.
 
+use crate::application::dto::SessionWorldSnapshot;
+use crate::ports::outbound::player_events::{
+    CharacterData, CharacterPosition, ConnectedUser, NpcPresenceData, PlayerEvent, SceneData,
+};
+use crate::ports::outbound::PlatformPort;
 use crate::presentation::state::{
     approval_state::PendingChallengeOutcome,
     challenge_state::{ChallengePromptData, ChallengeResultData},
@@ -11,11 +16,6 @@ use crate::presentation::state::{
     DialogueState, GameState, GenerationState, LoreState, PendingApproval, SessionState,
 };
 use dioxus::prelude::{ReadableExt, WritableExt};
-use crate::application::dto::SessionWorldSnapshot;
-use crate::ports::outbound::player_events::{
-    CharacterData, CharacterPosition, ConnectedUser, NpcPresenceData, PlayerEvent, SceneData,
-};
-use crate::ports::outbound::PlatformPort;
 
 /// Handle an incoming `PlayerEvent` and update presentation state.
 pub fn handle_server_message(
@@ -1578,6 +1578,7 @@ pub fn handle_server_message(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ports::outbound::{GameConnectionPort, PlatformPort};
     use dioxus::dioxus_core::NoOpMutations;
     use dioxus::prelude::*;
     use std::{
@@ -1586,7 +1587,6 @@ mod tests {
         pin::Pin,
         sync::{Arc, Mutex},
     };
-    use crate::ports::outbound::{GameConnectionPort, PlatformPort};
     use wrldbldr_protocol::types::GameTime;
 
     struct TestPlatform {

@@ -1,10 +1,10 @@
 //! Main menu route handler
 
 use super::Route;
-use crate::use_platform;
-use dioxus::prelude::*;
 use crate::application::services::DEFAULT_ENGINE_URL;
 use crate::ports::outbound::storage_keys;
+use crate::use_platform;
+use dioxus::prelude::*;
 
 /// Main menu route - automatically redirects to role selection
 #[component]

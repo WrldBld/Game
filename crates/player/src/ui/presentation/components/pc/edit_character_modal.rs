@@ -3,11 +3,9 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
-use crate::presentation::services::{use_player_character_service, use_world_service};
 use crate::application::dto::{FieldValue, SheetTemplate};
-use crate::application::services::{
-    PlayerCharacterData, UpdatePlayerCharacterRequest,
-};
+use crate::application::services::{PlayerCharacterData, UpdatePlayerCharacterRequest};
+use crate::presentation::services::{use_player_character_service, use_world_service};
 
 /// Props for EditCharacterModal
 #[derive(Props, Clone, PartialEq)]

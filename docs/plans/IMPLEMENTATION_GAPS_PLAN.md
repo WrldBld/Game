@@ -23,9 +23,9 @@ Update this file as work progresses.
 - [x] Add rule system presets endpoint used by player
 
 ## Phase 3: Use Case Wiring and UX Validation
-- [ ] Wire world import use case to API entry point (HTTP or WebSocket)
+- [x] Wire world import use case to API entry point (HTTP or WebSocket)
 - [ ] Wire queue use cases to API entry points or background runner
-- [ ] Extract join/login logic from WebSocket handlers into use cases
+- [x] Extract join/login logic from WebSocket handlers into use cases
 - [ ] Audit time flow (suggestions -> approval -> advance) against UI
 
 ## Phase 4: Documentation Reconciliation

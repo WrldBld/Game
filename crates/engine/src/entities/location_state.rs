@@ -17,7 +17,10 @@ impl LocationStateEntity {
 
     // CRUD operations
 
-    pub async fn get(&self, id: LocationStateId) -> Result<Option<domain::LocationState>, RepoError> {
+    pub async fn get(
+        &self,
+        id: LocationStateId,
+    ) -> Result<Option<domain::LocationState>, RepoError> {
         self.repo.get(id).await
     }
 

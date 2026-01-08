@@ -5,8 +5,8 @@
 
 use dioxus::prelude::*;
 
-use crate::presentation::services::use_workflow_service;
 use crate::application::services::AnalyzeWorkflowResponse;
+use crate::presentation::services::use_workflow_service;
 
 /// Props for the WorkflowUploadModal component
 #[derive(Props, Clone, PartialEq)]

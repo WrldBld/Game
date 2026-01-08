@@ -89,10 +89,11 @@ impl NarrativeEventService {
 
     /// Set active status for a narrative event
     pub async fn set_active(&self, event_id: &str, active: bool) -> Result<(), ServiceError> {
-        let payload = RequestPayload::NarrativeEvent(NarrativeEventRequest::SetNarrativeEventActive {
-            event_id: event_id.to_string(),
-            active,
-        });
+        let payload =
+            RequestPayload::NarrativeEvent(NarrativeEventRequest::SetNarrativeEventActive {
+                event_id: event_id.to_string(),
+                active,
+            });
         let response = self
             .connection
             .request_with_timeout(payload, get_request_timeout_ms())
@@ -108,18 +109,14 @@ impl NarrativeEventService {
     ) -> Result<NarrativeEventData, ServiceError> {
         // Build trigger conditions JSON if provided
         let trigger_conditions = match (&request.trigger_conditions, &request.trigger_logic) {
-            (Some(conditions), Some(logic)) if !conditions.is_empty() => {
-                Some(serde_json::json!({
-                    "logic": logic,
-                    "conditions": conditions
-                }))
-            }
-            (Some(conditions), None) if !conditions.is_empty() => {
-                Some(serde_json::json!({
-                    "logic": "all",
-                    "conditions": conditions
-                }))
-            }
+            (Some(conditions), Some(logic)) if !conditions.is_empty() => Some(serde_json::json!({
+                "logic": logic,
+                "conditions": conditions
+            })),
+            (Some(conditions), None) if !conditions.is_empty() => Some(serde_json::json!({
+                "logic": "all",
+                "conditions": conditions
+            })),
             _ => None,
         };
 

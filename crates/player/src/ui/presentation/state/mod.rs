@@ -16,7 +16,9 @@ pub use approval_state::{ConversationLogEntry, PendingApproval, PendingChallenge
 pub use challenge_state::RollSubmissionStatus;
 pub use connection_state::ConnectionStatus;
 pub use dialogue_state::{use_typewriter_effect, DialogueState};
-pub use game_state::{ApproachEventData, GameState, LocationEventData, TimeMode, TimeSuggestionData, ViewMode};
+pub use game_state::{
+    ApproachEventData, GameState, LocationEventData, TimeMode, TimeSuggestionData, ViewMode,
+};
 pub use generation_state::{
     BatchStatus, GenerationBatch, GenerationState, SuggestionStatus, SuggestionTask,
 };

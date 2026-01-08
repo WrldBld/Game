@@ -4,11 +4,11 @@
 //! Supports challenge outcome regeneration and discard functionality.
 //! Supports expression marker editing and validation (three-tier emotional model).
 
-use dioxus::prelude::*;
-use wrldbldr_domain::{parse_dialogue, validate_markers, ExpressionConfig};
 use crate::application::dto::{
     ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, OutcomeDetailData,
 };
+use dioxus::prelude::*;
+use wrldbldr_domain::{parse_dialogue, validate_markers, ExpressionConfig};
 
 /// A proposed action/tool call from the LLM
 #[derive(Clone, PartialEq)]

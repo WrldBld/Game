@@ -40,7 +40,14 @@ pub(super) async fn handle_world_request(
                 Err(e) => return Err(e),
             };
 
-            match state.app.use_cases.management.world.get(world_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .management
+                .world
+                .get(world_id_typed)
+                .await
+            {
                 Ok(Some(world)) => Ok(ResponseResult::success(serde_json::json!({
                     "id": world.id,
                     "name": world.name,
@@ -105,9 +112,9 @@ pub(super) async fn handle_world_request(
                     "name": world.name,
                     "description": world.description,
                 }))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"))
-                }
+                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -134,9 +141,9 @@ pub(super) async fn handle_world_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"))
-                }
+                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -150,7 +157,14 @@ pub(super) async fn handle_world_request(
                 Err(e) => return Err(e),
             };
 
-            match state.app.use_cases.world.export.execute(world_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .world
+                .export
+                .execute(world_id_typed)
+                .await
+            {
                 Ok(export) => Ok(ResponseResult::success(serde_json::json!(export))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
@@ -318,9 +332,9 @@ pub(super) async fn handle_character_request(
                     "portrait_asset": character.portrait_asset,
                     "sheet_data": serde_json::Value::Null,
                 }))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Character not found"))
-                }
+                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Character not found"),
+                ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
@@ -341,11 +355,18 @@ pub(super) async fn handle_character_request(
                 Err(e) => return Err(e),
             };
 
-            match state.app.use_cases.management.character.delete(char_id).await {
+            match state
+                .app
+                .use_cases
+                .management
+                .character
+                .delete(char_id)
+                .await
+            {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Character not found"))
-                }
+                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Character not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -372,9 +393,9 @@ pub(super) async fn handle_character_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Character not found"))
-                }
+                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Character not found"),
+                ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
@@ -466,9 +487,9 @@ pub(super) async fn handle_time_request(
                 Ok(game_time) => Ok(ResponseResult::success(serde_json::json!({
                     "game_time": crate::use_cases::time::game_time_to_protocol(&game_time),
                 }))),
-                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"))
-                }
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -770,9 +791,9 @@ pub(super) async fn handle_time_request(
                     },
                     "show_time_to_players": config.show_time_to_players,
                 }))),
-                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"))
-                }
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -857,16 +878,13 @@ pub(super) async fn handle_npc_request(
             };
             let pc_id_typed = PlayerCharacterId::from_uuid(pc_uuid);
 
-            let disposition_level: wrldbldr_domain::DispositionLevel = disposition
-                .parse()
-                .map_err(|_| {
-                    ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(
-                            ErrorCode::BadRequest,
-                            "Invalid disposition value",
-                        ),
-                    }
+            let disposition_level: wrldbldr_domain::DispositionLevel =
+                disposition.parse().map_err(|_| ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        "Invalid disposition value",
+                    ),
                 })?;
 
             if disposition_level == wrldbldr_domain::DispositionLevel::Unknown {
@@ -927,9 +945,8 @@ pub(super) async fn handle_npc_request(
             };
             let pc_id_typed = PlayerCharacterId::from_uuid(pc_uuid);
 
-            let relationship_level: wrldbldr_domain::RelationshipLevel = relationship
-                .parse()
-                .map_err(|_| ServerMessage::Response {
+            let relationship_level: wrldbldr_domain::RelationshipLevel =
+                relationship.parse().map_err(|_| ServerMessage::Response {
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(
                         ErrorCode::BadRequest,
@@ -1301,10 +1318,9 @@ pub(super) async fn handle_npc_request(
                         "mood": mood_state.to_string(),
                     })))
                 }
-                Err(crate::use_cases::npc::NpcError::NotFound) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "NPC not found",
-                )),
+                Err(crate::use_cases::npc::NpcError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "NPC not found"))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     &e.to_string(),

@@ -14,9 +14,7 @@ use wrldbldr_protocol::{
 
 use crate::infrastructure::session_type_converters::participant_role_to_world_role;
 use crate::infrastructure::websocket::protocol::ConnectionState;
-use crate::infrastructure::websocket::shared::{
-    parse_server_message, ParsedServerMessage,
-};
+use crate::infrastructure::websocket::shared::{parse_server_message, ParsedServerMessage};
 use crate::infrastructure::websocket::{BackoffState, PendingRequests};
 
 /// WebSocket client for communicating with the Engine (Desktop)
@@ -108,25 +106,23 @@ impl EngineClient {
                     let mut unexpected_close = false;
                     while let Some(msg) = read.next().await {
                         match msg {
-                            Ok(Message::Text(text)) => {
-                                match parse_server_message(&text) {
-                                    Ok(ParsedServerMessage::Response { request_id, result }) => {
-                                        let _ = pending_requests_clone
-                                            .lock()
-                                            .await
-                                            .resolve(&request_id, result);
-                                    }
-                                    Ok(ParsedServerMessage::Other(server_msg)) => {
-                                        let callback = on_message.lock().await;
-                                        if let Some(ref cb) = *callback {
-                                            cb(server_msg);
-                                        }
-                                    }
-                                    Err(e) => {
-                                        tracing::warn!("Failed to parse server message: {}", e);
+                            Ok(Message::Text(text)) => match parse_server_message(&text) {
+                                Ok(ParsedServerMessage::Response { request_id, result }) => {
+                                    let _ = pending_requests_clone
+                                        .lock()
+                                        .await
+                                        .resolve(&request_id, result);
+                                }
+                                Ok(ParsedServerMessage::Other(server_msg)) => {
+                                    let callback = on_message.lock().await;
+                                    if let Some(ref cb) = *callback {
+                                        cb(server_msg);
                                     }
                                 }
-                            }
+                                Err(e) => {
+                                    tracing::warn!("Failed to parse server message: {}", e);
+                                }
+                            },
                             Ok(Message::Close(_)) => {
                                 tracing::info!("Server closed connection");
                                 // Check if this was intentional
@@ -320,9 +316,12 @@ impl EngineClient {
         // Register pending request
         {
             let mut pending = self.pending_requests.lock().await;
-            pending.insert(request_id.clone(), Box::new(move |result| {
-                let _ = tx.send(result);
-            }));
+            pending.insert(
+                request_id.clone(),
+                Box::new(move |result| {
+                    let _ = tx.send(result);
+                }),
+            );
         }
 
         // Send the message

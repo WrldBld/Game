@@ -20,10 +20,13 @@ pub(super) async fn handle_story_event_request(
 
             match state.app.use_cases.story_events.ops.get(event_uuid).await {
                 Ok(Some(event)) => Ok(ResponseResult::success(event)),
-                Ok(None) => Ok(ResponseResult::error(ErrorCode::NotFound, "Story event not found")),
-                Err(crate::use_cases::story_events::StoryEventError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Story event not found"))
-                }
+                Ok(None) => Ok(ResponseResult::error(
+                    ErrorCode::NotFound,
+                    "Story event not found",
+                )),
+                Err(crate::use_cases::story_events::StoryEventError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Story event not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -51,9 +54,9 @@ pub(super) async fn handle_story_event_request(
                 .await
             {
                 Ok(event) => Ok(ResponseResult::success(event)),
-                Err(crate::use_cases::story_events::StoryEventError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Story event not found"))
-                }
+                Err(crate::use_cases::story_events::StoryEventError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Story event not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -138,9 +141,9 @@ pub(super) async fn handle_story_event_request(
                 .await
             {
                 Ok(event) => Ok(ResponseResult::success(event)),
-                Err(crate::use_cases::story_events::StoryEventError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Story event not found"))
-                }
+                Err(crate::use_cases::story_events::StoryEventError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Story event not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),

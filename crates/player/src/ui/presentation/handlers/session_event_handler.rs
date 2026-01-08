@@ -46,9 +46,7 @@ pub fn handle_session_event(
                 crate::application::dto::AppConnectionStatus::Reconnecting => {
                     ConnectionStatus::Reconnecting
                 }
-                crate::application::dto::AppConnectionStatus::Failed => {
-                    ConnectionStatus::Failed
-                }
+                crate::application::dto::AppConnectionStatus::Failed => ConnectionStatus::Failed,
             };
 
             session_state.connection_status().set(presentation_status);

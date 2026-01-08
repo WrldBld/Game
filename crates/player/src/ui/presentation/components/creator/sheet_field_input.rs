@@ -3,9 +3,7 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
-use crate::application::dto::{
-    FieldType, FieldValue, SheetField, SheetSection, SheetTemplate,
-};
+use crate::application::dto::{FieldType, FieldValue, SheetField, SheetSection, SheetTemplate};
 
 /// Props for the sheet section renderer
 #[derive(Props, Clone, PartialEq)]

@@ -2,6 +2,7 @@
 
 use dioxus::prelude::*;
 
+use crate::application::dto::{StoryEventData, StoryEventTypeData};
 use crate::presentation::components::story_arc::add_dm_marker::AddDmMarkerModal;
 use crate::presentation::components::story_arc::timeline_event_card::TimelineEventCard;
 use crate::presentation::components::story_arc::timeline_filters::{
@@ -9,7 +10,6 @@ use crate::presentation::components::story_arc::timeline_filters::{
 };
 use crate::presentation::services::use_story_event_service;
 use crate::presentation::state::use_game_state;
-use crate::application::dto::{StoryEventData, StoryEventTypeData};
 
 /// Filter options for the timeline
 #[derive(Debug, Clone, Default)]

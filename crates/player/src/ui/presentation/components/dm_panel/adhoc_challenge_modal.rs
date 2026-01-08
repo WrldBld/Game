@@ -3,8 +3,8 @@
 //! Allows DM to create custom challenges on-the-fly without LLM involvement.
 //! The DM specifies all challenge details including outcomes.
 
-use dioxus::prelude::*;
 use crate::application::dto::{AdHocOutcomes, CharacterData as SceneCharacterState};
+use dioxus::prelude::*;
 
 /// Data for an ad-hoc challenge creation
 #[derive(Debug, Clone, PartialEq)]

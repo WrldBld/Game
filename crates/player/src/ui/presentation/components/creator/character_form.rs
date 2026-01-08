@@ -8,13 +8,13 @@ use super::expression_config_editor::ExpressionConfigEditor;
 use super::motivations_tab::MotivationsTab;
 use super::sheet_field_input::CharacterSheetForm;
 use super::suggestion_button::{SuggestionButton, SuggestionType};
+use crate::application::dto::{FieldValue, SheetTemplate};
+use crate::application::services::SuggestionContext;
+use crate::application::services::{CharacterFormData, CharacterSheetDataApi};
 use crate::presentation::components::common::FormField;
 use crate::presentation::services::{use_character_service, use_world_service};
 use crate::use_platform;
 use wrldbldr_domain::{ExpressionConfig, MoodState};
-use crate::application::dto::{FieldValue, SheetTemplate};
-use crate::application::services::SuggestionContext;
-use crate::application::services::{CharacterFormData, CharacterSheetDataApi};
 
 /// Character archetypes
 const ARCHETYPES: &[&str] = &[
@@ -384,7 +384,7 @@ pub fn CharacterForm(
                                     "{expression_config.read().expressions.len()} expressions"
                                 }
 
-                                // Action count  
+                                // Action count
                                 if !expression_config.read().actions.is_empty() {
                                     span {
                                         class: "px-2 py-1 bg-gray-700 text-gray-300 rounded",

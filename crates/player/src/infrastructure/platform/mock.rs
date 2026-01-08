@@ -3,14 +3,14 @@
 //! Provides controllable implementations of all platform providers
 //! for deterministic testing.
 
-use crate::state::Platform;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use std::{future::Future, pin::Pin};
 use crate::ports::outbound::platform::{
     ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider,
     SleepProvider, StorageProvider, TimeProvider,
 };
+use crate::state::Platform;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
+use std::{future::Future, pin::Pin};
 
 /// Mock time provider with controllable time
 #[derive(Clone)]

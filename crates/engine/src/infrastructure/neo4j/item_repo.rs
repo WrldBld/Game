@@ -26,13 +26,19 @@ impl Neo4jItemRepo {
 impl ItemRepo for Neo4jItemRepo {
     /// Get an item by ID
     async fn get(&self, id: ItemId) -> Result<Option<Item>, RepoError> {
-        let q = query("MATCH (i:Item {id: $id}) RETURN i")
-            .param("id", id.to_string());
+        let q = query("MATCH (i:Item {id: $id}) RETURN i").param("id", id.to_string());
 
-        let mut result = self.graph.execute(q).await
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
-        if let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
             Ok(Some(row_to_item(row)?))
         } else {
             Ok(None)
@@ -72,9 +78,15 @@ impl ItemRepo for Neo4jItemRepo {
         .param("is_unique", item.is_unique)
         .param("properties", item.properties.clone().unwrap_or_default())
         .param("can_contain_items", item.can_contain_items)
-        .param("container_limit", item.container_limit.map(|l| l as i64).unwrap_or(-1));
+        .param(
+            "container_limit",
+            item.container_limit.map(|l| l as i64).unwrap_or(-1),
+        );
 
-        self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
         Ok(())
     }
 
@@ -87,7 +99,10 @@ impl ItemRepo for Neo4jItemRepo {
         )
         .param("id", id.to_string());
 
-        self.graph.run(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+        self.graph
+            .run(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
 
         tracing::debug!("Deleted item: {}", id);
         Ok(())
@@ -109,11 +124,18 @@ impl ItemRepo for Neo4jItemRepo {
         )
         .param("region_id", region_id.to_string());
 
-        let mut result = self.graph.execute(q).await
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
         let mut items = Vec::new();
 
-        while let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
             items.push(row_to_item(row)?);
         }
 
@@ -129,11 +151,18 @@ impl ItemRepo for Neo4jItemRepo {
         )
         .param("world_id", world_id.to_string());
 
-        let mut result = self.graph.execute(q).await
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
         let mut items = Vec::new();
 
-        while let Some(row) = result.next().await.map_err(|e| RepoError::Database(e.to_string()))? {
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
             items.push(row_to_item(row)?);
         }
 
@@ -217,5 +246,3 @@ impl ItemRepo for Neo4jItemRepo {
         Ok(())
     }
 }
-
-

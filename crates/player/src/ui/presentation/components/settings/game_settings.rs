@@ -4,9 +4,9 @@
 //! world-specific settings. It's designed for use during active gameplay
 //! where DMs can tune settings for the current world/session.
 
+use crate::application::dto::{AppSettings, BatchQueueFailurePolicy};
 use crate::presentation::services::use_settings_service;
 use dioxus::prelude::*;
-use crate::application::dto::{AppSettings, BatchQueueFailurePolicy};
 
 /// Props for the Game Settings Panel
 #[derive(Props, Clone, PartialEq)]

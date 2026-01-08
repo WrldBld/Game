@@ -35,9 +35,7 @@ impl Neo4jLoreRepo {
             .map_err(|e| RepoError::Database(e.to_string()))?;
         let summary: String = node.get_string_or("summary", "");
         let category_str: String = node.get_string_or("category", "common");
-        let category: LoreCategory = category_str
-            .parse()
-            .unwrap_or(LoreCategory::Common);
+        let category: LoreCategory = category_str.parse().unwrap_or(LoreCategory::Common);
         let is_common_knowledge: bool = node.get_bool_or("is_common_knowledge", false);
         let created_at = node.get_datetime_or("created_at", fallback);
         let updated_at = node.get_datetime_or("updated_at", fallback);
@@ -88,8 +86,7 @@ impl Neo4jLoreRepo {
         let notes: Option<String> = row.get("notes").ok();
 
         let lore_id = LoreId::from_uuid(
-            uuid::Uuid::parse_str(&lore_id_str)
-                .map_err(|e| RepoError::Database(e.to_string()))?,
+            uuid::Uuid::parse_str(&lore_id_str).map_err(|e| RepoError::Database(e.to_string()))?,
         );
         let character_id = CharacterId::from_uuid(
             uuid::Uuid::parse_str(&character_id_str)
@@ -380,11 +377,7 @@ impl LoreRepo for Neo4jLoreRepo {
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
-        tracing::debug!(
-            "Revoked lore {} from character {}",
-            lore_id,
-            character_id
-        );
+        tracing::debug!("Revoked lore {} from character {}", lore_id, character_id);
         Ok(())
     }
 
@@ -420,7 +413,10 @@ impl LoreRepo for Neo4jLoreRepo {
         Ok(knowledge_list)
     }
 
-    async fn get_knowledge_for_lore(&self, lore_id: LoreId) -> Result<Vec<LoreKnowledge>, RepoError> {
+    async fn get_knowledge_for_lore(
+        &self,
+        lore_id: LoreId,
+    ) -> Result<Vec<LoreKnowledge>, RepoError> {
         let q = query(
             "MATCH (c:Character)-[k:KNOWS_LORE]->(l:Lore {id: $lore_id})
             RETURN l.id as lore_id, c.id as character_id,
@@ -511,7 +507,9 @@ impl LoreRepo for Neo4jLoreRepo {
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?
         {
-            let json_str: String = row.get("known_chunk_ids").unwrap_or_else(|_| "[]".to_string());
+            let json_str: String = row
+                .get("known_chunk_ids")
+                .unwrap_or_else(|_| "[]".to_string());
             serde_json::from_str(&json_str).unwrap_or_default()
         } else {
             return Err(RepoError::NotFound);
@@ -526,8 +524,8 @@ impl LoreRepo for Neo4jLoreRepo {
         }
 
         // Serialize and update
-        let merged_json = serde_json::to_string(&merged)
-            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let merged_json =
+            serde_json::to_string(&merged).map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let update_q = query(
             "MATCH (c:Character {id: $character_id})-[k:KNOWS_LORE]->(l:Lore {id: $lore_id})

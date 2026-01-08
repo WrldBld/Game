@@ -6,9 +6,7 @@
 
 use dioxus::prelude::*;
 
-use crate::application::dto::{
-    CharacterData as SceneCharacterState, CharacterPosition,
-};
+use crate::application::dto::{CharacterData as SceneCharacterState, CharacterPosition};
 
 /// Props for the CharacterSprite component
 #[derive(Props, Clone, PartialEq)]

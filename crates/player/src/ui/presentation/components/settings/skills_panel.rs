@@ -9,9 +9,9 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
-use crate::presentation::services::use_skill_service;
 use crate::application::dto::{SkillCategory, SkillData};
 use crate::application::services::{CreateSkillRequest, UpdateSkillRequest};
+use crate::presentation::services::use_skill_service;
 
 /// Props for SkillsPanel
 #[derive(Props, Clone, PartialEq)]

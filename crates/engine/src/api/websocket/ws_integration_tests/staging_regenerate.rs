@@ -1,7 +1,8 @@
 use super::*;
 
 #[tokio::test]
-async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_does_not_mutate_staging() {
+async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_does_not_mutate_staging(
+) {
     use crate::infrastructure::ports::{NpcRegionRelationType, NpcWithRegionInfo};
 
     let now = chrono::Utc::now();

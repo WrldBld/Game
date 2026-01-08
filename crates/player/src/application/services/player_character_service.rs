@@ -199,10 +199,12 @@ impl PlayerCharacterService {
         let result = self
             .connection
             .request_with_timeout(
-                RequestPayload::PlayerCharacter(PlayerCharacterRequest::UpdatePlayerCharacterLocation {
-                    pc_id: pc_id.to_string(),
-                    region_id: region_id.to_string(),
-                }),
+                RequestPayload::PlayerCharacter(
+                    PlayerCharacterRequest::UpdatePlayerCharacterLocation {
+                        pc_id: pc_id.to_string(),
+                        region_id: region_id.to_string(),
+                    },
+                ),
                 get_request_timeout_ms(),
             )
             .await?;

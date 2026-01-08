@@ -312,10 +312,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         Ok(())
     }
 
-    async fn list_chains_for_world(
-        &self,
-        world_id: WorldId,
-    ) -> Result<Vec<EventChain>, RepoError> {
+    async fn list_chains_for_world(&self, world_id: WorldId) -> Result<Vec<EventChain>, RepoError> {
         let q = query(
             "MATCH (w:World {id: $world_id})-[:HAS_EVENT_CHAIN]->(c:EventChain)
             RETURN c

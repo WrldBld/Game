@@ -2,9 +2,9 @@
 //!
 //! Tracks connected clients and their world associations.
 
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::time::Duration;
-use dashmap::DashMap;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::timeout;
 use uuid::Uuid;
@@ -98,7 +98,9 @@ impl ConnectionManager {
     /// Get connection info by ID.
     pub async fn get(&self, connection_id: Uuid) -> Option<ConnectionInfo> {
         let connections = self.connections.read().await;
-        connections.get(&connection_id).map(|(info, _)| info.clone())
+        connections
+            .get(&connection_id)
+            .map(|(info, _)| info.clone())
     }
 
     /// Join a world.
@@ -110,26 +112,26 @@ impl ConnectionManager {
         pc_id: Option<PlayerCharacterId>,
     ) -> Result<(), ConnectionError> {
         let mut connections = self.connections.write().await;
-        
+
         // Check if DM slot is already taken for this world
         if role == WorldRole::Dm {
             for (id, (info, _)) in connections.iter() {
-                if *id != connection_id 
+                if *id != connection_id
                     && info.world_id == Some(world_id)
-                    && info.role == WorldRole::Dm 
+                    && info.role == WorldRole::Dm
                 {
                     return Err(ConnectionError::DmAlreadyConnected);
                 }
             }
         }
-        
+
         if let Some((info, _)) = connections.get_mut(&connection_id) {
             info.world_id = Some(world_id);
             info.role = role;
             info.pc_id = pc_id;
             tracing::info!(
-                connection_id = %connection_id, 
-                world_id = %world_id, 
+                connection_id = %connection_id,
+                world_id = %world_id,
                 role = ?role,
                 "Connection joined world"
             );
@@ -237,10 +239,14 @@ impl ConnectionManager {
     }
 
     /// Send a critical message to a specific connection with timeout.
-    /// 
+    ///
     /// Unlike try_send, this will wait (with timeout) for channel capacity.
     /// Use for messages that must not be dropped: state changes, approvals, errors.
-    pub async fn send_critical(&self, connection_id: Uuid, message: ServerMessage) -> Result<(), CriticalSendError> {
+    pub async fn send_critical(
+        &self,
+        connection_id: Uuid,
+        message: ServerMessage,
+    ) -> Result<(), CriticalSendError> {
         let connections = self.connections.read().await;
         if let Some((_, sender)) = connections.get(&connection_id) {
             match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message)).await {
@@ -260,7 +266,7 @@ impl ConnectionManager {
     }
 
     /// Broadcast a critical message to all connections in a world.
-    /// 
+    ///
     /// Waits with timeout for each send. Logs errors but continues to other connections.
     /// Use for messages that must not be dropped.
     pub async fn broadcast_critical_to_world(&self, world_id: WorldId, message: ServerMessage) {

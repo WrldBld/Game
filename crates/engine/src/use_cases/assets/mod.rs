@@ -7,15 +7,16 @@ pub mod expression_sheet;
 use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{
-    AssetGenerationData, AssetId, AssetType, BatchId, EntityType, GalleryAsset, GenerationMetadata, WorldId,
+    AssetGenerationData, AssetId, AssetType, BatchId, EntityType, GalleryAsset, GenerationMetadata,
+    WorldId,
 };
 
 use crate::entities::Assets;
 use crate::infrastructure::ports::{ClockPort, ImageGenError, ImageRequest, QueuePort, RepoError};
 
 pub use expression_sheet::{
-    ExpressionSheetError, ExpressionSheetRequest, ExpressionSheetResult,
-    GenerateExpressionSheet, SlicedExpression, STANDARD_EXPRESSION_ORDER,
+    ExpressionSheetError, ExpressionSheetRequest, ExpressionSheetResult, GenerateExpressionSheet,
+    SlicedExpression, STANDARD_EXPRESSION_ORDER,
 };
 
 /// Container for asset use cases.
@@ -29,7 +30,10 @@ impl AssetUseCases {
         generate: Arc<GenerateAsset>,
         expression_sheet: Arc<GenerateExpressionSheet>,
     ) -> Self {
-        Self { generate, expression_sheet }
+        Self {
+            generate,
+            expression_sheet,
+        }
     }
 }
 
@@ -54,12 +58,12 @@ pub struct GenerateAsset {
 }
 
 impl GenerateAsset {
-    pub fn new(
-        assets: Arc<Assets>,
-        queue: Arc<dyn QueuePort>,
-        clock: Arc<dyn ClockPort>,
-    ) -> Self {
-        Self { assets, queue, clock }
+    pub fn new(assets: Arc<Assets>, queue: Arc<dyn QueuePort>, clock: Arc<dyn ClockPort>) -> Self {
+        Self {
+            assets,
+            queue,
+            clock,
+        }
     }
 
     /// Generate an image synchronously (blocking until complete).
