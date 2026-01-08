@@ -15,7 +15,7 @@ Update this file as work progresses.
 - [ ] Implement request handlers for Skill/Act/Interaction/Scene (Priority D)
 - [x] Implement missing StoryEvent operations (Get/Update) (Priority E)
 - [x] Implement missing NPC requests (disposition/relationship) (Priority F)
-- [ ] Implement missing AI requests (SuggestDeflectionBehavior, SuggestBehavioralTells) (Priority G)
+- [x] Implement missing AI requests (SuggestDeflectionBehavior, SuggestBehavioralTells) (Priority G)
 
 ## Phase 2: HTTP API Coverage (Engine)
 - [ ] Add settings endpoints: /api/settings, /api/settings/metadata, /api/settings/reset

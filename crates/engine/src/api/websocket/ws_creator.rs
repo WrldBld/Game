@@ -361,7 +361,10 @@ pub(super) async fn handle_ai_request(
             })))
         }
 
-        AiRequest::SuggestWantDescription { .. } | AiRequest::SuggestActantialReason { .. } => {
+        AiRequest::SuggestWantDescription { .. }
+        | AiRequest::SuggestActantialReason { .. }
+        | AiRequest::SuggestDeflectionBehavior { .. }
+        | AiRequest::SuggestBehavioralTells { .. } => {
             // These are legacy/creator utilities; gate behind DM for now.
             if let Err(e) = require_dm_for_request(conn_info, request_id) {
                 return Err(e);
@@ -394,13 +397,51 @@ pub(super) async fn handle_ai_request(
                     Some(npc_id.to_string()),
                     SuggestionContext {
                         entity_type: Some("npc".to_string()),
-                        entity_name: None,
+                        entity_name: load_npc_name(state, &npc_id).await,
                         world_setting,
                         hints: None,
                         additional_context: context,
                         world_id: Some(world_uuid),
                     },
                 ),
+                AiRequest::SuggestDeflectionBehavior {
+                    npc_id,
+                    want_id,
+                    want_description,
+                } => {
+                    let extra = format!("want_id={}", want_id);
+                    (
+                        "deflection_behavior".to_string(),
+                        Some(npc_id.to_string()),
+                        SuggestionContext {
+                            entity_type: Some("npc".to_string()),
+                            entity_name: load_npc_name(state, &npc_id).await,
+                            world_setting,
+                            hints: Some(want_description),
+                            additional_context: Some(extra),
+                            world_id: Some(world_uuid),
+                        },
+                    )
+                }
+                AiRequest::SuggestBehavioralTells {
+                    npc_id,
+                    want_id,
+                    want_description,
+                } => {
+                    let extra = format!("want_id={}", want_id);
+                    (
+                        "behavioral_tells".to_string(),
+                        Some(npc_id.to_string()),
+                        SuggestionContext {
+                            entity_type: Some("npc".to_string()),
+                            entity_name: load_npc_name(state, &npc_id).await,
+                            world_setting,
+                            hints: Some(want_description),
+                            additional_context: Some(extra),
+                            world_id: Some(world_uuid),
+                        },
+                    )
+                }
                 AiRequest::SuggestActantialReason {
                     npc_id,
                     want_id,
@@ -418,7 +459,7 @@ pub(super) async fn handle_ai_request(
                         Some(npc_id.to_string()),
                         SuggestionContext {
                             entity_type: Some("npc".to_string()),
-                            entity_name: None,
+                            entity_name: load_npc_name(state, &npc_id).await,
                             world_setting,
                             hints: None,
                             additional_context: Some(extra),
@@ -477,6 +518,20 @@ pub(super) async fn handle_ai_request(
             Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
         }
     }
+}
+
+async fn load_npc_name(state: &WsState, npc_id: &str) -> Option<String> {
+    let uuid = Uuid::parse_str(npc_id).ok()?;
+    let npc_id = wrldbldr_domain::CharacterId::from_uuid(uuid);
+    state
+        .app
+        .entities
+        .character
+        .get(npc_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|npc| npc.name)
 }
 
 pub(super) async fn handle_expression_request(

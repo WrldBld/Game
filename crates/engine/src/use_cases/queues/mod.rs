@@ -594,6 +594,34 @@ fn build_suggestion_prompt(
             "Generate 3 different descriptions for '{}' (a {}). Setting: {}. Hints: {}. Return each description on its own line.",
             entity_name, entity_type, world_setting, hints
         ),
+        "deflection_behavior" => format!(
+            "Generate 3 different deflection behaviors for {entity_name} when trying to hide their desire for: {hints}.\nSetting: {world_setting}.\nCharacter context: {extra}.\n\nA deflection behavior is how a character acts to conceal their true want - nervous habits, diversionary topics, or defensive responses.\nEach suggestion should be 1-2 sentences describing the specific behavior.\nReturn each suggestion on its own line.",
+            entity_name = entity_name,
+            hints = hints,
+            world_setting = world_setting,
+            extra = extra
+        ),
+        "behavioral_tells" => format!(
+            "Generate 3 different behavioral tells for {entity_name} that reveal their hidden desire for: {hints}.\nSetting: {world_setting}.\nCharacter context: {extra}.\n\nA behavioral tell is a subtle sign that betrays the character's true motivation - a glance, a pause, an involuntary reaction.\nThese are clues perceptive players might notice.\nEach suggestion should be 1-2 sentences describing the specific tell.\nReturn each suggestion on its own line.",
+            entity_name = entity_name,
+            hints = hints,
+            world_setting = world_setting,
+            extra = extra
+        ),
+        "want_description" => format!(
+            "Generate 3 different want descriptions for {entity_name} in a {world_setting} setting.\nCharacter archetype: {hints}.\nAdditional context: {extra}.\n\nEach want should be phrased as a specific desire or goal, not a personality trait.\nFocus on what the character actively pursues or needs.\nEach description should be a single compelling sentence.\nReturn each want on its own line.",
+            entity_name = entity_name,
+            world_setting = world_setting,
+            hints = hints,
+            extra = extra
+        ),
+        "actantial_reason" => format!(
+            "Generate 3 different reasons why {entity_name} views {hints} as {extra} regarding their current goal.\nSetting: {world_setting}.\n\nProvide narrative justifications for this actantial relationship that could drive interesting roleplay.\nEach reason should explain the history, incident, or belief that created this dynamic.\nEach suggestion should be 1-2 sentences.\nReturn each reason on its own line.",
+            entity_name = entity_name,
+            hints = hints,
+            extra = extra,
+            world_setting = world_setting
+        ),
         other => format!(
             "Generate 4 suggestions for {} for '{}' ({}). Setting: {}. Hints: {}. Context: {}. Return one per line.",
             other, entity_name, entity_type, world_setting, hints, extra

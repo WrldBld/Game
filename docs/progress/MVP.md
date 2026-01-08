@@ -171,7 +171,7 @@ See [SIMPLIFIED_ARCHITECTURE.md](../plans/SIMPLIFIED_ARCHITECTURE.md) for full a
 ### Current Gaps (as of latest audit)
 
 - WebSocket CRUD handlers remain to be wired for Scene/Act/Interaction/Skill. Goal/Want/Actantial and Challenge/NarrativeEvent/EventChain coverage is now in place alongside World/Character/Location/Region/PlayerCharacter/Relationship/Observation.
-- Some protocol requests still lack handlers (AI deflection/tells suggestions).
+- AI deflection/tells suggestions are wired, but UI flows still need to consume results from queued suggestions.
 - HTTP settings and rule-system preset endpoints expected by the player are not yet implemented.
 
 ---
