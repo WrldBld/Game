@@ -2537,26 +2537,27 @@ async fn handle_set_game_time(
         Err(e) => return Some(e),
     };
 
-    let mut world = match state.app.entities.world.get(world_id_typed).await {
-        Ok(Some(w)) => w,
-        Ok(None) => return Some(error_response("NOT_FOUND", "World not found")),
+    let outcome = match state
+        .app
+        .use_cases
+        .time
+        .control
+        .set_game_time(world_id_typed, day, hour)
+        .await
+    {
+        Ok(result) => result,
+        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+            return Some(error_response("NOT_FOUND", "World not found"));
+        }
         Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
     };
-
-    let previous_time = world.game_time.clone();
-    world.game_time.set_day_and_hour(day, hour as u32);
-    world.updated_at = chrono::Utc::now();
-
-    if let Err(e) = state.app.entities.world.save(&world).await {
-        return Some(error_response("DATABASE_ERROR", &e.to_string()));
-    }
 
     if notify_players {
         let reason = wrldbldr_domain::TimeAdvanceReason::DmSetTime;
         let advance_data = crate::use_cases::time::build_time_advance_data(
-            &previous_time,
-            &world.game_time,
-            0,
+            &outcome.previous_time,
+            &outcome.new_time,
+            outcome.minutes_advanced,
             &reason,
         );
         let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
@@ -2603,28 +2604,28 @@ async fn handle_skip_to_period(
         }
     };
 
-    let mut world = match state.app.entities.world.get(world_id_typed).await {
-        Ok(Some(w)) => w,
-        Ok(None) => return Some(error_response("NOT_FOUND", "World not found")),
+    let outcome = match state
+        .app
+        .use_cases
+        .time
+        .control
+        .skip_to_period(world_id_typed, target_period)
+        .await
+    {
+        Ok(result) => result,
+        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+            return Some(error_response("NOT_FOUND", "World not found"));
+        }
         Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
     };
-
-    let previous_time = world.game_time.clone();
-    let minutes_until = world.game_time.minutes_until_period(target_period);
-    world.game_time.skip_to_period(target_period);
-    world.updated_at = chrono::Utc::now();
-
-    if let Err(e) = state.app.entities.world.save(&world).await {
-        return Some(error_response("DATABASE_ERROR", &e.to_string()));
-    }
 
     let reason = wrldbldr_domain::TimeAdvanceReason::DmSkipToPeriod {
         period: target_period,
     };
     let advance_data = crate::use_cases::time::build_time_advance_data(
-        &previous_time,
-        &world.game_time,
-        minutes_until,
+        &outcome.previous_time,
+        &outcome.new_time,
+        outcome.minutes_advanced,
         &reason,
     );
     let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
@@ -2657,17 +2658,19 @@ async fn handle_pause_game_time(
         Err(e) => return Some(e),
     };
 
-    let mut world = match state.app.entities.world.get(world_id_typed).await {
-        Ok(Some(w)) => w,
-        Ok(None) => return Some(error_response("NOT_FOUND", "World not found")),
+    match state
+        .app
+        .use_cases
+        .time
+        .control
+        .set_paused(world_id_typed, paused)
+        .await
+    {
+        Ok(_time) => {}
+        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+            return Some(error_response("NOT_FOUND", "World not found"));
+        }
         Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
-    };
-
-    world.game_time.set_paused(paused);
-    world.updated_at = chrono::Utc::now();
-
-    if let Err(e) = state.app.entities.world.save(&world).await {
-        return Some(error_response("DATABASE_ERROR", &e.to_string()));
     }
 
     let update_msg = ServerMessage::GameTimePaused {
@@ -2703,39 +2706,41 @@ async fn handle_set_time_mode(
         Err(e) => return Some(e),
     };
 
-    let mut world = match state.app.entities.world.get(world_id_typed).await {
-        Ok(Some(w)) => w,
-        Ok(None) => return Some(error_response("NOT_FOUND", "World not found")),
+    let mut config = match state
+        .app
+        .use_cases
+        .time
+        .control
+        .get_time_config(world_id_typed)
+        .await
+    {
+        Ok(result) => result,
+        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+            return Some(error_response("NOT_FOUND", "World not found"));
+        }
         Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
     };
 
-    let (domain_mode, broadcast_mode) = match mode {
-        wrldbldr_protocol::types::TimeMode::Manual => (
-            wrldbldr_domain::TimeMode::Manual,
-            wrldbldr_protocol::types::TimeMode::Manual,
-        ),
-        wrldbldr_protocol::types::TimeMode::Suggested => (
-            wrldbldr_domain::TimeMode::Suggested,
-            wrldbldr_protocol::types::TimeMode::Suggested,
-        ),
-        // Auto is intentionally treated as Suggested to ensure time only advances
-        // via explicit DM action/approval (never automatically).
-        wrldbldr_protocol::types::TimeMode::Auto => (
-            wrldbldr_domain::TimeMode::Suggested,
-            wrldbldr_protocol::types::TimeMode::Suggested,
-        ),
+    config.mode = mode;
+
+    let update = match state
+        .app
+        .use_cases
+        .time
+        .control
+        .update_time_config(world_id_typed, config)
+        .await
+    {
+        Ok(result) => result,
+        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+            return Some(error_response("NOT_FOUND", "World not found"));
+        }
+        Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
     };
-
-    world.time_config.mode = domain_mode;
-    world.updated_at = chrono::Utc::now();
-
-    if let Err(e) = state.app.entities.world.save(&world).await {
-        return Some(error_response("DATABASE_ERROR", &e.to_string()));
-    }
 
     let update_msg = ServerMessage::TimeModeChanged {
         world_id: world_id_typed.to_string(),
-        mode: broadcast_mode,
+        mode: update.normalized_config.mode,
     };
     state
         .connections
@@ -2766,25 +2771,37 @@ async fn handle_set_time_costs(
         Err(e) => return Some(e),
     };
 
-    let mut world = match state.app.entities.world.get(world_id_typed).await {
-        Ok(Some(w)) => w,
-        Ok(None) => return Some(error_response("NOT_FOUND", "World not found")),
+    let mut config = match state
+        .app
+        .use_cases
+        .time
+        .control
+        .get_time_config(world_id_typed)
+        .await
+    {
+        Ok(result) => result,
+        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+            return Some(error_response("NOT_FOUND", "World not found"));
+        }
         Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
     };
 
-    world.time_config.time_costs = wrldbldr_domain::TimeCostConfig {
-        travel_location: costs.travel_location,
-        travel_region: costs.travel_region,
-        rest_short: costs.rest_short,
-        rest_long: costs.rest_long,
-        conversation: costs.conversation,
-        challenge: costs.challenge,
-        scene_transition: costs.scene_transition,
-    };
-    world.updated_at = chrono::Utc::now();
+    config.time_costs = costs;
 
-    if let Err(e) = state.app.entities.world.save(&world).await {
-        return Some(error_response("DATABASE_ERROR", &e.to_string()));
+    if let Err(e) = state
+        .app
+        .use_cases
+        .time
+        .control
+        .update_time_config(world_id_typed, config)
+        .await
+    {
+        return Some(match e {
+            crate::use_cases::time::TimeControlError::WorldNotFound => {
+                error_response("NOT_FOUND", "World not found")
+            }
+            _ => error_response("DATABASE_ERROR", &e.to_string()),
+        });
     }
 
     tracing::info!(world_id = %world_id_typed, "Time costs updated");
@@ -2873,19 +2890,23 @@ async fn handle_respond_to_time_suggestion(
 
     let result = match state
         .app
-        .entities
-        .world
-        .advance_time(world_id, minutes_to_advance, reason.clone())
+        .use_cases
+        .time
+        .control
+        .advance_minutes(world_id, minutes_to_advance, reason.clone())
         .await
     {
         Ok(r) => r,
+        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+            return Some(error_response("NOT_FOUND", "World not found"));
+        }
         Err(e) => return Some(error_response("DATABASE_ERROR", &e.to_string())),
     };
 
     let advance_data = crate::use_cases::time::build_time_advance_data(
         &result.previous_time,
         &result.new_time,
-        minutes_to_advance,
+        result.minutes_advanced,
         &reason,
     );
     let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };

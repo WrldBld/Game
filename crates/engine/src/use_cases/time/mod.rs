@@ -24,7 +24,10 @@ pub struct TimeUseCases {
 
 impl TimeUseCases {
     pub fn new(suggest_time: Arc<SuggestTime>, control: Arc<TimeControl>) -> Self {
-        Self { suggest_time, control }
+        Self {
+            suggest_time,
+            control,
+        }
     }
 }
 
@@ -235,10 +238,7 @@ impl TimeControl {
         minutes: u32,
         reason: TimeAdvanceReason,
     ) -> Result<TimeAdvanceOutcome, TimeControlError> {
-        let result = self
-            .world
-            .advance_time(world_id, minutes, reason)
-            .await?;
+        let result = self.world.advance_time(world_id, minutes, reason).await?;
 
         Ok(TimeAdvanceOutcome {
             previous_time: result.previous_time,
@@ -295,6 +295,25 @@ impl TimeControl {
             new_time: world.game_time,
             minutes_advanced: minutes_until,
         })
+    }
+
+    pub async fn set_paused(
+        &self,
+        world_id: WorldId,
+        paused: bool,
+    ) -> Result<GameTime, TimeControlError> {
+        let mut world = self
+            .world
+            .get(world_id)
+            .await?
+            .ok_or(TimeControlError::WorldNotFound)?;
+
+        world.game_time.set_paused(paused);
+        world.updated_at = chrono::Utc::now();
+
+        self.world.save(&world).await?;
+
+        Ok(world.game_time)
     }
 
     pub async fn get_time_config(
