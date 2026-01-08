@@ -4,11 +4,11 @@
 
 use std::sync::Arc;
 
-use crate::entities::{Character, Staging};
+use crate::entities::{Character, Location, Observation, Staging};
 use crate::infrastructure::ports::{ClockPort, RepoError};
 use wrldbldr_domain::{
-    CharacterId, DispositionLevel, MoodState, NpcDispositionState, PlayerCharacterId,
-    RelationshipLevel, RegionId,
+    CharacterId, DispositionLevel, LocationId, MoodState, NpcDispositionState, PlayerCharacterId,
+    RegionId, RelationshipLevel,
 };
 use wrldbldr_protocol::NpcDispositionData;
 
@@ -17,6 +17,7 @@ pub struct NpcUseCases {
     pub disposition: Arc<NpcDisposition>,
     pub mood: Arc<NpcMood>,
     pub region_relationships: Arc<NpcRegionRelationships>,
+    pub location_sharing: Arc<NpcLocationSharing>,
 }
 
 impl NpcUseCases {
@@ -24,11 +25,13 @@ impl NpcUseCases {
         disposition: Arc<NpcDisposition>,
         mood: Arc<NpcMood>,
         region_relationships: Arc<NpcRegionRelationships>,
+        location_sharing: Arc<NpcLocationSharing>,
     ) -> Self {
         Self {
             disposition,
             mood,
             region_relationships,
+            location_sharing,
         }
     }
 }
@@ -228,7 +231,9 @@ impl NpcRegionRelationships {
         npc_id: CharacterId,
         region_id: RegionId,
     ) -> Result<(), NpcError> {
-        self.character.set_work_region(npc_id, region_id, None).await?;
+        self.character
+            .set_work_region(npc_id, region_id, None)
+            .await?;
         Ok(())
     }
 
@@ -252,6 +257,80 @@ impl NpcRegionRelationships {
     }
 }
 
+/// Share NPC location knowledge with a PC (creates observation).
+pub struct NpcLocationSharing {
+    character: Arc<Character>,
+    location: Arc<Location>,
+    observation: Arc<Observation>,
+    clock: Arc<dyn ClockPort>,
+}
+
+impl NpcLocationSharing {
+    pub fn new(
+        character: Arc<Character>,
+        location: Arc<Location>,
+        observation: Arc<Observation>,
+        clock: Arc<dyn ClockPort>,
+    ) -> Self {
+        Self {
+            character,
+            location,
+            observation,
+            clock,
+        }
+    }
+
+    pub async fn share_location(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        location_id: LocationId,
+        region_id: RegionId,
+        notes: Option<String>,
+    ) -> Result<NpcLocationShareResult, NpcError> {
+        let npc_name = self
+            .character
+            .get(npc_id)
+            .await?
+            .map(|npc| npc.name)
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        let region_name = self
+            .location
+            .get_region(region_id)
+            .await?
+            .map(|region| region.name)
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        let now = self.clock.now();
+        let observation = wrldbldr_domain::NpcObservation::heard_about(
+            pc_id,
+            npc_id,
+            location_id,
+            region_id,
+            now,
+            notes.clone(),
+            now,
+        );
+
+        let observation_error = match self.observation.save_observation(&observation).await {
+            Ok(()) => None,
+            Err(e) => Some(e.to_string()),
+        };
+
+        Ok(NpcLocationShareResult {
+            pc_id,
+            npc_id,
+            location_id,
+            region_id,
+            npc_name,
+            region_name,
+            notes,
+            observation_error,
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct NpcDispositionUpdate {
     pub npc_id: CharacterId,
@@ -269,6 +348,18 @@ pub struct NpcMoodChange {
     pub old_mood: MoodState,
     pub new_mood: MoodState,
     pub region_id: RegionId,
+}
+
+#[derive(Debug, Clone)]
+pub struct NpcLocationShareResult {
+    pub pc_id: PlayerCharacterId,
+    pub npc_id: CharacterId,
+    pub location_id: LocationId,
+    pub region_id: RegionId,
+    pub npc_name: String,
+    pub region_name: String,
+    pub notes: Option<String>,
+    pub observation_error: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]

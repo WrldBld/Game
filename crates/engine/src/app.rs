@@ -69,6 +69,7 @@ pub struct UseCases {
     pub inventory: use_cases::InventoryUseCases,
     pub story_events: use_cases::StoryEventUseCases,
     pub lore: use_cases::LoreUseCases,
+    pub location_events: use_cases::LocationEventUseCases,
 }
 
 impl App {
@@ -368,11 +369,18 @@ impl App {
             Arc::new(use_cases::npc::NpcRegionRelationships::new(
                 character.clone(),
             )),
+            Arc::new(use_cases::npc::NpcLocationSharing::new(
+                character.clone(),
+                location.clone(),
+                observation.clone(),
+                clock.clone(),
+            )),
         );
 
-        let inventory_uc = use_cases::InventoryUseCases::new(Arc::new(
-            use_cases::inventory::InventoryOps::new(inventory.clone()),
-        ));
+        let inventory_ops = Arc::new(use_cases::inventory::InventoryOps::new(inventory.clone()));
+        let inventory_actions =
+            Arc::new(use_cases::inventory::InventoryActions::new(inventory.clone()));
+        let inventory_uc = use_cases::InventoryUseCases::new(inventory_ops, inventory_actions);
 
         let story_events_uc = use_cases::StoryEventUseCases::new(Arc::new(
             use_cases::story_events::StoryEventOps::new(narrative.clone()),
@@ -380,6 +388,10 @@ impl App {
 
         let lore_uc =
             use_cases::LoreUseCases::new(Arc::new(use_cases::lore::LoreOps::new(lore.clone())));
+
+        let location_events_uc = use_cases::LocationEventUseCases::new(Arc::new(
+            use_cases::location_events::TriggerLocationEvent::new(location.clone()),
+        ));
 
         let management = use_cases::ManagementUseCases::new(
             use_cases::management::WorldCrud::new(world.clone(), clock.clone()),
@@ -441,6 +453,7 @@ impl App {
             inventory: inventory_uc,
             story_events: story_events_uc,
             lore: lore_uc,
+            location_events: location_events_uc,
         };
 
         Self {

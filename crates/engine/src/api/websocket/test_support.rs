@@ -743,11 +743,20 @@ pub(crate) fn build_test_app_with_ports(
         Arc::new(crate::use_cases::npc::NpcRegionRelationships::new(
             character.clone(),
         )),
+        Arc::new(crate::use_cases::npc::NpcLocationSharing::new(
+            character.clone(),
+            location.clone(),
+            observation.clone(),
+            clock.clone(),
+        )),
     );
 
-    let inventory_uc = crate::use_cases::InventoryUseCases::new(Arc::new(
-        crate::use_cases::inventory::InventoryOps::new(inventory.clone()),
-    ));
+    let inventory_ops =
+        Arc::new(crate::use_cases::inventory::InventoryOps::new(inventory.clone()));
+    let inventory_actions =
+        Arc::new(crate::use_cases::inventory::InventoryActions::new(inventory.clone()));
+    let inventory_uc =
+        crate::use_cases::InventoryUseCases::new(inventory_ops, inventory_actions);
 
     let story_events_uc = crate::use_cases::StoryEventUseCases::new(Arc::new(
         crate::use_cases::story_events::StoryEventOps::new(narrative.clone()),
@@ -755,6 +764,10 @@ pub(crate) fn build_test_app_with_ports(
 
     let lore_uc = crate::use_cases::LoreUseCases::new(Arc::new(
         crate::use_cases::lore::LoreOps::new(lore.clone()),
+    ));
+
+    let location_events_uc = crate::use_cases::LocationEventUseCases::new(Arc::new(
+        crate::use_cases::location_events::TriggerLocationEvent::new(location.clone()),
     ));
 
     let management = crate::use_cases::ManagementUseCases::new(
@@ -818,6 +831,7 @@ pub(crate) fn build_test_app_with_ports(
         inventory: inventory_uc,
         story_events: story_events_uc,
         lore: lore_uc,
+        location_events: location_events_uc,
     };
 
     Arc::new(App {

@@ -896,38 +896,34 @@ async fn handle_inventory_action(
 
     // Execute the inventory action
     let result = match action {
-        InventoryAction::Equip => {
-            state
-                .app
-                .entities
-                .inventory
-                .equip_item(pc_uuid, item_uuid)
-                .await
-        }
-        InventoryAction::Unequip => {
-            state
-                .app
-                .entities
-                .inventory
-                .unequip_item(pc_uuid, item_uuid)
-                .await
-        }
-        InventoryAction::Drop => {
-            state
-                .app
-                .entities
-                .inventory
-                .drop_item(pc_uuid, item_uuid, quantity)
-                .await
-        }
-        InventoryAction::Pickup => {
-            state
-                .app
-                .entities
-                .inventory
-                .pickup_item(pc_uuid, item_uuid)
-                .await
-        }
+        InventoryAction::Equip => state
+            .app
+            .use_cases
+            .inventory
+            .actions
+            .equip(pc_uuid, item_uuid)
+            .await,
+        InventoryAction::Unequip => state
+            .app
+            .use_cases
+            .inventory
+            .actions
+            .unequip(pc_uuid, item_uuid)
+            .await,
+        InventoryAction::Drop => state
+            .app
+            .use_cases
+            .inventory
+            .actions
+            .drop_item(pc_uuid, item_uuid, quantity)
+            .await,
+        InventoryAction::Pickup => state
+            .app
+            .use_cases
+            .inventory
+            .actions
+            .pickup(pc_uuid, item_uuid)
+            .await,
     };
 
     match result {
@@ -2233,11 +2229,34 @@ async fn handle_trigger_location_event(
         return Some(e);
     }
 
+    let region_uuid = match parse_region_id(&region_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
+    };
+
+    let event = match state
+        .app
+        .use_cases
+        .location_events
+        .trigger
+        .execute(region_uuid, description)
+        .await
+    {
+        Ok(event) => event,
+        Err(crate::use_cases::location_events::LocationEventError::RegionNotFound) => {
+            return Some(error_response("NOT_FOUND", "Region not found"))
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to trigger location event");
+            return Some(error_response("LOCATION_EVENT_ERROR", &e.to_string()));
+        }
+    };
+
     // Broadcast location event to all in the world
     if let Some(world_id) = conn_info.world_id {
         let msg = ServerMessage::LocationEvent {
-            region_id,
-            description,
+            region_id: event.region_id.to_string(),
+            description: event.description,
         };
         state.connections.broadcast_to_world(world_id, msg).await;
     }
@@ -2264,13 +2283,11 @@ async fn handle_share_npc_location(
         return Some(e);
     }
 
-    // Parse PC ID
     let pc_uuid = match parse_pc_id(&pc_id) {
         Ok(id) => id,
         Err(e) => return Some(e),
     };
 
-    // Get NPC and region names
     let npc_uuid = match parse_character_id(&npc_id) {
         Ok(id) => id,
         Err(e) => return Some(e),
@@ -2286,45 +2303,31 @@ async fn handle_share_npc_location(
         Err(e) => return Some(e),
     };
 
-    let npc_name = match state.app.entities.character.get(npc_uuid).await {
-        Ok(Some(c)) => c.name,
-        _ => "Unknown".to_string(),
-    };
-
-    let region_name = match state.app.entities.location.get_region(region_uuid).await {
-        Ok(Some(r)) => r.name,
-        _ => "Unknown".to_string(),
-    };
-
-    // Create and save the "heard about" observation
-    let now = chrono::Utc::now();
-    let observation = wrldbldr_domain::NpcObservation::heard_about(
-        pc_uuid,
-        npc_uuid,
-        location_uuid,
-        region_uuid,
-        now, // game_time - using real time for now
-        notes.clone(),
-        now, // created_at
-    );
-
-    if let Err(e) = state
+    let share_result = match state
         .app
-        .entities
-        .observation
-        .save_observation(&observation)
+        .use_cases
+        .npc
+        .location_sharing
+        .share_location(pc_uuid, npc_uuid, location_uuid, region_uuid, notes.clone())
         .await
     {
-        tracing::error!(error = %e, "Failed to save NPC observation");
-        // Continue anyway - sending the message is still useful
+        Ok(result) => result,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to share NPC location");
+            return Some(error_response("NPC_LOCATION_ERROR", &e.to_string()));
+        }
+    };
+
+    if let Some(err) = share_result.observation_error.as_ref() {
+        tracing::error!(error = %err, "Failed to save NPC observation");
     }
 
     // Send to target PC
     let msg = ServerMessage::NpcLocationShared {
         npc_id,
-        npc_name,
-        region_name,
-        notes,
+        npc_name: share_result.npc_name,
+        region_name: share_result.region_name,
+        notes: share_result.notes,
     };
 
     state.connections.send_to_pc(pc_uuid, msg).await;
@@ -3576,11 +3579,22 @@ mod ws_integration_tests_inline {
             Arc::new(crate::use_cases::npc::NpcRegionRelationships::new(
                 character.clone(),
             )),
+            Arc::new(crate::use_cases::npc::NpcLocationSharing::new(
+                character.clone(),
+                location.clone(),
+                observation.clone(),
+                clock.clone(),
+            )),
         );
 
-        let inventory_uc = crate::use_cases::InventoryUseCases::new(Arc::new(
-            crate::use_cases::inventory::InventoryOps::new(inventory.clone()),
+        let inventory_ops = Arc::new(crate::use_cases::inventory::InventoryOps::new(
+            inventory.clone(),
         ));
+        let inventory_actions = Arc::new(crate::use_cases::inventory::InventoryActions::new(
+            inventory.clone(),
+        ));
+        let inventory_uc =
+            crate::use_cases::InventoryUseCases::new(inventory_ops, inventory_actions);
 
         let story_events_uc = crate::use_cases::StoryEventUseCases::new(Arc::new(
             crate::use_cases::story_events::StoryEventOps::new(narrative.clone()),
@@ -3588,6 +3602,10 @@ mod ws_integration_tests_inline {
 
         let lore_uc = crate::use_cases::LoreUseCases::new(Arc::new(
             crate::use_cases::lore::LoreOps::new(lore.clone()),
+        ));
+
+        let location_events_uc = crate::use_cases::LocationEventUseCases::new(Arc::new(
+            crate::use_cases::location_events::TriggerLocationEvent::new(location.clone()),
         ));
 
         let management = crate::use_cases::ManagementUseCases::new(
@@ -3651,6 +3669,7 @@ mod ws_integration_tests_inline {
             inventory: inventory_uc,
             story_events: story_events_uc,
             lore: lore_uc,
+            location_events: location_events_uc,
         };
 
         Arc::new(App {
