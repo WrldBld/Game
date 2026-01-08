@@ -5,6 +5,7 @@
 
 pub mod approval;
 pub mod actantial;
+pub mod ai;
 pub mod assets;
 pub mod challenge;
 pub mod conversation;
@@ -26,6 +27,7 @@ pub mod world;
 // Re-export main types
 pub use approval::ApprovalUseCases;
 pub use actantial::ActantialUseCases;
+pub use ai::AiUseCases;
 pub use assets::AssetUseCases;
 pub use challenge::ChallengeUseCases;
 pub use conversation::ConversationUseCases;

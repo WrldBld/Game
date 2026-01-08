@@ -4,6 +4,7 @@ use serde_json::Value;
 
 use crate::entities::{Character, Location, PlayerCharacter, Scene, World};
 use crate::infrastructure::ports::RepoError;
+use wrldbldr_protocol::WorldRole as ProtoWorldRole;
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 
 /// Use case for joining a world and building the session snapshot.
@@ -44,8 +45,16 @@ impl JoinWorld {
             .await?
             .ok_or(JoinWorldError::WorldNotFound)?;
 
-        let locations = self.location.list_in_world(world_id).await.unwrap_or_default();
-        let characters = self.character.list_in_world(world_id).await.unwrap_or_default();
+        let locations = self
+            .location
+            .list_in_world(world_id)
+            .await
+            .unwrap_or_default();
+        let characters = self
+            .character
+            .list_in_world(world_id)
+            .await
+            .unwrap_or_default();
         let current_scene = self.scene.get_current(world_id).await.unwrap_or(None);
 
         let current_scene_json = current_scene.as_ref().map(|scene| {
@@ -106,13 +115,27 @@ impl JoinWorld {
             "current_scene": current_scene_json,
         });
 
-        let your_pc = if include_pc { self.load_pc(pc_id).await } else { None };
+        let your_pc = if include_pc {
+            self.load_pc(pc_id).await
+        } else {
+            None
+        };
 
         Ok(JoinWorldResult {
             world_id,
             snapshot,
             your_pc,
         })
+    }
+
+    pub async fn execute_with_role(
+        &self,
+        world_id: WorldId,
+        role: ProtoWorldRole,
+        pc_id: Option<PlayerCharacterId>,
+    ) -> Result<JoinWorldResult, JoinWorldError> {
+        let include_pc = matches!(role, ProtoWorldRole::Player);
+        self.execute(world_id, pc_id, include_pc).await
     }
 
     async fn load_pc(&self, pc_id: Option<PlayerCharacterId>) -> Option<Value> {

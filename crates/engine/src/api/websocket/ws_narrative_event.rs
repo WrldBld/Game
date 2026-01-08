@@ -1,9 +1,7 @@
 use super::*;
 use crate::api::connections::ConnectionInfo;
-use crate::use_cases::narrative::EffectExecutionContext;
-use chrono::Utc;
 use serde_json::json;
-use wrldbldr_domain::{self as domain, NarrativeEvent, NarrativeTrigger};
+use wrldbldr_domain::{self as domain, NarrativeTrigger};
 use wrldbldr_protocol::{ErrorCode, NarrativeEventRequest, ResponseResult, TriggerSchema};
 
 pub(super) async fn handle_narrative_event_request(
@@ -17,16 +15,13 @@ pub(super) async fn handle_narrative_event_request(
             let world_id_typed = parse_world_id_for_request(&world_id, request_id)?;
             match state
                 .app
-                .entities
+                .use_cases
                 .narrative
-                .list_events(world_id_typed)
+                .events
+                .list(world_id_typed)
                 .await
             {
-                Ok(events) => {
-                    let data: Vec<serde_json::Value> =
-                        events.iter().map(narrative_event_to_json).collect();
-                    Ok(ResponseResult::success(json!(data)))
-                }
+                Ok(events) => Ok(ResponseResult::success(json!(events))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -35,10 +30,8 @@ pub(super) async fn handle_narrative_event_request(
         }
         NarrativeEventRequest::GetNarrativeEvent { event_id } => {
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
-            match state.app.entities.narrative.get_event(event_id_typed).await {
-                Ok(Some(event)) => Ok(ResponseResult::success(json!(narrative_event_to_json(
-                    &event
-                )))),
+            match state.app.use_cases.narrative.events.get(event_id_typed).await {
+                Ok(Some(event)) => Ok(ResponseResult::success(json!(event))),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Event not found",
@@ -52,21 +45,24 @@ pub(super) async fn handle_narrative_event_request(
         NarrativeEventRequest::CreateNarrativeEvent { world_id, data } => {
             require_dm_for_request(conn_info, request_id)?;
             let world_id_typed = parse_world_id_for_request(&world_id, request_id)?;
-            let now = Utc::now();
-            let mut event = NarrativeEvent::new(world_id_typed, &data.name, now);
-            if let Some(description) = data.description {
-                event.description = description;
-            }
-            if let Some(triggers) = parse_optional_triggers(data.trigger_conditions, request_id)? {
-                event.trigger_conditions = triggers;
-            }
-            if let Some(outcomes) = parse_optional_outcomes(data.outcomes, request_id)? {
-                event.outcomes = outcomes;
-            }
-            match state.app.entities.narrative.save_event(&event).await {
-                Ok(()) => Ok(ResponseResult::success(json!(narrative_event_to_json(
-                    &event
-                )))),
+            let trigger_conditions =
+                parse_optional_triggers(data.trigger_conditions, request_id)?;
+            let outcomes = parse_optional_outcomes(data.outcomes, request_id)?;
+            match state
+                .app
+                .use_cases
+                .narrative
+                .events
+                .create(
+                    world_id_typed,
+                    data.name,
+                    data.description,
+                    trigger_conditions,
+                    outcomes,
+                )
+                .await
+            {
+                Ok(event) => Ok(ResponseResult::success(json!(event))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -76,36 +72,27 @@ pub(super) async fn handle_narrative_event_request(
         NarrativeEventRequest::UpdateNarrativeEvent { event_id, data } => {
             require_dm_for_request(conn_info, request_id)?;
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
-            match state.app.entities.narrative.get_event(event_id_typed).await {
-                Ok(Some(mut event)) => {
-                    if let Some(name) = data.name {
-                        event.name = name;
-                    }
-                    if let Some(description) = data.description {
-                        event.description = description;
-                    }
-                    if let Some(triggers) =
-                        parse_optional_triggers(data.trigger_conditions, request_id)?
-                    {
-                        event.trigger_conditions = triggers;
-                    }
-                    if let Some(outcomes) = parse_optional_outcomes(data.outcomes, request_id)? {
-                        event.outcomes = outcomes;
-                    }
-                    match state.app.entities.narrative.save_event(&event).await {
-                        Ok(()) => Ok(ResponseResult::success(json!(narrative_event_to_json(
-                            &event
-                        )))),
-                        Err(e) => Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        )),
-                    }
+            let trigger_conditions =
+                parse_optional_triggers(data.trigger_conditions, request_id)?;
+            let outcomes = parse_optional_outcomes(data.outcomes, request_id)?;
+            match state
+                .app
+                .use_cases
+                .narrative
+                .events
+                .update(
+                    event_id_typed,
+                    data.name,
+                    data.description,
+                    trigger_conditions,
+                    outcomes,
+                )
+                .await
+            {
+                Ok(event) => Ok(ResponseResult::success(json!(event))),
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Event not found"))
                 }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Event not found",
-                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -115,13 +102,7 @@ pub(super) async fn handle_narrative_event_request(
         NarrativeEventRequest::DeleteNarrativeEvent { event_id } => {
             require_dm_for_request(conn_info, request_id)?;
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
-            match state
-                .app
-                .entities
-                .narrative
-                .delete_event(event_id_typed)
-                .await
-            {
+            match state.app.use_cases.narrative.events.delete(event_id_typed).await {
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
@@ -132,21 +113,18 @@ pub(super) async fn handle_narrative_event_request(
         NarrativeEventRequest::SetNarrativeEventActive { event_id, active } => {
             require_dm_for_request(conn_info, request_id)?;
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
-            match state.app.entities.narrative.get_event(event_id_typed).await {
-                Ok(Some(mut event)) => {
-                    event.is_active = active;
-                    match state.app.entities.narrative.save_event(&event).await {
-                        Ok(()) => Ok(ResponseResult::success_empty()),
-                        Err(e) => Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        )),
-                    }
+            match state
+                .app
+                .use_cases
+                .narrative
+                .events
+                .set_active(event_id_typed, active)
+                .await
+            {
+                Ok(()) => Ok(ResponseResult::success_empty()),
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Event not found"))
                 }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Event not found",
-                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -156,21 +134,18 @@ pub(super) async fn handle_narrative_event_request(
         NarrativeEventRequest::SetNarrativeEventFavorite { event_id, favorite } => {
             require_dm_for_request(conn_info, request_id)?;
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
-            match state.app.entities.narrative.get_event(event_id_typed).await {
-                Ok(Some(mut event)) => {
-                    event.is_favorite = favorite;
-                    match state.app.entities.narrative.save_event(&event).await {
-                        Ok(()) => Ok(ResponseResult::success_empty()),
-                        Err(e) => Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        )),
-                    }
+            match state
+                .app
+                .use_cases
+                .narrative
+                .events
+                .set_favorite(event_id_typed, favorite)
+                .await
+            {
+                Ok(()) => Ok(ResponseResult::success_empty()),
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Event not found"))
                 }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Event not found",
-                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -187,93 +162,57 @@ pub(super) async fn handle_narrative_event_request(
                 ));
             }
             let world_id = conn_info.world_id.unwrap();
-            match state.app.entities.narrative.get_event(event_id_typed).await {
-                Ok(Some(mut event)) => {
-                    let outcome_name = event
-                        .selected_outcome
-                        .clone()
-                        .or_else(|| event.default_outcome.clone())
-                        .or_else(|| event.outcomes.first().map(|o| o.name.clone()))
-                        .unwrap_or_default();
-
-                    event.is_triggered = true;
-                    event.selected_outcome = Some(outcome_name.clone());
-                    event.triggered_at = Some(Utc::now());
-                    event.trigger_count = event.trigger_count.saturating_add(1);
-                    let maybe_outcome = event.outcomes.iter().find(|o| o.name == outcome_name);
-                    match state.app.entities.narrative.save_event(&event).await {
-                        Ok(()) => { /* continue */ }
-                        Err(e) => {
-                            return Ok(ResponseResult::error(
-                                ErrorCode::InternalError,
-                                e.to_string(),
-                            ))
-                        }
+            match state
+                .app
+                .use_cases
+                .narrative
+                .events
+                .trigger(event_id_typed, world_id, conn_info.pc_id)
+                .await
+            {
+                Ok(result) => {
+                    if let Some(summary) = result.effects_summary.as_ref() {
+                        tracing::info!(
+                            event_id = %result.event_id,
+                            outcome = %result.outcome_name,
+                            success_count = summary.success_count,
+                            failure_count = summary.failure_count,
+                            "Narrative event effects executed"
+                        );
+                    } else if result.effects_present {
+                        tracing::warn!(
+                            event_id = %result.event_id,
+                            "No PC context provided for narrative event effects execution"
+                        );
                     }
 
-                    if let Some(outcome) = maybe_outcome {
-                        if !outcome.effects.is_empty() {
-                            if let Some(pc_id) = conn_info.pc_id {
-                                let context = EffectExecutionContext {
-                                    pc_id,
-                                    world_id,
-                                    current_scene_id: None,
-                                };
-
-                                let summary = state
-                                    .app
-                                    .use_cases
-                                    .narrative
-                                    .execute_effects
-                                    .execute(
-                                        event.id,
-                                        outcome.name.clone(),
-                                        &outcome.effects,
-                                        &context,
-                                    )
-                                    .await;
-
-                                tracing::info!(
-                                    event_id = %event.id,
-                                    outcome = %outcome.name,
-                                    success_count = summary.success_count,
-                                    failure_count = summary.failure_count,
-                                    "Narrative event effects executed"
-                                );
-                            } else {
-                                tracing::warn!(
-                                    "No PC context provided for narrative event effects execution"
-                                );
-                            }
-                        }
-                    }
-
-                    let event_name = event.name.clone();
-                    let outcome_description = maybe_outcome
-                        .map(|o| o.description.clone())
-                        .unwrap_or_default();
                     state
                         .connections
                         .broadcast_to_world(
                             world_id,
                             ServerMessage::NarrativeEventTriggered {
-                                event_id: event.id.to_string(),
-                                event_name,
-                                outcome_description,
-                                scene_direction: event.scene_direction.clone(),
+                                event_id: result.event_id.to_string(),
+                                event_name: result.event_name.clone(),
+                                outcome_description: result.outcome_description.clone(),
+                                scene_direction: result.scene_direction.clone(),
                             },
                         )
                         .await;
 
                     Ok(ResponseResult::success(json!({
-                        "event_id": event.id.to_string(),
-                        "outcome": outcome_name,
+                        "event_id": result.event_id.to_string(),
+                        "outcome": result.outcome_name,
                     })))
                 }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Event not found",
-                )),
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Event not found"))
+                }
+                Err(crate::use_cases::narrative::NarrativeEventError::WorldMismatch) => {
+                    Ok(ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        "Event does not belong to current world",
+                    ))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -283,26 +222,11 @@ pub(super) async fn handle_narrative_event_request(
         NarrativeEventRequest::ResetNarrativeEvent { event_id } => {
             require_dm_for_request(conn_info, request_id)?;
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
-            match state.app.entities.narrative.get_event(event_id_typed).await {
-                Ok(Some(mut event)) => {
-                    event.is_triggered = false;
-                    event.selected_outcome = None;
-                    event.triggered_at = None;
-                    event.trigger_count = 0;
-                    match state.app.entities.narrative.save_event(&event).await {
-                        Ok(()) => Ok(ResponseResult::success(json!(narrative_event_to_json(
-                            &event
-                        )))),
-                        Err(e) => Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        )),
-                    }
+            match state.app.use_cases.narrative.events.reset(event_id_typed).await {
+                Ok(event) => Ok(ResponseResult::success(json!(event))),
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Event not found"))
                 }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Event not found",
-                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -314,37 +238,6 @@ pub(super) async fn handle_narrative_event_request(
             Ok(ResponseResult::success(json!(schema)))
         }
     }
-}
-
-fn narrative_event_to_json(event: &NarrativeEvent) -> serde_json::Value {
-    json!({
-        "id": event.id.to_string(),
-        "world_id": event.world_id.to_string(),
-        "name": event.name,
-        "description": event.description,
-        "scene_direction": event.scene_direction,
-        "suggested_opening": event.suggested_opening,
-        "trigger_count": event.trigger_count,
-        "is_active": event.is_active,
-        "is_triggered": event.is_triggered,
-        "triggered_at": event.triggered_at.map(|dt| dt.to_rfc3339()),
-        "selected_outcome": event.selected_outcome,
-        "is_repeatable": event.is_repeatable,
-        "delay_turns": event.delay_turns,
-        "expires_after_turns": event.expires_after_turns,
-        "priority": event.priority,
-        "is_favorite": event.is_favorite,
-        "tags": event.tags,
-        "scene_id": Option::<String>::None,
-        "location_id": Option::<String>::None,
-        "act_id": Option::<String>::None,
-        "chain_id": Option::<String>::None,
-        "chain_position": Option::<u32>::None,
-        "outcome_count": event.outcomes.len(),
-        "trigger_condition_count": event.trigger_conditions.len(),
-        "created_at": event.created_at.to_rfc3339(),
-        "updated_at": event.updated_at.to_rfc3339(),
-    })
 }
 
 fn parse_optional_triggers(

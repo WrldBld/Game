@@ -3,7 +3,7 @@ use super::*;
 use std::collections::{HashMap, HashSet};
 
 use crate::api::connections::ConnectionInfo;
-use wrldbldr_domain::{LlmRequestData, LlmRequestType, SuggestionContext, WorldId};
+use wrldbldr_domain::WorldId;
 
 use wrldbldr_protocol::{AiRequest, ExpressionRequest, GenerationRequest};
 
@@ -285,41 +285,12 @@ pub(super) async fn handle_ai_request(
                 }
             };
 
-            // Auto-enrich world_setting from world name if missing.
-            let mut world_setting = context.world_setting.clone();
-            if world_setting.as_deref().unwrap_or("").is_empty() {
-                if let Ok(Some(world)) = state.app.entities.world.get(world_uuid).await {
-                    world_setting = Some(world.name);
-                }
-            }
-
-            let suggestion_context = SuggestionContext {
-                entity_type: context.entity_type.clone(),
-                entity_name: context.entity_name.clone(),
-                world_setting,
-                hints: context.hints.clone(),
-                additional_context: context.additional_context.clone(),
-                world_id: context.world_id.map(WorldId::from_uuid),
-            };
-
-            let callback_id = Uuid::new_v4().to_string();
-
-            let llm_request = LlmRequestData {
-                request_type: LlmRequestType::Suggestion {
-                    field_type: suggestion_type.to_string(),
-                    entity_id: None,
-                },
-                world_id: world_uuid,
-                pc_id: None,
-                prompt: None,
-                suggestion_context: Some(suggestion_context),
-                callback_id: callback_id.clone(),
-            };
-
-            state
+            let result = state
                 .app
-                .queue
-                .enqueue_llm_request(&llm_request)
+                .use_cases
+                .ai
+                .suggestions
+                .enqueue_content_suggestion(world_uuid, suggestion_type.to_string(), context)
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
@@ -330,17 +301,17 @@ pub(super) async fn handle_ai_request(
             state
                 .connections
                 .broadcast_to_world(
-                    world_uuid,
+                    result.world_id,
                     ServerMessage::SuggestionQueued {
-                        request_id: callback_id.clone(),
-                        field_type: suggestion_type.to_string(),
-                        entity_id: None,
+                        request_id: result.request_id.clone(),
+                        field_type: result.field_type.clone(),
+                        entity_id: result.entity_id.clone(),
                     },
                 )
                 .await;
 
             Ok(ResponseResult::success(serde_json::json!({
-                "request_id": callback_id,
+                "request_id": result.request_id,
                 "status": "queued",
             })))
         }
@@ -348,8 +319,10 @@ pub(super) async fn handle_ai_request(
         AiRequest::CancelContentSuggestion { request_id: rid } => {
             let cancelled = state
                 .app
-                .queue
-                .cancel_pending_llm_request_by_callback_id(rid.as_str())
+                .use_cases
+                .ai
+                .suggestions
+                .cancel_content_suggestion(rid.as_str())
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
@@ -380,67 +353,54 @@ pub(super) async fn handle_ai_request(
                 });
             };
 
-            // Auto-enrich world_setting from world name.
-            let world_setting = state
-                .app
-                .entities
-                .world
-                .get(world_uuid)
-                .await
-                .ok()
-                .flatten()
-                .map(|w| w.name);
-
-            let (field_type, entity_id, suggestion_context) = match request {
-                AiRequest::SuggestWantDescription { npc_id, context } => (
-                    "want_description".to_string(),
-                    Some(npc_id.to_string()),
-                    SuggestionContext {
-                        entity_type: Some("npc".to_string()),
-                        entity_name: load_npc_name(state, &npc_id).await,
-                        world_setting,
-                        hints: None,
-                        additional_context: context,
-                        world_id: Some(world_uuid),
-                    },
-                ),
+            let result = match request {
+                AiRequest::SuggestWantDescription { npc_id, context } => {
+                    let npc_id_typed = parse_character_id(&npc_id)?;
+                    state
+                        .app
+                        .use_cases
+                        .ai
+                        .suggestions
+                        .suggest_want_description(world_uuid, npc_id_typed, context)
+                        .await
+                }
                 AiRequest::SuggestDeflectionBehavior {
                     npc_id,
                     want_id,
                     want_description,
                 } => {
-                    let extra = format!("want_id={}", want_id);
-                    (
-                        "deflection_behavior".to_string(),
-                        Some(npc_id.to_string()),
-                        SuggestionContext {
-                            entity_type: Some("npc".to_string()),
-                            entity_name: load_npc_name(state, &npc_id).await,
-                            world_setting,
-                            hints: Some(want_description),
-                            additional_context: Some(extra),
-                            world_id: Some(world_uuid),
-                        },
-                    )
+                    let npc_id_typed = parse_character_id(&npc_id)?;
+                    state
+                        .app
+                        .use_cases
+                        .ai
+                        .suggestions
+                        .suggest_deflection_behavior(
+                            world_uuid,
+                            npc_id_typed,
+                            want_id,
+                            want_description,
+                        )
+                        .await
                 }
                 AiRequest::SuggestBehavioralTells {
                     npc_id,
                     want_id,
                     want_description,
                 } => {
-                    let extra = format!("want_id={}", want_id);
-                    (
-                        "behavioral_tells".to_string(),
-                        Some(npc_id.to_string()),
-                        SuggestionContext {
-                            entity_type: Some("npc".to_string()),
-                            entity_name: load_npc_name(state, &npc_id).await,
-                            world_setting,
-                            hints: Some(want_description),
-                            additional_context: Some(extra),
-                            world_id: Some(world_uuid),
-                        },
-                    )
+                    let npc_id_typed = parse_character_id(&npc_id)?;
+                    state
+                        .app
+                        .use_cases
+                        .ai
+                        .suggestions
+                        .suggest_behavioral_tells(
+                            world_uuid,
+                            npc_id_typed,
+                            want_id,
+                            want_description,
+                        )
+                        .await
                 }
                 AiRequest::SuggestActantialReason {
                     npc_id,
@@ -448,51 +408,27 @@ pub(super) async fn handle_ai_request(
                     target_id,
                     role,
                 } => {
-                    let role_json = serde_json::to_string(&role).unwrap_or_else(|_| "null".into());
-                    let extra = format!(
-                        "npc_id={}; want_id={}; target_id={}; role={}",
-                        npc_id, want_id, target_id, role_json
-                    );
-
-                    (
-                        "actantial_reason".to_string(),
-                        Some(npc_id.to_string()),
-                        SuggestionContext {
-                            entity_type: Some("npc".to_string()),
-                            entity_name: load_npc_name(state, &npc_id).await,
-                            world_setting,
-                            hints: None,
-                            additional_context: Some(extra),
-                            world_id: Some(world_uuid),
-                        },
-                    )
+                    let npc_id_typed = parse_character_id(&npc_id)?;
+                    state
+                        .app
+                        .use_cases
+                        .ai
+                        .suggestions
+                        .suggest_actantial_reason(
+                            world_uuid,
+                            npc_id_typed,
+                            want_id,
+                            target_id,
+                            role,
+                        )
+                        .await
                 }
                 _ => unreachable!(),
-            };
-
-            let callback_id = Uuid::new_v4().to_string();
-
-            let llm_request = LlmRequestData {
-                request_type: LlmRequestType::Suggestion {
-                    field_type: field_type.clone(),
-                    entity_id: entity_id.clone(),
-                },
-                world_id: world_uuid,
-                pc_id: None,
-                prompt: None,
-                suggestion_context: Some(suggestion_context),
-                callback_id: callback_id.clone(),
-            };
-
-            state
-                .app
-                .queue
-                .enqueue_llm_request(&llm_request)
-                .await
-                .map_err(|e| ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
-                })?;
+            }
+            .map_err(|e| ServerMessage::Response {
+                request_id: request_id.to_string(),
+                result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+            })?;
 
             // Best-effort broadcast to world so the queue UI can update.
             state
@@ -500,15 +436,15 @@ pub(super) async fn handle_ai_request(
                 .broadcast_to_world(
                     world_uuid,
                     ServerMessage::SuggestionQueued {
-                        request_id: callback_id.clone(),
-                        field_type: field_type.clone(),
-                        entity_id,
+                        request_id: result.request_id.clone(),
+                        field_type: result.field_type.clone(),
+                        entity_id: result.entity_id.clone(),
                     },
                 )
                 .await;
 
             Ok(ResponseResult::success(serde_json::json!({
-                "request_id": callback_id,
+                "request_id": result.request_id,
                 "status": "queued",
             })))
         }
@@ -518,20 +454,6 @@ pub(super) async fn handle_ai_request(
             Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
         }
     }
-}
-
-async fn load_npc_name(state: &WsState, npc_id: &str) -> Option<String> {
-    let uuid = Uuid::parse_str(npc_id).ok()?;
-    let npc_id = wrldbldr_domain::CharacterId::from_uuid(uuid);
-    state
-        .app
-        .entities
-        .character
-        .get(npc_id)
-        .await
-        .ok()
-        .flatten()
-        .map(|npc| npc.name)
 }
 
 pub(super) async fn handle_expression_request(

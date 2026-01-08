@@ -475,14 +475,13 @@ async fn handle_join_world(
     };
 
     let pc_id_typed = pc_id.map(PlayerCharacterId::from_uuid);
-    let include_pc = matches!(role, ProtoWorldRole::Player);
 
     let join_result = match state
         .app
         .use_cases
         .session
         .join_world
-        .execute(world_id_typed, pc_id_typed, include_pc)
+        .execute_with_role(world_id_typed, role, pc_id_typed)
         .await
     {
         Ok(result) => result,
@@ -3591,6 +3590,14 @@ mod ws_integration_tests_inline {
             crate::use_cases::actantial::ActantialContextOps::new(character.clone()),
         );
 
+        let ai = crate::use_cases::AiUseCases::new(Arc::new(
+            crate::use_cases::ai::SuggestionOps::new(
+                queue.clone(),
+                world.clone(),
+                character.clone(),
+            ),
+        ));
+
         let challenge_uc = crate::use_cases::ChallengeUseCases::new(
             Arc::new(crate::use_cases::challenge::RollChallenge::new(
                 challenge.clone(),
@@ -3664,19 +3671,25 @@ mod ws_integration_tests_inline {
             )),
         );
 
-        let narrative_uc = crate::use_cases::NarrativeUseCases::new(Arc::new(
-            crate::use_cases::narrative::ExecuteEffects::new(
-                inventory.clone(),
-                challenge.clone(),
-                narrative.clone(),
-                character.clone(),
-                observation.clone(),
-                player_character.clone(),
-                scene.clone(),
-                flag.clone(),
-                clock.clone(),
-            ),
+        let execute_effects = Arc::new(crate::use_cases::narrative::ExecuteEffects::new(
+            inventory.clone(),
+            challenge.clone(),
+            narrative.clone(),
+            character.clone(),
+            observation.clone(),
+            player_character.clone(),
+            scene.clone(),
+            flag.clone(),
+            clock.clone(),
         ));
+        let narrative_events = Arc::new(crate::use_cases::narrative::NarrativeEventOps::new(
+            narrative.clone(),
+            execute_effects.clone(),
+        ));
+        let narrative_chains =
+            Arc::new(crate::use_cases::narrative::EventChainOps::new(narrative.clone()));
+        let narrative_uc =
+            crate::use_cases::NarrativeUseCases::new(execute_effects, narrative_events, narrative_chains);
 
         let time_uc = crate::use_cases::TimeUseCases::new(
             suggest_time,
@@ -3787,6 +3800,7 @@ mod ws_integration_tests_inline {
             challenge: challenge_uc,
             approval,
             actantial,
+            ai,
             assets: assets_uc,
             world: world_uc,
             queues,

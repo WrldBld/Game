@@ -1,8 +1,7 @@
 use super::*;
 use crate::api::connections::ConnectionInfo;
-use chrono::Utc;
 use serde_json::json;
-use wrldbldr_domain::{self as domain, ActId, EventChain, NarrativeEventId};
+use wrldbldr_domain::{ActId, NarrativeEventId};
 use wrldbldr_protocol::{ErrorCode, EventChainRequest, ResponseResult};
 
 pub(super) async fn handle_event_chain_request(
@@ -14,18 +13,8 @@ pub(super) async fn handle_event_chain_request(
     match request {
         EventChainRequest::ListEventChains { world_id } => {
             let world_id_typed = parse_world_id_for_request(&world_id, request_id)?;
-            match state
-                .app
-                .entities
-                .narrative
-                .list_chains_for_world(world_id_typed)
-                .await
-            {
-                Ok(chains) => {
-                    let data: Vec<serde_json::Value> =
-                        chains.iter().map(event_chain_to_json).collect();
-                    Ok(ResponseResult::success(json!(data)))
-                }
+            match state.app.use_cases.narrative.chains.list(world_id_typed).await {
+                Ok(chains) => Ok(ResponseResult::success(json!(chains))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -34,8 +23,8 @@ pub(super) async fn handle_event_chain_request(
         }
         EventChainRequest::GetEventChain { chain_id } => {
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
-            match state.app.entities.narrative.get_chain(chain_id_typed).await {
-                Ok(Some(chain)) => Ok(ResponseResult::success(json!(event_chain_to_json(&chain)))),
+            match state.app.use_cases.narrative.chains.get(chain_id_typed).await {
+                Ok(Some(chain)) => Ok(ResponseResult::success(json!(chain))),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Chain not found",
@@ -49,32 +38,20 @@ pub(super) async fn handle_event_chain_request(
         EventChainRequest::CreateEventChain { world_id, data } => {
             require_dm_for_request(conn_info, request_id)?;
             let world_id_typed = parse_world_id_for_request(&world_id, request_id)?;
-            let now = Utc::now();
-            let mut chain = EventChain::new(world_id_typed, &data.name, now);
-            if let Some(description) = data.description {
-                chain.description = description;
-            }
-            if let Some(tags) = data.tags {
-                chain.tags = tags;
-            }
-            if let Some(color) = data.color {
-                chain.color = Some(color);
-            }
-            if let Some(active) = data.is_active {
-                chain.is_active = active;
-            }
-            if let Some(act_id_str) = data.act_id {
-                let act_id = parse_optional_act_id(Some(act_id_str), request_id)?;
-                chain.act_id = act_id;
-            }
-            if let Some(events) = data.events {
-                for event_id in events {
-                    let parsed = parse_narrative_event_id_from_str(&event_id, request_id)?;
-                    chain.add_event(parsed, now);
-                }
-            }
-            match state.app.entities.narrative.save_chain(&chain).await {
-                Ok(()) => Ok(ResponseResult::success(json!(event_chain_to_json(&chain)))),
+            let act_id = parse_optional_act_id(data.act_id.clone(), request_id)?;
+            let events = match data.events.as_ref() {
+                Some(values) => Some(parse_event_ids(values, request_id)?),
+                None => None,
+            };
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .create(world_id_typed, data, act_id, events)
+                .await
+            {
+                Ok(chain) => Ok(ResponseResult::success(json!(chain))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -84,42 +61,23 @@ pub(super) async fn handle_event_chain_request(
         EventChainRequest::UpdateEventChain { chain_id, data } => {
             require_dm_for_request(conn_info, request_id)?;
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
-            match state.app.entities.narrative.get_chain(chain_id_typed).await {
-                Ok(Some(mut chain)) => {
-                    if let Some(name) = data.name {
-                        chain.name = name;
-                    }
-                    if let Some(description) = data.description {
-                        chain.description = description;
-                    }
-                    if let Some(tags) = data.tags {
-                        chain.tags = tags;
-                    }
-                    if let Some(color) = data.color {
-                        chain.color = Some(color);
-                    }
-                    if let Some(active) = data.is_active {
-                        chain.is_active = active;
-                    }
-                    if let Some(act_id_str) = data.act_id {
-                        chain.act_id = parse_optional_act_id(Some(act_id_str), request_id)?;
-                    }
-                    if let Some(events) = data.events {
-                        let parsed_events = parse_event_ids(&events, request_id)?;
-                        chain.reorder_events(parsed_events, Utc::now());
-                    }
-                    match state.app.entities.narrative.save_chain(&chain).await {
-                        Ok(()) => Ok(ResponseResult::success(json!(event_chain_to_json(&chain)))),
-                        Err(e) => Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        )),
-                    }
+            let act_id = parse_optional_act_id(data.act_id.clone(), request_id)?;
+            let events = match data.events.as_ref() {
+                Some(values) => Some(parse_event_ids(values, request_id)?),
+                None => None,
+            };
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .update(chain_id_typed, data, act_id, events)
+                .await
+            {
+                Ok(chain) => Ok(ResponseResult::success(json!(chain))),
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
                 }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Chain not found",
-                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -129,13 +87,7 @@ pub(super) async fn handle_event_chain_request(
         EventChainRequest::DeleteEventChain { chain_id } => {
             require_dm_for_request(conn_info, request_id)?;
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
-            match state
-                .app
-                .entities
-                .narrative
-                .delete_chain(chain_id_typed)
-                .await
-            {
+            match state.app.use_cases.narrative.chains.delete(chain_id_typed).await {
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
@@ -146,26 +98,18 @@ pub(super) async fn handle_event_chain_request(
         EventChainRequest::SetEventChainActive { chain_id, active } => {
             require_dm_for_request(conn_info, request_id)?;
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
-            match state.app.entities.narrative.get_chain(chain_id_typed).await {
-                Ok(Some(mut chain)) => {
-                    let now = Utc::now();
-                    if active {
-                        chain.activate(now);
-                    } else {
-                        chain.deactivate(now);
-                    }
-                    match state.app.entities.narrative.save_chain(&chain).await {
-                        Ok(()) => Ok(ResponseResult::success_empty()),
-                        Err(e) => Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        )),
-                    }
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .set_active(chain_id_typed, active)
+                .await
+            {
+                Ok(()) => Ok(ResponseResult::success_empty()),
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
                 }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Chain not found",
-                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -175,21 +119,18 @@ pub(super) async fn handle_event_chain_request(
         EventChainRequest::SetEventChainFavorite { chain_id, favorite } => {
             require_dm_for_request(conn_info, request_id)?;
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
-            match state.app.entities.narrative.get_chain(chain_id_typed).await {
-                Ok(Some(mut chain)) => {
-                    chain.is_favorite = favorite;
-                    match state.app.entities.narrative.save_chain(&chain).await {
-                        Ok(()) => Ok(ResponseResult::success_empty()),
-                        Err(e) => Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        )),
-                    }
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .set_favorite(chain_id_typed, favorite)
+                .await
+            {
+                Ok(()) => Ok(ResponseResult::success_empty()),
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
                 }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Chain not found",
-                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -204,27 +145,19 @@ pub(super) async fn handle_event_chain_request(
             require_dm_for_request(conn_info, request_id)?;
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
-            match state.app.entities.narrative.get_chain(chain_id_typed).await {
-                Ok(Some(mut chain)) => {
-                    let now = Utc::now();
-                    if let Some(pos) = position {
-                        let insert_position = pos as usize;
-                        chain.insert_event(insert_position, event_id_typed, now);
-                    } else {
-                        chain.add_event(event_id_typed, now);
-                    }
-                    match state.app.entities.narrative.save_chain(&chain).await {
-                        Ok(()) => Ok(ResponseResult::success(json!(event_chain_to_json(&chain)))),
-                        Err(e) => Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        )),
-                    }
+            let position = position.map(|pos| pos as usize);
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .add_event(chain_id_typed, event_id_typed, position)
+                .await
+            {
+                Ok(chain) => Ok(ResponseResult::success(json!(chain))),
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
                 }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Chain not found",
-                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -235,22 +168,18 @@ pub(super) async fn handle_event_chain_request(
             require_dm_for_request(conn_info, request_id)?;
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
-            match state.app.entities.narrative.get_chain(chain_id_typed).await {
-                Ok(Some(mut chain)) => {
-                    let now = Utc::now();
-                    chain.remove_event(&event_id_typed, now);
-                    match state.app.entities.narrative.save_chain(&chain).await {
-                        Ok(()) => Ok(ResponseResult::success_empty()),
-                        Err(e) => Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        )),
-                    }
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .remove_event(chain_id_typed, event_id_typed)
+                .await
+            {
+                Ok(()) => Ok(ResponseResult::success_empty()),
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
                 }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Chain not found",
-                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -261,22 +190,18 @@ pub(super) async fn handle_event_chain_request(
             require_dm_for_request(conn_info, request_id)?;
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
-            match state.app.entities.narrative.get_chain(chain_id_typed).await {
-                Ok(Some(mut chain)) => {
-                    let now = Utc::now();
-                    chain.complete_event(event_id_typed, now);
-                    match state.app.entities.narrative.save_chain(&chain).await {
-                        Ok(()) => Ok(ResponseResult::success_empty()),
-                        Err(e) => Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        )),
-                    }
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .complete_event(chain_id_typed, event_id_typed)
+                .await
+            {
+                Ok(()) => Ok(ResponseResult::success_empty()),
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
                 }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Chain not found",
-                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -286,21 +211,11 @@ pub(super) async fn handle_event_chain_request(
         EventChainRequest::ResetEventChain { chain_id } => {
             require_dm_for_request(conn_info, request_id)?;
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
-            match state.app.entities.narrative.get_chain(chain_id_typed).await {
-                Ok(Some(mut chain)) => {
-                    chain.reset(Utc::now());
-                    match state.app.entities.narrative.save_chain(&chain).await {
-                        Ok(()) => Ok(ResponseResult::success(json!(event_chain_to_json(&chain)))),
-                        Err(e) => Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        )),
-                    }
+            match state.app.use_cases.narrative.chains.reset(chain_id_typed).await {
+                Ok(chain) => Ok(ResponseResult::success(json!(chain))),
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
                 }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Chain not found",
-                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -309,17 +224,11 @@ pub(super) async fn handle_event_chain_request(
         }
         EventChainRequest::GetEventChainStatus { chain_id } => {
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
-            match state.app.entities.narrative.get_chain(chain_id_typed).await {
-                Ok(Some(chain)) => {
-                    let status: domain::ChainStatus = (&chain).into();
-                    Ok(ResponseResult::success(json!(chain_status_to_json(
-                        &status
-                    ))))
+            match state.app.use_cases.narrative.chains.status(chain_id_typed).await {
+                Ok(status) => Ok(ResponseResult::success(json!(status))),
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
                 }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Chain not found",
-                )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     e.to_string(),
@@ -327,49 +236,6 @@ pub(super) async fn handle_event_chain_request(
             }
         }
     }
-}
-
-fn event_chain_to_json(chain: &EventChain) -> serde_json::Value {
-    json!({
-        "id": chain.id.to_string(),
-        "world_id": chain.world_id.to_string(),
-        "name": chain.name,
-        "description": chain.description,
-        "events": chain
-            .events
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>(),
-        "is_active": chain.is_active,
-        "current_position": chain.current_position,
-        "completed_events": chain
-            .completed_events
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>(),
-        "act_id": chain.act_id.map(|id| id.to_string()),
-        "tags": chain.tags,
-        "color": chain.color,
-        "is_favorite": chain.is_favorite,
-        "progress_percent": (chain.progress() * 100.0) as u32,
-        "is_complete": chain.is_complete(),
-        "remaining_events": chain.remaining_events(),
-        "created_at": chain.created_at.to_rfc3339(),
-        "updated_at": chain.updated_at.to_rfc3339(),
-    })
-}
-
-fn chain_status_to_json(status: &domain::ChainStatus) -> serde_json::Value {
-    json!({
-        "chain_id": status.chain_id.to_string(),
-        "chain_name": status.chain_name,
-        "is_active": status.is_active,
-        "is_complete": status.is_complete,
-        "total_events": status.total_events,
-        "completed_events": status.completed_events,
-        "progress_percent": status.progress_percent,
-        "current_event_id": status.current_event_id.map(|id| id.to_string()),
-    })
 }
 
 fn parse_event_ids(

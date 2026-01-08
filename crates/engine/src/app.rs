@@ -52,6 +52,7 @@ pub struct UseCases {
     pub challenge: use_cases::ChallengeUseCases,
     pub approval: use_cases::ApprovalUseCases,
     pub actantial: use_cases::ActantialUseCases,
+    pub ai: use_cases::AiUseCases,
     pub assets: use_cases::AssetUseCases,
     pub world: use_cases::WorldUseCases,
     pub queues: use_cases::QueueUseCases,
@@ -210,6 +211,12 @@ impl App {
             use_cases::actantial::ActantialContextOps::new(character.clone()),
         );
 
+        let ai = use_cases::AiUseCases::new(Arc::new(use_cases::ai::SuggestionOps::new(
+            queue_port.clone(),
+            world.clone(),
+            character.clone(),
+        )));
+
         let challenge_uc = use_cases::ChallengeUseCases::new(
             Arc::new(use_cases::challenge::RollChallenge::new(
                 challenge.clone(),
@@ -280,18 +287,24 @@ impl App {
             )),
         );
 
+        let execute_effects = Arc::new(use_cases::narrative::ExecuteEffects::new(
+            inventory.clone(),
+            challenge.clone(),
+            narrative.clone(),
+            character.clone(),
+            observation.clone(),
+            player_character.clone(),
+            scene.clone(),
+            flag.clone(),
+            clock.clone(),
+        ));
+        let narrative_events = Arc::new(use_cases::narrative::NarrativeEventOps::new(
+            narrative.clone(),
+            execute_effects.clone(),
+        ));
+        let narrative_chains = Arc::new(use_cases::narrative::EventChainOps::new(narrative.clone()));
         let narrative_uc =
-            use_cases::NarrativeUseCases::new(Arc::new(use_cases::narrative::ExecuteEffects::new(
-                inventory.clone(),
-                challenge.clone(),
-                narrative.clone(),
-                character.clone(),
-                observation.clone(),
-                player_character.clone(),
-                scene.clone(),
-                flag.clone(),
-                clock.clone(),
-            )));
+            use_cases::NarrativeUseCases::new(execute_effects, narrative_events, narrative_chains);
 
         let time_uc = use_cases::TimeUseCases::new(
             suggest_time,
@@ -398,6 +411,7 @@ impl App {
             challenge: challenge_uc,
             approval,
             actantial,
+            ai,
             assets: assets_uc,
             world: world_uc,
             queues,

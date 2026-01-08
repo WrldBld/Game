@@ -579,6 +579,10 @@ pub(crate) fn build_test_app_with_ports(
         crate::use_cases::actantial::ActantialContextOps::new(character.clone()),
     );
 
+    let ai = crate::use_cases::AiUseCases::new(Arc::new(
+        crate::use_cases::ai::SuggestionOps::new(queue.clone(), world.clone(), character.clone()),
+    ));
+
     let challenge_uc = crate::use_cases::ChallengeUseCases::new(
         Arc::new(crate::use_cases::challenge::RollChallenge::new(
             challenge.clone(),
@@ -652,19 +656,25 @@ pub(crate) fn build_test_app_with_ports(
         )),
     );
 
-    let narrative_uc = crate::use_cases::NarrativeUseCases::new(Arc::new(
-        crate::use_cases::narrative::ExecuteEffects::new(
-            inventory.clone(),
-            challenge.clone(),
-            narrative.clone(),
-            character.clone(),
-            observation.clone(),
-            player_character.clone(),
-            scene.clone(),
-            flag.clone(),
-            clock.clone(),
-        ),
+    let execute_effects = Arc::new(crate::use_cases::narrative::ExecuteEffects::new(
+        inventory.clone(),
+        challenge.clone(),
+        narrative.clone(),
+        character.clone(),
+        observation.clone(),
+        player_character.clone(),
+        scene.clone(),
+        flag.clone(),
+        clock.clone(),
     ));
+    let narrative_events = Arc::new(crate::use_cases::narrative::NarrativeEventOps::new(
+        narrative.clone(),
+        execute_effects.clone(),
+    ));
+    let narrative_chains =
+        Arc::new(crate::use_cases::narrative::EventChainOps::new(narrative.clone()));
+    let narrative_uc =
+        crate::use_cases::NarrativeUseCases::new(execute_effects, narrative_events, narrative_chains);
 
     let time_uc = crate::use_cases::TimeUseCases::new(
         suggest_time,
@@ -775,6 +785,7 @@ pub(crate) fn build_test_app_with_ports(
         challenge: challenge_uc,
         approval,
         actantial,
+        ai,
         assets: assets_uc,
         world: world_uc,
         queues,
