@@ -5,10 +5,11 @@
 use std::sync::Arc;
 
 use wrldbldr_domain::{
-    CharacterId, LocationId, PlayerCharacterId, RegionId, RelationshipId, WorldId,
+    ActId, CharacterId, InteractionId, LocationId, PlayerCharacterId, RegionId, RelationshipId,
+    SceneId, SkillCategory, SkillId, WorldId,
 };
 
-use crate::entities::{Character, Location, Observation, PlayerCharacter, World};
+use crate::entities::{Act, Character, Interaction, Location, Observation, PlayerCharacter, Scene, Skill, World};
 use crate::infrastructure::ports::{ClockPort, RepoError};
 
 /// Shared error type for management use cases.
@@ -32,6 +33,10 @@ pub struct ManagementUseCases {
     pub player_character: PlayerCharacterCrud,
     pub relationship: RelationshipCrud,
     pub observation: ObservationCrud,
+    pub act: ActCrud,
+    pub scene: SceneCrud,
+    pub interaction: InteractionCrud,
+    pub skill: SkillCrud,
 }
 
 impl ManagementUseCases {
@@ -42,6 +47,10 @@ impl ManagementUseCases {
         player_character: PlayerCharacterCrud,
         relationship: RelationshipCrud,
         observation: ObservationCrud,
+        act: ActCrud,
+        scene: SceneCrud,
+        interaction: InteractionCrud,
+        skill: SkillCrud,
     ) -> Self {
         Self {
             world,
@@ -50,6 +59,10 @@ impl ManagementUseCases {
             player_character,
             relationship,
             observation,
+            act,
+            scene,
+            interaction,
+            skill,
         }
     }
 }
@@ -92,7 +105,8 @@ impl WorldCrud {
         }
 
         let now = self.clock.now();
-        let mut world = wrldbldr_domain::World::new(name, description.clone().unwrap_or_default(), now);
+        let mut world =
+            wrldbldr_domain::World::new(name, description.clone().unwrap_or_default(), now);
 
         if world.description.is_empty() {
             if let Some(setting) = setting {
@@ -516,7 +530,8 @@ impl LocationCrud {
             connection = connection.one_way();
         }
         if locked.unwrap_or(false) {
-            connection = connection.locked(lock_description.unwrap_or_else(|| "Locked".to_string()));
+            connection =
+                connection.locked(lock_description.unwrap_or_else(|| "Locked".to_string()));
         }
 
         self.location.save_connection(&connection).await?;
@@ -528,7 +543,9 @@ impl LocationCrud {
         from_region: RegionId,
         to_region: RegionId,
     ) -> Result<(), ManagementError> {
-        self.location.delete_connection(from_region, to_region).await?;
+        self.location
+            .delete_connection(from_region, to_region)
+            .await?;
         Ok(())
     }
 
@@ -543,7 +560,8 @@ impl LocationCrud {
             .find(|c| c.to_region == to_region)
             .ok_or(ManagementError::NotFound)?;
 
-        let mut updated = wrldbldr_domain::RegionConnection::new(existing.from_region, existing.to_region);
+        let mut updated =
+            wrldbldr_domain::RegionConnection::new(existing.from_region, existing.to_region);
         updated.description = existing.description;
         updated.bidirectional = existing.bidirectional;
         updated.is_locked = false;
@@ -584,7 +602,9 @@ impl LocationCrud {
         region_id: RegionId,
         location_id: LocationId,
     ) -> Result<(), ManagementError> {
-        self.location.delete_region_exit(region_id, location_id).await?;
+        self.location
+            .delete_region_exit(region_id, location_id)
+            .await?;
         Ok(())
     }
 }
@@ -631,7 +651,10 @@ impl PlayerCharacterCrud {
         world_id: WorldId,
         user_id: String,
     ) -> Result<Option<wrldbldr_domain::PlayerCharacter>, ManagementError> {
-        Ok(self.player_character.get_by_user(world_id, &user_id).await?)
+        Ok(self
+            .player_character
+            .get_by_user(world_id, &user_id)
+            .await?)
     }
 
     pub async fn create(
@@ -664,12 +687,9 @@ impl PlayerCharacterCrud {
             pc = pc.with_starting_region(region_id);
         }
         if let Some(sheet_data) = sheet_data {
-            let data: wrldbldr_domain::CharacterSheetData =
-                serde_json::from_value(sheet_data).map_err(|e| {
-                    ManagementError::InvalidInput(format!(
-                        "Invalid sheet_data: {}",
-                        e.to_string()
-                    ))
+            let data: wrldbldr_domain::CharacterSheetData = serde_json::from_value(sheet_data)
+                .map_err(|e| {
+                    ManagementError::InvalidInput(format!("Invalid sheet_data: {}", e.to_string()))
                 })?;
             pc = pc.with_sheet_data(data);
         }
@@ -699,12 +719,9 @@ impl PlayerCharacterCrud {
             pc.name = name;
         }
         if let Some(sheet_data) = sheet_data {
-            let data: wrldbldr_domain::CharacterSheetData =
-                serde_json::from_value(sheet_data).map_err(|e| {
-                    ManagementError::InvalidInput(format!(
-                        "Invalid sheet_data: {}",
-                        e.to_string()
-                    ))
+            let data: wrldbldr_domain::CharacterSheetData = serde_json::from_value(sheet_data)
+                .map_err(|e| {
+                    ManagementError::InvalidInput(format!("Invalid sheet_data: {}", e.to_string()))
                 })?;
             pc.sheet_data = Some(data);
         }
@@ -938,8 +955,9 @@ impl ObservationCrud {
             .await?
             .ok_or(ManagementError::NotFound)?;
 
-        let (location_id, region_id) =
-            self.resolve_observation_location(location_id, region_id).await?;
+        let (location_id, region_id) = self
+            .resolve_observation_location(location_id, region_id)
+            .await?;
 
         let world = self
             .world
@@ -947,24 +965,23 @@ impl ObservationCrud {
             .await?
             .ok_or(ManagementError::NotFound)?;
 
-        let obs_type =
-            observation_type.parse::<wrldbldr_domain::ObservationType>().map_err(|e| {
+        let obs_type = observation_type
+            .parse::<wrldbldr_domain::ObservationType>()
+            .map_err(|e| {
                 ManagementError::InvalidInput(format!("Invalid observation type: {}", e))
             })?;
 
         let now = self.clock.now();
         let game_time = world.game_time.current();
         let observation = match obs_type {
-            wrldbldr_domain::ObservationType::Direct => {
-                wrldbldr_domain::NpcObservation::direct(
-                    pc_id,
-                    npc_id,
-                    location_id,
-                    region_id,
-                    game_time,
-                    now,
-                )
-            }
+            wrldbldr_domain::ObservationType::Direct => wrldbldr_domain::NpcObservation::direct(
+                pc_id,
+                npc_id,
+                location_id,
+                region_id,
+                game_time,
+                now,
+            ),
             wrldbldr_domain::ObservationType::HeardAbout => {
                 wrldbldr_domain::NpcObservation::heard_about(
                     pc_id,
@@ -976,17 +993,15 @@ impl ObservationCrud {
                     now,
                 )
             }
-            wrldbldr_domain::ObservationType::Deduced => {
-                wrldbldr_domain::NpcObservation::deduced(
-                    pc_id,
-                    npc_id,
-                    location_id,
-                    region_id,
-                    game_time,
-                    notes.clone(),
-                    now,
-                )
-            }
+            wrldbldr_domain::ObservationType::Deduced => wrldbldr_domain::NpcObservation::deduced(
+                pc_id,
+                npc_id,
+                location_id,
+                region_id,
+                game_time,
+                notes.clone(),
+                now,
+            ),
         };
 
         self.observation.save_observation(&observation).await?;
@@ -1021,6 +1036,376 @@ impl ObservationCrud {
                 "location_id and/or region_id required".to_string(),
             )),
         }
+    }
+}
+
+// =============================================================================
+// Act CRUD
+// =============================================================================
+
+pub struct ActCrud {
+    act: Arc<Act>,
+}
+
+impl ActCrud {
+    pub fn new(act: Arc<Act>) -> Self {
+        Self { act }
+    }
+
+    pub async fn list_in_world(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<wrldbldr_domain::Act>, ManagementError> {
+        Ok(self.act.list_in_world(world_id).await?)
+    }
+
+    pub async fn get(&self, act_id: ActId) -> Result<Option<wrldbldr_domain::Act>, ManagementError> {
+        Ok(self.act.get(act_id).await?)
+    }
+
+    pub async fn create(
+        &self,
+        world_id: WorldId,
+        name: String,
+        description: Option<String>,
+        order: Option<u32>,
+    ) -> Result<wrldbldr_domain::Act, ManagementError> {
+        if name.trim().is_empty() {
+            return Err(ManagementError::InvalidInput(
+                "Act name cannot be empty".to_string(),
+            ));
+        }
+
+        let mut act = wrldbldr_domain::Act::new(
+            world_id,
+            name,
+            wrldbldr_domain::MonomythStage::OrdinaryWorld,
+            order.unwrap_or(0),
+        );
+
+        if let Some(description) = description {
+            act = act.with_description(description);
+        }
+
+        self.act.save(&act).await?;
+        Ok(act)
+    }
+}
+
+// =============================================================================
+// Scene CRUD
+// =============================================================================
+
+pub struct SceneCrud {
+    scene: Arc<Scene>,
+}
+
+impl SceneCrud {
+    pub fn new(scene: Arc<Scene>) -> Self {
+        Self { scene }
+    }
+
+    pub async fn list_for_act(
+        &self,
+        act_id: ActId,
+    ) -> Result<Vec<wrldbldr_domain::Scene>, ManagementError> {
+        Ok(self.scene.list_for_act(act_id).await?)
+    }
+
+    pub async fn get(
+        &self,
+        scene_id: SceneId,
+    ) -> Result<Option<wrldbldr_domain::Scene>, ManagementError> {
+        Ok(self.scene.get(scene_id).await?)
+    }
+
+    pub async fn create(
+        &self,
+        act_id: ActId,
+        name: String,
+        description: Option<String>,
+        location_id: Option<LocationId>,
+    ) -> Result<wrldbldr_domain::Scene, ManagementError> {
+        if name.trim().is_empty() {
+            return Err(ManagementError::InvalidInput(
+                "Scene name cannot be empty".to_string(),
+            ));
+        }
+
+        let location_id = location_id.ok_or_else(|| {
+            ManagementError::InvalidInput("Scene location_id is required".to_string())
+        })?;
+
+        let mut scene = wrldbldr_domain::Scene::new(act_id, name, location_id);
+        if let Some(description) = description {
+            scene = scene.with_directorial_notes(description);
+        }
+
+        self.scene.save(&scene).await?;
+        Ok(scene)
+    }
+
+    pub async fn update(
+        &self,
+        scene_id: SceneId,
+        name: Option<String>,
+        description: Option<String>,
+        location_id: Option<LocationId>,
+    ) -> Result<wrldbldr_domain::Scene, ManagementError> {
+        let mut scene = self
+            .scene
+            .get(scene_id)
+            .await?
+            .ok_or(ManagementError::NotFound)?;
+
+        if let Some(name) = name {
+            if name.trim().is_empty() {
+                return Err(ManagementError::InvalidInput(
+                    "Scene name cannot be empty".to_string(),
+                ));
+            }
+            scene.name = name;
+        }
+        if let Some(description) = description {
+            scene.directorial_notes = description;
+        }
+        if let Some(location_id) = location_id {
+            scene.location_id = location_id;
+        }
+
+        self.scene.save(&scene).await?;
+        Ok(scene)
+    }
+
+    pub async fn delete(&self, scene_id: SceneId) -> Result<(), ManagementError> {
+        self.scene.delete(scene_id).await?;
+        Ok(())
+    }
+}
+
+// =============================================================================
+// Interaction CRUD
+// =============================================================================
+
+pub struct InteractionCrud {
+    interaction: Arc<Interaction>,
+}
+
+impl InteractionCrud {
+    pub fn new(interaction: Arc<Interaction>) -> Self {
+        Self { interaction }
+    }
+
+    pub async fn list_for_scene(
+        &self,
+        scene_id: SceneId,
+    ) -> Result<Vec<wrldbldr_domain::InteractionTemplate>, ManagementError> {
+        Ok(self.interaction.list_for_scene(scene_id).await?)
+    }
+
+    pub async fn get(
+        &self,
+        interaction_id: InteractionId,
+    ) -> Result<Option<wrldbldr_domain::InteractionTemplate>, ManagementError> {
+        Ok(self.interaction.get(interaction_id).await?)
+    }
+
+    pub async fn create(
+        &self,
+        scene_id: SceneId,
+        name: String,
+        description: Option<String>,
+        trigger: Option<String>,
+        available: Option<bool>,
+    ) -> Result<wrldbldr_domain::InteractionTemplate, ManagementError> {
+        if name.trim().is_empty() {
+            return Err(ManagementError::InvalidInput(
+                "Interaction name cannot be empty".to_string(),
+            ));
+        }
+
+        let mut interaction = wrldbldr_domain::InteractionTemplate::new(
+            scene_id,
+            name,
+            wrldbldr_domain::InteractionType::Custom("Custom".to_string()),
+            wrldbldr_domain::InteractionTarget::None,
+        );
+
+        if let Some(description) = description {
+            interaction = interaction.with_prompt_hints(description);
+        }
+        if let Some(trigger) = trigger {
+            if !trigger.trim().is_empty() {
+                interaction =
+                    interaction.with_condition(wrldbldr_domain::InteractionCondition::Custom(
+                        trigger,
+                    ));
+            }
+        }
+        if available == Some(false) {
+            interaction = interaction.disabled();
+        }
+
+        self.interaction.save(&interaction).await?;
+        Ok(interaction)
+    }
+
+    pub async fn update(
+        &self,
+        interaction_id: InteractionId,
+        name: Option<String>,
+        description: Option<String>,
+        trigger: Option<String>,
+        available: Option<bool>,
+    ) -> Result<wrldbldr_domain::InteractionTemplate, ManagementError> {
+        let mut interaction = self
+            .interaction
+            .get(interaction_id)
+            .await?
+            .ok_or(ManagementError::NotFound)?;
+
+        if let Some(name) = name {
+            if name.trim().is_empty() {
+                return Err(ManagementError::InvalidInput(
+                    "Interaction name cannot be empty".to_string(),
+                ));
+            }
+            interaction.name = name;
+        }
+        if let Some(description) = description {
+            interaction.prompt_hints = description;
+        }
+        if let Some(trigger) = trigger {
+            if trigger.trim().is_empty() {
+                interaction.conditions.clear();
+            } else {
+                interaction.conditions =
+                    vec![wrldbldr_domain::InteractionCondition::Custom(trigger)];
+            }
+        }
+        if let Some(available) = available {
+            interaction.is_available = available;
+        }
+
+        self.interaction.save(&interaction).await?;
+        Ok(interaction)
+    }
+
+    pub async fn delete(&self, interaction_id: InteractionId) -> Result<(), ManagementError> {
+        self.interaction.delete(interaction_id).await?;
+        Ok(())
+    }
+}
+
+// =============================================================================
+// Skill CRUD
+// =============================================================================
+
+pub struct SkillCrud {
+    skill: Arc<Skill>,
+}
+
+impl SkillCrud {
+    pub fn new(skill: Arc<Skill>) -> Self {
+        Self { skill }
+    }
+
+    pub async fn list_in_world(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<wrldbldr_domain::Skill>, ManagementError> {
+        Ok(self.skill.list_in_world(world_id).await?)
+    }
+
+    pub async fn get(
+        &self,
+        skill_id: SkillId,
+    ) -> Result<Option<wrldbldr_domain::Skill>, ManagementError> {
+        Ok(self.skill.get(skill_id).await?)
+    }
+
+    pub async fn create(
+        &self,
+        world_id: WorldId,
+        name: String,
+        description: Option<String>,
+        category: Option<String>,
+        attribute: Option<String>,
+    ) -> Result<wrldbldr_domain::Skill, ManagementError> {
+        if name.trim().is_empty() {
+            return Err(ManagementError::InvalidInput(
+                "Skill name cannot be empty".to_string(),
+            ));
+        }
+
+        let category_value = match category {
+            Some(category) => category.parse::<SkillCategory>().map_err(ManagementError::Domain)?,
+            None => SkillCategory::Other,
+        };
+
+        let mut skill = wrldbldr_domain::Skill::custom(world_id, name, category_value);
+        if let Some(description) = description {
+            skill = skill.with_description(description);
+        }
+        if let Some(attribute) = attribute {
+            if !attribute.trim().is_empty() {
+                skill = skill.with_base_attribute(attribute);
+            }
+        }
+
+        self.skill.save(&skill).await?;
+        Ok(skill)
+    }
+
+    pub async fn update(
+        &self,
+        skill_id: SkillId,
+        name: Option<String>,
+        description: Option<String>,
+        category: Option<String>,
+        attribute: Option<String>,
+        is_hidden: Option<bool>,
+    ) -> Result<wrldbldr_domain::Skill, ManagementError> {
+        let mut skill = self
+            .skill
+            .get(skill_id)
+            .await?
+            .ok_or(ManagementError::NotFound)?;
+
+        if let Some(name) = name {
+            if name.trim().is_empty() {
+                return Err(ManagementError::InvalidInput(
+                    "Skill name cannot be empty".to_string(),
+                ));
+            }
+            skill.name = name;
+        }
+        if let Some(description) = description {
+            skill.description = description;
+        }
+        if let Some(category) = category {
+            skill.category = category
+                .parse::<SkillCategory>()
+                .map_err(ManagementError::Domain)?;
+        }
+        if let Some(attribute) = attribute {
+            if attribute.trim().is_empty() {
+                skill.base_attribute = None;
+            } else {
+                skill.base_attribute = Some(attribute);
+            }
+        }
+        if let Some(is_hidden) = is_hidden {
+            skill.is_hidden = is_hidden;
+        }
+
+        self.skill.save(&skill).await?;
+        Ok(skill)
+    }
+
+    pub async fn delete(&self, skill_id: SkillId) -> Result<(), ManagementError> {
+        self.skill.delete(skill_id).await?;
+        Ok(())
     }
 }
 

@@ -7,11 +7,13 @@ use crate::infrastructure::ports::ClockPort;
 
 mod helpers;
 
+mod act_repo;
 mod asset_repo;
 mod challenge_repo;
 mod character_repo;
 mod flag_repo;
 mod goal_repo;
+mod interaction_repo;
 mod item_repo;
 mod location_repo;
 mod location_state_repo;
@@ -21,14 +23,17 @@ mod observation_repo;
 mod player_character_repo;
 mod region_state_repo;
 mod scene_repo;
+mod skill_repo;
 mod staging_repo;
 mod world_repo;
 
+pub use act_repo::Neo4jActRepo;
 pub use asset_repo::Neo4jAssetRepo;
 pub use challenge_repo::Neo4jChallengeRepo;
 pub use character_repo::Neo4jCharacterRepo;
 pub use flag_repo::Neo4jFlagRepo;
 pub use goal_repo::Neo4jGoalRepo;
+pub use interaction_repo::Neo4jInteractionRepo;
 pub use item_repo::Neo4jItemRepo;
 pub use location_repo::Neo4jLocationRepo;
 pub use location_state_repo::Neo4jLocationStateRepo;
@@ -38,6 +43,7 @@ pub use observation_repo::Neo4jObservationRepo;
 pub use player_character_repo::Neo4jPlayerCharacterRepo;
 pub use region_state_repo::Neo4jRegionStateRepo;
 pub use scene_repo::Neo4jSceneRepo;
+pub use skill_repo::Neo4jSkillRepo;
 pub use staging_repo::Neo4jStagingRepo;
 pub use world_repo::Neo4jWorldRepo;
 
@@ -50,6 +56,9 @@ pub struct Neo4jRepositories {
     pub player_character: Arc<Neo4jPlayerCharacterRepo>,
     pub location: Arc<Neo4jLocationRepo>,
     pub scene: Arc<Neo4jSceneRepo>,
+    pub act: Arc<Neo4jActRepo>,
+    pub skill: Arc<Neo4jSkillRepo>,
+    pub interaction: Arc<Neo4jInteractionRepo>,
     pub challenge: Arc<Neo4jChallengeRepo>,
     pub narrative: Arc<Neo4jNarrativeRepo>,
     pub staging: Arc<Neo4jStagingRepo>,
@@ -71,6 +80,9 @@ impl Neo4jRepositories {
             player_character: Arc::new(Neo4jPlayerCharacterRepo::new(graph.clone(), clock.clone())),
             location: Arc::new(Neo4jLocationRepo::new(graph.clone())),
             scene: Arc::new(Neo4jSceneRepo::new(graph.clone())),
+            act: Arc::new(Neo4jActRepo::new(graph.clone())),
+            skill: Arc::new(Neo4jSkillRepo::new(graph.clone())),
+            interaction: Arc::new(Neo4jInteractionRepo::new(graph.clone())),
             challenge: Arc::new(Neo4jChallengeRepo::new(graph.clone())),
             narrative: Arc::new(Neo4jNarrativeRepo::new(graph.clone(), clock.clone())),
             staging: Arc::new(Neo4jStagingRepo::new(graph.clone(), clock.clone())),

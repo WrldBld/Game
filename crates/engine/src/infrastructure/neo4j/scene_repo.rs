@@ -107,15 +107,19 @@ impl From<SceneCondition> for SceneConditionStored {
 impl SceneConditionStored {
     fn try_into_condition(self) -> Result<SceneCondition, RepoError> {
         Ok(match self {
-            SceneConditionStored::CompletedScene(id) => SceneCondition::CompletedScene(
-                SceneId::from(uuid::Uuid::parse_str(&id).map_err(|e| RepoError::Database(e.to_string()))?),
-            ),
-            SceneConditionStored::HasItem(id) => SceneCondition::HasItem(
-                ItemId::from(uuid::Uuid::parse_str(&id).map_err(|e| RepoError::Database(e.to_string()))?),
-            ),
-            SceneConditionStored::KnowsCharacter(id) => SceneCondition::KnowsCharacter(
-                CharacterId::from(uuid::Uuid::parse_str(&id).map_err(|e| RepoError::Database(e.to_string()))?),
-            ),
+            SceneConditionStored::CompletedScene(id) => {
+                SceneCondition::CompletedScene(SceneId::from(
+                    uuid::Uuid::parse_str(&id).map_err(|e| RepoError::Database(e.to_string()))?,
+                ))
+            }
+            SceneConditionStored::HasItem(id) => SceneCondition::HasItem(ItemId::from(
+                uuid::Uuid::parse_str(&id).map_err(|e| RepoError::Database(e.to_string()))?,
+            )),
+            SceneConditionStored::KnowsCharacter(id) => {
+                SceneCondition::KnowsCharacter(CharacterId::from(
+                    uuid::Uuid::parse_str(&id).map_err(|e| RepoError::Database(e.to_string()))?,
+                ))
+            }
             SceneConditionStored::FlagSet(s) => SceneCondition::FlagSet(s),
             SceneConditionStored::Custom(s) => SceneCondition::Custom(s),
         })
@@ -222,8 +226,9 @@ impl SceneRepo for Neo4jSceneRepo {
     }
 
     async fn save(&self, scene: &Scene) -> Result<(), RepoError> {
-        let time_context_json = serde_json::to_string(&TimeContextStored::from(scene.time_context.clone()))
-            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let time_context_json =
+            serde_json::to_string(&TimeContextStored::from(scene.time_context.clone()))
+                .map_err(|e| RepoError::Serialization(e.to_string()))?;
         let entry_conditions_json = serde_json::to_string(
             &scene
                 .entry_conditions
@@ -417,7 +422,36 @@ impl SceneRepo for Neo4jSceneRepo {
         Ok(scenes)
     }
 
-    async fn get_featured_characters(&self, scene_id: SceneId) -> Result<Vec<CharacterId>, RepoError> {
+    async fn list_for_act(&self, act_id: ActId) -> Result<Vec<Scene>, RepoError> {
+        let q = query(
+            "MATCH (a:Act {id: $act_id})-[:CONTAINS_SCENE]->(s:Scene)
+            RETURN s
+            ORDER BY s.order_num",
+        )
+        .param("act_id", act_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let mut scenes = Vec::new();
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            scenes.push(self.row_to_scene(row)?);
+        }
+
+        Ok(scenes)
+    }
+
+    async fn get_featured_characters(
+        &self,
+        scene_id: SceneId,
+    ) -> Result<Vec<CharacterId>, RepoError> {
         let q = query(
             "MATCH (s:Scene {id: $scene_id})-[:FEATURES_CHARACTER]->(c:Character)
             RETURN c.id as character_id",
@@ -540,7 +574,10 @@ impl SceneRepo for Neo4jSceneRepo {
         Ok(())
     }
 
-    async fn get_completed_scenes(&self, pc_id: PlayerCharacterId) -> Result<Vec<SceneId>, RepoError> {
+    async fn get_completed_scenes(
+        &self,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<SceneId>, RepoError> {
         let q = query(
             "MATCH (pc:PlayerCharacter {id: $pc_id})-[:COMPLETED_SCENE]->(s:Scene)
             RETURN s.id as scene_id",

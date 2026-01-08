@@ -18,9 +18,10 @@ use crate::infrastructure::ports::{
     ClockPort, ImageGenError, ImageGenPort, LlmError, LlmPort, QueueError, QueueItem, RandomPort,
 };
 use crate::infrastructure::ports::{
-    MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockGoalRepo, MockItemRepo,
-    MockLocationRepo, MockLocationStateRepo, MockLoreRepo, MockNarrativeRepo, MockObservationRepo,
-    MockPlayerCharacterRepo, MockRegionStateRepo, MockSceneRepo, MockStagingRepo,
+    MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockGoalRepo,
+    MockInteractionRepo, MockItemRepo, MockLocationRepo, MockLocationStateRepo, MockLoreRepo,
+    MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockRegionStateRepo,
+    MockSceneRepo, MockSkillRepo, MockStagingRepo,
 };
 
 pub(crate) use crate::infrastructure::ports::{MockWorldRepo, QueuePort};
@@ -31,6 +32,9 @@ pub(crate) struct TestAppRepos {
     pub(crate) player_character_repo: MockPlayerCharacterRepo,
     pub(crate) location_repo: MockLocationRepo,
     pub(crate) scene_repo: MockSceneRepo,
+    pub(crate) act_repo: MockActRepo,
+    pub(crate) skill_repo: MockSkillRepo,
+    pub(crate) interaction_repo: MockInteractionRepo,
     pub(crate) challenge_repo: MockChallengeRepo,
     pub(crate) narrative_repo: MockNarrativeRepo,
     pub(crate) staging_repo: MockStagingRepo,
@@ -69,6 +73,9 @@ impl TestAppRepos {
             player_character_repo: MockPlayerCharacterRepo::new(),
             location_repo,
             scene_repo,
+            act_repo: MockActRepo::new(),
+            skill_repo: MockSkillRepo::new(),
+            interaction_repo: MockInteractionRepo::new(),
             challenge_repo: MockChallengeRepo::new(),
             narrative_repo: MockNarrativeRepo::new(),
             staging_repo: MockStagingRepo::new(),
@@ -427,6 +434,9 @@ pub(crate) fn build_test_app_with_ports(
     let player_character_repo = Arc::new(repos.player_character_repo);
     let location_repo = Arc::new(repos.location_repo);
     let scene_repo = Arc::new(repos.scene_repo);
+    let act_repo = Arc::new(repos.act_repo);
+    let skill_repo = Arc::new(repos.skill_repo);
+    let interaction_repo = Arc::new(repos.interaction_repo);
     let challenge_repo = Arc::new(repos.challenge_repo);
     let narrative_repo = Arc::new(repos.narrative_repo);
     let staging_repo = Arc::new(repos.staging_repo);
@@ -446,6 +456,9 @@ pub(crate) fn build_test_app_with_ports(
     ));
     let location = Arc::new(crate::entities::Location::new(location_repo.clone()));
     let scene = Arc::new(crate::entities::Scene::new(scene_repo.clone()));
+    let act = Arc::new(crate::entities::Act::new(act_repo.clone()));
+    let skill = Arc::new(crate::entities::Skill::new(skill_repo.clone()));
+    let interaction = Arc::new(crate::entities::Interaction::new(interaction_repo.clone()));
     let challenge = Arc::new(crate::entities::Challenge::new(challenge_repo.clone()));
     let narrative = Arc::new(crate::entities::Narrative::new(
         narrative_repo.clone(),
@@ -483,6 +496,9 @@ pub(crate) fn build_test_app_with_ports(
         player_character: player_character.clone(),
         location: location.clone(),
         scene: scene.clone(),
+        act: act.clone(),
+        skill: skill.clone(),
+        interaction: interaction.clone(),
         challenge: challenge.clone(),
         narrative: narrative.clone(),
         staging: staging.clone(),
@@ -730,6 +746,10 @@ pub(crate) fn build_test_app_with_ports(
             world.clone(),
             clock.clone(),
         ),
+        crate::use_cases::management::ActCrud::new(act.clone()),
+        crate::use_cases::management::SceneCrud::new(scene.clone()),
+        crate::use_cases::management::InteractionCrud::new(interaction.clone()),
+        crate::use_cases::management::SkillCrud::new(skill.clone()),
     );
 
     let session = crate::use_cases::SessionUseCases::new(Arc::new(

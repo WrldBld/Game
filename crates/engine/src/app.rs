@@ -28,6 +28,9 @@ pub struct Entities {
     pub player_character: Arc<entities::PlayerCharacter>,
     pub location: Arc<entities::Location>,
     pub scene: Arc<entities::Scene>,
+    pub act: Arc<entities::Act>,
+    pub skill: Arc<entities::Skill>,
+    pub interaction: Arc<entities::Interaction>,
     pub challenge: Arc<entities::Challenge>,
     pub narrative: Arc<entities::Narrative>,
     pub staging: Arc<entities::Staging>,
@@ -84,6 +87,9 @@ impl App {
         ));
         let location = Arc::new(entities::Location::new(repos.location.clone()));
         let scene = Arc::new(entities::Scene::new(repos.scene.clone()));
+        let act = Arc::new(entities::Act::new(repos.act.clone()));
+        let skill = Arc::new(entities::Skill::new(repos.skill.clone()));
+        let interaction = Arc::new(entities::Interaction::new(repos.interaction.clone()));
         let challenge = Arc::new(entities::Challenge::new(repos.challenge.clone()));
         let narrative = Arc::new(entities::Narrative::new(
             repos.narrative.clone(),
@@ -121,6 +127,9 @@ impl App {
             player_character: player_character.clone(),
             location: location.clone(),
             scene: scene.clone(),
+            act: act.clone(),
+            skill: skill.clone(),
+            interaction: interaction.clone(),
             challenge: challenge.clone(),
             narrative: narrative.clone(),
             staging: staging.clone(),
@@ -362,6 +371,10 @@ impl App {
                 world.clone(),
                 clock.clone(),
             ),
+            use_cases::management::ActCrud::new(act.clone()),
+            use_cases::management::SceneCrud::new(scene.clone()),
+            use_cases::management::InteractionCrud::new(interaction.clone()),
+            use_cases::management::SkillCrud::new(skill.clone()),
         );
 
         let session =

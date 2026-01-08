@@ -389,6 +389,7 @@ pub trait SceneRepo: Send + Sync {
     async fn get_current(&self, world_id: WorldId) -> Result<Option<Scene>, RepoError>;
     async fn set_current(&self, world_id: WorldId, scene_id: SceneId) -> Result<(), RepoError>;
     async fn list_for_region(&self, region_id: RegionId) -> Result<Vec<Scene>, RepoError>;
+    async fn list_for_act(&self, act_id: ActId) -> Result<Vec<Scene>, RepoError>;
     async fn get_featured_characters(
         &self,
         scene_id: SceneId,
@@ -417,6 +418,36 @@ pub trait SceneRepo: Send + Sync {
         &self,
         pc_id: PlayerCharacterId,
     ) -> Result<Vec<SceneId>, RepoError>;
+}
+
+#[cfg_attr(test, mockall::automock)]
+#[async_trait]
+pub trait ActRepo: Send + Sync {
+    async fn get(&self, id: ActId) -> Result<Option<Act>, RepoError>;
+    async fn save(&self, act: &Act) -> Result<(), RepoError>;
+    async fn delete(&self, id: ActId) -> Result<(), RepoError>;
+    async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<Act>, RepoError>;
+}
+
+#[cfg_attr(test, mockall::automock)]
+#[async_trait]
+pub trait SkillRepo: Send + Sync {
+    async fn get(&self, id: SkillId) -> Result<Option<Skill>, RepoError>;
+    async fn save(&self, skill: &Skill) -> Result<(), RepoError>;
+    async fn delete(&self, id: SkillId) -> Result<(), RepoError>;
+    async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<Skill>, RepoError>;
+}
+
+#[cfg_attr(test, mockall::automock)]
+#[async_trait]
+pub trait InteractionRepo: Send + Sync {
+    async fn get(&self, id: InteractionId) -> Result<Option<InteractionTemplate>, RepoError>;
+    async fn save(&self, interaction: &InteractionTemplate) -> Result<(), RepoError>;
+    async fn delete(&self, id: InteractionId) -> Result<(), RepoError>;
+    async fn list_for_scene(
+        &self,
+        scene_id: SceneId,
+    ) -> Result<Vec<InteractionTemplate>, RepoError>;
 }
 
 #[cfg_attr(test, mockall::automock)]

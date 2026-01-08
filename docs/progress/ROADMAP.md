@@ -154,7 +154,7 @@ See individual system documents for detailed user stories.
 | Flag Storage | Persistent game flags for FlagSet conditions/effects | Medium | **COMPLETE** (2026-01-04) |
 | XP/Level Tracking | Track experience and level (no character advancement) | Low | Not Started |
 | Combat System | Tactical combat (DEFERRED - out of scope for MVP) | None | Deferred |
-| WebSocket CRUD Coverage | Remaining request groups (Scene, Act, Interaction, Skill) are pending; Goal/Want/Actantial and Challenge/NarrativeEvent/EventChain handlers are now in place. | High | In Progress |
+| WebSocket CRUD Coverage | Scene/Act/Interaction/Skill handlers are now wired alongside prior request groups. | High | **COMPLETE** (2026-01-07) |
 | HTTP Settings Endpoints | /api/settings + per-world settings + metadata | High | Not Started |
 | Rule System Presets | Presets endpoint used by player | Medium | Not Started |
 

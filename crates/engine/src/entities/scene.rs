@@ -47,7 +47,10 @@ impl SceneResolutionContext {
         self
     }
 
-    pub fn with_known_characters(mut self, characters: impl IntoIterator<Item = CharacterId>) -> Self {
+    pub fn with_known_characters(
+        mut self,
+        characters: impl IntoIterator<Item = CharacterId>,
+    ) -> Self {
         self.known_characters = characters.into_iter().collect();
         self
     }
@@ -97,7 +100,7 @@ impl Scene {
     }
 
     /// Delete a scene by ID.
-    /// 
+    ///
     /// Uses DETACH DELETE to remove all relationships.
     pub async fn delete(&self, id: SceneId) -> Result<(), RepoError> {
         self.repo.delete(id).await
@@ -111,16 +114,32 @@ impl Scene {
         self.repo.set_current(world_id, scene_id).await
     }
 
-    pub async fn list_for_region(&self, region_id: RegionId) -> Result<Vec<domain::Scene>, RepoError> {
+    pub async fn list_for_region(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<domain::Scene>, RepoError> {
         self.repo.list_for_region(region_id).await
     }
 
-    pub async fn get_featured_characters(&self, scene_id: SceneId) -> Result<Vec<CharacterId>, RepoError> {
+    pub async fn list_for_act(&self, act_id: domain::ActId) -> Result<Vec<domain::Scene>, RepoError> {
+        self.repo.list_for_act(act_id).await
+    }
+
+    pub async fn get_featured_characters(
+        &self,
+        scene_id: SceneId,
+    ) -> Result<Vec<CharacterId>, RepoError> {
         self.repo.get_featured_characters(scene_id).await
     }
 
-    pub async fn set_featured_characters(&self, scene_id: SceneId, characters: &[CharacterId]) -> Result<(), RepoError> {
-        self.repo.set_featured_characters(scene_id, characters).await
+    pub async fn set_featured_characters(
+        &self,
+        scene_id: SceneId,
+        characters: &[CharacterId],
+    ) -> Result<(), RepoError> {
+        self.repo
+            .set_featured_characters(scene_id, characters)
+            .await
     }
 
     // =========================================================================
@@ -189,9 +208,10 @@ impl Scene {
         for scene in scenes {
             // Check time context match
             let time_matches = self.check_time_context(&scene.time_context, context.time_of_day);
-            
+
             // Check all entry conditions
-            let (conditions_met, unmet) = self.evaluate_conditions(&scene.entry_conditions, context);
+            let (conditions_met, unmet) =
+                self.evaluate_conditions(&scene.entry_conditions, context);
 
             let mut unmet_conditions = unmet;
             if !time_matches {

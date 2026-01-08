@@ -24,12 +24,15 @@ mod ws_location;
 mod ws_lore;
 mod ws_narrative_event;
 mod ws_player;
+mod ws_scene;
+mod ws_skill;
 mod ws_story_events;
 
 use crate::use_cases::narrative::EffectExecutionContext;
 use wrldbldr_domain::{
-    ChallengeId, CharacterId, EventChainId, GoalId, ItemId, LocationId, MoodState,
-    NarrativeEventId, PlayerCharacterId, RegionId, StagingSource, WantId, WorldId,
+    ActId, ChallengeId, CharacterId, EventChainId, GoalId, InteractionId, ItemId, LocationId,
+    MoodState, NarrativeEventId, PlayerCharacterId, RegionId, SceneId, SkillId, StagingSource,
+    WantId, WorldId,
 };
 use wrldbldr_protocol::{
     ClientMessage, ErrorCode, RequestPayload, ResponseResult, ServerMessage,
@@ -898,13 +901,20 @@ async fn handle_request(
         RequestPayload::Actantial(req) => {
             ws_actantial::handle_actantial_request(state, &request_id, &_conn_info, req).await
         }
+        RequestPayload::Scene(req) => {
+            ws_scene::handle_scene_request(state, &request_id, &_conn_info, req).await
+        }
+        RequestPayload::Act(req) => {
+            ws_scene::handle_act_request(state, &request_id, &_conn_info, req).await
+        }
+        RequestPayload::Interaction(req) => {
+            ws_scene::handle_interaction_request(state, &request_id, &_conn_info, req).await
+        }
+        RequestPayload::Skill(req) => {
+            ws_skill::handle_skill_request(state, &request_id, &_conn_info, req).await
+        }
 
-        // Not yet implemented in the engine.
-        RequestPayload::Scene(_)
-        | RequestPayload::Act(_)
-        | RequestPayload::Interaction(_)
-        | RequestPayload::Skill(_)
-        | RequestPayload::Unknown => Ok(ResponseResult::error(
+        RequestPayload::Unknown => Ok(ResponseResult::error(
             ErrorCode::BadRequest,
             "This request type is not yet implemented",
         )),
@@ -3017,10 +3027,10 @@ mod ws_integration_tests_inline {
         QueuePort, RandomPort,
     };
     use crate::infrastructure::ports::{
-        MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockGoalRepo,
-        MockItemRepo, MockLocationRepo, MockLocationStateRepo, MockLoreRepo, MockNarrativeRepo,
-        MockObservationRepo, MockPlayerCharacterRepo, MockRegionStateRepo, MockSceneRepo,
-        MockStagingRepo, MockWorldRepo,
+        MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo,
+        MockGoalRepo, MockInteractionRepo, MockItemRepo, MockLocationRepo, MockLocationStateRepo,
+        MockLoreRepo, MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
+        MockRegionStateRepo, MockSceneRepo, MockSkillRepo, MockStagingRepo, MockWorldRepo,
     };
 
     struct TestAppRepos {
@@ -3029,6 +3039,9 @@ mod ws_integration_tests_inline {
         player_character_repo: MockPlayerCharacterRepo,
         location_repo: MockLocationRepo,
         scene_repo: MockSceneRepo,
+        act_repo: MockActRepo,
+        skill_repo: MockSkillRepo,
+        interaction_repo: MockInteractionRepo,
         challenge_repo: MockChallengeRepo,
         narrative_repo: MockNarrativeRepo,
         staging_repo: MockStagingRepo,
@@ -3050,6 +3063,9 @@ mod ws_integration_tests_inline {
                 player_character_repo: MockPlayerCharacterRepo::new(),
                 location_repo: MockLocationRepo::new(),
                 scene_repo: MockSceneRepo::new(),
+                act_repo: MockActRepo::new(),
+                skill_repo: MockSkillRepo::new(),
+                interaction_repo: MockInteractionRepo::new(),
                 challenge_repo: MockChallengeRepo::new(),
                 narrative_repo: MockNarrativeRepo::new(),
                 staging_repo: MockStagingRepo::new(),
@@ -3408,6 +3424,9 @@ mod ws_integration_tests_inline {
         let player_character_repo = Arc::new(repos.player_character_repo);
         let location_repo = Arc::new(repos.location_repo);
         let scene_repo = Arc::new(repos.scene_repo);
+        let act_repo = Arc::new(repos.act_repo);
+        let skill_repo = Arc::new(repos.skill_repo);
+        let interaction_repo = Arc::new(repos.interaction_repo);
         let challenge_repo = Arc::new(repos.challenge_repo);
         let narrative_repo = Arc::new(repos.narrative_repo);
         let staging_repo = Arc::new(repos.staging_repo);
@@ -3427,6 +3446,9 @@ mod ws_integration_tests_inline {
         ));
         let location = Arc::new(crate::entities::Location::new(location_repo.clone()));
         let scene = Arc::new(crate::entities::Scene::new(scene_repo.clone()));
+        let act = Arc::new(crate::entities::Act::new(act_repo.clone()));
+        let skill = Arc::new(crate::entities::Skill::new(skill_repo.clone()));
+        let interaction = Arc::new(crate::entities::Interaction::new(interaction_repo.clone()));
         let challenge = Arc::new(crate::entities::Challenge::new(challenge_repo.clone()));
         let narrative = Arc::new(crate::entities::Narrative::new(
             narrative_repo.clone(),
@@ -3464,6 +3486,9 @@ mod ws_integration_tests_inline {
             player_character: player_character.clone(),
             location: location.clone(),
             scene: scene.clone(),
+            act: act.clone(),
+            skill: skill.clone(),
+            interaction: interaction.clone(),
             challenge: challenge.clone(),
             narrative: narrative.clone(),
             staging: staging.clone(),
@@ -3711,6 +3736,10 @@ mod ws_integration_tests_inline {
                 world.clone(),
                 clock.clone(),
             ),
+            crate::use_cases::management::ActCrud::new(act.clone()),
+            crate::use_cases::management::SceneCrud::new(scene.clone()),
+            crate::use_cases::management::InteractionCrud::new(interaction.clone()),
+            crate::use_cases::management::SkillCrud::new(skill.clone()),
         );
 
         let session = crate::use_cases::SessionUseCases::new(Arc::new(
@@ -5440,4 +5469,28 @@ fn parse_event_chain_id_for_request(
         EventChainId::from_uuid,
         "Invalid event chain ID",
     )
+}
+
+fn parse_scene_id_for_request(id_str: &str, request_id: &str) -> Result<SceneId, ServerMessage> {
+    parse_id_for_request(id_str, request_id, SceneId::from_uuid, "Invalid scene ID")
+}
+
+fn parse_act_id_for_request(id_str: &str, request_id: &str) -> Result<ActId, ServerMessage> {
+    parse_id_for_request(id_str, request_id, ActId::from_uuid, "Invalid act ID")
+}
+
+fn parse_interaction_id_for_request(
+    id_str: &str,
+    request_id: &str,
+) -> Result<InteractionId, ServerMessage> {
+    parse_id_for_request(
+        id_str,
+        request_id,
+        InteractionId::from_uuid,
+        "Invalid interaction ID",
+    )
+}
+
+fn parse_skill_id_for_request(id_str: &str, request_id: &str) -> Result<SkillId, ServerMessage> {
+    parse_id_for_request(id_str, request_id, SkillId::from_uuid, "Invalid skill ID")
 }
