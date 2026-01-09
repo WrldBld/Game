@@ -12,154 +12,367 @@ All actions flow through DM approval where appropriate, maintaining narrative au
 
 ---
 
+## Conversation System Architecture (Deep Dive)
+
+### Conversations ARE First-Class Neo4j Objects
+
+The system already has rich conversation infrastructure that must be properly integrated:
+
+**Neo4j Nodes:**
+```cypher
+(:Conversation {
+    id: UUID,
+    world_id: UUID,
+    started_at: DateTime,
+    ended_at: DateTime,        // Empty if active
+    topic_hint: String,        // First topic discussed
+    is_active: Boolean,
+    last_updated_at: DateTime
+})
+
+(:DialogueTurn {
+    id: UUID,
+    conversation_id: UUID,
+    speaker_id: UUID,          // PC or NPC ID
+    speaker_type: "pc"|"npc",
+    text: String,
+    order: Integer,            // Sequence in conversation
+    is_dm_override: Boolean,
+    is_llm_generated: Boolean,
+    game_time: DateTime
+})
+```
+
+**Graph Relationships:**
+```
+World -[HAS_CONVERSATION]-> Conversation
+PlayerCharacter -[PARTICIPATED_IN]-> Conversation
+Character(NPC) -[PARTICIPATED_IN]-> Conversation
+Conversation -[HAS_TURN {order}]-> DialogueTurn
+Conversation -[IN_SCENE]-> Scene (optional)
+Conversation -[AT_LOCATION]-> Location (optional)
+Conversation -[AT_REGION]-> Region (optional)
+Conversation -[OCCURRED_AT]-> GameTime
+DialogueTurn -[OCCURRED_AT]-> GameTime
+DialogueTurn -[OCCURRED_IN_SCENE]-> Scene
+
+// Relationship metadata (quick lookup without scanning events)
+PlayerCharacter -[SPOKE_TO {
+    first_dialogue_at: DateTime,
+    last_dialogue_at: DateTime,
+    last_topic: String,
+    conversation_count: Integer
+}]-> Character
+```
+
+### Use Case Returns Conversation Context
+
+The `StartConversation` use case already returns:
+```rust
+pub struct ConversationStarted {
+    pub conversation_id: Uuid,      // ← This should be exposed in protocol
+    pub action_queue_id: Uuid,
+    pub npc_name: String,
+    pub npc_disposition: Option<String>,
+}
+```
+
+### Three-Tier Emotional Model
+
+| Tier | Name | Storage | Scope | Example |
+|------|------|---------|-------|---------|
+| 1 | Disposition | CHARACTER_HAS_DISPOSITION | Per PC relationship | Friendly, Suspicious, Hostile |
+| 2 | Mood | INCLUDES_NPC edge (Staging) | Per region, temporary | Anxious, Calm, Excited |
+| 3 | Expression | Inline dialogue markers | Per turn, transient | `*happy*`, `*sighs\|sad*` |
+
+**Critical**: NPC mood (Tier 2) is stored on the **staging relationship**, not the character.
+
+### Current Gaps
+
+| Gap | Issue | Impact |
+|-----|-------|--------|
+| `conversation_history` empty | Field exists in `GamePromptRequest` but never populated | LLM has no memory of prior turns |
+| `conversation_id` not in protocol | Use case returns it, but StartConversation response doesn't include it | Client can't track conversations |
+| No Conversation CRUD in protocol | Can't query, list, or get conversation details | Client can't display conversation history |
+| Intent actions bypass conversation | If player "examines NPC" instead of "talks to", no conversation context | Lost narrative continuity |
+
+---
+
 ## Current State (Code Review 2026-01-09)
 
 ### What Already Exists
 
 | Component | Status | Location |
 |-----------|--------|----------|
+| **Conversation System** | ✅ Rich | Neo4j nodes, relationships, use cases |
+| - Conversation entity | ✅ | First-class Neo4j node |
+| - DialogueTurn entity | ✅ | Linked to Conversation, ordered |
+| - SPOKE_TO relationship | ✅ | Metadata tracking per PC-NPC pair |
+| - record_dialogue_exchange | ✅ | Persists StoryEvent + updates relationships |
 | **ClientMessage variants** | ✅ Exists | `crates/protocol/src/messages.rs` |
-| - StartConversation | ✅ | Line 47 |
-| - ContinueConversation | ✅ | Line 49 |
-| - PerformInteraction | ✅ | Line 51 |
-| - MoveToRegion | ✅ | Line 154 |
-| - ExitToLocation | ✅ | Line 157 |
-| - EquipItem/UnequipItem/DropItem/PickupItem | ✅ | Lines 226-241 |
+| - StartConversation | ✅ | Returns action_queue_id (not conversation_id) |
+| - ContinueConversation | ✅ | No conversation_id parameter |
+| - ConversationEnded | ✅ | Server → Player notification |
 | **WebSocket handlers** | ✅ Exists | `crates/engine/src/api/websocket/` |
-| - ws_conversation.rs | ✅ | Handles Start/Continue conversation |
-| - ws_movement.rs | ✅ | Handles MoveToRegion, ExitToLocation |
-| - ws_inventory.rs | ✅ | Handles inventory actions |
-| **Use cases** | ✅ Exists | `crates/engine/src/use_cases/` |
-| - conversation/ | ✅ | StartConversation, ContinueConversation, EndConversation |
-| - movement/ | ✅ | EnterRegion, ExitLocation |
-| - inventory/ | ✅ | Inventory operations |
-| - player_action/ | ✅ | Generic player action handler |
-| **Approval flow** | ✅ Exists | Works for dialogue |
-| - ApprovalRequired message | ✅ | Server → DM with proposed_dialogue, reasoning, tools |
-| - ApprovalDecision message | ✅ | DM → Server with decision |
-| - ws_approval.rs handler | ✅ | Processes approval decisions |
-| - ApprovalUseCases | ✅ | Orchestrates approval flow |
-| **Queue system** | ✅ Exists | `QueuePort` with type tagging |
-| **StoryEvent persistence** | ✅ Exists | DialogueExchange, LocationChange, ChallengeAttempted |
-| **Prompt templates** | ✅ Exists | Dialogue, Staging, Outcomes, Suggestions categories |
+| - ws_conversation.rs | ✅ | Handles Start/Continue/End |
+| - ws_movement.rs | ✅ | MoveToRegion, ExitToLocation |
+| - ws_inventory.rs | ✅ | Inventory actions |
+| **Use cases** | ✅ Exists | Full conversation lifecycle |
+| - StartConversation | ✅ | Returns ConversationStarted with conversation_id |
+| - ContinueConversation | ✅ | Validates NPC still staged |
+| - EndConversation | ✅ | Marks conversation inactive |
+| **LLM Context** | ⚠️ Partial | Infrastructure ready, not wired |
+| - GamePromptRequest.conversation_history | ⚠️ | Empty (never populated) |
+| - ContextBudgetConfig | ✅ | Token limits defined |
+| - TokenCounter | ✅ | Multiple counting methods |
+| - Budget enforcement | ❌ | Not wired into prompt building |
+| **Approval flow** | ✅ Works | DM gates all LLM responses |
+| **StoryEvent persistence** | ✅ Works | DialogueExchange, SPOKE_TO updates |
 
 ### What's Missing
 
 | Component | Status | Notes |
 |-----------|--------|-------|
 | `PlayerRequest` enum | ❌ Missing | No unified player request grouping |
-| `RequestPayload::Player` variant | ❌ Missing | Actions use direct ClientMessage variants |
+| `conversation_id` in responses | ❌ Missing | Not exposed to client |
+| `conversation_id` in ContinueConversation | ❌ Missing | Client can't reference specific conversation |
+| Conversation CRUD requests | ❌ Missing | GetConversation, ListConversations |
 | Intent action types | ❌ Missing | ActionVerb, ActionTarget, IntentAction |
-| Action resolution outcomes | ❌ Missing | SuggestChallenge, RevealInformation, etc. |
+| Action resolution outcomes | ❌ Missing | SuggestChallenge, RevealInformation |
 | Travel intent | ❌ Missing | TravelApproach, TravelIntent |
-| Challenge generation from description | ❌ Missing | GenerateChallengeFromDescription message |
-| Action history context | ❌ Partial | StoryEvent exists, not integrated into LLM context |
+| Challenge generation from description | ❌ Missing | GenerateChallengeFromDescription |
+| Conversation history in LLM context | ❌ Missing | conversation_history always empty |
+| Action history in LLM context | ❌ Missing | Recent player actions not fed to LLM |
 
 ### Architectural Recommendations
 
-1. **Reuse approval flow**: Extend existing `ApprovalRequired` with request type discriminator rather than creating separate `ActionResolutionApprovalRequired`
-2. **Reuse queue system**: Tag existing queue entries with action type rather than creating separate `ActionResolutionQueue`
-3. **Extend templates**: Add new `PromptTemplateCategory` values for action resolution and challenge generation
-4. **Incremental deprecation**: Keep legacy ClientMessage variants during transition, add PlayerRequest as parallel path
+1. **Expose conversation_id**: Return in StartConversation response, accept in ContinueConversation
+2. **Populate conversation_history**: Query DialogueTurn nodes before LLM calls
+3. **Reuse approval flow**: Extend existing `ApprovalRequired` for intent action resolutions
+4. **Reuse queue system**: Tag existing queue entries with action type
+5. **Extend templates**: Add `ActionResolution` and `ChallengeGeneration` template categories
+6. **Intent actions with NPC target**: Route to conversation system with context
 
 ---
 
 ## Phase 1: Protocol + Engine Routing (Predefined Actions)
 
-**Goal**: Create unified `PlayerRequest` enum while maintaining backward compatibility.
+**Goal**: Create unified `PlayerRequest` enum with proper conversation support.
 
 ### 1.1 Add PlayerRequest Module
 - [ ] Create `crates/protocol/src/requests/player.rs`
-- [ ] Add `PlayerRequest` enum with variants matching existing ClientMessage:
+- [ ] Add `PlayerRequest` enum with conversation-aware variants:
   ```rust
   #[derive(Debug, Clone, Serialize, Deserialize)]
   #[serde(tag = "type", rename_all = "snake_case")]
   pub enum PlayerRequest {
-      StartConversation { npc_id: String, message: String },
-      ContinueConversation { npc_id: String, message: String },
-      EndConversation { npc_id: String },
+      // Conversation actions - now with conversation_id support
+      StartConversation {
+          npc_id: String,
+          message: String,
+      },
+      ContinueConversation {
+          npc_id: String,
+          message: String,
+          /// Optional - if provided, validates against active conversation
+          #[serde(default)]
+          conversation_id: Option<String>,
+      },
+      EndConversation {
+          npc_id: String,
+          #[serde(default)]
+          conversation_id: Option<String>,
+      },
+
+      // Interaction actions
       PerformInteraction { interaction_id: String },
+
+      // Movement actions
       MoveToRegion { region_id: String },
-      ExitToLocation { location_id: String, arrival_region_id: Option<String> },
+      ExitToLocation {
+          location_id: String,
+          arrival_region_id: Option<String>,
+      },
+
+      // Inventory actions
       EquipItem { item_id: String },
       UnequipItem { item_id: String },
       DropItem { item_id: String, quantity: Option<u32> },
       PickupItem { item_id: String },
       UseItem { item_id: String, target_id: Option<String> },
+
+      // Conversation queries
+      GetConversation { conversation_id: String },
+      GetConversationHistory {
+          npc_id: String,
+          #[serde(default)]
+          limit: Option<u32>,
+      },
   }
   ```
 
-### 1.2 Register in RequestPayload
+### 1.2 Add Conversation Response Types
+- [ ] Add `ConversationStartedResponse`:
+  ```rust
+  pub struct ConversationStartedResponse {
+      pub conversation_id: String,
+      pub npc_name: String,
+      pub npc_disposition: Option<String>,
+      pub npc_mood: Option<String>,
+  }
+  ```
+
+- [ ] Add `ConversationData` for queries:
+  ```rust
+  pub struct ConversationData {
+      pub id: String,
+      pub npc_id: String,
+      pub npc_name: String,
+      pub started_at: String,
+      pub is_active: bool,
+      pub topic_hint: Option<String>,
+      pub turn_count: u32,
+  }
+
+  pub struct DialogueTurnData {
+      pub speaker_type: String,  // "pc" or "npc"
+      pub speaker_name: String,
+      pub text: String,
+      pub game_time: Option<String>,
+  }
+  ```
+
+### 1.3 Register in RequestPayload
 - [ ] Add `pub mod player;` to `crates/protocol/src/requests.rs`
 - [ ] Add `Player(player::PlayerRequest)` variant to `RequestPayload` enum
 
-### 1.3 Add WebSocket Handler
+### 1.4 Add WebSocket Handler
 - [ ] Create `crates/engine/src/api/websocket/ws_player_request.rs`
 - [ ] Implement `handle_player_request()` that delegates to existing handlers
 - [ ] Route `RequestPayload::Player` in `mod.rs` dispatch
 
-### 1.4 Backward Compatibility
-- [ ] Keep existing ClientMessage variants (StartConversation, MoveToRegion, etc.)
-- [ ] Mark them with `#[deprecated]` comments for future removal
+### 1.5 Update ServerMessage for Conversation
+- [ ] Update `DialogueResponse` to include conversation context:
+  ```rust
+  DialogueResponse {
+      conversation_id: String,  // NEW
+      speaker_id: String,
+      speaker_name: String,
+      text: String,
+      mood: Option<String>,     // NEW - Tier 2 mood
+      expression: Option<String>, // NEW - Tier 3 from markers
+      choices: Vec<DialogueChoice>,
+  }
+  ```
+
+### 1.6 Backward Compatibility
+- [ ] Keep existing ClientMessage variants
+- [ ] Add `#[deprecated]` comments
 - [ ] Both paths call same use cases
 
-## Phase 2: Use Case Wiring (Predefined Actions)
+## Phase 2: Conversation Context Integration
+
+**Goal**: Populate `conversation_history` in LLM prompts.
+
+### 2.1 Query Dialogue History Before LLM Call
+- [ ] In queue processing (`use_cases/queues/mod.rs`), before building prompt:
+  ```rust
+  // Get recent dialogue turns for this conversation
+  let conversation_history = if let Some(conversation_id) = &action.conversation_id {
+      self.narrative.get_conversation_turns(conversation_id, 30).await?
+  } else if let (Some(pc_id), Some(npc_id)) = (&action.pc_id, &action.npc_id) {
+      // Fallback: get recent dialogues with this NPC
+      self.narrative.get_recent_dialogue_turns(pc_id, npc_id, 30).await?
+  } else {
+      vec![]
+  };
+  ```
+
+### 2.2 Add Repository Methods
+- [ ] Add to `NarrativeRepo` trait:
+  ```rust
+  async fn get_conversation_turns(
+      &self,
+      conversation_id: &Uuid,
+      limit: usize,
+  ) -> Result<Vec<ConversationTurn>, RepoError>;
+
+  async fn get_recent_dialogue_turns(
+      &self,
+      pc_id: &PlayerCharacterId,
+      npc_id: &CharacterId,
+      limit: usize,
+  ) -> Result<Vec<ConversationTurn>, RepoError>;
+  ```
+
+- [ ] Implement in `Neo4jNarrativeRepo`:
+  ```cypher
+  // Get turns for specific conversation
+  MATCH (c:Conversation {id: $conversation_id})-[r:HAS_TURN]->(t:DialogueTurn)
+  WITH t, r.order as order
+  ORDER BY order DESC
+  LIMIT $limit
+  RETURN t.speaker_type as speaker_type, t.text as text
+  ORDER BY order ASC
+  ```
+
+### 2.3 Wire into GamePromptRequest
+- [ ] Update `build_prompt()` to populate `conversation_history`:
+  ```rust
+  GamePromptRequest {
+      // ... other fields ...
+      conversation_history: conversation_turns.into_iter()
+          .map(|t| ConversationTurn {
+              speaker: if t.speaker_type == "pc" { pc_name.clone() } else { npc_name.clone() },
+              text: t.text,
+          })
+          .collect(),
+  }
+  ```
+
+### 2.4 Verify Token Budget Enforcement
+- [ ] Wire `ContextBudgetEnforcer` into prompt building
+- [ ] Truncate conversation_history if over budget (keep most recent turns)
+
+## Phase 3: Use Case Wiring (Predefined Actions)
 
 **Status**: ✅ Mostly complete - use cases already exist.
 
-### 2.1 Verify Use Case Mapping
-- [x] `StartConversation` -> `use_cases::conversation::StartConversation` ✅ EXISTS
-- [x] `ContinueConversation` -> `use_cases::conversation::ContinueConversation` ✅ EXISTS
-- [x] `EndConversation` -> `use_cases::conversation::EndConversation` ✅ EXISTS
-- [x] `MoveToRegion` -> `use_cases::movement::EnterRegion` ✅ EXISTS
-- [x] `ExitLocation` -> `use_cases::movement::ExitLocation` ✅ EXISTS
-- [x] Inventory actions -> `use_cases::inventory::*` ✅ EXISTS
-- [ ] `PerformInteraction` -> verify interaction use case exists or create
-- [ ] `UseItem` -> verify item use case exists or create
+### 3.1 Verify Use Case Mapping
+- [x] `StartConversation` -> `use_cases::conversation::StartConversation` ✅
+- [x] `ContinueConversation` -> `use_cases::conversation::ContinueConversation` ✅
+- [x] `EndConversation` -> `use_cases::conversation::EndConversation` ✅
+- [x] `MoveToRegion` -> `use_cases::movement::EnterRegion` ✅
+- [x] `ExitLocation` -> `use_cases::movement::ExitLocation` ✅
+- [x] Inventory actions -> `use_cases::inventory::*` ✅
+- [ ] `GetConversation` -> create new query use case
+- [ ] `GetConversationHistory` -> create new query use case
+- [ ] `PerformInteraction` -> verify/create interaction use case
+- [ ] `UseItem` -> verify/create item use case
 
-### 2.2 Handler Pattern Verification
-- [x] Handlers are thin (delegate to use cases) ✅ VERIFIED
-- [x] Use cases perform orchestration ✅ VERIFIED
+### 3.2 Handler Pattern Verification
+- [x] Handlers are thin (delegate to use cases) ✅
+- [x] Use cases perform orchestration ✅
 
-## Phase 3: Context + Persistence (Predefined Actions)
+## Phase 4: Player Client Updates
 
-**Status**: ✅ Mostly complete.
+- [ ] Add player service methods using `RequestPayload::Player`
+- [ ] Track `conversation_id` in client state when conversation starts
+- [ ] Pass `conversation_id` in subsequent ContinueConversation calls
+- [ ] Display conversation history from `GetConversationHistory` response
 
-### 3.1 Verify Context Passing
-- [x] Conversation use case receives world_id, pc_id, npc_id ✅
-- [x] ApprovalRequestData includes context fields ✅
-- [ ] Verify `scene_id`, `location_id`, `game_time` are passed through queue
+## Phase 5: Tests + Validation
 
-### 3.2 Verify Narrative Persistence
-- [x] Conversation node persisted ✅ EXISTS
-- [x] DialogueTurn nodes persisted ✅ EXISTS
-- [x] StoryEvent links to conversation ✅ EXISTS
-- [ ] Verify GameTime linking
-
-## Phase 4: Player Client Updates (Predefined Actions)
-
-- [ ] Add player service methods that use `RequestPayload::Player`:
-  - [ ] `start_conversation(npc_id, message)`
-  - [ ] `continue_conversation(npc_id, message)`
-  - [ ] `perform_interaction(interaction_id)`
-  - [ ] `move_to_region(region_id)`
-  - [ ] `exit_location(location_id)`
-- [ ] Update UI to use new methods (or keep using existing ClientMessage for now)
-
-## Phase 5: Tests + Validation (Predefined Actions)
-
-- [ ] Add tests for `PlayerRequest` routing in `ws_player_request.rs`
-- [ ] Verify both legacy and new paths work
-- [ ] Run `cargo check -p wrldbldr-engine -p wrldbldr-protocol`
+- [ ] Add tests for `PlayerRequest` routing
+- [ ] Test conversation_id flow (start → continue → end)
+- [ ] Test conversation_history population in LLM context
+- [ ] Verify backward compatibility with legacy ClientMessage
 
 ---
 
 ## Phase 6: Intent-Based Actions
 
-Intent-based actions allow players to express what they want to do in natural language, with the LLM reasoning about how to resolve it. Examples:
-- "Examine the wall to find a weakness"
-- "Search the room for hidden compartments"
-- "Attempt to pick the lock quietly"
+Intent-based actions allow players to express what they want to do in natural language.
 
 ### 6.1 Domain Types
 
@@ -182,7 +395,7 @@ Add to `crates/domain/src/value_objects/`:
   pub enum ActionTarget {
       Region,                           // Current region/environment
       RegionElement { name: String },   // "the wall", "the door"
-      Npc { npc_id: CharacterId },
+      Npc { npc_id: CharacterId },      // An NPC (may start/continue conversation)
       Item { item_id: ItemId },
       Self_,                            // PC themselves
   }
@@ -200,6 +413,17 @@ Add to `crates/domain/src/value_objects/`:
   ```rust
   #[derive(Debug, Clone, Serialize, Deserialize)]
   pub enum ActionResolutionOutcome {
+      /// Route to conversation system (target is NPC)
+      StartConversation {
+          npc_id: CharacterId,
+          opening_context: String,  // Intent becomes conversation context
+      },
+      /// Add context to existing conversation
+      ContinueConversationWithContext {
+          conversation_id: Uuid,
+          additional_context: String,
+      },
+      /// LLM suggests a challenge
       SuggestChallenge {
           challenge_name: String,
           skill_name: String,
@@ -207,154 +431,107 @@ Add to `crates/domain/src/value_objects/`:
           description: String,
           reasoning: String,
       },
+      /// Action reveals information (no roll needed)
       RevealInformation {
           information: String,
           observation_type: Option<String>,
       },
+      /// Action triggers scene change
       TriggerSceneChange {
           description: String,
           suggested_event_id: Option<String>,
       },
+      /// Action requires time passage
       RequiresTime {
           description: String,
           time_cost_minutes: u32,
           outcome_on_completion: String,
       },
+      /// Not possible in current context
       NotPossible {
           reason: String,
           alternatives: Vec<String>,
       },
+      /// Need more specificity
       NeedsClarification {
           question: String,
           options: Vec<String>,
       },
+      /// Multiple approaches available
       MultipleApproaches {
           description: String,
           approaches: Vec<ActionApproachOption>,
       },
   }
-
-  #[derive(Debug, Clone, Serialize, Deserialize)]
-  pub struct ActionApproachOption {
-      pub id: String,
-      pub name: String,
-      pub description: String,
-      pub skill_hint: Option<String>,
-      pub difficulty_hint: Option<String>,
-  }
   ```
 
 ### 6.2 Protocol Types
 
-Add to `crates/protocol/src/requests/player.rs`:
-
-- [ ] Add `PerformIntentAction` variant to `PlayerRequest`:
+- [ ] Add `PerformIntentAction` to `PlayerRequest`:
   ```rust
   PerformIntentAction {
       action: IntentActionData,
   }
   ```
 
-- [ ] Add `IntentActionData` wire type (mirrors domain but with String IDs)
+- [ ] Add server messages for intent action flow
 
-Add to `crates/protocol/src/messages.rs`:
+### 6.3 Intent Action → Conversation Integration
 
-- [ ] Add `ActionResolutionPending` server message:
-  ```rust
-  ActionResolutionPending {
-      action_id: String,
-      action_description: String,
-  }
-  ```
+**Critical**: When intent action targets an NPC, route through conversation system:
 
-- [ ] Extend `ApprovalRequired` OR add `ActionResolutionApprovalRequired`:
-  ```rust
-  // Option A: Extend ApprovalRequired with optional action field
-  ApprovalRequired {
-      // ... existing fields ...
-      #[serde(default)]
-      action_resolution: Option<ActionResolutionData>,
-  }
+```rust
+impl ResolveIntentAction {
+    async fn execute(&self, pc_id: PcId, action: IntentAction) -> Result<...> {
+        match action.target {
+            ActionTarget::Npc { npc_id } => {
+                // Check if active conversation exists
+                let active = self.conversation.get_active(pc_id, npc_id).await?;
 
-  // Option B: Separate message (more explicit)
-  ActionResolutionApprovalRequired {
-      request_id: String,
-      pc_id: String,
-      pc_name: String,
-      action: IntentActionData,
-      suggested_outcomes: Vec<ActionResolutionOutcomeData>,
-      llm_reasoning: String,
-      context_summary: String,
-  }
-  ```
+                if let Some(conversation) = active {
+                    // Add intent as context to existing conversation
+                    Ok(ActionResolutionOutcome::ContinueConversationWithContext {
+                        conversation_id: conversation.id,
+                        additional_context: format!("{:?}: {}", action.verb, action.intent),
+                    })
+                } else {
+                    // Start new conversation with intent as opening context
+                    Ok(ActionResolutionOutcome::StartConversation {
+                        npc_id,
+                        opening_context: format!("{:?}: {}", action.verb, action.intent),
+                    })
+                }
+            }
+            ActionTarget::Region | ActionTarget::RegionElement { .. } => {
+                // Environment action → LLM resolution
+                self.resolve_environment_action(pc_id, action).await
+            }
+            // ... other targets
+        }
+    }
+}
+```
 
-- [ ] Add `ActionResolutionApproved` server message:
-  ```rust
-  ActionResolutionApproved {
-      action_id: String,
-      outcome_type: String,
-      description: String,
-      challenge: Option<ChallengePromptData>,
-      revelation: Option<String>,
-  }
-  ```
+### 6.4 Engine Implementation
 
-Add to `crates/protocol/src/messages.rs` (Client):
-
-- [ ] Add `ActionResolutionDecision` client message:
-  ```rust
-  ActionResolutionDecision {
-      request_id: String,
-      decision: ActionResolutionDecisionType,
-  }
-  ```
-
-### 6.3 Engine Implementation
-
-- [ ] Create `crates/engine/src/use_cases/intent_action/`:
-  - [ ] `mod.rs` - IntentActionUseCases struct
-  - [ ] `resolve.rs` - ResolveIntentAction use case
-  - [ ] `prompt_builder.rs` - Build LLM context for action resolution
-
-- [ ] Add action resolution prompt template:
-  - [ ] Add `ActionResolution` variant to `PromptTemplateCategory`
-  - [ ] Create default action resolution prompt
-
-- [ ] Wire through existing queue system:
-  - [ ] Add `QueueItemType::ActionResolution` (or reuse existing with tag)
-  - [ ] Queue intent action for LLM processing
-  - [ ] Route LLM response to approval flow
-
-- [ ] Create/extend approval handler:
-  - [ ] Handle `ActionResolutionDecision` in `ws_approval.rs`
-  - [ ] Execute approved outcome (create challenge, reveal info, etc.)
-
-### 6.4 Integration Points
-
-- [ ] Add to `ws_player_request.rs`:
-  ```rust
-  PlayerRequest::PerformIntentAction { action } => {
-      self.use_cases.intent_action.resolve.execute(pc_id, action).await
-  }
-  ```
+- [ ] Create `use_cases/intent_action/` module
+- [ ] Add action resolution prompt template
+- [ ] Wire through approval flow
+- [ ] Track actions as StoryEvents for context
 
 ---
 
 ## Phase 7: Travel with Intent
 
-Travel can have player intent that affects how the journey unfolds.
+### 7.1 Protocol Types
 
-### 7.1 Domain & Protocol Types
-
-- [ ] Add `TravelIntent` to domain:
+- [ ] Add `TravelIntent`:
   ```rust
-  #[derive(Debug, Clone, Serialize, Deserialize)]
   pub struct TravelIntent {
       pub approach: TravelApproach,
       pub objective: Option<String>,
   }
 
-  #[derive(Debug, Clone, Serialize, Deserialize)]
   pub enum TravelApproach {
       Normal,
       Stealth,
@@ -364,217 +541,92 @@ Travel can have player intent that affects how the journey unfolds.
   }
   ```
 
-- [ ] Extend `PlayerRequest` movement variants:
-  ```rust
-  MoveToRegion {
-      region_id: String,
-      #[serde(default)]
-      intent: Option<TravelIntent>,
-  },
-  ExitToLocation {
-      location_id: String,
-      arrival_region_id: Option<String>,
-      #[serde(default)]
-      intent: Option<TravelIntent>,
-  },
-  ```
+- [ ] Extend movement messages with optional intent
 
 ### 7.2 Engine Implementation
 
-- [ ] Modify `EnterRegion` use case:
-  - [ ] Check for travel intent
-  - [ ] If non-Normal intent, route through action resolution
-  - [ ] Generate appropriate challenges for Stealth/Haste/Caution
-
-- [ ] Add server message for travel resolution (if complex):
-  ```rust
-  TravelResolutionRequired {
-      travel_id: String,
-      destination_name: String,
-      intent: TravelIntent,
-      suggested_challenges: Vec<GeneratedChallengeData>,
-  }
-  ```
+- [ ] Modify `EnterRegion` to check for travel intent
+- [ ] Non-Normal intent triggers action resolution for potential challenges
 
 ---
 
 ## Phase 8: DM Challenge Generation
 
-DMs should be able to describe a challenge concept and have the LLM generate full challenge details.
-
 ### 8.1 Protocol Types
 
-- [ ] Add `GenerateChallengeFromDescription` client message:
-  ```rust
-  GenerateChallengeFromDescription {
-      description: String,
-      target_pc_id: String,
-      context: ChallengeGenerationContext,
-  }
-
-  pub struct ChallengeGenerationContext {
-      pub suggested_skills: Vec<String>,
-      pub difficulty_hint: Option<String>,
-      pub branching_options: Vec<String>,
-      pub location_context: Option<String>,
-  }
-  ```
-
-- [ ] Add `GeneratedChallengesReady` server message:
-  ```rust
-  GeneratedChallengesReady {
-      request_id: String,
-      shared_context: String,
-      challenges: Vec<GeneratedChallengeData>,
-  }
-
-  pub struct GeneratedChallengeData {
-      pub id: String,
-      pub name: String,
-      pub description: String,
-      pub skill_name: String,
-      pub difficulty: String,
-      pub success_outcome: String,
-      pub failure_outcome: String,
-      pub branch_label: Option<String>,
-  }
-  ```
-
-- [ ] Add `AcceptGeneratedChallenge` client message:
-  ```rust
-  AcceptGeneratedChallenge {
-      request_id: String,
-      challenge_id: String,
-      modifications: Option<ChallengeModifications>,
-  }
-  ```
+- [ ] Add `GenerateChallengeFromDescription` client message
+- [ ] Add `GeneratedChallengesReady` server message
+- [ ] Add `AcceptGeneratedChallenge` client message
 
 ### 8.2 Engine Implementation
 
 - [ ] Create `use_cases/challenge/generate_from_description.rs`
 - [ ] Add challenge generation prompt template
-- [ ] On accept, create Challenge entity and trigger for target PC
+- [ ] Support branching challenge options
 
 ---
 
 ## Phase 9: Action History for Context
 
-Track player actions to provide richer LLM context.
+### 9.1 Extend StoryEvent System
 
-### 9.1 Domain Types
+- [ ] Ensure all player actions become StoryEvents
+- [ ] Add `StoryEventType::PlayerAction` variant (or reuse existing)
 
-- [ ] Add `PlayerActionRecord` to domain (or extend StoryEvent):
-  ```rust
-  pub struct PlayerActionRecord {
-      pub id: Uuid,
-      pub pc_id: PlayerCharacterId,
-      pub action_type: String,
-      pub target_description: String,
-      pub intent: Option<String>,
-      pub outcome_summary: String,
-      pub game_time: GameTime,
-      pub region_id: RegionId,
-  }
-  ```
+### 9.2 Context Integration
 
-### 9.2 Persistence
-
-- [ ] Extend `StoryEvent` with `PlayerAction` variant or create separate node type
-- [ ] Record action outcomes when resolved
-
-### 9.3 Context Integration
-
-- [ ] Add `recent_player_actions` to staging LLM context
-- [ ] Add `recent_player_actions` to dialogue LLM context
-- [ ] Query last N actions or actions within time window
+- [ ] Query recent player actions before LLM calls
+- [ ] Add to staging and dialogue context
+- [ ] Limit by time window or count
 
 ---
 
-## Phase 10: UI Updates for Intent Actions
+## Phase 10: UI Updates
 
-### 10.1 Action Input UI
+### 10.1 Conversation UI
+- [ ] Display conversation_id in debug/DM mode
+- [ ] Show conversation history panel
+- [ ] Track mood/expression changes visually
 
-- [ ] Create `IntentActionInput` component:
-  - Verb selector dropdown
-  - Target selector (environment, NPC, item)
-  - Intent text input
-  - Submit button
-
-- [ ] Add quick action buttons to scene view
-
-### 10.2 DM Approval UI
-
-- [ ] Create `ActionResolutionApproval` component (or extend existing approval popup)
+### 10.2 Intent Action UI
+- [ ] Verb selector, target selector, intent input
+- [ ] Quick action buttons for common verbs
 
 ### 10.3 Travel Intent UI
-
-- [ ] Add travel mode selector to navigation panel
-
----
-
-## Protocol Summary
-
-### New Server Messages
-
-| Message | Audience | Purpose |
-|---------|----------|---------|
-| `ActionResolutionPending` | Player | Action is being resolved |
-| `ActionResolutionApprovalRequired` | DM | DM must approve action resolution |
-| `ActionResolutionApproved` | Player | Action resolved with outcome |
-| `TravelResolutionRequired` | DM | Travel with intent needs approval |
-| `GeneratedChallengesReady` | DM | LLM-generated challenges ready |
-
-### New Client Messages
-
-| Message | Sender | Purpose |
-|---------|--------|---------|
-| `PerformIntentAction` | Player | Player performs intent-based action |
-| `ActionResolutionDecision` | DM | DM approves/modifies action resolution |
-| `GenerateChallengeFromDescription` | DM | DM requests challenge generation |
-| `AcceptGeneratedChallenge` | DM | DM accepts generated challenge |
-
----
-
-## Acceptance Criteria
-
-### Phase 1-5 (Predefined Actions)
-- [ ] `PlayerRequest` enum exists with all action variants
-- [ ] `RequestPayload::Player` routes to handlers
-- [ ] Both legacy ClientMessage and new PlayerRequest paths work
-- [ ] Handlers are thin, use cases perform orchestration
-
-### Phase 6 (Intent Actions)
-- [ ] Players can submit intent-based actions (verb + target + intent)
-- [ ] LLM suggests resolution outcomes
-- [ ] DM approves/modifies before player sees result
-- [ ] Challenges from actions trigger challenge flow
-
-### Phase 7 (Travel Intent)
-- [ ] Players can travel with stealth/haste/caution
-- [ ] Travel intent can trigger challenges
-- [ ] DM can approve/modify travel resolutions
-
-### Phase 8 (DM Challenge Generation)
-- [ ] DM describes challenge, LLM generates full details
-- [ ] Branching options generate separate challenges
-- [ ] DM can accept/modify before triggering
-
-### Phase 9 (Action History)
-- [ ] Player actions recorded in Neo4j
-- [ ] Recent actions in staging LLM context
-- [ ] Recent actions in dialogue LLM context
+- [ ] Travel mode selector in navigation
 
 ---
 
 ## Implementation Priority
 
-1. **Phase 1**: Add `PlayerRequest` enum (foundation for everything)
-2. **Phase 6.1-6.2**: Domain + protocol types for intent actions
-3. **Phase 6.3**: Engine use cases and queue integration
-4. **Phase 8**: DM challenge generation (high DM value)
-5. **Phase 7**: Travel with intent (builds on intent actions)
-6. **Phase 9**: Action history context (improves LLM quality)
-7. **Phase 10**: UI updates (last, after backend is solid)
+1. **Phase 2**: Conversation context integration (conversation_history population)
+2. **Phase 1**: PlayerRequest with conversation_id support
+3. **Phase 6.1-6.3**: Intent action types with NPC→conversation routing
+4. **Phase 8**: DM challenge generation
+5. **Phase 7**: Travel with intent
+6. **Phase 9**: Action history context
+7. **Phase 10**: UI updates
+
+---
+
+## Acceptance Criteria
+
+### Phase 1-2 (Conversation Support)
+- [ ] `conversation_id` returned from StartConversation
+- [ ] `conversation_id` can be passed to ContinueConversation
+- [ ] `conversation_history` populated in LLM prompts
+- [ ] Client can query conversation history
+
+### Phase 6 (Intent Actions)
+- [ ] Intent actions targeting NPCs route to conversation system
+- [ ] Intent context becomes conversation context
+- [ ] Environment actions go through LLM resolution
+- [ ] DM approves action resolutions
+
+### Phase 7-9 (Advanced Features)
+- [ ] Travel intent can trigger challenges
+- [ ] DM can generate challenges from descriptions
+- [ ] Action history appears in LLM context
 
 ---
 
@@ -582,6 +634,7 @@ Track player actions to provide richer LLM context.
 
 | Date | Change |
 |------|--------|
-| 2026-01-09 | Code review: documented existing state, marked completed items, added recommendations |
-| 2026-01-09 | Major expansion: Added phases 6-10 for intent actions, travel intent, DM challenge generation, action history |
-| 2026-01-XX | Initial version: Basic predefined action unification |
+| 2026-01-09 | Deep architecture review: documented conversation system, added Phase 2 for context integration |
+| 2026-01-09 | Code review: documented existing state, marked completed items |
+| 2026-01-09 | Major expansion: Added phases 6-10 for intent actions, travel, challenge generation |
+| 2026-01-XX | Initial version |
