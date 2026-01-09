@@ -9,7 +9,9 @@
 use dioxus::prelude::*;
 
 use crate::application::dto::GameTime;
+use crate::infrastructure::websocket::ClientMessageBuilder;
 use crate::presentation::game_time_format::{display_date, display_time, time_of_day};
+use crate::presentation::services::use_command_bus;
 use crate::presentation::state::{use_game_state, use_session_state, TimeMode, TimeSuggestionData};
 
 /// Time Control Panel component for DM view
@@ -17,6 +19,7 @@ use crate::presentation::state::{use_game_state, use_session_state, TimeMode, Ti
 pub fn TimeControlPanel() -> Element {
     let game_state = use_game_state();
     let session_state = use_session_state();
+    let command_bus = use_command_bus();
 
     let game_time = game_state.game_time.read().clone();
     let time_mode = game_state.time_mode.read().clone();
@@ -102,12 +105,11 @@ pub fn TimeControlPanel() -> Element {
                 button {
                     onclick: move |_| {
                         // Quick skip to next period
-                        if let Some(client) = session_state.engine_client().read().as_ref() {
-                            if let Some(ref gt) = game_time {
-                                if let Some(world_id) = *session_state.world_id().read() {
-                                    let next_period = time_of_day(gt.clone()).to_string();
-                                    let _ = client.skip_to_period(&world_id.to_string(), &next_period);
-                                }
+                        if let Some(ref gt) = game_time {
+                            if let Some(world_id) = *session_state.world_id().read() {
+                                let next_period = time_of_day(gt.clone()).to_string();
+                                let msg = ClientMessageBuilder::skip_to_period(&world_id.to_string(), &next_period);
+                                let _ = command_bus.send(msg);
                             }
                         }
                     },
@@ -190,7 +192,7 @@ fn TimeDisplay(game_time: GameTime) -> Element {
 /// Card for a pending time suggestion
 #[component]
 fn TimeSuggestionCard(suggestion: TimeSuggestionData) -> Element {
-    let session_state = use_session_state();
+    let command_bus = use_command_bus();
     let mut game_state = use_game_state();
     let mut custom_minutes = use_signal(|| suggestion.suggested_minutes);
 
@@ -201,8 +203,8 @@ fn TimeSuggestionCard(suggestion: TimeSuggestionData) -> Element {
     let suggestion_id_skip = suggestion.suggestion_id.clone();
 
     // Clone for the second closure
-    let session_state_skip = session_state.clone();
     let mut game_state_skip = game_state.clone();
+    let command_bus_skip = command_bus.clone();
 
     rsx! {
         div {
@@ -260,14 +262,13 @@ fn TimeSuggestionCard(suggestion: TimeSuggestionData) -> Element {
                 button {
                     onclick: move |_| {
                         let minutes = *custom_minutes.read();
-                        if let Some(client) = session_state.engine_client().read().as_ref() {
-                            // Use the time suggestion response method
-                            let _ = client.respond_to_time_suggestion(
-                                &suggestion_id_approve,
-                                "approve",
-                                Some(minutes),
-                            );
-                        }
+                        // Use the time suggestion response method via CommandBus
+                        let msg = ClientMessageBuilder::respond_to_time_suggestion(
+                            &suggestion_id_approve,
+                            "approve",
+                            Some(minutes),
+                        );
+                        let _ = command_bus.send(msg);
                         game_state.remove_time_suggestion(&suggestion_id_approve);
                     },
                     class: "flex-1 px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white text-sm rounded transition-colors",
@@ -276,9 +277,8 @@ fn TimeSuggestionCard(suggestion: TimeSuggestionData) -> Element {
 
                 button {
                     onclick: move |_| {
-                        if let Some(client) = session_state_skip.engine_client().read().as_ref() {
-                            let _ = client.respond_to_time_suggestion(&suggestion_id_skip, "skip", None);
-                        }
+                        let msg = ClientMessageBuilder::respond_to_time_suggestion(&suggestion_id_skip, "skip", None);
+                        let _ = command_bus_skip.send(msg);
                         game_state_skip.remove_time_suggestion(&suggestion_id_skip);
                     },
                     class: "px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded transition-colors",
@@ -293,6 +293,7 @@ fn TimeSuggestionCard(suggestion: TimeSuggestionData) -> Element {
 #[component]
 fn AdvanceTimeModal(on_close: EventHandler<()>) -> Element {
     let session_state = use_session_state();
+    let command_bus = use_command_bus();
     let mut hours = use_signal(|| 1u32);
     let mut reason = use_signal(|| "DM advanced time".to_string());
 
@@ -368,10 +369,9 @@ fn AdvanceTimeModal(on_close: EventHandler<()>) -> Element {
                         onclick: move |_| {
                             let h = *hours.read();
                             let r = reason.read().clone();
-                            if let Some(client) = session_state.engine_client().read().as_ref() {
-                                if let Some(world_id) = *session_state.world_id().read() {
-                                    let _ = client.advance_time(&world_id.to_string(), h * 60, &r);
-                                }
+                            if let Some(world_id) = *session_state.world_id().read() {
+                                let msg = ClientMessageBuilder::advance_time(&world_id.to_string(), h * 60, &r);
+                                let _ = command_bus.send(msg);
                             }
                             on_close.call(());
                         },
@@ -394,6 +394,7 @@ fn AdvanceTimeModal(on_close: EventHandler<()>) -> Element {
 #[component]
 fn SetTimeModal(current_time: Option<GameTime>, on_close: EventHandler<()>) -> Element {
     let session_state = use_session_state();
+    let command_bus = use_command_bus();
 
     let initial_day = current_time.as_ref().map(|t| t.day).unwrap_or(1);
     let initial_hour = current_time.as_ref().map(|t| t.hour).unwrap_or(8);
@@ -484,10 +485,9 @@ fn SetTimeModal(current_time: Option<GameTime>, on_close: EventHandler<()>) -> E
                         onclick: move |_| {
                             let d = *day.read();
                             let h = *hour.read();
-                            if let Some(client) = session_state.engine_client().read().as_ref() {
-                                if let Some(world_id) = *session_state.world_id().read() {
-                                    let _ = client.set_game_time(&world_id.to_string(), d, h);
-                                }
+                            if let Some(world_id) = *session_state.world_id().read() {
+                                let msg = ClientMessageBuilder::set_game_time(&world_id.to_string(), d, h);
+                                let _ = command_bus.send(msg);
                             }
                             on_close.call(());
                         },

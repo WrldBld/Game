@@ -4,9 +4,10 @@
 //! between WASM and Desktop adapters. Both adapters share identical message
 //! construction logic - only the send mechanism differs.
 
+use uuid::Uuid;
 use wrldbldr_protocol::{
     AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecisionData, ClientMessage,
-    DiceInputType, DirectorialContext, NpcRequest, RequestPayload, TimeRequest,
+    DiceInputType, DirectorialContext, NpcRequest, RequestPayload, TimeRequest, WorldRole,
 };
 
 /// Builder for ClientMessage variants
@@ -25,6 +26,25 @@ use wrldbldr_protocol::{
 pub struct ClientMessageBuilder;
 
 impl ClientMessageBuilder {
+    // =========================================================================
+    // Session Messages
+    // =========================================================================
+
+    /// Create a JoinWorld message
+    pub fn join_world(
+        world_id: Uuid,
+        role: WorldRole,
+        pc_id: Option<Uuid>,
+        spectate_pc_id: Option<Uuid>,
+    ) -> ClientMessage {
+        ClientMessage::JoinWorld {
+            world_id,
+            role,
+            pc_id,
+            spectate_pc_id,
+        }
+    }
+
     // =========================================================================
     // Scene / Directorial Messages
     // =========================================================================
@@ -208,6 +228,55 @@ impl ClientMessageBuilder {
         ClientMessage::PickupItem {
             pc_id: pc_id.to_string(),
             item_id: item_id.to_string(),
+        }
+    }
+
+    // =========================================================================
+    // Player Action Messages
+    // =========================================================================
+
+    /// Create a PlayerAction message
+    pub fn player_action(
+        action_type: &str,
+        target: Option<&str>,
+        dialogue: Option<&str>,
+    ) -> ClientMessage {
+        ClientMessage::PlayerAction {
+            action_type: action_type.to_string(),
+            target: target.map(|s| s.to_string()),
+            dialogue: dialogue.map(|s| s.to_string()),
+        }
+    }
+
+    // =========================================================================
+    // Conversation Messages
+    // =========================================================================
+
+    /// Create a StartConversation message
+    pub fn start_conversation(npc_id: &str, message: &str) -> ClientMessage {
+        ClientMessage::StartConversation {
+            npc_id: npc_id.to_string(),
+            message: message.to_string(),
+        }
+    }
+
+    /// Create a ContinueConversation message
+    pub fn continue_conversation(
+        npc_id: &str,
+        message: &str,
+        conversation_id: Option<&str>,
+    ) -> ClientMessage {
+        ClientMessage::ContinueConversation {
+            npc_id: npc_id.to_string(),
+            message: message.to_string(),
+            conversation_id: conversation_id.map(|s| s.to_string()),
+        }
+    }
+
+    /// Create a PerformInteraction message
+    pub fn perform_interaction(interaction_id: &str) -> ClientMessage {
+        ClientMessage::PerformInteraction {
+            interaction_id: interaction_id.to_string(),
         }
     }
 

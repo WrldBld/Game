@@ -168,16 +168,30 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
         // =====================================================================
         // Dialogue Events
         // =====================================================================
+        ServerMessage::ConversationStarted {
+            conversation_id,
+            npc_id,
+            npc_name,
+            npc_disposition,
+        } => PlayerEvent::ConversationStarted {
+            conversation_id,
+            npc_id,
+            npc_name,
+            npc_disposition,
+        },
+
         ServerMessage::DialogueResponse {
             speaker_id,
             speaker_name,
             text,
             choices,
+            conversation_id,
         } => PlayerEvent::DialogueResponse {
             speaker_id,
             speaker_name,
             text,
             choices, // Direct assignment - same type now
+            conversation_id,
         },
 
         ServerMessage::ConversationEnded {
@@ -185,11 +199,13 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             npc_name,
             pc_id,
             summary,
+            conversation_id,
         } => PlayerEvent::ConversationEnded {
             npc_id,
             npc_name,
             pc_id,
             summary,
+            conversation_id,
         },
 
         ServerMessage::ResponseApproved {

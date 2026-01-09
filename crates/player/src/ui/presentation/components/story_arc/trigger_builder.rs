@@ -148,16 +148,16 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
 
     // Load schema on mount
     {
-        let conn = services.connection.clone();
+        let commands = services.command_bus.clone();
         use_effect(move || {
-            let conn = conn.clone();
+            let commands = commands.clone();
             spawn(async move {
                 schema_loading.set(true);
                 schema_error.set(None);
 
                 let payload =
                     RequestPayload::NarrativeEvent(NarrativeEventRequest::GetTriggerSchema);
-                match conn.request(payload).await {
+                match commands.request(payload).await {
                     Ok(response) => match response {
                         wrldbldr_protocol::ResponseResult::Success { data } => {
                             if let Some(json_data) = data {

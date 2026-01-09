@@ -12,8 +12,8 @@ use wrldbldr_protocol::{
     ClientMessage, ParticipantRole, RequestError, RequestPayload, ResponseResult, ServerMessage,
 };
 
+use crate::infrastructure::messaging::ConnectionState;
 use crate::infrastructure::session_type_converters::participant_role_to_world_role;
-use crate::infrastructure::websocket::protocol::ConnectionState;
 use crate::infrastructure::websocket::shared::{parse_server_message, ParsedServerMessage};
 use crate::infrastructure::websocket::{BackoffState, PendingRequests};
 

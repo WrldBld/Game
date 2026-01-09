@@ -8,7 +8,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerActionData, PlayerCharacterId, WorldId};
 
-use crate::entities::{Character, PlayerCharacter, Staging, World};
+use crate::entities::{Character, Narrative, PlayerCharacter, Staging, World};
 use crate::infrastructure::ports::{ClockPort, QueuePort};
 
 // Re-use the shared ConversationError from start.rs
@@ -21,6 +21,8 @@ pub struct ConversationContinued {
     pub action_queue_id: Uuid,
     /// The conversation is still active
     pub conversation_active: bool,
+    /// The conversation ID for tracking
+    pub conversation_id: Option<Uuid>,
 }
 
 /// Continue conversation use case.
@@ -31,6 +33,7 @@ pub struct ContinueConversation {
     player_character: Arc<PlayerCharacter>,
     staging: Arc<Staging>,
     world: Arc<World>,
+    narrative: Arc<Narrative>,
     queue: Arc<dyn QueuePort>,
     clock: Arc<dyn ClockPort>,
 }
@@ -41,6 +44,7 @@ impl ContinueConversation {
         player_character: Arc<PlayerCharacter>,
         staging: Arc<Staging>,
         world: Arc<World>,
+        narrative: Arc<Narrative>,
         queue: Arc<dyn QueuePort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
@@ -49,6 +53,7 @@ impl ContinueConversation {
             player_character,
             staging,
             world,
+            narrative,
             queue,
             clock,
         }
@@ -62,6 +67,7 @@ impl ContinueConversation {
     /// * `npc_id` - The NPC being spoken to
     /// * `player_id` - The player's user ID
     /// * `player_message` - The player's response message
+    /// * `conversation_id` - Optional conversation ID (if not provided, looks up active conversation)
     ///
     /// # Returns
     /// * `Ok(ConversationContinued)` - Response queued for processing
@@ -73,6 +79,7 @@ impl ContinueConversation {
         npc_id: CharacterId,
         player_id: String,
         player_message: String,
+        conversation_id: Option<Uuid>,
     ) -> Result<ConversationContinued, ConversationError> {
         // 1. Validate the player character exists
         let pc = self
@@ -114,7 +121,19 @@ impl ContinueConversation {
             return Err(ConversationError::NpcLeftRegion);
         }
 
-        // 4. Enqueue the player action for processing
+        // 4. Resolve conversation_id: use provided one or look up active conversation
+        let resolved_conversation_id = if let Some(id) = conversation_id {
+            Some(id)
+        } else {
+            // Look up active conversation between PC and NPC
+            self.narrative
+                .get_active_conversation_id(pc_id, npc_id)
+                .await
+                .ok()
+                .flatten()
+        };
+
+        // 5. Enqueue the player action for processing
         let action_data = PlayerActionData {
             world_id,
             player_id,
@@ -123,6 +142,7 @@ impl ContinueConversation {
             target: Some(npc.name.clone()),
             dialogue: Some(player_message),
             timestamp: self.clock.now(),
+            conversation_id: resolved_conversation_id,
         };
 
         let action_queue_id = self
@@ -134,6 +154,7 @@ impl ContinueConversation {
         Ok(ConversationContinued {
             action_queue_id,
             conversation_active: true,
+            conversation_id: resolved_conversation_id,
         })
     }
 }

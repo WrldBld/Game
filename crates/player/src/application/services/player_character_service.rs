@@ -2,15 +2,13 @@
 //!
 //! This service provides use case implementations for creating, updating,
 //! and fetching player characters via WebSocket request/response pattern.
-//! All operations use the GameConnectionPort for real-time communication.
-
-use std::sync::Arc;
+//! All operations use the CommandBus for real-time communication.
 
 use serde::{Deserialize, Serialize};
 
 use crate::application::dto::CharacterSheetDataApi;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
-use crate::ports::outbound::GameConnectionPort;
+use crate::infrastructure::messaging::CommandBus;
 use wrldbldr_protocol::{PlayerCharacterRequest, RequestPayload};
 
 /// Full player character data
@@ -88,16 +86,16 @@ impl From<&UpdatePlayerCharacterRequest> for wrldbldr_protocol::UpdatePlayerChar
 /// Player character service for managing player characters
 ///
 /// This service provides methods for player character-related operations
-/// using WebSocket request/response pattern via the `GameConnectionPort`.
+/// using WebSocket request/response pattern via the `CommandBus`.
 #[derive(Clone)]
 pub struct PlayerCharacterService {
-    connection: Arc<dyn GameConnectionPort>,
+    commands: CommandBus,
 }
 
 impl PlayerCharacterService {
-    /// Create a new PlayerCharacterService with the given connection
-    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
-        Self { connection }
+    /// Create a new PlayerCharacterService with the given command bus
+    pub fn new(commands: CommandBus) -> Self {
+        Self { commands }
     }
 
     /// Create a new player character
@@ -107,7 +105,7 @@ impl PlayerCharacterService {
         request: &CreatePlayerCharacterRequest,
     ) -> Result<PlayerCharacterData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::PlayerCharacter(PlayerCharacterRequest::CreatePlayerCharacter {
                     world_id: world_id.to_string(),
@@ -127,7 +125,7 @@ impl PlayerCharacterService {
         user_id: &str,
     ) -> Result<Option<PlayerCharacterData>, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::PlayerCharacter(PlayerCharacterRequest::GetMyPlayerCharacter {
                     world_id: world_id.to_string(),
@@ -143,7 +141,7 @@ impl PlayerCharacterService {
     /// Get a player character by ID
     pub async fn get_pc(&self, pc_id: &str) -> Result<PlayerCharacterData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::PlayerCharacter(PlayerCharacterRequest::GetPlayerCharacter {
                     pc_id: pc_id.to_string(),
@@ -158,7 +156,7 @@ impl PlayerCharacterService {
     /// List all player characters in a world
     pub async fn list_pcs(&self, world_id: &str) -> Result<Vec<PlayerCharacterData>, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::PlayerCharacter(PlayerCharacterRequest::ListPlayerCharacters {
                     world_id: world_id.to_string(),
@@ -177,7 +175,7 @@ impl PlayerCharacterService {
         request: &UpdatePlayerCharacterRequest,
     ) -> Result<PlayerCharacterData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::PlayerCharacter(PlayerCharacterRequest::UpdatePlayerCharacter {
                     pc_id: pc_id.to_string(),
@@ -197,7 +195,7 @@ impl PlayerCharacterService {
         region_id: &str,
     ) -> Result<UpdateLocationResponse, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::PlayerCharacter(
                     PlayerCharacterRequest::UpdatePlayerCharacterLocation {
@@ -215,7 +213,7 @@ impl PlayerCharacterService {
     /// Delete a player character
     pub async fn delete_pc(&self, pc_id: &str) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::PlayerCharacter(PlayerCharacterRequest::DeletePlayerCharacter {
                     pc_id: pc_id.to_string(),

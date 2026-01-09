@@ -344,6 +344,45 @@ impl Narrative {
         self.repo.get_dialogues_with_npc(pc_id, npc_id, limit).await
     }
 
+    /// Get conversation turns for LLM context.
+    ///
+    /// Returns ConversationTurn records from the active conversation between
+    /// PC and NPC, in chronological order (oldest first). These are formatted
+    /// for use in LLM prompts.
+    ///
+    /// # Arguments
+    /// * `pc_id` - The player character ID
+    /// * `npc_id` - The NPC character ID
+    /// * `limit` - Maximum number of turns to return
+    pub async fn get_conversation_turns(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        limit: usize,
+    ) -> Result<Vec<domain::ConversationTurn>, RepoError> {
+        let records = self.repo.get_conversation_turns(pc_id, npc_id, limit).await?;
+
+        // Convert ConversationTurnRecord to ConversationTurn
+        let turns = records
+            .into_iter()
+            .map(|r| domain::ConversationTurn {
+                speaker: r.speaker,
+                text: r.text,
+            })
+            .collect();
+
+        Ok(turns)
+    }
+
+    /// Get the active conversation ID between PC and NPC (if one exists).
+    pub async fn get_active_conversation_id(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+    ) -> Result<Option<uuid::Uuid>, RepoError> {
+        self.repo.get_active_conversation_id(pc_id, npc_id).await
+    }
+
     // =========================================================================
     // Triggers
     // =========================================================================

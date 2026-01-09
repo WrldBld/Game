@@ -401,12 +401,14 @@ mod tests {
                 is_present: true,
                 reasoning: Some("Plot requirement".to_string()),
                 is_hidden_from_players: false,
+                mood: None,
             },
             ApprovedNpcInfo {
                 character_id: "npc-456".to_string(),
                 is_present: true,
                 reasoning: None,
                 is_hidden_from_players: true,
+                mood: Some("cheerful".to_string()),
             },
         ];
 

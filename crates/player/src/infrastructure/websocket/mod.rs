@@ -1,30 +1,30 @@
 //! WebSocket client for Engine connection
 //!
 //! Platform-specific implementations are in submodules:
-//! - `desktop`: tokio-tungstenite based client
-//! - `wasm`: web-sys WebSocket based client
+//! - `desktop`: tokio-tungstenite based client (EngineClient)
+//! - `wasm`: web-sys WebSocket based client (EngineClient)
 //! - `message_builder`: shared ClientMessage construction logic
+//! - `bridge`: CommandBus/EventBus connection
 
+mod bridge;
 mod core;
 mod message_builder;
 mod protocol;
 mod shared;
 
 #[cfg(not(target_arch = "wasm32"))]
-mod desktop;
+pub(crate) mod desktop;
 
 #[cfg(target_arch = "wasm32")]
-mod wasm;
+pub(crate) mod wasm;
 
 // Re-export shared types
 pub use message_builder::ClientMessageBuilder;
-pub use protocol::ConnectionState;
+
+// Re-export bridge
+pub use bridge::{create_connection, Connection};
+
+// Re-export ConnectionState from messaging (canonical location)
+pub use crate::infrastructure::messaging::ConnectionState;
 
 pub(crate) use core::*;
-
-// Re-export platform-specific types with unified names
-#[cfg(not(target_arch = "wasm32"))]
-pub use desktop::{DesktopGameConnection as EngineGameConnection, EngineClient};
-
-#[cfg(target_arch = "wasm32")]
-pub use wasm::{EngineClient, WasmGameConnection as EngineGameConnection};

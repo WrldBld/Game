@@ -2,47 +2,26 @@
 //!
 //! Platform-agnostic types used by both desktop and WASM implementations.
 
-use crate::ports::outbound::ConnectionState as PortConnectionState;
+use crate::infrastructure::messaging::ConnectionState;
 
-/// Infrastructure-level connection state
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConnectionState {
-    Disconnected,
-    Connecting,
-    Connected,
-    Reconnecting,
-    Failed,
-}
-
-/// Map infrastructure state to port state
-pub fn map_state(state: ConnectionState) -> PortConnectionState {
+/// Convert connection state to atomic-friendly u8
+pub fn state_to_u8(state: ConnectionState) -> u8 {
     match state {
-        ConnectionState::Disconnected => PortConnectionState::Disconnected,
-        ConnectionState::Connecting => PortConnectionState::Connecting,
-        ConnectionState::Connected => PortConnectionState::Connected,
-        ConnectionState::Reconnecting => PortConnectionState::Reconnecting,
-        ConnectionState::Failed => PortConnectionState::Failed,
+        ConnectionState::Disconnected => 0,
+        ConnectionState::Connecting => 1,
+        ConnectionState::Connected => 2,
+        ConnectionState::Reconnecting => 3,
+        ConnectionState::Failed => 4,
     }
 }
 
-/// Convert port state to atomic-friendly u8
-pub fn state_to_u8(state: PortConnectionState) -> u8 {
-    match state {
-        PortConnectionState::Disconnected => 0,
-        PortConnectionState::Connecting => 1,
-        PortConnectionState::Connected => 2,
-        PortConnectionState::Reconnecting => 3,
-        PortConnectionState::Failed => 4,
-    }
-}
-
-/// Convert u8 back to port state
-pub fn u8_to_state(v: u8) -> PortConnectionState {
+/// Convert u8 back to connection state
+pub fn u8_to_state(v: u8) -> ConnectionState {
     match v {
-        1 => PortConnectionState::Connecting,
-        2 => PortConnectionState::Connected,
-        3 => PortConnectionState::Reconnecting,
-        4 => PortConnectionState::Failed,
-        _ => PortConnectionState::Disconnected,
+        1 => ConnectionState::Connecting,
+        2 => ConnectionState::Connected,
+        3 => ConnectionState::Reconnecting,
+        4 => ConnectionState::Failed,
+        _ => ConnectionState::Disconnected,
     }
 }

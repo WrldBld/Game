@@ -8,7 +8,8 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ports::outbound::{ApiError, GameConnectionPort, RawApiPort};
+use crate::infrastructure::messaging::CommandBus;
+use crate::ports::outbound::{ApiError, RawApiPort};
 use wrldbldr_protocol::ErrorCode;
 use wrldbldr_protocol::{RequestPayload, WorldRequest};
 
@@ -26,17 +27,17 @@ pub struct WorldSummary {
 /// World service for managing worlds
 ///
 /// This service provides methods for world-related operations.
-/// Most operations use WebSocket via `GameConnectionPort`, while
+/// Most operations use WebSocket via `CommandBus`, while
 /// a few REST-only endpoints use `RawApiPort`.
 pub struct WorldService {
-    connection: Arc<dyn GameConnectionPort>,
+    commands: CommandBus,
     api: Arc<dyn RawApiPort>,
 }
 
 impl WorldService {
-    /// Create a new WorldService with the given ports
-    pub fn new(connection: Arc<dyn GameConnectionPort>, api: Arc<dyn RawApiPort>) -> Self {
-        Self { connection, api }
+    /// Create a new WorldService with the given command bus and API port
+    pub fn new(commands: CommandBus, api: Arc<dyn RawApiPort>) -> Self {
+        Self { commands, api }
     }
 
     /// List all available worlds
@@ -55,7 +56,7 @@ impl WorldService {
     /// Get a world by ID (returns basic info)
     pub async fn get_world(&self, id: &str) -> Result<Option<WorldSummary>, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::World(WorldRequest::GetWorld {
                     world_id: id.to_string(),
@@ -89,7 +90,7 @@ impl WorldService {
         };
 
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::World(WorldRequest::CreateWorld {
                     data: request.into(),
@@ -110,7 +111,7 @@ impl WorldService {
     /// Delete a world by ID
     pub async fn delete_world(&self, id: &str) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::World(WorldRequest::DeleteWorld {
                     world_id: id.to_string(),
@@ -143,7 +144,7 @@ impl WorldService {
         world_id: &str,
     ) -> Result<serde_json::Value, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::World(WorldRequest::GetSheetTemplate {
                     world_id: world_id.to_string(),
@@ -158,7 +159,7 @@ impl WorldService {
 impl Clone for WorldService {
     fn clone(&self) -> Self {
         Self {
-            connection: Arc::clone(&self.connection),
+            commands: self.commands.clone(),
             api: Arc::clone(&self.api),
         }
     }

@@ -74,6 +74,7 @@ pub struct ProcessPlayerAction {
     staging: Arc<crate::entities::Staging>,
     scene: Arc<crate::entities::Scene>,
     world: Arc<crate::entities::World>,
+    narrative: Arc<crate::entities::Narrative>,
 }
 
 impl ProcessPlayerAction {
@@ -84,6 +85,7 @@ impl ProcessPlayerAction {
         staging: Arc<crate::entities::Staging>,
         scene: Arc<crate::entities::Scene>,
         world: Arc<crate::entities::World>,
+        narrative: Arc<crate::entities::Narrative>,
     ) -> Self {
         Self {
             queue,
@@ -92,6 +94,7 @@ impl ProcessPlayerAction {
             staging,
             scene,
             world,
+            narrative,
         }
     }
 
@@ -132,6 +135,7 @@ impl ProcessPlayerAction {
             prompt: Some(prompt),
             suggestion_context: None,
             callback_id: item.id.to_string(),
+            conversation_id: action_data.conversation_id,
         };
 
         // Enqueue the LLM request
@@ -246,12 +250,30 @@ impl ProcessPlayerAction {
             pc_name, target_name, dialogue, target_name
         );
 
+        // Fetch conversation history if we have both PC and NPC IDs
+        // Default limit is 20 turns (can be made configurable via settings)
+        let conversation_history = match (action_data.pc_id, npc_id) {
+            (Some(pc_id), Some(npc_id)) => {
+                self.narrative
+                    .get_conversation_turns(pc_id, npc_id, 20)
+                    .await
+                    .unwrap_or_else(|e| {
+                        tracing::warn!(
+                            error = %e,
+                            "Failed to fetch conversation history, using empty"
+                        );
+                        vec![]
+                    })
+            }
+            _ => vec![],
+        };
+
         Ok(GamePromptRequest {
             world_id: Some(action_data.world_id.to_string()),
             player_action,
             scene_context,
             directorial_notes,
-            conversation_history: vec![],
+            conversation_history,
             responding_character,
             active_challenges: vec![],
             active_narrative_events: vec![],
@@ -611,6 +633,7 @@ impl ProcessLlmRequest {
                     location_id,
                     game_time,
                     topics: vec![],
+                    conversation_id: request_data.conversation_id,
                 };
 
                 // Enqueue for DM approval

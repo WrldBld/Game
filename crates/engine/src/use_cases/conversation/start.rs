@@ -139,6 +139,7 @@ impl StartConversation {
             target: Some(npc.name.clone()),
             dialogue: Some(initial_dialogue),
             timestamp: self.clock.now(),
+            conversation_id: Some(conversation_id),
         };
 
         let action_queue_id = self

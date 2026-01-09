@@ -77,6 +77,7 @@ impl HandlePlayerAction {
             target: target_npc.map(|id| id.to_string()),
             dialogue,
             timestamp: self.clock.now(),
+            conversation_id: None,
         };
 
         let action_id = self

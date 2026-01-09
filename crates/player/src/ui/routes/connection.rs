@@ -44,10 +44,8 @@ pub fn ensure_connection(
     let needs_restart = world_mismatch || role_mismatch;
 
     if needs_restart {
-        if let Some(client) = session_state.engine_client().read().as_ref() {
-            client.disconnect();
-        }
-        // Only reset connection-related state; let view-specific state persist.
+        // Request disconnect from the session service if stored
+        // The session service handles its own cleanup
         let mut session_state_reset = session_state.clone();
         session_state_reset.set_disconnected();
     }
@@ -93,8 +91,8 @@ pub fn ensure_connection(
 /// Initiate WebSocket connection (platform-agnostic)
 ///
 /// This spawns an async task that:
-/// 1. Creates a GameConnectionPort via the platform
-/// 2. Sets up SessionService with event callbacks
+/// 1. Creates a SessionService with the server URL
+/// 2. Subscribes to events with auto-join
 /// 3. Processes events in a loop until the connection closes
 fn initiate_connection(
     server_url: String,
@@ -116,51 +114,42 @@ fn initiate_connection(
     spawn(async move {
         use futures_util::StreamExt;
 
-        // Use the platform's connection factory to create a game connection
-        let connection = platform.create_game_connection(&server_url);
-        session_state.set_connection_handle(connection.clone());
-        let session_service = SessionService::new(connection.clone());
+        // Create session service with URL - this establishes the connection
+        let session_service = SessionService::new(&server_url);
 
-        match session_service.connect(user_id, role, world_id).await {
-            Ok(mut rx) => {
-                // Process events from the stream
-                while let Some(event) = rx.next().await {
-                    crate::presentation::handlers::handle_session_event(
-                        event,
-                        &mut session_state,
-                        &mut game_state,
-                        &mut dialogue_state,
-                        &mut generation_state,
-                        &mut lore_state,
-                        platform.as_ref(),
-                    );
-                }
+        // Subscribe to events with auto-join behavior
+        let mut rx = session_service
+            .subscribe_with_auto_join(user_id, role.into(), world_id)
+            .await;
 
-                tracing::info!("Event channel closed");
-            }
-            Err(e) => {
-                tracing::error!("Connection failed: {}", e);
-                session_state.set_failed(e.to_string());
-            }
+        // Process events from the stream
+        while let Some(event) = rx.next().await {
+            crate::presentation::handlers::handle_session_event(
+                event,
+                &mut session_state,
+                &mut game_state,
+                &mut dialogue_state,
+                &mut generation_state,
+                &mut lore_state,
+                platform.as_ref(),
+            );
         }
+
+        tracing::info!("Event channel closed");
     });
 }
 
 /// Handle disconnection and cleanup
 ///
-/// Disconnects the WebSocket client and clears all session-related state.
+/// Clears all session-related state. The session service handles
+/// actual WebSocket disconnection when dropped.
 pub fn handle_disconnect(
     mut session_state: SessionState,
     mut game_state: GameState,
     mut dialogue_state: DialogueState,
     mut lore_state: LoreState,
 ) {
-    // Disconnect client if present
-    if let Some(client) = session_state.engine_client().read().as_ref() {
-        client.disconnect();
-    }
-
-    // Clear all state
+    // Clear all state - the session service will disconnect when dropped
     session_state.clear();
     game_state.clear();
     dialogue_state.clear();

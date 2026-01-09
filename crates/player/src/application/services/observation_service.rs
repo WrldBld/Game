@@ -2,12 +2,10 @@
 //!
 //! US-OBS-004/005: Fetch and manage PC observations of NPCs via WebSocket.
 
-use std::sync::Arc;
-
 use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
-use crate::ports::outbound::GameConnectionPort;
+use crate::infrastructure::messaging::CommandBus;
 use wrldbldr_protocol::{ObservationRequest, RequestPayload};
 
 /// Summary of an NPC observation from the engine
@@ -27,16 +25,16 @@ pub struct ObservationSummary {
 /// Observation service for managing NPC observations
 ///
 /// This service provides methods for observation-related operations
-/// using WebSocket request/response pattern via the `GameConnectionPort`.
+/// using WebSocket request/response pattern via the `CommandBus`.
 #[derive(Clone)]
 pub struct ObservationService {
-    connection: Arc<dyn GameConnectionPort>,
+    commands: CommandBus,
 }
 
 impl ObservationService {
-    /// Create a new ObservationService with the given connection
-    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
-        Self { connection }
+    /// Create a new ObservationService with the given command bus
+    pub fn new(commands: CommandBus) -> Self {
+        Self { commands }
     }
 
     /// Get all observations for a player character
@@ -45,7 +43,7 @@ impl ObservationService {
         pc_id: &str,
     ) -> Result<Vec<ObservationSummary>, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Observation(ObservationRequest::ListObservations {
                     pc_id: pc_id.to_string(),

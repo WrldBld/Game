@@ -4,13 +4,13 @@
 //! for deterministic testing.
 
 use crate::ports::outbound::platform::{
-    ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider,
-    SleepProvider, StorageProvider, TimeProvider,
+    DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider, SleepProvider,
+    StorageProvider, TimeProvider,
 };
 use crate::state::Platform;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use std::{future::Future, pin::Pin};
+use std::sync::RwLock;
+use std::{future::Future, pin::Pin, sync::Arc};
 
 /// Mock time provider with controllable time
 #[derive(Clone)]
@@ -280,27 +280,6 @@ impl EngineConfigProvider for MockEngineConfigProvider {
     }
 }
 
-/// Mock connection factory provider
-#[derive(Clone, Default)]
-pub struct MockConnectionFactoryProvider;
-
-impl MockConnectionFactoryProvider {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl ConnectionFactoryProvider for MockConnectionFactoryProvider {
-    fn create_game_connection(
-        &self,
-        _server_url: &str,
-    ) -> Arc<dyn crate::ports::outbound::GameConnectionPort> {
-        // For testing, we would need a mock GameConnectionPort implementation
-        // For now, this will panic if called - tests that need connection should mock it separately
-        panic!("MockConnectionFactoryProvider::create_game_connection called - this should be mocked in tests that need it")
-    }
-}
-
 /// Create a mock platform with default settings for testing
 pub fn create_mock_platform() -> Platform {
     Platform::new(
@@ -311,7 +290,6 @@ pub fn create_mock_platform() -> Platform {
         MockLogProvider::default(),
         MockDocumentProvider::default(),
         MockEngineConfigProvider::default(),
-        MockConnectionFactoryProvider,
     )
 }
 
@@ -324,7 +302,6 @@ pub struct MockPlatformBuilder {
     log: MockLogProvider,
     document: MockDocumentProvider,
     engine_config: MockEngineConfigProvider,
-    connection_factory: MockConnectionFactoryProvider,
 }
 
 impl Default for MockPlatformBuilder {
@@ -343,7 +320,6 @@ impl MockPlatformBuilder {
             log: MockLogProvider::default(),
             document: MockDocumentProvider::default(),
             engine_config: MockEngineConfigProvider::default(),
-            connection_factory: MockConnectionFactoryProvider,
         }
     }
 
@@ -371,7 +347,6 @@ impl MockPlatformBuilder {
             self.log,
             self.document,
             self.engine_config,
-            self.connection_factory,
         )
     }
 }

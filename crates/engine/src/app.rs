@@ -201,6 +201,7 @@ impl App {
             player_character.clone(),
             staging.clone(),
             world.clone(),
+            narrative.clone(),
             queue_port.clone(),
             clock.clone(),
         ));
@@ -314,6 +315,7 @@ impl App {
                 staging.clone(),
                 scene.clone(),
                 world.clone(),
+                narrative.clone(),
             )),
             Arc::new(use_cases::queues::ProcessLlmRequest::new(
                 queue_port.clone(),

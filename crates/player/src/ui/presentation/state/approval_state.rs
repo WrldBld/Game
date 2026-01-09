@@ -15,13 +15,11 @@ const MAX_PENDING_APPROVALS: usize = 50;
 
 /// Maximum number of pending challenge outcomes to retain
 const MAX_PENDING_CHALLENGE_OUTCOMES: usize = 50;
-use std::sync::Arc;
 
 use crate::application::dto::{
     ApprovalDecision, ChallengeSuggestionInfo, NarrativeEventSuggestionInfo, OutcomeBranchData,
     ProposedToolInfo,
 };
-use crate::ports::outbound::GameConnectionPort;
 
 /// A pending approval request from the LLM that the DM needs to review
 #[derive(Debug, Clone, PartialEq)]
@@ -193,23 +191,14 @@ impl ApprovalState {
         }
     }
 
-    /// Record an approval decision: send it to the Engine, log it locally with
-    /// a real timestamp, and remove it from the pending queue.
+    /// Record an approval decision locally: log it in history and remove from pending queue.
+    /// Note: The actual sending to Engine is done via CommandBus through the ApprovalService.
     pub fn record_approval_decision(
         &mut self,
         request_id: String,
         decision: &ApprovalDecision,
         platform: &dyn crate::ports::outbound::PlatformPort,
-        engine_client: &Option<Arc<dyn GameConnectionPort>>,
     ) {
-        // Send to Engine if we have a client
-        if let Some(client) = engine_client.as_ref() {
-            // Use DmControlPort method directly (available via blanket impl)
-            if let Err(e) = client.send_approval_decision(&request_id, decision.clone()) {
-                tracing::error!("Failed to send approval decision: {}", e);
-            }
-        }
-
         // Normalize outcome label
         // Unknown variant is handled as "rejected" at the boundary (forward compatibility)
         let outcome_label = match decision {

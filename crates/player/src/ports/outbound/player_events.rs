@@ -297,12 +297,21 @@ pub enum PlayerEvent {
     // =========================================================================
     // Dialogue Events
     // =========================================================================
+    /// Conversation has started (returned when initiating dialogue)
+    ConversationStarted {
+        conversation_id: String,
+        npc_id: String,
+        npc_name: String,
+        npc_disposition: Option<String>,
+    },
+
     /// NPC dialogue response
     DialogueResponse {
         speaker_id: String,
         speaker_name: String,
         text: String,
         choices: Vec<DialogueChoice>,
+        conversation_id: Option<String>,
     },
 
     /// Conversation has ended
@@ -311,6 +320,7 @@ pub enum PlayerEvent {
         npc_name: String,
         pc_id: String,
         summary: Option<String>,
+        conversation_id: Option<String>,
     },
 
     /// Response was approved and executed
@@ -824,6 +834,7 @@ impl PlayerEvent {
             Self::ActionQueued { .. } => "ActionQueued",
             Self::LLMProcessing { .. } => "LLMProcessing",
             Self::QueueStatus { .. } => "QueueStatus",
+            Self::ConversationStarted { .. } => "ConversationStarted",
             Self::DialogueResponse { .. } => "DialogueResponse",
             Self::ConversationEnded { .. } => "ConversationEnded",
             Self::ResponseApproved { .. } => "ResponseApproved",

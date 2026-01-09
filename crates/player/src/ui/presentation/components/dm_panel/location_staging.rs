@@ -7,9 +7,10 @@ use dioxus::prelude::*;
 
 use crate::application::dto::ApprovedNpcInfo;
 use crate::application::services::CharacterSummary;
-use crate::presentation::services::{use_character_service, use_location_service};
+use crate::infrastructure::websocket::ClientMessageBuilder;
+use crate::presentation::services::{use_character_service, use_command_bus, use_location_service};
 use crate::presentation::state::game_state::RegionStagingStatus;
-use crate::presentation::state::{use_game_state, use_session_state};
+use crate::presentation::state::use_game_state;
 
 /// Region staging status
 #[derive(Clone, PartialEq)]
@@ -53,7 +54,6 @@ pub struct LocationStagingPanelProps {
 pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
     let location_service = use_location_service();
     let character_service = use_character_service();
-    let session_state = use_session_state();
     let game_state = use_game_state();
 
     let mut regions: Signal<Vec<RegionStagingInfo>> = use_signal(Vec::new);
@@ -197,15 +197,14 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
                                                 show_prestage_modal.set(true);
                                             },
                                             on_clear: {
-                                                let session_state_for_clear = use_session_state();
+                                                let command_bus = use_command_bus();
                                                 let region_id_for_clear = region_for_clear.id.clone();
                                                 move |_| {
                                                     tracing::info!("Clearing staging for region {}", region_id_for_clear);
                                                     // Clear staging by pre-staging with empty NPC list
-                                                    if let Some(client) = session_state_for_clear.engine_client().read().as_ref() {
-                                                        if let Err(e) = client.pre_stage_region(&region_id_for_clear, vec![], 1) {
-                                                            tracing::error!("Failed to clear staging: {}", e);
-                                                        }
+                                                    let msg = ClientMessageBuilder::pre_stage_region(&region_id_for_clear, vec![], 1);
+                                                    if let Err(e) = command_bus.send(msg) {
+                                                        tracing::error!("Failed to clear staging: {}", e);
                                                     }
                                                 }
                                             },
@@ -225,29 +224,31 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
                         region: region.clone(),
                         npcs: characters.read().clone(),
                         on_approve: {
-                            let session_state = session_state.clone();
+                            let command_bus = use_command_bus();
                             let region_id = region.id.clone();
                             move |data: PreStageApprovalData| {
                                 tracing::info!("Pre-staging region {} with {} NPCs, TTL {} hours",
                                     region_id, data.approved.len(), data.ttl_hours);
 
-                                // Send pre-stage request to engine
-                                if let Some(client) = session_state.engine_client().read().as_ref() {
-                                    let npcs: Vec<ApprovedNpcInfo> = data.approved
-                                        .into_iter()
-                                        .filter(|(_, is_present, _)| *is_present)
-                                        .map(|(character_id, is_present, is_hidden_from_players)| ApprovedNpcInfo {
+                                // Send pre-stage request to engine via CommandBus
+                                let npcs: Vec<wrldbldr_protocol::ApprovedNpcInfo> = data.approved
+                                    .into_iter()
+                                    .filter(|(_, is_present, _)| *is_present)
+                                    .map(|(character_id, is_present, is_hidden_from_players)| {
+                                        let local = ApprovedNpcInfo {
                                             character_id,
                                             is_present,
                                             reasoning: None,
                                             is_hidden_from_players,
                                             mood: None, // Use character's default_mood
-                                        })
-                                        .collect();
+                                        };
+                                        local.into()
+                                    })
+                                    .collect();
 
-                                    if let Err(e) = client.pre_stage_region(&region_id, npcs, data.ttl_hours) {
-                                        tracing::error!("Failed to pre-stage region: {}", e);
-                                    }
+                                let msg = ClientMessageBuilder::pre_stage_region(&region_id, npcs, data.ttl_hours);
+                                if let Err(e) = command_bus.send(msg) {
+                                    tracing::error!("Failed to pre-stage region: {}", e);
                                 }
 
                                 show_prestage_modal.set(false);

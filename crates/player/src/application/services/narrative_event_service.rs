@@ -4,28 +4,26 @@
 //! updating, and managing narrative events (future story events). It uses
 //! WebSocket for real-time communication with the Engine.
 
-use std::sync::Arc;
-
 use wrldbldr_protocol::{NarrativeEventRequest, RequestPayload};
 
 use crate::application::dto::{CreateNarrativeEventRequest, NarrativeEventData};
 use crate::application::error::{get_request_timeout_ms, ParseResponse, ServiceError};
-use crate::ports::outbound::GameConnectionPort;
+use crate::infrastructure::messaging::CommandBus;
 
 /// Narrative event service for managing narrative events
 ///
 /// This service provides methods for narrative event-related operations
-/// while depending only on the `GameConnectionPort` trait, not concrete
+/// while depending only on the `CommandBus`, not concrete
 /// infrastructure implementations.
 #[derive(Clone)]
 pub struct NarrativeEventService {
-    connection: Arc<dyn GameConnectionPort>,
+    commands: CommandBus,
 }
 
 impl NarrativeEventService {
-    /// Create a new NarrativeEventService with the given connection port
-    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
-        Self { connection }
+    /// Create a new NarrativeEventService with the given command bus
+    pub fn new(commands: CommandBus) -> Self {
+        Self { commands }
     }
 
     /// List all narrative events for a world
@@ -37,7 +35,7 @@ impl NarrativeEventService {
             world_id: world_id.to_string(),
         });
         let response = self
-            .connection
+            .commands
             .request_with_timeout(payload, get_request_timeout_ms())
             .await?;
         response.parse()
@@ -67,7 +65,7 @@ impl NarrativeEventService {
             event_id: event_id.to_string(),
         });
         let response = self
-            .connection
+            .commands
             .request_with_timeout(payload, get_request_timeout_ms())
             .await?;
         let event: NarrativeEventData = response.parse()?;
@@ -80,7 +78,7 @@ impl NarrativeEventService {
                 favorite: new_favorite,
             });
         let set_response = self
-            .connection
+            .commands
             .request_with_timeout(set_payload, get_request_timeout_ms())
             .await?;
         set_response.parse_empty()?;
@@ -95,7 +93,7 @@ impl NarrativeEventService {
                 active,
             });
         let response = self
-            .connection
+            .commands
             .request_with_timeout(payload, get_request_timeout_ms())
             .await?;
         response.parse_empty()
@@ -132,7 +130,7 @@ impl NarrativeEventService {
             data,
         });
         let response = self
-            .connection
+            .commands
             .request_with_timeout(payload, get_request_timeout_ms())
             .await?;
         response.parse()
@@ -142,18 +140,30 @@ impl NarrativeEventService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ports::outbound::testing::MockGameConnectionPort;
+    use crate::infrastructure::messaging::{BusMessage, PendingRequests};
+    use std::sync::Arc;
+    use tokio::sync::{mpsc, Mutex};
+
+    fn create_test_command_bus() -> (CommandBus, mpsc::Receiver<BusMessage>) {
+        let (tx, rx) = mpsc::channel(10);
+        let pending = Arc::new(Mutex::new(PendingRequests::default()));
+        (CommandBus::new(tx, pending), rx)
+    }
 
     #[tokio::test]
     async fn list_narrative_events_sends_correct_payload() {
-        let conn = Arc::new(MockGameConnectionPort::new("ws://test/ws"));
-        let conn_dyn: Arc<dyn GameConnectionPort> = conn.clone();
-        let svc = NarrativeEventService::new(conn_dyn);
+        let (commands, mut rx) = create_test_command_bus();
+        let svc = NarrativeEventService::new(commands);
 
-        // The mock will return an empty list
-        let _ = svc.list_narrative_events("world-1").await;
+        // The request will timeout since there's no server, but we can verify a message was sent
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_millis(10),
+            svc.list_narrative_events("world-1"),
+        )
+        .await;
 
-        // In a real test, we'd verify the payload was correct
-        // For now, just ensure it doesn't panic
+        // Verify that a request message was sent
+        let msg = rx.recv().await.unwrap();
+        assert!(matches!(msg, BusMessage::Request { .. }));
     }
 }

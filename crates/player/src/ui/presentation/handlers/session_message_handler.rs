@@ -52,11 +52,27 @@ pub fn handle_server_message(
             game_state.apply_scene_update(scene, characters, interactions);
         }
 
+        PlayerEvent::ConversationStarted {
+            conversation_id: _,
+            npc_id: _,
+            npc_name,
+            npc_disposition: _,
+        } => {
+            // Log the conversation start
+            session_state.add_log_entry(
+                "System".to_string(),
+                format!("Started conversation with {}", npc_name),
+                true,
+                platform,
+            );
+        }
+
         PlayerEvent::DialogueResponse {
             speaker_id,
             speaker_name,
             text,
             choices,
+            conversation_id: _,
         } => {
             // Add to conversation log for DM view
             session_state.add_log_entry(speaker_name.clone(), text.clone(), false, platform);
@@ -69,6 +85,7 @@ pub fn handle_server_message(
             npc_name,
             pc_id: _,
             summary,
+            conversation_id: _,
         } => {
             // Log the conversation end
             let msg = match summary {
@@ -1578,7 +1595,7 @@ pub fn handle_server_message(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ports::outbound::{GameConnectionPort, PlatformPort};
+    use crate::ports::outbound::PlatformPort;
     use dioxus::dioxus_core::NoOpMutations;
     use dioxus::prelude::*;
     use std::{
@@ -1652,10 +1669,6 @@ mod tests {
 
         fn ws_to_http(&self, ws_url: &str) -> String {
             ws_url.to_string()
-        }
-
-        fn create_game_connection(&self, _server_url: &str) -> Arc<dyn GameConnectionPort> {
-            panic!("create_game_connection should not be called in these unit tests")
         }
     }
 

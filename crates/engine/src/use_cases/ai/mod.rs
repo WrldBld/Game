@@ -207,6 +207,7 @@ impl SuggestionOps {
             prompt: None,
             suggestion_context,
             callback_id: callback_id.clone(),
+            conversation_id: None,
         };
 
         self.queue.enqueue_llm_request(&llm_request).await?;

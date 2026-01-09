@@ -24,9 +24,11 @@ use crate::presentation::components::tactical::{
 use crate::presentation::components::visual_novel::{
     Backdrop, CharacterLayer, DialogueBox, EmptyDialogueBox,
 };
+use crate::infrastructure::messaging::CommandBus;
+use crate::infrastructure::websocket::ClientMessageBuilder;
 use crate::presentation::services::{
-    use_character_service, use_location_service, use_observation_service, use_skill_service,
-    use_world_service,
+    use_character_service, use_command_bus, use_location_service, use_observation_service,
+    use_skill_service, use_world_service,
 };
 use crate::presentation::state::{
     use_dialogue_state, use_game_state, use_session_state, use_typewriter_effect,
@@ -42,6 +44,9 @@ pub fn PCView() -> Element {
     let game_state = use_game_state();
     let mut dialogue_state = use_dialogue_state();
     let session_state = use_session_state();
+
+    // Get command bus for sending messages
+    let command_bus = use_command_bus();
 
     // Get services
     let world_service = use_world_service();
@@ -218,12 +223,12 @@ pub fn PCView() -> Element {
                 CharacterLayer {
                     characters: scene_characters,
                     on_character_click: {
-                        let session_state = session_state.clone();
+                        let command_bus = command_bus.clone();
                         move |character_id: String| {
                             tracing::info!("Clicked character: {}", character_id);
                             // Send a talk action when clicking a character
                             if let Err(e) = send_player_action(
-                                &session_state,
+                                &command_bus,
                                 PlayerAction::talk(&character_id, None),
                             ) {
                                 action_error.set(Some(e));
@@ -245,19 +250,19 @@ pub fn PCView() -> Element {
                         is_llm_processing: is_llm_processing,
                         choices: choices,
                         on_choice_selected: {
-                            let session_state = session_state.clone();
+                            let command_bus = command_bus.clone();
                             let mut dialogue_state = dialogue_state.clone();
                             move |choice_id: String| {
-                                if let Err(e) = handle_choice_selected(&session_state, &mut dialogue_state, &choice_id) {
+                                if let Err(e) = handle_choice_selected(&command_bus, &mut dialogue_state, &choice_id) {
                                     action_error.set(Some(e));
                                 }
                             }
                         },
                         on_custom_input: {
-                            let session_state = session_state.clone();
+                            let command_bus = command_bus.clone();
                             let mut dialogue_state = dialogue_state.clone();
                             move |text: String| {
-                                if let Err(e) = handle_custom_input(&session_state, &mut dialogue_state, &text) {
+                                if let Err(e) = handle_custom_input(&command_bus, &mut dialogue_state, &text) {
                                     action_error.set(Some(e));
                                 }
                             }
@@ -279,9 +284,9 @@ pub fn PCView() -> Element {
                 interactions: interactions,
                 disabled: is_llm_processing,
                 on_interaction: {
-                    let session_state = session_state.clone();
+                    let command_bus = command_bus.clone();
                     move |interaction: InteractionData| {
-                        if let Err(e) = handle_interaction(&session_state, &interaction) {
+                        if let Err(e) = handle_interaction(&command_bus, &interaction) {
                             action_error.set(Some(e));
                         }
                     }
@@ -620,10 +625,10 @@ pub fn PCView() -> Element {
                     suggested_dice: challenge.suggested_dice.clone(),
                     rule_system_hint: challenge.rule_system_hint.clone(),
                     on_roll: {
-                        let session_state = session_state.clone();
+                        let command_bus = command_bus.clone();
                         let challenge_id = challenge.challenge_id.clone();
                         move |input: DiceInput| {
-                            if let Err(e) = send_challenge_roll_input(&session_state, &challenge_id, input) {
+                            if let Err(e) = send_challenge_roll_input(&command_bus, &challenge_id, input) {
                                 action_error.set(Some(e));
                             }
                         }
@@ -662,11 +667,11 @@ pub fn PCView() -> Element {
                         current_location_name: current_region.as_ref().map(|r| r.location_name.clone()).unwrap_or_else(|| "Unknown".to_string()),
                         disabled: is_llm_processing,
                         on_move_to_region: {
-                            let session_state = session_state.clone();
+                            let command_bus = command_bus.clone();
                             let pc_id = selected_pc_id.clone();
                             move |region_id: String| {
                                 if let Some(ref pc) = pc_id {
-                                    if let Err(e) = send_move_to_region(&session_state, pc, &region_id) {
+                                    if let Err(e) = send_move_to_region(&command_bus, pc, &region_id) {
                                         action_error.set(Some(e));
                                     } else {
                                         show_navigation_panel.set(false);
@@ -677,11 +682,11 @@ pub fn PCView() -> Element {
                             }
                         },
                         on_exit_to_location: {
-                            let session_state = session_state.clone();
+                            let command_bus = command_bus.clone();
                             let pc_id = selected_pc_id.clone();
                             move |(location_id, arrival_region_id): (String, String)| {
                                 if let Some(ref pc) = pc_id {
-                                    if let Err(e) = send_exit_to_location(&session_state, pc, &location_id, Some(&arrival_region_id)) {
+                                    if let Err(e) = send_exit_to_location(&command_bus, pc, &location_id, Some(&arrival_region_id)) {
                                         action_error.set(Some(e));
                                     } else {
                                         show_navigation_panel.set(false);
@@ -708,11 +713,11 @@ pub fn PCView() -> Element {
                         show_inventory_panel.set(false);
                     },
                     on_use_item: Some(EventHandler::new({
-                        let session_state = session_state.clone();
+                        let command_bus = command_bus.clone();
                         move |item_id: String| {
                             tracing::info!("Use item: {}", item_id);
                             if let Err(e) = send_player_action(
-                                &session_state,
+                                &command_bus,
                                 PlayerAction::use_item(&item_id, None),
                             ) {
                                 action_error.set(Some(e));
@@ -720,7 +725,7 @@ pub fn PCView() -> Element {
                         }
                     })),
                     on_toggle_equip: Some(EventHandler::new({
-                        let session_state = session_state.clone();
+                        let command_bus = command_bus.clone();
                         let inventory_items = inventory_items;
                         let pc_id = selected_pc_id.clone();
                         move |item_id: String| {
@@ -737,19 +742,19 @@ pub fn PCView() -> Element {
 
                             if is_equipped {
                                 tracing::info!("Unequip item: {}", item_id);
-                                if let Err(e) = send_unequip_item(&session_state, pc_id, &item_id) {
+                                if let Err(e) = send_unequip_item(&command_bus, pc_id, &item_id) {
                                     action_error.set(Some(e));
                                 }
                             } else {
                                 tracing::info!("Equip item: {}", item_id);
-                                if let Err(e) = send_equip_item(&session_state, pc_id, &item_id) {
+                                if let Err(e) = send_equip_item(&command_bus, pc_id, &item_id) {
                                     action_error.set(Some(e));
                                 }
                             }
                         }
                     })),
                     on_drop_item: Some(EventHandler::new({
-                        let session_state = session_state.clone();
+                        let command_bus = command_bus.clone();
                         let pc_id = selected_pc_id.clone();
                         move |item_id: String| {
                             let Some(ref pc_id) = pc_id else {
@@ -757,7 +762,7 @@ pub fn PCView() -> Element {
                                 return;
                             };
                             tracing::info!("Drop item: {}", item_id);
-                            if let Err(e) = send_drop_item(&session_state, pc_id, &item_id) {
+                            if let Err(e) = send_drop_item(&command_bus, pc_id, &item_id) {
                                 action_error.set(Some(e));
                             }
                         }
@@ -774,12 +779,12 @@ pub fn PCView() -> Element {
                         show_known_npcs_panel.set(false);
                     },
                     on_npc_click: Some(EventHandler::new({
-                        let session_state = session_state.clone();
+                        let command_bus = command_bus.clone();
                         move |npc_id: String| {
                             tracing::info!("Clicked NPC: {}", npc_id);
                             // Could open NPC details or start a talk action
                             if let Err(e) = send_player_action(
-                                &session_state,
+                                &command_bus,
                                 PlayerAction::talk(&npc_id, None),
                             ) {
                                 action_error.set(Some(e));
@@ -812,11 +817,11 @@ pub fn PCView() -> Element {
                         .unwrap_or_default(),
                     is_loading: *is_loading_map.read(),
                     on_region_click: {
-                        let session_state = session_state.clone();
+                        let command_bus = command_bus.clone();
                         let selected_pc_id = selected_pc_id.clone();
                         move |region_id: String| {
                             if let Some(ref pc) = selected_pc_id {
-                                if let Err(e) = send_move_to_region(&session_state, pc, &region_id) {
+                                if let Err(e) = send_move_to_region(&command_bus, pc, &region_id) {
                                     action_error.set(Some(e));
                                 } else {
                                     show_mini_map.set(false);
@@ -860,12 +865,12 @@ pub fn PCView() -> Element {
                     items: game_state.region_items.read().clone(),
                     on_close: move |_| show_region_items_panel.set(false),
                     on_pickup: {
-                        let session_state = session_state.clone();
+                        let command_bus = command_bus.clone();
                         let selected_pc_id = selected_pc_id.clone();
                         move |item_id: String| {
                             if let Some(ref pc_id) = selected_pc_id {
                                 tracing::info!("Pick up item: {} for PC: {}", item_id, pc_id);
-                                if let Err(e) = send_pickup_item(&session_state, pc_id, &item_id) {
+                                if let Err(e) = send_pickup_item(&command_bus, pc_id, &item_id) {
                                     action_error.set(Some(e));
                                 } else {
                                     show_region_items_panel.set(false);
@@ -1057,34 +1062,22 @@ fn ChallengeResultPopup(
     }
 }
 
-/// Send a player action via WebSocket
+/// Send a player action via CommandBus
 /// Returns Ok(()) on success, Err(message) on failure
-fn send_player_action(
-    session_state: &crate::presentation::state::SessionState,
-    action: PlayerAction,
-) -> Result<(), String> {
-    let engine_client_signal = session_state.engine_client();
-    let client_binding = engine_client_signal.read();
-    if let Some(ref client) = *client_binding {
-        // Use GameConnectionPort::send_action directly
-        if let Err(e) = client.send_action(
-            action.action_type.as_str(),
-            action.target.as_deref(),
-            action.dialogue.as_deref(),
-        ) {
-            tracing::error!("Failed to send action: {}", e);
-            return Err(format!("Failed to send action: {}", e));
-        }
-        Ok(())
-    } else {
-        tracing::warn!("Cannot send action: not connected to server");
-        Err("Not connected to server".to_string())
-    }
+fn send_player_action(command_bus: &CommandBus, action: PlayerAction) -> Result<(), String> {
+    let msg = ClientMessageBuilder::player_action(
+        action.action_type.as_str(),
+        action.target.as_deref(),
+        action.dialogue.as_deref(),
+    );
+    command_bus
+        .send(msg)
+        .map_err(|e| format!("Failed to send action: {}", e))
 }
 
 /// Handle a dialogue choice being selected
 fn handle_choice_selected(
-    session_state: &crate::presentation::state::SessionState,
+    command_bus: &CommandBus,
     dialogue_state: &mut crate::presentation::state::DialogueState,
     choice_id: &str,
 ) -> Result<(), String> {
@@ -1094,13 +1087,13 @@ fn handle_choice_selected(
     dialogue_state.awaiting_input.set(false);
 
     // Send dialogue choice action to the server
-    send_player_action(session_state, PlayerAction::dialogue_choice(choice_id))
+    send_player_action(command_bus, PlayerAction::dialogue_choice(choice_id))
 }
 
 /// Handle custom text input
 /// Returns Ok(()) on success, Err(message) on failure
 fn handle_custom_input(
-    session_state: &crate::presentation::state::SessionState,
+    command_bus: &CommandBus,
     dialogue_state: &mut crate::presentation::state::DialogueState,
     text: &str,
 ) -> Result<(), String> {
@@ -1110,7 +1103,7 @@ fn handle_custom_input(
     dialogue_state.awaiting_input.set(false);
 
     // Send custom action to the server
-    send_player_action(session_state, PlayerAction::custom(text))
+    send_player_action(command_bus, PlayerAction::custom(text))
 }
 
 /// Handle advancing dialogue (clicking to continue or skipping typewriter)
@@ -1128,10 +1121,7 @@ fn handle_advance(dialogue_state: &mut crate::presentation::state::DialogueState
 
 /// Handle an interaction being selected from the action panel
 /// Returns Ok(()) on success, Err(message) on failure
-fn handle_interaction(
-    session_state: &crate::presentation::state::SessionState,
-    interaction: &InteractionData,
-) -> Result<(), String> {
+fn handle_interaction(command_bus: &CommandBus, interaction: &InteractionData) -> Result<(), String> {
     tracing::info!(
         "Selected interaction: {} ({})",
         interaction.name,
@@ -1153,154 +1143,77 @@ fn handle_interaction(
         }
     };
 
-    send_player_action(session_state, action)
+    send_player_action(command_bus, action)
 }
 
-/// Send a challenge roll with dice input via WebSocket
+/// Send a challenge roll with dice input via CommandBus
 /// Returns Ok(()) on success, Err(message) on failure
 fn send_challenge_roll_input(
-    session_state: &crate::presentation::state::SessionState,
+    command_bus: &CommandBus,
     challenge_id: &str,
     input: DiceInput,
 ) -> Result<(), String> {
-    let engine_client_signal = session_state.engine_client();
-    let client_binding = engine_client_signal.read();
-    if let Some(ref client) = *client_binding {
-        // Use PlayerActionPort method directly (available via blanket impl)
-        if let Err(e) = client.submit_challenge_roll_input(challenge_id, input) {
-            tracing::error!("Failed to send challenge roll input: {}", e);
-            return Err(format!("Failed to submit roll: {}", e));
-        }
-        Ok(())
-    } else {
-        tracing::warn!("Cannot send challenge roll: not connected to server");
-        Err("Not connected to server".to_string())
-    }
+    let msg = ClientMessageBuilder::challenge_roll_input(challenge_id, input.into());
+    command_bus
+        .send(msg)
+        .map_err(|e| format!("Failed to submit roll: {}", e))
 }
 
-/// Send a move to region command via WebSocket
+/// Send a move to region command via CommandBus
 /// Returns Ok(()) on success, Err(message) on failure
-fn send_move_to_region(
-    session_state: &crate::presentation::state::SessionState,
-    pc_id: &str,
-    region_id: &str,
-) -> Result<(), String> {
-    let engine_client_signal = session_state.engine_client();
-    let client_binding = engine_client_signal.read();
-    if let Some(ref client) = *client_binding {
-        if let Err(e) = client.move_to_region(pc_id, region_id) {
-            tracing::error!("Failed to send move to region: {}", e);
-            return Err(format!("Failed to move: {}", e));
-        }
-        Ok(())
-    } else {
-        tracing::warn!("Cannot move: not connected to server");
-        Err("Not connected to server".to_string())
-    }
+fn send_move_to_region(command_bus: &CommandBus, pc_id: &str, region_id: &str) -> Result<(), String> {
+    let msg = ClientMessageBuilder::move_to_region(pc_id, region_id);
+    command_bus
+        .send(msg)
+        .map_err(|e| format!("Failed to move: {}", e))
 }
 
-/// Send an exit to location command via WebSocket
+/// Send an exit to location command via CommandBus
 /// Returns Ok(()) on success, Err(message) on failure
 fn send_exit_to_location(
-    session_state: &crate::presentation::state::SessionState,
+    command_bus: &CommandBus,
     pc_id: &str,
     location_id: &str,
     arrival_region_id: Option<&str>,
 ) -> Result<(), String> {
-    let engine_client_signal = session_state.engine_client();
-    let client_binding = engine_client_signal.read();
-    if let Some(ref client) = *client_binding {
-        if let Err(e) = client.exit_to_location(pc_id, location_id, arrival_region_id) {
-            tracing::error!("Failed to send exit to location: {}", e);
-            return Err(format!("Failed to exit location: {}", e));
-        }
-        Ok(())
-    } else {
-        tracing::warn!("Cannot exit: not connected to server");
-        Err("Not connected to server".to_string())
-    }
+    let msg = ClientMessageBuilder::exit_to_location(pc_id, location_id, arrival_region_id);
+    command_bus
+        .send(msg)
+        .map_err(|e| format!("Failed to exit location: {}", e))
 }
 
-/// Send an equip item command via WebSocket
+/// Send an equip item command via CommandBus
 /// Returns Ok(()) on success, Err(message) on failure
-fn send_equip_item(
-    session_state: &crate::presentation::state::SessionState,
-    pc_id: &str,
-    item_id: &str,
-) -> Result<(), String> {
-    let engine_client_signal = session_state.engine_client();
-    let client_binding = engine_client_signal.read();
-    if let Some(ref client) = *client_binding {
-        if let Err(e) = client.equip_item(pc_id, item_id) {
-            tracing::error!("Failed to send equip item: {}", e);
-            return Err(format!("Failed to equip item: {}", e));
-        }
-        Ok(())
-    } else {
-        tracing::warn!("Cannot equip: not connected to server");
-        Err("Not connected to server".to_string())
-    }
+fn send_equip_item(command_bus: &CommandBus, pc_id: &str, item_id: &str) -> Result<(), String> {
+    let msg = ClientMessageBuilder::equip_item(pc_id, item_id);
+    command_bus
+        .send(msg)
+        .map_err(|e| format!("Failed to equip item: {}", e))
 }
 
-/// Send an unequip item command via WebSocket
+/// Send an unequip item command via CommandBus
 /// Returns Ok(()) on success, Err(message) on failure
-fn send_unequip_item(
-    session_state: &crate::presentation::state::SessionState,
-    pc_id: &str,
-    item_id: &str,
-) -> Result<(), String> {
-    let engine_client_signal = session_state.engine_client();
-    let client_binding = engine_client_signal.read();
-    if let Some(ref client) = *client_binding {
-        if let Err(e) = client.unequip_item(pc_id, item_id) {
-            tracing::error!("Failed to send unequip item: {}", e);
-            return Err(format!("Failed to unequip item: {}", e));
-        }
-        Ok(())
-    } else {
-        tracing::warn!("Cannot unequip: not connected to server");
-        Err("Not connected to server".to_string())
-    }
+fn send_unequip_item(command_bus: &CommandBus, pc_id: &str, item_id: &str) -> Result<(), String> {
+    let msg = ClientMessageBuilder::unequip_item(pc_id, item_id);
+    command_bus
+        .send(msg)
+        .map_err(|e| format!("Failed to unequip item: {}", e))
 }
 
-/// Send a drop item command via WebSocket
+/// Send a drop item command via CommandBus
 /// Returns Ok(()) on success, Err(message) on failure
-fn send_drop_item(
-    session_state: &crate::presentation::state::SessionState,
-    pc_id: &str,
-    item_id: &str,
-) -> Result<(), String> {
-    let engine_client_signal = session_state.engine_client();
-    let client_binding = engine_client_signal.read();
-    if let Some(ref client) = *client_binding {
-        if let Err(e) = client.drop_item(pc_id, item_id, 1) {
-            tracing::error!("Failed to send drop item: {}", e);
-            return Err(format!("Failed to drop item: {}", e));
-        }
-        Ok(())
-    } else {
-        tracing::warn!("Cannot drop: not connected to server");
-        Err("Not connected to server".to_string())
-    }
+fn send_drop_item(command_bus: &CommandBus, pc_id: &str, item_id: &str) -> Result<(), String> {
+    let msg = ClientMessageBuilder::drop_item(pc_id, item_id, 1);
+    command_bus
+        .send(msg)
+        .map_err(|e| format!("Failed to drop item: {}", e))
 }
 
-/// Send a pickup item command via WebSocket
+/// Send a pickup item command via CommandBus
 /// Returns Ok(()) on success, Err(message) on failure
-fn send_pickup_item(
-    session_state: &crate::presentation::state::SessionState,
-    pc_id: &str,
-    item_id: &str,
-) -> Result<(), String> {
-    let engine_client_signal = session_state.engine_client();
-    let client_binding = engine_client_signal.read();
-    if let Some(ref client) = *client_binding {
-        if let Err(e) = client.pickup_item(pc_id, item_id) {
-            tracing::error!("Failed to send pickup item: {}", e);
-            return Err(format!("Failed to pick up item: {}", e));
-        }
-        Ok(())
-    } else {
-        tracing::warn!("Cannot pickup: not connected to server");
-        Err("Not connected to server".to_string())
-    }
+fn send_pickup_item(command_bus: &CommandBus, pc_id: &str, item_id: &str) -> Result<(), String> {
+    let msg = ClientMessageBuilder::pickup_item(pc_id, item_id);
+    command_bus
+        .send(msg)
+        .map_err(|e| format!("Failed to pick up item: {}", e))
 }

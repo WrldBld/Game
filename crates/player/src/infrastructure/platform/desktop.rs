@@ -4,8 +4,8 @@
 //! standard library and native crates.
 
 use crate::ports::outbound::platform::{
-    ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider,
-    SleepProvider, StorageProvider, TimeProvider,
+    DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider, SleepProvider,
+    StorageProvider, TimeProvider,
 };
 use crate::state::Platform;
 use directories::ProjectDirs;
@@ -251,21 +251,6 @@ impl EngineConfigProvider for DesktopEngineConfigProvider {
     }
 }
 
-/// Desktop connection factory provider
-#[derive(Clone, Default)]
-pub struct DesktopConnectionFactoryProvider;
-
-impl ConnectionFactoryProvider for DesktopConnectionFactoryProvider {
-    fn create_game_connection(
-        &self,
-        server_url: &str,
-    ) -> Arc<dyn crate::ports::outbound::GameConnectionPort> {
-        crate::infrastructure::connection_factory::ConnectionFactory::create_game_connection(
-            server_url,
-        )
-    }
-}
-
 /// Create platform services for desktop
 pub fn create_platform() -> Platform {
     Platform::new(
@@ -276,6 +261,5 @@ pub fn create_platform() -> Platform {
         DesktopLogProvider,
         DesktopDocumentProvider,
         DesktopEngineConfigProvider,
-        DesktopConnectionFactoryProvider,
     )
 }

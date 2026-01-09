@@ -69,10 +69,12 @@ pub(super) async fn handle_start_conversation(
     )
     .await;
 
-    Some(ServerMessage::ActionReceived {
-        action_id: conversation.action_queue_id.to_string(),
-        player_id: conn_info.user_id,
-        action_type: "talk".to_string(),
+    // Return ConversationStarted with the conversation_id for client tracking
+    Some(ServerMessage::ConversationStarted {
+        conversation_id: conversation.conversation_id.to_string(),
+        npc_id,
+        npc_name: conversation.npc_name,
+        npc_disposition: conversation.npc_disposition,
     })
 }
 
@@ -81,6 +83,7 @@ pub(super) async fn handle_continue_conversation(
     connection_id: Uuid,
     npc_id: String,
     message: String,
+    conversation_id: Option<String>,
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
@@ -102,6 +105,9 @@ pub(super) async fn handle_continue_conversation(
         Err(e) => return Some(e),
     };
 
+    // Parse optional conversation_id from string to UUID
+    let conversation_uuid = conversation_id.and_then(|id| Uuid::parse_str(&id).ok());
+
     let message = message.trim().to_string();
     if message.is_empty() {
         return Some(error_response(
@@ -121,6 +127,7 @@ pub(super) async fn handle_continue_conversation(
             npc_uuid,
             conn_info.user_id.clone(),
             message,
+            conversation_uuid,
         )
         .await
     {
@@ -231,10 +238,11 @@ pub(super) async fn handle_perform_interaction(
         )
         .await;
 
-        return Some(ServerMessage::ActionReceived {
-            action_id: conversation.action_queue_id.to_string(),
-            player_id: conn_info.user_id,
-            action_type: "talk".to_string(),
+        return Some(ServerMessage::ConversationStarted {
+            conversation_id: conversation.conversation_id.to_string(),
+            npc_id: npc_id.to_string(),
+            npc_name: conversation.npc_name,
+            npc_disposition: conversation.npc_disposition,
         });
     }
 
@@ -249,6 +257,7 @@ pub(super) async fn handle_perform_interaction(
         target: target.clone(),
         dialogue: None,
         timestamp: Utc::now(),
+        conversation_id: None,
     };
 
     let action_id = match state.app.queue.enqueue_player_action(&action_data).await {

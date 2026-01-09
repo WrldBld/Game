@@ -5,10 +5,9 @@
 //! details from the presentation layer.
 
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
-use crate::ports::outbound::GameConnectionPort;
+use crate::infrastructure::messaging::CommandBus;
 use wrldbldr_protocol::{LocationRequest, RegionRequest, RequestPayload};
 
 /// Location summary for list views
@@ -123,17 +122,17 @@ pub struct MapBoundsData {
 /// Location service for managing locations
 ///
 /// This service provides methods for location-related operations
-/// while depending only on the `GameConnectionPort` trait, not concrete
+/// while depending only on the `CommandBus`, not concrete
 /// infrastructure implementations.
 #[derive(Clone)]
 pub struct LocationService {
-    connection: Arc<dyn GameConnectionPort>,
+    commands: CommandBus,
 }
 
 impl LocationService {
-    /// Create a new LocationService with the given game connection
-    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
-        Self { connection }
+    /// Create a new LocationService with the given command bus
+    pub fn new(commands: CommandBus) -> Self {
+        Self { commands }
     }
 
     /// List all locations in a world
@@ -142,7 +141,7 @@ impl LocationService {
         world_id: &str,
     ) -> Result<Vec<LocationSummary>, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Location(LocationRequest::ListLocations {
                     world_id: world_id.to_string(),
@@ -156,7 +155,7 @@ impl LocationService {
     /// Get a single location by ID
     pub async fn get_location(&self, location_id: &str) -> Result<LocationFormData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Location(LocationRequest::GetLocation {
                     location_id: location_id.to_string(),
@@ -174,7 +173,7 @@ impl LocationService {
         location: &LocationFormData,
     ) -> Result<LocationFormData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Location(LocationRequest::CreateLocation {
                     world_id: world_id.to_string(),
@@ -193,7 +192,7 @@ impl LocationService {
         location: &LocationFormData,
     ) -> Result<LocationFormData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Location(LocationRequest::UpdateLocation {
                     location_id: location_id.to_string(),
@@ -208,7 +207,7 @@ impl LocationService {
     /// Delete a location
     pub async fn delete_location(&self, location_id: &str) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Location(LocationRequest::DeleteLocation {
                     location_id: location_id.to_string(),
@@ -225,7 +224,7 @@ impl LocationService {
         location_id: &str,
     ) -> Result<Vec<ConnectionData>, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Location(LocationRequest::GetLocationConnections {
                     location_id: location_id.to_string(),
@@ -239,7 +238,7 @@ impl LocationService {
     /// Create a connection between locations
     pub async fn create_connection(&self, connection: &ConnectionData) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Location(LocationRequest::CreateLocationConnection {
                     data: connection.to_create_data(),
@@ -253,7 +252,7 @@ impl LocationService {
     /// Get all regions for a location (with map bounds)
     pub async fn get_regions(&self, location_id: &str) -> Result<Vec<RegionData>, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Region(RegionRequest::ListRegions {
                     location_id: location_id.to_string(),

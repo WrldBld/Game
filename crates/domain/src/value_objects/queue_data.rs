@@ -37,6 +37,9 @@ pub struct PlayerActionData {
     pub dialogue: Option<String>,
     /// When the action was submitted
     pub timestamp: DateTime<Utc>,
+    /// Conversation ID for dialogue actions (links to Conversation node in Neo4j)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<Uuid>,
 }
 
 // =============================================================================
@@ -185,6 +188,9 @@ pub struct LlmRequestData {
     pub suggestion_context: Option<SuggestionContext>,
     /// Callback ID for routing the response
     pub callback_id: String,
+    /// Conversation ID for dialogue tracking (flows through to ApprovalRequestData)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<uuid::Uuid>,
 }
 
 /// Context for LLM suggestion requests.
@@ -366,6 +372,9 @@ pub struct ApprovalRequestData {
     pub game_time: Option<String>,
     /// Conversation topics discussed
     pub topics: Vec<String>,
+    /// Conversation ID (links to Conversation node in Neo4j)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation_id: Option<Uuid>,
 }
 
 // =============================================================================

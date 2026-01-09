@@ -17,7 +17,8 @@ use crate::presentation::components::dm_panel::staging_approval::{
 };
 use crate::presentation::components::dm_panel::time_control::TimeControlPanel;
 use crate::presentation::components::dm_panel::trigger_challenge_modal::TriggerChallengeModal;
-use crate::presentation::services::{use_challenge_service, use_skill_service};
+use crate::infrastructure::websocket::ClientMessageBuilder;
+use crate::presentation::services::{use_challenge_service, use_command_bus, use_skill_service};
 use crate::presentation::state::{
     use_game_state, use_generation_state, use_session_state, GameState, PendingApproval,
     SessionState, ViewMode,
@@ -300,8 +301,8 @@ pub fn DirectorModeContent() -> Element {
                             })
                             .collect();
 
-                        let session_state_disposition = session_state.clone();
-                        let session_state_rel = session_state.clone();
+                        let command_bus_disposition = use_command_bus();
+                        let command_bus_rel = use_command_bus();
 
                         rsx! {
                             div {
@@ -321,15 +322,14 @@ pub fn DirectorModeContent() -> Element {
                                             "DM changed NPC disposition"
                                         );
                                         // Send disposition change to engine
-                                        if let Some(client) = session_state_disposition.engine_client().read().as_ref() {
-                                            if let Err(e) = client.set_npc_disposition(
-                                                &evt.npc_id,
-                                                &evt.pc_id,
-                                                &evt.disposition,
-                                                evt.reason.as_deref(),
-                                            ) {
-                                                tracing::error!("Failed to send disposition change: {}", e);
-                                            }
+                                        let msg = ClientMessageBuilder::set_npc_disposition(
+                                            &evt.npc_id,
+                                            &evt.pc_id,
+                                            &evt.disposition,
+                                            evt.reason.as_deref(),
+                                        );
+                                        if let Err(e) = command_bus_disposition.send(msg) {
+                                            tracing::error!("Failed to send disposition change: {}", e);
                                         }
                                     },
                                     on_relationship_change: move |evt: RelationshipChangeEvent| {
@@ -340,14 +340,13 @@ pub fn DirectorModeContent() -> Element {
                                             "DM changed NPC relationship"
                                         );
                                         // Send relationship change to engine
-                                        if let Some(client) = session_state_rel.engine_client().read().as_ref() {
-                                            if let Err(e) = client.set_npc_relationship(
-                                                &evt.npc_id,
-                                                &evt.pc_id,
-                                                &evt.relationship,
-                                            ) {
-                                                tracing::error!("Failed to send relationship change: {}", e);
-                                            }
+                                        let msg = ClientMessageBuilder::set_npc_relationship(
+                                            &evt.npc_id,
+                                            &evt.pc_id,
+                                            &evt.relationship,
+                                        );
+                                        if let Err(e) = command_bus_rel.send(msg) {
+                                            tracing::error!("Failed to send relationship change: {}", e);
                                         }
                                     },
                                 }
@@ -572,23 +571,22 @@ pub fn DirectorModeContent() -> Element {
                             }
                         }
                     } else {
-                        rsx! {
-                            TriggerChallengeModal {
-                                challenges: active_challenges,
-                                scene_characters: chars,
-                                on_trigger: move |(challenge_id, character_id): (String, String)| {
-                                    tracing::info!("Triggering challenge {} for character {}", challenge_id, character_id);
-                                    if let Some(client) = session_state.engine_client().read().as_ref() {
-                                        // Use DmControlPort method directly (available via blanket impl)
-                                        if let Err(e) = client.trigger_challenge(&challenge_id, &character_id) {
+                        {
+                            let command_bus_trigger = use_command_bus();
+                            rsx! {
+                                TriggerChallengeModal {
+                                    challenges: active_challenges,
+                                    scene_characters: chars,
+                                    on_trigger: move |(challenge_id, character_id): (String, String)| {
+                                        tracing::info!("Triggering challenge {} for character {}", challenge_id, character_id);
+                                        let msg = ClientMessageBuilder::trigger_challenge(&challenge_id, &character_id);
+                                        if let Err(e) = command_bus_trigger.send(msg) {
                                             tracing::error!("Failed to trigger challenge: {}", e);
                                         }
-                                    } else {
-                                        tracing::warn!("No engine client available to trigger challenge");
-                                    }
-                                    show_trigger_challenge.set(false);
-                                },
-                                on_close: move |_| show_trigger_challenge.set(false),
+                                        show_trigger_challenge.set(false);
+                                    },
+                                    on_close: move |_| show_trigger_challenge.set(false),
+                                }
                             }
                         }
                     }
@@ -615,9 +613,9 @@ pub fn DirectorModeContent() -> Element {
             // Staging Approval Popup - shown when a PC is trying to enter a region
             if let Some(staging_data) = game_state.pending_staging_approval.read().as_ref() {
                 {
-                    // Clone session_state for the closures
-                    let session_state_for_approve = use_session_state();
-                    let session_state_for_regenerate = use_session_state();
+                    // Get command bus for the closures
+                    let command_bus_approve = use_command_bus();
+                    let command_bus_regenerate = use_command_bus();
                     let mut game_state_for_approve = game_state.clone();
                     let mut game_state_for_close = game_state.clone();
 
@@ -629,26 +627,28 @@ pub fn DirectorModeContent() -> Element {
                                     result.request_id, result.approved_npcs.len(), result.ttl_hours);
 
                                 // Send approval to engine
-                                if let Some(client) = session_state_for_approve.engine_client().read().as_ref() {
-                                    let approved_npcs: Vec<ApprovedNpcInfo> = result.approved_npcs
-                                        .into_iter()
-                                        .map(|(character_id, is_present, is_hidden_from_players)| ApprovedNpcInfo {
+                                let approved_npcs: Vec<wrldbldr_protocol::ApprovedNpcInfo> = result.approved_npcs
+                                    .into_iter()
+                                    .map(|(character_id, is_present, is_hidden_from_players)| {
+                                        let local = ApprovedNpcInfo {
                                             character_id,
                                             is_present,
                                             reasoning: None,
                                             is_hidden_from_players,
                                             mood: None, // Use character's default_mood
-                                        })
-                                        .collect();
+                                        };
+                                        local.into()
+                                    })
+                                    .collect();
 
-                                    if let Err(e) = client.send_staging_approval(
-                                        &result.request_id,
-                                        approved_npcs,
-                                        result.ttl_hours,
-                                        &result.source,
-                                    ) {
-                                        tracing::error!("Failed to send staging approval: {}", e);
-                                    }
+                                let msg = ClientMessageBuilder::staging_approval_response(
+                                    &result.request_id,
+                                    approved_npcs,
+                                    result.ttl_hours,
+                                    &result.source,
+                                );
+                                if let Err(e) = command_bus_approve.send(msg) {
+                                    tracing::error!("Failed to send staging approval: {}", e);
                                 }
 
                                 // Clear the pending approval
@@ -659,13 +659,12 @@ pub fn DirectorModeContent() -> Element {
                                     request.request_id, request.guidance);
 
                                 // Send regenerate request to engine
-                                if let Some(client) = session_state_for_regenerate.engine_client().read().as_ref() {
-                                    if let Err(e) = client.request_staging_regenerate(
-                                        &request.request_id,
-                                        &request.guidance,
-                                    ) {
-                                        tracing::error!("Failed to send staging regenerate request: {}", e);
-                                    }
+                                let msg = ClientMessageBuilder::staging_regenerate_request(
+                                    &request.request_id,
+                                    &request.guidance,
+                                );
+                                if let Err(e) = command_bus_regenerate.send(msg) {
+                                    tracing::error!("Failed to send staging regenerate request: {}", e);
                                 }
                             },
                             on_close: move |_| {

@@ -4,9 +4,10 @@
 //! presentation state accordingly. This is where the application-to-presentation
 //! boundary is properly maintained.
 
-use crate::application::services::port_connection_state_to_status;
+use crate::application::services::connection_state_to_status;
 use crate::application::services::SessionEvent;
-use crate::ports::outbound::{ConnectionState as PortConnectionState, PlatformPort};
+use crate::infrastructure::messaging::ConnectionState;
+use crate::ports::outbound::PlatformPort;
 
 use crate::presentation::handlers::handle_server_message;
 use crate::presentation::state::{
@@ -30,7 +31,7 @@ pub fn handle_session_event(
     match event {
         SessionEvent::StateChanged(state) => {
             // Convert application connection state to presentation status
-            let status = port_connection_state_to_status(state);
+            let status = connection_state_to_status(state);
 
             // Map application status to presentation status
             let presentation_status = match status {
@@ -54,9 +55,8 @@ pub fn handle_session_event(
             // Clear all state on disconnect or failure to prevent stale data
             if matches!(
                 state,
-                PortConnectionState::Disconnected | PortConnectionState::Failed
+                ConnectionState::Disconnected | ConnectionState::Failed
             ) {
-                session_state.engine_client().set(None);
                 game_state.clear();
                 dialogue_state.clear();
                 generation_state.clear();

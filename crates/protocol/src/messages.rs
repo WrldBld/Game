@@ -46,7 +46,13 @@ pub enum ClientMessage {
     /// Start a conversation with an NPC
     StartConversation { npc_id: String, message: String },
     /// Continue an existing conversation with an NPC
-    ContinueConversation { npc_id: String, message: String },
+    ContinueConversation {
+        npc_id: String,
+        message: String,
+        /// Optional conversation ID - if provided, validates against active conversation
+        #[serde(default)]
+        conversation_id: Option<String>,
+    },
     /// Perform a scene interaction by ID
     PerformInteraction { interaction_id: String },
     /// Request to change scene
@@ -373,6 +379,20 @@ pub enum ServerMessage {
         speaker_name: String,
         text: String,
         choices: Vec<DialogueChoice>,
+        /// Conversation ID for tracking the conversation session
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        conversation_id: Option<String>,
+    },
+    /// Conversation has started - returns conversation_id for tracking
+    ConversationStarted {
+        /// The conversation ID
+        conversation_id: String,
+        /// The NPC the conversation is with
+        npc_id: String,
+        npc_name: String,
+        /// NPC's disposition toward the player
+        #[serde(default)]
+        npc_disposition: Option<String>,
     },
     /// Conversation has ended
     ConversationEnded {
@@ -384,6 +404,9 @@ pub enum ServerMessage {
         /// Optional summary of the conversation
         #[serde(default)]
         summary: Option<String>,
+        /// Conversation ID for tracking
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        conversation_id: Option<String>,
     },
     /// LLM is processing (shown to DM)
     LLMProcessing { action_id: String },
