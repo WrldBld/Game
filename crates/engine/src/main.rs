@@ -20,8 +20,13 @@ mod use_cases;
 use api::{websocket::WsState, ConnectionManager};
 use app::App;
 use infrastructure::{
-    clock::SystemClock, comfyui::ComfyUIClient, neo4j::Neo4jRepositories, ollama::OllamaClient,
-    queue::SqliteQueue, settings::SqliteSettingsRepo,
+    clock::SystemClock,
+    comfyui::ComfyUIClient,
+    neo4j::Neo4jRepositories,
+    ollama::OllamaClient,
+    queue::SqliteQueue,
+    resilient_llm::{ResilientLlmClient, RetryConfig},
+    settings::SqliteSettingsRepo,
 };
 
 #[tokio::main]
@@ -71,7 +76,13 @@ async fn main() -> anyhow::Result<()> {
     let repos = Neo4jRepositories::new(graph, clock.clone());
 
     // Create infrastructure clients
-    let llm = Arc::new(OllamaClient::new(&ollama_url, &ollama_model));
+    let ollama_client = Arc::new(OllamaClient::new(&ollama_url, &ollama_model));
+    let llm = Arc::new(ResilientLlmClient::new(ollama_client, RetryConfig::default()));
+    tracing::info!(
+        "LLM client configured with retry: max_retries={}, base_delay_ms={}",
+        RetryConfig::default().max_retries,
+        RetryConfig::default().base_delay_ms
+    );
     let image_gen = Arc::new(ComfyUIClient::new(&comfyui_url));
 
     // Create queue

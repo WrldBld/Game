@@ -47,7 +47,7 @@ pub trait SettingsRepo: Send + Sync {
     async fn delete_for_world(&self, world_id: WorldId) -> Result<(), RepoError>;
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum LlmError {
     #[error("LLM request failed: {0}")]
     RequestFailed(String),
