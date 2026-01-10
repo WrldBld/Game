@@ -1,9 +1,9 @@
 # Issue Triage and Implementation Plan
 
 **Date:** 2026-01-10
-**Updated:** 2026-01-10 (post PR #36 merge)
-**Total Open Issues:** 14 (down from 22)
-**Closed This Session:** #9, #11, #12, #13, #14, #17, #18, #19, #35
+**Updated:** 2026-01-10 (post PR #37 merge)
+**Total Open Issues:** 11 (down from 22)
+**Closed This Session:** #9, #11, #12, #13, #14, #15, #16, #17, #18, #19, #23, #35
 
 ## Current Status
 
@@ -15,20 +15,21 @@
 | #33 | #17, #18, #19 | Merged - Navigation error handling |
 | #34 | #9, #11 | Merged - Staging TTL config & name normalization |
 | #36 | #35 | Merged - Entity wrapper refactoring (Settings/Inventory) |
+| #37 | #15, #16, #23 | Merged - TimeContext + Lore Improvements (chunk order, partial revocation, DB constraint) |
 
 ---
 
 ## Remaining Issues by Category
 
-### Category A: Addressable Now (5 issues)
+### Category A: Addressable Now (2 issues)
 
 | Issue | Title | Type | Complexity |
 |-------|-------|------|------------|
-| #15 | Add lore chunk order validation | Enhancement | Medium |
-| #16 | Implement partial lore knowledge revocation | Enhancement | Medium |
+| ~~#15~~ | ~~Add lore chunk order validation~~ | ~~Enhancement~~ | ✅ Closed in PR #37 |
+| ~~#16~~ | ~~Implement partial lore knowledge revocation~~ | ~~Enhancement~~ | ✅ Closed in PR #37 |
 | #20 | Store featured character role properly | Enhancement | Medium |
 | #21 | Add error handling for character relationships | Bug | Medium |
-| #23 | Implement Event/Custom TimeContext | Enhancement | Small |
+| ~~#23~~ | ~~Implement Event/Custom TimeContext~~ | ~~Enhancement~~ | ✅ Closed in PR #37 |
 
 ### Category B: Requires Design/Discussion (3 issues)
 
@@ -57,28 +58,7 @@
 
 ---
 
-### PR Group 2: Lore System Improvements (#15, #16)
-**Effort:** Medium
-**Theme:** Chunk ordering and API symmetry
-
-| Issue | Summary | Files |
-|-------|---------|-------|
-| #15 | Validate chunk order uniqueness, re-index on delete | `use_cases/lore/mod.rs:133-227` |
-| #16 | Add partial revocation to match partial grant | `lore_repo.rs`, `ports.rs`, `ws_lore.rs:316-356` |
-
-**Implementation Details:**
-
-**#15 - Order Validation:**
-- `add_chunk()`: Validate order is unique, or auto-assign next sequential
-- `update_chunk()`: Validate new order doesn't conflict
-- `delete_chunk()`: Re-index remaining chunks to maintain sequential order (0,1,2...)
-
-**#16 - Partial Revocation:**
-- Add `remove_chunks_from_knowledge()` to `LoreRepo` trait (ports.rs)
-- Implement in `lore_repo.rs` (similar to `add_chunks_to_knowledge`)
-- Add `LoreKnowledge::remove_chunks()` method to domain
-- Update `revoke_knowledge()` in use case to accept `chunk_ids: Option<Vec<LoreChunkId>>`
-- Remove explicit rejection in `ws_lore.rs:325-331`
+### ~~PR Group 2: Lore System Improvements (#15, #16, #23)~~ ✅ COMPLETED in PR #37
 
 ---
 
@@ -107,19 +87,7 @@
 
 ---
 
-### PR Group 4: TimeContext Integration (#23)
-**Effort:** Small
-**Theme:** Enable time-based trigger evaluation
-
-| Issue | Summary | Files |
-|-------|---------|-------|
-| #23 | Wire GameTime through trigger evaluation to populate time_context | `narrative.rs:577` |
-
-**Implementation Details:**
-- In `evaluate_triggers_for_world()`, fetch current scene's TimeContext
-- Convert `TimeContext` to string: `"Morning"`, `"Afternoon"`, `"Evening"`, `"Night"`, or custom
-- Set `time_context: Some(time_string)` in TriggerContext construction
-- Infrastructure exists - just needs wiring
+### ~~PR Group 4: TimeContext Integration (#23)~~ ✅ COMPLETED in PR #37
 
 ---
 
@@ -127,15 +95,12 @@
 
 ### ~~PR 1: Staging System Improvements (#9, #11)~~ ✅ COMPLETED in PR #34
 
-### Next PR: TimeContext + Lore Improvements (#23, #15, #16)
-**Rationale:**
-- #23 is small, isolated change - enables time-based triggers
-- #15, #16 are medium complexity but independent from other systems
-- Grouping these creates a cohesive "system improvements" PR
+### ~~PR 2: TimeContext + Lore Improvements (#23, #15, #16)~~ ✅ COMPLETED in PR #37
 
-### Then: Visual State Fixes (#20, #21)
+### Next PR: Visual State Fixes (#20, #21)
 **Rationale:**
-- Most complex of remaining issues
+- Last addressable issues remaining
+- #20 involves storing role on FEATURES_CHARACTER edge
 - #21 needs careful analysis of intentional vs accidental unwrap_or usage
 
 ---
@@ -144,12 +109,12 @@
 
 | Category | Count | Status |
 |----------|-------|--------|
-| A: Addressable Now | 5 | Ready to implement |
+| A: Addressable Now | 2 | Ready to implement |
 | B: Needs Design | 3 | Deferred |
 | C: Major Features | 6 | Blocked |
-| **Total Open** | **14** | **5 ready** |
+| **Total Open** | **11** | **2 ready** |
 
-**Next recommended PR:** #23 + #15 + #16 (TimeContext + Lore Improvements)
-- Cohesive system improvements
-- Medium scope
+**Next recommended PR:** #20 + #21 (Visual State Fixes)
+- Last addressable issues
+- Medium complexity
 - Clear implementation path

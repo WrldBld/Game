@@ -551,17 +551,33 @@ impl ExecuteEffects {
         // Get existing relationships from the source character
         match self.character.get_relationships(from_character).await {
             Ok(relationships) => {
-                // Find existing relationship to target, or create new one
-                let mut relationship = relationships
+                // Find existing relationship to target
+                let existing_relationship = relationships
                     .into_iter()
-                    .find(|r| r.to_character == to_character)
-                    .unwrap_or_else(|| {
-                        wrldbldr_domain::Relationship::new(
-                            from_character,
-                            to_character,
-                            RelationshipType::Custom("Acquaintance".to_string()),
+                    .find(|r| r.to_character == to_character);
+
+                // If no existing relationship, create a new one with logging
+                let (mut relationship, is_new_relationship) = match existing_relationship {
+                    Some(rel) => (rel, false),
+                    None => {
+                        tracing::info!(
+                            from_character = %from_character,
+                            from_name = %from_name,
+                            to_character = %to_character,
+                            to_name = %to_name,
+                            reason = %reason,
+                            "Creating new relationship (none existed) with default type 'Acquaintance'"
+                        );
+                        (
+                            wrldbldr_domain::Relationship::new(
+                                from_character,
+                                to_character,
+                                RelationshipType::Custom("Acquaintance".to_string()),
+                            ),
+                            true,
                         )
-                    });
+                    }
+                };
 
                 // Apply sentiment change
                 let old_sentiment = relationship.sentiment;
@@ -577,15 +593,22 @@ impl ExecuteEffects {
 
                 // Save updated relationship
                 match self.character.save_relationship(&relationship).await {
-                    Ok(()) => EffectExecutionResult {
-                        description: format!(
-                            "Modified relationship: {} -> {} (sentiment {:.2} -> {:.2}, reason: {})",
-                            from_name, to_name, old_sentiment, relationship.sentiment, reason
-                        ),
-                        success: true,
-                        error: None,
-                        requires_dm_action: false,
-                    },
+                    Ok(()) => {
+                        let action = if is_new_relationship {
+                            "Created new relationship"
+                        } else {
+                            "Modified relationship"
+                        };
+                        EffectExecutionResult {
+                            description: format!(
+                                "{}: {} -> {} (sentiment {:.2} -> {:.2}, reason: {})",
+                                action, from_name, to_name, old_sentiment, relationship.sentiment, reason
+                            ),
+                            success: true,
+                            error: None,
+                            requires_dm_action: false,
+                        }
+                    }
                     Err(e) => EffectExecutionResult {
                         description: format!(
                             "Failed to save relationship change: {} -> {}",
