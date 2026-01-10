@@ -135,10 +135,11 @@ impl StartConversation {
             world_id,
             player_id,
             pc_id: Some(pc_id),
-            action_type: "speak".to_string(),
+            action_type: "talk".to_string(),
             target: Some(npc.name.clone()),
             dialogue: Some(initial_dialogue),
             timestamp: self.clock.now(),
+            conversation_id: Some(conversation_id),
         };
 
         let action_queue_id = self
@@ -515,7 +516,7 @@ mod tests {
         assert_eq!(action.world_id, world_id);
         assert_eq!(action.player_id, player_id);
         assert_eq!(action.pc_id, Some(pc_id));
-        assert_eq!(action.action_type, "speak".to_string());
+        assert_eq!(action.action_type, "talk".to_string());
         assert_eq!(action.target, Some("NPC".to_string()));
         assert_eq!(action.dialogue, Some(initial_dialogue));
         assert_eq!(action.timestamp, now);

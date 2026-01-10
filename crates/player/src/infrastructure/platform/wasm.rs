@@ -4,11 +4,11 @@
 //! js_sys and web_sys crates.
 
 use crate::ports::outbound::platform::{
-    ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider,
-    SleepProvider, StorageProvider, TimeProvider,
+    DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider, SleepProvider,
+    StorageProvider, TimeProvider,
 };
 use crate::state::Platform;
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{future::Future, pin::Pin};
 
 /// WASM time provider using js_sys::Date
 #[derive(Clone, Default)]
@@ -132,21 +132,6 @@ impl EngineConfigProvider for WasmEngineConfigProvider {
     }
 }
 
-/// WASM connection factory provider
-#[derive(Clone, Default)]
-pub struct WasmConnectionFactoryProvider;
-
-impl ConnectionFactoryProvider for WasmConnectionFactoryProvider {
-    fn create_game_connection(
-        &self,
-        server_url: &str,
-    ) -> Arc<dyn crate::ports::outbound::GameConnectionPort> {
-        crate::infrastructure::connection_factory::ConnectionFactory::create_game_connection(
-            server_url,
-        )
-    }
-}
-
 /// Create platform services for WASM
 pub fn create_platform() -> Platform {
     Platform::new(
@@ -157,6 +142,5 @@ pub fn create_platform() -> Platform {
         WasmLogProvider,
         WasmDocumentProvider,
         WasmEngineConfigProvider,
-        WasmConnectionFactoryProvider,
     )
 }

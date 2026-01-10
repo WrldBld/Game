@@ -3,12 +3,10 @@
 //! This service provides use case implementations for fetching, creating,
 //! updating, and managing event chains via WebSocket request/response pattern.
 
-use std::sync::Arc;
-
 use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
-use crate::ports::outbound::GameConnectionPort;
+use crate::infrastructure::messaging::CommandBus;
 use wrldbldr_protocol::{EventChainRequest, RequestPayload};
 
 /// Event chain data from engine
@@ -135,22 +133,22 @@ impl From<&UpdateEventChainRequest> for wrldbldr_protocol::requests::UpdateEvent
 /// Event chain service for managing event chains
 ///
 /// This service provides methods for event chain-related operations
-/// using WebSocket request/response pattern via the `GameConnectionPort`.
+/// using WebSocket request/response pattern via the `CommandBus`.
 #[derive(Clone)]
 pub struct EventChainService {
-    connection: Arc<dyn GameConnectionPort>,
+    commands: CommandBus,
 }
 
 impl EventChainService {
-    /// Create a new EventChainService with the given connection
-    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
-        Self { connection }
+    /// Create a new EventChainService with the given command bus
+    pub fn new(commands: CommandBus) -> Self {
+        Self { commands }
     }
 
     /// List all event chains for a world
     pub async fn list_chains(&self, world_id: &str) -> Result<Vec<EventChainData>, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::EventChain(EventChainRequest::ListEventChains {
                     world_id: world_id.to_string(),
@@ -165,7 +163,7 @@ impl EventChainService {
     /// Get a single event chain by ID
     pub async fn get_chain(&self, chain_id: &str) -> Result<EventChainData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::EventChain(EventChainRequest::GetEventChain {
                     chain_id: chain_id.to_string(),
@@ -184,7 +182,7 @@ impl EventChainService {
         request: &CreateEventChainRequest,
     ) -> Result<EventChainData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::EventChain(EventChainRequest::CreateEventChain {
                     world_id: world_id.to_string(),
@@ -204,7 +202,7 @@ impl EventChainService {
         request: &UpdateEventChainRequest,
     ) -> Result<EventChainData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::EventChain(EventChainRequest::UpdateEventChain {
                     chain_id: chain_id.to_string(),
@@ -220,7 +218,7 @@ impl EventChainService {
     /// Delete an event chain
     pub async fn delete_chain(&self, chain_id: &str) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::EventChain(EventChainRequest::DeleteEventChain {
                     chain_id: chain_id.to_string(),
@@ -239,7 +237,7 @@ impl EventChainService {
         request: &AddEventRequest,
     ) -> Result<EventChainData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::EventChain(EventChainRequest::AddEventToChain {
                     chain_id: chain_id.to_string(),
@@ -256,7 +254,7 @@ impl EventChainService {
     /// Remove an event from a chain
     pub async fn remove_event(&self, chain_id: &str, event_id: &str) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::EventChain(EventChainRequest::RemoveEventFromChain {
                     chain_id: chain_id.to_string(),
@@ -272,7 +270,7 @@ impl EventChainService {
     /// Complete an event in a chain
     pub async fn complete_event(&self, chain_id: &str, event_id: &str) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::EventChain(EventChainRequest::CompleteChainEvent {
                     chain_id: chain_id.to_string(),
@@ -292,7 +290,7 @@ impl EventChainService {
         favorite: bool,
     ) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::EventChain(EventChainRequest::SetEventChainFavorite {
                     chain_id: chain_id.to_string(),
@@ -308,7 +306,7 @@ impl EventChainService {
     /// Set active status
     pub async fn set_active(&self, chain_id: &str, active: bool) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::EventChain(EventChainRequest::SetEventChainActive {
                     chain_id: chain_id.to_string(),
@@ -324,7 +322,7 @@ impl EventChainService {
     /// Reset a chain to the beginning
     pub async fn reset_chain(&self, chain_id: &str) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::EventChain(EventChainRequest::ResetEventChain {
                     chain_id: chain_id.to_string(),
@@ -339,7 +337,7 @@ impl EventChainService {
     /// Get chain status
     pub async fn get_status(&self, chain_id: &str) -> Result<ChainStatusData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::EventChain(EventChainRequest::GetEventChainStatus {
                     chain_id: chain_id.to_string(),

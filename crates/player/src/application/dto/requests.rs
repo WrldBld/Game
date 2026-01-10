@@ -2,7 +2,7 @@
 //!
 //! These DTOs are used by player-app services to construct requests.
 //! They are converted to protocol types at the service boundary before
-//! being sent via GameConnectionPort.
+//! being sent via CommandBus.
 //!
 //! This isolates the application layer from wire format concerns.
 //!

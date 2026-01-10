@@ -152,6 +152,20 @@ pub struct ActantialViewRecord {
     pub reason: String,
 }
 
+/// A dialogue turn record from the database.
+///
+/// Used for building conversation history in LLM prompts.
+/// Contains speaker name and text, ready for ConversationTurn conversion.
+#[derive(Debug, Clone)]
+pub struct ConversationTurnRecord {
+    /// Speaker name (PC name or NPC name)
+    pub speaker: String,
+    /// The dialogue text
+    pub text: String,
+    /// Order in the conversation (for sorting)
+    pub order: i64,
+}
+
 // =============================================================================
 // Database Ports (one per entity type)
 // =============================================================================
@@ -550,6 +564,33 @@ pub trait NarrativeRepo: Send + Sync {
         game_time: Option<GameTime>,
         timestamp: DateTime<Utc>,
     ) -> Result<(), RepoError>;
+
+    // =========================================================================
+    // Conversation History (for LLM context)
+    // =========================================================================
+
+    /// Get dialogue turns from an active conversation between PC and NPC.
+    ///
+    /// Returns turns in chronological order (oldest first) for LLM context.
+    /// Each turn includes the speaker name and text.
+    ///
+    /// # Arguments
+    /// * `pc_id` - The player character ID
+    /// * `npc_id` - The NPC character ID
+    /// * `limit` - Maximum number of turns to return
+    async fn get_conversation_turns(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        limit: usize,
+    ) -> Result<Vec<ConversationTurnRecord>, RepoError>;
+
+    /// Get the active conversation ID between PC and NPC (if one exists).
+    async fn get_active_conversation_id(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+    ) -> Result<Option<Uuid>, RepoError>;
 
     // Triggers
     async fn get_triggers_for_region(

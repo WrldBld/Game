@@ -3,13 +3,11 @@
 //! This service provides use case implementations for listing, creating,
 //! and managing story events (timeline events) via WebSocket request/response pattern.
 
-use std::sync::Arc;
-
 use serde::{Deserialize, Serialize};
 
 use crate::application::dto::StoryEventData;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
-use crate::ports::outbound::GameConnectionPort;
+use crate::infrastructure::messaging::CommandBus;
 use wrldbldr_protocol::{RequestPayload, StoryEventRequest};
 
 /// Paginated response wrapper from Engine
@@ -45,16 +43,16 @@ impl From<&CreateDmMarkerRequest> for wrldbldr_protocol::requests::CreateDmMarke
 /// Story event service for managing story events
 ///
 /// This service provides methods for story event-related operations
-/// using WebSocket request/response pattern via the `GameConnectionPort`.
+/// using WebSocket request/response pattern via the `CommandBus`.
 #[derive(Clone)]
 pub struct StoryEventService {
-    connection: Arc<dyn GameConnectionPort>,
+    commands: CommandBus,
 }
 
 impl StoryEventService {
-    /// Create a new StoryEventService with the given connection
-    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
-        Self { connection }
+    /// Create a new StoryEventService with the given command bus
+    pub fn new(commands: CommandBus) -> Self {
+        Self { commands }
     }
 
     /// List all story events for a world
@@ -63,7 +61,7 @@ impl StoryEventService {
         world_id: &str,
     ) -> Result<Vec<StoryEventData>, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::StoryEvent(StoryEventRequest::ListStoryEvents {
                     world_id: world_id.to_string(),
@@ -85,7 +83,7 @@ impl StoryEventService {
         visible: bool,
     ) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::StoryEvent(StoryEventRequest::SetStoryEventVisibility {
                     event_id: event_id.to_string(),
@@ -105,7 +103,7 @@ impl StoryEventService {
         request: &CreateDmMarkerRequest,
     ) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::StoryEvent(StoryEventRequest::CreateDmMarker {
                     world_id: world_id.to_string(),

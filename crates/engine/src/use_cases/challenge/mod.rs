@@ -272,6 +272,7 @@ impl RollChallenge {
             location_id: None,
             game_time: None,
             topics: vec![],
+            conversation_id: None, // Challenges don't have conversation context
         };
 
         let approval_queue_id = self
@@ -644,6 +645,7 @@ impl OutcomeDecision {
                         world_id: Some(world_id),
                     }),
                     callback_id: format!("outcome_suggestion:{}", approval_id),
+                    conversation_id: None,
                 };
 
                 self.queue

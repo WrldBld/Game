@@ -3,13 +3,16 @@
 use dioxus::prelude::*;
 
 use crate::application::dto::ChallengeOutcomeDecision;
+use crate::infrastructure::websocket::ClientMessageBuilder;
 use crate::presentation::components::dm_panel::challenge_outcome_approval::ChallengeOutcomesSection;
+use crate::presentation::services::use_command_bus;
 use crate::presentation::state::use_session_state;
 
 /// Compact decision queue view for Director mode
 #[component]
 pub fn DecisionQueuePanel() -> Element {
     let session_state = use_session_state();
+    let command_bus = use_command_bus();
 
     let pending = session_state.pending_approvals().read().clone();
     let pending_outcomes = session_state.pending_challenge_outcomes().read().clone();
@@ -62,11 +65,13 @@ pub fn DecisionQueuePanel() -> Element {
                     ChallengeOutcomesSection {
                         pending_outcomes: pending_outcomes.clone(),
                         on_decision: move |(resolution_id, decision): (String, ChallengeOutcomeDecision)| {
-                            // Send the decision to the Engine via WebSocket
-                            if let Some(client) = session_state.engine_client().read().as_ref() {
-                                if let Err(e) = client.send_challenge_outcome_decision(&resolution_id, decision) {
-                                    tracing::error!("Failed to send challenge outcome decision: {}", e);
-                                }
+                            // Send the decision to the Engine via CommandBus
+                            let msg = ClientMessageBuilder::challenge_outcome_decision(
+                                &resolution_id,
+                                decision.into(),
+                            );
+                            if let Err(e) = command_bus.send(msg) {
+                                tracing::error!("Failed to send challenge outcome decision: {}", e);
                             }
                         },
                     }

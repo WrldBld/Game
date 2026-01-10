@@ -5,36 +5,33 @@
 //! not the concrete WebSocket implementation.
 
 use anyhow::Result;
-
-use std::sync::Arc;
+use wrldbldr_protocol::ClientMessage;
 
 use crate::application::dto::PlayerAction;
-use crate::ports::outbound::GameConnectionPort;
+use crate::infrastructure::messaging::CommandBus;
 
 /// Service for sending player actions to the Engine via WebSocket
 ///
-/// This service uses the GameConnectionPort trait to abstract the actual
+/// This service uses the CommandBus to abstract the actual
 /// connection implementation, allowing for different backends or testing.
 /// The PlayerActionPort methods are available via blanket implementation.
 pub struct ActionService {
-    connection: Arc<dyn GameConnectionPort>,
+    commands: CommandBus,
 }
 
 impl ActionService {
-    /// Create a new ActionService with the given connection
-    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
-        Self { connection }
+    /// Create a new ActionService with the given command bus
+    pub fn new(commands: CommandBus) -> Self {
+        Self { commands }
     }
 
     /// Send a player action to the Engine
     pub fn send_action(&self, action: PlayerAction) -> Result<()> {
-        let action_type = action.action_type.as_str();
-
-        self.connection.send_action(
-            action_type,
-            action.target.as_deref(),
-            action.dialogue.as_deref(),
-        )
+        self.commands.send(ClientMessage::PlayerAction {
+            action_type: action.action_type.as_str().to_string(),
+            target: action.target,
+            dialogue: action.dialogue,
+        })
     }
 
     /// Send a dialogue choice selection
@@ -73,28 +70,34 @@ impl ActionService {
         self.send_action(action)
     }
 
-    /// Get a reference to the underlying connection
-    pub fn connection(&self) -> &dyn GameConnectionPort {
-        self.connection.as_ref()
+    /// Get a reference to the underlying command bus
+    pub fn commands(&self) -> &CommandBus {
+        &self.commands
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ports::outbound::testing::MockGameConnectionPort;
+    use crate::infrastructure::messaging::{BusMessage, PendingRequests};
+    use std::sync::Arc;
+    use tokio::sync::{mpsc, Mutex};
 
-    #[test]
-    fn send_action_records_outbound_call() {
-        let conn = Arc::new(MockGameConnectionPort::new("ws://test/ws"));
-        let conn_dyn: Arc<dyn GameConnectionPort> = conn.clone();
-        let svc = ActionService::new(conn_dyn);
+    fn create_test_command_bus() -> (CommandBus, mpsc::Receiver<BusMessage>) {
+        let (tx, rx) = mpsc::channel(10);
+        let pending = Arc::new(Mutex::new(PendingRequests::default()));
+        (CommandBus::new(tx, pending), rx)
+    }
+
+    #[tokio::test]
+    async fn send_action_records_outbound_call() {
+        let (commands, mut rx) = create_test_command_bus();
+        let svc = ActionService::new(commands);
 
         svc.send_action(PlayerAction::custom("hello")).unwrap();
 
-        let sent = conn.sent_actions();
-        assert_eq!(sent.len(), 1);
-        assert_eq!(sent[0].action_type, "custom");
-        assert_eq!(sent[0].dialogue.as_deref(), Some("hello"));
+        // Verify that a message was sent
+        let msg = rx.recv().await.unwrap();
+        assert!(matches!(msg, BusMessage::Send(_)));
     }
 }

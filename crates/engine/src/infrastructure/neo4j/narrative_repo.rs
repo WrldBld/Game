@@ -10,7 +10,7 @@ use uuid::Uuid;
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_optional_typed_id, parse_typed_id, NodeExt};
-use crate::infrastructure::ports::{ClockPort, NarrativeRepo, RepoError};
+use crate::infrastructure::ports::{ClockPort, ConversationTurnRecord, NarrativeRepo, RepoError};
 
 pub struct Neo4jNarrativeRepo {
     graph: Graph,
@@ -1073,6 +1073,96 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         completed_events.retain(|id| seen.insert(*id));
 
         Ok(completed_events)
+    }
+
+    async fn get_conversation_turns(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        limit: usize,
+    ) -> Result<Vec<ConversationTurnRecord>, RepoError> {
+        // Find the active conversation between PC and NPC, then get its turns
+        // Join with PC/NPC nodes to get speaker names
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation {is_active: true})<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
+            MATCH (c)-[:HAS_TURN]->(t:DialogueTurn)
+            RETURN
+                t.order AS order,
+                t.text AS text,
+                t.speaker_type AS speaker_type,
+                CASE t.speaker_type
+                    WHEN 'pc' THEN pc.name
+                    WHEN 'npc' THEN npc.name
+                    ELSE 'Unknown'
+                END AS speaker_name
+            ORDER BY t.order ASC
+            LIMIT $limit",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("npc_id", npc_id.to_string())
+        .param("limit", limit as i64);
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let mut turns = Vec::new();
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let speaker: String = row
+                .get("speaker_name")
+                .unwrap_or_else(|_| "Unknown".to_string());
+            let text: String = row.get("text").unwrap_or_default();
+            let order: i64 = row.get("order").unwrap_or(0);
+
+            turns.push(ConversationTurnRecord {
+                speaker,
+                text,
+                order,
+            });
+        }
+
+        Ok(turns)
+    }
+
+    async fn get_active_conversation_id(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+    ) -> Result<Option<Uuid>, RepoError> {
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation {is_active: true})<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
+            RETURN c.id AS conversation_id
+            ORDER BY c.last_updated_at DESC
+            LIMIT 1",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("npc_id", npc_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let id_str: String = row
+                .get("conversation_id")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::Database(e.to_string()))?;
+            Ok(Some(uuid))
+        } else {
+            Ok(None)
+        }
     }
 }
 

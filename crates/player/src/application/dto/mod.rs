@@ -75,7 +75,7 @@ pub use requests::{
     SuggestionContext, UpdateChallengeRequest, UpdateCharacterRequest,
 };
 
-// Re-export session types (application-owned DTOs for GameConnectionPort)
+// Re-export session types (application-owned DTOs for CommandBus)
 pub use session_types::{
     AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecision, DiceInput,
     DirectorialContext, NpcMotivationData, ParticipantRole,

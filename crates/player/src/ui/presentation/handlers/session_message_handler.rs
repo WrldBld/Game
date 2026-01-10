@@ -52,12 +52,32 @@ pub fn handle_server_message(
             game_state.apply_scene_update(scene, characters, interactions);
         }
 
+        PlayerEvent::ConversationStarted {
+            conversation_id,
+            npc_id: _,
+            npc_name,
+            npc_disposition: _,
+        } => {
+            // Store conversation ID for tracking multi-turn conversations
+            dialogue_state.set_conversation_id(Some(conversation_id));
+            // Log the conversation start
+            session_state.add_log_entry(
+                "System".to_string(),
+                format!("Started conversation with {}", npc_name),
+                true,
+                platform,
+            );
+        }
+
         PlayerEvent::DialogueResponse {
             speaker_id,
             speaker_name,
             text,
             choices,
+            conversation_id,
         } => {
+            // Update conversation ID (may have changed or been assigned)
+            dialogue_state.set_conversation_id(conversation_id);
             // Add to conversation log for DM view
             session_state.add_log_entry(speaker_name.clone(), text.clone(), false, platform);
             // PlayerEvent already contains application-layer types
@@ -69,6 +89,7 @@ pub fn handle_server_message(
             npc_name,
             pc_id: _,
             summary,
+            conversation_id: _,
         } => {
             // Log the conversation end
             let msg = match summary {
@@ -76,7 +97,7 @@ pub fn handle_server_message(
                 None => "Conversation ended.".to_string(),
             };
             session_state.add_log_entry(npc_name, msg, false, platform);
-            // Clear dialogue state since conversation is over
+            // Clear dialogue state since conversation is over (includes conversation_id)
             dialogue_state.clear();
         }
 
@@ -886,13 +907,21 @@ pub fn handle_server_message(
         PlayerEvent::StagingPending {
             region_id,
             region_name,
+            timeout_seconds,
         } => {
-            tracing::info!("Staging pending for region {} ({})", region_name, region_id);
+            tracing::info!(
+                "Staging pending for region {} ({}) with {}s timeout",
+                region_name,
+                region_id,
+                timeout_seconds
+            );
 
             // Update region staging status to Pending
             game_state.set_region_staging_status(region_id.clone(), RegionStagingStatus::Pending);
 
-            game_state.set_staging_pending(region_id, region_name.clone());
+            // Get current time from platform port for countdown tracking
+            let started_at_ms = platform.now_millis();
+            game_state.set_staging_pending(region_id, region_name.clone(), timeout_seconds, started_at_ms);
             session_state.add_log_entry(
                 "System".to_string(),
                 format!("Setting the scene in {}...", region_name),
@@ -956,6 +985,28 @@ pub fn handle_server_message(
                 llm_based_npcs.into_iter().map(StagedNpcData::from).collect();
 
             game_state.update_staging_llm_suggestions(llm_npcs);
+        }
+
+        PlayerEvent::StagingTimedOut {
+            region_id,
+            region_name,
+        } => {
+            tracing::info!(
+                "Staging timed out for region {} ({})",
+                region_name,
+                region_id
+            );
+
+            // Clear the pending staging overlay since it timed out without approval
+            game_state.clear_staging_pending();
+
+            // Log a message so player knows they can retry
+            session_state.add_log_entry(
+                "System".to_string(),
+                format!("Scene staging timed out for {}. You can try entering again.", region_name),
+                true,
+                platform,
+            );
         }
 
         // =========================================================================
@@ -1578,7 +1629,7 @@ pub fn handle_server_message(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ports::outbound::{GameConnectionPort, PlatformPort};
+    use crate::ports::outbound::PlatformPort;
     use dioxus::dioxus_core::NoOpMutations;
     use dioxus::prelude::*;
     use std::{
@@ -1652,10 +1703,6 @@ mod tests {
 
         fn ws_to_http(&self, ws_url: &str) -> String {
             ws_url.to_string()
-        }
-
-        fn create_game_connection(&self, _server_url: &str) -> Arc<dyn GameConnectionPort> {
-            panic!("create_game_connection should not be called in these unit tests")
         }
     }
 
@@ -1769,6 +1816,7 @@ mod tests {
                 PlayerEvent::StagingPending {
                     region_id: region_id.clone(),
                     region_name: "Town".to_string(),
+                    timeout_seconds: 30,
                 },
                 &mut session_state,
                 &mut game_state,
@@ -1779,6 +1827,8 @@ mod tests {
             );
 
             assert!(game_state.staging_pending.read().is_some());
+            let pending = game_state.staging_pending.read().clone().unwrap();
+            assert_eq!(pending.timeout_seconds, 30);
             assert_eq!(
                 game_state.get_region_staging_status(&region_id),
                 RegionStagingStatus::Pending

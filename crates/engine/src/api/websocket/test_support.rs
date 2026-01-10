@@ -574,6 +574,7 @@ pub(crate) fn build_test_app_with_ports(
         player_character.clone(),
         staging.clone(),
         world.clone(),
+        narrative.clone(),
         queue.clone(),
         clock.clone(),
     ));
@@ -643,7 +644,7 @@ pub(crate) fn build_test_app_with_ports(
         )),
         approve_suggestion.clone(),
         Arc::new(crate::use_cases::approval::ApprovalDecisionFlow::new(
-            approve_suggestion,
+            approve_suggestion.clone(),
             narrative.clone(),
             queue.clone(),
         )),
@@ -688,6 +689,7 @@ pub(crate) fn build_test_app_with_ports(
             staging.clone(),
             scene.clone(),
             world.clone(),
+            narrative.clone(),
         )),
         Arc::new(crate::use_cases::queues::ProcessLlmRequest::new(
             queue.clone(),
@@ -760,6 +762,14 @@ pub(crate) fn build_test_app_with_ports(
             staging.clone(),
             world.clone(),
             character.clone(),
+            location.clone(),
+            location_state.clone(),
+            region_state.clone(),
+        )),
+        Arc::new(crate::use_cases::staging::AutoApproveStagingTimeout::new(
+            character.clone(),
+            staging.clone(),
+            world.clone(),
             location.clone(),
             location_state.clone(),
             region_state.clone(),

@@ -5,14 +5,13 @@
 //! details from the presentation layer.
 
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 use crate::application::dto::requests::{
     ChangeArchetypeRequest, CreateCharacterRequest, UpdateCharacterRequest,
 };
 use crate::application::dto::{CharacterSheetDataApi, InventoryItemData};
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
-use crate::ports::outbound::GameConnectionPort;
+use crate::infrastructure::messaging::CommandBus;
 use wrldbldr_protocol::{CharacterRequest, RequestPayload};
 
 /// Character summary for list views
@@ -50,17 +49,17 @@ pub struct CharacterFormData {
 /// Character service for managing characters
 ///
 /// This service provides methods for character-related operations
-/// while depending only on the `GameConnectionPort` trait, not concrete
+/// while depending only on the `CommandBus`, not concrete
 /// infrastructure implementations.
 #[derive(Clone)]
 pub struct CharacterService {
-    connection: Arc<dyn GameConnectionPort>,
+    commands: CommandBus,
 }
 
 impl CharacterService {
-    /// Create a new CharacterService with the given game connection
-    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
-        Self { connection }
+    /// Create a new CharacterService with the given command bus
+    pub fn new(commands: CommandBus) -> Self {
+        Self { commands }
     }
 
     /// List all characters in a world
@@ -69,7 +68,7 @@ impl CharacterService {
         world_id: &str,
     ) -> Result<Vec<CharacterSummary>, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Character(CharacterRequest::ListCharacters {
                     world_id: world_id.to_string(),
@@ -86,7 +85,7 @@ impl CharacterService {
         character_id: &str,
     ) -> Result<CharacterFormData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Character(CharacterRequest::GetCharacter {
                     character_id: character_id.to_string(),
@@ -112,7 +111,7 @@ impl CharacterService {
         };
 
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Character(CharacterRequest::CreateCharacter {
                     world_id: world_id.to_string(),
@@ -140,7 +139,7 @@ impl CharacterService {
         };
 
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Character(CharacterRequest::UpdateCharacter {
                     character_id: character_id.to_string(),
@@ -155,7 +154,7 @@ impl CharacterService {
     /// Delete a character
     pub async fn delete_character(&self, character_id: &str) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Character(CharacterRequest::DeleteCharacter {
                     character_id: character_id.to_string(),
@@ -179,7 +178,7 @@ impl CharacterService {
         };
 
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Character(CharacterRequest::ChangeArchetype {
                     character_id: character_id.to_string(),
@@ -197,7 +196,7 @@ impl CharacterService {
         character_id: &str,
     ) -> Result<Vec<InventoryItemData>, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Character(CharacterRequest::GetCharacterInventory {
                     character_id: character_id.to_string(),

@@ -4,12 +4,10 @@
 //! including hydrating queue state from the Engine and syncing read state back to it
 //! via WebSocket request/response pattern.
 
-use std::sync::Arc;
-
 use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
-use crate::ports::outbound::GameConnectionPort;
+use crate::infrastructure::messaging::CommandBus;
 use wrldbldr_protocol::{GenerationRequest, RequestPayload};
 
 /// DTO for batch status information from the Engine
@@ -54,13 +52,13 @@ pub struct GenerationQueueSnapshot {
 /// from the Engine and syncing read/unread markers back to it via WebSocket.
 #[derive(Clone)]
 pub struct GenerationService {
-    connection: Arc<dyn GameConnectionPort>,
+    commands: CommandBus,
 }
 
 impl GenerationService {
-    /// Create a new GenerationService with the given connection
-    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
-        Self { connection }
+    /// Create a new GenerationService with the given command bus
+    pub fn new(commands: CommandBus) -> Self {
+        Self { commands }
     }
 
     /// Fetch the generation queue snapshot from the Engine
@@ -74,7 +72,7 @@ impl GenerationService {
         world_id: &str,
     ) -> Result<GenerationQueueSnapshot, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Generation(GenerationRequest::GetGenerationQueue {
                     world_id: world_id.to_string(),
@@ -103,7 +101,7 @@ impl GenerationService {
         world_id: Option<&str>,
     ) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Generation(GenerationRequest::SyncGenerationReadState {
                     world_id: world_id.unwrap_or("GLOBAL").to_string(),

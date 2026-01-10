@@ -4,29 +4,27 @@
 //! updating, and managing challenges. It uses WebSocket for real-time
 //! communication with the Engine.
 
-use std::sync::Arc;
-
 use wrldbldr_protocol::{ChallengeRequest, RequestPayload};
 
 use crate::application::dto::ChallengeData;
 use crate::application::error::{get_request_timeout_ms, ParseResponse, ServiceError};
-use crate::ports::outbound::GameConnectionPort;
+use crate::infrastructure::messaging::CommandBus;
 
 /// Challenge service for managing challenges
 ///
 /// This service provides methods for challenge-related operations
-/// while depending only on the `GameConnectionPort` trait, not concrete
+/// while depending only on the `CommandBus`, not concrete
 /// infrastructure implementations. The `GameRequestPort` methods are
 /// available via blanket implementation.
 #[derive(Clone)]
 pub struct ChallengeService {
-    connection: Arc<dyn GameConnectionPort>,
+    commands: CommandBus,
 }
 
 impl ChallengeService {
-    /// Create a new ChallengeService with the given connection port
-    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
-        Self { connection }
+    /// Create a new ChallengeService with the given command bus
+    pub fn new(commands: CommandBus) -> Self {
+        Self { commands }
     }
 
     /// List all challenges in a world
@@ -38,7 +36,7 @@ impl ChallengeService {
             world_id: world_id.to_string(),
         });
         let response = self
-            .connection
+            .commands
             .request_with_timeout(payload, get_request_timeout_ms())
             .await?;
         response.parse()
@@ -50,7 +48,7 @@ impl ChallengeService {
             challenge_id: challenge_id.to_string(),
         });
         let response = self
-            .connection
+            .commands
             .request_with_timeout(payload, get_request_timeout_ms())
             .await?;
         response.parse()
@@ -76,7 +74,7 @@ impl ChallengeService {
             data,
         });
         let response = self
-            .connection
+            .commands
             .request_with_timeout(payload, get_request_timeout_ms())
             .await?;
         response.parse()
@@ -101,7 +99,7 @@ impl ChallengeService {
             data,
         });
         let response = self
-            .connection
+            .commands
             .request_with_timeout(payload, get_request_timeout_ms())
             .await?;
         response.parse()
@@ -113,7 +111,7 @@ impl ChallengeService {
             challenge_id: challenge_id.to_string(),
         });
         let response = self
-            .connection
+            .commands
             .request_with_timeout(payload, get_request_timeout_ms())
             .await?;
         response.parse_empty()
@@ -133,7 +131,7 @@ impl ChallengeService {
             favorite: new_favorite,
         });
         let response = self
-            .connection
+            .commands
             .request_with_timeout(payload, get_request_timeout_ms())
             .await?;
         response.parse_empty()?;
@@ -147,7 +145,7 @@ impl ChallengeService {
             active,
         });
         let response = self
-            .connection
+            .commands
             .request_with_timeout(payload, get_request_timeout_ms())
             .await?;
         response.parse_empty()
@@ -157,18 +155,30 @@ impl ChallengeService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ports::outbound::testing::MockGameConnectionPort;
+    use crate::infrastructure::messaging::{BusMessage, PendingRequests};
+    use std::sync::Arc;
+    use tokio::sync::{mpsc, Mutex};
+
+    fn create_test_command_bus() -> (CommandBus, mpsc::Receiver<BusMessage>) {
+        let (tx, rx) = mpsc::channel(10);
+        let pending = Arc::new(Mutex::new(PendingRequests::default()));
+        (CommandBus::new(tx, pending), rx)
+    }
 
     #[tokio::test]
     async fn list_challenges_sends_correct_payload() {
-        let conn = Arc::new(MockGameConnectionPort::new("ws://test/ws"));
-        let conn_dyn: Arc<dyn GameConnectionPort> = conn.clone();
-        let svc = ChallengeService::new(conn_dyn);
+        let (commands, mut rx) = create_test_command_bus();
+        let svc = ChallengeService::new(commands);
 
-        // The mock will return an error by default, but we can still verify the request was sent
-        let _ = svc.list_challenges("world-1").await;
+        // The request will timeout since there's no server, but we can verify a message was sent
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_millis(10),
+            svc.list_challenges("world-1"),
+        )
+        .await;
 
-        // In a real test, we'd verify the payload was correct
-        // For now, just ensure it doesn't panic
+        // Verify that a request message was sent
+        let msg = rx.recv().await.unwrap();
+        assert!(matches!(msg, BusMessage::Request { .. }));
     }
 }

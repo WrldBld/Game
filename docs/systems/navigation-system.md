@@ -59,7 +59,19 @@ Navigation creates the physical framework for storytelling. Players explore the 
 
 - [x] **US-NAV-010**: As a player, I can see a mini-map of the current location with clickable regions
   - *Implementation*: `MiniMap` component with map image overlay, grid fallback, and region legend
-  - *Files*: `crates/player-ui/src/presentation/components/mini_map.rs`, `crates/player-app/src/application/services/location_service.rs`
+  - *Implementation*: Regions positioned using `map_bounds` (x, y, width, height) from domain
+  - *Updated 2026-01-10*:
+    - Added `RegionListItemData` and `MapBoundsData` to protocol for type-safe region list responses
+    - Engine `ListRegions` returns regions with `map_bounds` from domain `Region.map_bounds`
+    - Player `LocationService.get_regions()` fetches typed region data with bounds
+    - MiniMap positions regions on map image using absolute positioning based on bounds
+    - Falls back to grid layout when no bounds or map image available
+  - *Key files*:
+    - `crates/protocol/src/messages.rs` (RegionListItemData, MapBoundsData)
+    - `crates/domain/src/entities/region.rs` (Region.map_bounds)
+    - `crates/engine/src/api/websocket/ws_location.rs` (ListRegions handler)
+    - `crates/player/src/ui/presentation/components/mini_map.rs` (MiniMap component)
+    - `crates/player/src/application/services/location_service.rs` (get_regions)
 
 ### Future Improvements
 

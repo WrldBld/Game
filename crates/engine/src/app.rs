@@ -201,6 +201,7 @@ impl App {
             player_character.clone(),
             staging.clone(),
             world.clone(),
+            narrative.clone(),
             queue_port.clone(),
             clock.clone(),
         ));
@@ -314,6 +315,7 @@ impl App {
                 staging.clone(),
                 scene.clone(),
                 world.clone(),
+                narrative.clone(),
             )),
             Arc::new(use_cases::queues::ProcessLlmRequest::new(
                 queue_port.clone(),
@@ -381,6 +383,14 @@ impl App {
                 staging.clone(),
                 world.clone(),
                 character.clone(),
+                location.clone(),
+                location_state.clone(),
+                region_state.clone(),
+            )),
+            Arc::new(use_cases::staging::AutoApproveStagingTimeout::new(
+                character.clone(),
+                staging.clone(),
+                world.clone(),
                 location.clone(),
                 location_state.clone(),
                 region_state.clone(),

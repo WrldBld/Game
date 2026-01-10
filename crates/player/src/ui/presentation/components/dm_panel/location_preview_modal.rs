@@ -2,9 +2,8 @@
 
 use dioxus::prelude::*;
 
-use crate::application::services::location_service::{
-    ConnectionData, LocationFormData, RegionData,
-};
+use crate::application::services::location_service::{ConnectionData, LocationFormData};
+use wrldbldr_protocol::RegionListItemData;
 
 use crate::presentation::services::use_location_service;
 
@@ -24,7 +23,7 @@ pub fn LocationPreviewModal(props: LocationPreviewModalProps) -> Element {
     let location_service = use_location_service();
 
     let mut location: Signal<Option<LocationFormData>> = use_signal(|| None);
-    let mut regions: Signal<Vec<RegionData>> = use_signal(Vec::new);
+    let mut regions: Signal<Vec<RegionListItemData>> = use_signal(Vec::new);
     let mut connections: Signal<Vec<ConnectionData>> = use_signal(Vec::new);
     let mut loading = use_signal(|| true);
     let mut error: Signal<Option<String>> = use_signal(|| None);
@@ -123,7 +122,7 @@ pub fn LocationPreviewModal(props: LocationPreviewModalProps) -> Element {
 #[derive(Props, Clone, PartialEq)]
 struct LocationContentProps {
     location: LocationFormData,
-    regions: Vec<RegionData>,
+    regions: Vec<RegionListItemData>,
     connections: Vec<ConnectionData>,
 }
 
@@ -268,7 +267,7 @@ fn LocationContent(props: LocationContentProps) -> Element {
 
 #[derive(Props, Clone, PartialEq)]
 struct RegionRowProps {
-    region: RegionData,
+    region: RegionListItemData,
 }
 
 #[component]

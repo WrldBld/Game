@@ -82,7 +82,9 @@ module.exports = {
       animation: {
         'typewriter': 'typewriter 2s steps(40) forwards',
         'fade-in': 'fadeIn 0.5s ease-in-out',
+        'fade-out': 'fadeOut 0.5s ease-in-out forwards',
         'slide-up': 'slideUp 0.3s ease-out',
+        'backdrop-crossfade': 'backdropCrossfade 0.8s ease-in-out',
       },
       keyframes: {
         typewriter: {
@@ -93,9 +95,18 @@ module.exports = {
           'from': { opacity: '0' },
           'to': { opacity: '1' },
         },
+        fadeOut: {
+          'from': { opacity: '1' },
+          'to': { opacity: '0' },
+        },
         slideUp: {
           'from': { transform: 'translateY(20px)', opacity: '0' },
           'to': { transform: 'translateY(0)', opacity: '1' },
+        },
+        backdropCrossfade: {
+          '0%': { opacity: '0' },
+          '50%': { opacity: '1' },
+          '100%': { opacity: '0' },
         },
       },
     },

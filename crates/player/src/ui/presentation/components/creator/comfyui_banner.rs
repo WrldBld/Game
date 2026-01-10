@@ -4,7 +4,8 @@
 
 use dioxus::prelude::*;
 
-use crate::presentation::state::use_session_state;
+use crate::infrastructure::websocket::ClientMessageBuilder;
+use crate::presentation::services::use_command_bus;
 
 #[derive(Props, Clone, PartialEq)]
 pub struct ComfyUIBannerProps {
@@ -16,7 +17,7 @@ pub struct ComfyUIBannerProps {
 /// Banner component showing ComfyUI connection status
 #[component]
 pub fn ComfyUIBanner(props: ComfyUIBannerProps) -> Element {
-    let session_state = use_session_state();
+    let command_bus = use_command_bus();
 
     // Only show banner if not connected
     if props.state == "connected" {
@@ -54,9 +55,8 @@ pub fn ComfyUIBanner(props: ComfyUIBannerProps) -> Element {
             }
             button {
                 onclick: move |_| {
-                    if let Some(client) = session_state.engine_client().read().as_ref() {
-                        let _ = client.check_comfyui_health();
-                    }
+                    let msg = ClientMessageBuilder::check_comfyui_health();
+                    let _ = command_bus.send(msg);
                 },
                 class: "bg-white bg-opacity-20 border border-white border-opacity-30 text-white py-1.5 px-3 rounded cursor-pointer text-xs",
                 "Retry Now"

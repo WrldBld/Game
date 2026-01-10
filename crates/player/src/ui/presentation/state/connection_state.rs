@@ -4,11 +4,9 @@
 //! All connections are world-scoped (no session concept).
 
 use dioxus::prelude::*;
-use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::application::dto::{ConnectedUser, ParticipantRole, WorldRole};
-use crate::ports::outbound::GameConnectionPort;
 
 /// Connection status to the Engine server
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,8 +69,6 @@ pub struct ConnectionState {
     pub connected_users: Signal<Vec<ConnectedUser>>,
     /// Server URL we're connected to
     pub server_url: Signal<Option<String>>,
-    /// Game connection handle (if connected)
-    pub engine_client: Signal<Option<Arc<dyn GameConnectionPort>>>,
     /// Error message if connection failed
     pub error_message: Signal<Option<String>>,
     /// ComfyUI connection state
@@ -92,7 +88,6 @@ impl ConnectionState {
             world_role: Signal::new(None),
             connected_users: Signal::new(Vec::new()),
             server_url: Signal::new(None),
-            engine_client: Signal::new(None),
             error_message: Signal::new(None),
             comfyui_state: Signal::new("unknown".to_string()),
             comfyui_message: Signal::new(None),
@@ -108,18 +103,9 @@ impl ConnectionState {
     }
 
     /// Set the connection to connected state
-    pub fn set_connected(&mut self, client: Arc<dyn GameConnectionPort>) {
+    pub fn set_connected(&mut self) {
         self.connection_status.set(ConnectionStatus::Connected);
-        self.engine_client.set(Some(client));
         self.error_message.set(None);
-    }
-
-    /// Store the connection handle without changing UI status.
-    ///
-    /// This is useful on desktop where the connection is established asynchronously
-    /// and status is driven by incoming connection events.
-    pub fn set_connection_handle(&mut self, client: Arc<dyn GameConnectionPort>) {
-        self.engine_client.set(Some(client));
     }
 
     /// Set the world as joined (WebSocket-first protocol)
@@ -168,7 +154,6 @@ impl ConnectionState {
     /// Set the connection to disconnected state
     pub fn set_disconnected(&mut self) {
         self.connection_status.set(ConnectionStatus::Disconnected);
-        self.engine_client.set(None);
         self.world_id.set(None);
     }
 
@@ -176,7 +161,6 @@ impl ConnectionState {
     pub fn set_failed(&mut self, error: String) {
         self.connection_status.set(ConnectionStatus::Failed);
         self.error_message.set(Some(error));
-        self.engine_client.set(None);
     }
 
     /// Set the connection to reconnecting state
@@ -184,11 +168,6 @@ impl ConnectionState {
         self.connection_status.set(ConnectionStatus::Reconnecting);
         // Clear previous error since we're attempting a new connection
         self.error_message.set(None);
-    }
-
-    /// Check if we have an active client
-    pub fn has_client(&self) -> bool {
-        self.engine_client.read().is_some()
     }
 
     /// Clear all connection state
@@ -200,7 +179,6 @@ impl ConnectionState {
         self.world_role.set(None);
         self.connected_users.set(Vec::new());
         self.server_url.set(None);
-        self.engine_client.set(None);
         self.error_message.set(None);
         // Reset ComfyUI state on disconnect
         self.comfyui_state.set("unknown".to_string());

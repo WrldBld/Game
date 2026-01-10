@@ -91,6 +91,8 @@ pub enum StagingSource {
     DmCustomized,
     /// DM pre-staged before player arrival
     PreStaged,
+    /// Auto-approved on timeout (using rule-based NPCs)
+    AutoApproved,
     /// Unknown source (for forward compatibility)
     #[serde(other)]
     Unknown,
@@ -258,6 +260,7 @@ impl std::fmt::Display for StagingSource {
             StagingSource::LlmBased => write!(f, "llm"),
             StagingSource::DmCustomized => write!(f, "custom"),
             StagingSource::PreStaged => write!(f, "prestaged"),
+            StagingSource::AutoApproved => write!(f, "auto"),
             StagingSource::Unknown => write!(f, "unknown"),
         }
     }
@@ -272,6 +275,7 @@ impl std::str::FromStr for StagingSource {
             "llm" | "llmbased" => Ok(StagingSource::LlmBased),
             "custom" | "dmcustomized" => Ok(StagingSource::DmCustomized),
             "prestaged" => Ok(StagingSource::PreStaged),
+            "auto" | "autoapproved" => Ok(StagingSource::AutoApproved),
             "unknown" => Ok(StagingSource::Unknown),
             _ => Ok(StagingSource::Unknown), // Forward compatibility
         }

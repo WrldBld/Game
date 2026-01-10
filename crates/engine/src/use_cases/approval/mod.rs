@@ -106,6 +106,8 @@ pub struct SuggestionApprovalResult {
     pub npc_id: Option<String>,
     /// NPC name (speaker)
     pub npc_name: Option<String>,
+    /// Conversation ID (for dialogue tracking)
+    pub conversation_id: Option<Uuid>,
 }
 
 /// Approve LLM suggestion use case.
@@ -141,15 +143,16 @@ impl ApproveSuggestion {
             .await
             .map_err(|e| ApprovalError::QueueError(e.to_string()))?;
 
-        let (npc_id, npc_name, original_dialogue) = queue_item
+        let (npc_id, npc_name, original_dialogue, conversation_id) = queue_item
             .map(|data| {
                 (
                     data.npc_id.map(|id| id.to_string()),
                     Some(data.npc_name),
                     Some(data.proposed_dialogue),
+                    data.conversation_id,
                 )
             })
-            .unwrap_or((None, None, None));
+            .unwrap_or((None, None, None, None));
 
         let (approved, final_dialogue, approved_tools) = match &decision {
             DmApprovalDecision::Accept => (true, original_dialogue, vec![]),
@@ -192,6 +195,7 @@ impl ApproveSuggestion {
             approved_tools,
             npc_id,
             npc_name,
+            conversation_id,
         })
     }
 }
@@ -269,6 +273,7 @@ impl ApprovalDecisionFlow {
             approved_tools: result.approved_tools,
             npc_id: result.npc_id,
             npc_name: result.npc_name,
+            conversation_id: result.conversation_id,
         })
     }
 }
@@ -280,6 +285,7 @@ pub struct ApprovalDecisionOutcome {
     pub approved_tools: Vec<String>,
     pub npc_id: Option<String>,
     pub npc_name: Option<String>,
+    pub conversation_id: Option<Uuid>,
 }
 
 #[derive(Debug, thiserror::Error)]

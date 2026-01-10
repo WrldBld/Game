@@ -5,13 +5,11 @@
 //! for more focused functionality.
 
 use dioxus::prelude::*;
-use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::application::dto::{
     ApprovalDecision, ConnectedUser, OutcomeBranchData, ParticipantRole, WorldRole,
 };
-use crate::ports::outbound::GameConnectionPort;
 use crate::presentation::components::tactical::PlayerSkillData;
 
 // Substate types (avoid `pub use crate::...` shims)
@@ -87,11 +85,6 @@ impl SessionState {
         self.connection.server_url
     }
 
-    /// Game connection handle (if connected)
-    pub fn engine_client(&self) -> Signal<Option<Arc<dyn GameConnectionPort>>> {
-        self.connection.engine_client
-    }
-
     /// Error message if connection failed
     pub fn error_message(&self) -> Signal<Option<String>> {
         self.connection.error_message
@@ -150,13 +143,8 @@ impl SessionState {
     }
 
     /// Set the connection to connected state
-    pub fn set_connected(&mut self, client: Arc<dyn GameConnectionPort>) {
-        self.connection.set_connected(client);
-    }
-
-    /// Store the connection handle without changing UI status.
-    pub fn set_connection_handle(&mut self, client: Arc<dyn GameConnectionPort>) {
-        self.connection.set_connection_handle(client);
+    pub fn set_connected(&mut self) {
+        self.connection.set_connected();
     }
 
     /// Set the world as joined
@@ -229,10 +217,6 @@ impl SessionState {
             .add_log_entry(speaker, text, is_system, platform);
     }
 
-    /// Check if we have an active client
-    pub fn has_client(&self) -> bool {
-        self.connection.has_client()
-    }
 
     /// Set active challenge prompt
     pub fn set_active_challenge(&mut self, challenge: ChallengePromptData) {
@@ -269,17 +253,16 @@ impl SessionState {
         self.approval.get_approval_history()
     }
 
-    /// Record an approval decision: send it to the Engine, log it locally with
-    /// a real timestamp, and remove it from the pending queue.
+    /// Record an approval decision locally: log it in history and remove from pending queue.
+    /// Note: The actual sending to Engine is done via CommandBus through the ApprovalService.
     pub fn record_approval_decision(
         &mut self,
         request_id: String,
         decision: &ApprovalDecision,
         platform: &dyn crate::ports::outbound::PlatformPort,
     ) {
-        let engine_client = self.connection.engine_client.read().clone();
         self.approval
-            .record_approval_decision(request_id, decision, platform, &engine_client);
+            .record_approval_decision(request_id, decision, platform);
     }
 
     // =========================================================================

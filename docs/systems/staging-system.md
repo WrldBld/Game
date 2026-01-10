@@ -76,7 +76,7 @@ WrldBldr uses theatre and story terminology throughout:
 
 - [x] **US-STG-012**: As a player, I see a loading indicator while staging is pending
   - *Implementation*: Dimmed backdrop with "Setting the scene..." overlay
-  - *Files*: `crates/player-ui/src/presentation/views/pc_view.rs`
+  - *Files*: `crates/player/src/ui/presentation/views/pc_view.rs`
 
 - [x] **US-STG-013**: As a DM, I can stage NPCs as present but hidden from players
   - *Implementation*: Hidden NPCs do not appear in player presence payloads (`SceneChanged`, `StagingReady`)
@@ -90,7 +90,41 @@ WrldBldr uses theatre and story terminology throughout:
     - `crates/domain/src/entities/staging.rs`
     - `crates/engine/src/infrastructure/neo4j/staging_repo.rs`
     - `crates/engine/src/api/websocket/mod.rs`
-    - `crates/player-ui/src/presentation/components/dm_panel/staging_approval.rs`
+    - `crates/player/src/ui/presentation/components/dm_panel/staging_approval.rs`
+
+- [x] **US-STG-014**: As a player, staging auto-approves with rule-based NPCs if DM doesn't respond within timeout
+  - *Implementation*: Background task checks for expired pending requests (default 30s)
+  - *Implementation*: Auto-approved staging uses `StagingSource::AutoApproved` source
+  - *Completed 2026-01-10*:
+    - Added `staging_timeout_seconds` world setting (default: 30 seconds)
+    - Added `auto_approve_on_timeout` world setting (default: true)
+    - Background task in `main.rs` polls pending staging requests
+    - Created `AutoApproveStagingTimeout` use case
+    - Player unblocked automatically if DM doesn't respond
+  - *Key files*:
+    - `crates/domain/src/value_objects/settings.rs` (staging timeout settings)
+    - `crates/domain/src/entities/staging.rs` (AutoApproved source)
+    - `crates/engine/src/use_cases/staging/mod.rs` (AutoApproveStagingTimeout use case)
+    - `crates/engine/src/main.rs` (staging timeout processor task)
+
+- [x] **US-STG-015**: As a player, I see a timeout countdown while waiting for staging
+  - *Implementation*: StagingPending message includes `timeout_seconds` field
+  - *Implementation*: Overlay shows countdown timer using platform-agnostic time handling
+  - *Completed 2026-01-10*:
+    - Added `timeout_seconds` to `StagingPending` protocol message
+    - Updated `StagingPendingData` to track `started_at_ms` and `timeout_seconds`
+    - Added countdown timer to `StagingPendingOverlay` component
+    - Timer uses `PlatformPort::now_millis()` for cross-platform compatibility
+  - *Key files*:
+    - `crates/protocol/src/messages.rs` (StagingPending.timeout_seconds)
+    - `crates/player/src/ui/presentation/state/game_state.rs` (StagingPendingData)
+    - `crates/player/src/ui/presentation/views/pc_view.rs` (StagingPendingOverlay)
+
+### Pending
+
+- [ ] **US-STG-016**: As a DM, I can configure auto-approve timeout per world
+  - *Requirement*: UI to adjust `staging_timeout_seconds` in world settings
+  - *Target files*: World settings UI component
 
 ---
 
@@ -292,6 +326,8 @@ WrldBldr uses theatre and story terminology throughout:
 │  │                      │  🎭                  │                         │   │
 │  │                      │  Setting the scene...│                         │   │
 │  │                      │  [spinner]           │                         │   │
+│  │                      │                      │                         │   │
+│  │                      │ Auto-continue in 25s │  <-- Timeout indicator  │   │
 │  │                      └─────────────────────┘                         │   │
 │  │                                                                      │   │
 │  │                                                                      │   │
@@ -304,7 +340,8 @@ WrldBldr uses theatre and story terminology throughout:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ✅ Implemented (`crates/player-ui/src/presentation/views/pc_view.rs`)
+**Status**: ✅ Base implemented, ⏳ Timeout indicator pending (US-STG-015)
+**File**: `crates/player/src/ui/presentation/views/pc_view.rs`
 
 ---
 
@@ -323,7 +360,7 @@ WrldBldr uses theatre and story terminology throughout:
     approved_at: datetime,      // Real time when approved
     ttl_hours: 3,               // How long valid in game hours
     approved_by: "client_id",   // Who approved
-    source: "llm",              // "rule" | "llm" | "custom" | "prestaged"
+    source: "llm",              // "rule" | "llm" | "custom" | "prestaged" | "auto"
     dm_guidance: null,          // Optional guidance text for regeneration
     is_active: true             // Current active staging for region
 })
@@ -546,6 +583,7 @@ Consider: story reasons, interesting opportunities, conflicts, current context.
 
 | Date | Change |
 |------|--------|
+| 2026-01-10 | Added US-STG-014 (auto-approve timeout), US-STG-015/016 pending stories |
 | 2026-01-05 | Added Visual State Integration section (LocationState, RegionState) |
 | 2025-12-26 | Marked US-STG-013 (hidden NPCs) as complete |
 | 2025-12-24 | Updated status: Engine complete, UI partial |

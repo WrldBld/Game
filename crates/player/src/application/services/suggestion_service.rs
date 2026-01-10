@@ -19,13 +19,11 @@
 //! when `world_id` is provided but `world_setting` is not. This provides
 //! better suggestion quality without requiring the UI to fetch world data.
 
-use std::sync::Arc;
-
 use serde::Deserialize;
 
 use crate::application::dto::requests::SuggestionContext;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
-use crate::ports::outbound::GameConnectionPort;
+use crate::infrastructure::messaging::CommandBus;
 use wrldbldr_protocol::{AiRequest, RequestPayload};
 
 /// Response from queued suggestion (immediate response, results via events)
@@ -49,13 +47,13 @@ struct CancelResponse {
 /// SuggestionCompleted, SuggestionFailed).
 #[derive(Clone)]
 pub struct SuggestionService {
-    connection: Arc<dyn GameConnectionPort>,
+    commands: CommandBus,
 }
 
 impl SuggestionService {
-    /// Create a new SuggestionService with the given connection
-    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
-        Self { connection }
+    /// Create a new SuggestionService with the given command bus
+    pub fn new(commands: CommandBus) -> Self {
+        Self { commands }
     }
 
     // =========================================================================
@@ -207,7 +205,7 @@ impl SuggestionService {
         context: &SuggestionContext,
     ) -> Result<String, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Ai(AiRequest::EnqueueContentSuggestion {
                     world_id: world_id.to_string(),
@@ -227,7 +225,7 @@ impl SuggestionService {
     /// Returns true if the request was found and cancelled.
     pub async fn cancel_suggestion(&self, request_id: &str) -> Result<bool, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Ai(AiRequest::CancelContentSuggestion {
                     request_id: request_id.to_string(),

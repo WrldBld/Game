@@ -3,12 +3,10 @@
 //! This service provides use case implementations for managing wants, goals,
 //! and actantial relationships via WebSocket request/response pattern.
 
-use std::sync::Arc;
-
 use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
-use crate::ports::outbound::GameConnectionPort;
+use crate::infrastructure::messaging::CommandBus;
 // Note: Actantial enum types (WantVisibilityData, ActantialRoleData, etc.) are imported
 // as shared value objects. These are essentially protocol primitives used in DTOs.
 // This is a documented exception in the hexagonal architecture.
@@ -171,16 +169,16 @@ impl From<&UpdateGoalRequest> for wrldbldr_protocol::messages::UpdateGoalData {
 /// Actantial service for managing NPC motivations
 ///
 /// This service provides methods for want, goal, and actantial view operations
-/// using WebSocket request/response pattern via the `GameConnectionPort`.
+/// using WebSocket request/response pattern via the `CommandBus`.
 #[derive(Clone)]
 pub struct ActantialService {
-    connection: Arc<dyn GameConnectionPort>,
+    commands: CommandBus,
 }
 
 impl ActantialService {
-    /// Create a new ActantialService with the given connection
-    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
-        Self { connection }
+    /// Create a new ActantialService with the given command bus
+    pub fn new(commands: CommandBus) -> Self {
+        Self { commands }
     }
 
     // === Want Operations ===
@@ -188,7 +186,7 @@ impl ActantialService {
     /// List all wants for a character
     pub async fn list_wants(&self, character_id: &str) -> Result<Vec<WantResponse>, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Want(WantRequest::ListWants {
                     character_id: character_id.to_string(),
@@ -207,7 +205,7 @@ impl ActantialService {
         request: &CreateWantRequest,
     ) -> Result<WantResponse, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Want(WantRequest::CreateWant {
                     character_id: character_id.to_string(),
@@ -227,7 +225,7 @@ impl ActantialService {
         request: &UpdateWantRequest,
     ) -> Result<WantResponse, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Want(WantRequest::UpdateWant {
                     want_id: want_id.to_string(),
@@ -243,7 +241,7 @@ impl ActantialService {
     /// Delete a want
     pub async fn delete_want(&self, want_id: &str) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Want(WantRequest::DeleteWant {
                     want_id: want_id.to_string(),
@@ -262,7 +260,7 @@ impl ActantialService {
         request: &SetWantTargetRequest,
     ) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Want(WantRequest::SetWantTarget {
                     want_id: want_id.to_string(),
@@ -279,7 +277,7 @@ impl ActantialService {
     /// Remove a want's target
     pub async fn remove_want_target(&self, want_id: &str) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Want(WantRequest::RemoveWantTarget {
                     want_id: want_id.to_string(),
@@ -299,7 +297,7 @@ impl ActantialService {
         character_id: &str,
     ) -> Result<NpcActantialContextData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Actantial(ActantialRequest::GetActantialContext {
                     character_id: character_id.to_string(),
@@ -318,7 +316,7 @@ impl ActantialService {
         request: &AddActantialViewRequest,
     ) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Actantial(ActantialRequest::AddActantialView {
                     character_id: character_id.to_string(),
@@ -342,7 +340,7 @@ impl ActantialService {
         request: &RemoveActantialViewRequest,
     ) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Actantial(ActantialRequest::RemoveActantialView {
                     character_id: character_id.to_string(),
@@ -363,7 +361,7 @@ impl ActantialService {
     /// List all goals for a world
     pub async fn list_goals(&self, world_id: &str) -> Result<Vec<GoalResponse>, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Goal(GoalRequest::ListGoals {
                     world_id: world_id.to_string(),
@@ -382,7 +380,7 @@ impl ActantialService {
         request: &CreateGoalRequest,
     ) -> Result<GoalResponse, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Goal(GoalRequest::CreateGoal {
                     world_id: world_id.to_string(),
@@ -402,7 +400,7 @@ impl ActantialService {
         request: &UpdateGoalRequest,
     ) -> Result<GoalResponse, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Goal(GoalRequest::UpdateGoal {
                     goal_id: goal_id.to_string(),
@@ -418,7 +416,7 @@ impl ActantialService {
     /// Delete a goal
     pub async fn delete_goal(&self, goal_id: &str) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Goal(GoalRequest::DeleteGoal {
                     goal_id: goal_id.to_string(),

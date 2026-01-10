@@ -101,6 +101,7 @@ async fn when_dm_accepts_approval_suggestion_then_marks_complete_and_broadcasts_
             location_id: None,
             game_time: None,
             topics: vec![],
+            conversation_id: None,
         },
     );
 
@@ -249,6 +250,7 @@ async fn when_dm_rejects_approval_suggestion_then_marks_failed_and_does_not_broa
             location_id: None,
             game_time: None,
             topics: vec![],
+            conversation_id: None,
         },
     );
 
@@ -375,6 +377,7 @@ async fn when_dm_modifies_approval_suggestion_then_marks_complete_and_broadcasts
             location_id: None,
             game_time: None,
             topics: vec![],
+            conversation_id: None,
         },
     );
 

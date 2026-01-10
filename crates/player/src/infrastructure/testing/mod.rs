@@ -10,10 +10,5 @@
 
 pub mod fixtures;
 pub mod mock_api_port;
-pub mod mock_game_connection;
 
 pub use mock_api_port::MockApiPort;
-pub use mock_game_connection::{
-    MockGameConnectionPort, SentAction, SentApproval, SentChallengeTrigger, SentJoin,
-    SentSceneChange,
-};

@@ -55,6 +55,8 @@ pub struct DialogueState {
     pub next_marker_index: Signal<usize>,
     /// Current action being performed (displayed as stage direction)
     pub current_action: Signal<Option<String>>,
+    /// Current conversation ID for tracking multi-turn conversations
+    pub conversation_id: Signal<Option<String>>,
 }
 
 impl DialogueState {
@@ -77,6 +79,7 @@ impl DialogueState {
             positioned_markers: Signal::new(Vec::new()),
             next_marker_index: Signal::new(0),
             current_action: Signal::new(None),
+            conversation_id: Signal::new(None),
         }
     }
 
@@ -155,6 +158,21 @@ impl DialogueState {
         self.current_action.set(None); // Clear action when skipping
     }
 
+    /// Set the conversation ID for tracking multi-turn conversations
+    pub fn set_conversation_id(&mut self, conversation_id: Option<String>) {
+        self.conversation_id.set(conversation_id);
+    }
+
+    /// Get the current conversation ID
+    pub fn get_conversation_id(&self) -> Option<String> {
+        self.conversation_id.read().clone()
+    }
+
+    /// Clear the conversation (when conversation ends)
+    pub fn clear_conversation(&mut self) {
+        self.conversation_id.set(None);
+    }
+
     /// Check and trigger any markers at the current position
     ///
     /// Called during typewriter animation to update expression/action.
@@ -224,6 +242,7 @@ impl DialogueState {
         self.positioned_markers.set(Vec::new());
         self.next_marker_index.set(0);
         self.current_action.set(None);
+        self.conversation_id.set(None);
     }
 
     /// Check if there's active dialogue to display

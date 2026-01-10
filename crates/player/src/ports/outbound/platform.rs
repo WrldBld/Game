@@ -9,7 +9,7 @@
 //! lives in `player-adapters/src/state/platform.rs`, not here.
 //! Ports layer contains only trait definitions.
 
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{future::Future, pin::Pin};
 
 /// Time operations abstraction
 pub trait TimeProvider: Clone + 'static {
@@ -69,15 +69,6 @@ pub trait EngineConfigProvider: Clone + 'static {
 
     /// Convert WebSocket URL to HTTP URL
     fn ws_to_http(&self, ws_url: &str) -> String;
-}
-
-/// Connection factory provider for creating game connections
-pub trait ConnectionFactoryProvider: Clone + 'static {
-    /// Create a game connection to the engine
-    ///
-    /// Returns an Arc-wrapped connection that implements GameConnectionPort.
-    /// This abstracts the WebSocket connection creation from the presentation layer.
-    fn create_game_connection(&self, server_url: &str) -> Arc<dyn super::GameConnectionPort>;
 }
 
 /// Storage key constants

@@ -32,7 +32,7 @@ pub use action_service::ActionService;
 pub use session_command_service::SessionCommandService;
 
 // Re-export session service types
-pub use session_service::{port_connection_state_to_status, DEFAULT_ENGINE_URL};
+pub use session_service::{connection_state_to_status, DEFAULT_ENGINE_URL};
 
 pub use session_service::{SessionEvent, SessionService};
 
@@ -51,9 +51,9 @@ pub use player_character_service::{
 };
 
 // Re-export location service types
-pub use location_service::{
-    LocationFormData, LocationService, LocationSummary, MapBoundsData, RegionData,
-};
+pub use location_service::{LocationFormData, LocationService, LocationSummary};
+// Map-related types from protocol
+pub use wrldbldr_protocol::{MapBoundsData, RegionListItemData};
 
 // Re-export skill service types
 pub use skill_service::{CreateSkillRequest, SkillService, UpdateSkillRequest};

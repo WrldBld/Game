@@ -44,7 +44,7 @@ pub fn Backdrop(props: BackdropProps) -> Element {
             // Fade overlay for scene transitions
             if props.transitioning {
                 div {
-                    class: "backdrop-fade absolute inset-0 bg-black animate-fadeOut",
+                    class: "backdrop-fade absolute inset-0 bg-black animate-fade-out",
                 }
             }
 

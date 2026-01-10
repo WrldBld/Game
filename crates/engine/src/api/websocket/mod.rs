@@ -486,8 +486,19 @@ async fn handle_message(
             ws_conversation::handle_start_conversation(state, connection_id, npc_id, message).await
         }
 
-        ClientMessage::ContinueConversation { npc_id, message } => {
-            ws_conversation::handle_continue_conversation(state, connection_id, npc_id, message).await
+        ClientMessage::ContinueConversation {
+            npc_id,
+            message,
+            conversation_id,
+        } => {
+            ws_conversation::handle_continue_conversation(
+                state,
+                connection_id,
+                npc_id,
+                message,
+                conversation_id,
+            )
+            .await
         }
 
         ClientMessage::PerformInteraction { interaction_id } => {
@@ -1211,6 +1222,7 @@ mod ws_integration_tests_inline {
                 player_character.clone(),
                 staging.clone(),
                 world.clone(),
+                narrative.clone(),
                 queue.clone(),
                 clock.clone(),
             ));
@@ -1329,6 +1341,7 @@ mod ws_integration_tests_inline {
                 staging.clone(),
                 scene.clone(),
                 world.clone(),
+                narrative.clone(),
             )),
             Arc::new(crate::use_cases::queues::ProcessLlmRequest::new(
                 queue.clone(),
@@ -1404,6 +1417,14 @@ mod ws_integration_tests_inline {
                 staging.clone(),
                 world.clone(),
                 character.clone(),
+                location.clone(),
+                location_state.clone(),
+                region_state.clone(),
+            )),
+            Arc::new(crate::use_cases::staging::AutoApproveStagingTimeout::new(
+                character.clone(),
+                staging.clone(),
+                world.clone(),
                 location.clone(),
                 location_state.clone(),
                 region_state.clone(),
@@ -2232,6 +2253,7 @@ mod ws_integration_tests_inline {
                 location_id: None,
                 game_time: None,
                 topics: vec![],
+                conversation_id: None,
             },
         );
 
@@ -2381,6 +2403,7 @@ mod ws_integration_tests_inline {
                 location_id: None,
                 game_time: None,
                 topics: vec![],
+                conversation_id: None,
             },
         );
 
@@ -2507,6 +2530,7 @@ mod ws_integration_tests_inline {
                 location_id: None,
                 game_time: None,
                 topics: vec![],
+                conversation_id: None,
             },
         );
 

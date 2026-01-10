@@ -64,6 +64,20 @@ The visual novel format provides:
   - *Status*: Implemented - Flag entity with Neo4j storage in `flag.rs` and `flag_repo.rs`
   - *Files*: `crates/engine/src/entities/flag.rs`, `crates/engine/src/infrastructure/neo4j/flag_repo.rs`
 
+- [x] **US-SCN-011**: As a player, I see smooth transitions when changing scenes
+  - *Implementation*: Fade-out animation on backdrop during scene transitions
+  - *Completed 2026-01-10*:
+    - Added `fadeOut` and `backdropCrossfade` animations to Tailwind config
+    - Added `backdrop_transitioning` signal to GameState for tracking animation
+    - Backdrop component applies `animate-fade-out` class when transitioning
+    - `apply_scene_changed()` triggers transition effect before updating scene
+    - Effect hook auto-clears transition state after 500ms animation completes
+  - *Key files*:
+    - `crates/player/tailwind.config.js` (fadeOut animation keyframes)
+    - `crates/player/src/ui/presentation/state/game_state.rs` (backdrop_transitioning signal)
+    - `crates/player/src/ui/presentation/components/visual_novel/backdrop.rs` (transition class)
+    - `crates/player/src/ui/presentation/views/pc_view.rs` (transition effect hook)
+
 ---
 
 ## UI Mockups

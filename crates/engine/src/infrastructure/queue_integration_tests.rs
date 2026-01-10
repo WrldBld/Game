@@ -38,6 +38,7 @@ async fn sqlite_queue_dm_approval_persists_across_restart() {
         location_id: None,
         game_time: None,
         topics: vec![],
+        conversation_id: None,
     };
 
     let id = {

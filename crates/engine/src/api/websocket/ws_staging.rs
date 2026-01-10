@@ -29,6 +29,14 @@ pub(super) async fn handle_staging_approval(
     let (region_id, location_id) = if let Some(pending) = pending {
         (pending.region_id, Some(pending.location_id))
     } else {
+        // Check if request_id looks like a UUID (staging request token)
+        // If so, it was likely already processed by timeout or another handler
+        if uuid::Uuid::parse_str(&request_id).is_ok() {
+            return Some(error_response(
+                "ALREADY_PROCESSED",
+                "Staging request already processed or expired",
+            ));
+        }
         // Backward-compat: allow request_id to be the region_id.
         let region_id = match parse_region_id(&request_id) {
             Ok(id) => id,
@@ -99,12 +107,20 @@ pub(super) async fn handle_staging_regenerate(
     // request_id is a correlation token; resolve it to a region_id.
     let pending = {
         let guard = state.pending_staging_requests.read().await;
-        guard.get(&request_id).copied()
+        guard.get(&request_id).cloned()
     };
 
     let region_id = if let Some(pending) = pending {
         pending.region_id
     } else {
+        // Check if request_id looks like a UUID (staging request token)
+        // If so, it was likely already processed by timeout or another handler
+        if uuid::Uuid::parse_str(&request_id).is_ok() {
+            return Some(error_response(
+                "ALREADY_PROCESSED",
+                "Staging request already processed or expired",
+            ));
+        }
         match parse_region_id(&request_id) {
             Ok(id) => id,
             Err(e) => return Some(e),

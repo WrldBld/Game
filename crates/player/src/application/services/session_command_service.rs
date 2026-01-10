@@ -3,29 +3,29 @@
 //! This service is intentionally small: it exists to keep presentation code
 //! free of transport concerns and to centralize command semantics.
 
-use std::sync::Arc;
-
 use anyhow::Result;
+use wrldbldr_protocol::ClientMessage;
 
 use crate::application::dto::{ApprovalDecision, DiceInput, DirectorialContext};
-use crate::ports::outbound::GameConnectionPort;
+use crate::infrastructure::messaging::CommandBus;
 
 /// Application service for sending session commands via the game connection.
 ///
-/// Uses `GameConnectionPort` which provides `DmControlPort` and `PlayerActionPort`
-/// methods via blanket implementations.
+/// Uses `CommandBus` to send commands to the engine.
 #[derive(Clone)]
 pub struct SessionCommandService {
-    connection: Arc<dyn GameConnectionPort>,
+    commands: CommandBus,
 }
 
 impl SessionCommandService {
-    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
-        Self { connection }
+    pub fn new(commands: CommandBus) -> Self {
+        Self { commands }
     }
 
     pub fn send_directorial_update(&self, context: DirectorialContext) -> Result<()> {
-        self.connection.send_directorial_update(context)
+        self.commands.send(ClientMessage::DirectorialUpdate {
+            context: context.into(),
+        })
     }
 
     pub fn send_approval_decision(
@@ -33,20 +33,30 @@ impl SessionCommandService {
         request_id: &str,
         decision: ApprovalDecision,
     ) -> Result<()> {
-        self.connection.send_approval_decision(request_id, decision)
+        self.commands.send(ClientMessage::ApprovalDecision {
+            request_id: request_id.to_string(),
+            decision,
+        })
     }
 
     pub fn trigger_challenge(&self, challenge_id: &str, target_character_id: &str) -> Result<()> {
-        self.connection
-            .trigger_challenge(challenge_id, target_character_id)
+        self.commands.send(ClientMessage::TriggerChallenge {
+            challenge_id: challenge_id.to_string(),
+            target_character_id: target_character_id.to_string(),
+        })
     }
 
     pub fn submit_challenge_roll(&self, challenge_id: &str, roll: i32) -> Result<()> {
-        self.connection.submit_challenge_roll(challenge_id, roll)
+        self.commands.send(ClientMessage::ChallengeRoll {
+            challenge_id: challenge_id.to_string(),
+            roll,
+        })
     }
 
     pub fn submit_challenge_roll_input(&self, challenge_id: &str, input: DiceInput) -> Result<()> {
-        self.connection
-            .submit_challenge_roll_input(challenge_id, input)
+        self.commands.send(ClientMessage::ChallengeRollInput {
+            challenge_id: challenge_id.to_string(),
+            input_type: input.into(),
+        })
     }
 }

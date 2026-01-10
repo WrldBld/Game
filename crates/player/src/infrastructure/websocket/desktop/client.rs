@@ -5,15 +5,12 @@ use std::time::Duration;
 
 use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
-use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
+use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-use wrldbldr_protocol::{
-    ClientMessage, ParticipantRole, RequestError, RequestPayload, ResponseResult, ServerMessage,
-};
+use wrldbldr_protocol::{ClientMessage, ServerMessage};
 
-use crate::infrastructure::session_type_converters::participant_role_to_world_role;
-use crate::infrastructure::websocket::protocol::ConnectionState;
+use crate::infrastructure::messaging::ConnectionState;
 use crate::infrastructure::websocket::shared::{parse_server_message, ParsedServerMessage};
 use crate::infrastructure::websocket::{BackoffState, PendingRequests};
 
@@ -42,11 +39,6 @@ impl EngineClient {
         }
     }
 
-    /// Get the URL this client is configured for
-    pub fn url(&self) -> &str {
-        &self.url
-    }
-
     pub async fn set_on_message<F>(&self, callback: F)
     where
         F: Fn(ServerMessage) + Send + Sync + 'static,
@@ -61,10 +53,6 @@ impl EngineClient {
     {
         let mut on_state_change = self.on_state_change.lock().await;
         *on_state_change = Some(Box::new(callback));
-    }
-
-    pub async fn state(&self) -> ConnectionState {
-        *self.state.read().await
     }
 
     async fn set_state(&self, new_state: ConnectionState) {
@@ -270,86 +258,6 @@ impl EngineClient {
         } else {
             Err(anyhow::anyhow!("Not connected"))
         }
-    }
-
-    pub async fn join_world(
-        &self,
-        world_id: &str,
-        _user_id: &str,
-        role: ParticipantRole,
-    ) -> Result<()> {
-        let world_id = uuid::Uuid::parse_str(world_id)?;
-        let world_role = participant_role_to_world_role(role);
-
-        self.send(ClientMessage::JoinWorld {
-            world_id,
-            role: world_role,
-            pc_id: None, // PC selection happens after joining
-            spectate_pc_id: None,
-        })
-        .await
-    }
-
-    pub async fn send_action(
-        &self,
-        action_type: &str,
-        target: Option<&str>,
-        dialogue: Option<&str>,
-    ) -> Result<()> {
-        self.send(ClientMessage::PlayerAction {
-            action_type: action_type.to_string(),
-            target: target.map(|s| s.to_string()),
-            dialogue: dialogue.map(|s| s.to_string()),
-        })
-        .await
-    }
-
-    pub async fn heartbeat(&self) -> Result<()> {
-        self.send(ClientMessage::Heartbeat).await
-    }
-
-    /// Send a request and await the response
-    pub async fn request(&self, payload: RequestPayload) -> Result<ResponseResult, RequestError> {
-        let request_id = uuid::Uuid::new_v4().to_string();
-        let (tx, rx) = oneshot::channel();
-
-        // Register pending request
-        {
-            let mut pending = self.pending_requests.lock().await;
-            pending.insert(
-                request_id.clone(),
-                Box::new(move |result| {
-                    let _ = tx.send(result);
-                }),
-            );
-        }
-
-        // Send the message
-        let msg = ClientMessage::Request {
-            request_id: request_id.clone(),
-            payload,
-        };
-
-        self.send(msg)
-            .await
-            .map_err(|e| RequestError::SendFailed(e.to_string()))?;
-
-        // Await response
-        rx.await.map_err(|_| RequestError::Cancelled)
-    }
-
-    /// Send a request with a timeout
-    pub async fn request_with_timeout(
-        &self,
-        payload: RequestPayload,
-        timeout_ms: u64,
-    ) -> Result<ResponseResult, RequestError> {
-        tokio::time::timeout(
-            std::time::Duration::from_millis(timeout_ms),
-            self.request(payload),
-        )
-        .await
-        .map_err(|_| RequestError::Timeout)?
     }
 
     pub async fn disconnect(&self) {

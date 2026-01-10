@@ -65,17 +65,13 @@ pub(super) async fn handle_move_to_region(
                         .execute(&ctx, input)
                         .await
                     {
-                        Ok(msg) => {
-                            state.connections.broadcast_to_dms(world_id, msg).await;
-
+                        Ok(pending_msg) => {
+                            // Note: use case already broadcasts StagingApprovalRequired to DMs
                             maybe_broadcast_time_suggestion(state, world_id, &result.time_suggestion)
                                 .await;
 
-                            let pending = ServerMessage::StagingPending {
-                                region_id: region_id.clone(),
-                                region_name: result.region.name.clone(),
-                            };
-                            state.connections.send_to_pc(pc_uuid, pending).await;
+                            // Send StagingPending to player (includes timeout for countdown)
+                            state.connections.send_to_pc(pc_uuid, pending_msg).await;
 
                             None
                         }
@@ -203,15 +199,16 @@ pub(super) async fn handle_exit_to_location(
                         .execute(&ctx, input)
                         .await
                     {
-                        Ok(msg) => {
-                            state.connections.broadcast_to_dms(world_id, msg).await;
-
+                        Ok(_) => {
+                            // Note: use case already broadcasts StagingApprovalRequired to DMs
                             maybe_broadcast_time_suggestion(state, world_id, &result.time_suggestion)
                                 .await;
 
+                            // Send StagingPending to player (includes timeout for countdown)
                             let pending = ServerMessage::StagingPending {
                                 region_id: result.region.id.to_string(),
                                 region_name: result.region.name.clone(),
+                                timeout_seconds: crate::use_cases::staging::DEFAULT_STAGING_TIMEOUT_SECONDS,
                             };
                             state.connections.send_to_pc(pc_uuid, pending).await;
 

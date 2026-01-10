@@ -3,13 +3,11 @@
 //! This service provides use case implementations for listing, creating,
 //! updating, and deleting skills via WebSocket request/response pattern.
 
-use std::sync::Arc;
-
 use serde::Serialize;
 
 use crate::application::dto::{SkillCategory, SkillData};
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
-use crate::ports::outbound::GameConnectionPort;
+use crate::infrastructure::messaging::CommandBus;
 use wrldbldr_protocol::{RequestPayload, SkillRequest};
 
 /// Request to create a new skill
@@ -68,22 +66,22 @@ impl From<&UpdateSkillRequest> for wrldbldr_protocol::requests::UpdateSkillData 
 /// Skill service for managing skills
 ///
 /// This service provides methods for skill-related operations
-/// using WebSocket request/response pattern via the `GameConnectionPort`.
+/// using WebSocket request/response pattern via the `CommandBus`.
 #[derive(Clone)]
 pub struct SkillService {
-    connection: Arc<dyn GameConnectionPort>,
+    commands: CommandBus,
 }
 
 impl SkillService {
-    /// Create a new SkillService with the given connection
-    pub fn new(connection: Arc<dyn GameConnectionPort>) -> Self {
-        Self { connection }
+    /// Create a new SkillService with the given command bus
+    pub fn new(commands: CommandBus) -> Self {
+        Self { commands }
     }
 
     /// List all skills in a world
     pub async fn list_skills(&self, world_id: &str) -> Result<Vec<SkillData>, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Skill(SkillRequest::ListSkills {
                     world_id: world_id.to_string(),
@@ -98,7 +96,7 @@ impl SkillService {
     /// Get a single skill by ID
     pub async fn get_skill(&self, skill_id: &str) -> Result<SkillData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Skill(SkillRequest::GetSkill {
                     skill_id: skill_id.to_string(),
@@ -117,7 +115,7 @@ impl SkillService {
         request: &CreateSkillRequest,
     ) -> Result<SkillData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Skill(SkillRequest::CreateSkill {
                     world_id: world_id.to_string(),
@@ -137,7 +135,7 @@ impl SkillService {
         request: &UpdateSkillRequest,
     ) -> Result<SkillData, ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Skill(SkillRequest::UpdateSkill {
                     skill_id: skill_id.to_string(),
@@ -165,7 +163,7 @@ impl SkillService {
         };
 
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Skill(SkillRequest::UpdateSkill {
                     skill_id: skill_id.to_string(),
@@ -181,7 +179,7 @@ impl SkillService {
     /// Delete a skill
     pub async fn delete_skill(&self, skill_id: &str) -> Result<(), ServiceError> {
         let result = self
-            .connection
+            .commands
             .request_with_timeout(
                 RequestPayload::Skill(SkillRequest::DeleteSkill {
                     skill_id: skill_id.to_string(),

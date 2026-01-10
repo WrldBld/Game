@@ -6,9 +6,7 @@
 //!
 //! The concrete implementation (`Platform`) lives in player-adapters.
 
-use std::{future::Future, pin::Pin, sync::Arc};
-
-use super::GameConnectionPort;
+use std::{future::Future, pin::Pin};
 
 /// Unified platform services port
 ///
@@ -99,11 +97,4 @@ pub trait PlatformPort: Send + Sync {
 
     /// Convert WebSocket URL to HTTP URL
     fn ws_to_http(&self, ws_url: &str) -> String;
-
-    // -------------------------------------------------------------------------
-    // Connection factory operations
-    // -------------------------------------------------------------------------
-
-    /// Create a game connection to the engine
-    fn create_game_connection(&self, server_url: &str) -> Arc<dyn GameConnectionPort>;
 }

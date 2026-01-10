@@ -66,8 +66,12 @@ fn main() {
     let ws_url = std::env::var("ENGINE_WS_URL")
         .or_else(|_| std::env::var("WRLDBLDR_ENGINE_WS_URL"))
         .unwrap_or_else(|_| "ws://localhost:3000/ws".to_string());
-    let connection =
-        wrldbldr_player::infrastructure::ConnectionFactory::create_game_connection(&ws_url);
+
+    // Create initial connection to get CommandBus
+    // Note: The connection is established immediately but the session
+    // (world join) happens later when navigating to a world.
+    let connection = wrldbldr_player::infrastructure::websocket::create_connection(&ws_url);
+    let command_bus = connection.command_bus;
 
     // Launch Dioxus
     let mut builder = dioxus::LaunchBuilder::new();
@@ -84,7 +88,7 @@ fn main() {
         .with_context(platform)
         .with_context(shell)
         .with_context(wrldbldr_player::ui::presentation::Services::new(
-            api, raw_api, connection,
+            api, raw_api, command_bus,
         ))
         .launch(wrldbldr_player::ui::app);
 }

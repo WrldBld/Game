@@ -16,8 +16,8 @@
 use std::{future::Future, pin::Pin, sync::Arc};
 
 use crate::ports::outbound::{
-    ConnectionFactoryProvider, DocumentProvider, EngineConfigProvider, GameConnectionPort,
-    LogProvider, RandomProvider, SleepProvider, StorageProvider, TimeProvider,
+    DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider, SleepProvider,
+    StorageProvider, TimeProvider,
 };
 
 /// Unified platform services container
@@ -33,7 +33,6 @@ pub struct Platform {
     log: Arc<dyn LogProviderDyn>,
     document: Arc<dyn DocumentProviderDyn>,
     engine_config: Arc<dyn EngineConfigProviderDyn>,
-    connection_factory: Arc<dyn ConnectionFactoryProviderDyn>,
 }
 
 // =============================================================================
@@ -74,10 +73,6 @@ trait DocumentProviderDyn: Send + Sync {
 trait EngineConfigProviderDyn: Send + Sync {
     fn configure_engine_url(&self, ws_url: &str);
     fn ws_to_http(&self, ws_url: &str) -> String;
-}
-
-trait ConnectionFactoryProviderDyn: Send + Sync {
-    fn create_game_connection(&self, server_url: &str) -> Arc<dyn GameConnectionPort>;
 }
 
 // =============================================================================
@@ -151,19 +146,13 @@ impl<T: EngineConfigProvider + Send + Sync> EngineConfigProviderDyn for T {
     }
 }
 
-impl<T: ConnectionFactoryProvider + Send + Sync> ConnectionFactoryProviderDyn for T {
-    fn create_game_connection(&self, server_url: &str) -> Arc<dyn GameConnectionPort> {
-        ConnectionFactoryProvider::create_game_connection(self, server_url)
-    }
-}
-
 // =============================================================================
 // Platform implementation
 // =============================================================================
 
 impl Platform {
     /// Create a new Platform with the given providers
-    pub fn new<Tm, Sl, R, S, L, D, E, C>(
+    pub fn new<Tm, Sl, R, S, L, D, E>(
         time: Tm,
         sleep: Sl,
         random: R,
@@ -171,7 +160,6 @@ impl Platform {
         log: L,
         document: D,
         engine_config: E,
-        connection_factory: C,
     ) -> Self
     where
         Tm: TimeProvider + Send + Sync,
@@ -181,7 +169,6 @@ impl Platform {
         L: LogProvider + Send + Sync,
         D: DocumentProvider + Send + Sync,
         E: EngineConfigProvider + Send + Sync,
-        C: ConnectionFactoryProvider + Send + Sync,
     {
         Self {
             time: Arc::new(time),
@@ -191,7 +178,6 @@ impl Platform {
             log: Arc::new(log),
             document: Arc::new(document),
             engine_config: Arc::new(engine_config),
-            connection_factory: Arc::new(connection_factory),
         }
     }
 
@@ -340,15 +326,6 @@ impl Platform {
     pub fn ws_to_http(&self, ws_url: &str) -> String {
         self.engine_config.ws_to_http(ws_url)
     }
-
-    // -------------------------------------------------------------------------
-    // Connection factory operations
-    // -------------------------------------------------------------------------
-
-    /// Create a game connection to the engine
-    pub fn create_game_connection(&self, server_url: &str) -> Arc<dyn GameConnectionPort> {
-        self.connection_factory.create_game_connection(server_url)
-    }
 }
 
 // =============================================================================
@@ -449,9 +426,5 @@ impl PlatformPort for Platform {
 
     fn ws_to_http(&self, ws_url: &str) -> String {
         self.engine_config.ws_to_http(ws_url)
-    }
-
-    fn create_game_connection(&self, server_url: &str) -> Arc<dyn GameConnectionPort> {
-        self.connection_factory.create_game_connection(server_url)
     }
 }

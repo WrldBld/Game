@@ -12,7 +12,7 @@
 //! ## Service Types
 //!
 //! Services are split into two categories:
-//! - **WebSocket services**: Use ISP sub-traits (GameRequestPort, PlayerActionPort, etc.) for real-time operations
+//! - **WebSocket services**: Use CommandBus for real-time operations
 //! - **REST services**: Use `ApiPort` for HTTP-based operations (file uploads, large payloads)
 use dioxus::prelude::*;
 use std::sync::Arc;
@@ -23,7 +23,8 @@ use crate::application::services::{
     PlayerCharacterService, SettingsService, SkillService, StoryEventService, SuggestionService,
     WorkflowService, WorldService,
 };
-use crate::ports::outbound::{ApiPort, GameConnectionPort, RawApiPort};
+use crate::infrastructure::messaging::CommandBus;
+use crate::ports::outbound::{ApiPort, RawApiPort};
 
 use crate::application::api::Api;
 
@@ -33,16 +34,12 @@ pub type UiServices = Services<Api>;
 /// All services wrapped for context provision
 ///
 /// This struct holds both WebSocket-based services and REST-based services.
-/// WebSocket services use the `GameConnectionPort` abstraction, which provides
-/// all ISP sub-trait methods via blanket implementations.
+/// WebSocket services use the `CommandBus` for sending commands/requests.
 /// REST services still use the generic `A: ApiPort` pattern for file uploads and large payloads.
 #[derive(Clone)]
 pub struct Services<A: ApiPort> {
-    /// Shared game connection handle (WebSocket).
-    ///
-    /// NOTE: Some screens (e.g., world selection) need to ensure the socket is
-    /// connected before sending request/response messages.
-    pub connection: Arc<dyn GameConnectionPort>,
+    /// Shared command bus for sending WebSocket commands.
+    pub command_bus: CommandBus,
     // WebSocket-based services (non-generic)
     pub world: Arc<WorldService>,
     pub character: Arc<CharacterService>,
@@ -64,35 +61,29 @@ pub struct Services<A: ApiPort> {
 }
 
 impl<A: ApiPort + Clone> Services<A> {
-    /// Create all services with the given ports
+    /// Create all services with the given command bus and API ports
     ///
     /// # Arguments
     /// * `api` - The REST API port for HTTP-based services
     /// * `raw_api` - The raw API port for services that need lower-level access
-    /// * `connection` - The GameConnectionPort for WebSocket operations
-    ///                  (provides all ISP sub-trait methods via blanket impls)
-    pub fn new(
-        api: A,
-        raw_api: Arc<dyn RawApiPort>,
-        connection: Arc<dyn GameConnectionPort>,
-    ) -> Self {
+    /// * `command_bus` - The CommandBus for WebSocket operations
+    pub fn new(api: A, raw_api: Arc<dyn RawApiPort>, command_bus: CommandBus) -> Self {
         Self {
-            connection: connection.clone(),
-            // WebSocket-based services use GameConnectionPort which provides
-            // GameRequestPort methods via blanket implementation
-            world: Arc::new(WorldService::new(connection.clone(), raw_api)),
-            character: Arc::new(CharacterService::new(connection.clone())),
-            location: Arc::new(LocationService::new(connection.clone())),
-            player_character: Arc::new(PlayerCharacterService::new(connection.clone())),
-            challenge: Arc::new(ChallengeService::new(connection.clone())),
-            narrative_event: Arc::new(NarrativeEventService::new(connection.clone())),
-            story_event: Arc::new(StoryEventService::new(connection.clone())),
-            event_chain: Arc::new(EventChainService::new(connection.clone())),
-            observation: Arc::new(ObservationService::new(connection.clone())),
-            actantial: Arc::new(ActantialService::new(connection.clone())),
-            skill: Arc::new(SkillService::new(connection.clone())),
-            generation: Arc::new(GenerationService::new(connection.clone())),
-            suggestion: Arc::new(SuggestionService::new(connection)),
+            command_bus: command_bus.clone(),
+            // WebSocket-based services use CommandBus
+            world: Arc::new(WorldService::new(command_bus.clone(), raw_api)),
+            character: Arc::new(CharacterService::new(command_bus.clone())),
+            location: Arc::new(LocationService::new(command_bus.clone())),
+            player_character: Arc::new(PlayerCharacterService::new(command_bus.clone())),
+            challenge: Arc::new(ChallengeService::new(command_bus.clone())),
+            narrative_event: Arc::new(NarrativeEventService::new(command_bus.clone())),
+            story_event: Arc::new(StoryEventService::new(command_bus.clone())),
+            event_chain: Arc::new(EventChainService::new(command_bus.clone())),
+            observation: Arc::new(ObservationService::new(command_bus.clone())),
+            actantial: Arc::new(ActantialService::new(command_bus.clone())),
+            skill: Arc::new(SkillService::new(command_bus.clone())),
+            generation: Arc::new(GenerationService::new(command_bus.clone())),
+            suggestion: Arc::new(SuggestionService::new(command_bus)),
             // REST-based services - file uploads, large payloads, admin config
             workflow: Arc::new(WorkflowService::new(api.clone())),
             asset: Arc::new(AssetService::new(api.clone())),
@@ -101,10 +92,10 @@ impl<A: ApiPort + Clone> Services<A> {
     }
 }
 
-/// Hook to access the shared GameConnectionPort from context
-pub fn use_game_connection() -> Arc<dyn GameConnectionPort> {
+/// Hook to access the shared CommandBus from context
+pub fn use_command_bus() -> CommandBus {
     let services = use_context::<UiServices>();
-    services.connection.clone()
+    services.command_bus.clone()
 }
 
 /// Hook to access the WorldService from context

@@ -46,7 +46,13 @@ pub enum ClientMessage {
     /// Start a conversation with an NPC
     StartConversation { npc_id: String, message: String },
     /// Continue an existing conversation with an NPC
-    ContinueConversation { npc_id: String, message: String },
+    ContinueConversation {
+        npc_id: String,
+        message: String,
+        /// Optional conversation ID - if provided, validates against active conversation
+        #[serde(default)]
+        conversation_id: Option<String>,
+    },
     /// Perform a scene interaction by ID
     PerformInteraction { interaction_id: String },
     /// Request to change scene
@@ -373,6 +379,20 @@ pub enum ServerMessage {
         speaker_name: String,
         text: String,
         choices: Vec<DialogueChoice>,
+        /// Conversation ID for tracking the conversation session
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        conversation_id: Option<String>,
+    },
+    /// Conversation has started - returns conversation_id for tracking
+    ConversationStarted {
+        /// The conversation ID
+        conversation_id: String,
+        /// The NPC the conversation is with
+        npc_id: String,
+        npc_name: String,
+        /// NPC's disposition toward the player
+        #[serde(default)]
+        npc_disposition: Option<String>,
     },
     /// Conversation has ended
     ConversationEnded {
@@ -384,6 +404,9 @@ pub enum ServerMessage {
         /// Optional summary of the conversation
         #[serde(default)]
         summary: Option<String>,
+        /// Conversation ID for tracking
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        conversation_id: Option<String>,
     },
     /// LLM is processing (shown to DM)
     LLMProcessing { action_id: String },
@@ -672,6 +695,9 @@ pub enum ServerMessage {
     StagingPending {
         region_id: String,
         region_name: String,
+        /// Timeout in seconds before auto-approve (0 = no auto-approve)
+        #[serde(default)]
+        timeout_seconds: u64,
     },
 
     /// Staging is ready (sent to Player)
@@ -690,6 +716,13 @@ pub enum ServerMessage {
         request_id: String,
         /// Updated LLM-based NPC suggestions
         llm_based_npcs: Vec<StagedNpcInfo>,
+    },
+
+    /// Staging timed out without auto-approve (sent to Player)
+    /// Player can retry entering the region
+    StagingTimedOut {
+        region_id: String,
+        region_name: String,
     },
 
     // =========================================================================
@@ -1096,6 +1129,36 @@ pub struct RegionData {
     /// Location's top-down map image for mini-map display
     #[serde(default)]
     pub map_asset: Option<String>,
+}
+
+/// Region list item data (returned by ListRegions request)
+/// Includes map bounds for mini-map display
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RegionListItemData {
+    pub id: String,
+    pub location_id: String,
+    pub name: String,
+    pub description: String,
+    pub backdrop_asset: Option<String>,
+    pub atmosphere: Option<String>,
+    /// Map bounds for positioning on location mini-map
+    #[serde(default)]
+    pub map_bounds: Option<MapBoundsData>,
+    /// Whether this region is a spawn point
+    #[serde(default)]
+    pub is_spawn_point: bool,
+    /// Display order within location
+    #[serde(default)]
+    pub order: u32,
+}
+
+/// Map bounds for region positioning on location map
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct MapBoundsData {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 /// NPC presence data for scene display
