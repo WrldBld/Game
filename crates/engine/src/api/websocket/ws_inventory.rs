@@ -37,35 +37,31 @@ pub(super) async fn handle_inventory_action(
         return Some(error_response("UNAUTHORIZED", "Cannot control this PC"));
     }
 
-    // Execute the inventory action
+    // Execute the inventory action via the entity
     let result = match action {
         InventoryAction::Equip => state
             .app
-            .use_cases
+            .entities
             .inventory
-            .actions
-            .equip(pc_uuid, item_uuid)
+            .equip_item(pc_uuid, item_uuid)
             .await,
         InventoryAction::Unequip => state
             .app
-            .use_cases
+            .entities
             .inventory
-            .actions
-            .unequip(pc_uuid, item_uuid)
+            .unequip_item(pc_uuid, item_uuid)
             .await,
         InventoryAction::Drop => state
             .app
-            .use_cases
+            .entities
             .inventory
-            .actions
             .drop_item(pc_uuid, item_uuid, quantity)
             .await,
         InventoryAction::Pickup => state
             .app
-            .use_cases
+            .entities
             .inventory
-            .actions
-            .pickup(pc_uuid, item_uuid)
+            .pickup_item(pc_uuid, item_uuid)
             .await,
     };
 
