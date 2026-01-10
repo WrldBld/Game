@@ -581,9 +581,10 @@ impl OutcomeDecision {
                     .await
                     .map_err(OutcomeDecisionError::Resolve)?;
 
-                if let Err(e) = self.queue.mark_complete(approval_id).await {
-                    tracing::warn!(error = %e, "Failed to mark approval request as complete");
-                }
+                self.queue
+                    .mark_complete(approval_id)
+                    .await
+                    .map_err(|e| OutcomeDecisionError::CleanupFailed(e.to_string()))?;
 
                 Ok(OutcomeDecisionResult::Resolved(ChallengeResolvedPayload {
                     challenge_id: outcome_data.challenge_id.clone(),
@@ -604,9 +605,10 @@ impl OutcomeDecision {
                     .await
                     .map_err(OutcomeDecisionError::Resolve)?;
 
-                if let Err(e) = self.queue.mark_complete(approval_id).await {
-                    tracing::warn!(error = %e, "Failed to mark approval request as complete");
-                }
+                self.queue
+                    .mark_complete(approval_id)
+                    .await
+                    .map_err(|e| OutcomeDecisionError::CleanupFailed(e.to_string()))?;
 
                 Ok(OutcomeDecisionResult::Resolved(ChallengeResolvedPayload {
                     challenge_id: outcome_data.challenge_id.clone(),
@@ -698,6 +700,8 @@ pub enum OutcomeDecisionError {
     InvalidDecision,
     #[error("Queue error: {0}")]
     QueueError(String),
+    #[error("Failed to mark approval as complete: {0}")]
+    CleanupFailed(String),
     #[error("Resolve error: {0}")]
     Resolve(#[from] ChallengeError),
 }
