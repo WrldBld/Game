@@ -69,6 +69,7 @@ pub struct UseCases {
     pub story_events: use_cases::StoryEventUseCases,
     pub lore: use_cases::LoreUseCases,
     pub location_events: use_cases::LocationEventUseCases,
+    pub custom_condition: Arc<use_cases::CustomConditionEvaluator>,
 }
 
 impl App {
@@ -434,6 +435,9 @@ impl App {
             use_cases::location_events::TriggerLocationEvent::new(location.clone()),
         ));
 
+        // Create custom condition evaluator for LLM-based condition/trigger evaluation
+        let custom_condition = Arc::new(use_cases::CustomConditionEvaluator::new(llm.clone()));
+
         let management = use_cases::ManagementUseCases::new(
             use_cases::management::WorldCrud::new(world.clone(), clock.clone()),
             use_cases::management::CharacterCrud::new(character.clone(), clock.clone()),
@@ -496,6 +500,7 @@ impl App {
             story_events: story_events_uc,
             lore: lore_uc,
             location_events: location_events_uc,
+            custom_condition,
         };
 
         Self {

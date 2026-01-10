@@ -4,9 +4,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use wrldbldr_domain::{
-    self as domain, CharacterId, EventChainId, LocationId, NarrativeEventId, PlayerCharacterId,
-    RegionId, SceneId, StoryEvent, StoryEventId, StoryEventType, TimeContext, TriggerContext,
-    WorldId,
+    self as domain, CharacterId, EventChainId, LocationId, NarrativeEventId, NarrativeTriggerType,
+    PlayerCharacterId, RegionId, SceneId, StoryEvent, StoryEventId, StoryEventType, TimeContext,
+    TriggerContext, WorldId,
 };
 
 use crate::infrastructure::ports::{
@@ -439,6 +439,36 @@ impl Narrative {
         self.repo.set_event_active(id, active).await
     }
 
+    /// Get all unique custom trigger descriptions from events in a region.
+    ///
+    /// This allows callers to pre-evaluate custom triggers via LLM before
+    /// calling `check_triggers_with_custom_results`. Returns unique descriptions
+    /// only for triggers that have `llm_evaluation: true`.
+    pub async fn get_custom_triggers_for_region(
+        &self,
+        world_id: WorldId,
+        region_id: RegionId,
+    ) -> Result<Vec<String>, RepoError> {
+        let events = self.get_triggers_for_region(world_id, region_id).await?;
+
+        let mut triggers = Vec::new();
+        for event in events {
+            for trigger in &event.trigger_conditions {
+                if let NarrativeTriggerType::Custom {
+                    description,
+                    llm_evaluation: true,
+                } = &trigger.trigger_type
+                {
+                    if !triggers.contains(description) {
+                        triggers.push(description.clone());
+                    }
+                }
+            }
+        }
+
+        Ok(triggers)
+    }
+
     /// Check for triggered events when entering a region.
     ///
     /// Builds a TriggerContext with current location info and evaluates all
@@ -448,6 +478,26 @@ impl Narrative {
         &self,
         region_id: RegionId,
         pc_id: wrldbldr_domain::PlayerCharacterId,
+    ) -> Result<Vec<domain::NarrativeEvent>, RepoError> {
+        self.check_triggers_with_custom_results(region_id, pc_id, HashMap::new())
+            .await
+    }
+
+    /// Check for triggered events with pre-evaluated custom trigger results.
+    ///
+    /// Same as `check_triggers` but accepts a map of pre-evaluated custom trigger
+    /// results. For triggers with `llm_evaluation: true`, these results are used
+    /// instead of treating the triggers as not met.
+    ///
+    /// # Arguments
+    /// * `region_id` - The region being entered
+    /// * `pc_id` - The player character triggering events
+    /// * `custom_trigger_results` - Map of trigger description to whether it's met
+    pub async fn check_triggers_with_custom_results(
+        &self,
+        region_id: RegionId,
+        pc_id: wrldbldr_domain::PlayerCharacterId,
+        custom_trigger_results: HashMap<String, bool>,
     ) -> Result<Vec<domain::NarrativeEvent>, RepoError> {
         // Resolve world context from PC (required for safe trigger queries)
         let world_id = self
@@ -596,6 +646,7 @@ impl Narrative {
             turn_count: 0,                       // Caller responsibility - session state
             recent_dialogue_topics: Vec::new(),  // Caller responsibility - session state
             recent_player_action: None,          // Caller responsibility - session state
+            custom_trigger_results,              // Pre-evaluated LLM results for Custom triggers
         };
 
         // Evaluate each candidate and collect triggered events
