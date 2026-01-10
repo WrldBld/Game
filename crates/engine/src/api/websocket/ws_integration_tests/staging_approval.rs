@@ -176,6 +176,12 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         .expect_list_in_region()
         .returning(|_| Ok(vec![]));
 
+    // Settings: return defaults (default_presence_cache_ttl_hours = 3)
+    repos
+        .settings_repo
+        .expect_get_for_world()
+        .returning(|_| Ok(Some(wrldbldr_domain::AppSettings::default())));
+
     // Staging approval persists full per-NPC info (including hidden flags).
     let region_id_for_staging = region_id;
     let location_id_for_staging = location_id;
@@ -189,7 +195,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
             s.region_id == region_id_for_staging
                 && s.location_id == location_id_for_staging
                 && s.world_id == world_id_for_staging
-                && s.ttl_hours == 24
+                && s.ttl_hours == 24 // DM-specified TTL (overrides default from settings)
                 && s.npcs.iter().any(|n| {
                     n.character_id == visible_npc_id_for_staging
                         && n.is_present

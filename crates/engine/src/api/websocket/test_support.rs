@@ -742,6 +742,9 @@ pub(crate) fn build_test_app_with_ports(
         ),
     ));
 
+    // Create settings ops early so it can be shared with staging use cases
+    let settings_ops = Arc::new(crate::use_cases::settings::SettingsOps::new(settings_repo.clone()));
+
     let staging_uc = crate::use_cases::StagingUseCases::new(
         Arc::new(crate::use_cases::staging::RequestStagingApproval::new(
             character.clone(),
@@ -750,6 +753,7 @@ pub(crate) fn build_test_app_with_ports(
             world.clone(),
             flag.clone(),
             visual_state_uc.resolve.clone(),
+            settings_ops.clone(),
             llm.clone(),
         )),
         Arc::new(
@@ -774,6 +778,7 @@ pub(crate) fn build_test_app_with_ports(
             location.clone(),
             location_state.clone(),
             region_state.clone(),
+            settings_ops.clone(),
         )),
     );
 
@@ -843,9 +848,7 @@ pub(crate) fn build_test_app_with_ports(
         crate::use_cases::management::SkillCrud::new(skill.clone()),
     );
 
-    let settings = crate::use_cases::SettingsUseCases::new(Arc::new(
-        crate::use_cases::settings::SettingsOps::new(settings_repo),
-    ));
+    let settings = crate::use_cases::SettingsUseCases::new(settings_ops);
 
     let join_world = Arc::new(crate::use_cases::session::JoinWorld::new(
         world.clone(),

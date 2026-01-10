@@ -1,148 +1,44 @@
 # Issue Triage and Implementation Plan
 
 **Date:** 2026-01-10
-**Updated:** 2026-01-10 (after reviewer validation)
-**Total Open Issues:** 22 (#9-#30)
+**Updated:** 2026-01-10 (post PR #31, #32, #33 merge)
+**Total Open Issues:** 16 (down from 22)
+**Closed This Session:** #12, #13, #14, #17, #18, #19
 
-## Issue Categories
+## Current Status
 
-### Category A: Addressable Now (14 issues)
-Small to medium fixes that don't require new systems or major design work.
-
-### Category B: Requires Design/Discussion (2 issues)
-Need architectural decisions before implementation.
-
-### Category C: Major Features - Blocked (6 issues)
-Large features that depend on systems not yet implemented.
-
----
-
-## Category A: Addressable Now
-
-### PR Group 1: Navigation System Fixes
-**Issues:** #17, #18, #19
-**Effort:** Medium (2-3 days)
-**Theme:** Error handling and validation in navigation/exit system
-
-| Issue | Title | Type | Summary |
-|-------|-------|------|---------|
-| #17 | Return errors for missing navigation exits | Enhancement | Silent `tracing::warn` + skip → return errors |
-| #18 | Add bidirectional exit validation | Enhancement | Validate return path exists for bidirectional exits |
-| #19 | Replace .ok() in SceneChangeBuilder | Enhancement | 5+ `.ok()` calls silently ignore errors |
-
-**Dependencies:**
-- #18 is independent (creation-time validation)
-- #17 → #19: If `get_exits()` return type changes, `scene_change.rs:96` must update
-- Can implement #18 separately; #17 and #19 should be done together
-
-**Files:** `location.rs`, `region.rs`, `scene_change.rs`
+### Completed PRs
+| PR | Issues Fixed | Status |
+|----|--------------|--------|
+| #31 | #12, #14 | Merged - Challenge & Narrative fixes |
+| #32 | #13 | Merged - Conversation test coverage |
+| #33 | #17, #18, #19 | Merged - Navigation error handling |
 
 ---
 
-### PR Group 2: Lore System Improvements
-**Issues:** #15, #16
-**Effort:** Medium (2-2.5 days)
-**Theme:** Chunk ordering and partial revocation
+## Remaining Issues by Category
 
-| Issue | Title | Type | Summary |
-|-------|-------|------|---------|
-| #15 | Add lore chunk order validation | Enhancement | No validation of unique/sequential orders, no re-index on delete |
-| #16 | Implement partial lore knowledge revocation | Enhancement | Grant supports partial, revoke doesn't - asymmetric API |
+### Category A: Addressable Now (7 issues)
 
-**Dependencies:** None - these are independent (different concerns: ordering vs knowledge tracking)
-**Files:** `use_cases/lore/mod.rs`, `ws_lore.rs`, `lore_repo.rs`, `ports.rs`
+| Issue | Title | Type | Complexity |
+|-------|-------|------|------------|
+| #9 | Make staging TTL values configurable | Enhancement | Small |
+| #11 | Fix name mismatch in LLM NPC matching | Bug | Small |
+| #15 | Add lore chunk order validation | Enhancement | Medium |
+| #16 | Implement partial lore knowledge revocation | Enhancement | Medium |
+| #20 | Store featured character role properly | Enhancement | Medium |
+| #21 | Add error handling for character relationships | Bug | Medium |
+| #23 | Implement Event/Custom TimeContext | Enhancement | Small |
 
----
-
-### PR Group 3: Staging System Improvements
-**Issues:** #9, #11
-**Effort:** Medium (2-2.5 days)
-**Theme:** Configuration and NPC matching
-
-| Issue | Title | Type | Summary |
-|-------|-------|------|---------|
-| #9 | Make staging TTL values configurable | Enhancement | 2 hardcoded TTLs (30s timeout, 24h TTL) → settings |
-| #11 | Fix name mismatch in LLM NPC matching | Bug | Case-insensitive but no whitespace normalization |
-
-**#11 Implementation:** Strict normalized matching (trim, lowercase, collapse whitespace).
-The LLM prompt already asks for "exact name from the list" - fix enables compliance.
-
-**Note:** #10 (LLM failure handling) deferred - requires more design for retry/circuit breaker patterns.
-
-**Files:** `staging/mod.rs`, `settings.rs`
-
----
-
-### PR Group 4: Visual State Fixes
-**Issues:** #20, #21
-**Effort:** Medium (2 days)
-**Theme:** Featured characters and error handling
-
-| Issue | Title | Type | Summary |
-|-------|-------|------|---------|
-| #20 | Store featured character role properly | Enhancement | Role hardcoded to 'Secondary', never read back |
-| #21 | Add error handling for character relationships | Bug | Silent `unwrap_or()` on relationship data |
-
-**Files:** `scene_repo.rs`, `character_repo.rs`, `ports.rs`
-
----
-
-### PR Group 5: Challenge & Narrative Fixes
-**Issues:** #12, #14
-**Effort:** Small-Medium (1-2 days)
-**Theme:** Queue cleanup and effect validation
-
-| Issue | Title | Type | Summary |
-|-------|-------|------|---------|
-| #12 | Fix silent queue cleanup failure | Bug | `mark_complete()` errors logged but not propagated |
-| #14 | Validate combat/reward effects before execution | Enhancement | Invalid params accepted, fail silently at runtime |
-
-**Files:** `challenge/mod.rs`, `narrative/execute_effects.rs`
-
----
-
-### PR Group 6: Conversation Testing
-**Issues:** #13
-**Effort:** Small (1 day)
-**Theme:** Test coverage
-
-| Issue | Title | Type | Summary |
-|-------|-------|------|---------|
-| #13 | Add tests for ContinueConversation and EndConversation | Enhancement | Zero test coverage for these use cases |
-
-**Files:** `conversation/continue_conversation.rs`, `conversation/end.rs`
-
----
-
-### PR Group 7: TimeContext Integration (NEW)
-**Issues:** #23
-**Effort:** Small (1-2 days)
-**Theme:** Enable time-based trigger evaluation
-
-| Issue | Title | Type | Summary |
-|-------|-------|------|---------|
-| #23 | Implement Event/Custom TimeContext | Enhancement | `TriggerContext.time_context` exists but never populated |
-
-**Implementation:** Pass `GameTime` through trigger evaluation pipeline, convert to `time_of_day().display_name()`.
-Infrastructure already exists - just needs wiring.
-
-**Files:** `narrative.rs`, `enter_region.rs`, `exit_location.rs`
-
----
-
-## Category B: Requires Design/Discussion
+### Category B: Requires Design/Discussion (3 issues)
 
 | Issue | Title | Blocker |
 |-------|-------|---------|
-| #10 | Improve LLM failure handling in staging | Needs design: retry strategy, circuit breaker, timeout policy |
-| #22 | Custom scene conditions with LLM | Needs design: condition expression schema, LLM prompt format |
+| #10 | Improve LLM failure handling in staging | Needs design: retry strategy, circuit breaker |
+| #22 | Custom scene conditions with LLM | Needs design: condition expression schema |
 | #28 | Custom trigger for narrative events | Needs design: trigger expression schema |
 
----
-
-## Category C: Major Features - Blocked
-
-These require new systems that don't exist yet:
+### Category C: Major Features - Blocked (6 issues)
 
 | Issue | Title | Blocked By |
 |-------|-------|------------|
@@ -155,63 +51,136 @@ These require new systems that don't exist yet:
 
 ---
 
+## Recommended PR Groupings
+
+### PR Group 1: Staging System Improvements (#9, #11)
+**Effort:** Small-Medium
+**Theme:** Configuration and NPC matching bug fix
+
+| Issue | Summary | Files |
+|-------|---------|-------|
+| #9 | Replace hardcoded 30s timeout and 24h TTL with settings | `staging/mod.rs:32,202,1022` |
+| #11 | Add whitespace normalization to LLM NPC name matching | `staging/mod.rs:946` |
+
+**Implementation Details:**
+
+**#9 - TTL Configuration:**
+- Settings already exist: `staging_timeout_seconds` (line 119), `default_presence_cache_ttl_hours` (line 110)
+- Replace `DEFAULT_STAGING_TIMEOUT_SECONDS` constant usage
+- Replace hardcoded `24` in `default_ttl_hours` and `ttl_hours`
+- Fetch from world settings in `RequestStagingApproval` and `AutoApproveStagingTimeout`
+
+**#11 - Name Normalization:**
+- Current: `c.name.to_lowercase() == suggestion.name.to_lowercase()`
+- Fix: Add normalize function: `trim().to_lowercase().split_whitespace().collect::<Vec<_>>().join(" ")`
+- Handles: extra spaces, leading/trailing whitespace, multiple consecutive spaces
+
+---
+
+### PR Group 2: Lore System Improvements (#15, #16)
+**Effort:** Medium
+**Theme:** Chunk ordering and API symmetry
+
+| Issue | Summary | Files |
+|-------|---------|-------|
+| #15 | Validate chunk order uniqueness, re-index on delete | `use_cases/lore/mod.rs:133-227` |
+| #16 | Add partial revocation to match partial grant | `lore_repo.rs`, `ports.rs`, `ws_lore.rs:316-356` |
+
+**Implementation Details:**
+
+**#15 - Order Validation:**
+- `add_chunk()`: Validate order is unique, or auto-assign next sequential
+- `update_chunk()`: Validate new order doesn't conflict
+- `delete_chunk()`: Re-index remaining chunks to maintain sequential order (0,1,2...)
+
+**#16 - Partial Revocation:**
+- Add `remove_chunks_from_knowledge()` to `LoreRepo` trait (ports.rs)
+- Implement in `lore_repo.rs` (similar to `add_chunks_to_knowledge`)
+- Add `LoreKnowledge::remove_chunks()` method to domain
+- Update `revoke_knowledge()` in use case to accept `chunk_ids: Option<Vec<LoreChunkId>>`
+- Remove explicit rejection in `ws_lore.rs:325-331`
+
+---
+
+### PR Group 3: Visual State Fixes (#20, #21)
+**Effort:** Medium
+**Theme:** Featured characters and error handling
+
+| Issue | Summary | Files |
+|-------|---------|-------|
+| #20 | Store/retrieve role from FEATURES_CHARACTER edge | `scene_repo.rs:304,502`, `ports.rs:425,429` |
+| #21 | Replace silent unwrap_or() with proper error handling | `narrative_event.rs`, `execute_effects.rs` |
+
+**Implementation Details:**
+
+**#20 - Featured Character Role:**
+- Update `SceneRepo::save()` to store role from `SceneCharacter` struct
+- Update `SceneRepo::set_featured_characters()` to accept `&[SceneCharacter]` instead of `&[CharacterId]`
+- Update port trait methods to use `SceneCharacter` with role
+- Update `get_featured_characters()` to return `Vec<SceneCharacter>`
+
+**#21 - Error Handling:**
+- Review: Many `unwrap_or(false)` in trigger matching are **intentional** (missing data = condition not met)
+- Focus on: `execute_effects.rs:558` where default relationship is silently created
+- Add logging when defaults are used
+- Consider if relationship creation should be explicit
+
+---
+
+### PR Group 4: TimeContext Integration (#23)
+**Effort:** Small
+**Theme:** Enable time-based trigger evaluation
+
+| Issue | Summary | Files |
+|-------|---------|-------|
+| #23 | Wire GameTime through trigger evaluation to populate time_context | `narrative.rs:577` |
+
+**Implementation Details:**
+- In `evaluate_triggers_for_world()`, fetch current scene's TimeContext
+- Convert `TimeContext` to string: `"Morning"`, `"Afternoon"`, `"Evening"`, `"Night"`, or custom
+- Set `time_context: Some(time_string)` in TriggerContext construction
+- Infrastructure exists - just needs wiring
+
+---
+
 ## Recommended Implementation Order
 
-Based on dependencies, effort, and impact:
+### Next PR: Staging System Improvements (#9, #11)
+**Rationale:**
+- Smallest scope, highest confidence
+- #11 is a bug fix (higher priority)
+- Settings infrastructure already exists
+- Isolated changes, low risk
 
-### Phase 1: Quick Wins (1-2 PRs)
-1. **PR: Challenge & Narrative Fixes** (#12, #14)
-   - Small, isolated fixes
-   - Improves reliability
+### Then: TimeContext Integration (#23)
+**Rationale:**
+- Small, isolated change
+- Enables time-based triggers to work
+- Infrastructure already exists
 
-2. **PR: Conversation Testing** (#13)
-   - Adds coverage for existing code
-   - No behavior changes
+### Then: Lore System Improvements (#15, #16)
+**Rationale:**
+- Medium complexity
+- Independent from other systems
+- Improves API consistency
 
-### Phase 2: Core Improvements (2-3 PRs)
-3. **PR: Navigation System Fixes** (#17, #18, #19)
-   - High impact on user experience
-   - Fixes silent failures
-
-4. **PR: Staging System Improvements** (#9, #11)
-   - Configuration flexibility
-   - Fixes NPC matching bug
-
-### Phase 3: Feature Completeness (2 PRs)
-5. **PR: Lore System Improvements** (#15, #16)
-   - API symmetry
-   - Data integrity
-
-6. **PR: Visual State Fixes** (#20, #21)
-   - Data correctness
-   - Error visibility
+### Finally: Visual State Fixes (#20, #21)
+**Rationale:**
+- Most complex of remaining issues
+- #21 needs careful analysis of intentional vs accidental unwrap_or usage
 
 ---
 
 ## Summary
 
-| Category | Count | Addressable |
-|----------|-------|-------------|
-| A: Addressable Now | 14 | Yes |
-| B: Needs Design | 3 | After discussion |
-| C: Major Features | 5 | No (blocked) |
-| **Total** | **22** | **14 ready** |
+| Category | Count | Status |
+|----------|-------|--------|
+| A: Addressable Now | 7 | Ready to implement |
+| B: Needs Design | 3 | Deferred |
+| C: Major Features | 6 | Blocked |
+| **Total Open** | **16** | **7 ready** |
 
-**Recommended first PR:** #12 + #14 (Challenge & Narrative Fixes)
-- Small scope, high impact
-- Fixes data integrity issues
-- Good validation of the PR workflow
-
----
-
-## Reviewer Validation Notes (2026-01-10)
-
-### Validated Claims
-- ✓ #15 and #16 are independent (different concerns)
-- ✓ #23 should move from "Blocked" to "Addressable" (infrastructure exists)
-- ✓ #9 effort estimate 2-2.5 days with #11
-- ✓ #13 effort estimate 1-1.5 days
-
-### Corrected Claims
-- ✗ #17, #18, #19 are NOT fully independent: #18 is independent, but #17→#19 have coupling
-- ✗ #11 does NOT need design decision: strict normalized matching is the clear path
+**Next recommended PR:** #9 + #11 (Staging System Improvements)
+- Small scope
+- Bug fix included (#11)
+- Clear implementation path
