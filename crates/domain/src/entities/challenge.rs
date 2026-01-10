@@ -101,6 +101,69 @@ impl Challenge {
         self
     }
 
+    /// Validate all triggers in this challenge.
+    ///
+    /// Returns a list of validation errors, empty if all triggers are valid.
+    pub fn validate_triggers(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+
+        // Validate trigger conditions
+        for (i, condition) in self.trigger_conditions.iter().enumerate() {
+            if let Err(e) = condition.validate() {
+                errors.push(format!("Trigger condition {}: {}", i + 1, e));
+            }
+        }
+
+        // Validate outcome triggers
+        for (outcome_name, outcome) in self.all_outcomes_named() {
+            for (i, trigger) in outcome.triggers.iter().enumerate() {
+                if let Err(e) = trigger.validate() {
+                    errors.push(format!("{} outcome trigger {}: {}", outcome_name, i + 1, e));
+                }
+            }
+        }
+
+        errors
+    }
+
+    /// Get all referenced challenge IDs from triggers.
+    /// Used for validation to ensure referenced challenges exist.
+    pub fn referenced_challenge_ids(&self) -> Vec<ChallengeId> {
+        let mut ids = Vec::new();
+
+        // From trigger conditions
+        for condition in &self.trigger_conditions {
+            ids.extend(condition.referenced_challenge_ids());
+        }
+
+        // From outcome triggers
+        for (_, outcome) in self.all_outcomes_named() {
+            for trigger in &outcome.triggers {
+                ids.extend(trigger.referenced_challenge_ids());
+            }
+        }
+
+        ids
+    }
+
+    /// Helper to iterate over all outcomes with their names
+    fn all_outcomes_named(&self) -> Vec<(&str, &Outcome)> {
+        let mut outcomes = vec![
+            ("Success", &self.outcomes.success),
+            ("Failure", &self.outcomes.failure),
+        ];
+        if let Some(ref partial) = self.outcomes.partial {
+            outcomes.push(("Partial", partial));
+        }
+        if let Some(ref crit_success) = self.outcomes.critical_success {
+            outcomes.push(("Critical Success", crit_success));
+        }
+        if let Some(ref crit_failure) = self.outcomes.critical_failure {
+            outcomes.push(("Critical Failure", crit_failure));
+        }
+        outcomes
+    }
+
     /// Check if a trigger condition matches some player action/context
     ///
     /// Logic:
@@ -656,6 +719,54 @@ impl OutcomeTrigger {
         }
     }
 
+    /// Validate this trigger, returning an error message if invalid.
+    ///
+    /// Validation rules:
+    /// - RevealInformation: info must be non-empty
+    /// - GiveItem: item_name must be non-empty
+    /// - ModifyCharacterStat: stat must be non-empty
+    /// - Custom: description must be non-empty
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            Self::RevealInformation { info, .. } => {
+                if info.trim().is_empty() {
+                    return Err("RevealInformation trigger requires non-empty info".to_string());
+                }
+            }
+            Self::GiveItem { item_name, .. } => {
+                if item_name.trim().is_empty() {
+                    return Err("GiveItem trigger requires non-empty item_name".to_string());
+                }
+            }
+            Self::ModifyCharacterStat { stat, .. } => {
+                if stat.trim().is_empty() {
+                    return Err("ModifyCharacterStat trigger requires non-empty stat name".to_string());
+                }
+            }
+            Self::Custom { description } => {
+                if description.trim().is_empty() {
+                    return Err("Custom trigger requires non-empty description".to_string());
+                }
+            }
+            // EnableChallenge, DisableChallenge, and TriggerScene have typed IDs that are always valid
+            Self::EnableChallenge { .. }
+            | Self::DisableChallenge { .. }
+            | Self::TriggerScene { .. } => {}
+        }
+        Ok(())
+    }
+
+    /// Get referenced challenge IDs that this trigger depends on.
+    /// Used for validation to ensure referenced challenges exist.
+    pub fn referenced_challenge_ids(&self) -> Vec<ChallengeId> {
+        match self {
+            Self::EnableChallenge { challenge_id } | Self::DisableChallenge { challenge_id } => {
+                vec![*challenge_id]
+            }
+            _ => vec![],
+        }
+    }
+
     pub fn reveal(info: impl Into<String>) -> Self {
         Self::RevealInformation {
             info: info.into(),
@@ -719,6 +830,16 @@ impl TriggerCondition {
     pub fn matches(&self, action: &str, context: &str) -> bool {
         self.condition_type.matches(action, context)
     }
+
+    /// Validate this trigger condition, returning an error message if invalid.
+    pub fn validate(&self) -> Result<(), String> {
+        self.condition_type.validate()
+    }
+
+    /// Get referenced challenge IDs that this condition depends on.
+    pub fn referenced_challenge_ids(&self) -> Vec<ChallengeId> {
+        self.condition_type.referenced_challenge_ids()
+    }
 }
 
 /// Types of trigger conditions
@@ -749,6 +870,69 @@ pub enum TriggerType {
 }
 
 impl TriggerType {
+    /// Validate this trigger type, returning an error message if invalid.
+    ///
+    /// Validation rules:
+    /// - ObjectInteraction: keywords must be non-empty and contain non-empty strings
+    /// - EnterArea: area_keywords must be non-empty and contain non-empty strings
+    /// - DialogueTopic: topic_keywords must be non-empty and contain non-empty strings
+    /// - NpcPresent: npc_keywords must be non-empty and contain non-empty strings
+    /// - Custom: description must be non-empty
+    /// - ChallengeComplete and TimeBased: always valid (IDs are typed)
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            Self::ObjectInteraction { keywords } => {
+                if keywords.is_empty() {
+                    return Err("ObjectInteraction trigger requires at least one keyword".to_string());
+                }
+                if keywords.iter().all(|k| k.trim().is_empty()) {
+                    return Err("ObjectInteraction trigger keywords cannot all be empty".to_string());
+                }
+            }
+            Self::EnterArea { area_keywords } => {
+                if area_keywords.is_empty() {
+                    return Err("EnterArea trigger requires at least one keyword".to_string());
+                }
+                if area_keywords.iter().all(|k| k.trim().is_empty()) {
+                    return Err("EnterArea trigger keywords cannot all be empty".to_string());
+                }
+            }
+            Self::DialogueTopic { topic_keywords } => {
+                if topic_keywords.is_empty() {
+                    return Err("DialogueTopic trigger requires at least one keyword".to_string());
+                }
+                if topic_keywords.iter().all(|k| k.trim().is_empty()) {
+                    return Err("DialogueTopic trigger keywords cannot all be empty".to_string());
+                }
+            }
+            Self::NpcPresent { npc_keywords } => {
+                if npc_keywords.is_empty() {
+                    return Err("NpcPresent trigger requires at least one keyword".to_string());
+                }
+                if npc_keywords.iter().all(|k| k.trim().is_empty()) {
+                    return Err("NpcPresent trigger keywords cannot all be empty".to_string());
+                }
+            }
+            Self::Custom { description } => {
+                if description.trim().is_empty() {
+                    return Err("Custom trigger requires non-empty description".to_string());
+                }
+            }
+            // ChallengeComplete and TimeBased have typed values that are always valid
+            Self::ChallengeComplete { .. } | Self::TimeBased { .. } => {}
+        }
+        Ok(())
+    }
+
+    /// Get referenced challenge IDs that this trigger depends on.
+    /// Used for validation to ensure referenced challenges exist.
+    pub fn referenced_challenge_ids(&self) -> Vec<ChallengeId> {
+        match self {
+            Self::ChallengeComplete { challenge_id, .. } => vec![*challenge_id],
+            _ => vec![],
+        }
+    }
+
     /// Check if this trigger type matches the given action/context
     pub fn matches(&self, action: &str, context: &str) -> bool {
         let action_lower = action.to_lowercase();
@@ -849,6 +1033,20 @@ impl OutcomeType {
 
     pub fn is_success(&self) -> bool {
         matches!(self, Self::CriticalSuccess | Self::Success | Self::Partial)
+    }
+}
+
+impl std::fmt::Display for OutcomeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Use snake_case format for serialization/protocol consistency
+        let name = match self {
+            Self::CriticalSuccess => "critical_success",
+            Self::Success => "success",
+            Self::Partial => "partial",
+            Self::Failure => "failure",
+            Self::CriticalFailure => "critical_failure",
+        };
+        write!(f, "{}", name)
     }
 }
 

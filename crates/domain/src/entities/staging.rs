@@ -69,6 +69,10 @@ pub struct StagedNpc {
     /// Affects default expression and dialogue tone
     /// Set by DM during staging approval, or defaults to character's default_mood
     pub mood: MoodState,
+    /// When true, character data was not found during staging approval.
+    /// This NPC was included with empty defaults and may need attention.
+    #[serde(default)]
+    pub has_incomplete_data: bool,
 }
 
 impl StagedNpc {
@@ -234,7 +238,13 @@ impl StagedNpc {
             is_hidden_from_players: false,
             reasoning: reasoning.into(),
             mood: MoodState::default(),
+            has_incomplete_data: false,
         }
+    }
+
+    pub fn with_incomplete_data(mut self, incomplete: bool) -> Self {
+        self.has_incomplete_data = incomplete;
+        self
     }
 
     pub fn with_sprite(mut self, asset: impl Into<String>) -> Self {

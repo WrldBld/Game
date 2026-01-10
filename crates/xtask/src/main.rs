@@ -1536,7 +1536,7 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
         "error.rs", // Request/response error handling - uses ErrorCode, RequestError, ResponseResult
         "player_events.rs", // From<protocol::*> impls must live here due to Rust orphan rules
         "requests.rs", // App-layer DTOs with From impls for protocol conversion at boundary
-        // Services use GameConnectionPort which takes RequestPayload.
+        // Services use CommandBus which takes RequestPayload.
         // They construct app-layer DTOs and convert via .into() at the boundary.
         // The protocol types are only touched in From impls, not in business logic.
         "skill_service.rs",

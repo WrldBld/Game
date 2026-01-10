@@ -168,8 +168,11 @@ impl EngineClient {
                     }
                     _ = write_handle => {
                         tracing::info!("Write task completed");
-                        // Write task ended first - likely a disconnect
-                        true
+                        // Write task ends when tx channel closes (all senders dropped) or send fails.
+                        // This typically happens during intentional disconnect when tx is set to None,
+                        // not due to server disconnect. The read task is the proper indicator of
+                        // server-side disconnects, so we return false here.
+                        false
                     }
                 };
 

@@ -856,7 +856,15 @@ impl DifficultyDescriptor {
             Self::Unknown => "Unknown",
         }
     }
+}
 
+impl std::fmt::Display for DifficultyDescriptor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display_name())
+    }
+}
+
+impl DifficultyDescriptor {
     /// Get all standard descriptors (excluding position indicators)
     pub fn standard_descriptors() -> Vec<Self> {
         vec![

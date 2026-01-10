@@ -268,6 +268,10 @@ pub(super) async fn handle_exit_to_location(
     }
 }
 
+// TODO: Time suggestions are stored in-memory and never expire.
+// Consider adding a cleanup mechanism or TTL for suggestions that are never resolved.
+// For now, this is acceptable as suggestions are typically resolved quickly.
+// We do clean up stale suggestions for the same PC when a new suggestion is created below.
 async fn maybe_broadcast_time_suggestion(
     state: &WsState,
     world_id: WorldId,
@@ -279,6 +283,10 @@ async fn maybe_broadcast_time_suggestion(
         };
         {
             let mut guard = state.pending_time_suggestions.write().await;
+            // Remove any existing suggestion for the same PC to prevent unbounded growth.
+            // This handles the case where a player performs multiple actions before
+            // the DM resolves the first suggestion.
+            guard.retain(|_, existing| existing.pc_id != suggestion.pc_id);
             guard.insert(suggestion.id, suggestion.clone());
         }
         state.connections.broadcast_to_dms(world_id, msg).await;

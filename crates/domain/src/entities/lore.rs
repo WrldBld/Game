@@ -346,7 +346,10 @@ impl std::str::FromStr for LoreCategory {
             "natural" => Ok(LoreCategory::Natural),
             "religious" => Ok(LoreCategory::Religious),
             "unknown" => Ok(LoreCategory::Unknown),
-            _ => Ok(LoreCategory::Unknown), // Forward compatibility - unknown strings become Unknown
+            _ => Err(format!(
+                "Invalid lore category '{}'. Valid categories: historical, legend, secret, common, technical, political, natural, religious",
+                s
+            )),
         }
     }
 }
@@ -421,10 +424,11 @@ mod tests {
             "SECRET".parse::<LoreCategory>().unwrap(),
             LoreCategory::Secret
         );
-        // Unknown strings become Unknown for forward compatibility
         assert_eq!(
-            "invalid".parse::<LoreCategory>().unwrap(),
+            "unknown".parse::<LoreCategory>().unwrap(),
             LoreCategory::Unknown
         );
+        // Invalid strings return an error
+        assert!("invalid".parse::<LoreCategory>().is_err());
     }
 }

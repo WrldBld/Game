@@ -5,9 +5,10 @@
 //! is responsible for broadcasting to clients.
 
 use std::sync::Arc;
+use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 
-use crate::entities::{Character, PlayerCharacter};
+use crate::entities::{Character, Narrative, PlayerCharacter};
 use crate::infrastructure::ports::RepoError;
 
 /// Result of ending a conversation.
@@ -21,29 +22,36 @@ pub struct ConversationEnded {
     pub pc_name: String,
     /// Optional summary of the conversation
     pub summary: Option<String>,
+    /// The conversation ID that was ended (if any)
+    pub conversation_id: Option<Uuid>,
 }
 
 /// End conversation use case.
 ///
-/// Validates the PC and NPC exist and returns conversation end data.
+/// Validates the PC and NPC exist, ends the active conversation tracking,
+/// and returns conversation end data.
 /// The caller is responsible for broadcasting the result to clients.
 ///
-/// TODO: This use case currently only validates that PC/NPC exist.
-/// Future enhancements should include:
-/// - Clear active conversation tracking (remove conversation_id from active sessions)
+/// Future enhancements could include:
 /// - Optionally save conversation summary to persistent storage
 /// - Notify any listeners/subscribers that the conversation has ended
 /// - Update NPC disposition based on conversation outcome
 pub struct EndConversation {
     character: Arc<Character>,
     player_character: Arc<PlayerCharacter>,
+    narrative: Arc<Narrative>,
 }
 
 impl EndConversation {
-    pub fn new(character: Arc<Character>, player_character: Arc<PlayerCharacter>) -> Self {
+    pub fn new(
+        character: Arc<Character>,
+        player_character: Arc<PlayerCharacter>,
+        narrative: Arc<Narrative>,
+    ) -> Self {
         Self {
             character,
             player_character,
+            narrative,
         }
     }
 
@@ -77,11 +85,49 @@ impl EndConversation {
             .await?
             .ok_or(EndConversationError::NpcNotFound)?;
 
+        // 3. End the active conversation tracking (clear active conversation state)
+        // This atomically finds and ends the active conversation between PC and NPC
+        let ended_conversation_id = match self
+            .narrative
+            .end_active_conversation(pc_id, npc_id)
+            .await
+        {
+            Ok(id) => {
+                if let Some(conv_id) = &id {
+                    tracing::info!(
+                        conversation_id = %conv_id,
+                        pc_id = %pc_id,
+                        npc_id = %npc_id,
+                        "Marked conversation as ended"
+                    );
+                } else {
+                    tracing::debug!(
+                        pc_id = %pc_id,
+                        npc_id = %npc_id,
+                        "No active conversation found to end"
+                    );
+                }
+                id
+            }
+            Err(e) => {
+                // Log but don't fail - the conversation end should still succeed
+                // even if we can't update the tracking state
+                tracing::warn!(
+                    error = %e,
+                    pc_id = %pc_id,
+                    npc_id = %npc_id,
+                    "Failed to end active conversation tracking, proceeding anyway"
+                );
+                None
+            }
+        };
+
         tracing::info!(
             pc_id = %pc_id,
             pc_name = %pc.name,
             npc_id = %npc_id,
             npc_name = %npc.name,
+            conversation_id = ?ended_conversation_id,
             "Conversation ended"
         );
 
@@ -91,6 +137,7 @@ impl EndConversation {
             pc_id,
             pc_name: pc.name,
             summary,
+            conversation_id: ended_conversation_id,
         })
     }
 }

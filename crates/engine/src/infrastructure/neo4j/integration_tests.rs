@@ -193,6 +193,7 @@ async fn save_pending_staging_creates_includes_npc_edges_for_all_npcs() {
             is_hidden_from_players: false,
             reasoning: "r0".to_string(),
             mood: MoodState::Calm,
+            has_incomplete_data: false,
         },
         StagedNpc {
             character_id: npc_ids[1].into(),
@@ -203,6 +204,7 @@ async fn save_pending_staging_creates_includes_npc_edges_for_all_npcs() {
             is_hidden_from_players: true,
             reasoning: "r1".to_string(),
             mood: MoodState::Nervous,
+            has_incomplete_data: false,
         },
         StagedNpc {
             character_id: npc_ids[2].into(),
@@ -213,6 +215,7 @@ async fn save_pending_staging_creates_includes_npc_edges_for_all_npcs() {
             is_hidden_from_players: false,
             reasoning: "r2".to_string(),
             mood: MoodState::Happy,
+            has_incomplete_data: false,
         },
     ];
 

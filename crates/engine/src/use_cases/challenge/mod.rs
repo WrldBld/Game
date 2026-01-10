@@ -114,13 +114,8 @@ impl TriggerChallengePrompt {
             .await?
             .ok_or(ChallengeError::NotFound)?;
 
-        let difficulty_display = match &challenge.difficulty {
-            wrldbldr_domain::Difficulty::DC(dc) => format!("DC {}", dc),
-            wrldbldr_domain::Difficulty::Percentage(pct) => format!("{}%", pct),
-            wrldbldr_domain::Difficulty::Opposed => "Opposed".to_string(),
-            wrldbldr_domain::Difficulty::Descriptor(desc) => format!("{:?}", desc),
-            wrldbldr_domain::Difficulty::Custom(custom) => custom.clone(),
-        };
+        // Use the built-in display() method for consistent formatting
+        let difficulty_display = challenge.difficulty.display();
 
         Ok(ChallengePromptData {
             challenge_id,
@@ -235,7 +230,7 @@ impl RollChallenge {
             roll,
             modifier,
             total,
-            outcome_type: format!("{:?}", outcome_type),
+            outcome_type: outcome_type.to_string(),
             outcome_description: outcome.description.clone(),
             outcome_triggers: outcome
                 .triggers
@@ -267,7 +262,7 @@ impl RollChallenge {
             npc_name: String::new(),
             proposed_dialogue: outcome.description.clone(),
             internal_reasoning: format!(
-                "Challenge '{}' - Roll: {} + {} = {} -> {:?}",
+                "Challenge '{}' - Roll: {} + {} = {} -> {}",
                 challenge.name, roll, modifier, total, outcome_type
             ),
             proposed_tools: outcome_data.outcome_triggers.clone(),
@@ -395,16 +390,16 @@ impl ResolveOutcome {
 
         // Execute each trigger in the outcome
         for trigger in &outcome.triggers {
-            if let Err(e) = self
-                .execute_trigger(trigger, &challenge.name, challenge.world_id, target_pc_id)
+            self.execute_trigger(trigger, &challenge.name, challenge.world_id, target_pc_id)
                 .await
-            {
-                tracing::warn!(
-                    challenge = %challenge.name,
-                    error = %e,
-                    "Failed to execute trigger, continuing with remaining triggers"
-                );
-            }
+                .map_err(|e| {
+                    tracing::error!(
+                        challenge = %challenge.name,
+                        error = %e,
+                        "Failed to execute trigger"
+                    );
+                    ChallengeError::TriggerExecutionFailed(e.to_string())
+                })?;
         }
 
         // Mark the challenge as resolved
@@ -746,6 +741,8 @@ pub enum ChallengeError {
     PlayerCharacterNotFound,
     #[error("Missing target player character for challenge outcome")]
     MissingTargetPc,
+    #[error("Trigger execution failed: {0}")]
+    TriggerExecutionFailed(String),
     #[error("Dice parse error: {0}")]
     DiceParse(#[from] DiceParseError),
     #[error("Queue error: {0}")]

@@ -1229,6 +1229,7 @@ mod ws_integration_tests_inline {
         let conversation_end = Arc::new(crate::use_cases::conversation::EndConversation::new(
             character.clone(),
             player_character.clone(),
+            narrative.clone(),
         ));
         let conversation = crate::use_cases::ConversationUseCases::new(
             conversation_start.clone(),

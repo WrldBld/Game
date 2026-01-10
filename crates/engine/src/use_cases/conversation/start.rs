@@ -171,6 +171,10 @@ pub enum ConversationError {
     NpcNotInRegion,
     #[error("NPC has left the region")]
     NpcLeftRegion,
+    #[error("Conversation has ended")]
+    ConversationEnded,
+    #[error("No active conversation found")]
+    NoActiveConversation,
     #[error("Queue error: {0}")]
     QueueError(String),
     #[error("Repository error: {0}")]
@@ -461,6 +465,7 @@ mod tests {
             is_hidden_from_players: false,
             reasoning: "here".to_string(),
             mood: MoodState::Calm,
+            has_incomplete_data: false,
         };
         let staging = Staging::new(
             region_id,

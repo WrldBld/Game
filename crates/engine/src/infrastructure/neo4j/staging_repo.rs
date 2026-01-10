@@ -209,6 +209,11 @@ impl StagingRepo for Neo4jStagingRepo {
             .collect();
         let npc_reasoning: Vec<String> = staging.npcs.iter().map(|n| n.reasoning.clone()).collect();
         let npc_mood: Vec<String> = staging.npcs.iter().map(|n| n.mood.to_string()).collect();
+        let npc_has_incomplete_data: Vec<bool> = staging
+            .npcs
+            .iter()
+            .map(|n| n.has_incomplete_data)
+            .collect();
 
         // Create staging and all NPC relationships in one query (no APOC)
         let q = query(
@@ -234,7 +239,8 @@ impl StagingRepo for Neo4jStagingRepo {
                 is_present: $npc_is_present[i],
                 is_hidden_from_players: $npc_is_hidden_from_players[i],
                 reasoning: $npc_reasoning[i],
-                mood: $npc_mood[i]
+                mood: $npc_mood[i],
+                has_incomplete_data: $npc_has_incomplete_data[i]
             }]->(c)",
         )
         .param("id", staging.id.to_string())
@@ -255,7 +261,8 @@ impl StagingRepo for Neo4jStagingRepo {
         .param("npc_is_present", npc_is_present)
         .param("npc_is_hidden_from_players", npc_is_hidden_from_players)
         .param("npc_reasoning", npc_reasoning)
-        .param("npc_mood", npc_mood);
+        .param("npc_mood", npc_mood)
+        .param("npc_has_incomplete_data", npc_has_incomplete_data);
 
         self.graph
             .run(q)
@@ -299,7 +306,8 @@ impl StagingRepo for Neo4jStagingRepo {
                 is_present: rel.is_present,
                 is_hidden_from_players: COALESCE(rel.is_hidden_from_players, false),
                 reasoning: rel.reasoning,
-                mood: COALESCE(rel.mood, c.default_mood, 'calm')
+                mood: COALESCE(rel.mood, c.default_mood, 'calm'),
+                has_incomplete_data: COALESCE(rel.has_incomplete_data, false)
             }) as npcs
             RETURN s, npcs",
         )
@@ -375,7 +383,8 @@ impl StagingRepo for Neo4jStagingRepo {
                 is_present: rel.is_present,
                 is_hidden_from_players: COALESCE(rel.is_hidden_from_players, false),
                 reasoning: rel.reasoning,
-                mood: COALESCE(rel.mood, c.default_mood, 'calm')
+                mood: COALESCE(rel.mood, c.default_mood, 'calm'),
+                has_incomplete_data: COALESCE(rel.has_incomplete_data, false)
             }) as npcs
             RETURN s, npcs
             ORDER BY s.approved_at DESC
@@ -513,7 +522,8 @@ impl Neo4jStagingRepo {
                    rel.is_present as is_present,
                    COALESCE(rel.is_hidden_from_players, false) as is_hidden_from_players,
                    rel.reasoning as reasoning,
-                   COALESCE(rel.mood, c.default_mood, 'calm') as mood",
+                   COALESCE(rel.mood, c.default_mood, 'calm') as mood,
+                   COALESCE(rel.has_incomplete_data, false) as has_incomplete_data",
         )
         .param("staging_id", staging_id.to_string());
 
@@ -573,6 +583,9 @@ fn row_to_staged_npc(row: Row) -> Result<StagedNpc, RepoError> {
     let mood_str: String = row.get("mood").unwrap_or_else(|_| "calm".to_string());
     let mood: MoodState = mood_str.parse().unwrap_or(MoodState::Calm);
 
+    // Parse has_incomplete_data flag - defaults to false for existing data
+    let has_incomplete_data: bool = row.get("has_incomplete_data").unwrap_or(false);
+
     Ok(StagedNpc {
         character_id,
         name,
@@ -582,6 +595,7 @@ fn row_to_staged_npc(row: Row) -> Result<StagedNpc, RepoError> {
         is_hidden_from_players,
         reasoning,
         mood,
+        has_incomplete_data,
     })
 }
 
@@ -675,6 +689,7 @@ fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
         let reasoning: String = npc_map.get("reasoning").unwrap_or_default();
         let mood_str: String = npc_map.get("mood").unwrap_or_else(|_| "calm".to_string());
         let mood: MoodState = mood_str.parse().unwrap_or(MoodState::Calm);
+        let has_incomplete_data: bool = npc_map.get("has_incomplete_data").unwrap_or(false);
 
         npcs.push(StagedNpc {
             character_id,
@@ -685,6 +700,7 @@ fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
             is_hidden_from_players,
             reasoning,
             mood,
+            has_incomplete_data,
         });
     }
 

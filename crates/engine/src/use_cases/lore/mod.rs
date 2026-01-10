@@ -51,12 +51,12 @@ impl LoreOps {
         world_id: WorldId,
         data: CreateLoreData,
     ) -> Result<Value, LoreError> {
-        let category = data
-            .category
-            .as_deref()
-            .unwrap_or("common")
-            .parse::<LoreCategory>()
-            .unwrap_or(LoreCategory::Common);
+        let category = match data.category.as_deref() {
+            Some(cat_str) => cat_str
+                .parse::<LoreCategory>()
+                .map_err(|e| LoreError::InvalidCategory(e))?,
+            None => LoreCategory::Common,
+        };
 
         let now = chrono::Utc::now();
         let mut lore = wrldbldr_domain::Lore::new(world_id, &data.title, category, now);
@@ -105,9 +105,9 @@ impl LoreOps {
             lore.summary = summary.clone();
         }
         if let Some(category_str) = data.category.as_ref() {
-            if let Ok(cat) = category_str.parse::<LoreCategory>() {
-                lore.category = cat;
-            }
+            lore.category = category_str
+                .parse::<LoreCategory>()
+                .map_err(|e| LoreError::InvalidCategory(e))?;
         }
         if let Some(tags) = data.tags.as_ref() {
             lore.tags = tags.clone();
@@ -233,6 +233,24 @@ impl LoreOps {
         chunk_ids: Option<Vec<LoreChunkId>>,
         discovery_source: LoreDiscoverySourceData,
     ) -> Result<Value, LoreError> {
+        // Validate that the lore exists and chunk IDs are valid
+        let lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
+
+        // If chunk_ids are provided, validate they exist in the lore
+        if let Some(ref ids) = chunk_ids {
+            let valid_chunk_ids: std::collections::HashSet<_> =
+                lore.chunks.iter().map(|c| c.id).collect();
+            let invalid_ids: Vec<_> = ids
+                .iter()
+                .filter(|id| !valid_chunk_ids.contains(id))
+                .map(|id| id.to_string())
+                .collect();
+
+            if !invalid_ids.is_empty() {
+                return Err(LoreError::InvalidChunkIds(invalid_ids.join(", ")));
+            }
+        }
+
         let domain_source = lore_discovery_source(discovery_source);
         let now = chrono::Utc::now();
         let knowledge = if let Some(ids) = chunk_ids {
@@ -302,6 +320,10 @@ pub enum LoreError {
     NotFound,
     #[error("Lore chunk not found")]
     ChunkNotFound,
+    #[error("{0}")]
+    InvalidCategory(String),
+    #[error("Invalid chunk IDs: {0}")]
+    InvalidChunkIds(String),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }

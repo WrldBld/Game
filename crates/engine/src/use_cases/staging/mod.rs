@@ -418,6 +418,11 @@ impl ApproveStagingRequest {
         &self,
         input: ApproveStagingInput,
     ) -> Result<StagingReadyPayload, StagingError> {
+        // Validate approved_npcs array
+        // Note: Empty approved_npcs is explicitly allowed - it represents a staging
+        // with no NPCs present (e.g., an empty room or wilderness area)
+        self.validate_approved_npcs(&input.approved_npcs)?;
+
         let world = self
             .world
             .get(input.world_id)
@@ -461,12 +466,31 @@ impl ApproveStagingRequest {
         if let Some(loc_state_str) = &input.location_state_id {
             if let Ok(loc_uuid) = Uuid::parse_str(loc_state_str) {
                 let loc_state_id = wrldbldr_domain::LocationStateId::from_uuid(loc_uuid);
-                if let Err(e) = self
-                    .location_state
-                    .set_active(location_id, loc_state_id)
-                    .await
-                {
-                    tracing::warn!(error = %e, "Failed to set active location state");
+                // Validate that the location state exists before setting it as active
+                match self.location_state.get(loc_state_id).await {
+                    Ok(Some(_)) => {
+                        if let Err(e) = self
+                            .location_state
+                            .set_active(location_id, loc_state_id)
+                            .await
+                        {
+                            tracing::warn!(error = %e, "Failed to set active location state");
+                        }
+                    }
+                    Ok(None) => {
+                        tracing::warn!(
+                            location_state_id = %loc_state_str,
+                            location_id = %location_id,
+                            "Location state ID provided but not found in database, skipping"
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            location_state_id = %loc_state_str,
+                            "Failed to validate location state existence"
+                        );
+                    }
                 }
             }
         }
@@ -474,12 +498,31 @@ impl ApproveStagingRequest {
         if let Some(reg_state_str) = &input.region_state_id {
             if let Ok(reg_uuid) = Uuid::parse_str(reg_state_str) {
                 let reg_state_id = wrldbldr_domain::RegionStateId::from_uuid(reg_uuid);
-                if let Err(e) = self
-                    .region_state
-                    .set_active(input.region_id, reg_state_id)
-                    .await
-                {
-                    tracing::warn!(error = %e, "Failed to set active region state");
+                // Validate that the region state exists before setting it as active
+                match self.region_state.get(reg_state_id).await {
+                    Ok(Some(_)) => {
+                        if let Err(e) = self
+                            .region_state
+                            .set_active(input.region_id, reg_state_id)
+                            .await
+                        {
+                            tracing::warn!(error = %e, "Failed to set active region state");
+                        }
+                    }
+                    Ok(None) => {
+                        tracing::warn!(
+                            region_state_id = %reg_state_str,
+                            region_id = %input.region_id,
+                            "Region state ID provided but not found in database, skipping"
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            region_state_id = %reg_state_str,
+                            "Failed to validate region state existence"
+                        );
+                    }
                 }
             }
         }
@@ -517,21 +560,23 @@ impl ApproveStagingRequest {
             let character_id = CharacterId::from_uuid(char_uuid);
 
             let character = self.character.get(character_id).await.ok().flatten();
-            let (name, sprite_asset, portrait_asset, default_mood) = match character {
-                Some(c) => (c.name, c.sprite_asset, c.portrait_asset, c.default_mood),
-                None => {
-                    tracing::warn!(
-                        character_id = %npc_info.character_id,
-                        "Character not found during staging approval, using empty defaults"
-                    );
-                    (
-                        String::new(),
-                        None,
-                        None,
-                        wrldbldr_domain::MoodState::default(),
-                    )
-                }
-            };
+            let (name, sprite_asset, portrait_asset, default_mood, has_incomplete_data) =
+                match character {
+                    Some(c) => (c.name, c.sprite_asset, c.portrait_asset, c.default_mood, false),
+                    None => {
+                        tracing::warn!(
+                            character_id = %npc_info.character_id,
+                            "Character not found during staging approval, NPC will have incomplete data"
+                        );
+                        (
+                            String::new(),
+                            None,
+                            None,
+                            wrldbldr_domain::MoodState::default(),
+                            true,
+                        )
+                    }
+                };
 
             let mood = npc_info
                 .mood
@@ -548,6 +593,7 @@ impl ApproveStagingRequest {
                 is_hidden_from_players: npc_info.is_hidden_from_players,
                 reasoning: npc_info.reasoning.clone().unwrap_or_default(),
                 mood,
+                has_incomplete_data,
             });
         }
 
@@ -645,6 +691,39 @@ impl ApproveStagingRequest {
             }),
         })
     }
+
+    /// Validates the approved_npcs array.
+    ///
+    /// Validation rules:
+    /// - Empty array is allowed (represents staging with no NPCs)
+    /// - Each NPC must have a non-empty character_id
+    /// - Each character_id must be a valid UUID format
+    fn validate_approved_npcs(&self, approved_npcs: &[ApprovedNpcInfo]) -> Result<(), StagingError> {
+        for (index, npc_info) in approved_npcs.iter().enumerate() {
+            // Check for empty character_id
+            if npc_info.character_id.is_empty() {
+                return Err(StagingError::Validation(format!(
+                    "NPC at index {} has empty character_id",
+                    index
+                )));
+            }
+
+            // Validate UUID format
+            if Uuid::parse_str(&npc_info.character_id).is_err() {
+                return Err(StagingError::Validation(format!(
+                    "NPC at index {} has invalid character_id '{}': not a valid UUID",
+                    index, npc_info.character_id
+                )));
+            }
+        }
+
+        // Log when empty array is explicitly approved
+        if approved_npcs.is_empty() {
+            tracing::debug!("Staging approved with empty NPC list (no NPCs present)");
+        }
+
+        Ok(())
+    }
 }
 
 pub struct ApproveStagingInput {
@@ -671,6 +750,8 @@ pub enum StagingError {
     WorldNotFound,
     #[error("Region not found")]
     RegionNotFound,
+    #[error("Validation error: {0}")]
+    Validation(String),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }

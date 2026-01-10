@@ -57,6 +57,9 @@ pub(super) async fn handle_lore_request(
 
             match state.app.use_cases.lore.ops.create(world_uuid, data).await {
                 Ok(result) => Ok(ResponseResult::success(result)),
+                Err(crate::use_cases::lore::LoreError::InvalidCategory(msg)) => {
+                    Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     &e.to_string(),
@@ -80,6 +83,12 @@ pub(super) async fn handle_lore_request(
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(ErrorCode::NotFound, "Lore not found"),
                 }),
+                Err(crate::use_cases::lore::LoreError::InvalidCategory(msg)) => {
+                    Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(ErrorCode::BadRequest, &msg),
+                    })
+                }
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
@@ -282,6 +291,15 @@ pub(super) async fn handle_lore_request(
                 .await
             {
                 Ok(result) => Ok(ResponseResult::success(result)),
+                Err(crate::use_cases::lore::LoreError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Lore not found"))
+                }
+                Err(crate::use_cases::lore::LoreError::InvalidChunkIds(msg)) => {
+                    Ok(ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        format!("Invalid chunk IDs: {}", msg),
+                    ))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     &e.to_string(),
