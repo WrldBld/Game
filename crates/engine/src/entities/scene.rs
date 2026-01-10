@@ -208,18 +208,16 @@ impl Scene {
     ) -> Result<Vec<String>, RepoError> {
         let scenes = self.repo.list_for_region(region_id).await?;
 
-        let mut conditions = Vec::new();
+        let mut conditions = std::collections::HashSet::new();
         for scene in scenes {
             for condition in &scene.entry_conditions {
                 if let SceneCondition::Custom(desc) = condition {
-                    if !conditions.contains(desc) {
-                        conditions.push(desc.clone());
-                    }
+                    conditions.insert(desc.clone());
                 }
             }
         }
 
-        Ok(conditions)
+        Ok(conditions.into_iter().collect())
     }
 
     /// Resolve which scene to display for a PC at a given region.

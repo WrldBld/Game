@@ -274,7 +274,7 @@ Please evaluate whether this condition is currently met and respond with the JSO
             LlmError::InvalidResponse(format!("Invalid JSON in response: {}", e))
         })?;
 
-        // Extract fields
+        // Extract fields - result and confidence are required, reasoning is optional
         let result = parsed["result"].as_bool().ok_or_else(|| {
             LlmError::InvalidResponse("Missing 'result' field in response".to_string())
         })?;
@@ -282,8 +282,11 @@ Please evaluate whether this condition is currently met and respond with the JSO
         let confidence = parsed["confidence"]
             .as_f64()
             .map(|f| f as f32)
-            .unwrap_or(0.5);
+            .ok_or_else(|| {
+                LlmError::InvalidResponse("Missing 'confidence' field in response".to_string())
+            })?;
 
+        // Reasoning is optional - only used for logging/debugging
         let reasoning = parsed["reasoning"]
             .as_str()
             .unwrap_or("No reasoning provided")

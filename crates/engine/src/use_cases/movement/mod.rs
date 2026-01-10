@@ -226,9 +226,12 @@ pub async fn resolve_scene_for_region_with_evaluator(
     let flags = flag.get_all_flags_for_pc(world_id, pc_id).await?;
 
     // Extract item names and flag names for LLM context
-    // Note: observations only contain character IDs, not names. For LLM context,
-    // we'd need to fetch character names separately, but for now we use IDs.
     let inventory_names: Vec<String> = inventory_items.iter().map(|i| i.name.clone()).collect();
+    // LIMITATION: We use character IDs (UUIDs) instead of names because NpcObservation
+    // only stores IDs. Fetching names would require an additional repository call per
+    // character. This is acceptable for now as the LLM can still match conditions like
+    // "has met the blacksmith" if the ID is consistent. Future improvement: batch fetch
+    // character names via a dedicated method on the Character entity.
     let known_character_ids: Vec<String> = observations.iter().map(|o| o.npc_id.to_string()).collect();
     let flag_names: Vec<String> = flags.clone();
 
@@ -272,12 +275,14 @@ pub async fn resolve_scene_for_region_with_evaluator(
                         context.add_custom_condition_result(condition_desc, is_met);
                     }
                     Err(e) => {
-                        // Log error but treat as unmet (already the default behavior)
+                        // Log error and explicitly mark as unmet to prevent duplicate warnings
+                        // in scene resolution (which would also log if condition is missing)
                         tracing::warn!(
                             error = %e,
                             condition = %condition_desc,
                             "Failed to evaluate custom condition via LLM - treating as unmet"
                         );
+                        context.add_custom_condition_result(condition_desc, false);
                     }
                 }
             }

@@ -451,7 +451,7 @@ impl Narrative {
     ) -> Result<Vec<String>, RepoError> {
         let events = self.get_triggers_for_region(world_id, region_id).await?;
 
-        let mut triggers = Vec::new();
+        let mut triggers = std::collections::HashSet::new();
         for event in events {
             for trigger in &event.trigger_conditions {
                 if let NarrativeTriggerType::Custom {
@@ -459,14 +459,12 @@ impl Narrative {
                     llm_evaluation: true,
                 } = &trigger.trigger_type
                 {
-                    if !triggers.contains(description) {
-                        triggers.push(description.clone());
-                    }
+                    triggers.insert(description.clone());
                 }
             }
         }
 
-        Ok(triggers)
+        Ok(triggers.into_iter().collect())
     }
 
     /// Check for triggered events when entering a region.
