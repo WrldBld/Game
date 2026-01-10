@@ -365,9 +365,6 @@ impl App {
             ),
         ));
 
-        // Create settings ops early so it can be shared with staging use cases
-        let settings_ops = Arc::new(use_cases::settings::SettingsOps::new(settings_repo.clone()));
-
         let staging_uc = use_cases::StagingUseCases::new(
             Arc::new(use_cases::staging::RequestStagingApproval::new(
                 character.clone(),
@@ -376,7 +373,7 @@ impl App {
                 world.clone(),
                 flag.clone(),
                 visual_state_uc.resolve.clone(),
-                settings_ops.clone(),
+                settings_repo.clone(),
                 llm.clone(),
             )),
             Arc::new(use_cases::staging::RegenerateStagingSuggestions::new(
@@ -399,9 +396,12 @@ impl App {
                 location.clone(),
                 location_state.clone(),
                 region_state.clone(),
-                settings_ops.clone(),
+                settings_repo.clone(),
             )),
         );
+
+        // Create settings ops for SettingsUseCases
+        let settings_ops = Arc::new(use_cases::settings::SettingsOps::new(settings_repo.clone()));
 
         let npc_uc = use_cases::NpcUseCases::new(
             Arc::new(use_cases::npc::NpcDisposition::new(

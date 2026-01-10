@@ -1397,9 +1397,6 @@ mod ws_integration_tests_inline {
             ),
         ));
 
-        // Create settings ops early so it can be shared with staging use cases
-        let settings_ops = Arc::new(crate::use_cases::settings::SettingsOps::new(settings_repo.clone()));
-
         let staging_uc = crate::use_cases::StagingUseCases::new(
             Arc::new(crate::use_cases::staging::RequestStagingApproval::new(
                 character.clone(),
@@ -1408,7 +1405,7 @@ mod ws_integration_tests_inline {
                 world.clone(),
                 flag.clone(),
                 visual_state_uc.resolve.clone(),
-                settings_ops.clone(),
+                settings_repo.clone(),
                 llm.clone(),
             )),
             Arc::new(
@@ -1433,9 +1430,12 @@ mod ws_integration_tests_inline {
                 location.clone(),
                 location_state.clone(),
                 region_state.clone(),
-                settings_ops.clone(),
+                settings_repo.clone(),
             )),
         );
+
+        // Create settings ops for SettingsUseCases
+        let settings_ops = Arc::new(crate::use_cases::settings::SettingsOps::new(settings_repo.clone()));
 
         let npc_uc = crate::use_cases::NpcUseCases::new(
             Arc::new(crate::use_cases::npc::NpcDisposition::new(

@@ -14,9 +14,8 @@ use crate::entities::{
     Character, Flag, Location, LocationStateEntity, RegionStateEntity, Staging, World,
 };
 use crate::infrastructure::ports::{
-    ChatMessage, LlmPort, LlmRequest, NpcRegionRelationType, RepoError,
+    ChatMessage, LlmPort, LlmRequest, NpcRegionRelationType, RepoError, SettingsRepo,
 };
-use crate::use_cases::settings::SettingsOps;
 use crate::use_cases::time::TimeSuggestion;
 use crate::use_cases::visual_state::{ResolveVisualState, StateResolutionContext};
 use wrldbldr_domain::{
@@ -28,9 +27,10 @@ use wrldbldr_protocol::{
     WaitingPcInfo,
 };
 
-/// Default staging timeout in seconds.
-/// This is used as a fallback when settings cannot be fetched.
-/// The actual timeout is configured via `staging_timeout_seconds` in world settings.
+/// Timeout in seconds before a pending staging request auto-approves.
+/// This is the delay shown to players while waiting for DM approval.
+/// Not to be confused with TTL (time-to-live), which controls how long
+/// approved staging remains valid (configured via `default_presence_cache_ttl_hours`).
 pub const DEFAULT_STAGING_TIMEOUT_SECONDS: u64 = 30;
 
 /// Container for staging use cases.
@@ -91,7 +91,7 @@ pub struct RequestStagingApproval {
     world: Arc<World>,
     flag: Arc<Flag>,
     visual_state: Arc<ResolveVisualState>,
-    settings: Arc<SettingsOps>,
+    settings: Arc<dyn SettingsRepo>,
     llm: Arc<dyn LlmPort>,
 }
 
@@ -103,7 +103,7 @@ impl RequestStagingApproval {
         world: Arc<World>,
         flag: Arc<Flag>,
         visual_state: Arc<ResolveVisualState>,
-        settings: Arc<SettingsOps>,
+        settings: Arc<dyn SettingsRepo>,
         llm: Arc<dyn LlmPort>,
     ) -> Self {
         Self {
@@ -145,8 +145,20 @@ impl RequestStagingApproval {
             .ok_or(StagingError::WorldNotFound)?;
         let now = world.game_time.current();
 
-        // Fetch world settings for configurable TTL values
-        let settings = self.settings.get_for_world(input.world_id).await?;
+        // Fetch world settings for configurable TTL values, falling back to defaults
+        // if settings cannot be loaded (to avoid breaking staging on settings fetch failure)
+        let settings = match self.settings.get_for_world(input.world_id).await {
+            Ok(Some(s)) => s,
+            Ok(None) => wrldbldr_domain::AppSettings::default(),
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    world_id = %input.world_id,
+                    "Failed to load world settings for staging, using defaults"
+                );
+                wrldbldr_domain::AppSettings::default()
+            }
+        };
 
         let location_name = self
             .location
@@ -762,8 +774,6 @@ pub enum StagingError {
     Validation(String),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
-    #[error("Settings error: {0}")]
-    Settings(#[from] crate::use_cases::settings::SettingsError),
 }
 
 #[derive(Deserialize)]
@@ -983,7 +993,7 @@ pub struct AutoApproveStagingTimeout {
     location: Arc<Location>,
     location_state: Arc<LocationStateEntity>,
     region_state: Arc<RegionStateEntity>,
-    settings: Arc<SettingsOps>,
+    settings: Arc<dyn SettingsRepo>,
 }
 
 impl AutoApproveStagingTimeout {
@@ -994,7 +1004,7 @@ impl AutoApproveStagingTimeout {
         location: Arc<Location>,
         location_state: Arc<LocationStateEntity>,
         region_state: Arc<RegionStateEntity>,
-        settings: Arc<SettingsOps>,
+        settings: Arc<dyn SettingsRepo>,
     ) -> Self {
         Self {
             character,
@@ -1013,8 +1023,20 @@ impl AutoApproveStagingTimeout {
         request_id: String,
         pending: PendingStagingRequest,
     ) -> Result<StagingReadyPayload, StagingError> {
-        // Fetch world settings for configurable TTL values
-        let settings = self.settings.get_for_world(pending.world_id).await?;
+        // Fetch world settings for configurable TTL values, falling back to defaults
+        // if settings cannot be loaded (to avoid breaking staging on settings fetch failure)
+        let settings = match self.settings.get_for_world(pending.world_id).await {
+            Ok(Some(s)) => s,
+            Ok(None) => wrldbldr_domain::AppSettings::default(),
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    world_id = %pending.world_id,
+                    "Failed to load world settings for auto-approval, using defaults"
+                );
+                wrldbldr_domain::AppSettings::default()
+            }
+        };
 
         // Generate rule-based NPC suggestions
         let rule_based_npcs =
@@ -1098,5 +1120,30 @@ mod tests {
             normalize_name("  Marcus   the   Bartender  "),
             "marcus the bartender"
         );
+    }
+
+    #[test]
+    fn normalize_name_empty_string() {
+        assert_eq!(normalize_name(""), "");
+    }
+
+    #[test]
+    fn normalize_name_whitespace_only() {
+        assert_eq!(normalize_name("   \t\n   "), "");
+    }
+
+    #[test]
+    fn normalize_name_unicode_characters() {
+        // Unicode letters should be preserved, only lowercased
+        assert_eq!(normalize_name("José García"), "josé garcía");
+        assert_eq!(normalize_name("Müller"), "müller");
+        assert_eq!(normalize_name("北京"), "北京"); // Non-Latin scripts preserved
+    }
+
+    #[test]
+    fn normalize_name_unicode_whitespace() {
+        // Various unicode whitespace characters should be normalized
+        assert_eq!(normalize_name("John\u{00A0}Smith"), "john smith"); // Non-breaking space
+        assert_eq!(normalize_name("John\u{2003}Smith"), "john smith"); // Em space
     }
 }
