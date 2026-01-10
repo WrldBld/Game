@@ -404,18 +404,36 @@ impl CircuitBreaker {
 
     /// Reset the circuit breaker to closed state and clear all counters
     pub fn reset(&self) {
-        let mut state = self.state.write().unwrap();
-        state.state = CircuitState::Closed;
-        state.opened_at = None;
-        state.half_open_requests = 0;
-        state.half_open_successes = 0;
+        // Collect state transition info while holding lock, then release before callback
+        let transition = {
+            let mut state = self.state.write().unwrap();
+            let old_state = state.state;
 
-        self.consecutive_failures.store(0, Ordering::Relaxed);
-        self.total_failures.store(0, Ordering::Relaxed);
-        self.total_successes.store(0, Ordering::Relaxed);
-        self.open_count.store(0, Ordering::Relaxed);
+            state.state = CircuitState::Closed;
+            state.opened_at = None;
+            state.half_open_requests = 0;
+            state.half_open_successes = 0;
 
-        tracing::info!("Circuit breaker reset to closed state");
+            self.consecutive_failures.store(0, Ordering::Relaxed);
+            self.total_failures.store(0, Ordering::Relaxed);
+            self.total_successes.store(0, Ordering::Relaxed);
+            self.open_count.store(0, Ordering::Relaxed);
+
+            tracing::info!("Circuit breaker reset to closed state");
+
+            if old_state != CircuitState::Closed {
+                Some((old_state, CircuitState::Closed))
+            } else {
+                None
+            }
+        }; // Lock released here
+
+        // Invoke callback outside of lock to prevent deadlock
+        if let (Some((old_state, new_state)), Some(ref callback)) =
+            (transition, &self.on_state_change)
+        {
+            callback(old_state, new_state);
+        }
     }
 }
 
@@ -739,21 +757,12 @@ mod tests {
             half_open_max_requests: 1,
         };
 
-        let cb = Arc::new(CircuitBreaker::new(config));
-        let cb_for_callback = Arc::clone(&cb);
-
-        // Replace with a new circuit breaker that has a callback
-        let cb_with_callback = CircuitBreaker::new(CircuitBreakerConfig {
-            failure_threshold: 1,
-            open_duration: Duration::from_secs(60),
-            half_open_max_requests: 1,
-        })
-        .with_state_change_callback(move |_old, new| {
+        let cb = CircuitBreaker::new(config).with_state_change_callback(move |_old, new| {
             // This should NOT deadlock - callback is called without lock held
             state_clone.store(new as u32, Ordering::Relaxed);
         });
 
-        cb_with_callback.record_failure();
+        cb.record_failure();
 
         // Callback should have been called and able to read new state
         assert_eq!(
