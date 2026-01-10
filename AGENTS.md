@@ -135,13 +135,49 @@ impl Character {
     pub async fn get(&self, id: CharacterId) -> Result<Option<domain::Character>> {
         self.repo.get(id).await
     }
-    
+
     pub async fn list_in_region(&self, region_id: RegionId) -> Result<Vec<domain::Character>> {
         self.repo.list_in_region(region_id).await
     }
-    
+
     // All character operations...
 }
+```
+
+### Entities vs Use Cases (Avoiding Duplicate Code)
+
+**Entity modules** (`entities/`) wrap repository ports and provide direct domain operations. They are the single source of truth for interacting with domain data.
+
+**Use cases** (`use_cases/`) orchestrate across multiple entities to fulfill user stories. They should **never duplicate** entity functionality.
+
+| Layer | Purpose | Example |
+|-------|---------|---------|
+| Entity | Direct domain operations | `inventory.get_pc_inventory(pc_id)` |
+| Use Case | Multi-entity orchestration | `EnterRegion` (updates position + triggers events + resolves staging) |
+
+**Rules to prevent duplication:**
+
+1. **Don't wrap entities in use cases** - If a use case just calls through to an entity, delete the use case
+2. **Access entities directly when appropriate** - Handlers can call `app.entities.inventory` for simple operations
+3. **Use cases are for orchestration** - Only create use cases when coordinating multiple entities
+
+**Example - Settings access:**
+```rust
+// Settings is an entity mounted in use_cases for historical reasons
+// Access directly - no wrapper layer
+app.use_cases.settings.get_global().await?
+app.use_cases.settings.get_for_world(world_id).await?
+
+// NOT: app.use_cases.settings.ops.get_global() - this pattern is wrong
+```
+
+**Example - Inventory access:**
+```rust
+// Access entity directly from handlers
+app.entities.inventory.get_pc_inventory(pc_id).await?
+app.entities.inventory.equip_item(pc_id, item_id).await?
+
+// NOT: app.use_cases.inventory.ops.get_pc_inventory() - dead code, deleted
 ```
 
 ### Use Cases
