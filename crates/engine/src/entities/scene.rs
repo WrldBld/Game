@@ -1,6 +1,6 @@
 //! Scene entity operations.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use wrldbldr_domain::{
     self as domain, CharacterId, ItemId, PlayerCharacterId, RegionId, SceneCondition, SceneId,
@@ -24,6 +24,10 @@ pub struct SceneResolutionContext {
     pub flags: HashSet<String>,
     /// Current time of day
     pub time_of_day: TimeOfDay,
+    /// Pre-evaluated custom condition results.
+    /// Key is the condition description, value is whether the condition is met.
+    /// If a custom condition is not in this map, it will be treated as unmet.
+    pub custom_condition_results: HashMap<String, bool>,
 }
 
 impl SceneResolutionContext {
@@ -34,6 +38,7 @@ impl SceneResolutionContext {
             known_characters: HashSet::new(),
             flags: HashSet::new(),
             time_of_day,
+            custom_condition_results: HashMap::new(),
         }
     }
 
@@ -58,6 +63,23 @@ impl SceneResolutionContext {
     pub fn with_flags(mut self, flags: impl IntoIterator<Item = String>) -> Self {
         self.flags = flags.into_iter().collect();
         self
+    }
+
+    /// Add pre-evaluated custom condition results.
+    ///
+    /// These will be used when evaluating `SceneCondition::Custom` variants
+    /// instead of treating them as unmet.
+    pub fn with_custom_condition_results(
+        mut self,
+        results: impl IntoIterator<Item = (String, bool)>,
+    ) -> Self {
+        self.custom_condition_results = results.into_iter().collect();
+        self
+    }
+
+    /// Add a single custom condition result.
+    pub fn add_custom_condition_result(&mut self, description: String, met: bool) {
+        self.custom_condition_results.insert(description, met);
     }
 }
 
@@ -175,6 +197,28 @@ impl Scene {
     // =========================================================================
     // Scene Resolution
     // =========================================================================
+
+    /// Get all unique custom condition descriptions from scenes in a region.
+    ///
+    /// This allows callers to pre-evaluate custom conditions via LLM before
+    /// calling `resolve_scene`. Returns unique condition descriptions.
+    pub async fn get_custom_conditions_for_region(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<String>, RepoError> {
+        let scenes = self.repo.list_for_region(region_id).await?;
+
+        let mut conditions = std::collections::HashSet::new();
+        for scene in scenes {
+            for condition in &scene.entry_conditions {
+                if let SceneCondition::Custom(desc) = condition {
+                    conditions.insert(desc.clone());
+                }
+            }
+        }
+
+        Ok(conditions.into_iter().collect())
+    }
 
     /// Resolve which scene to display for a PC at a given region.
     ///
@@ -304,16 +348,25 @@ impl Scene {
                     }
                 }
                 SceneCondition::Custom(expr) => {
-                    // KNOWN LIMITATION: Custom conditions require LLM evaluation which is not
-                    // yet integrated into scene resolution. For now, custom conditions are
-                    // treated as unmet to avoid incorrectly showing scenes.
-                    // TODO: Implement custom condition evaluation via LLM when scene is
-                    // being resolved in a context where LLM access is available.
-                    tracing::warn!(
-                        expression = %expr,
-                        "Custom scene condition not evaluated - treating as unmet"
-                    );
-                    unmet.push(format!("Custom condition not evaluated: {}", expr));
+                    // Check if this custom condition has been pre-evaluated via LLM
+                    if let Some(&is_met) = context.custom_condition_results.get(expr) {
+                        if !is_met {
+                            unmet.push(format!("Custom condition not met: {}", expr));
+                        }
+                        tracing::debug!(
+                            expression = %expr,
+                            is_met = %is_met,
+                            "Custom condition evaluated via LLM"
+                        );
+                    } else {
+                        // No pre-evaluated result available - treat as unmet
+                        // This happens when LLM evaluation is not available or failed
+                        tracing::warn!(
+                            expression = %expr,
+                            "Custom scene condition not pre-evaluated - treating as unmet"
+                        );
+                        unmet.push(format!("Custom condition not evaluated: {}", expr));
+                    }
                 }
             }
         }

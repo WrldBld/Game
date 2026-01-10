@@ -653,28 +653,30 @@ impl NarrativeEvent {
                 //    be more flexible.
                 false
             }
-            NarrativeTriggerType::Custom { .. } => {
-                // KNOWN LIMITATION: Custom triggers cannot be evaluated at the domain layer.
+            NarrativeTriggerType::Custom {
+                description,
+                llm_evaluation,
+            } => {
+                // Check if this custom trigger has been pre-evaluated via LLM.
+                // The llm_evaluation flag indicates whether the DM wants automatic
+                // LLM evaluation (true) or manual DM judgment (false).
                 //
-                // Custom triggers require LLM evaluation to interpret the natural language
-                // `description` field against the current game context. This evaluation:
-                //
-                // 1. Cannot be done synchronously - LLM calls are async and expensive
-                // 2. Cannot be done in the domain layer - domain entities should not have
-                //    external service dependencies (Clean Architecture principle)
-                // 3. Requires access to the full conversation/session context that the
-                //    TriggerContext struct doesn't capture
-                //
-                // To properly implement Custom triggers:
-                // - Evaluate them in the application/use-case layer (e.g., NarrativeService)
-                // - Use a two-pass approach: first evaluate all non-Custom triggers here,
-                //   then if the event might trigger, call the LLM to evaluate Custom triggers
-                // - The `llm_evaluation` boolean field indicates whether the DM wants
-                //   automatic LLM evaluation (true) or manual DM judgment (false)
-                //
-                // For now, Custom triggers always return false and should be handled by
-                // the DM manually or by a higher-layer service with LLM access.
-                false
+                // When llm_evaluation is true and a pre-evaluated result exists in
+                // context.custom_trigger_results, use that result. Otherwise, return
+                // false (trigger not met - requires DM action or LLM evaluation at
+                // a higher layer).
+                if *llm_evaluation {
+                    // Use pre-evaluated LLM result if available
+                    context
+                        .custom_trigger_results
+                        .get(description)
+                        .copied()
+                        .unwrap_or(false)
+                } else {
+                    // Manual DM judgment required - always return false here
+                    // DM must explicitly trigger these events
+                    false
+                }
             }
         }
     }
@@ -731,7 +733,33 @@ pub struct TriggerContext {
     pub turn_count: u32,
     pub recent_dialogue_topics: Vec<String>,
     pub recent_player_action: Option<String>,
+    /// Pre-evaluated custom trigger results.
+    /// Key is the trigger description, value is whether the trigger is met.
+    /// If a custom trigger is not in this map, it will be treated as not triggered.
+    pub custom_trigger_results: HashMap<String, bool>,
 }
+
+impl TriggerContext {
+    /// Create a new empty trigger context.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add a pre-evaluated custom trigger result.
+    pub fn add_custom_trigger_result(&mut self, description: String, met: bool) {
+        self.custom_trigger_results.insert(description, met);
+    }
+
+    /// Add multiple pre-evaluated custom trigger results.
+    pub fn with_custom_trigger_results(
+        mut self,
+        results: impl IntoIterator<Item = (String, bool)>,
+    ) -> Self {
+        self.custom_trigger_results = results.into_iter().collect();
+        self
+    }
+}
+
 
 /// Result of trigger evaluation
 #[derive(Debug, Clone, Serialize, Deserialize)]

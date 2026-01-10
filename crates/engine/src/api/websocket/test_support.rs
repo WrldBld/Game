@@ -859,6 +859,9 @@ pub(crate) fn build_test_app_with_ports(
         directorial_update,
     );
 
+    // Create custom condition evaluator
+    let custom_condition = Arc::new(crate::use_cases::CustomConditionEvaluator::new(llm.clone()));
+
     let use_cases = UseCases {
         movement,
         conversation,
@@ -882,6 +885,7 @@ pub(crate) fn build_test_app_with_ports(
         story_events: story_events_uc,
         lore: lore_uc,
         location_events: location_events_uc,
+        custom_condition,
     };
 
     Arc::new(App {
