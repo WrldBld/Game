@@ -364,19 +364,8 @@ pub enum TriggerCondition {
 
 > **Current State:** `SceneCondition::Custom(String)` and `NarrativeTriggerType::Custom`
 > exist in the codebase but always return false/unmet. See `scene.rs:306-317` and
-> `narrative_event.rs:656-677` for `KNOWN LIMITATION` comments. This design proposes
-> migrating from `Custom(String)` to `Custom(CustomConditionId)` with full LLM evaluation.
-
-### Migration Strategy
-
-The current `Custom(String)` variant will be migrated to `Custom(CustomConditionId)`:
-
-1. **Phase 1**: Add `CustomCondition` entity to domain with `CustomConditionId` type
-2. **Phase 2**: Create migration that converts existing `Custom(String)` entries to
-   `CustomCondition` entities, using the string as the `description` field
-3. **Phase 3**: Update `SceneCondition` and `NarrativeTriggerType` enums to use
-   `Custom(CustomConditionId)` instead of `Custom(String)`
-4. **Phase 4**: Wire up `CustomConditionEvaluator` to replace the hardcoded `false` returns
+> `narrative_event.rs:656-677` for `KNOWN LIMITATION` comments. Implementation will
+> replace `Custom(String)` with `Custom(CustomConditionId)` and wire up the LLM evaluator.
 
 ### Caching Strategy
 
