@@ -280,20 +280,48 @@ impl ExecuteEffects {
             }
 
             EventEffect::StartCombat {
-                participants: _,
+                participants,
                 participant_names,
                 combat_description,
             } => {
-                // GAP: Combat system not implemented
+                // Validate parameters before reporting unimplemented
+                if participants.is_empty() && participant_names.is_empty() {
+                    return EffectExecutionResult {
+                        description: "Start combat effect has no participants".to_string(),
+                        success: false,
+                        error: Some("Combat effect requires at least one participant".to_string()),
+                        requires_dm_action: false,
+                    };
+                }
+                if combat_description.trim().is_empty() {
+                    return EffectExecutionResult {
+                        description: "Start combat effect has empty description".to_string(),
+                        success: false,
+                        error: Some("Combat effect requires a description".to_string()),
+                        requires_dm_action: false,
+                    };
+                }
+
+                // Combat system not implemented - DM should handle manually
+                let participants_display = if !participant_names.is_empty() {
+                    participant_names.join(", ")
+                } else {
+                    // Fall back to showing IDs when names aren't provided
+                    participants
+                        .iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                };
+
                 EffectExecutionResult {
                     description: format!(
                         "Start combat: {} with {} (NOT IMPLEMENTED - combat system needed)",
-                        combat_description,
-                        participant_names.join(", ")
+                        combat_description, participants_display
                     ),
                     success: false,
                     error: Some("Combat system not implemented".to_string()),
-                    requires_dm_action: true, // DM should handle manually
+                    requires_dm_action: true,
                 }
             }
 
@@ -302,7 +330,33 @@ impl ExecuteEffects {
                 amount,
                 description,
             } => {
-                // GAP: Reward/XP system not implemented
+                // Validate parameters before reporting unimplemented
+                if reward_type.trim().is_empty() {
+                    return EffectExecutionResult {
+                        description: "Add reward effect has empty reward type".to_string(),
+                        success: false,
+                        error: Some("Reward effect requires a reward type (e.g., 'gold', 'xp', 'item')".to_string()),
+                        requires_dm_action: false,
+                    };
+                }
+                if *amount == 0 {
+                    return EffectExecutionResult {
+                        description: format!("Add {} reward with zero amount", reward_type),
+                        success: false,
+                        error: Some("Reward amount must be greater than zero".to_string()),
+                        requires_dm_action: false,
+                    };
+                }
+                if description.trim().is_empty() {
+                    return EffectExecutionResult {
+                        description: format!("Add {} x{} reward with empty description", reward_type, amount),
+                        success: false,
+                        error: Some("Reward effect requires a description".to_string()),
+                        requires_dm_action: false,
+                    };
+                }
+
+                // Reward/XP system not implemented - DM should handle manually
                 EffectExecutionResult {
                     description: format!(
                         "Add {} {} reward: {} (NOT IMPLEMENTED - reward system needed)",
@@ -310,7 +364,7 @@ impl ExecuteEffects {
                     ),
                     success: false,
                     error: Some("Reward system not implemented".to_string()),
-                    requires_dm_action: true, // DM should handle manually
+                    requires_dm_action: true,
                 }
             }
 

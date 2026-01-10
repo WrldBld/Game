@@ -581,8 +581,16 @@ impl OutcomeDecision {
                     .await
                     .map_err(OutcomeDecisionError::Resolve)?;
 
+                // Challenge is now resolved. Queue cleanup is housekeeping - log failure
+                // but return success since the important operation completed.
                 if let Err(e) = self.queue.mark_complete(approval_id).await {
-                    tracing::warn!(error = %e, "Failed to mark approval request as complete");
+                    tracing::error!(
+                        approval_id = %approval_id,
+                        challenge_id = %outcome_data.challenge_id,
+                        error = %e,
+                        "Failed to mark approval as complete after successful challenge resolution. \
+                         Queue item may remain and require manual cleanup."
+                    );
                 }
 
                 Ok(OutcomeDecisionResult::Resolved(ChallengeResolvedPayload {
@@ -604,8 +612,16 @@ impl OutcomeDecision {
                     .await
                     .map_err(OutcomeDecisionError::Resolve)?;
 
+                // Challenge is now resolved. Queue cleanup is housekeeping - log failure
+                // but return success since the important operation completed.
                 if let Err(e) = self.queue.mark_complete(approval_id).await {
-                    tracing::warn!(error = %e, "Failed to mark approval request as complete");
+                    tracing::error!(
+                        approval_id = %approval_id,
+                        challenge_id = %outcome_data.challenge_id,
+                        error = %e,
+                        "Failed to mark approval as complete after successful challenge resolution. \
+                         Queue item may remain and require manual cleanup."
+                    );
                 }
 
                 Ok(OutcomeDecisionResult::Resolved(ChallengeResolvedPayload {
