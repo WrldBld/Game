@@ -165,31 +165,47 @@ impl CircuitBreaker {
 
     /// Try to transition from Open to HalfOpen if duration has elapsed
     fn try_transition_to_half_open(&self) -> CircuitState {
-        let mut state = self.state.write().unwrap();
+        // Collect state transition info while holding lock, then release before callback
+        let (current_state, transition) = {
+            let mut state = self.state.write().unwrap();
 
-        // Double-check after acquiring write lock
-        if state.state == CircuitState::Open {
-            if let Some(opened_at) = state.opened_at {
-                if opened_at.elapsed() >= self.config.open_duration {
-                    let old_state = state.state;
-                    state.state = CircuitState::HalfOpen;
-                    state.half_open_requests = 0;
-                    state.half_open_successes = 0;
+            // Double-check after acquiring write lock
+            let transition = if state.state == CircuitState::Open {
+                if let Some(opened_at) = state.opened_at {
+                    if opened_at.elapsed() >= self.config.open_duration {
+                        let old_state = state.state;
+                        state.state = CircuitState::HalfOpen;
+                        state.half_open_requests = 0;
+                        state.half_open_successes = 0;
 
-                    tracing::info!(
-                        "Circuit breaker transitioning from {:?} to {:?}",
-                        old_state,
-                        state.state
-                    );
+                        tracing::info!(
+                            "Circuit breaker transitioning from {:?} to {:?}",
+                            old_state,
+                            state.state
+                        );
 
-                    if let Some(ref callback) = self.on_state_change {
-                        callback(old_state, state.state);
+                        Some((old_state, state.state))
+                    } else {
+                        None
                     }
+                } else {
+                    None
                 }
-            }
+            } else {
+                None
+            };
+
+            (state.state, transition)
+        }; // Lock released here
+
+        // Invoke callback outside of lock to prevent deadlock
+        if let (Some((old_state, new_state)), Some(ref callback)) =
+            (transition, &self.on_state_change)
+        {
+            callback(old_state, new_state);
         }
 
-        state.state
+        current_state
     }
 
     /// Check if a request should be allowed through
@@ -231,34 +247,40 @@ impl CircuitBreaker {
         self.total_successes.fetch_add(1, Ordering::Relaxed);
         self.consecutive_failures.store(0, Ordering::Relaxed);
 
-        let mut state = self.state.write().unwrap();
+        // Collect state transition info while holding lock, then release before callback
+        let transition = {
+            let mut state = self.state.write().unwrap();
 
-        match state.state {
-            CircuitState::Closed => {
-                // Already closed, nothing to do
-            }
-            CircuitState::HalfOpen => {
-                state.half_open_successes += 1;
+            match state.state {
+                CircuitState::Closed => None,
+                CircuitState::HalfOpen => {
+                    state.half_open_successes += 1;
 
-                // If all half-open requests succeeded, close the circuit
-                if state.half_open_successes >= self.config.half_open_max_requests {
-                    let old_state = state.state;
-                    state.state = CircuitState::Closed;
-                    state.opened_at = None;
+                    // If all half-open requests succeeded, close the circuit
+                    if state.half_open_successes >= self.config.half_open_max_requests {
+                        let old_state = state.state;
+                        state.state = CircuitState::Closed;
+                        state.opened_at = None;
 
-                    tracing::info!(
-                        "Circuit breaker closing after {} successful half-open requests",
-                        state.half_open_successes
-                    );
+                        tracing::info!(
+                            "Circuit breaker closing after {} successful half-open requests",
+                            state.half_open_successes
+                        );
 
-                    if let Some(ref callback) = self.on_state_change {
-                        callback(old_state, state.state);
+                        Some((old_state, state.state))
+                    } else {
+                        None
                     }
                 }
+                CircuitState::Open => None,
             }
-            CircuitState::Open => {
-                // Shouldn't happen, but handle gracefully
-            }
+        }; // Lock released here
+
+        // Invoke callback outside of lock to prevent deadlock
+        if let (Some((old_state, new_state)), Some(ref callback)) =
+            (transition, &self.on_state_change)
+        {
+            callback(old_state, new_state);
         }
     }
 
@@ -267,47 +289,56 @@ impl CircuitBreaker {
         self.total_failures.fetch_add(1, Ordering::Relaxed);
         let failures = self.consecutive_failures.fetch_add(1, Ordering::Relaxed) + 1;
 
-        let mut state = self.state.write().unwrap();
+        // Collect state transition info while holding lock, then release before callback
+        let transition = {
+            let mut state = self.state.write().unwrap();
 
-        match state.state {
-            CircuitState::Closed => {
-                if failures >= self.config.failure_threshold {
+            match state.state {
+                CircuitState::Closed => {
+                    if failures >= self.config.failure_threshold {
+                        let old_state = state.state;
+                        state.state = CircuitState::Open;
+                        state.opened_at = Some(Instant::now());
+                        self.open_count.fetch_add(1, Ordering::Relaxed);
+
+                        tracing::warn!(
+                            consecutive_failures = failures,
+                            threshold = self.config.failure_threshold,
+                            open_duration_secs = self.config.open_duration.as_secs(),
+                            "Circuit breaker opening due to consecutive failures"
+                        );
+
+                        Some((old_state, state.state))
+                    } else {
+                        None
+                    }
+                }
+                CircuitState::HalfOpen => {
+                    // Any failure in half-open immediately re-opens the circuit
                     let old_state = state.state;
                     state.state = CircuitState::Open;
                     state.opened_at = Some(Instant::now());
                     self.open_count.fetch_add(1, Ordering::Relaxed);
 
                     tracing::warn!(
-                        consecutive_failures = failures,
-                        threshold = self.config.failure_threshold,
-                        open_duration_secs = self.config.open_duration.as_secs(),
-                        "Circuit breaker opening due to consecutive failures"
+                        "Circuit breaker re-opening after failure in half-open state"
                     );
 
-                    if let Some(ref callback) = self.on_state_change {
-                        callback(old_state, state.state);
-                    }
+                    Some((old_state, state.state))
+                }
+                CircuitState::Open => {
+                    // Already open, just update opened_at to extend the open period
+                    state.opened_at = Some(Instant::now());
+                    None
                 }
             }
-            CircuitState::HalfOpen => {
-                // Any failure in half-open immediately re-opens the circuit
-                let old_state = state.state;
-                state.state = CircuitState::Open;
-                state.opened_at = Some(Instant::now());
-                self.open_count.fetch_add(1, Ordering::Relaxed);
+        }; // Lock released here
 
-                tracing::warn!(
-                    "Circuit breaker re-opening after failure in half-open state"
-                );
-
-                if let Some(ref callback) = self.on_state_change {
-                    callback(old_state, state.state);
-                }
-            }
-            CircuitState::Open => {
-                // Already open, just update opened_at to extend the open period
-                state.opened_at = Some(Instant::now());
-            }
+        // Invoke callback outside of lock to prevent deadlock
+        if let (Some((old_state, new_state)), Some(ref callback)) =
+            (transition, &self.on_state_change)
+        {
+            callback(old_state, new_state);
         }
     }
 
@@ -330,35 +361,44 @@ impl CircuitBreaker {
 
     /// Force the circuit to a specific state (for testing/admin purposes)
     pub fn force_state(&self, new_state: CircuitState) {
-        let mut state = self.state.write().unwrap();
-        let old_state = state.state;
+        // Collect state transition info while holding lock, then release before callback
+        let transition = {
+            let mut state = self.state.write().unwrap();
+            let old_state = state.state;
 
-        state.state = new_state;
+            state.state = new_state;
 
-        match new_state {
-            CircuitState::Closed => {
-                state.opened_at = None;
-                self.consecutive_failures.store(0, Ordering::Relaxed);
+            match new_state {
+                CircuitState::Closed => {
+                    state.opened_at = None;
+                    self.consecutive_failures.store(0, Ordering::Relaxed);
+                }
+                CircuitState::Open => {
+                    state.opened_at = Some(Instant::now());
+                }
+                CircuitState::HalfOpen => {
+                    state.half_open_requests = 0;
+                    state.half_open_successes = 0;
+                }
             }
-            CircuitState::Open => {
-                state.opened_at = Some(Instant::now());
-            }
-            CircuitState::HalfOpen => {
-                state.half_open_requests = 0;
-                state.half_open_successes = 0;
-            }
-        }
 
-        if old_state != new_state {
-            tracing::info!(
-                old_state = %old_state,
-                new_state = %new_state,
-                "Circuit breaker state forced"
-            );
-
-            if let Some(ref callback) = self.on_state_change {
-                callback(old_state, new_state);
+            if old_state != new_state {
+                tracing::info!(
+                    old_state = %old_state,
+                    new_state = %new_state,
+                    "Circuit breaker state forced"
+                );
+                Some((old_state, new_state))
+            } else {
+                None
             }
+        }; // Lock released here
+
+        // Invoke callback outside of lock to prevent deadlock
+        if let (Some((old_state, new_state)), Some(ref callback)) =
+            (transition, &self.on_state_change)
+        {
+            callback(old_state, new_state);
         }
     }
 
@@ -616,5 +656,109 @@ mod tests {
         cb.record_failure();
 
         assert!(callback_called.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn test_half_open_requires_multiple_successes() {
+        // Test that with half_open_max_requests > 1, multiple successes are required
+        let config = CircuitBreakerConfig {
+            failure_threshold: 1,
+            open_duration: Duration::from_millis(10),
+            half_open_max_requests: 3, // Require 3 successful requests
+        };
+        let cb = CircuitBreaker::new(config);
+
+        // Open the circuit
+        cb.record_failure();
+        assert_eq!(cb.state(), CircuitState::Open);
+
+        // Wait for half-open
+        thread::sleep(Duration::from_millis(20));
+        assert_eq!(cb.state(), CircuitState::HalfOpen);
+
+        // First success - still half-open
+        assert!(cb.allow_request().is_ok());
+        cb.record_success();
+        assert_eq!(cb.state(), CircuitState::HalfOpen);
+
+        // Second success - still half-open
+        assert!(cb.allow_request().is_ok());
+        cb.record_success();
+        assert_eq!(cb.state(), CircuitState::HalfOpen);
+
+        // Third success - should close
+        assert!(cb.allow_request().is_ok());
+        cb.record_success();
+        assert_eq!(cb.state(), CircuitState::Closed);
+
+        // Verify metrics
+        let metrics = cb.metrics();
+        assert_eq!(metrics.total_successes, 3);
+        assert_eq!(metrics.consecutive_failures, 0);
+    }
+
+    #[test]
+    fn test_half_open_limits_concurrent_requests() {
+        // Test that half-open state limits concurrent requests
+        let config = CircuitBreakerConfig {
+            failure_threshold: 1,
+            open_duration: Duration::from_millis(10),
+            half_open_max_requests: 2,
+        };
+        let cb = CircuitBreaker::new(config);
+
+        // Open and transition to half-open
+        cb.record_failure();
+        thread::sleep(Duration::from_millis(20));
+        assert_eq!(cb.state(), CircuitState::HalfOpen);
+
+        // First 2 requests should be allowed
+        assert!(cb.allow_request().is_ok());
+        assert!(cb.allow_request().is_ok());
+
+        // Third request should be rejected (at max)
+        assert!(cb.allow_request().is_err());
+
+        // After recording successes, more requests can be allowed
+        cb.record_success();
+        cb.record_success();
+        assert_eq!(cb.state(), CircuitState::Closed);
+    }
+
+    #[test]
+    fn test_callback_can_safely_read_state() {
+        // Test that callbacks don't deadlock when reading circuit state
+        use std::sync::atomic::AtomicU32;
+
+        let state_in_callback = Arc::new(AtomicU32::new(0));
+        let state_clone = Arc::clone(&state_in_callback);
+
+        let config = CircuitBreakerConfig {
+            failure_threshold: 1,
+            open_duration: Duration::from_secs(60),
+            half_open_max_requests: 1,
+        };
+
+        let cb = Arc::new(CircuitBreaker::new(config));
+        let cb_for_callback = Arc::clone(&cb);
+
+        // Replace with a new circuit breaker that has a callback
+        let cb_with_callback = CircuitBreaker::new(CircuitBreakerConfig {
+            failure_threshold: 1,
+            open_duration: Duration::from_secs(60),
+            half_open_max_requests: 1,
+        })
+        .with_state_change_callback(move |_old, new| {
+            // This should NOT deadlock - callback is called without lock held
+            state_clone.store(new as u32, Ordering::Relaxed);
+        });
+
+        cb_with_callback.record_failure();
+
+        // Callback should have been called and able to read new state
+        assert_eq!(
+            state_in_callback.load(Ordering::Relaxed),
+            CircuitState::Open as u32
+        );
     }
 }

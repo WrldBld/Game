@@ -141,12 +141,21 @@ impl ResilientLlmClient {
         }
     }
 
+    /// Execute an operation with retry logic and circuit breaker protection.
+    ///
+    /// The circuit breaker is checked once at the start of the operation. If the circuit
+    /// opens during the retry loop (e.g., from concurrent requests hitting the failure
+    /// threshold), the in-flight request will complete its retry budget rather than being
+    /// immediately rejected. This is intentional to avoid wasted work - a request that's
+    /// already mid-retry should finish its attempts rather than fail immediately when
+    /// another request trips the breaker.
     async fn execute_with_retry<F, Fut>(&self, operation_name: &str, operation: F) -> Result<LlmResponse, LlmError>
     where
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<LlmResponse, LlmError>>,
     {
-        // Check circuit breaker before attempting
+        // Check circuit breaker before attempting - see doc comment for why we don't
+        // re-check during retries
         if let Err(circuit_error) = self.circuit_breaker.allow_request() {
             tracing::warn!(
                 operation = operation_name,
