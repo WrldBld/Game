@@ -507,6 +507,13 @@ pub enum PlayerEvent {
         llm_based_npcs: Vec<StagedNpcInfo>,
     },
 
+    /// Staging timed out without auto-approve (Player)
+    /// Player can retry entering the region
+    StagingTimedOut {
+        region_id: String,
+        region_name: String,
+    },
+
     // =========================================================================
     // Lore Events
     // =========================================================================
@@ -858,6 +865,7 @@ impl PlayerEvent {
             Self::StagingPending { .. } => "StagingPending",
             Self::StagingReady { .. } => "StagingReady",
             Self::StagingRegenerated { .. } => "StagingRegenerated",
+            Self::StagingTimedOut { .. } => "StagingTimedOut",
             Self::LoreDiscovered { .. } => "LoreDiscovered",
             Self::LoreRevoked { .. } => "LoreRevoked",
             Self::LoreUpdated { .. } => "LoreUpdated",

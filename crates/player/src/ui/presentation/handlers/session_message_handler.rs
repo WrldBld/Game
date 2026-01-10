@@ -53,11 +53,13 @@ pub fn handle_server_message(
         }
 
         PlayerEvent::ConversationStarted {
-            conversation_id: _,
+            conversation_id,
             npc_id: _,
             npc_name,
             npc_disposition: _,
         } => {
+            // Store conversation ID for tracking multi-turn conversations
+            dialogue_state.set_conversation_id(Some(conversation_id));
             // Log the conversation start
             session_state.add_log_entry(
                 "System".to_string(),
@@ -72,8 +74,10 @@ pub fn handle_server_message(
             speaker_name,
             text,
             choices,
-            conversation_id: _,
+            conversation_id,
         } => {
+            // Update conversation ID (may have changed or been assigned)
+            dialogue_state.set_conversation_id(conversation_id);
             // Add to conversation log for DM view
             session_state.add_log_entry(speaker_name.clone(), text.clone(), false, platform);
             // PlayerEvent already contains application-layer types
@@ -95,6 +99,8 @@ pub fn handle_server_message(
             session_state.add_log_entry(npc_name, msg, false, platform);
             // Clear dialogue state since conversation is over
             dialogue_state.clear();
+            // Also clear conversation ID
+            dialogue_state.clear_conversation();
         }
 
         PlayerEvent::LLMProcessing { action_id } => {
@@ -981,6 +987,28 @@ pub fn handle_server_message(
                 llm_based_npcs.into_iter().map(StagedNpcData::from).collect();
 
             game_state.update_staging_llm_suggestions(llm_npcs);
+        }
+
+        PlayerEvent::StagingTimedOut {
+            region_id,
+            region_name,
+        } => {
+            tracing::info!(
+                "Staging timed out for region {} ({})",
+                region_name,
+                region_id
+            );
+
+            // Clear the pending staging overlay since it timed out without approval
+            game_state.clear_staging_pending();
+
+            // Log a message so player knows they can retry
+            session_state.add_log_entry(
+                "System".to_string(),
+                format!("Scene staging timed out for {}. You can try entering again.", region_name),
+                true,
+                platform,
+            );
         }
 
         // =========================================================================

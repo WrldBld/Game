@@ -718,6 +718,13 @@ pub enum ServerMessage {
         llm_based_npcs: Vec<StagedNpcInfo>,
     },
 
+    /// Staging timed out without auto-approve (sent to Player)
+    /// Player can retry entering the region
+    StagingTimedOut {
+        region_id: String,
+        region_name: String,
+    },
+
     // =========================================================================
     // Inventory Updates
     // =========================================================================

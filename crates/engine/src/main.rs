@@ -242,40 +242,82 @@ async fn main() -> anyhow::Result<()> {
     // Spawn staging timeout processor
     let staging_ws_state = ws_state.clone();
     tokio::spawn(async move {
-        // Default timeout: 30 seconds (will be configurable per-world via settings)
-        let default_timeout_seconds: u64 = 30;
-
         loop {
             // Check for expired staging requests
             let now = chrono::Utc::now();
-            let expired_requests: Vec<(String, use_cases::staging::PendingStagingRequest)> = {
+
+            // Collect all pending requests with their world IDs
+            let pending_requests: Vec<(String, use_cases::staging::PendingStagingRequest)> = {
                 let guard = staging_ws_state.pending_staging_requests.read().await;
                 guard
                     .iter()
-                    .filter(|(_, req)| {
-                        let elapsed = now.signed_duration_since(req.created_at);
-                        elapsed.num_seconds() >= default_timeout_seconds as i64
-                    })
                     .map(|(k, v)| (k.clone(), v.clone()))
                     .collect()
             };
 
-            // Process each expired request
-            for (request_id, pending) in expired_requests {
-                // Remove from pending (atomically)
+            // Process each pending request, checking world-specific settings
+            for (request_id, pending) in pending_requests {
+                let world_id = pending.world_id;
+
+                // Fetch world settings to get timeout configuration
+                let settings = staging_ws_state
+                    .app
+                    .use_cases
+                    .settings
+                    .ops
+                    .get_for_world(world_id)
+                    .await
+                    .unwrap_or_default();
+
+                let timeout_seconds = settings.staging_timeout_seconds;
+
+                // Skip if timeout is disabled (0) or not yet expired
+                if timeout_seconds == 0 {
+                    continue;
+                }
+
+                let elapsed = now.signed_duration_since(pending.created_at);
+                if elapsed.num_seconds() < timeout_seconds as i64 {
+                    continue;
+                }
+
+                // Request has expired - remove from pending
                 {
                     let mut guard = staging_ws_state.pending_staging_requests.write().await;
                     guard.remove(&request_id);
                 }
 
+                // Check if auto-approve is enabled for this world
+                if !settings.auto_approve_on_timeout {
+                    // Notify all players in the world that staging for this region timed out
+                    // Players waiting for this region will see it and can retry
+                    let region_id_str = pending.region_id.to_string();
+                    tracing::info!(
+                        request_id = %request_id,
+                        world_id = %world_id,
+                        region_id = %region_id_str,
+                        "Staging timeout without auto-approve, broadcasting timeout notification"
+                    );
+                    staging_ws_state
+                        .connections
+                        .broadcast_to_world(
+                            world_id,
+                            wrldbldr_protocol::ServerMessage::StagingTimedOut {
+                                region_id: region_id_str.clone(),
+                                region_name: region_id_str, // Use ID as name (player has region info)
+                            },
+                        )
+                        .await;
+                    continue;
+                }
+
                 // Auto-approve with rule-based NPCs
-                let world_id = pending.world_id;
                 match staging_ws_state
                     .app
                     .use_cases
                     .staging
                     .auto_approve_timeout
-                    .execute(request_id.clone(), pending)
+                    .execute(request_id.clone(), pending.clone())
                     .await
                 {
                     Ok(payload) => {
@@ -294,6 +336,7 @@ async fn main() -> anyhow::Result<()> {
                         tracing::info!(
                             request_id = %request_id,
                             world_id = %world_id,
+                            timeout_seconds = %timeout_seconds,
                             "Auto-approved staging on timeout, broadcast StagingReady"
                         );
                     }

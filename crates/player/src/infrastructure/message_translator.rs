@@ -484,6 +484,14 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             llm_based_npcs, // Direct assignment - same type now
         },
 
+        ServerMessage::StagingTimedOut {
+            region_id,
+            region_name,
+        } => PlayerEvent::StagingTimedOut {
+            region_id,
+            region_name,
+        },
+
         // =====================================================================
         // Lore Events
         // =====================================================================

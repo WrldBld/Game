@@ -126,11 +126,22 @@ impl ContinueConversation {
             Some(id)
         } else {
             // Look up active conversation between PC and NPC
-            self.narrative
+            match self
+                .narrative
                 .get_active_conversation_id(pc_id, npc_id)
                 .await
-                .ok()
-                .flatten()
+            {
+                Ok(id) => id,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        pc_id = %pc_id,
+                        npc_id = %npc_id,
+                        "Failed to look up active conversation, proceeding without ID"
+                    );
+                    None
+                }
+            }
         };
 
         // 5. Enqueue the player action for processing
@@ -138,7 +149,7 @@ impl ContinueConversation {
             world_id,
             player_id,
             pc_id: Some(pc_id),
-            action_type: "speak".to_string(),
+            action_type: "talk".to_string(),
             target: Some(npc.name.clone()),
             dialogue: Some(player_message),
             timestamp: self.clock.now(),
