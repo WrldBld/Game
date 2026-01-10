@@ -18,7 +18,7 @@ This document tracks implementation progress and remaining work. For detailed sy
 | Tier 4 | Session & World Management | **PARTIAL** (WebSocket-first) |
 | Tier 5 | Future Features | Not Started |
 
-**Architecture**: See [SIMPLIFIED_ARCHITECTURE.md](../plans/SIMPLIFIED_ARCHITECTURE.md) for current 4-crate structure.
+**Architecture**: See [AGENTS.md](../../AGENTS.md) for current 4-crate structure.
 
 ---
 

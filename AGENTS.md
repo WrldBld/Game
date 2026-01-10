@@ -1,8 +1,6 @@
 # WrldBldr Agent Guidelines
 
-## Architecture (Read This First)
-
-**Source of truth**: `docs/plans/SIMPLIFIED_ARCHITECTURE.md`
+## Architecture
 
 ### Core Principle
 
@@ -15,7 +13,7 @@ crates/
   domain/       # Pure business types (entities, value objects, typed IDs)
   protocol/     # Wire format for Engine <-> Player communication
   engine/       # All server-side code
-  player/       # All client-side code
+  player/       # All client-side code (Dioxus UI + platform adapters)
 ```
 
 ### What Gets Abstracted (Port Traits)
@@ -66,8 +64,11 @@ Only infrastructure that might realistically be swapped:
 ```
 engine/src/
   entities/           # Entity operations (one file per domain entity)
-    character.rs      # All character operations
+    character.rs      # Character operations
+    player_character.rs # Player character operations
     location.rs       # Location/region operations
+    location_state.rs # Location state tracking
+    region_state.rs   # Region state tracking
     scene.rs          # Scene management
     challenge.rs      # Challenge/dice operations
     narrative.rs      # Events, triggers, chains
@@ -75,49 +76,73 @@ engine/src/
     observation.rs    # Player knowledge
     inventory.rs      # Items
     goal.rs           # Goals (actantial targets)
+    act.rs            # Actantial acts
     assets.rs         # Asset generation
     world.rs          # World operations
-    
+    settings.rs       # Global/world settings
+    lore.rs           # Lore entries
+    skill.rs          # Skill definitions
+    flag.rs           # Game flags
+    interaction.rs    # Interaction records
+
   use_cases/          # User story orchestration
-    actantial/        # Goals, wants, actantial context
-    movement/         # Player movement
-      enter_region.rs
-      exit_location.rs
-    conversation/     # NPC dialogue
-      start.rs
-      continue.rs
-    challenge/        # Dice rolls
-      roll.rs
-      resolve.rs
+    movement/         # Player movement (enter_region, exit_location, scene_change)
+    conversation/     # NPC dialogue (start, continue, end)
+    challenge/        # Challenge flows
+    narrative/        # Narrative events, chains, decisions, effects
     approval/         # DM approval flows
-      staging.rs
-      suggestion.rs
-    ...
-    
+    staging/          # NPC staging flows
+    session/          # Session management (join_world, directorial)
+    visual_state/     # Scene visual state resolution
+    assets/           # Asset generation flows
+    world/            # World import/export
+    queues/           # Queue processing
+    time/             # Game time advancement
+    player_action/    # Player action processing
+    actantial/        # Goals, wants context
+    ai/               # AI/LLM orchestration
+    lore/             # Lore management
+    npc/              # NPC behavior
+    story_events/     # Story event handling
+    location_events/  # Location-based events
+
   infrastructure/     # External dependencies
-    ports.rs          # All port trait definitions
-    neo4j/            # Database implementation
+    ports.rs          # All port trait definitions (~10 traits)
+    neo4j/            # Database implementation (23 repository files)
     ollama.rs         # LLM client
     comfyui.rs        # Image generation
     queue.rs          # SQLite queues
     clock.rs          # System clock
-    
+    settings.rs       # Settings infrastructure
+
   api/                # Entry points
+    connections.rs    # Connection management
     http.rs           # HTTP routes
-    websocket/        # WebSocket handling + routing
+    websocket/        # WebSocket handling (24 handler modules)
       mod.rs          # Connection lifecycle + dispatch
-      ws_actantial.rs # Goal/Want/Actantial requests
-      ws_challenge.rs # Challenge requests
       ws_core.rs      # Core RequestPayload handlers
+      ws_actantial.rs # Goal/Want/Actantial requests
+      ws_approval.rs  # Approval decisions
+      ws_challenge.rs # Challenge requests
+      ws_conversation.rs # NPC dialogue
       ws_creator.rs   # Generation/AI/Expression requests
+      ws_dm.rs        # DM-specific actions
       ws_event_chain.rs # Event chain requests
+      ws_inventory.rs # Inventory operations
       ws_location.rs  # Location/Region requests
       ws_lore.rs      # Lore requests
+      ws_movement.rs  # Movement requests
       ws_narrative_event.rs # Narrative event requests
-      ws_player.rs    # PlayerCharacter/Relationship/Observation requests
+      ws_player.rs    # PlayerCharacter requests
+      ws_player_action.rs # Player action handling
+      ws_scene.rs     # Scene requests
+      ws_session.rs   # Session management
+      ws_skill.rs     # Skill requests
+      ws_staging.rs   # Staging requests
       ws_story_events.rs # Story event requests
-    
-  app.rs              # App struct
+      ws_time.rs      # Time advancement
+
+  app.rs              # App struct (composition of entities + use_cases)
   main.rs             # Entry point
 ```
 
@@ -225,36 +250,80 @@ async fn move_to_region(
 
 ```
 player/src/
-  screens/            # UI screens (Dioxus routes)
-    connection.rs
-    game.rs
-    dm_dashboard.rs
-    
-  components/         # Reusable UI components
-    scene_view.rs
-    dialogue_box.rs
-    inventory_grid.rs
-    
-  use_cases/          # Player actions
-    connection/
-      connect.rs
-    game/
-      move_to_region.rs
-      talk_to_npc.rs
-    dm/
-      approve_staging.rs
-      
-  features/           # Client-side state
-    connection.rs
-    game_state.rs
-    settings.rs
-    
-  infrastructure/
-    websocket/        # WebSocket client
-      mod.rs
-    storage/
-      web.rs
+  application/        # Application logic layer
+    api.rs            # API orchestration
+    error.rs          # Error types
+    services/         # Business services (16+ modules)
+      session.rs      # Session management
+      challenge.rs    # Challenge handling
+      character.rs    # Character operations
+      observation.rs  # Knowledge tracking
+      ...
+    dto/              # Data transfer objects
+      requests.rs     # Request types
+      player_events.rs
+      session_dto.rs
+      websocket_messages.rs
+
+  infrastructure/     # External adapters
+    websocket/        # Platform-specific WebSocket
+      desktop/        # Desktop WebSocket client
+      wasm/           # WASM WebSocket client
+      bridge.rs       # Platform abstraction
+      protocol.rs     # Protocol handling
+    messaging/        # Message bus
+      command_bus.rs
+      event_bus.rs
+      connection.rs
+    platform/         # Platform abstractions
       desktop.rs
+      wasm.rs
+    storage.rs        # Storage implementations
+    http_client.rs    # HTTP client
+
+  ports/              # Port trait definitions
+    outbound/         # Outbound ports
+      api_port.rs
+      platform_port.rs
+      player_events.rs
+
+  ui/                 # User interface (Dioxus)
+    presentation/
+      views/          # Page-level components (9 views)
+        main_menu.rs
+        pc_view.rs
+        dm_view.rs
+        world_select.rs
+        pc_creation.rs
+        role_select.rs
+        ...
+      components/     # Reusable UI components (40+ organized by feature)
+        visual_novel/   # Dialogue display
+        dm_panel/       # DM controls (20+ components)
+        story_arc/      # Narrative timeline
+        inventory_panel/
+        character_sheet_viewer/
+        mini_map/
+        settings/
+        tactical/
+        ...
+      state/          # UI state management
+        connection.rs
+        game.rs
+        dialogue.rs
+        session.rs
+        challenge.rs
+        ...
+      handlers/       # Event handlers
+        session_event_handler.rs
+        session_message_handler.rs
+    routes/           # Dioxus routing
+
+  state/              # Dependency injection
+    platform.rs
+
+  main.rs             # Entry point
+  lib.rs              # Library exports
 ```
 
 ---
@@ -372,10 +441,11 @@ dx serve --platform web
 
 | Document | Purpose |
 |----------|---------|
-| `docs/plans/SIMPLIFIED_ARCHITECTURE.md` | Architecture spec and migration progress |
 | `docs/architecture/neo4j-schema.md` | Database schema |
 | `docs/architecture/websocket-protocol.md` | Client-server protocol |
 | `docs/systems/*.md` | Game system specifications |
+| `docs/designs/*.md` | Feature design documents |
+| `docs/progress/ACTIVE_DEVELOPMENT.md` | Current development status |
 
 ---
 

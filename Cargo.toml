@@ -19,7 +19,7 @@ repository = "https://github.com/WrldBld/Game"
 # Centralize ALL dependencies here
 [workspace.dependencies]
 # Internal crates - Simplified 4-crate architecture
-# See docs/plans/SIMPLIFIED_ARCHITECTURE.md for details
+# See AGENTS.md for architecture details
 wrldbldr-domain = { path = "crates/domain", version = "0.1.0" }
 wrldbldr-protocol = { path = "crates/protocol", version = "0.1.0" }
 wrldbldr-engine = { path = "crates/engine", version = "0.1.0" }
