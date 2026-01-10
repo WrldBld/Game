@@ -33,6 +33,33 @@ use wrldbldr_protocol::{
 /// approved staging remains valid (configured via `default_presence_cache_ttl_hours`).
 pub const DEFAULT_STAGING_TIMEOUT_SECONDS: u64 = 30;
 
+/// Fetches world settings with graceful fallback to defaults.
+///
+/// Returns `AppSettings::default()` if:
+/// - No world-specific settings exist (Ok(None))
+/// - Settings fetch fails (logs warning and uses defaults)
+///
+/// This ensures staging operations never fail due to settings unavailability.
+async fn get_settings_with_fallback(
+    settings: &dyn SettingsRepo,
+    world_id: WorldId,
+    operation: &str,
+) -> wrldbldr_domain::AppSettings {
+    match settings.get_for_world(world_id).await {
+        Ok(Some(s)) => s,
+        Ok(None) => wrldbldr_domain::AppSettings::default(),
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                world_id = %world_id,
+                "Failed to load world settings for {}, using defaults",
+                operation
+            );
+            wrldbldr_domain::AppSettings::default()
+        }
+    }
+}
+
 /// Container for staging use cases.
 pub struct StagingUseCases {
     pub request_approval: Arc<RequestStagingApproval>,
@@ -145,20 +172,8 @@ impl RequestStagingApproval {
             .ok_or(StagingError::WorldNotFound)?;
         let now = world.game_time.current();
 
-        // Fetch world settings for configurable TTL values, falling back to defaults
-        // if settings cannot be loaded (to avoid breaking staging on settings fetch failure)
-        let settings = match self.settings.get_for_world(input.world_id).await {
-            Ok(Some(s)) => s,
-            Ok(None) => wrldbldr_domain::AppSettings::default(),
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    world_id = %input.world_id,
-                    "Failed to load world settings for staging, using defaults"
-                );
-                wrldbldr_domain::AppSettings::default()
-            }
-        };
+        let settings =
+            get_settings_with_fallback(self.settings.as_ref(), input.world_id, "staging").await;
 
         let location_name = self
             .location
@@ -1023,20 +1038,9 @@ impl AutoApproveStagingTimeout {
         request_id: String,
         pending: PendingStagingRequest,
     ) -> Result<StagingReadyPayload, StagingError> {
-        // Fetch world settings for configurable TTL values, falling back to defaults
-        // if settings cannot be loaded (to avoid breaking staging on settings fetch failure)
-        let settings = match self.settings.get_for_world(pending.world_id).await {
-            Ok(Some(s)) => s,
-            Ok(None) => wrldbldr_domain::AppSettings::default(),
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    world_id = %pending.world_id,
-                    "Failed to load world settings for auto-approval, using defaults"
-                );
-                wrldbldr_domain::AppSettings::default()
-            }
-        };
+        let settings =
+            get_settings_with_fallback(self.settings.as_ref(), pending.world_id, "auto-approval")
+                .await;
 
         // Generate rule-based NPC suggestions
         let rule_based_npcs =
