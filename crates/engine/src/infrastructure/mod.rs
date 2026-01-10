@@ -8,6 +8,7 @@ pub mod neo4j;
 pub mod ollama;
 pub mod ports;
 pub mod queue;
+pub mod resilient_llm;
 pub mod settings;
 
 #[cfg(test)]
