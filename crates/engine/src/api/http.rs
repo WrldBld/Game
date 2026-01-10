@@ -107,7 +107,6 @@ async fn get_settings(State(app): State<Arc<App>>) -> Result<Json<wrldbldr_domai
     let settings = app
         .use_cases
         .settings
-        .ops
         .get_global()
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -121,7 +120,6 @@ async fn update_settings(
     let updated = app
         .use_cases
         .settings
-        .ops
         .update_global(settings)
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -134,7 +132,6 @@ async fn reset_settings(
     let settings = app
         .use_cases
         .settings
-        .ops
         .reset_global()
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -144,7 +141,7 @@ async fn reset_settings(
 async fn get_settings_metadata(
     State(app): State<Arc<App>>,
 ) -> Result<Json<Vec<wrldbldr_domain::SettingsFieldMetadata>>, ApiError> {
-    Ok(Json(app.use_cases.settings.ops.metadata()))
+    Ok(Json(app.use_cases.settings.metadata()))
 }
 
 async fn get_world_settings(
@@ -154,7 +151,6 @@ async fn get_world_settings(
     let settings = app
         .use_cases
         .settings
-        .ops
         .get_for_world(wrldbldr_domain::WorldId::from_uuid(id))
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -175,7 +171,6 @@ async fn update_world_settings(
     let updated = app
         .use_cases
         .settings
-        .ops
         .update_for_world(wrldbldr_domain::WorldId::from_uuid(id), settings)
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -189,7 +184,6 @@ async fn reset_world_settings(
     let settings = app
         .use_cases
         .settings
-        .ops
         .reset_for_world(wrldbldr_domain::WorldId::from_uuid(id))
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;

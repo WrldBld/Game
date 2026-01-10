@@ -417,9 +417,8 @@ pub(super) async fn handle_character_request(
             let pc_id = PlayerCharacterId::from_uuid(char_uuid);
             let items = match state
                 .app
-                .use_cases
+                .entities
                 .inventory
-                .ops
                 .get_pc_inventory(pc_id)
                 .await
             {
@@ -428,9 +427,8 @@ pub(super) async fn handle_character_request(
                     let npc_id = CharacterId::from_uuid(char_uuid);
                     state
                         .app
-                        .use_cases
+                        .entities
                         .inventory
-                        .ops
                         .get_character_inventory(npc_id)
                         .await
                         .map_err(|e| ServerMessage::Response {
@@ -1401,9 +1399,8 @@ pub(super) async fn handle_items_request(
 
             match state
                 .app
-                .use_cases
+                .entities
                 .inventory
-                .ops
                 .place_item_in_region(item_uuid, region_uuid)
                 .await
             {
@@ -1435,21 +1432,23 @@ pub(super) async fn handle_items_request(
                 Err(e) => return Err(e),
             };
 
+            // Create the item using the domain builder pattern
+            let mut item = wrldbldr_domain::Item::new(world_uuid, data.name);
+            if let Some(desc) = data.description {
+                item = item.with_description(desc);
+            }
+            if let Some(item_type) = data.item_type {
+                item = item.with_type(item_type);
+            }
+            if let Some(props) = data.properties {
+                item = item.with_properties(serde_json::to_string(&props).unwrap_or_default());
+            }
+
             match state
                 .app
-                .use_cases
+                .entities
                 .inventory
-                .ops
-                .create_and_place_item(
-                    world_uuid,
-                    region_uuid,
-                    crate::use_cases::inventory::CreateItemInput {
-                        name: data.name,
-                        description: data.description,
-                        item_type: data.item_type,
-                        properties: data.properties,
-                    },
-                )
+                .create_and_place_in_region(item, region_uuid)
                 .await
             {
                 Ok(item_id) => Ok(ResponseResult::success(serde_json::json!({

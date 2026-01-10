@@ -63,10 +63,9 @@ pub struct UseCases {
     pub visual_state: use_cases::VisualStateUseCases,
     pub management: use_cases::ManagementUseCases,
     pub session: use_cases::SessionUseCases,
-    pub settings: use_cases::SettingsUseCases,
+    pub settings: Arc<entities::Settings>,
     pub staging: use_cases::StagingUseCases,
     pub npc: use_cases::NpcUseCases,
-    pub inventory: use_cases::InventoryUseCases,
     pub story_events: use_cases::StoryEventUseCases,
     pub lore: use_cases::LoreUseCases,
     pub location_events: use_cases::LocationEventUseCases,
@@ -400,8 +399,8 @@ impl App {
             )),
         );
 
-        // Create settings ops for SettingsUseCases
-        let settings_ops = Arc::new(use_cases::settings::SettingsOps::new(settings_repo.clone()));
+        // Create settings entity
+        let settings_entity = Arc::new(entities::Settings::new(settings_repo.clone()));
 
         let npc_uc = use_cases::NpcUseCases::new(
             Arc::new(use_cases::npc::NpcDisposition::new(
@@ -423,11 +422,6 @@ impl App {
             )),
             Arc::new(use_cases::npc::NpcApproachEvents::new(character.clone())),
         );
-
-        let inventory_ops = Arc::new(use_cases::inventory::InventoryOps::new(inventory.clone()));
-        let inventory_actions =
-            Arc::new(use_cases::inventory::InventoryActions::new(inventory.clone()));
-        let inventory_uc = use_cases::InventoryUseCases::new(inventory_ops, inventory_actions);
 
         let story_events_uc = use_cases::StoryEventUseCases::new(Arc::new(
             use_cases::story_events::StoryEventOps::new(narrative.clone()),
@@ -464,7 +458,7 @@ impl App {
             use_cases::management::SkillCrud::new(skill.clone()),
         );
 
-        let settings = use_cases::SettingsUseCases::new(settings_ops);
+        let settings = settings_entity;
 
         let join_world = Arc::new(use_cases::session::JoinWorld::new(
             world.clone(),
@@ -499,7 +493,6 @@ impl App {
             settings,
             staging: staging_uc,
             npc: npc_uc,
-            inventory: inventory_uc,
             story_events: story_events_uc,
             lore: lore_uc,
             location_events: location_events_uc,

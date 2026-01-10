@@ -1434,8 +1434,8 @@ mod ws_integration_tests_inline {
             )),
         );
 
-        // Create settings ops for SettingsUseCases
-        let settings_ops = Arc::new(crate::use_cases::settings::SettingsOps::new(settings_repo.clone()));
+        // Create settings entity
+        let settings_entity = Arc::new(crate::entities::Settings::new(settings_repo.clone()));
 
         let npc_uc = crate::use_cases::NpcUseCases::new(
             Arc::new(crate::use_cases::npc::NpcDisposition::new(
@@ -1459,15 +1459,6 @@ mod ws_integration_tests_inline {
                 character.clone(),
             )),
         );
-
-        let inventory_ops = Arc::new(crate::use_cases::inventory::InventoryOps::new(
-            inventory.clone(),
-        ));
-        let inventory_actions = Arc::new(crate::use_cases::inventory::InventoryActions::new(
-            inventory.clone(),
-        ));
-        let inventory_uc =
-            crate::use_cases::InventoryUseCases::new(inventory_ops, inventory_actions);
 
         let story_events_uc = crate::use_cases::StoryEventUseCases::new(Arc::new(
             crate::use_cases::story_events::StoryEventOps::new(narrative.clone()),
@@ -1505,7 +1496,7 @@ mod ws_integration_tests_inline {
             crate::use_cases::management::SkillCrud::new(skill.clone()),
         );
 
-        let settings = crate::use_cases::SettingsUseCases::new(settings_ops);
+        let settings = settings_entity;
 
         let join_world = Arc::new(crate::use_cases::session::JoinWorld::new(
             world.clone(),
@@ -1543,7 +1534,6 @@ mod ws_integration_tests_inline {
             settings,
             staging: staging_uc,
             npc: npc_uc,
-            inventory: inventory_uc,
             story_events: story_events_uc,
             lore: lore_uc,
             location_events: location_events_uc,

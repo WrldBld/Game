@@ -264,7 +264,6 @@ async fn main() -> anyhow::Result<()> {
                     .app
                     .use_cases
                     .settings
-                    .ops
                     .get_for_world(world_id)
                     .await
                 {
