@@ -260,14 +260,24 @@ async fn main() -> anyhow::Result<()> {
                 let world_id = pending.world_id;
 
                 // Fetch world settings to get timeout configuration
-                let settings = staging_ws_state
+                let settings = match staging_ws_state
                     .app
                     .use_cases
                     .settings
                     .ops
                     .get_for_world(world_id)
                     .await
-                    .unwrap_or_default();
+                {
+                    Ok(s) => s,
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            world_id = %world_id,
+                            "Failed to fetch world settings for staging timeout, using defaults"
+                        );
+                        Default::default()
+                    }
+                };
 
                 let timeout_seconds = settings.staging_timeout_seconds;
 
@@ -281,10 +291,20 @@ async fn main() -> anyhow::Result<()> {
                     continue;
                 }
 
-                // Request has expired - remove from pending
-                {
+                // Request has expired - atomically remove from pending
+                // Only process if we successfully removed it (prevents double processing)
+                let was_removed = {
                     let mut guard = staging_ws_state.pending_staging_requests.write().await;
-                    guard.remove(&request_id);
+                    guard.remove(&request_id).is_some()
+                };
+
+                if !was_removed {
+                    // Another task (e.g., manual DM approval) already handled this request
+                    tracing::debug!(
+                        request_id = %request_id,
+                        "Staging request already removed by another handler, skipping timeout processing"
+                    );
+                    continue;
                 }
 
                 // Check if auto-approve is enabled for this world

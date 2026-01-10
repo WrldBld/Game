@@ -242,6 +242,7 @@ impl DialogueState {
         self.positioned_markers.set(Vec::new());
         self.next_marker_index.set(0);
         self.current_action.set(None);
+        self.conversation_id.set(None);
     }
 
     /// Check if there's active dialogue to display

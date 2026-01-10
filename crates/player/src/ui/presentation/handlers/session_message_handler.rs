@@ -97,10 +97,8 @@ pub fn handle_server_message(
                 None => "Conversation ended.".to_string(),
             };
             session_state.add_log_entry(npc_name, msg, false, platform);
-            // Clear dialogue state since conversation is over
+            // Clear dialogue state since conversation is over (includes conversation_id)
             dialogue_state.clear();
-            // Also clear conversation ID
-            dialogue_state.clear_conversation();
         }
 
         PlayerEvent::LLMProcessing { action_id } => {
