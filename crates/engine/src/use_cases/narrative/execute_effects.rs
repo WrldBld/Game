@@ -303,11 +303,21 @@ impl ExecuteEffects {
                 }
 
                 // Combat system not implemented - DM should handle manually
+                let participants_display = if !participant_names.is_empty() {
+                    participant_names.join(", ")
+                } else {
+                    // Fall back to showing IDs when names aren't provided
+                    participants
+                        .iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                };
+
                 EffectExecutionResult {
                     description: format!(
                         "Start combat: {} with {} (NOT IMPLEMENTED - combat system needed)",
-                        combat_description,
-                        participant_names.join(", ")
+                        combat_description, participants_display
                     ),
                     success: false,
                     error: Some("Combat system not implemented".to_string()),

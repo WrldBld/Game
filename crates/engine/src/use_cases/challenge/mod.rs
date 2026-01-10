@@ -581,10 +581,17 @@ impl OutcomeDecision {
                     .await
                     .map_err(OutcomeDecisionError::Resolve)?;
 
-                self.queue
-                    .mark_complete(approval_id)
-                    .await
-                    .map_err(|e| OutcomeDecisionError::CleanupFailed(e.to_string()))?;
+                // Challenge is now resolved. Queue cleanup is housekeeping - log failure
+                // but return success since the important operation completed.
+                if let Err(e) = self.queue.mark_complete(approval_id).await {
+                    tracing::error!(
+                        approval_id = %approval_id,
+                        challenge_id = %outcome_data.challenge_id,
+                        error = %e,
+                        "Failed to mark approval as complete after successful challenge resolution. \
+                         Queue item may remain and require manual cleanup."
+                    );
+                }
 
                 Ok(OutcomeDecisionResult::Resolved(ChallengeResolvedPayload {
                     challenge_id: outcome_data.challenge_id.clone(),
@@ -605,10 +612,17 @@ impl OutcomeDecision {
                     .await
                     .map_err(OutcomeDecisionError::Resolve)?;
 
-                self.queue
-                    .mark_complete(approval_id)
-                    .await
-                    .map_err(|e| OutcomeDecisionError::CleanupFailed(e.to_string()))?;
+                // Challenge is now resolved. Queue cleanup is housekeeping - log failure
+                // but return success since the important operation completed.
+                if let Err(e) = self.queue.mark_complete(approval_id).await {
+                    tracing::error!(
+                        approval_id = %approval_id,
+                        challenge_id = %outcome_data.challenge_id,
+                        error = %e,
+                        "Failed to mark approval as complete after successful challenge resolution. \
+                         Queue item may remain and require manual cleanup."
+                    );
+                }
 
                 Ok(OutcomeDecisionResult::Resolved(ChallengeResolvedPayload {
                     challenge_id: outcome_data.challenge_id.clone(),
@@ -700,8 +714,6 @@ pub enum OutcomeDecisionError {
     InvalidDecision,
     #[error("Queue error: {0}")]
     QueueError(String),
-    #[error("Failed to mark approval as complete: {0}")]
-    CleanupFailed(String),
     #[error("Resolve error: {0}")]
     Resolve(#[from] ChallengeError),
 }
