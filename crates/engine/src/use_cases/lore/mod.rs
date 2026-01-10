@@ -251,7 +251,7 @@ impl LoreOps {
             }
         }
 
-        let domain_source = lore_discovery_source(discovery_source);
+        let domain_source = lore_discovery_source(discovery_source)?;
         let now = chrono::Utc::now();
         let knowledge = if let Some(ids) = chunk_ids {
             LoreKnowledge::partial(lore_id, character_id, ids, domain_source, now)
@@ -324,33 +324,37 @@ pub enum LoreError {
     InvalidCategory(String),
     #[error("Invalid chunk IDs: {0}")]
     InvalidChunkIds(String),
+    #[error("Invalid NPC ID in conversation source: {0}")]
+    InvalidNpcId(String),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }
 
-fn lore_discovery_source(data: LoreDiscoverySourceData) -> LoreDiscoverySource {
+fn lore_discovery_source(data: LoreDiscoverySourceData) -> Result<LoreDiscoverySource, LoreError> {
     match data {
         LoreDiscoverySourceData::ReadBook { book_name } => {
-            LoreDiscoverySource::ReadBook { book_name }
+            Ok(LoreDiscoverySource::ReadBook { book_name })
         }
         LoreDiscoverySourceData::Conversation { npc_id, npc_name } => {
             let npc_uuid = Uuid::parse_str(&npc_id)
                 .map(CharacterId::from_uuid)
-                .unwrap_or_else(|_| CharacterId::new());
-            LoreDiscoverySource::Conversation {
+                .map_err(|_| LoreError::InvalidNpcId(npc_id))?;
+            Ok(LoreDiscoverySource::Conversation {
                 npc_id: npc_uuid,
                 npc_name,
-            }
+            })
         }
-        LoreDiscoverySourceData::Investigation => LoreDiscoverySource::Investigation,
-        LoreDiscoverySourceData::DmGranted { reason } => LoreDiscoverySource::DmGranted { reason },
-        LoreDiscoverySourceData::CommonKnowledge => LoreDiscoverySource::CommonKnowledge,
+        LoreDiscoverySourceData::Investigation => Ok(LoreDiscoverySource::Investigation),
+        LoreDiscoverySourceData::DmGranted { reason } => {
+            Ok(LoreDiscoverySource::DmGranted { reason })
+        }
+        LoreDiscoverySourceData::CommonKnowledge => Ok(LoreDiscoverySource::CommonKnowledge),
         LoreDiscoverySourceData::LlmDiscovered { context } => {
-            LoreDiscoverySource::LlmDiscovered { context }
+            Ok(LoreDiscoverySource::LlmDiscovered { context })
         }
-        LoreDiscoverySourceData::Unknown => LoreDiscoverySource::DmGranted {
+        LoreDiscoverySourceData::Unknown => Ok(LoreDiscoverySource::DmGranted {
             reason: Some("Unknown source type".to_string()),
-        },
+        }),
     }
 }
 

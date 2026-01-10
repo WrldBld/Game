@@ -75,6 +75,11 @@ impl ChallengeOps {
             .ok_or(ChallengeError::NotFound)?;
 
         if let Some(name) = data.name {
+            if name.trim().is_empty() {
+                return Err(ChallengeError::ValidationError(
+                    "Challenge name cannot be empty".to_string(),
+                ));
+            }
             challenge.name = name;
         }
         if let Some(description) = data.description {

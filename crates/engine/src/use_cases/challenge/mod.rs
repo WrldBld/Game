@@ -710,11 +710,18 @@ fn parse_challenge_id_str(id_str: &str) -> Option<ChallengeId> {
 
 fn parse_outcome_type(outcome_type: &str) -> OutcomeType {
     match outcome_type {
+        // PascalCase (legacy format)
         "CriticalSuccess" => OutcomeType::CriticalSuccess,
         "Success" => OutcomeType::Success,
         "Partial" => OutcomeType::Partial,
         "Failure" => OutcomeType::Failure,
         "CriticalFailure" => OutcomeType::CriticalFailure,
+        // snake_case (current Display format)
+        "critical_success" => OutcomeType::CriticalSuccess,
+        "success" => OutcomeType::Success,
+        "partial" => OutcomeType::Partial,
+        "failure" => OutcomeType::Failure,
+        "critical_failure" => OutcomeType::CriticalFailure,
         _ => OutcomeType::Success,
     }
 }

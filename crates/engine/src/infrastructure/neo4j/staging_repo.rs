@@ -37,7 +37,8 @@ impl StagingRepo for Neo4jStagingRepo {
                    rel.is_present as is_present,
                    COALESCE(rel.is_hidden_from_players, false) as is_hidden_from_players,
                    rel.reasoning as reasoning,
-                   COALESCE(rel.mood, c.default_mood, 'calm') as mood",
+                   COALESCE(rel.mood, c.default_mood, 'calm') as mood,
+                   COALESCE(rel.has_incomplete_data, false) as has_incomplete_data",
         )
         .param("region_id", region_id.to_string());
 

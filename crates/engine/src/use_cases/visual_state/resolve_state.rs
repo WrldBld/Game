@@ -361,14 +361,13 @@ impl ResolveVisualState {
         }
 
         // Short-circuit for Any logic: if any hard rule matched, we don't need LLM.
-        // This is an intentional optimization - with Any logic, once a single rule
-        // matches, the state is definitively active. We return the pending soft rules
-        // for completeness (they could be useful for debugging or logging), but the
-        // resolution is considered complete since we already know the outcome.
+        // With Any logic, once a single hard rule matches, the state is definitively
+        // active. We return an empty soft rules vec because the resolution is complete
+        // and we don't want to trigger unnecessary LLM evaluation.
         if logic == ActivationLogic::Any && !matched.is_empty() {
             return (
                 ActivationEvaluation::resolved(true, matched, unmatched),
-                pending_soft,
+                vec![],
             );
         }
 

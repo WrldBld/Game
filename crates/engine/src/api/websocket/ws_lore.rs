@@ -300,6 +300,12 @@ pub(super) async fn handle_lore_request(
                         format!("Invalid chunk IDs: {}", msg),
                     ))
                 }
+                Err(crate::use_cases::lore::LoreError::InvalidNpcId(npc_id)) => {
+                    Ok(ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        format!("Invalid NPC ID in conversation source: {}", npc_id),
+                    ))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     &e.to_string(),
