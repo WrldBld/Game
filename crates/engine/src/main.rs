@@ -77,12 +77,13 @@ async fn main() -> anyhow::Result<()> {
 
     // Create infrastructure clients
     let ollama_client = Arc::new(OllamaClient::new(&ollama_url, &ollama_model));
-    let llm = Arc::new(ResilientLlmClient::new(ollama_client, RetryConfig::default()));
+    let retry_config = RetryConfig::default();
     tracing::info!(
         "LLM client configured with retry: max_retries={}, base_delay_ms={}",
-        RetryConfig::default().max_retries,
-        RetryConfig::default().base_delay_ms
+        retry_config.max_retries,
+        retry_config.base_delay_ms
     );
+    let llm = Arc::new(ResilientLlmClient::new(ollama_client, retry_config));
     let image_gen = Arc::new(ComfyUIClient::new(&comfyui_url));
 
     // Create queue

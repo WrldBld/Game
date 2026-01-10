@@ -260,6 +260,7 @@ mod tests {
     #[tokio::test]
     async fn test_no_retry_on_auth_error() {
         let mock = Arc::new(FailingMockLlm::new(10, LlmError::RequestFailed("401 Unauthorized".into())));
+        let mock_ref = Arc::clone(&mock);
         let config = RetryConfig {
             max_retries: 3,
             base_delay_ms: 1,
@@ -273,8 +274,12 @@ mod tests {
 
         // Should fail immediately without retrying
         assert!(result.is_err());
-        // Check that we only made 1 attempt (initial, no retries)
-        // The mock would have 9 failures remaining if we only tried once
+        // Verify only 1 attempt was made (10 - 1 = 9 remaining)
+        assert_eq!(
+            mock_ref.failures_remaining.load(Ordering::SeqCst),
+            9,
+            "Auth error should not retry - expected 9 remaining failures after single attempt"
+        );
     }
 
     #[test]
