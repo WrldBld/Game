@@ -77,7 +77,7 @@ impl LoreOps {
             let mut next_auto_order = 0u32;
 
             for chunk_data in chunks.iter() {
-                // Determine order: use provided order or auto-assign next sequential
+                // Determine order: use provided order or auto-assign next available from 0
                 let order = match chunk_data.order {
                     Some(provided_order) => {
                         // Validate that the provided order is unique
@@ -87,15 +87,16 @@ impl LoreOps {
                         provided_order
                     }
                     None => {
-                        // Auto-assign next sequential order (skip any already used)
+                        // Auto-assign: find the first available order starting from 0
                         while used_orders.contains(&next_auto_order) {
                             next_auto_order += 1;
                         }
-                        next_auto_order
+                        let assigned = next_auto_order;
+                        next_auto_order += 1; // Advance for next auto-assign
+                        assigned
                     }
                 };
                 used_orders.insert(order);
-                next_auto_order = next_auto_order.max(order + 1);
 
                 let mut chunk =
                     wrldbldr_domain::LoreChunk::new(&chunk_data.content).with_order(order);
@@ -153,6 +154,17 @@ impl LoreOps {
         Ok(serde_json::json!({ "deleted": true }))
     }
 
+    /// Add a chunk to existing lore.
+    ///
+    /// # Order validation
+    /// - If `order` is provided, validates it's unique among existing chunks
+    /// - If `order` is None, auto-assigns the next sequential value (max + 1)
+    ///
+    /// # Known limitation
+    /// The read→validate→write pattern is not atomic. In high-concurrency scenarios,
+    /// two concurrent add_chunk calls could both validate successfully before either
+    /// writes. A database-level unique constraint on (lore_id, order) would be needed
+    /// for strict enforcement. This is acceptable for typical DM-driven usage.
     pub async fn add_chunk(
         &self,
         lore_id: LoreId,
@@ -501,4 +513,363 @@ fn lore_to_json(lore: wrldbldr_domain::Lore) -> Value {
         "createdAt": lore.created_at.to_rfc3339(),
         "updatedAt": lore.updated_at.to_rfc3339(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::entities::Lore as LoreEntity;
+    use crate::infrastructure::ports::MockLoreRepo;
+    use std::sync::Arc;
+    use wrldbldr_protocol::requests::CreateLoreChunkData;
+
+    fn create_test_lore(world_id: WorldId) -> wrldbldr_domain::Lore {
+        wrldbldr_domain::Lore::new(
+            world_id,
+            "Test Lore",
+            LoreCategory::Common,
+            chrono::Utc::now(),
+        )
+    }
+
+    fn create_test_lore_with_chunks(
+        world_id: WorldId,
+        chunk_orders: &[u32],
+    ) -> wrldbldr_domain::Lore {
+        let mut lore = create_test_lore(world_id);
+        for &order in chunk_orders {
+            let chunk =
+                wrldbldr_domain::LoreChunk::new(&format!("Content {}", order)).with_order(order);
+            lore.chunks.push(chunk);
+        }
+        lore
+    }
+
+    // ==========================================================================
+    // Chunk Order Validation Tests
+    // ==========================================================================
+
+    #[tokio::test]
+    async fn add_chunk_rejects_duplicate_order() {
+        let world_id = WorldId::new();
+        let lore = create_test_lore_with_chunks(world_id, &[0, 1, 2]);
+        let lore_id = lore.id;
+
+        let mut mock_repo = MockLoreRepo::new();
+        mock_repo
+            .expect_get()
+            .with(mockall::predicate::eq(lore_id))
+            .returning(move |_| Ok(Some(lore.clone())));
+
+        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
+        let ops = LoreOps::new(lore_entity);
+
+        // Try to add chunk with order 1 (already exists)
+        let data = CreateLoreChunkData {
+            content: "New content".to_string(),
+            title: None,
+            order: Some(1),
+            discovery_hint: None,
+        };
+
+        let result = ops.add_chunk(lore_id, data).await;
+        assert!(matches!(result, Err(LoreError::DuplicateChunkOrder(1))));
+    }
+
+    #[tokio::test]
+    async fn add_chunk_auto_assigns_next_order() {
+        let world_id = WorldId::new();
+        let lore = create_test_lore_with_chunks(world_id, &[0, 1, 2]);
+        let lore_id = lore.id;
+
+        let mut mock_repo = MockLoreRepo::new();
+        mock_repo
+            .expect_get()
+            .with(mockall::predicate::eq(lore_id))
+            .returning(move |_| Ok(Some(lore.clone())));
+        mock_repo.expect_save().returning(|saved_lore| {
+            // Verify the new chunk has order 3 (next after 0,1,2)
+            let new_chunk = saved_lore.chunks.last().unwrap();
+            assert_eq!(new_chunk.order, 3);
+            Ok(())
+        });
+
+        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
+        let ops = LoreOps::new(lore_entity);
+
+        let data = CreateLoreChunkData {
+            content: "New content".to_string(),
+            title: None,
+            order: None, // Auto-assign
+            discovery_hint: None,
+        };
+
+        let result = ops.add_chunk(lore_id, data).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn update_chunk_rejects_conflicting_order() {
+        let world_id = WorldId::new();
+        let lore = create_test_lore_with_chunks(world_id, &[0, 1, 2]);
+        let chunk_id = lore.chunks[2].id; // Chunk with order 2
+
+        let mut mock_repo = MockLoreRepo::new();
+        mock_repo
+            .expect_list_for_world()
+            .returning(move |_| Ok(vec![lore.clone()]));
+
+        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
+        let ops = LoreOps::new(lore_entity);
+
+        // Try to update chunk 2's order to 0 (already taken)
+        let data = wrldbldr_protocol::requests::UpdateLoreChunkData {
+            title: None,
+            content: None,
+            order: Some(0),
+            discovery_hint: None,
+        };
+
+        let result = ops.update_chunk(world_id, chunk_id, data).await;
+        assert!(matches!(result, Err(LoreError::DuplicateChunkOrder(0))));
+    }
+
+    #[tokio::test]
+    async fn delete_chunk_reindexes_remaining() {
+        let world_id = WorldId::new();
+        let lore = create_test_lore_with_chunks(world_id, &[0, 1, 2]);
+        let chunk_to_delete = lore.chunks[1].id; // Delete middle chunk (order 1)
+
+        let mut mock_repo = MockLoreRepo::new();
+        mock_repo
+            .expect_list_for_world()
+            .returning(move |_| Ok(vec![lore.clone()]));
+        mock_repo.expect_save().returning(|saved_lore| {
+            // After deleting chunk with order 1, remaining should be reindexed to 0, 1
+            assert_eq!(saved_lore.chunks.len(), 2);
+            assert_eq!(saved_lore.chunks[0].order, 0);
+            assert_eq!(saved_lore.chunks[1].order, 1);
+            Ok(())
+        });
+
+        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
+        let ops = LoreOps::new(lore_entity);
+
+        let result = ops.delete_chunk(world_id, chunk_to_delete).await;
+        assert!(result.is_ok());
+    }
+
+    // ==========================================================================
+    // Partial Revocation Tests
+    // ==========================================================================
+
+    #[tokio::test]
+    async fn revoke_with_empty_chunk_list_fails() {
+        let world_id = WorldId::new();
+        let lore = create_test_lore(world_id);
+        let lore_id = lore.id;
+        let character_id = CharacterId::new();
+
+        let mock_repo = MockLoreRepo::new();
+        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
+        let ops = LoreOps::new(lore_entity);
+
+        // Empty chunk list should fail
+        let result = ops
+            .revoke_knowledge(character_id, lore_id, Some(vec![]))
+            .await;
+
+        assert!(matches!(result, Err(LoreError::EmptyChunkList)));
+    }
+
+    #[tokio::test]
+    async fn revoke_with_none_does_full_revocation() {
+        let world_id = WorldId::new();
+        let lore = create_test_lore(world_id);
+        let lore_id = lore.id;
+        let character_id = CharacterId::new();
+
+        let mut mock_repo = MockLoreRepo::new();
+        mock_repo
+            .expect_revoke_knowledge()
+            .with(
+                mockall::predicate::eq(character_id),
+                mockall::predicate::eq(lore_id),
+            )
+            .returning(|_, _| Ok(()));
+
+        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
+        let ops = LoreOps::new(lore_entity);
+
+        let result = ops.revoke_knowledge(character_id, lore_id, None).await;
+        assert!(result.is_ok());
+
+        let json = result.unwrap();
+        assert_eq!(json["revoked"], true);
+        assert_eq!(json["partial"], false);
+        assert_eq!(json["relationshipDeleted"], true);
+    }
+
+    #[tokio::test]
+    async fn revoke_with_invalid_chunk_ids_fails() {
+        let world_id = WorldId::new();
+        let lore = create_test_lore_with_chunks(world_id, &[0, 1]);
+        let lore_id = lore.id;
+        let character_id = CharacterId::new();
+        let invalid_chunk_id = LoreChunkId::new();
+
+        let mut mock_repo = MockLoreRepo::new();
+        mock_repo
+            .expect_get()
+            .with(mockall::predicate::eq(lore_id))
+            .returning(move |_| Ok(Some(lore.clone())));
+
+        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
+        let ops = LoreOps::new(lore_entity);
+
+        let result = ops
+            .revoke_knowledge(character_id, lore_id, Some(vec![invalid_chunk_id]))
+            .await;
+
+        assert!(matches!(result, Err(LoreError::InvalidChunkIds(_))));
+    }
+
+    // ==========================================================================
+    // Creation Order Validation Tests
+    // ==========================================================================
+
+    #[tokio::test]
+    async fn create_with_duplicate_chunk_orders_fails() {
+        let world_id = WorldId::new();
+
+        let mock_repo = MockLoreRepo::new();
+        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
+        let ops = LoreOps::new(lore_entity);
+
+        // Create with duplicate orders
+        let data = CreateLoreData {
+            title: "Test".to_string(),
+            summary: None,
+            category: None,
+            tags: None,
+            is_common_knowledge: None,
+            chunks: Some(vec![
+                CreateLoreChunkData {
+                    content: "First".to_string(),
+                    title: None,
+                    order: Some(0),
+                    discovery_hint: None,
+                },
+                CreateLoreChunkData {
+                    content: "Second".to_string(),
+                    title: None,
+                    order: Some(0), // Duplicate!
+                    discovery_hint: None,
+                },
+            ]),
+        };
+
+        let result = ops.create(world_id, data).await;
+        assert!(matches!(result, Err(LoreError::DuplicateChunkOrder(0))));
+    }
+
+    #[tokio::test]
+    async fn create_auto_assigns_sequential_orders() {
+        let world_id = WorldId::new();
+
+        let mut mock_repo = MockLoreRepo::new();
+        mock_repo.expect_save().returning(|saved_lore| {
+            // Verify auto-assigned orders are sequential starting from 0
+            assert_eq!(saved_lore.chunks.len(), 3);
+            assert_eq!(saved_lore.chunks[0].order, 0);
+            assert_eq!(saved_lore.chunks[1].order, 1);
+            assert_eq!(saved_lore.chunks[2].order, 2);
+            Ok(())
+        });
+
+        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
+        let ops = LoreOps::new(lore_entity);
+
+        let data = CreateLoreData {
+            title: "Test".to_string(),
+            summary: None,
+            category: None,
+            tags: None,
+            is_common_knowledge: None,
+            chunks: Some(vec![
+                CreateLoreChunkData {
+                    content: "First".to_string(),
+                    title: None,
+                    order: None, // Auto-assign
+                    discovery_hint: None,
+                },
+                CreateLoreChunkData {
+                    content: "Second".to_string(),
+                    title: None,
+                    order: None, // Auto-assign
+                    discovery_hint: None,
+                },
+                CreateLoreChunkData {
+                    content: "Third".to_string(),
+                    title: None,
+                    order: None, // Auto-assign
+                    discovery_hint: None,
+                },
+            ]),
+        };
+
+        let result = ops.create(world_id, data).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn create_with_mixed_explicit_and_auto_orders() {
+        let world_id = WorldId::new();
+
+        let mut mock_repo = MockLoreRepo::new();
+        mock_repo.expect_save().returning(|saved_lore| {
+            // First chunk: explicit order 5
+            // Second chunk: auto-assign (should get 0, first available)
+            // Third chunk: explicit order 2
+            assert_eq!(saved_lore.chunks.len(), 3);
+            assert_eq!(saved_lore.chunks[0].order, 5);
+            assert_eq!(saved_lore.chunks[1].order, 0);
+            assert_eq!(saved_lore.chunks[2].order, 2);
+            Ok(())
+        });
+
+        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
+        let ops = LoreOps::new(lore_entity);
+
+        let data = CreateLoreData {
+            title: "Test".to_string(),
+            summary: None,
+            category: None,
+            tags: None,
+            is_common_knowledge: None,
+            chunks: Some(vec![
+                CreateLoreChunkData {
+                    content: "First".to_string(),
+                    title: None,
+                    order: Some(5), // Explicit
+                    discovery_hint: None,
+                },
+                CreateLoreChunkData {
+                    content: "Second".to_string(),
+                    title: None,
+                    order: None, // Auto-assign (should get 0)
+                    discovery_hint: None,
+                },
+                CreateLoreChunkData {
+                    content: "Third".to_string(),
+                    title: None,
+                    order: Some(2), // Explicit
+                    discovery_hint: None,
+                },
+            ]),
+        };
+
+        let result = ops.create(world_id, data).await;
+        assert!(result.is_ok());
+    }
 }
