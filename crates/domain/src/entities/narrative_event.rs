@@ -538,9 +538,60 @@ impl NarrativeEvent {
             NarrativeTriggerType::DialogueTopic { keywords, .. } => keywords
                 .iter()
                 .any(|k| context.recent_dialogue_topics.contains(k)),
-            // Other trigger types would need more complex evaluation
-            // or LLM assistance for Custom triggers
-            _ => false,
+            NarrativeTriggerType::TimeAtLocation {
+                location_id,
+                time_context: required_time,
+                ..
+            } => {
+                // Check if player is at location AND time context matches
+                let at_location = context.current_location.as_ref() == Some(location_id);
+                let time_matches = context
+                    .time_context
+                    .as_ref()
+                    .map(|current_time| {
+                        // Case-insensitive comparison for time context
+                        current_time.to_lowercase() == required_time.to_lowercase()
+                    })
+                    .unwrap_or(false);
+                at_location && time_matches
+            }
+            NarrativeTriggerType::NpcAction { action_keywords, .. } => {
+                // Check if recent player action matches any of the NPC action keywords
+                // Note: This is a limited implementation - full NPC action tracking
+                // would require additional infrastructure
+                context
+                    .recent_player_action
+                    .as_ref()
+                    .map(|action| {
+                        action_keywords
+                            .iter()
+                            .any(|kw| action.to_lowercase().contains(&kw.to_lowercase()))
+                    })
+                    .unwrap_or(false)
+            }
+            NarrativeTriggerType::RelationshipThreshold { .. } => {
+                // TODO: Relationship tracking requires sentiment data in TriggerContext.
+                // Add `relationships: HashMap<(CharacterId, CharacterId), f32>` to TriggerContext
+                // to enable this trigger type.
+                false
+            }
+            NarrativeTriggerType::StatThreshold { .. } => {
+                // TODO: Character stats require stat system integration.
+                // Add `character_stats: HashMap<CharacterId, HashMap<String, i32>>` to TriggerContext
+                // to enable this trigger type.
+                false
+            }
+            NarrativeTriggerType::CombatResult { .. } => {
+                // TODO: Combat system not yet implemented.
+                // Add `last_combat_result: Option<CombatOutcome>` to TriggerContext
+                // when combat system is built.
+                false
+            }
+            NarrativeTriggerType::Custom { .. } => {
+                // Custom triggers require LLM evaluation which cannot be done in this sync context.
+                // Custom triggers should be evaluated at a higher layer with LLM access.
+                false
+            }
         }
     }
 

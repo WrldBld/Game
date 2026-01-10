@@ -1,5 +1,29 @@
 use super::*;
 
+/// Maximum allowed TTL in hours (1 year).
+const MAX_TTL_HOURS: i32 = 8760;
+
+/// Validates TTL hours value.
+/// Returns an error response if TTL is invalid (negative, zero, or unreasonably large).
+fn validate_ttl_hours(ttl_hours: i32) -> Result<(), ServerMessage> {
+    if ttl_hours <= 0 {
+        return Err(error_response(
+            "INVALID_TTL",
+            "TTL hours must be a positive value",
+        ));
+    }
+    if ttl_hours > MAX_TTL_HOURS {
+        return Err(error_response(
+            "INVALID_TTL",
+            &format!(
+                "TTL hours cannot exceed {} (1 year)",
+                MAX_TTL_HOURS
+            ),
+        ));
+    }
+    Ok(())
+}
+
 pub(super) async fn handle_staging_approval(
     state: &WsState,
     connection_id: Uuid,
@@ -17,6 +41,11 @@ pub(super) async fn handle_staging_approval(
     };
 
     if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
+    }
+
+    // Validate TTL hours
+    if let Err(e) = validate_ttl_hours(ttl_hours) {
         return Some(e);
     }
 
@@ -170,6 +199,11 @@ pub(super) async fn handle_pre_stage_region(
     };
 
     if let Err(e) = require_dm(&conn_info) {
+        return Some(e);
+    }
+
+    // Validate TTL hours
+    if let Err(e) = validate_ttl_hours(ttl_hours) {
         return Some(e);
     }
 

@@ -247,15 +247,31 @@ pub(super) async fn handle_lore_request(
                 Err(e) => return Err(e),
             };
 
-            let chunk_uuids = chunk_ids.map(|ids| {
-                ids.into_iter()
-                    .filter_map(|id| {
-                        Uuid::parse_str(&id)
-                            .ok()
-                            .map(wrldbldr_domain::LoreChunkId::from_uuid)
-                    })
-                    .collect::<Vec<_>>()
-            });
+            let chunk_uuids = match chunk_ids {
+                Some(ids) => {
+                    let mut valid_uuids = Vec::with_capacity(ids.len());
+                    let mut invalid_ids = Vec::new();
+
+                    for id in ids {
+                        match Uuid::parse_str(&id) {
+                            Ok(uuid) => {
+                                valid_uuids.push(wrldbldr_domain::LoreChunkId::from_uuid(uuid))
+                            }
+                            Err(_) => invalid_ids.push(id),
+                        }
+                    }
+
+                    if !invalid_ids.is_empty() {
+                        return Ok(ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            format!("Invalid chunk_ids: {}", invalid_ids.join(", ")),
+                        ));
+                    }
+
+                    Some(valid_uuids)
+                }
+                None => None,
+            };
 
             match state
                 .app
@@ -276,10 +292,18 @@ pub(super) async fn handle_lore_request(
         LoreRequest::RevokeLoreKnowledge {
             character_id,
             lore_id,
-            chunk_ids: _,
+            chunk_ids,
         } => {
             if let Err(e) = require_dm_for_request(conn_info, request_id) {
                 return Err(e);
+            }
+
+            // Partial revocation is not supported - reject if chunk_ids is provided
+            if chunk_ids.is_some() {
+                return Ok(ResponseResult::error(
+                    ErrorCode::BadRequest,
+                    "Partial revocation not supported. Omit chunk_ids to revoke all knowledge of this lore.",
+                ));
             }
 
             let char_uuid = match parse_character_id_for_request(&character_id, request_id) {

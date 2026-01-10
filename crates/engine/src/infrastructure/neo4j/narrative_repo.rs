@@ -1351,8 +1351,14 @@ fn row_to_story_event(row: Row, fallback: DateTime<Utc>) -> Result<StoryEvent, R
 // =============================================================================
 
 /// Parse a UUID string, returning nil UUID on error
-fn parse_uuid_or_nil(s: &str, _field: &str) -> Uuid {
-    Uuid::parse_str(s).unwrap_or(Uuid::nil())
+fn parse_uuid_or_nil(s: &str, field: &str) -> Uuid {
+    match Uuid::parse_str(s) {
+        Ok(uuid) => uuid,
+        Err(e) => {
+            tracing::warn!(field = %field, input = %s, error = %e, "Failed to parse UUID, using nil");
+            Uuid::nil()
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

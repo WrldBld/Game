@@ -234,8 +234,8 @@ impl RollChallenge {
                 .iter()
                 .map(|t| ProposedTool {
                     id: uuid::Uuid::new_v4().to_string(),
-                    name: format!("{:?}", t),
-                    description: format!("{:?}", t),
+                    name: t.trigger_type_name().to_string(),
+                    description: t.to_string(),
                     arguments: serde_json::Value::Null,
                 })
                 .collect(),

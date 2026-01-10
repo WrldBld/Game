@@ -162,7 +162,6 @@ pub(super) async fn handle_challenge_roll(
         None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
     };
 
-    // For now, assume any connected PC can roll challenges (TODO: check ownership)
     let pc_id = match conn_info.pc_id {
         Some(id) => id,
         None => return Some(error_response("NO_PC", "Must have a PC to roll challenges")),
@@ -173,11 +172,33 @@ pub(super) async fn handle_challenge_roll(
         None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
     };
 
+    // Validate challenge belongs to this world and is active
+    let challenge = match state.app.entities.challenge.get(challenge_uuid).await {
+        Ok(Some(c)) => c,
+        Ok(None) => return Some(error_response("NOT_FOUND", "Challenge not found")),
+        Err(e) => return Some(error_response("CHALLENGE_ERROR", &e.to_string())),
+    };
+
+    if challenge.world_id != world_id {
+        return Some(error_response(
+            "INVALID_WORLD",
+            "Challenge does not belong to this world",
+        ));
+    }
+
+    if !challenge.active {
+        return Some(error_response(
+            "CHALLENGE_INACTIVE",
+            "Challenge is not currently active",
+        ));
+    }
+
     match state
         .app
         .use_cases
         .challenge
         .roll
+        // TODO: Skill modifiers should be fetched from character sheet when skill system is implemented
         .execute(world_id, challenge_uuid, pc_id, Some(roll), 0)
         .await
     {

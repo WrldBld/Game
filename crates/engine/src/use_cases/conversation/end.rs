@@ -27,6 +27,13 @@ pub struct ConversationEnded {
 ///
 /// Validates the PC and NPC exist and returns conversation end data.
 /// The caller is responsible for broadcasting the result to clients.
+///
+/// TODO: This use case currently only validates that PC/NPC exist.
+/// Future enhancements should include:
+/// - Clear active conversation tracking (remove conversation_id from active sessions)
+/// - Optionally save conversation summary to persistent storage
+/// - Notify any listeners/subscribers that the conversation has ended
+/// - Update NPC disposition based on conversation outcome
 pub struct EndConversation {
     character: Arc<Character>,
     player_character: Arc<PlayerCharacter>,

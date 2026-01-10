@@ -318,7 +318,16 @@ impl NpcLocationSharing {
 
         let observation_error = match self.observation.save_observation(&observation).await {
             Ok(()) => None,
-            Err(e) => Some(e.to_string()),
+            Err(e) => {
+                tracing::error!(
+                    pc_id = %pc_id,
+                    npc_id = %npc_id,
+                    location_id = %location_id,
+                    error = %e,
+                    "Failed to save NPC observation during location share"
+                );
+                Some(e.to_string())
+            }
         };
 
         Ok(NpcLocationShareResult {
