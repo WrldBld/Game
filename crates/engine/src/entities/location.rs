@@ -39,34 +39,12 @@ impl Location {
         self.repo.get_location(id).await
     }
 
-    /// Get a location by ID.
-    ///
-    /// **Deprecated**: Use `get()` instead for consistency with other entity modules.
-    #[deprecated(since = "0.1.0", note = "Use get() instead for consistency")]
-    pub async fn get_location(
-        &self,
-        id: LocationId,
-    ) -> Result<Option<domain::Location>, RepoError> {
-        self.repo.get_location(id).await
-    }
-
     pub async fn save_location(&self, location: &domain::Location) -> Result<(), RepoError> {
         self.repo.save_location(location).await
     }
 
     /// List locations in a world.
     pub async fn list_in_world(
-        &self,
-        world_id: WorldId,
-    ) -> Result<Vec<domain::Location>, RepoError> {
-        self.repo.list_locations_in_world(world_id).await
-    }
-
-    /// List locations in a world.
-    ///
-    /// **Deprecated**: Use `list_in_world()` instead for consistency with other entity modules.
-    #[deprecated(since = "0.1.0", note = "Use list_in_world() instead for consistency")]
-    pub async fn list_locations_in_world(
         &self,
         world_id: WorldId,
     ) -> Result<Vec<domain::Location>, RepoError> {

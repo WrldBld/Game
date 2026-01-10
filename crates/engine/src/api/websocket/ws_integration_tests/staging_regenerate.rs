@@ -93,6 +93,8 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
             PendingStagingRequest {
                 region_id,
                 location_id,
+                world_id,
+                created_at: now,
             },
         );
     }

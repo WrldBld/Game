@@ -599,7 +599,63 @@ pub enum OutcomeTrigger {
     Custom { description: String },
 }
 
+impl std::fmt::Display for OutcomeTrigger {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::RevealInformation { info, persist } => {
+                if *persist {
+                    write!(f, "Reveal (persistent): {}", info)
+                } else {
+                    write!(f, "Reveal: {}", info)
+                }
+            }
+            Self::EnableChallenge { challenge_id } => {
+                write!(f, "Enable challenge: {}", challenge_id)
+            }
+            Self::DisableChallenge { challenge_id } => {
+                write!(f, "Disable challenge: {}", challenge_id)
+            }
+            Self::ModifyCharacterStat { stat, modifier } => {
+                if *modifier >= 0 {
+                    write!(f, "Modify {}: +{}", stat, modifier)
+                } else {
+                    write!(f, "Modify {}: {}", stat, modifier)
+                }
+            }
+            Self::TriggerScene { scene_id } => {
+                write!(f, "Trigger scene: {}", scene_id)
+            }
+            Self::GiveItem {
+                item_name,
+                item_description,
+            } => {
+                if let Some(desc) = item_description {
+                    write!(f, "Give item: {} ({})", item_name, desc)
+                } else {
+                    write!(f, "Give item: {}", item_name)
+                }
+            }
+            Self::Custom { description } => {
+                write!(f, "Custom: {}", description)
+            }
+        }
+    }
+}
+
 impl OutcomeTrigger {
+    /// Returns the type name of this trigger for display purposes
+    pub fn trigger_type_name(&self) -> &'static str {
+        match self {
+            Self::RevealInformation { .. } => "reveal_information",
+            Self::EnableChallenge { .. } => "enable_challenge",
+            Self::DisableChallenge { .. } => "disable_challenge",
+            Self::ModifyCharacterStat { .. } => "modify_stat",
+            Self::TriggerScene { .. } => "trigger_scene",
+            Self::GiveItem { .. } => "give_item",
+            Self::Custom { .. } => "custom",
+        }
+    }
+
     pub fn reveal(info: impl Into<String>) -> Self {
         Self::RevealInformation {
             info: info.into(),

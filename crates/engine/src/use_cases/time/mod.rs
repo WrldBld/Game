@@ -479,10 +479,41 @@ pub enum TimeSuggestionError {
     Queue(#[from] QueueError),
 }
 
+/// Normalize protocol time config, handling the Auto -> Suggested transition.
+///
+/// # TimeMode::Auto Behavior
+///
+/// **Important**: `TimeMode::Auto` is currently normalized to `TimeMode::Suggested`.
+///
+/// This is an intentional design decision with the following rationale:
+/// - The original vision for "Auto" mode was to automatically advance time without DM approval
+/// - However, this behavior was never fully implemented due to concerns about:
+///   - Game pacing control (auto-advancing could disrupt narrative flow)
+///   - Edge cases around period transitions (dawn/dusk/etc.)
+///   - Lack of undo capability if time advances incorrectly
+///
+/// As a result, "Auto" currently behaves identically to "Suggested" mode, where:
+/// - Time suggestions are generated for player actions
+/// - The DM must approve/modify/skip each suggestion
+///
+/// **API Contract Note**: If a client sets `TimeMode::Auto`, the UI may display "Automatic"
+/// but the actual behavior will be "Suggested" (DM approval required).
+///
+/// # TODO
+///
+/// Either:
+/// 1. Implement true auto-advancement behavior (advance time immediately without DM approval)
+/// 2. Remove the `Auto` variant from the protocol and mark it as deprecated in domain types
+///
+/// See: https://github.com/WrldBldr/Game/issues/XXX (replace with actual tracking issue)
 fn normalize_protocol_time_config(
     mut config: wrldbldr_protocol::types::GameTimeConfig,
 ) -> wrldbldr_protocol::types::GameTimeConfig {
     if matches!(config.mode, wrldbldr_protocol::types::TimeMode::Auto) {
+        tracing::warn!(
+            "TimeMode::Auto is not fully implemented - normalizing to TimeMode::Suggested. \
+             Time suggestions will still require DM approval."
+        );
         config.mode = wrldbldr_protocol::types::TimeMode::Suggested;
     }
     config

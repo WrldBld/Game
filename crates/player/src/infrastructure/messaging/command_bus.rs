@@ -52,11 +52,20 @@ impl PendingRequests {
         self.inner.insert(request_id, tx);
     }
 
+    /// Resolve a pending request with a response.
+    ///
+    /// Returns true if the request was found and resolved, false if no pending
+    /// request exists for this ID (e.g., already timed out and cleaned up).
     pub fn resolve(&mut self, request_id: &str, result: ResponseResult) -> bool {
         if let Some(tx) = self.inner.remove(request_id) {
             let _ = tx.send(result);
             true
         } else {
+            // Request not found - likely already timed out and was cleaned up
+            tracing::debug!(
+                request_id = %request_id,
+                "Response received for unknown request ID - request may have timed out"
+            );
             false
         }
     }
@@ -118,6 +127,17 @@ impl CommandBus {
     /// This creates a unique request ID, sends the request, and awaits the
     /// correlated response from the server.
     pub async fn request(&self, payload: RequestPayload) -> Result<ResponseResult, RequestError> {
+        let (id, result) = self.request_internal(payload).await?;
+        // Request completed normally, id cleanup handled by resolve()
+        let _ = id;
+        result.await.map_err(|_| RequestError::Cancelled)
+    }
+
+    /// Internal request that returns the request ID for cleanup purposes.
+    async fn request_internal(
+        &self,
+        payload: RequestPayload,
+    ) -> Result<(String, oneshot::Receiver<ResponseResult>), RequestError> {
         let id = uuid::Uuid::new_v4().to_string();
         let (response_tx, response_rx) = oneshot::channel();
 
@@ -136,22 +156,41 @@ impl CommandBus {
             .await
             .map_err(|_| RequestError::SendFailed("channel closed".into()))?;
 
-        // Await response
-        response_rx.await.map_err(|_| RequestError::Cancelled)
+        Ok((id, response_rx))
     }
 
     /// Send a request with a custom timeout.
+    ///
+    /// If the request times out, the pending request entry is cleaned up to prevent
+    /// memory leaks from orphaned request entries.
     pub async fn request_with_timeout(
         &self,
         payload: RequestPayload,
         timeout_ms: u64,
     ) -> Result<ResponseResult, RequestError> {
-        tokio::time::timeout(
+        let (id, response_rx) = self.request_internal(payload).await?;
+
+        match tokio::time::timeout(
             std::time::Duration::from_millis(timeout_ms),
-            self.request(payload),
+            response_rx,
         )
         .await
-        .map_err(|_| RequestError::Timeout)?
+        {
+            Ok(result) => result.map_err(|_| RequestError::Cancelled),
+            Err(_) => {
+                // Timeout occurred - clean up the pending request to prevent memory leak
+                {
+                    let mut pending = self.pending.lock().await;
+                    pending.remove(&id);
+                }
+                tracing::debug!(
+                    request_id = %id,
+                    timeout_ms = %timeout_ms,
+                    "Request timed out - cleaned up pending request entry"
+                );
+                Err(RequestError::Timeout)
+            }
+        }
     }
 
     /// Get access to pending requests (for bridge use)

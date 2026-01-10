@@ -85,6 +85,11 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         .returning(|_| Ok(vec![]));
 
     repos
+        .location_repo
+        .expect_get_region_exits()
+        .returning(|_| Ok(vec![]));
+
+    repos
         .item_repo
         .expect_list_in_region()
         .returning(|_| Ok(vec![]));

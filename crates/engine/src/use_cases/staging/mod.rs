@@ -505,19 +505,32 @@ impl ApproveStagingRequest {
         for npc_info in approved_npcs {
             let char_uuid = match Uuid::parse_str(&npc_info.character_id) {
                 Ok(u) => u,
-                Err(_) => continue,
+                Err(e) => {
+                    tracing::warn!(
+                        character_id = %npc_info.character_id,
+                        error = %e,
+                        "Failed to parse character UUID during staging approval, skipping NPC"
+                    );
+                    continue;
+                }
             };
             let character_id = CharacterId::from_uuid(char_uuid);
 
             let character = self.character.get(character_id).await.ok().flatten();
             let (name, sprite_asset, portrait_asset, default_mood) = match character {
                 Some(c) => (c.name, c.sprite_asset, c.portrait_asset, c.default_mood),
-                None => (
-                    String::new(),
-                    None,
-                    None,
-                    wrldbldr_domain::MoodState::default(),
-                ),
+                None => {
+                    tracing::warn!(
+                        character_id = %npc_info.character_id,
+                        "Character not found during staging approval, using empty defaults"
+                    );
+                    (
+                        String::new(),
+                        None,
+                        None,
+                        wrldbldr_domain::MoodState::default(),
+                    )
+                }
             };
 
             let mood = npc_info
@@ -546,18 +559,40 @@ impl ApproveStagingRequest {
         for npc_info in approved_npcs {
             if npc_info.is_present && !npc_info.is_hidden_from_players {
                 let (name, sprite_asset, portrait_asset) =
-                    if let Ok(char_id) = Uuid::parse_str(&npc_info.character_id) {
-                        let char_id = CharacterId::from_uuid(char_id);
-                        match self.character.get(char_id).await {
-                            Ok(Some(character)) => (
-                                character.name,
-                                character.sprite_asset,
-                                character.portrait_asset,
-                            ),
-                            _ => (String::new(), None, None),
+                    match Uuid::parse_str(&npc_info.character_id) {
+                        Ok(char_uuid) => {
+                            let char_id = CharacterId::from_uuid(char_uuid);
+                            match self.character.get(char_id).await {
+                                Ok(Some(character)) => (
+                                    character.name,
+                                    character.sprite_asset,
+                                    character.portrait_asset,
+                                ),
+                                Ok(None) => {
+                                    tracing::warn!(
+                                        character_id = %npc_info.character_id,
+                                        "Character not found when building NPCs present, using empty defaults"
+                                    );
+                                    (String::new(), None, None)
+                                }
+                                Err(e) => {
+                                    tracing::warn!(
+                                        character_id = %npc_info.character_id,
+                                        error = %e,
+                                        "Failed to fetch character when building NPCs present, using empty defaults"
+                                    );
+                                    (String::new(), None, None)
+                                }
+                            }
                         }
-                    } else {
-                        (String::new(), None, None)
+                        Err(e) => {
+                            tracing::warn!(
+                                character_id = %npc_info.character_id,
+                                error = %e,
+                                "Failed to parse character UUID when building NPCs present, using empty defaults"
+                            );
+                            (String::new(), None, None)
+                        }
                     };
 
                 npcs_present.push(NpcPresentInfo {
@@ -802,7 +837,10 @@ fn parse_llm_staging_response(
     let json_str = match (json_start, json_end) {
         (Some(start), Some(end)) if end > start => &content[start..=end],
         _ => {
-            tracing::debug!("No valid JSON array found in LLM response");
+            tracing::warn!(
+                content = %content,
+                "LLM staging response did not contain a valid JSON array - returning empty suggestions"
+            );
             return vec![];
         }
     };
@@ -810,7 +848,11 @@ fn parse_llm_staging_response(
     let parsed: Vec<LlmSuggestion> = match serde_json::from_str(json_str) {
         Ok(p) => p,
         Err(e) => {
-            tracing::debug!(error = %e, json = %json_str, "Failed to parse LLM staging JSON");
+            tracing::warn!(
+                error = %e,
+                json = %json_str,
+                "Failed to parse LLM staging JSON response - returning empty suggestions"
+            );
             return vec![];
         }
     };
@@ -893,7 +935,10 @@ impl AutoApproveStagingTimeout {
             location_id: Some(pending.location_id),
             world_id: pending.world_id,
             approved_by: "system".to_string(),
-            ttl_hours: 24, // Use default TTL for auto-approved staging
+            // TODO: This hardcoded 24-hour TTL should come from world settings or location defaults.
+            // Consider adding a `default_staging_ttl_hours` field to WorldSettings or Location
+            // and fetching it here instead of using a magic number.
+            ttl_hours: 24,
             source: StagingSource::AutoApproved,
             approved_npcs,
             location_state_id: None,

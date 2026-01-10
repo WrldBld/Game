@@ -32,6 +32,8 @@ impl ChallengeOps {
         world_id: WorldId,
         data: CreateChallengeData,
     ) -> Result<Value, ChallengeError> {
+        // Note: Difficulty::parse never fails - invalid formats become Difficulty::Custom(string)
+        // This is intentional to support freeform difficulty descriptions
         let mut challenge = domain::Challenge::new(
             world_id,
             &data.name,
@@ -64,6 +66,8 @@ impl ChallengeOps {
             challenge.description = description;
         }
         if let Some(difficulty) = data.difficulty {
+            // Note: Difficulty::parse never fails - invalid formats become Difficulty::Custom(string)
+            // This is intentional to support freeform difficulty descriptions
             challenge.difficulty = Difficulty::parse(&difficulty);
         }
         if let Some(success) = data.success_outcome {

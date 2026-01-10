@@ -128,7 +128,7 @@ impl StartConversation {
             .await
             .ok()
             .flatten()
-            .map(|d| format!("{:?}", d.disposition));
+            .map(|d| d.disposition.to_string());
 
         // 6. Enqueue the player action for processing
         let action_data = PlayerActionData {
