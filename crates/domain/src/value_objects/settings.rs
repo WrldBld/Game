@@ -80,6 +80,7 @@ pub struct AppSettings {
     // ============================================================================
     pub circuit_breaker_failure_threshold: u32,
     pub circuit_breaker_open_duration_secs: u64,
+    pub circuit_breaker_half_open_requests: u32,
     pub health_check_cache_ttl_secs: u64,
 
     // ============================================================================
@@ -196,6 +197,7 @@ impl Default for AppSettings {
             conversation_history_turns: 20,
             circuit_breaker_failure_threshold: 5,
             circuit_breaker_open_duration_secs: 60,
+            circuit_breaker_half_open_requests: 1,
             health_check_cache_ttl_secs: 30,
             max_name_length: 255,
             max_description_length: 10000,
@@ -507,6 +509,17 @@ pub fn settings_metadata() -> Vec<SettingsFieldMetadata> {
             default_value: serde_json::json!(60),
             min_value: Some(serde_json::json!(10)),
             max_value: Some(serde_json::json!(600)),
+            category: "System".into(),
+            requires_restart: true,
+        },
+        SettingsFieldMetadata {
+            key: "circuit_breaker_half_open_requests".into(),
+            display_name: "Circuit Breaker Half-Open Requests".into(),
+            description: "Number of test requests allowed in half-open state".into(),
+            field_type: "integer".into(),
+            default_value: serde_json::json!(1),
+            min_value: Some(serde_json::json!(1)),
+            max_value: Some(serde_json::json!(10)),
             category: "System".into(),
             requires_restart: true,
         },

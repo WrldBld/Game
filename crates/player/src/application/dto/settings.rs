@@ -98,6 +98,9 @@ pub struct AppSettings {
     /// Duration (in seconds) that circuit breaker remains open
     pub circuit_breaker_open_duration_secs: u64,
 
+    /// Number of test requests allowed during half-open state
+    pub circuit_breaker_half_open_requests: u32,
+
     /// TTL (in seconds) for health check cache entries
     pub health_check_cache_ttl_secs: u64,
 
@@ -191,6 +194,7 @@ impl Default for AppSettings {
             conversation_history_turns: 20,
             circuit_breaker_failure_threshold: 5,
             circuit_breaker_open_duration_secs: 60,
+            circuit_breaker_half_open_requests: 1,
             health_check_cache_ttl_secs: 30,
             max_name_length: 255,
             max_description_length: 10000,

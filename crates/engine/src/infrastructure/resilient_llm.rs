@@ -1,6 +1,7 @@
-//! Resilient LLM client wrapper with exponential backoff retry
+//! Resilient LLM client wrapper with exponential backoff retry and circuit breaker
 //!
-//! Wraps any LlmPort implementation with retry logic to handle transient failures.
+//! Wraps any LlmPort implementation with retry logic and circuit breaker pattern
+//! to handle transient failures and prevent cascading failures.
 //! See `docs/designs/LLM_RESILIENCE_AND_CUSTOM_EVALUATION.md` for design details.
 
 use async_trait::async_trait;
@@ -8,6 +9,7 @@ use rand::Rng;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::infrastructure::circuit_breaker::{CircuitBreaker, CircuitBreakerConfig, CircuitBreakerMetrics, CircuitState};
 use crate::infrastructure::ports::{LlmError, LlmPort, LlmRequest, LlmResponse, ToolDefinition};
 
 /// Configuration for retry behavior
@@ -34,27 +36,87 @@ impl Default for RetryConfig {
     }
 }
 
-/// Wrapper that adds retry logic to any LLM client
+/// Wrapper that adds retry logic and circuit breaker to any LLM client
 pub struct ResilientLlmClient {
     inner: Arc<dyn LlmPort>,
-    config: RetryConfig,
+    retry_config: RetryConfig,
+    circuit_breaker: Arc<CircuitBreaker>,
 }
 
 impl ResilientLlmClient {
     /// Create a new resilient wrapper around an existing LLM client
-    pub fn new(inner: Arc<dyn LlmPort>, config: RetryConfig) -> Self {
-        Self { inner, config }
+    pub fn new(inner: Arc<dyn LlmPort>, retry_config: RetryConfig) -> Self {
+        Self {
+            inner,
+            retry_config,
+            circuit_breaker: Arc::new(CircuitBreaker::new(CircuitBreakerConfig::default())),
+        }
+    }
+
+    /// Create a new resilient wrapper with custom circuit breaker configuration
+    pub fn with_circuit_breaker(
+        inner: Arc<dyn LlmPort>,
+        retry_config: RetryConfig,
+        circuit_breaker_config: CircuitBreakerConfig,
+    ) -> Self {
+        Self {
+            inner,
+            retry_config,
+            circuit_breaker: Arc::new(CircuitBreaker::new(circuit_breaker_config)),
+        }
+    }
+
+    /// Create a new resilient wrapper with a shared circuit breaker
+    ///
+    /// This allows multiple ResilientLlmClient instances to share the same
+    /// circuit breaker state (useful when you have multiple LLM clients
+    /// pointing to the same service).
+    pub fn with_shared_circuit_breaker(
+        inner: Arc<dyn LlmPort>,
+        retry_config: RetryConfig,
+        circuit_breaker: Arc<CircuitBreaker>,
+    ) -> Self {
+        Self {
+            inner,
+            retry_config,
+            circuit_breaker,
+        }
+    }
+
+    /// Get the current circuit breaker state
+    pub fn circuit_state(&self) -> CircuitState {
+        self.circuit_breaker.state()
+    }
+
+    /// Get circuit breaker metrics
+    pub fn circuit_metrics(&self) -> CircuitBreakerMetrics {
+        self.circuit_breaker.metrics()
+    }
+
+    /// Force the circuit breaker to a specific state (for testing/admin)
+    pub fn force_circuit_state(&self, state: CircuitState) {
+        self.circuit_breaker.force_state(state);
+    }
+
+    /// Reset the circuit breaker
+    pub fn reset_circuit_breaker(&self) {
+        self.circuit_breaker.reset();
+    }
+
+    /// Get a reference to the underlying circuit breaker
+    pub fn circuit_breaker(&self) -> &Arc<CircuitBreaker> {
+        &self.circuit_breaker
     }
 
     /// Calculate delay for a given attempt number using exponential backoff with jitter
     fn calculate_delay(&self, attempt: u32) -> u64 {
-        let base = self.config.base_delay_ms;
+        let base = self.retry_config.base_delay_ms;
         // Exponential: base * 2^(attempt-1)
         let exponential = base.saturating_mul(2u64.saturating_pow(attempt.saturating_sub(1)));
-        let capped = exponential.min(self.config.max_delay_ms);
+        let capped = exponential.min(self.retry_config.max_delay_ms);
 
         // Add jitter: ±jitter_factor around the delay
-        let jitter_range = (capped as f64 * self.config.jitter_factor) as i64;
+        let jitter_range = (capped as f64 * self.retry_config.jitter_factor) as i64;
         if jitter_range > 0 {
             let jitter = rand::thread_rng().gen_range(-jitter_range..=jitter_range);
             (capped as i64 + jitter).max(0) as u64
@@ -79,16 +141,41 @@ impl ResilientLlmClient {
         }
     }
 
+    /// Execute an operation with retry logic and circuit breaker protection.
+    ///
+    /// The circuit breaker is checked once at the start of the operation. If the circuit
+    /// opens during the retry loop (e.g., from concurrent requests hitting the failure
+    /// threshold), the in-flight request will complete its retry budget rather than being
+    /// immediately rejected. This is intentional to avoid wasted work - a request that's
+    /// already mid-retry should finish its attempts rather than fail immediately when
+    /// another request trips the breaker.
     async fn execute_with_retry<F, Fut>(&self, operation_name: &str, operation: F) -> Result<LlmResponse, LlmError>
     where
         F: Fn() -> Fut,
         Fut: std::future::Future<Output = Result<LlmResponse, LlmError>>,
     {
+        // Check circuit breaker before attempting - see doc comment for why we don't
+        // re-check during retries
+        if let Err(circuit_error) = self.circuit_breaker.allow_request() {
+            tracing::warn!(
+                operation = operation_name,
+                retry_after_secs = circuit_error.retry_after.as_secs(),
+                "LLM request rejected by circuit breaker"
+            );
+            return Err(LlmError::RequestFailed(format!(
+                "Circuit breaker is open: {}",
+                circuit_error
+            )));
+        }
+
         let mut last_error = None;
 
-        for attempt in 0..=self.config.max_retries {
+        for attempt in 0..=self.retry_config.max_retries {
             match operation().await {
                 Ok(response) => {
+                    // Record success with circuit breaker
+                    self.circuit_breaker.record_success();
+
                     if attempt > 0 {
                         tracing::info!(
                             attempt = attempt + 1,
@@ -101,11 +188,11 @@ impl ResilientLlmClient {
                 Err(e) => {
                     let is_retryable = Self::is_retryable(&e);
 
-                    if attempt < self.config.max_retries && is_retryable {
+                    if attempt < self.retry_config.max_retries && is_retryable {
                         let delay = self.calculate_delay(attempt + 1);
                         tracing::warn!(
                             attempt = attempt + 1,
-                            max_retries = self.config.max_retries,
+                            max_retries = self.retry_config.max_retries,
                             delay_ms = delay,
                             error = %e,
                             operation = operation_name,
@@ -113,6 +200,8 @@ impl ResilientLlmClient {
                         );
                         tokio::time::sleep(Duration::from_millis(delay)).await;
                     } else if !is_retryable {
+                        // Record failure with circuit breaker for non-retryable errors
+                        self.circuit_breaker.record_failure();
                         tracing::error!(
                             error = %e,
                             operation = operation_name,
@@ -126,11 +215,15 @@ impl ResilientLlmClient {
             }
         }
 
+        // Record failure with circuit breaker after all retries exhausted
+        self.circuit_breaker.record_failure();
+
         let error = last_error.unwrap_or_else(|| LlmError::RequestFailed("Unknown error".to_string()));
         tracing::error!(
-            attempts = self.config.max_retries + 1,
+            attempts = self.retry_config.max_retries + 1,
             error = %error,
             operation = operation_name,
+            circuit_state = %self.circuit_breaker.state(),
             "LLM request failed after all retry attempts"
         );
         Err(error)
@@ -307,5 +400,91 @@ mod tests {
         assert_eq!(client.calculate_delay(5), 16000);
         // Attempt 6: 1000 * 2^5 = 32000, but capped at 30000
         assert_eq!(client.calculate_delay(6), 30000);
+    }
+
+    #[tokio::test]
+    async fn test_circuit_breaker_opens_after_failures() {
+        let mock = Arc::new(FailingMockLlm::new(100, LlmError::RequestFailed("persistent".into())));
+        let retry_config = RetryConfig {
+            max_retries: 0, // No retries - each call is one failure
+            base_delay_ms: 1,
+            max_delay_ms: 10,
+            jitter_factor: 0.0,
+        };
+        let circuit_config = CircuitBreakerConfig {
+            failure_threshold: 3,
+            open_duration: Duration::from_secs(60),
+            half_open_max_requests: 1,
+        };
+        let client = ResilientLlmClient::with_circuit_breaker(mock, retry_config, circuit_config);
+
+        // First 3 failures should open the circuit
+        let request = LlmRequest::new(vec![]);
+        let _ = client.generate(request.clone()).await;
+        assert_eq!(client.circuit_state(), CircuitState::Closed);
+        let _ = client.generate(request.clone()).await;
+        assert_eq!(client.circuit_state(), CircuitState::Closed);
+        let _ = client.generate(request.clone()).await;
+        assert_eq!(client.circuit_state(), CircuitState::Open);
+
+        // Next request should be rejected by circuit breaker
+        let result = client.generate(request).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Circuit breaker is open"));
+    }
+
+    #[tokio::test]
+    async fn test_circuit_breaker_success_resets_failures() {
+        let mock = Arc::new(FailingMockLlm::new(2, LlmError::RequestFailed("transient".into())));
+        let retry_config = RetryConfig {
+            max_retries: 0,
+            base_delay_ms: 1,
+            max_delay_ms: 10,
+            jitter_factor: 0.0,
+        };
+        let circuit_config = CircuitBreakerConfig {
+            failure_threshold: 3,
+            open_duration: Duration::from_secs(60),
+            half_open_max_requests: 1,
+        };
+        let client = ResilientLlmClient::with_circuit_breaker(mock, retry_config, circuit_config);
+
+        let request = LlmRequest::new(vec![]);
+
+        // 2 failures
+        let _ = client.generate(request.clone()).await;
+        let _ = client.generate(request.clone()).await;
+
+        // 1 success - should reset failure count
+        let result = client.generate(request.clone()).await;
+        assert!(result.is_ok());
+        assert_eq!(client.circuit_state(), CircuitState::Closed);
+
+        // Metrics should show reset
+        let metrics = client.circuit_metrics();
+        assert_eq!(metrics.consecutive_failures, 0);
+    }
+
+    #[tokio::test]
+    async fn test_circuit_metrics() {
+        let mock = Arc::new(FailingMockLlm::new(2, LlmError::RequestFailed("test".into())));
+        let retry_config = RetryConfig {
+            max_retries: 0,
+            base_delay_ms: 1,
+            max_delay_ms: 10,
+            jitter_factor: 0.0,
+        };
+        let client = ResilientLlmClient::new(mock, retry_config);
+
+        let request = LlmRequest::new(vec![]);
+
+        let _ = client.generate(request.clone()).await; // fail
+        let _ = client.generate(request.clone()).await; // fail
+        let _ = client.generate(request.clone()).await; // success
+
+        let metrics = client.circuit_metrics();
+        assert_eq!(metrics.total_failures, 2);
+        assert_eq!(metrics.total_successes, 1);
+        assert_eq!(metrics.state, CircuitState::Closed);
     }
 }
