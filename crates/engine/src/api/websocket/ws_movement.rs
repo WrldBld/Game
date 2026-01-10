@@ -82,12 +82,18 @@ pub(super) async fn handle_move_to_region(
                     maybe_broadcast_time_suggestion(state, world_id, &result.time_suggestion).await;
 
                     let npcs = result.npcs.clone();
-                    let scene_change = state
+                    let scene_change = match state
                         .app
                         .use_cases
                         .scene_change
                         .build_scene_change(&result.region, npcs.clone(), conn_info.is_dm())
-                        .await;
+                        .await
+                    {
+                        Ok(sc) => sc,
+                        Err(e) => {
+                            return Some(error_response("SCENE_BUILD_ERROR", &e.to_string()));
+                        }
+                    };
 
                     if let Some(scene) = result.resolved_scene.as_ref() {
                         if let Some(scene_update) =
@@ -221,12 +227,18 @@ pub(super) async fn handle_exit_to_location(
                     maybe_broadcast_time_suggestion(state, world_id, &result.time_suggestion).await;
 
                     let npcs = result.npcs.clone();
-                    let scene_change = state
+                    let scene_change = match state
                         .app
                         .use_cases
                         .scene_change
                         .build_scene_change(&result.region, npcs.clone(), conn_info.is_dm())
-                        .await;
+                        .await
+                    {
+                        Ok(sc) => sc,
+                        Err(e) => {
+                            return Some(error_response("SCENE_BUILD_ERROR", &e.to_string()));
+                        }
+                    };
 
                     if let Some(scene) = result.resolved_scene.as_ref() {
                         if let Some(scene_update) =

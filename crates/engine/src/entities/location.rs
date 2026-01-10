@@ -25,6 +25,27 @@ pub struct RegionExit {
     pub description: Option<String>,
 }
 
+/// Result of getting exits from a region.
+///
+/// Includes both valid exits and any exits that were skipped due to
+/// data integrity issues (for error reporting).
+#[derive(Debug, Clone, Default)]
+pub struct RegionExitsResult {
+    /// Successfully resolved exits
+    pub exits: Vec<RegionExit>,
+    /// Exits that were skipped due to errors (for error reporting)
+    pub skipped: Vec<SkippedExit>,
+}
+
+/// An exit that was skipped due to a data integrity issue.
+#[derive(Debug, Clone)]
+pub struct SkippedExit {
+    /// The target location ID that was referenced
+    pub to_location: LocationId,
+    /// Why this exit was skipped
+    pub reason: String,
+}
+
 impl Location {
     pub fn new(repo: Arc<dyn LocationRepo>) -> Self {
         Self { repo }
@@ -154,40 +175,49 @@ impl Location {
     ///
     /// This finds the location for the given region, then finds connections to
     /// other locations, and enriches them with location names and default arrival regions.
-    pub async fn get_exits(&self, region_id: RegionId) -> Result<Vec<RegionExit>, RepoError> {
+    ///
+    /// Returns a result that includes both valid exits and any skipped exits with
+    /// reasons, allowing callers to report data integrity issues.
+    pub async fn get_exits(&self, region_id: RegionId) -> Result<RegionExitsResult, RepoError> {
         let region_exits = self.repo.get_region_exits(region_id).await?;
         if !region_exits.is_empty() {
-            let mut exits = Vec::new();
+            let mut result = RegionExitsResult::default();
             for exit in region_exits {
                 if let Some(target_location) = self.repo.get_location(exit.to_location).await? {
-                    exits.push(RegionExit {
+                    result.exits.push(RegionExit {
                         location_id: exit.to_location,
                         location_name: target_location.name,
                         arrival_region_id: exit.arrival_region_id,
                         description: exit.description,
                     });
                 } else {
-                    tracing::warn!(
+                    let reason = "Target location not found".to_string();
+                    tracing::error!(
                         from_region = %region_id,
                         to_location = %exit.to_location,
-                        "Skipping exit: target location not found"
+                        reason = %reason,
+                        "Navigation exit skipped due to data integrity issue"
                     );
+                    result.skipped.push(SkippedExit {
+                        to_location: exit.to_location,
+                        reason,
+                    });
                 }
             }
 
-            return Ok(exits);
+            return Ok(result);
         }
 
         // Get the region to find its location
         let region = match self.repo.get_region(region_id).await? {
             Some(r) => r,
-            None => return Ok(vec![]),
+            None => return Ok(RegionExitsResult::default()),
         };
 
         // Get exits from this location
         let location_exits = self.repo.get_location_exits(region.location_id).await?;
 
-        let mut exits = Vec::new();
+        let mut result = RegionExitsResult::default();
         for exit in location_exits {
             // Get the target location details
             if let Some(target_location) = self.repo.get_location(exit.to_location).await? {
@@ -202,19 +232,27 @@ impl Location {
                     match regions.into_iter().find(|r| r.is_spawn_point) {
                         Some(r) => r.id,
                         None => {
-                            // Log warning for invalid exit configuration
-                            tracing::warn!(
+                            let reason = format!(
+                                "Target location '{}' has no default region and no spawn point",
+                                target_location.name
+                            );
+                            tracing::error!(
                                 from_region = %region_id,
                                 to_location = %exit.to_location,
                                 target_location_name = %target_location.name,
-                                "Skipping exit: target location has no default region and no spawn point"
+                                reason = %reason,
+                                "Navigation exit skipped due to data integrity issue"
                             );
+                            result.skipped.push(SkippedExit {
+                                to_location: exit.to_location,
+                                reason,
+                            });
                             continue;
                         }
                     }
                 };
 
-                exits.push(RegionExit {
+                result.exits.push(RegionExit {
                     location_id: exit.to_location,
                     location_name: target_location.name,
                     arrival_region_id,
@@ -223,7 +261,7 @@ impl Location {
             }
         }
 
-        Ok(exits)
+        Ok(result)
     }
 
     // =========================================================================

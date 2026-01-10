@@ -1,9 +1,26 @@
 use std::sync::Arc;
 
-use wrldbldr_domain::{Region, RegionId, StagedNpc};
+use wrldbldr_domain::{LocationId, Region, RegionId, StagedNpc};
 use wrldbldr_protocol::{NavigationData, NpcPresenceData, RegionData, RegionItemData};
 
 use crate::entities::{Inventory, Location};
+use crate::infrastructure::ports::RepoError;
+
+/// Errors that can occur when building scene change data.
+#[derive(Debug, thiserror::Error)]
+pub enum SceneChangeError {
+    #[error("Location {0} not found")]
+    LocationNotFound(LocationId),
+    #[error("Region {0} not found")]
+    RegionNotFound(RegionId),
+    #[error("Navigation exit to location {location_id} skipped: {reason}")]
+    ExitSkipped {
+        location_id: LocationId,
+        reason: String,
+    },
+    #[error("Repository error: {0}")]
+    Repo(#[from] RepoError),
+}
 
 pub struct SceneChangeBuilder {
     location: Arc<Location>,
@@ -20,21 +37,18 @@ impl SceneChangeBuilder {
         region: &Region,
         npcs: Vec<StagedNpc>,
         include_hidden_npcs: bool,
-    ) -> SceneChangeData {
-        let location_name = self
+    ) -> Result<SceneChangeData, SceneChangeError> {
+        let location = self
             .location
             .get(region.location_id)
-            .await
-            .ok()
-            .flatten()
-            .map(|l| l.name)
-            .unwrap_or_else(|| "Unknown Location".to_string());
+            .await?
+            .ok_or(SceneChangeError::LocationNotFound(region.location_id))?;
 
         let region_data = RegionData {
             id: region.id.to_string(),
             name: region.name.clone(),
             location_id: region.location_id.to_string(),
-            location_name,
+            location_name: location.name,
             backdrop_asset: region.backdrop_asset.clone(),
             atmosphere: region.atmosphere.clone(),
             map_asset: None,
@@ -51,50 +65,51 @@ impl SceneChangeBuilder {
             })
             .collect();
 
-        let navigation = self.build_navigation_data(region.id).await;
+        let navigation = self.build_navigation_data(region.id).await?;
         let region_items = self.build_region_items(region.id).await;
 
-        SceneChangeData {
+        Ok(SceneChangeData {
             region: region_data,
             npcs_present,
             navigation,
             region_items,
-        }
+        })
     }
 
-    async fn build_navigation_data(&self, region_id: RegionId) -> NavigationData {
-        let connections = self
-            .location
-            .get_connections(region_id)
-            .await
-            .ok()
-            .unwrap_or_default();
+    async fn build_navigation_data(
+        &self,
+        region_id: RegionId,
+    ) -> Result<NavigationData, SceneChangeError> {
+        let connections = self.location.get_connections(region_id).await?;
 
         let mut connected_regions = Vec::new();
         for connection in connections {
-            let region_name = self
+            let target_region = self
                 .location
                 .get_region(connection.to_region)
-                .await
-                .ok()
-                .flatten()
-                .map(|r| r.name)
-                .unwrap_or_else(|| "Unknown".to_string());
+                .await?
+                .ok_or(SceneChangeError::RegionNotFound(connection.to_region))?;
 
             connected_regions.push(wrldbldr_protocol::NavigationTarget {
                 region_id: connection.to_region.to_string(),
-                name: region_name,
+                name: target_region.name,
                 is_locked: connection.is_locked,
                 lock_description: connection.lock_description,
             });
         }
 
-        let exits = self
-            .location
-            .get_exits(region_id)
-            .await
-            .ok()
-            .unwrap_or_default()
+        let exits_result = self.location.get_exits(region_id).await?;
+
+        // Fail hard if any exits were skipped due to data integrity issues
+        if let Some(skipped) = exits_result.skipped.first() {
+            return Err(SceneChangeError::ExitSkipped {
+                location_id: skipped.to_location,
+                reason: skipped.reason.clone(),
+            });
+        }
+
+        let exits = exits_result
+            .exits
             .into_iter()
             .map(|exit| wrldbldr_protocol::NavigationExit {
                 location_id: exit.location_id.to_string(),
@@ -104,13 +119,14 @@ impl SceneChangeBuilder {
             })
             .collect();
 
-        NavigationData {
+        Ok(NavigationData {
             connected_regions,
             exits,
-        }
+        })
     }
 
     async fn build_region_items(&self, region_id: RegionId) -> Vec<RegionItemData> {
+        // Region items are optional/non-critical, keep graceful degradation here
         match self.inventory.list_in_region(region_id).await {
             Ok(items) => items
                 .into_iter()
