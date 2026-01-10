@@ -191,7 +191,15 @@ impl RollChallenge {
             .await?
             .ok_or(ChallengeError::NotFound)?;
 
-        // 2. Get the player character for name
+        // 2. Validate challenge ownership and status (defense in depth - also validated at handler)
+        if challenge.world_id != world_id {
+            return Err(ChallengeError::InvalidWorld);
+        }
+        if !challenge.active {
+            return Err(ChallengeError::ChallengeInactive);
+        }
+
+        // 3. Get the player character for name
         let pc = self
             .player_character
             .get(pc_id)
@@ -730,6 +738,10 @@ fn outcome_type_to_str(outcome_type: &OutcomeType) -> &'static str {
 pub enum ChallengeError {
     #[error("Challenge not found")]
     NotFound,
+    #[error("Challenge does not belong to this world")]
+    InvalidWorld,
+    #[error("Challenge is not active")]
+    ChallengeInactive,
     #[error("Player character not found")]
     PlayerCharacterNotFound,
     #[error("Missing target player character for challenge outcome")]

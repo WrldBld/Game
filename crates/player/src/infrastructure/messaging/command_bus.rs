@@ -183,6 +183,11 @@ impl CommandBus {
                     let mut pending = self.pending.lock().await;
                     pending.remove(&id);
                 }
+                tracing::debug!(
+                    request_id = %id,
+                    timeout_ms = %timeout_ms,
+                    "Request timed out - cleaned up pending request entry"
+                );
                 Err(RequestError::Timeout)
             }
         }

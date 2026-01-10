@@ -133,11 +133,25 @@ pub struct NarrativeTrigger {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum NarrativeTriggerType {
-    /// NPC performs a specific action or completes dialogue
+    /// Player action involving an NPC matches specified keywords.
+    ///
+    /// Despite the name, this trigger fires when the PLAYER's recent action
+    /// contains any of the `action_keywords`. The `npc_id` and `npc_name` fields
+    /// are metadata for DM clarity (indicating which NPC the action should involve)
+    /// but are NOT used in trigger evaluation.
+    ///
+    /// Example: If action_keywords = ["ask", "quest"], and the player's action is
+    /// "I ask Marcus about the missing artifact", this trigger would fire.
+    ///
+    /// Note: True NPC-initiated action tracking would require additional infrastructure.
     NpcAction {
+        /// The NPC this action should involve (metadata only, not evaluated)
         npc_id: CharacterId,
+        /// Display name for DM reference (metadata only, not evaluated)
         npc_name: String,
+        /// Keywords to match against player's recent action (case-insensitive)
         action_keywords: Vec<String>,
+        /// DM description of what action triggers this (metadata only)
         action_description: String,
     },
 
@@ -549,8 +563,8 @@ impl NarrativeEvent {
                     .time_context
                     .as_ref()
                     .map(|current_time| {
-                        // Case-insensitive comparison for time context
-                        current_time.to_lowercase() == required_time.to_lowercase()
+                        // Case-insensitive, whitespace-trimmed comparison for time context
+                        current_time.trim().to_lowercase() == required_time.trim().to_lowercase()
                     })
                     .unwrap_or(false);
                 at_location && time_matches
