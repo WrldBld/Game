@@ -14,7 +14,7 @@ use crate::entities::{
     Character, Flag, Location, LocationStateEntity, RegionStateEntity, Staging, World,
 };
 use crate::infrastructure::ports::{
-    ChatMessage, LlmPort, LlmRequest, NpcRegionRelationType, RepoError,
+    ChatMessage, LlmPort, LlmRequest, NpcRegionRelationType, RepoError, SettingsRepo,
 };
 use crate::use_cases::time::TimeSuggestion;
 use crate::use_cases::visual_state::{ResolveVisualState, StateResolutionContext};
@@ -27,9 +27,38 @@ use wrldbldr_protocol::{
     WaitingPcInfo,
 };
 
-/// Default staging timeout in seconds (matches main.rs processor).
-/// TODO: Make configurable per-world via settings
+/// Timeout in seconds before a pending staging request auto-approves.
+/// This is the delay shown to players while waiting for DM approval.
+/// Not to be confused with TTL (time-to-live), which controls how long
+/// approved staging remains valid (configured via `default_presence_cache_ttl_hours`).
 pub const DEFAULT_STAGING_TIMEOUT_SECONDS: u64 = 30;
+
+/// Fetches world settings with graceful fallback to defaults.
+///
+/// Returns `AppSettings::default()` if:
+/// - No world-specific settings exist (Ok(None))
+/// - Settings fetch fails (logs warning and uses defaults)
+///
+/// This ensures staging operations never fail due to settings unavailability.
+async fn get_settings_with_fallback(
+    settings: &dyn SettingsRepo,
+    world_id: WorldId,
+    operation: &str,
+) -> wrldbldr_domain::AppSettings {
+    match settings.get_for_world(world_id).await {
+        Ok(Some(s)) => s,
+        Ok(None) => wrldbldr_domain::AppSettings::default(),
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                world_id = %world_id,
+                "Failed to load world settings for {}, using defaults",
+                operation
+            );
+            wrldbldr_domain::AppSettings::default()
+        }
+    }
+}
 
 /// Container for staging use cases.
 pub struct StagingUseCases {
@@ -89,6 +118,7 @@ pub struct RequestStagingApproval {
     world: Arc<World>,
     flag: Arc<Flag>,
     visual_state: Arc<ResolveVisualState>,
+    settings: Arc<dyn SettingsRepo>,
     llm: Arc<dyn LlmPort>,
 }
 
@@ -100,6 +130,7 @@ impl RequestStagingApproval {
         world: Arc<World>,
         flag: Arc<Flag>,
         visual_state: Arc<ResolveVisualState>,
+        settings: Arc<dyn SettingsRepo>,
         llm: Arc<dyn LlmPort>,
     ) -> Self {
         Self {
@@ -109,6 +140,7 @@ impl RequestStagingApproval {
             world,
             flag,
             visual_state,
+            settings,
             llm,
         }
     }
@@ -139,6 +171,9 @@ impl RequestStagingApproval {
             .await?
             .ok_or(StagingError::WorldNotFound)?;
         let now = world.game_time.current();
+
+        let settings =
+            get_settings_with_fallback(self.settings.as_ref(), input.world_id, "staging").await;
 
         let location_name = self
             .location
@@ -199,7 +234,7 @@ impl RequestStagingApproval {
             previous_staging,
             rule_based_npcs,
             llm_based_npcs,
-            default_ttl_hours: 24,
+            default_ttl_hours: settings.default_presence_cache_ttl_hours,
             waiting_pcs: vec![WaitingPcInfo {
                 pc_id: input.pc.id.to_string(),
                 pc_name: input.pc.name.clone(),
@@ -908,6 +943,12 @@ async fn generate_llm_based_suggestions(
     suggestions
 }
 
+/// Normalizes a name for matching by trimming whitespace, converting to lowercase,
+/// and collapsing multiple consecutive whitespace characters into single spaces.
+fn normalize_name(name: &str) -> String {
+    name.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+}
+
 fn parse_llm_staging_response(
     content: &str,
     candidates: &[crate::infrastructure::ports::NpcWithRegionInfo],
@@ -943,7 +984,7 @@ fn parse_llm_staging_response(
         .filter_map(|suggestion| {
             let npc = candidates
                 .iter()
-                .find(|c| c.name.to_lowercase() == suggestion.name.to_lowercase())?;
+                .find(|c| normalize_name(&c.name) == normalize_name(&suggestion.name))?;
 
             Some(StagedNpcInfo {
                 character_id: npc.character_id.to_string(),
@@ -967,6 +1008,7 @@ pub struct AutoApproveStagingTimeout {
     location: Arc<Location>,
     location_state: Arc<LocationStateEntity>,
     region_state: Arc<RegionStateEntity>,
+    settings: Arc<dyn SettingsRepo>,
 }
 
 impl AutoApproveStagingTimeout {
@@ -977,6 +1019,7 @@ impl AutoApproveStagingTimeout {
         location: Arc<Location>,
         location_state: Arc<LocationStateEntity>,
         region_state: Arc<RegionStateEntity>,
+        settings: Arc<dyn SettingsRepo>,
     ) -> Self {
         Self {
             character,
@@ -985,6 +1028,7 @@ impl AutoApproveStagingTimeout {
             location,
             location_state,
             region_state,
+            settings,
         }
     }
 
@@ -994,6 +1038,10 @@ impl AutoApproveStagingTimeout {
         request_id: String,
         pending: PendingStagingRequest,
     ) -> Result<StagingReadyPayload, StagingError> {
+        let settings =
+            get_settings_with_fallback(self.settings.as_ref(), pending.world_id, "auto-approval")
+                .await;
+
         // Generate rule-based NPC suggestions
         let rule_based_npcs =
             generate_rule_based_suggestions(&self.character, &self.staging, pending.region_id)
@@ -1016,10 +1064,7 @@ impl AutoApproveStagingTimeout {
             location_id: Some(pending.location_id),
             world_id: pending.world_id,
             approved_by: "system".to_string(),
-            // TODO: This hardcoded 24-hour TTL should come from world settings or location defaults.
-            // Consider adding a `default_staging_ttl_hours` field to WorldSettings or Location
-            // and fetching it here instead of using a magic number.
-            ttl_hours: 24,
+            ttl_hours: settings.default_presence_cache_ttl_hours,
             source: StagingSource::AutoApproved,
             approved_npcs,
             location_state_id: None,
@@ -1046,5 +1091,63 @@ impl AutoApproveStagingTimeout {
         );
 
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_name_trims_whitespace() {
+        assert_eq!(normalize_name("  John Smith  "), "john smith");
+    }
+
+    #[test]
+    fn normalize_name_collapses_multiple_spaces() {
+        assert_eq!(normalize_name("John    Smith"), "john smith");
+    }
+
+    #[test]
+    fn normalize_name_handles_tabs_and_newlines() {
+        assert_eq!(normalize_name("John\t\nSmith"), "john smith");
+    }
+
+    #[test]
+    fn normalize_name_lowercases() {
+        assert_eq!(normalize_name("JOHN SMITH"), "john smith");
+    }
+
+    #[test]
+    fn normalize_name_combined() {
+        assert_eq!(
+            normalize_name("  Marcus   the   Bartender  "),
+            "marcus the bartender"
+        );
+    }
+
+    #[test]
+    fn normalize_name_empty_string() {
+        assert_eq!(normalize_name(""), "");
+    }
+
+    #[test]
+    fn normalize_name_whitespace_only() {
+        assert_eq!(normalize_name("   \t\n   "), "");
+    }
+
+    #[test]
+    fn normalize_name_unicode_characters() {
+        // Unicode letters should be preserved, only lowercased
+        assert_eq!(normalize_name("José García"), "josé garcía");
+        assert_eq!(normalize_name("Müller"), "müller");
+        assert_eq!(normalize_name("北京"), "北京"); // Non-Latin scripts preserved
+    }
+
+    #[test]
+    fn normalize_name_unicode_whitespace() {
+        // Various unicode whitespace characters should be normalized
+        assert_eq!(normalize_name("John\u{00A0}Smith"), "john smith"); // Non-breaking space
+        assert_eq!(normalize_name("John\u{2003}Smith"), "john smith"); // Em space
     }
 }

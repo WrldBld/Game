@@ -750,6 +750,7 @@ pub(crate) fn build_test_app_with_ports(
             world.clone(),
             flag.clone(),
             visual_state_uc.resolve.clone(),
+            settings_repo.clone(),
             llm.clone(),
         )),
         Arc::new(
@@ -774,8 +775,12 @@ pub(crate) fn build_test_app_with_ports(
             location.clone(),
             location_state.clone(),
             region_state.clone(),
+            settings_repo.clone(),
         )),
     );
+
+    // Create settings ops for SettingsUseCases
+    let settings_ops = Arc::new(crate::use_cases::settings::SettingsOps::new(settings_repo.clone()));
 
     let npc_uc = crate::use_cases::NpcUseCases::new(
         Arc::new(crate::use_cases::npc::NpcDisposition::new(
@@ -843,9 +848,7 @@ pub(crate) fn build_test_app_with_ports(
         crate::use_cases::management::SkillCrud::new(skill.clone()),
     );
 
-    let settings = crate::use_cases::SettingsUseCases::new(Arc::new(
-        crate::use_cases::settings::SettingsOps::new(settings_repo),
-    ));
+    let settings = crate::use_cases::SettingsUseCases::new(settings_ops);
 
     let join_world = Arc::new(crate::use_cases::session::JoinWorld::new(
         world.clone(),

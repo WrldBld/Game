@@ -373,6 +373,7 @@ impl App {
                 world.clone(),
                 flag.clone(),
                 visual_state_uc.resolve.clone(),
+                settings_repo.clone(),
                 llm.clone(),
             )),
             Arc::new(use_cases::staging::RegenerateStagingSuggestions::new(
@@ -395,8 +396,12 @@ impl App {
                 location.clone(),
                 location_state.clone(),
                 region_state.clone(),
+                settings_repo.clone(),
             )),
         );
+
+        // Create settings ops for SettingsUseCases
+        let settings_ops = Arc::new(use_cases::settings::SettingsOps::new(settings_repo.clone()));
 
         let npc_uc = use_cases::NpcUseCases::new(
             Arc::new(use_cases::npc::NpcDisposition::new(
@@ -459,9 +464,7 @@ impl App {
             use_cases::management::SkillCrud::new(skill.clone()),
         );
 
-        let settings = use_cases::SettingsUseCases::new(Arc::new(
-            use_cases::settings::SettingsOps::new(settings_repo),
-        ));
+        let settings = use_cases::SettingsUseCases::new(settings_ops);
 
         let join_world = Arc::new(use_cases::session::JoinWorld::new(
             world.clone(),

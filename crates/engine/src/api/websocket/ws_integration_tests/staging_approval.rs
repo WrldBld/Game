@@ -176,6 +176,12 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         .expect_list_in_region()
         .returning(|_| Ok(vec![]));
 
+    // Settings: return defaults (default_presence_cache_ttl_hours = 3)
+    repos
+        .settings_repo
+        .expect_get_for_world()
+        .returning(|_| Ok(Some(wrldbldr_domain::AppSettings::default())));
+
     // Staging approval persists full per-NPC info (including hidden flags).
     let region_id_for_staging = region_id;
     let location_id_for_staging = location_id;
@@ -189,7 +195,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
             s.region_id == region_id_for_staging
                 && s.location_id == location_id_for_staging
                 && s.world_id == world_id_for_staging
-                && s.ttl_hours == 24
+                && s.ttl_hours == 24 // DM-specified TTL (overrides default from settings)
                 && s.npcs.iter().any(|n| {
                     n.character_id == visible_npc_id_for_staging
                         && n.is_present
@@ -360,4 +366,269 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     }
 
     server.abort();
+}
+
+/// Tests that AutoApproveStagingTimeout uses world settings for TTL
+/// and falls back to defaults when settings cannot be loaded.
+#[tokio::test]
+async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
+    use wrldbldr_domain::TimeMode;
+
+    let now = chrono::Utc::now();
+
+    let world_id = WorldId::new();
+    let location_id = LocationId::new();
+    let region_id = RegionId::new();
+
+    // World (manual time)
+    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+    world.id = world_id;
+    world.set_time_mode(TimeMode::Manual, now);
+
+    // Domain fixtures
+    let mut location = wrldbldr_domain::Location::new(
+        world_id,
+        "Test Location",
+        wrldbldr_domain::LocationType::Exterior,
+    );
+    location.id = location_id;
+
+    let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");
+    region.id = region_id;
+
+    // Custom settings with non-default TTL (7 hours instead of default 3)
+    let mut custom_settings = wrldbldr_domain::AppSettings::default();
+    custom_settings.default_presence_cache_ttl_hours = 7;
+
+    // World repo
+    let mut world_repo = MockWorldRepo::new();
+    let world_for_get = world.clone();
+    world_repo
+        .expect_get()
+        .returning(move |_| Ok(Some(world_for_get.clone())));
+    world_repo.expect_save().returning(|_world| Ok(()));
+
+    let mut repos = TestAppRepos::new(world_repo);
+
+    // Location repo
+    let region_for_get = region.clone();
+    repos
+        .location_repo
+        .expect_get_region()
+        .returning(move |_| Ok(Some(region_for_get.clone())));
+
+    let location_for_get = location.clone();
+    repos
+        .location_repo
+        .expect_get_location()
+        .returning(move |_| Ok(Some(location_for_get.clone())));
+
+    // Settings repo: return custom settings with TTL of 7 hours
+    let custom_settings_for_get = custom_settings.clone();
+    repos
+        .settings_repo
+        .expect_get_for_world()
+        .returning(move |_| Ok(Some(custom_settings_for_get.clone())));
+
+    // Staging repo: no active staging, no staged NPCs
+    repos
+        .staging_repo
+        .expect_get_active_staging()
+        .returning(|_, _| Ok(None));
+    repos
+        .staging_repo
+        .expect_get_staged_npcs()
+        .returning(|_| Ok(vec![]));
+
+    // Verify that save_pending_staging is called with TTL from settings (7 hours)
+    let region_id_for_staging = region_id;
+    let location_id_for_staging = location_id;
+    let world_id_for_staging = world_id;
+    repos
+        .staging_repo
+        .expect_save_pending_staging()
+        .withf(move |s| {
+            s.region_id == region_id_for_staging
+                && s.location_id == location_id_for_staging
+                && s.world_id == world_id_for_staging
+                && s.ttl_hours == 7 // Custom TTL from settings (not default 3)
+                && s.source == wrldbldr_domain::StagingSource::AutoApproved
+        })
+        .returning(|_| Ok(()));
+
+    repos
+        .staging_repo
+        .expect_activate_staging()
+        .returning(|_, _| Ok(()));
+
+    // Character repo: no NPCs for rule-based suggestions
+    repos
+        .character_repo
+        .expect_get_npcs_for_region()
+        .returning(|_| Ok(vec![]));
+
+    // Location state and region state repos
+    repos
+        .location_state_repo
+        .expect_get_active()
+        .returning(|_| Ok(None));
+    repos
+        .region_state_repo
+        .expect_get_active()
+        .returning(|_| Ok(None));
+
+    let app = build_test_app(repos, now);
+
+    // Create a pending staging request
+    let pending = crate::use_cases::staging::PendingStagingRequest {
+        region_id,
+        location_id,
+        world_id,
+        created_at: now,
+    };
+
+    // Execute auto-approval timeout
+    let result = app
+        .use_cases
+        .staging
+        .auto_approve_timeout
+        .execute("test-request-id".to_string(), pending)
+        .await;
+
+    assert!(result.is_ok(), "Auto-approval should succeed");
+
+    let payload = result.unwrap();
+    assert_eq!(payload.region_id, region_id);
+    // No NPCs should be present since we didn't set up any rule-based NPCs
+    assert!(payload.npcs_present.is_empty());
+}
+
+/// Tests that AutoApproveStagingTimeout falls back to default settings
+/// when settings fetch fails (verifies graceful degradation).
+#[tokio::test]
+async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error() {
+    use wrldbldr_domain::TimeMode;
+
+    let now = chrono::Utc::now();
+
+    let world_id = WorldId::new();
+    let location_id = LocationId::new();
+    let region_id = RegionId::new();
+
+    // World (manual time)
+    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+    world.id = world_id;
+    world.set_time_mode(TimeMode::Manual, now);
+
+    // Domain fixtures
+    let mut location = wrldbldr_domain::Location::new(
+        world_id,
+        "Test Location",
+        wrldbldr_domain::LocationType::Exterior,
+    );
+    location.id = location_id;
+
+    let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");
+    region.id = region_id;
+
+    // World repo
+    let mut world_repo = MockWorldRepo::new();
+    let world_for_get = world.clone();
+    world_repo
+        .expect_get()
+        .returning(move |_| Ok(Some(world_for_get.clone())));
+    world_repo.expect_save().returning(|_world| Ok(()));
+
+    let mut repos = TestAppRepos::new(world_repo);
+
+    // Location repo
+    let region_for_get = region.clone();
+    repos
+        .location_repo
+        .expect_get_region()
+        .returning(move |_| Ok(Some(region_for_get.clone())));
+
+    let location_for_get = location.clone();
+    repos
+        .location_repo
+        .expect_get_location()
+        .returning(move |_| Ok(Some(location_for_get.clone())));
+
+    // Settings repo: simulate error (settings unavailable)
+    repos
+        .settings_repo
+        .expect_get_for_world()
+        .returning(|_| Err(crate::infrastructure::ports::RepoError::NotFound));
+
+    // Staging repo
+    repos
+        .staging_repo
+        .expect_get_active_staging()
+        .returning(|_, _| Ok(None));
+    repos
+        .staging_repo
+        .expect_get_staged_npcs()
+        .returning(|_| Ok(vec![]));
+
+    // Verify that save_pending_staging is called with DEFAULT TTL (3 hours)
+    // since settings fetch failed and we fall back to AppSettings::default()
+    let region_id_for_staging = region_id;
+    let location_id_for_staging = location_id;
+    let world_id_for_staging = world_id;
+    repos
+        .staging_repo
+        .expect_save_pending_staging()
+        .withf(move |s| {
+            s.region_id == region_id_for_staging
+                && s.location_id == location_id_for_staging
+                && s.world_id == world_id_for_staging
+                && s.ttl_hours == 3 // Default TTL (settings fetch failed)
+                && s.source == wrldbldr_domain::StagingSource::AutoApproved
+        })
+        .returning(|_| Ok(()));
+
+    repos
+        .staging_repo
+        .expect_activate_staging()
+        .returning(|_, _| Ok(()));
+
+    // Character repo: no NPCs
+    repos
+        .character_repo
+        .expect_get_npcs_for_region()
+        .returning(|_| Ok(vec![]));
+
+    // Location state and region state repos
+    repos
+        .location_state_repo
+        .expect_get_active()
+        .returning(|_| Ok(None));
+    repos
+        .region_state_repo
+        .expect_get_active()
+        .returning(|_| Ok(None));
+
+    let app = build_test_app(repos, now);
+
+    // Create a pending staging request
+    let pending = crate::use_cases::staging::PendingStagingRequest {
+        region_id,
+        location_id,
+        world_id,
+        created_at: now,
+    };
+
+    // Execute auto-approval timeout - should succeed despite settings error
+    let result = app
+        .use_cases
+        .staging
+        .auto_approve_timeout
+        .execute("test-request-id".to_string(), pending)
+        .await;
+
+    // Auto-approval should succeed even when settings fetch fails
+    assert!(
+        result.is_ok(),
+        "Auto-approval should succeed with default settings fallback"
+    );
 }
