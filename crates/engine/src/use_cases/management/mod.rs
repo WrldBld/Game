@@ -592,12 +592,81 @@ impl LocationCrud {
         description: Option<String>,
         bidirectional: Option<bool>,
     ) -> Result<(), ManagementError> {
+        let is_bidirectional = bidirectional.unwrap_or(true);
+
+        // Validate source region exists
+        let source_region = self
+            .location
+            .get_region(region_id)
+            .await?
+            .ok_or_else(|| {
+                ManagementError::InvalidInput(format!(
+                    "Source region {} does not exist",
+                    region_id
+                ))
+            })?;
+
+        // Validate target location exists
+        let target_location = self
+            .location
+            .get(location_id)
+            .await?
+            .ok_or_else(|| {
+                ManagementError::InvalidInput(format!(
+                    "Target location {} does not exist",
+                    location_id
+                ))
+            })?;
+
+        // Validate arrival region exists and is in the target location
+        let arrival_region = self
+            .location
+            .get_region(arrival_region_id)
+            .await?
+            .ok_or_else(|| {
+                ManagementError::InvalidInput(format!(
+                    "Arrival region {} does not exist",
+                    arrival_region_id
+                ))
+            })?;
+
+        if arrival_region.location_id != location_id {
+            return Err(ManagementError::InvalidInput(format!(
+                "Arrival region {} is not in target location {} (it's in {})",
+                arrival_region_id, target_location.name, arrival_region.location_id
+            )));
+        }
+
+        // For bidirectional exits, validate the return path can be created
+        if is_bidirectional {
+            // The return path goes from arrival_region back to source_region's location
+            // We need to ensure source_region's location exists (should always be true if source_region exists)
+            let source_location = self
+                .location
+                .get(source_region.location_id)
+                .await?
+                .ok_or_else(|| {
+                    ManagementError::InvalidInput(format!(
+                        "Source region's location {} does not exist (data integrity issue)",
+                        source_region.location_id
+                    ))
+                })?;
+
+            tracing::debug!(
+                from_region = %region_id,
+                to_location = %target_location.name,
+                arrival_region = %arrival_region.name,
+                return_location = %source_location.name,
+                "Creating bidirectional exit with validated return path"
+            );
+        }
+
         let exit = wrldbldr_domain::RegionExit {
             from_region: region_id,
             to_location: location_id,
             arrival_region_id,
             description,
-            bidirectional: bidirectional.unwrap_or(true),
+            bidirectional: is_bidirectional,
         };
         self.location.save_region_exit(&exit).await?;
         Ok(())
