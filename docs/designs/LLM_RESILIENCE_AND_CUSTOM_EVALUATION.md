@@ -52,9 +52,9 @@ The LLM integration (`OllamaClient`) has basic error handling that returns error
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Phase 1: Exponential Backoff (This PR)
+### Phase 1: Exponential Backoff (Issue #10 - Not yet implemented)
 
-**Implementation in `infrastructure/llm/resilient_client.rs`:**
+**Proposed implementation in `infrastructure/llm/resilient_client.rs`:**
 
 ```rust
 pub struct RetryConfig {
@@ -362,6 +362,22 @@ pub enum TriggerCondition {
 }
 ```
 
+> **Current State:** `SceneCondition::Custom(String)` and `NarrativeTriggerType::Custom`
+> exist in the codebase but always return false/unmet. See `scene.rs:306-317` and
+> `narrative_event.rs:656-677` for `KNOWN LIMITATION` comments. This design proposes
+> migrating from `Custom(String)` to `Custom(CustomConditionId)` with full LLM evaluation.
+
+### Migration Strategy
+
+The current `Custom(String)` variant will be migrated to `Custom(CustomConditionId)`:
+
+1. **Phase 1**: Add `CustomCondition` entity to domain with `CustomConditionId` type
+2. **Phase 2**: Create migration that converts existing `Custom(String)` entries to
+   `CustomCondition` entities, using the string as the `description` field
+3. **Phase 3**: Update `SceneCondition` and `NarrativeTriggerType` enums to use
+   `Custom(CustomConditionId)` instead of `Custom(String)`
+4. **Phase 4**: Wire up `CustomConditionEvaluator` to replace the hardcoded `false` returns
+
 ### Caching Strategy
 
 To avoid repeated LLM calls for the same condition:
@@ -410,12 +426,16 @@ Cache invalidation triggers:
 
 ## 3. Implementation Phases
 
-### Phase 1: Exponential Backoff (Issue #10 - This PR)
+### Phase 1: Exponential Backoff (Issue #10 - Not yet implemented)
 - [ ] Create `ResilientLlmClient` wrapper
 - [ ] Implement retry logic with exponential backoff
 - [ ] Add configuration to `AppSettings`
 - [ ] Update `LlmPort` usage to use resilient wrapper
 - [ ] Add metrics/logging for retry attempts
+
+> **Note:** `AppSettings` already contains `circuit_breaker_failure_threshold` and
+> `circuit_breaker_open_duration_secs` fields (with defaults 5 and 60), but
+> these are not yet wired to any implementation.
 
 ### Phase 2: Circuit Breaker (New Issue)
 - [ ] Implement `CircuitBreaker` with state machine
