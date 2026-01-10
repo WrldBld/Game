@@ -64,6 +64,10 @@ async fn main() -> anyhow::Result<()> {
     // Connect to Neo4j
     tracing::info!("Connecting to Neo4j at {}", neo4j_uri);
     let graph = neo4rs::Graph::new(&neo4j_uri, &neo4j_user, &neo4j_pass).await?;
+
+    // Ensure database schema (constraints and indexes)
+    infrastructure::neo4j::ensure_schema(&graph).await?;
+
     let repos = Neo4jRepositories::new(graph, clock.clone());
 
     // Create infrastructure clients

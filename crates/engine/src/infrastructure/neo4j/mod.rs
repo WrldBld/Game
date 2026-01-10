@@ -6,6 +6,9 @@ use std::sync::Arc;
 use crate::infrastructure::ports::ClockPort;
 
 mod helpers;
+mod schema;
+
+pub use schema::ensure_schema;
 
 mod act_repo;
 mod asset_repo;

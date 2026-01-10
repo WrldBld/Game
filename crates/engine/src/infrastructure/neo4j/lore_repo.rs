@@ -1,4 +1,8 @@
 //! Neo4j lore repository implementation.
+//!
+//! Lore chunks are stored as separate `:LoreChunk` nodes with a relationship
+//! `(Lore)-[:HAS_CHUNK]->(LoreChunk)`. A unique constraint on `lore_order_key`
+//! (composite of lore_id + order) enforces order uniqueness at the database level.
 
 use std::sync::Arc;
 
@@ -20,7 +24,58 @@ impl Neo4jLoreRepo {
         Self { graph, clock }
     }
 
-    fn row_to_lore(&self, row: Row) -> Result<Lore, RepoError> {
+    /// Fetch chunks for a lore entry from the database.
+    async fn fetch_chunks(&self, lore_id: LoreId) -> Result<Vec<LoreChunk>, RepoError> {
+        let q = query(
+            "MATCH (l:Lore {id: $lore_id})-[:HAS_CHUNK]->(c:LoreChunk)
+             RETURN c ORDER BY c.order",
+        )
+        .param("lore_id", lore_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let mut chunks = Vec::new();
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            chunks.push(self.row_to_chunk(row)?);
+        }
+
+        Ok(chunks)
+    }
+
+    fn row_to_chunk(&self, row: Row) -> Result<LoreChunk, RepoError> {
+        let node: neo4rs::Node = row
+            .get("c")
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let id: LoreChunkId =
+            parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+        let order: i64 = node
+            .get("order")
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+        let content: String = node
+            .get("content")
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+        let title: Option<String> = node.get_optional_string("title");
+        let discovery_hint: Option<String> = node.get_optional_string("discovery_hint");
+
+        Ok(LoreChunk {
+            id,
+            order: order as u32,
+            title,
+            content,
+            discovery_hint,
+        })
+    }
+
+    fn row_to_lore_without_chunks(&self, row: Row) -> Result<Lore, RepoError> {
         let node: neo4rs::Node = row
             .get("l")
             .map_err(|e| RepoError::Database(e.to_string()))?;
@@ -40,12 +95,6 @@ impl Neo4jLoreRepo {
         let created_at = node.get_datetime_or("created_at", fallback);
         let updated_at = node.get_datetime_or("updated_at", fallback);
 
-        // Parse chunks from JSON
-        let chunks: Vec<LoreChunk> = node
-            .get_optional_string("chunks")
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default();
-
         // Parse tags from JSON
         let tags: Vec<String> = node
             .get_optional_string("tags")
@@ -58,12 +107,18 @@ impl Neo4jLoreRepo {
             title,
             summary,
             category,
-            chunks,
+            chunks: Vec::new(), // Will be populated separately
             is_common_knowledge,
             tags,
             created_at,
             updated_at,
         })
+    }
+
+    async fn row_to_lore(&self, row: Row) -> Result<Lore, RepoError> {
+        let mut lore = self.row_to_lore_without_chunks(row)?;
+        lore.chunks = self.fetch_chunks(lore.id).await?;
+        Ok(lore)
     }
 
     fn row_to_knowledge(&self, row: Row) -> Result<LoreKnowledge, RepoError> {
@@ -109,6 +164,11 @@ impl Neo4jLoreRepo {
             notes,
         })
     }
+
+    /// Create composite key for chunk order uniqueness constraint.
+    fn make_lore_order_key(lore_id: &LoreId, order: u32) -> String {
+        format!("{}_{}", lore_id, order)
+    }
 }
 
 #[async_trait]
@@ -127,25 +187,23 @@ impl LoreRepo for Neo4jLoreRepo {
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?
         {
-            Ok(Some(self.row_to_lore(row)?))
+            Ok(Some(self.row_to_lore(row).await?))
         } else {
             Ok(None)
         }
     }
 
     async fn save(&self, lore: &Lore) -> Result<(), RepoError> {
-        let chunks_json = serde_json::to_string(&lore.chunks)
-            .map_err(|e| RepoError::Serialization(e.to_string()))?;
         let tags_json = serde_json::to_string(&lore.tags)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
+        // Save the Lore node (without chunks - they're separate nodes now)
         let q = query(
             "MERGE (l:Lore {id: $id})
             SET l.world_id = $world_id,
                 l.title = $title,
                 l.summary = $summary,
                 l.category = $category,
-                l.chunks = $chunks,
                 l.is_common_knowledge = $is_common_knowledge,
                 l.tags = $tags,
                 l.created_at = $created_at,
@@ -160,7 +218,6 @@ impl LoreRepo for Neo4jLoreRepo {
         .param("title", lore.title.clone())
         .param("summary", lore.summary.clone())
         .param("category", lore.category.to_string())
-        .param("chunks", chunks_json)
         .param("is_common_knowledge", lore.is_common_knowledge)
         .param("tags", tags_json)
         .param("created_at", lore.created_at.to_rfc3339())
@@ -171,14 +228,78 @@ impl LoreRepo for Neo4jLoreRepo {
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
-        tracing::debug!("Saved lore: {}", lore.title);
+        // Get existing chunk IDs to determine what to delete
+        let existing_chunks = self.fetch_chunks(lore.id).await?;
+        let existing_ids: std::collections::HashSet<_> =
+            existing_chunks.iter().map(|c| c.id).collect();
+        let new_ids: std::collections::HashSet<_> = lore.chunks.iter().map(|c| c.id).collect();
+
+        // Delete chunks that are no longer in the lore
+        let to_delete: Vec<_> = existing_ids.difference(&new_ids).collect();
+        for chunk_id in to_delete {
+            let del_q = query(
+                "MATCH (c:LoreChunk {id: $chunk_id})
+                 DETACH DELETE c",
+            )
+            .param("chunk_id", chunk_id.to_string());
+
+            self.graph
+                .run(del_q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+        }
+
+        // Upsert each chunk as a separate node
+        for chunk in &lore.chunks {
+            let lore_order_key = Self::make_lore_order_key(&lore.id, chunk.order);
+
+            let chunk_q = query(
+                "MATCH (l:Lore {id: $lore_id})
+                 MERGE (c:LoreChunk {id: $chunk_id})
+                 SET c.lore_id = $lore_id,
+                     c.order = $order,
+                     c.lore_order_key = $lore_order_key,
+                     c.title = $title,
+                     c.content = $content,
+                     c.discovery_hint = $discovery_hint
+                 MERGE (l)-[:HAS_CHUNK]->(c)
+                 RETURN c.id as id",
+            )
+            .param("lore_id", lore.id.to_string())
+            .param("chunk_id", chunk.id.to_string())
+            .param("order", chunk.order as i64)
+            .param("lore_order_key", lore_order_key)
+            .param("title", chunk.title.clone().unwrap_or_default())
+            .param("content", chunk.content.clone())
+            .param(
+                "discovery_hint",
+                chunk.discovery_hint.clone().unwrap_or_default(),
+            );
+
+            self.graph.run(chunk_q).await.map_err(|e| {
+                // Check for constraint violation
+                let msg = e.to_string();
+                if msg.contains("already exists") || msg.contains("ConstraintValidation") {
+                    RepoError::ConstraintViolation(format!(
+                        "Duplicate chunk order {} for lore {}",
+                        chunk.order, lore.id
+                    ))
+                } else {
+                    RepoError::Database(msg)
+                }
+            })?;
+        }
+
+        tracing::debug!("Saved lore: {} with {} chunks", lore.title, lore.chunks.len());
         Ok(())
     }
 
     async fn delete(&self, id: LoreId) -> Result<(), RepoError> {
+        // Delete all chunks first, then the lore
         let q = query(
             "MATCH (l:Lore {id: $id})
-            DETACH DELETE l",
+             OPTIONAL MATCH (l)-[:HAS_CHUNK]->(c:LoreChunk)
+             DETACH DELETE c, l",
         )
         .param("id", id.to_string());
 
@@ -210,7 +331,7 @@ impl LoreRepo for Neo4jLoreRepo {
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?
         {
-            lore_entries.push(self.row_to_lore(row)?);
+            lore_entries.push(self.row_to_lore(row).await?);
         }
 
         Ok(lore_entries)
@@ -240,7 +361,7 @@ impl LoreRepo for Neo4jLoreRepo {
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?
         {
-            lore_entries.push(self.row_to_lore(row)?);
+            lore_entries.push(self.row_to_lore(row).await?);
         }
 
         Ok(lore_entries)
@@ -265,7 +386,7 @@ impl LoreRepo for Neo4jLoreRepo {
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?
         {
-            lore_entries.push(self.row_to_lore(row)?);
+            lore_entries.push(self.row_to_lore(row).await?);
         }
 
         Ok(lore_entries)
@@ -318,7 +439,7 @@ impl LoreRepo for Neo4jLoreRepo {
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?
         {
-            lore_entries.push(self.row_to_lore(row)?);
+            lore_entries.push(self.row_to_lore(row).await?);
         }
 
         Ok(lore_entries)
@@ -548,5 +669,88 @@ impl LoreRepo for Neo4jLoreRepo {
             lore_id
         );
         Ok(())
+    }
+
+    async fn remove_chunks_from_knowledge(
+        &self,
+        character_id: CharacterId,
+        lore_id: LoreId,
+        chunk_ids: &[LoreChunkId],
+    ) -> Result<bool, RepoError> {
+        if chunk_ids.is_empty() {
+            return Ok(false);
+        }
+
+        // First, fetch the current known_chunk_ids (stored as JSON string)
+        let fetch_q = query(
+            "MATCH (c:Character {id: $character_id})-[k:KNOWS_LORE]->(l:Lore {id: $lore_id})
+            RETURN k.known_chunk_ids as known_chunk_ids",
+        )
+        .param("character_id", character_id.to_string())
+        .param("lore_id", lore_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(fetch_q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let current_chunks: Vec<LoreChunkId> = if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let json_str: String = row
+                .get("known_chunk_ids")
+                .unwrap_or_else(|_| "[]".to_string());
+            serde_json::from_str(&json_str).unwrap_or_default()
+        } else {
+            // No knowledge relationship exists
+            return Ok(false);
+        };
+
+        // Remove specified chunks
+        let remaining: Vec<LoreChunkId> = current_chunks
+            .into_iter()
+            .filter(|id| !chunk_ids.contains(id))
+            .collect();
+
+        // If no chunks remain, delete the relationship entirely
+        if remaining.is_empty() {
+            self.revoke_knowledge(character_id, lore_id).await?;
+            tracing::debug!(
+                "Removed all chunks from character {} knowledge of lore {}, relationship deleted",
+                character_id,
+                lore_id
+            );
+            return Ok(true);
+        }
+
+        // Otherwise, update with remaining chunks
+        let remaining_json = serde_json::to_string(&remaining)
+            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+
+        let update_q = query(
+            "MATCH (c:Character {id: $character_id})-[k:KNOWS_LORE]->(l:Lore {id: $lore_id})
+            SET k.known_chunk_ids = $known_chunk_ids
+            RETURN c.id as character_id",
+        )
+        .param("character_id", character_id.to_string())
+        .param("lore_id", lore_id.to_string())
+        .param("known_chunk_ids", remaining_json);
+
+        self.graph
+            .run(update_q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!(
+            "Removed {} chunks from character {} knowledge of lore {}, {} chunks remaining",
+            chunk_ids.len(),
+            character_id,
+            lore_id,
+            remaining.len()
+        );
+        Ok(false)
     }
 }

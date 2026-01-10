@@ -1,9 +1,9 @@
 # Issue Triage and Implementation Plan
 
 **Date:** 2026-01-10
-**Updated:** 2026-01-10 (post PR #31, #32, #33 merge)
-**Total Open Issues:** 16 (down from 22)
-**Closed This Session:** #12, #13, #14, #17, #18, #19
+**Updated:** 2026-01-10 (post PR #36 merge)
+**Total Open Issues:** 14 (down from 22)
+**Closed This Session:** #9, #11, #12, #13, #14, #17, #18, #19, #35
 
 ## Current Status
 
@@ -13,17 +13,17 @@
 | #31 | #12, #14 | Merged - Challenge & Narrative fixes |
 | #32 | #13 | Merged - Conversation test coverage |
 | #33 | #17, #18, #19 | Merged - Navigation error handling |
+| #34 | #9, #11 | Merged - Staging TTL config & name normalization |
+| #36 | #35 | Merged - Entity wrapper refactoring (Settings/Inventory) |
 
 ---
 
 ## Remaining Issues by Category
 
-### Category A: Addressable Now (7 issues)
+### Category A: Addressable Now (5 issues)
 
 | Issue | Title | Type | Complexity |
 |-------|-------|------|------------|
-| #9 | Make staging TTL values configurable | Enhancement | Small |
-| #11 | Fix name mismatch in LLM NPC matching | Bug | Small |
 | #15 | Add lore chunk order validation | Enhancement | Medium |
 | #16 | Implement partial lore knowledge revocation | Enhancement | Medium |
 | #20 | Store featured character role properly | Enhancement | Medium |
@@ -53,27 +53,7 @@
 
 ## Recommended PR Groupings
 
-### PR Group 1: Staging System Improvements (#9, #11)
-**Effort:** Small-Medium
-**Theme:** Configuration and NPC matching bug fix
-
-| Issue | Summary | Files |
-|-------|---------|-------|
-| #9 | Replace hardcoded 30s timeout and 24h TTL with settings | `staging/mod.rs:32,202,1022` |
-| #11 | Add whitespace normalization to LLM NPC name matching | `staging/mod.rs:946` |
-
-**Implementation Details:**
-
-**#9 - TTL Configuration:**
-- Settings already exist: `staging_timeout_seconds` (line 119), `default_presence_cache_ttl_hours` (line 110)
-- Replace `DEFAULT_STAGING_TIMEOUT_SECONDS` constant usage
-- Replace hardcoded `24` in `default_ttl_hours` and `ttl_hours`
-- Fetch from world settings in `RequestStagingApproval` and `AutoApproveStagingTimeout`
-
-**#11 - Name Normalization:**
-- Current: `c.name.to_lowercase() == suggestion.name.to_lowercase()`
-- Fix: Add normalize function: `trim().to_lowercase().split_whitespace().collect::<Vec<_>>().join(" ")`
-- Handles: extra spaces, leading/trailing whitespace, multiple consecutive spaces
+### ~~PR Group 1: Staging System Improvements (#9, #11)~~ ✅ COMPLETED in PR #34
 
 ---
 
@@ -145,26 +125,15 @@
 
 ## Recommended Implementation Order
 
-### Next PR: Staging System Improvements (#9, #11)
-**Rationale:**
-- Smallest scope, highest confidence
-- #11 is a bug fix (higher priority)
-- Settings infrastructure already exists
-- Isolated changes, low risk
+### ~~PR 1: Staging System Improvements (#9, #11)~~ ✅ COMPLETED in PR #34
 
-### Then: TimeContext Integration (#23)
+### Next PR: TimeContext + Lore Improvements (#23, #15, #16)
 **Rationale:**
-- Small, isolated change
-- Enables time-based triggers to work
-- Infrastructure already exists
+- #23 is small, isolated change - enables time-based triggers
+- #15, #16 are medium complexity but independent from other systems
+- Grouping these creates a cohesive "system improvements" PR
 
-### Then: Lore System Improvements (#15, #16)
-**Rationale:**
-- Medium complexity
-- Independent from other systems
-- Improves API consistency
-
-### Finally: Visual State Fixes (#20, #21)
+### Then: Visual State Fixes (#20, #21)
 **Rationale:**
 - Most complex of remaining issues
 - #21 needs careful analysis of intentional vs accidental unwrap_or usage
@@ -175,12 +144,12 @@
 
 | Category | Count | Status |
 |----------|-------|--------|
-| A: Addressable Now | 7 | Ready to implement |
+| A: Addressable Now | 5 | Ready to implement |
 | B: Needs Design | 3 | Deferred |
 | C: Major Features | 6 | Blocked |
-| **Total Open** | **16** | **7 ready** |
+| **Total Open** | **14** | **5 ready** |
 
-**Next recommended PR:** #9 + #11 (Staging System Improvements)
-- Small scope
-- Bug fix included (#11)
+**Next recommended PR:** #23 + #15 + #16 (TimeContext + Lore Improvements)
+- Cohesive system improvements
+- Medium scope
 - Clear implementation path
