@@ -116,6 +116,8 @@ pub enum SceneCondition {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SceneCharacter {
+    /// The character's ID
+    pub character_id: CharacterId,
     /// The character's role in this scene
     pub role: SceneCharacterRole,
     /// When/how the character enters the scene
@@ -123,8 +125,9 @@ pub struct SceneCharacter {
 }
 
 impl SceneCharacter {
-    pub fn new(role: SceneCharacterRole) -> Self {
+    pub fn new(character_id: CharacterId, role: SceneCharacterRole) -> Self {
         Self {
+            character_id,
             role,
             entrance_cue: None,
         }

@@ -451,10 +451,10 @@ impl SceneRepo for Neo4jSceneRepo {
     async fn get_featured_characters(
         &self,
         scene_id: SceneId,
-    ) -> Result<Vec<CharacterId>, RepoError> {
+    ) -> Result<Vec<SceneCharacter>, RepoError> {
         let q = query(
-            "MATCH (s:Scene {id: $scene_id})-[:FEATURES_CHARACTER]->(c:Character)
-            RETURN c.id as character_id",
+            "MATCH (s:Scene {id: $scene_id})-[r:FEATURES_CHARACTER]->(c:Character)
+            RETURN c.id as character_id, r.role as role, r.entrance_cue as entrance_cue",
         )
         .param("scene_id", scene_id.to_string());
 
@@ -477,7 +477,27 @@ impl SceneRepo for Neo4jSceneRepo {
                 uuid::Uuid::parse_str(&char_id_str)
                     .map_err(|e| RepoError::Database(e.to_string()))?,
             );
-            characters.push(char_id);
+
+            // Parse role from string, defaulting to Secondary if parsing fails
+            let role_str: String = row.get("role").unwrap_or_else(|_| "Secondary".to_string());
+            let role = role_str
+                .parse::<SceneCharacterRole>()
+                .unwrap_or(SceneCharacterRole::Secondary);
+
+            // Parse entrance_cue, treating empty string as None
+            let entrance_cue: Option<String> = row.get("entrance_cue").ok().and_then(|s: String| {
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
+            });
+
+            characters.push(SceneCharacter {
+                character_id: char_id,
+                role,
+                entrance_cue,
+            });
         }
 
         Ok(characters)
@@ -486,29 +506,50 @@ impl SceneRepo for Neo4jSceneRepo {
     async fn set_featured_characters(
         &self,
         scene_id: SceneId,
-        characters: &[CharacterId],
+        characters: &[SceneCharacter],
     ) -> Result<(), RepoError> {
-        // Delete existing edges and create new ones atomically using UNWIND
-        let char_ids: Vec<String> = characters.iter().map(|id| id.to_string()).collect();
+        // Build parallel arrays for UNWIND
+        let char_ids: Vec<String> = characters
+            .iter()
+            .map(|sc| sc.character_id.to_string())
+            .collect();
+        let roles: Vec<String> = characters.iter().map(|sc| sc.role.to_string()).collect();
+        let entrance_cues: Vec<String> = characters
+            .iter()
+            .map(|sc| sc.entrance_cue.clone().unwrap_or_default())
+            .collect();
 
-        let q = query(
-            "MATCH (s:Scene {id: $scene_id})
-            OPTIONAL MATCH (s)-[old:FEATURES_CHARACTER]->()
-            DELETE old
-            WITH s
-            UNWIND CASE WHEN $char_ids = [] THEN [null] ELSE $char_ids END AS char_id
-            WITH s, char_id WHERE char_id IS NOT NULL
-            MATCH (c:Character {id: char_id})
-            CREATE (s)-[:FEATURES_CHARACTER {role: 'Secondary', entrance_cue: ''}]->(c)
-            RETURN count(*) as created",
+        // Delete existing edges first
+        let delete_q = query(
+            "MATCH (s:Scene {id: $scene_id})-[old:FEATURES_CHARACTER]->()
+            DELETE old",
         )
-        .param("scene_id", scene_id.to_string())
-        .param("char_ids", char_ids);
+        .param("scene_id", scene_id.to_string());
 
         self.graph
-            .run(q)
+            .run(delete_q)
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // Create new edges if there are any characters
+        if !char_ids.is_empty() {
+            let create_q = query(
+                "MATCH (s:Scene {id: $scene_id})
+                UNWIND range(0, size($char_ids) - 1) AS i
+                MATCH (c:Character {id: $char_ids[i]})
+                CREATE (s)-[:FEATURES_CHARACTER {role: $roles[i], entrance_cue: $entrance_cues[i]}]->(c)
+                RETURN count(*) as created",
+            )
+            .param("scene_id", scene_id.to_string())
+            .param("char_ids", char_ids)
+            .param("roles", roles)
+            .param("entrance_cues", entrance_cues);
+
+            self.graph
+                .run(create_q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+        }
 
         tracing::debug!(
             "Set {} featured characters for scene {}",

@@ -427,11 +427,11 @@ pub trait SceneRepo: Send + Sync {
     async fn get_featured_characters(
         &self,
         scene_id: SceneId,
-    ) -> Result<Vec<CharacterId>, RepoError>;
+    ) -> Result<Vec<SceneCharacter>, RepoError>;
     async fn set_featured_characters(
         &self,
         scene_id: SceneId,
-        characters: &[CharacterId],
+        characters: &[SceneCharacter],
     ) -> Result<(), RepoError>;
 
     // Completed scene tracking for scene resolution

@@ -84,7 +84,7 @@ crates/
   domain/       # Pure business types (entities, value objects, typed IDs)
   protocol/     # Wire format for Engine <-> Player communication
   engine/       # All server-side code (entities/, use_cases/, infrastructure/, api/)
-  player-*/     # Client-side code (adapters, app, ports, ui, runner)
+  player/       # All client-side code (Dioxus UI + platform adapters)
 ```
 
 ### What Gets Abstracted (Port Traits)
@@ -118,7 +118,7 @@ Only infrastructure that might realistically be swapped:
 - Use cases orchestrate across entities
 - API handlers call use cases directly
 
-See [SIMPLIFIED_ARCHITECTURE.md](../plans/SIMPLIFIED_ARCHITECTURE.md) for full architecture documentation.
+See [AGENTS.md](../../AGENTS.md) for full architecture documentation.
 
 ---
 

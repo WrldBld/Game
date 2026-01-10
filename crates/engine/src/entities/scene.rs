@@ -128,14 +128,14 @@ impl Scene {
     pub async fn get_featured_characters(
         &self,
         scene_id: SceneId,
-    ) -> Result<Vec<CharacterId>, RepoError> {
+    ) -> Result<Vec<domain::SceneCharacter>, RepoError> {
         self.repo.get_featured_characters(scene_id).await
     }
 
     pub async fn set_featured_characters(
         &self,
         scene_id: SceneId,
-        characters: &[CharacterId],
+        characters: &[domain::SceneCharacter],
     ) -> Result<(), RepoError> {
         self.repo
             .set_featured_characters(scene_id, characters)
