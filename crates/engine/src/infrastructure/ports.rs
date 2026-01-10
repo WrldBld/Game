@@ -25,6 +25,8 @@ pub enum RepoError {
     Database(String),
     #[error("Serialization error: {0}")]
     Serialization(String),
+    #[error("Constraint violation: {0}")]
+    ConstraintViolation(String),
 }
 
 // =============================================================================

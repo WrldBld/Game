@@ -160,11 +160,8 @@ impl LoreOps {
     /// - If `order` is provided, validates it's unique among existing chunks
     /// - If `order` is None, auto-assigns the next sequential value (max + 1)
     ///
-    /// # Known limitation
-    /// The read→validate→write pattern is not atomic. In high-concurrency scenarios,
-    /// two concurrent add_chunk calls could both validate successfully before either
-    /// writes. A database-level unique constraint on (lore_id, order) would be needed
-    /// for strict enforcement. This is acceptable for typical DM-driven usage.
+    /// Order uniqueness is enforced at the database level via a unique constraint
+    /// on the composite key (lore_id, order), preventing race conditions.
     pub async fn add_chunk(
         &self,
         lore_id: LoreId,
