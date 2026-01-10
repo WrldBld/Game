@@ -60,6 +60,12 @@ pub(super) async fn handle_lore_request(
                 Err(crate::use_cases::lore::LoreError::InvalidCategory(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
+                Err(crate::use_cases::lore::LoreError::DuplicateChunkOrder(order)) => {
+                    Ok(ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        format!("Duplicate chunk order: {}", order),
+                    ))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     &e.to_string(),
@@ -138,6 +144,15 @@ pub(super) async fn handle_lore_request(
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(ErrorCode::NotFound, "Lore not found"),
                 }),
+                Err(crate::use_cases::lore::LoreError::DuplicateChunkOrder(order)) => {
+                    Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            format!("Duplicate chunk order: {}", order),
+                        ),
+                    })
+                }
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
@@ -182,6 +197,15 @@ pub(super) async fn handle_lore_request(
                     Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
                         result: ResponseResult::error(ErrorCode::NotFound, "Lore chunk not found"),
+                    })
+                }
+                Err(crate::use_cases::lore::LoreError::DuplicateChunkOrder(order)) => {
+                    Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            format!("Duplicate chunk order: {}", order),
+                        ),
                     })
                 }
                 Err(e) => Err(ServerMessage::Response {
@@ -374,6 +398,12 @@ pub(super) async fn handle_lore_request(
                     Ok(ResponseResult::error(
                         ErrorCode::BadRequest,
                         format!("Invalid chunk IDs: {}", msg),
+                    ))
+                }
+                Err(crate::use_cases::lore::LoreError::EmptyChunkList) => {
+                    Ok(ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        "Empty chunk list provided - omit chunkIds for full revocation",
                     ))
                 }
                 Err(e) => Ok(ResponseResult::error(

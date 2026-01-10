@@ -73,9 +73,32 @@ impl LoreOps {
 
         if let Some(chunks) = data.chunks.as_ref() {
             let mut domain_chunks = Vec::new();
-            for (i, chunk_data) in chunks.iter().enumerate() {
-                let mut chunk = wrldbldr_domain::LoreChunk::new(&chunk_data.content)
-                    .with_order(chunk_data.order.unwrap_or(i as u32));
+            let mut used_orders = std::collections::HashSet::new();
+            let mut next_auto_order = 0u32;
+
+            for chunk_data in chunks.iter() {
+                // Determine order: use provided order or auto-assign next sequential
+                let order = match chunk_data.order {
+                    Some(provided_order) => {
+                        // Validate that the provided order is unique
+                        if used_orders.contains(&provided_order) {
+                            return Err(LoreError::DuplicateChunkOrder(provided_order));
+                        }
+                        provided_order
+                    }
+                    None => {
+                        // Auto-assign next sequential order (skip any already used)
+                        while used_orders.contains(&next_auto_order) {
+                            next_auto_order += 1;
+                        }
+                        next_auto_order
+                    }
+                };
+                used_orders.insert(order);
+                next_auto_order = next_auto_order.max(order + 1);
+
+                let mut chunk =
+                    wrldbldr_domain::LoreChunk::new(&chunk_data.content).with_order(order);
                 if let Some(title) = chunk_data.title.as_ref() {
                     chunk = chunk.with_title(title);
                 }
@@ -301,7 +324,11 @@ impl LoreOps {
         chunk_ids: Option<Vec<LoreChunkId>>,
     ) -> Result<Value, LoreError> {
         match chunk_ids {
-            Some(ids) if !ids.is_empty() => {
+            // Explicit empty list is an error - use None for full revocation
+            Some(ref ids) if ids.is_empty() => {
+                return Err(LoreError::EmptyChunkList);
+            }
+            Some(ids) => {
                 // Validate that the lore exists and chunk IDs are valid
                 let lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
@@ -330,7 +357,7 @@ impl LoreOps {
                     "relationshipDeleted": fully_revoked,
                 }))
             }
-            _ => {
+            None => {
                 // Full revocation - remove entire knowledge relationship
                 self.lore.revoke_knowledge(character_id, lore_id).await?;
                 Ok(serde_json::json!({
@@ -398,6 +425,8 @@ pub enum LoreError {
     InvalidNpcId(String),
     #[error("Duplicate chunk order: {0}")]
     DuplicateChunkOrder(u32),
+    #[error("Empty chunk list provided - omit chunkIds for full revocation")]
+    EmptyChunkList,
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }
