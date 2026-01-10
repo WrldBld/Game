@@ -522,7 +522,10 @@ impl LocationCrud {
         locked: Option<bool>,
         lock_description: Option<String>,
     ) -> Result<(), ManagementError> {
-        let mut connection = wrldbldr_domain::RegionConnection::new(from_region, to_region);
+        let mut connection = wrldbldr_domain::RegionConnection::new(from_region, to_region)
+            .ok_or_else(|| {
+                ManagementError::InvalidInput("Cannot connect a region to itself".to_string())
+            })?;
         if let Some(description) = description {
             connection = connection.with_description(description);
         }
@@ -561,7 +564,10 @@ impl LocationCrud {
             .ok_or(ManagementError::NotFound)?;
 
         let mut updated =
-            wrldbldr_domain::RegionConnection::new(existing.from_region, existing.to_region);
+            wrldbldr_domain::RegionConnection::new(existing.from_region, existing.to_region)
+                .ok_or_else(|| {
+                    ManagementError::InvalidInput("Cannot connect a region to itself".to_string())
+                })?;
         updated.description = existing.description;
         updated.bidirectional = existing.bidirectional;
         updated.is_locked = false;

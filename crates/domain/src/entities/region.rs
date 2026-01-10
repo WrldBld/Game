@@ -115,7 +115,25 @@ pub struct MapBounds {
 }
 
 impl MapBounds {
-    pub fn new(x: u32, y: u32, width: u32, height: u32) -> Self {
+    /// Create new map bounds
+    ///
+    /// Returns `None` if width or height is zero (invalid bounds).
+    pub fn new(x: u32, y: u32, width: u32, height: u32) -> Option<Self> {
+        if width == 0 || height == 0 {
+            return None;
+        }
+        Some(Self {
+            x,
+            y,
+            width,
+            height,
+        })
+    }
+
+    /// Create new map bounds without validation (for deserialization)
+    ///
+    /// Prefer `new()` for programmatic creation.
+    pub fn new_unchecked(x: u32, y: u32, width: u32, height: u32) -> Self {
         Self {
             x,
             y,
@@ -125,8 +143,18 @@ impl MapBounds {
     }
 
     /// Check if a pixel position is within these bounds
+    ///
+    /// Uses saturating arithmetic to prevent integer overflow.
+    /// Returns false for zero-size bounds.
     pub fn contains(&self, px: u32, py: u32) -> bool {
-        px >= self.x && px < self.x + self.width && py >= self.y && py < self.y + self.height
+        // Zero-size bounds contain nothing
+        if self.width == 0 || self.height == 0 {
+            return false;
+        }
+        px >= self.x
+            && px < self.x.saturating_add(self.width)
+            && py >= self.y
+            && py < self.y.saturating_add(self.height)
     }
 }
 
@@ -149,15 +177,21 @@ pub struct RegionConnection {
 }
 
 impl RegionConnection {
-    pub fn new(from: RegionId, to: RegionId) -> Self {
-        Self {
+    /// Create a new connection between two regions
+    ///
+    /// Returns `None` if `from` and `to` are the same region (self-loop).
+    pub fn new(from: RegionId, to: RegionId) -> Option<Self> {
+        if from == to {
+            return None;
+        }
+        Some(Self {
             from_region: from,
             to_region: to,
             description: None,
             bidirectional: true,
             is_locked: false,
             lock_description: None,
-        }
+        })
     }
 
     pub fn one_way(mut self) -> Self {
@@ -213,5 +247,147 @@ impl RegionExit {
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ==========================================================================
+    // Issue 6.1: Integer Overflow in MapBounds.contains()
+    // ==========================================================================
+
+    #[test]
+    fn test_map_bounds_contains_normal_case() {
+        let bounds = MapBounds::new(10, 20, 100, 50).unwrap();
+        // Inside bounds
+        assert!(bounds.contains(10, 20)); // Top-left corner
+        assert!(bounds.contains(109, 69)); // Just inside bottom-right
+        assert!(bounds.contains(50, 40)); // Middle
+
+        // Outside bounds
+        assert!(!bounds.contains(9, 20)); // Left of bounds
+        assert!(!bounds.contains(10, 19)); // Above bounds
+        assert!(!bounds.contains(110, 20)); // Right of bounds
+        assert!(!bounds.contains(10, 70)); // Below bounds
+    }
+
+    #[test]
+    fn test_map_bounds_contains_near_max_values() {
+        // Test with values near u32::MAX to verify saturating_add works
+        let bounds = MapBounds::new_unchecked(u32::MAX - 10, u32::MAX - 10, 100, 100);
+
+        // Point at the origin of bounds should be contained
+        assert!(bounds.contains(u32::MAX - 10, u32::MAX - 10));
+
+        // Point at MAX-1 should be contained (within saturated range)
+        // Note: saturating_add(u32::MAX - 10, 100) = u32::MAX
+        // So the check is px < u32::MAX, meaning u32::MAX-1 is the last valid point
+        assert!(bounds.contains(u32::MAX - 1, u32::MAX - 1));
+
+        // Point at exactly MAX is NOT contained because px < MAX.saturating_add(width)
+        // becomes px < MAX when it saturates, and MAX < MAX is false
+        assert!(!bounds.contains(u32::MAX, u32::MAX));
+
+        // Point before bounds should NOT be contained
+        assert!(!bounds.contains(u32::MAX - 11, u32::MAX - 10));
+        assert!(!bounds.contains(u32::MAX - 10, u32::MAX - 11));
+    }
+
+    #[test]
+    fn test_map_bounds_overflow_protection() {
+        // Create bounds at MAX position with width that would overflow
+        let bounds = MapBounds::new_unchecked(u32::MAX, u32::MAX, 10, 10);
+
+        // This should NOT panic due to overflow - saturating_add prevents it
+        // Point at MAX is contained since x >= MAX and x < MAX.saturating_add(10) = MAX
+        // Wait, saturating_add(MAX, 10) = MAX, so x < MAX is false when x = MAX
+        // Actually the point AT u32::MAX should be at the boundary
+        assert!(!bounds.contains(u32::MAX, u32::MAX)); // MAX is not < MAX
+    }
+
+    // ==========================================================================
+    // Issue 6.4: Validate Zero-Size MapBounds
+    // ==========================================================================
+
+    #[test]
+    fn test_map_bounds_new_rejects_zero_width() {
+        assert!(MapBounds::new(10, 20, 0, 50).is_none());
+    }
+
+    #[test]
+    fn test_map_bounds_new_rejects_zero_height() {
+        assert!(MapBounds::new(10, 20, 100, 0).is_none());
+    }
+
+    #[test]
+    fn test_map_bounds_new_rejects_both_zero() {
+        assert!(MapBounds::new(10, 20, 0, 0).is_none());
+    }
+
+    #[test]
+    fn test_map_bounds_new_accepts_valid_bounds() {
+        let bounds = MapBounds::new(10, 20, 100, 50);
+        assert!(bounds.is_some());
+        let bounds = bounds.unwrap();
+        assert_eq!(bounds.x, 10);
+        assert_eq!(bounds.y, 20);
+        assert_eq!(bounds.width, 100);
+        assert_eq!(bounds.height, 50);
+    }
+
+    #[test]
+    fn test_map_bounds_contains_returns_false_for_zero_size() {
+        // Even if created via new_unchecked, contains should handle zero-size gracefully
+        let zero_width = MapBounds::new_unchecked(10, 20, 0, 50);
+        assert!(!zero_width.contains(10, 20));
+
+        let zero_height = MapBounds::new_unchecked(10, 20, 100, 0);
+        assert!(!zero_height.contains(10, 20));
+
+        let zero_both = MapBounds::new_unchecked(10, 20, 0, 0);
+        assert!(!zero_both.contains(10, 20));
+    }
+
+    // ==========================================================================
+    // Issue 6.8: Prevent Self-Loop Connections
+    // ==========================================================================
+
+    #[test]
+    fn test_region_connection_rejects_self_loop() {
+        let region_id = RegionId::new();
+        let connection = RegionConnection::new(region_id, region_id);
+        assert!(connection.is_none());
+    }
+
+    #[test]
+    fn test_region_connection_accepts_different_regions() {
+        let from_region = RegionId::new();
+        let to_region = RegionId::new();
+        let connection = RegionConnection::new(from_region, to_region);
+        assert!(connection.is_some());
+        let connection = connection.unwrap();
+        assert_eq!(connection.from_region, from_region);
+        assert_eq!(connection.to_region, to_region);
+    }
+
+    #[test]
+    fn test_region_connection_builder_methods() {
+        let from_region = RegionId::new();
+        let to_region = RegionId::new();
+        let connection = RegionConnection::new(from_region, to_region)
+            .unwrap()
+            .one_way()
+            .with_description("A narrow passage")
+            .locked("Requires a key");
+
+        assert!(!connection.bidirectional);
+        assert_eq!(connection.description, Some("A narrow passage".to_string()));
+        assert!(connection.is_locked);
+        assert_eq!(
+            connection.lock_description,
+            Some("Requires a key".to_string())
+        );
     }
 }

@@ -1164,6 +1164,91 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             Ok(None)
         }
     }
+
+    async fn is_conversation_active(&self, conversation_id: Uuid) -> Result<bool, RepoError> {
+        let q = query(
+            "MATCH (c:Conversation {id: $conversation_id})
+            RETURN c.is_active AS is_active",
+        )
+        .param("conversation_id", conversation_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let is_active: bool = row.get("is_active").unwrap_or(false);
+            Ok(is_active)
+        } else {
+            // Conversation not found - treat as not active
+            Ok(false)
+        }
+    }
+
+    async fn end_conversation(&self, conversation_id: Uuid) -> Result<bool, RepoError> {
+        let q = query(
+            "MATCH (c:Conversation {id: $conversation_id, is_active: true})
+            SET c.is_active = false, c.ended_at = datetime()
+            RETURN c.id AS conversation_id",
+        )
+        .param("conversation_id", conversation_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        // If we got a result, the conversation was found and ended
+        let ended = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+            .is_some();
+
+        Ok(ended)
+    }
+
+    async fn end_active_conversation(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+    ) -> Result<Option<Uuid>, RepoError> {
+        // Find and end the active conversation between PC and NPC atomically
+        let q = query(
+            "MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation {is_active: true})<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
+            SET c.is_active = false, c.ended_at = datetime()
+            RETURN c.id AS conversation_id",
+        )
+        .param("pc_id", pc_id.to_string())
+        .param("npc_id", npc_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let id_str: String = row
+                .get("conversation_id")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::Database(e.to_string()))?;
+            Ok(Some(uuid))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 // =============================================================================

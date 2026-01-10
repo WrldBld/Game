@@ -8,7 +8,7 @@
 /// # Examples
 ///
 /// ```
-/// use wrldbldr_common::none_if_empty;
+/// use wrldbldr_domain::common::none_if_empty;
 ///
 /// assert_eq!(none_if_empty("hello"), Some("hello"));
 /// assert_eq!(none_if_empty(""), None);
@@ -29,7 +29,7 @@ pub fn none_if_empty(value: &str) -> Option<&str> {
 /// # Examples
 ///
 /// ```
-/// use wrldbldr_common::some_if_not_empty;
+/// use wrldbldr_domain::common::some_if_not_empty;
 ///
 /// assert_eq!(some_if_not_empty("hello".to_string()), Some("hello".to_string()));
 /// assert_eq!(some_if_not_empty(String::new()), None);
@@ -49,7 +49,7 @@ pub fn some_if_not_empty(value: String) -> Option<String> {
 /// # Examples
 ///
 /// ```
-/// use wrldbldr_common::StringExt;
+/// use wrldbldr_domain::common::StringExt;
 ///
 /// let s = "hello".to_string();
 /// assert_eq!(s.into_option(), Some("hello".to_string()));

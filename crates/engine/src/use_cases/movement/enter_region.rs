@@ -549,7 +549,9 @@ mod tests {
             .withf(move |id| *id == to_region_id)
             .returning(move |_| Ok(Some(to_region_for_get.clone())));
 
-        let conn = RegionConnection::new(from_region_id, to_region_id).locked("Locked");
+        let conn = RegionConnection::new(from_region_id, to_region_id)
+            .expect("test regions are distinct")
+            .locked("Locked");
         location_repo
             .expect_get_connections()
             .withf(move |id| *id == from_region_id)

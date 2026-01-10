@@ -123,6 +123,24 @@ impl ContinueConversation {
 
         // 4. Resolve conversation_id: use provided one or look up active conversation
         let resolved_conversation_id = if let Some(id) = conversation_id {
+            // Verify the provided conversation is still active (not ended)
+            // This prevents a race condition where a conversation could be ended
+            // between the client sending a continue request and us processing it
+            let is_active = self
+                .narrative
+                .is_conversation_active(id)
+                .await
+                .unwrap_or(false);
+
+            if !is_active {
+                tracing::warn!(
+                    conversation_id = %id,
+                    pc_id = %pc_id,
+                    npc_id = %npc_id,
+                    "Attempted to continue ended conversation"
+                );
+                return Err(ConversationError::ConversationEnded);
+            }
             Some(id)
         } else {
             // Look up active conversation between PC and NPC
@@ -131,15 +149,23 @@ impl ContinueConversation {
                 .get_active_conversation_id(pc_id, npc_id)
                 .await
             {
-                Ok(id) => id,
+                Ok(Some(id)) => Some(id),
+                Ok(None) => {
+                    tracing::warn!(
+                        pc_id = %pc_id,
+                        npc_id = %npc_id,
+                        "No active conversation found between PC and NPC"
+                    );
+                    return Err(ConversationError::NoActiveConversation);
+                }
                 Err(e) => {
                     tracing::warn!(
                         error = %e,
                         pc_id = %pc_id,
                         npc_id = %npc_id,
-                        "Failed to look up active conversation, proceeding without ID"
+                        "Failed to look up active conversation"
                     );
-                    None
+                    return Err(ConversationError::Repo(e));
                 }
             }
         };

@@ -52,6 +52,10 @@ impl NarrativeDecisionFlow {
             .map_err(NarrativeDecisionError::Approval)?;
 
         if !result.approved {
+            tracing::info!(
+                event_id = %event_id,
+                "Narrative event rejected by approval system"
+            );
             return Ok(NarrativeDecisionOutcome {
                 world_id: approval_data.world_id,
                 triggered: None,
@@ -60,17 +64,7 @@ impl NarrativeDecisionFlow {
 
         let event = match self.narrative.get_event(event_id).await? {
             Some(event) => event,
-            None => {
-                return Ok(NarrativeDecisionOutcome {
-                    world_id: approval_data.world_id,
-                    triggered: Some(NarrativeTriggeredPayload {
-                        event_id: event_id.to_string(),
-                        event_name: String::new(),
-                        outcome_description: String::new(),
-                        scene_direction: String::new(),
-                    }),
-                });
-            }
+            None => return Err(NarrativeDecisionError::EventNotFound(event_id.to_string())),
         };
 
         let outcome_name = selected_outcome
@@ -88,31 +82,25 @@ impl NarrativeDecisionFlow {
 
         if let Some(outcome) = outcome {
             if !outcome.effects.is_empty() {
-                if let Some(pc_id) = approval_data.pc_id {
-                    let context = EffectExecutionContext {
-                        pc_id,
-                        world_id: approval_data.world_id,
-                        current_scene_id: approval_data.scene_id,
-                    };
+                let pc_id = approval_data.pc_id.ok_or(NarrativeDecisionError::PcContextRequired)?;
+                let context = EffectExecutionContext {
+                    pc_id,
+                    world_id: approval_data.world_id,
+                    current_scene_id: approval_data.scene_id,
+                };
 
-                    let summary = self
-                        .execute_effects
-                        .execute(event_id, outcome_name.clone(), &outcome.effects, &context)
-                        .await;
+                let summary = self
+                    .execute_effects
+                    .execute(event_id, outcome_name.clone(), &outcome.effects, &context)
+                    .await;
 
-                    tracing::info!(
-                        event_id = %event_id,
-                        outcome = %outcome_name,
-                        success_count = summary.success_count,
-                        failure_count = summary.failure_count,
-                        "Executed narrative event effects"
-                    );
-                } else {
-                    tracing::warn!(
-                        event_id = %event_id,
-                        "No PC context for effect execution, skipping effects"
-                    );
-                }
+                tracing::info!(
+                    event_id = %event_id,
+                    outcome = %outcome_name,
+                    success_count = summary.success_count,
+                    failure_count = summary.failure_count,
+                    "Executed narrative event effects"
+                );
             }
         }
 
@@ -152,4 +140,8 @@ pub enum NarrativeDecisionError {
     Approval(#[from] ApprovalError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
+    #[error("Event not found: {0}")]
+    EventNotFound(String),
+    #[error("PC context required for effect execution")]
+    PcContextRequired,
 }

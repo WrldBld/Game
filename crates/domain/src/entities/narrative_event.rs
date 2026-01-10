@@ -584,26 +584,96 @@ impl NarrativeEvent {
                     .unwrap_or(false)
             }
             NarrativeTriggerType::RelationshipThreshold { .. } => {
-                // TODO: Relationship tracking requires sentiment data in TriggerContext.
-                // Add `relationships: HashMap<(CharacterId, CharacterId), f32>` to TriggerContext
-                // to enable this trigger type.
+                // KNOWN LIMITATION: RelationshipThreshold trigger is not yet implemented.
+                //
+                // To implement this trigger:
+                // 1. Add relationship tracking to TriggerContext:
+                //    `relationships: HashMap<(CharacterId, CharacterId), f32>`
+                //    where the f32 represents sentiment (-1.0 to 1.0 scale)
+                //
+                // 2. The relationship data should be populated from the Character entity's
+                //    relationship graph edges (KNOWS, TRUSTS, etc.) or a dedicated
+                //    RelationshipRepository that tracks dynamic sentiment changes.
+                //
+                // 3. Implementation should check if the relationship between
+                //    `character_id` and `with_character` falls within the specified
+                //    `min_sentiment`/`max_sentiment` bounds (inclusive).
+                //
+                // 4. Consider bidirectional vs unidirectional relationships - the current
+                //    trigger structure implies checking A's feelings toward B specifically.
                 false
             }
             NarrativeTriggerType::StatThreshold { .. } => {
-                // TODO: Character stats require stat system integration.
-                // Add `character_stats: HashMap<CharacterId, HashMap<String, i32>>` to TriggerContext
-                // to enable this trigger type.
+                // KNOWN LIMITATION: StatThreshold trigger is not yet implemented.
+                //
+                // To implement this trigger:
+                // 1. Add character stats to TriggerContext:
+                //    `character_stats: HashMap<CharacterId, HashMap<String, i32>>`
+                //    where the inner HashMap maps stat names to their current values.
+                //
+                // 2. The stat data should be populated from the Character entity's
+                //    stats/attributes system. This depends on how character stats are
+                //    modeled (e.g., fixed attributes like STR/DEX/CON or dynamic stats
+                //    like health/mana/reputation).
+                //
+                // 3. Implementation should check if the stat value for `character_id`
+                //    and `stat_name` falls within the specified `min_value`/`max_value`
+                //    bounds. If only min is set, check >= min. If only max is set,
+                //    check <= max. If both are set, check min <= value <= max.
+                //
+                // 4. Stat names should use a consistent naming convention (e.g.,
+                //    lowercase with underscores: "hit_points", "reputation_guild").
                 false
             }
             NarrativeTriggerType::CombatResult { .. } => {
-                // TODO: Combat system not yet implemented.
-                // Add `last_combat_result: Option<CombatOutcome>` to TriggerContext
-                // when combat system is built.
+                // KNOWN LIMITATION: CombatResult trigger is not yet implemented.
+                //
+                // To implement this trigger:
+                // 1. Add combat result tracking to TriggerContext:
+                //    ```
+                //    pub struct CombatOutcome {
+                //        pub victory: bool,          // true if player/party won
+                //        pub participants: Vec<CharacterId>,  // NPCs involved
+                //        pub combat_id: Option<CombatId>,     // reference to combat encounter
+                //    }
+                //    ```
+                //    Then add: `last_combat_result: Option<CombatOutcome>`
+                //
+                // 2. The combat system needs to emit events or update TriggerContext
+                //    when combat ends. This requires a CombatSystem or CombatManager
+                //    that tracks active combats and their outcomes.
+                //
+                // 3. Implementation should check:
+                //    - If `victory` is Some, match against `last_combat_result.victory`
+                //    - If `involved_npc` is Some, check if that NPC was in participants
+                //    - Both conditions must match if both are specified
+                //
+                // 4. Consider whether to track multiple recent combats or just the last one.
+                //    For complex narratives, a `recent_combats: Vec<CombatOutcome>` might
+                //    be more flexible.
                 false
             }
             NarrativeTriggerType::Custom { .. } => {
-                // Custom triggers require LLM evaluation which cannot be done in this sync context.
-                // Custom triggers should be evaluated at a higher layer with LLM access.
+                // KNOWN LIMITATION: Custom triggers cannot be evaluated at the domain layer.
+                //
+                // Custom triggers require LLM evaluation to interpret the natural language
+                // `description` field against the current game context. This evaluation:
+                //
+                // 1. Cannot be done synchronously - LLM calls are async and expensive
+                // 2. Cannot be done in the domain layer - domain entities should not have
+                //    external service dependencies (Clean Architecture principle)
+                // 3. Requires access to the full conversation/session context that the
+                //    TriggerContext struct doesn't capture
+                //
+                // To properly implement Custom triggers:
+                // - Evaluate them in the application/use-case layer (e.g., NarrativeService)
+                // - Use a two-pass approach: first evaluate all non-Custom triggers here,
+                //   then if the event might trigger, call the LLM to evaluate Custom triggers
+                // - The `llm_evaluation` boolean field indicates whether the DM wants
+                //   automatic LLM evaluation (true) or manual DM judgment (false)
+                //
+                // For now, Custom triggers always return false and should be handled by
+                // the DM manually or by a higher-layer service with LLM access.
                 false
             }
         }

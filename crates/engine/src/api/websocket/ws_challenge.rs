@@ -193,13 +193,15 @@ pub(super) async fn handle_challenge_roll(
         ));
     }
 
+    // TODO: Skill modifiers should be fetched from character sheet when skill system is integrated
+    // For now, using 0 as the modifier
+    let skill_modifier = 0; // Placeholder until skill system
     match state
         .app
         .use_cases
         .challenge
         .roll
-        // TODO: Skill modifiers should be fetched from character sheet when skill system is implemented
-        .execute(world_id, challenge_uuid, pc_id, Some(roll), 0)
+        .execute(world_id, challenge_uuid, pc_id, Some(roll), skill_modifier)
         .await
     {
         Ok(result) => {

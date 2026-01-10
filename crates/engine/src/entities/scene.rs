@@ -250,8 +250,20 @@ impl Scene {
         match time_context {
             TimeContext::Unspecified => true, // Always matches
             TimeContext::TimeOfDay(required) => *required == current_time,
-            TimeContext::During(_) => true, // Event-based - assume matches for now
-            TimeContext::Custom(_) => true, // Custom - assume matches for now
+            TimeContext::During(event_name) => {
+                // KNOWN LIMITATION: Event-based time contexts require event tracking
+                // which is not yet integrated. For now, During() always matches.
+                // TODO: Add current_event field to scene resolution context
+                tracing::debug!(event = %event_name, "Event-based TimeContext not evaluated - assuming match");
+                true
+            }
+            TimeContext::Custom(desc) => {
+                // KNOWN LIMITATION: Custom time contexts require LLM evaluation.
+                // For now, Custom() always matches.
+                // TODO: Implement custom time context evaluation via LLM
+                tracing::debug!(description = %desc, "Custom TimeContext not evaluated - assuming match");
+                true
+            }
         }
     }
 
@@ -292,11 +304,14 @@ impl Scene {
                     }
                 }
                 SceneCondition::Custom(expr) => {
-                    // Custom conditions are not supported - treat as unmet
-                    // This prevents scenes with custom conditions from being incorrectly shown
+                    // KNOWN LIMITATION: Custom conditions require LLM evaluation which is not
+                    // yet integrated into scene resolution. For now, custom conditions are
+                    // treated as unmet to avoid incorrectly showing scenes.
+                    // TODO: Implement custom condition evaluation via LLM when scene is
+                    // being resolved in a context where LLM access is available.
                     tracing::warn!(
                         expression = %expr,
-                        "Custom scene condition not supported - treating as unmet"
+                        "Custom scene condition not evaluated - treating as unmet"
                     );
                     unmet.push(format!("Custom condition not evaluated: {}", expr));
                 }

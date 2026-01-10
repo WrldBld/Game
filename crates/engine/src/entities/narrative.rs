@@ -383,6 +383,38 @@ impl Narrative {
         self.repo.get_active_conversation_id(pc_id, npc_id).await
     }
 
+    /// Check if a specific conversation is still active (not ended).
+    ///
+    /// Returns true if the conversation exists and has is_active = true.
+    /// Returns false if the conversation doesn't exist or has been ended.
+    pub async fn is_conversation_active(
+        &self,
+        conversation_id: uuid::Uuid,
+    ) -> Result<bool, RepoError> {
+        self.repo.is_conversation_active(conversation_id).await
+    }
+
+    /// End a conversation by setting is_active = false.
+    ///
+    /// This marks the conversation as ended so it cannot be resumed.
+    /// Returns Ok(true) if the conversation was found and ended,
+    /// Ok(false) if the conversation was not found or already ended.
+    pub async fn end_conversation(&self, conversation_id: uuid::Uuid) -> Result<bool, RepoError> {
+        self.repo.end_conversation(conversation_id).await
+    }
+
+    /// End the active conversation between PC and NPC (if one exists).
+    ///
+    /// Finds the active conversation and marks it as ended.
+    /// Returns the conversation ID if one was ended, None if no active conversation.
+    pub async fn end_active_conversation(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+    ) -> Result<Option<uuid::Uuid>, RepoError> {
+        self.repo.end_active_conversation(pc_id, npc_id).await
+    }
+
     // =========================================================================
     // Triggers
     // =========================================================================

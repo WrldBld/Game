@@ -360,8 +360,10 @@ impl ResolveVisualState {
             }
         }
 
-        // Short-circuit for Any logic: if any hard rule matched, we don't need LLM
-        // This is an optimization that avoids unnecessary LLM calls
+        // Short-circuit for Any logic: if any hard rule matched, we don't need LLM.
+        // With Any logic, once a single hard rule matches, the state is definitively
+        // active. We return an empty soft rules vec because the resolution is complete
+        // and we don't want to trigger unnecessary LLM evaluation.
         if logic == ActivationLogic::Any && !matched.is_empty() {
             return (
                 ActivationEvaluation::resolved(true, matched, unmatched),
@@ -396,6 +398,15 @@ impl ResolveVisualState {
             ActivationRule::Always => true,
 
             ActivationRule::DateExact { month, day } => {
+                // Validate the date before comparing
+                if !Self::is_valid_date(*month, *day) {
+                    tracing::warn!(
+                        month = *month,
+                        day = *day,
+                        "Invalid DateExact rule - date does not exist"
+                    );
+                    return false;
+                }
                 let current = context.game_time.current();
                 current.month() as u32 == *month && current.day() as u32 == *day
             }
@@ -406,6 +417,24 @@ impl ResolveVisualState {
                 end_month,
                 end_day,
             } => {
+                // Validate both dates before comparing
+                if !Self::is_valid_date(*start_month, *start_day) {
+                    tracing::warn!(
+                        month = *start_month,
+                        day = *start_day,
+                        "Invalid DateRange start - date does not exist"
+                    );
+                    return false;
+                }
+                if !Self::is_valid_date(*end_month, *end_day) {
+                    tracing::warn!(
+                        month = *end_month,
+                        day = *end_day,
+                        "Invalid DateRange end - date does not exist"
+                    );
+                    return false;
+                }
+
                 let current = context.game_time.current();
                 let current_month = current.month() as u32;
                 let current_day = current.day() as u32;
@@ -443,6 +472,33 @@ impl ResolveVisualState {
                 false
             }
         }
+    }
+
+    /// Validate that a month/day combination represents a valid date.
+    ///
+    /// Returns false for invalid dates like Feb 30, month 13, etc.
+    /// Note: For February, we allow up to 29 days to account for leap years.
+    fn is_valid_date(month: u32, day: u32) -> bool {
+        // Validate month is 1-12
+        if month < 1 || month > 12 {
+            return false;
+        }
+
+        // Validate day is at least 1
+        if day < 1 {
+            return false;
+        }
+
+        // Get max days for the month
+        // Note: For February, we allow 29 to account for leap years
+        let max_days = match month {
+            1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+            4 | 6 | 9 | 11 => 30,
+            2 => 29, // Allow 29 for leap years
+            _ => return false, // Should never reach here due to check above
+        };
+
+        day <= max_days
     }
 
     /// Check if activation logic is satisfied

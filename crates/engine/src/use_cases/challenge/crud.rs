@@ -32,6 +32,13 @@ impl ChallengeOps {
         world_id: WorldId,
         data: CreateChallengeData,
     ) -> Result<Value, ChallengeError> {
+        // Validate that name is not empty or whitespace-only
+        if data.name.trim().is_empty() {
+            return Err(ChallengeError::ValidationError(
+                "Challenge name cannot be empty".to_string(),
+            ));
+        }
+
         // Note: Difficulty::parse never fails - invalid formats become Difficulty::Custom(string)
         // This is intentional to support freeform difficulty descriptions
         let mut challenge = domain::Challenge::new(
@@ -43,6 +50,14 @@ impl ChallengeOps {
         challenge.outcomes.success.description = data.success_outcome.unwrap_or_default();
         challenge.outcomes.failure.description = data.failure_outcome.unwrap_or_default();
         challenge.order = 0;
+
+        // Validate triggers before saving
+        let trigger_errors = challenge.validate_triggers();
+        if !trigger_errors.is_empty() {
+            return Err(ChallengeError::ValidationError(
+                format!("Invalid triggers: {}", trigger_errors.join("; ")),
+            ));
+        }
 
         self.challenge.save(&challenge).await?;
         Ok(challenge_to_json(&challenge))
@@ -60,6 +75,11 @@ impl ChallengeOps {
             .ok_or(ChallengeError::NotFound)?;
 
         if let Some(name) = data.name {
+            if name.trim().is_empty() {
+                return Err(ChallengeError::ValidationError(
+                    "Challenge name cannot be empty".to_string(),
+                ));
+            }
             challenge.name = name;
         }
         if let Some(description) = data.description {
@@ -75,6 +95,14 @@ impl ChallengeOps {
         }
         if let Some(failure) = data.failure_outcome {
             challenge.outcomes.failure.description = failure;
+        }
+
+        // Validate triggers before saving
+        let trigger_errors = challenge.validate_triggers();
+        if !trigger_errors.is_empty() {
+            return Err(ChallengeError::ValidationError(
+                format!("Invalid triggers: {}", trigger_errors.join("; ")),
+            ));
         }
 
         self.challenge.save(&challenge).await?;
@@ -121,6 +149,8 @@ impl ChallengeOps {
 pub enum ChallengeError {
     #[error("Challenge not found")]
     NotFound,
+    #[error("Validation error: {0}")]
+    ValidationError(String),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }
@@ -285,7 +315,7 @@ fn difficulty_to_json(difficulty: &domain::Difficulty) -> Value {
         }),
         domain::Difficulty::Descriptor(descriptor) => serde_json::json!({
             "type": "descriptor",
-            "value": format!("{descriptor:?}"),
+            "value": descriptor.to_string(),
         }),
         domain::Difficulty::Opposed => serde_json::json!({
             "type": "opposed",

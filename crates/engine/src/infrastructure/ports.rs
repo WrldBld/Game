@@ -592,6 +592,29 @@ pub trait NarrativeRepo: Send + Sync {
         npc_id: CharacterId,
     ) -> Result<Option<Uuid>, RepoError>;
 
+    /// Check if a specific conversation is still active (not ended).
+    ///
+    /// Returns true if the conversation exists and has is_active = true.
+    /// Returns false if the conversation doesn't exist or has been ended.
+    async fn is_conversation_active(&self, conversation_id: Uuid) -> Result<bool, RepoError>;
+
+    /// End a conversation by setting is_active = false.
+    ///
+    /// This marks the conversation as ended so it cannot be resumed.
+    /// Returns Ok(true) if the conversation was found and ended,
+    /// Ok(false) if the conversation was not found or already ended.
+    async fn end_conversation(&self, conversation_id: Uuid) -> Result<bool, RepoError>;
+
+    /// End the active conversation between PC and NPC (if one exists).
+    ///
+    /// Finds the active conversation and marks it as ended.
+    /// Returns the conversation ID if one was ended, None if no active conversation.
+    async fn end_active_conversation(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+    ) -> Result<Option<Uuid>, RepoError>;
+
     // Triggers
     async fn get_triggers_for_region(
         &self,

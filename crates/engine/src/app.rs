@@ -208,6 +208,7 @@ impl App {
         let conversation_end = Arc::new(use_cases::conversation::EndConversation::new(
             character.clone(),
             player_character.clone(),
+            narrative.clone(),
         ));
         let conversation = use_cases::ConversationUseCases::new(
             conversation_start.clone(),

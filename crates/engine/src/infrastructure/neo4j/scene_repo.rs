@@ -555,23 +555,86 @@ impl SceneRepo for Neo4jSceneRepo {
         pc_id: PlayerCharacterId,
         scene_id: SceneId,
     ) -> Result<(), RepoError> {
+        // First, verify both nodes exist and atomically create/check the relationship
         let q = query(
-            "MATCH (pc:PlayerCharacter {id: $pc_id})
-            MATCH (s:Scene {id: $scene_id})
+            "OPTIONAL MATCH (pc:PlayerCharacter {id: $pc_id})
+            OPTIONAL MATCH (s:Scene {id: $scene_id})
+            WITH pc, s,
+                 pc IS NOT NULL AS pc_exists,
+                 s IS NOT NULL AS scene_exists
+            WHERE pc_exists AND scene_exists
             MERGE (pc)-[r:COMPLETED_SCENE]->(s)
             ON CREATE SET r.completed_at = datetime()
-            RETURN pc.id as pc_id",
+            RETURN pc_exists, scene_exists,
+                   CASE WHEN r.completed_at = datetime() THEN 'created' ELSE 'existed' END as status",
         )
         .param("pc_id", pc_id.to_string())
         .param("scene_id", scene_id.to_string());
 
-        self.graph
-            .run(q)
+        let mut result = self
+            .graph
+            .execute(q)
             .await
             .map_err(|e| RepoError::Database(e.to_string()))?;
 
-        tracing::debug!("Marked scene {} as completed for PC {}", scene_id, pc_id);
-        Ok(())
+        // Check if we got a result - if not, one or both nodes don't exist
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let pc_exists: bool = row
+                .get("pc_exists")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+            let scene_exists: bool = row
+                .get("scene_exists")
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+
+            if !pc_exists {
+                tracing::warn!("mark_scene_completed failed: PlayerCharacter {} not found", pc_id);
+                return Err(RepoError::NotFound);
+            }
+            if !scene_exists {
+                tracing::warn!("mark_scene_completed failed: Scene {} not found", scene_id);
+                return Err(RepoError::NotFound);
+            }
+
+            tracing::debug!("Marked scene {} as completed for PC {}", scene_id, pc_id);
+            Ok(())
+        } else {
+            // No rows returned means one or both nodes don't exist
+            // We need to check which one is missing for a better error message
+            let check_q = query(
+                "OPTIONAL MATCH (pc:PlayerCharacter {id: $pc_id})
+                OPTIONAL MATCH (s:Scene {id: $scene_id})
+                RETURN pc IS NOT NULL AS pc_exists, s IS NOT NULL AS scene_exists",
+            )
+            .param("pc_id", pc_id.to_string())
+            .param("scene_id", scene_id.to_string());
+
+            let mut check_result = self
+                .graph
+                .execute(check_q)
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?;
+
+            if let Some(check_row) = check_result
+                .next()
+                .await
+                .map_err(|e| RepoError::Database(e.to_string()))?
+            {
+                let pc_exists: bool = check_row.get("pc_exists").unwrap_or(false);
+                let scene_exists: bool = check_row.get("scene_exists").unwrap_or(false);
+
+                if !pc_exists {
+                    tracing::warn!("mark_scene_completed failed: PlayerCharacter {} not found", pc_id);
+                } else if !scene_exists {
+                    tracing::warn!("mark_scene_completed failed: Scene {} not found", scene_id);
+                }
+            }
+
+            Err(RepoError::NotFound)
+        }
     }
 
     async fn get_completed_scenes(

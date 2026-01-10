@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 /// # Examples
 ///
 /// ```
-/// use wrldbldr_common::parse_datetime;
+/// use wrldbldr_domain::common::parse_datetime;
 /// use chrono::Datelike;
 ///
 /// let dt = parse_datetime("2024-01-15T10:30:00Z").unwrap();
@@ -33,7 +33,7 @@ pub fn parse_datetime(s: &str) -> Result<DateTime<Utc>, chrono::ParseError> {
 /// # Examples
 ///
 /// ```
-/// use wrldbldr_common::parse_datetime_or;
+/// use wrldbldr_domain::common::parse_datetime_or;
 /// use chrono::{DateTime, Utc, TimeZone, Datelike};
 ///
 /// let default = Utc.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap();
