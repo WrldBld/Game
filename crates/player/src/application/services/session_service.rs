@@ -123,7 +123,7 @@ impl SessionService {
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn subscribe_with_auto_join(
         &self,
-        user_id: String,
+        _user_id: String,
         role: ParticipantRole,
         world_id: String,
     ) -> mpsc::UnboundedReceiver<SessionEvent> {

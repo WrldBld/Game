@@ -113,6 +113,16 @@ pub struct AppSettings {
     #[serde(default = "default_use_llm_presence")]
     pub default_use_llm_presence: bool,
 
+    /// Timeout in seconds before auto-approving staging with rule-based NPCs
+    /// Set to 0 to disable auto-approve (require manual DM approval)
+    #[serde(default = "default_staging_timeout_seconds")]
+    pub staging_timeout_seconds: u64,
+
+    /// Whether to auto-approve with rule-based NPCs on timeout
+    /// If false, player receives a timeout notification and can retry
+    #[serde(default = "default_auto_approve_on_timeout")]
+    pub auto_approve_on_timeout: bool,
+
     // ============================================================================
     // Challenge System
     // ============================================================================
@@ -171,6 +181,12 @@ fn default_presence_cache_ttl_hours() -> i32 {
 fn default_use_llm_presence() -> bool {
     true
 }
+fn default_staging_timeout_seconds() -> u64 {
+    30
+}
+fn default_auto_approve_on_timeout() -> bool {
+    true
+}
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -189,6 +205,8 @@ impl Default for AppSettings {
             default_max_stat_value: 20,
             default_presence_cache_ttl_hours: 3,
             default_use_llm_presence: true,
+            staging_timeout_seconds: 30,
+            auto_approve_on_timeout: true,
             outcome_branch_count: 2,
             outcome_branch_min: 1,
             outcome_branch_max: 4,
@@ -530,6 +548,28 @@ pub fn settings_metadata() -> Vec<SettingsFieldMetadata> {
             key: "default_use_llm_presence".into(),
             display_name: "Use LLM for Staging".into(),
             description: "Whether to use LLM reasoning for NPC presence suggestions by default. When disabled, only rule-based logic is used.".into(),
+            field_type: "boolean".into(),
+            default_value: serde_json::json!(true),
+            min_value: None,
+            max_value: None,
+            category: "Staging".into(),
+            requires_restart: false,
+        },
+        SettingsFieldMetadata {
+            key: "staging_timeout_seconds".into(),
+            display_name: "Staging Timeout (seconds)".into(),
+            description: "How long to wait for DM approval before auto-approving with rule-based NPCs. Set to 0 to disable.".into(),
+            field_type: "integer".into(),
+            default_value: serde_json::json!(30),
+            min_value: Some(serde_json::json!(0)),
+            max_value: Some(serde_json::json!(300)),
+            category: "Staging".into(),
+            requires_restart: false,
+        },
+        SettingsFieldMetadata {
+            key: "auto_approve_on_timeout".into(),
+            display_name: "Auto-Approve on Timeout".into(),
+            description: "Automatically approve staging with rule-based NPCs when timeout expires. If disabled, player receives timeout notification.".into(),
             field_type: "boolean".into(),
             default_value: serde_json::json!(true),
             min_value: None,

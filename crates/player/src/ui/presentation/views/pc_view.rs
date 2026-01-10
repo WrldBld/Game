@@ -78,6 +78,22 @@ pub fn PCView() -> Element {
 
     // Mini-map state
     let mut show_mini_map = use_signal(|| false);
+
+    // Backdrop transition effect - auto-clear after animation completes
+    {
+        let game_state_for_effect = game_state.clone();
+        let transitioning = *game_state_for_effect.backdrop_transitioning.read();
+        use_effect(move || {
+            if transitioning {
+                let mut gs = game_state_for_effect.clone();
+                spawn(async move {
+                    // Wait for animation to complete (0.5s defined in tailwind.config.js)
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    gs.clear_backdrop_transition();
+                });
+            }
+        });
+    }
     let mut map_regions: Signal<Vec<MapRegionData>> = use_signal(Vec::new);
     let mut is_loading_map = use_signal(|| false);
 
@@ -218,6 +234,7 @@ pub fn PCView() -> Element {
             // Visual novel stage
             Backdrop {
                 image_url: game_state.backdrop_url(),
+                transitioning: *game_state.backdrop_transitioning.read(),
 
                 // Character layer with real scene characters
                 CharacterLayer {
@@ -913,6 +930,8 @@ pub fn PCView() -> Element {
             if let Some(ref pending) = *game_state.staging_pending.read() {
                 StagingPendingOverlay {
                     region_name: pending.region_name.clone(),
+                    started_at_ms: pending.started_at_ms,
+                    timeout_seconds: pending.timeout_seconds,
                 }
             }
         }
@@ -921,7 +940,51 @@ pub fn PCView() -> Element {
 
 /// Overlay shown when player is waiting for DM to approve staging
 #[component]
-fn StagingPendingOverlay(region_name: String) -> Element {
+fn StagingPendingOverlay(
+    region_name: String,
+    started_at_ms: u64,
+    timeout_seconds: u64,
+) -> Element {
+    let platform = use_context::<std::sync::Arc<dyn crate::ports::outbound::PlatformPort>>();
+    let mut remaining_seconds = use_signal(|| {
+        // Calculate initial remaining time
+        let elapsed_ms = platform.now_millis().saturating_sub(started_at_ms);
+        let elapsed_secs = elapsed_ms / 1000;
+        timeout_seconds.saturating_sub(elapsed_secs)
+    });
+
+    // Timer effect to update countdown every second
+    {
+        let platform_for_effect = platform.clone();
+        use_effect(move || {
+            if timeout_seconds == 0 {
+                return; // No countdown if timeout is 0
+            }
+
+            let platform = platform_for_effect.clone();
+            spawn(async move {
+                loop {
+                    // Wait 1 second
+                    platform.sleep_ms(1000).await;
+
+                    // Recalculate remaining time
+                    let elapsed_ms = platform.now_millis().saturating_sub(started_at_ms);
+                    let elapsed_secs = elapsed_ms / 1000;
+                    let new_remaining = timeout_seconds.saturating_sub(elapsed_secs);
+
+                    remaining_seconds.set(new_remaining);
+
+                    // Stop updating if we've reached 0
+                    if new_remaining == 0 {
+                        break;
+                    }
+                }
+            });
+        });
+    }
+
+    let remaining = *remaining_seconds.read();
+
     rsx! {
         div {
             class: "fixed inset-0 bg-black/70 flex items-center justify-center z-[900] backdrop-blur-sm",
@@ -949,10 +1012,29 @@ fn StagingPendingOverlay(region_name: String) -> Element {
                     "Entering {region_name}"
                 }
 
+                // Countdown timer (only show if timeout is set)
+                if timeout_seconds > 0 {
+                    div {
+                        class: "mb-4",
+                        p {
+                            class: "text-gray-400 text-sm",
+                            "Auto-continuing in"
+                        }
+                        p {
+                            class: "text-2xl font-mono text-amber-300 mt-1",
+                            "{remaining}s"
+                        }
+                    }
+                }
+
                 // Description
                 p {
                     class: "text-gray-500 text-sm",
-                    "The DM is preparing the scene. Please wait..."
+                    if timeout_seconds > 0 {
+                        "Waiting for DM, or auto-continue when ready..."
+                    } else {
+                        "The DM is preparing the scene. Please wait..."
+                    }
                 }
             }
         }

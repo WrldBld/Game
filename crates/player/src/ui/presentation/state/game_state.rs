@@ -62,6 +62,10 @@ pub struct StagingPendingData {
     pub region_id: String,
     /// Region name for display
     pub region_name: String,
+    /// When the staging request started (epoch milliseconds from PlatformPort::now_millis)
+    pub started_at_ms: u64,
+    /// How many seconds until auto-approve (0 = no auto-approve)
+    pub timeout_seconds: u64,
 }
 
 /// Staged NPC data for DM approval UI
@@ -235,6 +239,8 @@ pub struct GameState {
     /// Current moods of NPCs in the scene (npc_id -> mood string)
     /// Updated by NpcMoodChanged events, used for expression/sprite display
     pub npc_moods: Signal<HashMap<String, String>>,
+    /// Whether the backdrop is transitioning (fade effect during scene change)
+    pub backdrop_transitioning: Signal<bool>,
 }
 
 impl GameState {
@@ -266,6 +272,7 @@ impl GameState {
             time_mode: Signal::new(TimeMode::default()),
             time_paused: Signal::new(true),
             npc_moods: Signal::new(HashMap::new()),
+            backdrop_transitioning: Signal::new(false),
         }
     }
 
@@ -295,6 +302,9 @@ impl GameState {
         navigation: NavigationData,
         region_items: Vec<RegionItemData>,
     ) {
+        // Trigger backdrop fade transition
+        self.trigger_backdrop_transition();
+
         self.selected_pc_id.set(Some(pc_id));
         self.current_region.set(Some(region));
         self.npcs_present.set(npcs_present);
@@ -302,6 +312,16 @@ impl GameState {
         self.region_items.set(region_items);
         // Clear NPC moods when changing scene - they'll be repopulated from staging
         self.clear_npc_moods();
+    }
+
+    /// Trigger a backdrop fade transition effect
+    pub fn trigger_backdrop_transition(&mut self) {
+        self.backdrop_transitioning.set(true);
+    }
+
+    /// Clear the backdrop transition state (called after animation completes)
+    pub fn clear_backdrop_transition(&mut self) {
+        self.backdrop_transitioning.set(false);
     }
 
     /// Remove an item from region_items (for optimistic pickup updates)
@@ -356,10 +376,20 @@ impl GameState {
     }
 
     /// Set staging as pending (player waiting for DM approval)
-    pub fn set_staging_pending(&mut self, region_id: String, region_name: String) {
+    ///
+    /// `started_at_ms` should be obtained from `PlatformPort::now_millis()`
+    pub fn set_staging_pending(
+        &mut self,
+        region_id: String,
+        region_name: String,
+        timeout_seconds: u64,
+        started_at_ms: u64,
+    ) {
         self.staging_pending.set(Some(StagingPendingData {
             region_id,
             region_name,
+            started_at_ms,
+            timeout_seconds,
         }));
     }
 

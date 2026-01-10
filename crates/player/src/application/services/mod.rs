@@ -51,9 +51,9 @@ pub use player_character_service::{
 };
 
 // Re-export location service types
-pub use location_service::{
-    LocationFormData, LocationService, LocationSummary, MapBoundsData, RegionData,
-};
+pub use location_service::{LocationFormData, LocationService, LocationSummary};
+// Map-related types from protocol
+pub use wrldbldr_protocol::{MapBoundsData, RegionListItemData};
 
 // Re-export skill service types
 pub use skill_service::{CreateSkillRequest, SkillService, UpdateSkillRequest};

@@ -1,4 +1,4 @@
-//! Session-related DTOs for GameConnectionPort
+//! Session-related DTOs for CommandBus
 //!
 //! These types are owned by the ports layer and define the contract
 //! between the application layer and the adapters layer.

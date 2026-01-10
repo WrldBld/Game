@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
-use wrldbldr_protocol::{LocationRequest, RegionRequest, RequestPayload};
+use wrldbldr_protocol::{LocationRequest, RegionListItemData, RegionRequest, RequestPayload};
 
 /// Location summary for list views
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -93,31 +93,7 @@ impl ConnectionData {
     }
 }
 
-/// Region data with map bounds (for mini-map)
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RegionData {
-    pub id: String,
-    pub location_id: String,
-    pub name: String,
-    #[serde(default)]
-    pub description: String,
-    pub backdrop_asset: Option<String>,
-    pub atmosphere: Option<String>,
-    pub map_bounds: Option<MapBoundsData>,
-    #[serde(default)]
-    pub is_spawn_point: bool,
-    #[serde(default)]
-    pub order: u32,
-}
-
-/// Map bounds for positioning regions
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct MapBoundsData {
-    pub x: u32,
-    pub y: u32,
-    pub width: u32,
-    pub height: u32,
-}
+// RegionListItemData and MapBoundsData are imported from wrldbldr_protocol
 
 /// Location service for managing locations
 ///
@@ -250,7 +226,10 @@ impl LocationService {
     }
 
     /// Get all regions for a location (with map bounds)
-    pub async fn get_regions(&self, location_id: &str) -> Result<Vec<RegionData>, ServiceError> {
+    pub async fn get_regions(
+        &self,
+        location_id: &str,
+    ) -> Result<Vec<RegionListItemData>, ServiceError> {
         let result = self
             .commands
             .request_with_timeout(

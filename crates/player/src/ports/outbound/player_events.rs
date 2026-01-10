@@ -489,6 +489,8 @@ pub enum PlayerEvent {
     StagingPending {
         region_id: String,
         region_name: String,
+        /// Timeout in seconds before auto-approve (0 = no auto-approve)
+        timeout_seconds: u64,
     },
 
     /// Staging is ready (Player)

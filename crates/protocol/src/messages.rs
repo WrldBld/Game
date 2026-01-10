@@ -695,6 +695,9 @@ pub enum ServerMessage {
     StagingPending {
         region_id: String,
         region_name: String,
+        /// Timeout in seconds before auto-approve (0 = no auto-approve)
+        #[serde(default)]
+        timeout_seconds: u64,
     },
 
     /// Staging is ready (sent to Player)
@@ -1119,6 +1122,36 @@ pub struct RegionData {
     /// Location's top-down map image for mini-map display
     #[serde(default)]
     pub map_asset: Option<String>,
+}
+
+/// Region list item data (returned by ListRegions request)
+/// Includes map bounds for mini-map display
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RegionListItemData {
+    pub id: String,
+    pub location_id: String,
+    pub name: String,
+    pub description: String,
+    pub backdrop_asset: Option<String>,
+    pub atmosphere: Option<String>,
+    /// Map bounds for positioning on location mini-map
+    #[serde(default)]
+    pub map_bounds: Option<MapBoundsData>,
+    /// Whether this region is a spawn point
+    #[serde(default)]
+    pub is_spawn_point: bool,
+    /// Display order within location
+    #[serde(default)]
+    pub order: u32,
+}
+
+/// Map bounds for region positioning on location map
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct MapBoundsData {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 /// NPC presence data for scene display

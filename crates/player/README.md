@@ -94,7 +94,7 @@ crates/
 | `crates/player/src/ui/routes/mod.rs`                                    | All route definitions            |
 | `crates/player/src/ui/presentation/services.rs`                         | Service hooks (use\_\*\_service) |
 | `crates/player/src/ui/presentation/handlers/session_message_handler.rs` | Event processing                 |
-| `crates/player/src/ports/outbound/game_connection_port.rs`              | WebSocket interface              |
+| `crates/player/src/infrastructure/messaging/command_bus.rs`             | WebSocket command interface      |
 
 ---
 
@@ -461,16 +461,16 @@ CSS files:
 User Action
     │
     ▼
-Component calls GameConnectionPort method
+Service sends command via CommandBus
     │
     ▼
-Adapter sends ClientMessage via WebSocket
+CommandBus sends ClientMessage via WebSocket
     │
     ▼
 [Engine processes request]
     │
     ▼
-Adapter receives ServerMessage
+EventBus receives ServerMessage
     │
     ▼
 message_translator converts to PlayerEvent
@@ -513,19 +513,22 @@ pub fn handle_server_message(
 cargo test -p wrldbldr-player
 ```
 
-### Mocking Ports
+### Mocking WebSocket
 
-Use the `testing` feature for mock implementations:
+Use mock channels for testing services:
 
 ```rust
 #[cfg(test)]
 mod tests {
-    use wrldbldr_player::ports::outbound::testing::MockGameConnectionPort;
+    use wrldbldr_player::infrastructure::messaging::CommandBus;
+    use tokio::sync::mpsc;
 
     #[test]
     fn test_something() {
-        let mock = MockGameConnectionPort::new();
-        // Configure mock expectations...
+        // Create test channel
+        let (tx, mut rx) = mpsc::channel(32);
+        let commands = CommandBus::new_for_testing(tx);
+        // Use commands in service under test...
     }
 }
 ```

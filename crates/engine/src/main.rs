@@ -157,7 +157,158 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
 
+            // Process DM approval requests - send to DMs for review
+            match queue_app
+                .queue
+                .dequeue_dm_approval()
+                .await
+            {
+                Ok(Some(item)) => {
+                    if let infrastructure::ports::QueueItemData::DmApproval(data) = item.data {
+                        // Convert domain types to protocol types
+                        let proposed_tools: Vec<wrldbldr_protocol::ProposedToolInfo> = data
+                            .proposed_tools
+                            .into_iter()
+                            .map(|t| wrldbldr_protocol::ProposedToolInfo {
+                                id: t.id,
+                                name: t.name,
+                                description: t.description,
+                                arguments: t.arguments,
+                            })
+                            .collect();
+
+                        let challenge_suggestion = data.challenge_suggestion.map(|cs| {
+                            wrldbldr_protocol::ChallengeSuggestionInfo {
+                                challenge_id: cs.challenge_id,
+                                challenge_name: cs.challenge_name,
+                                skill_name: cs.skill_name,
+                                difficulty_display: cs.difficulty_display,
+                                confidence: cs.confidence,
+                                reasoning: cs.reasoning,
+                                target_pc_id: cs.target_pc_id.map(|id| id.to_string()),
+                                outcomes: cs.outcomes.map(|o| {
+                                    wrldbldr_protocol::ChallengeSuggestionOutcomes {
+                                        success: o.success,
+                                        failure: o.failure,
+                                        critical_success: o.critical_success,
+                                        critical_failure: o.critical_failure,
+                                    }
+                                }),
+                            }
+                        });
+
+                        let narrative_event_suggestion = data.narrative_event_suggestion.map(|nes| {
+                            wrldbldr_protocol::NarrativeEventSuggestionInfo {
+                                event_id: nes.event_id,
+                                event_name: nes.event_name,
+                                description: nes.description,
+                                scene_direction: nes.scene_direction,
+                                confidence: nes.confidence,
+                                reasoning: nes.reasoning,
+                                matched_triggers: nes.matched_triggers,
+                                suggested_outcome: nes.suggested_outcome,
+                            }
+                        });
+
+                        // Build and broadcast ApprovalRequired message to DMs
+                        let msg = wrldbldr_protocol::ServerMessage::ApprovalRequired {
+                            request_id: item.id.to_string(),
+                            npc_name: data.npc_name,
+                            proposed_dialogue: data.proposed_dialogue,
+                            internal_reasoning: data.internal_reasoning,
+                            proposed_tools,
+                            challenge_suggestion,
+                            narrative_event_suggestion,
+                        };
+
+                        queue_connections.broadcast_to_dms(data.world_id, msg).await;
+                        tracing::info!(
+                            world_id = %data.world_id,
+                            request_id = %item.id,
+                            "Broadcast ApprovalRequired to DMs"
+                        );
+                    }
+                }
+                Ok(None) => {} // Queue empty
+                Err(e) => {
+                    tracing::warn!(error = %e, "Failed to dequeue DM approval request");
+                }
+            }
+
             tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    });
+
+    // Spawn staging timeout processor
+    let staging_ws_state = ws_state.clone();
+    tokio::spawn(async move {
+        // Default timeout: 30 seconds (will be configurable per-world via settings)
+        let default_timeout_seconds: u64 = 30;
+
+        loop {
+            // Check for expired staging requests
+            let now = chrono::Utc::now();
+            let expired_requests: Vec<(String, use_cases::staging::PendingStagingRequest)> = {
+                let guard = staging_ws_state.pending_staging_requests.read().await;
+                guard
+                    .iter()
+                    .filter(|(_, req)| {
+                        let elapsed = now.signed_duration_since(req.created_at);
+                        elapsed.num_seconds() >= default_timeout_seconds as i64
+                    })
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect()
+            };
+
+            // Process each expired request
+            for (request_id, pending) in expired_requests {
+                // Remove from pending (atomically)
+                {
+                    let mut guard = staging_ws_state.pending_staging_requests.write().await;
+                    guard.remove(&request_id);
+                }
+
+                // Auto-approve with rule-based NPCs
+                let world_id = pending.world_id;
+                match staging_ws_state
+                    .app
+                    .use_cases
+                    .staging
+                    .auto_approve_timeout
+                    .execute(request_id.clone(), pending)
+                    .await
+                {
+                    Ok(payload) => {
+                        // Broadcast StagingReady to all players in world
+                        staging_ws_state
+                            .connections
+                            .broadcast_to_world(
+                                world_id,
+                                wrldbldr_protocol::ServerMessage::StagingReady {
+                                    region_id: payload.region_id.to_string(),
+                                    npcs_present: payload.npcs_present,
+                                    visual_state: payload.visual_state,
+                                },
+                            )
+                            .await;
+                        tracing::info!(
+                            request_id = %request_id,
+                            world_id = %world_id,
+                            "Auto-approved staging on timeout, broadcast StagingReady"
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            request_id = %request_id,
+                            "Failed to auto-approve staging on timeout"
+                        );
+                    }
+                }
+            }
+
+            // Check every 5 seconds
+            tokio::time::sleep(Duration::from_secs(5)).await;
         }
     });
 

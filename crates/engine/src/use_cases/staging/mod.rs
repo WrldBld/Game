@@ -27,11 +27,16 @@ use wrldbldr_protocol::{
     WaitingPcInfo,
 };
 
+/// Default staging timeout in seconds (matches main.rs processor).
+/// TODO: Make configurable per-world via settings
+pub const DEFAULT_STAGING_TIMEOUT_SECONDS: u64 = 30;
+
 /// Container for staging use cases.
 pub struct StagingUseCases {
     pub request_approval: Arc<RequestStagingApproval>,
     pub regenerate: Arc<RegenerateStagingSuggestions>,
     pub approve: Arc<ApproveStagingRequest>,
+    pub auto_approve_timeout: Arc<AutoApproveStagingTimeout>,
 }
 
 impl StagingUseCases {
@@ -39,20 +44,24 @@ impl StagingUseCases {
         request_approval: Arc<RequestStagingApproval>,
         regenerate: Arc<RegenerateStagingSuggestions>,
         approve: Arc<ApproveStagingRequest>,
+        auto_approve_timeout: Arc<AutoApproveStagingTimeout>,
     ) -> Self {
         Self {
             request_approval,
             regenerate,
             approve,
+            auto_approve_timeout,
         }
     }
 }
 
 /// Pending staging request tracking (request_id -> region/location).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct PendingStagingRequest {
     pub region_id: RegionId,
     pub location_id: LocationId,
+    pub world_id: WorldId,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// IO dependencies for staging requests (WS-state owned).
@@ -118,6 +127,8 @@ impl RequestStagingApproval {
                 PendingStagingRequest {
                     region_id: input.region.id,
                     location_id: input.region.location_id,
+                    world_id: input.world_id,
+                    created_at: chrono::Utc::now(),
                 },
             );
         }
@@ -219,6 +230,7 @@ impl RequestStagingApproval {
         Ok(ServerMessage::StagingPending {
             region_id: input.region.id.to_string(),
             region_name: input.region.name,
+            timeout_seconds: DEFAULT_STAGING_TIMEOUT_SECONDS,
         })
     }
 
@@ -822,4 +834,91 @@ fn parse_llm_staging_response(
             })
         })
         .collect()
+}
+
+/// Use case for auto-approving expired staging requests.
+pub struct AutoApproveStagingTimeout {
+    character: Arc<Character>,
+    staging: Arc<Staging>,
+    world: Arc<World>,
+    location: Arc<Location>,
+    location_state: Arc<LocationStateEntity>,
+    region_state: Arc<RegionStateEntity>,
+}
+
+impl AutoApproveStagingTimeout {
+    pub fn new(
+        character: Arc<Character>,
+        staging: Arc<Staging>,
+        world: Arc<World>,
+        location: Arc<Location>,
+        location_state: Arc<LocationStateEntity>,
+        region_state: Arc<RegionStateEntity>,
+    ) -> Self {
+        Self {
+            character,
+            staging,
+            world,
+            location,
+            location_state,
+            region_state,
+        }
+    }
+
+    /// Auto-approve a single expired staging request with rule-based NPCs.
+    pub async fn execute(
+        &self,
+        request_id: String,
+        pending: PendingStagingRequest,
+    ) -> Result<StagingReadyPayload, StagingError> {
+        // Generate rule-based NPC suggestions
+        let rule_based_npcs =
+            generate_rule_based_suggestions(&self.character, &self.staging, pending.region_id)
+                .await;
+
+        // Convert to ApprovedNpcInfo format
+        let approved_npcs: Vec<ApprovedNpcInfo> = rule_based_npcs
+            .into_iter()
+            .map(|npc| ApprovedNpcInfo {
+                character_id: npc.character_id,
+                is_present: npc.is_present,
+                reasoning: Some(format!("[Auto-approved] {}", npc.reasoning)),
+                is_hidden_from_players: npc.is_hidden_from_players,
+                mood: npc.mood,
+            })
+            .collect();
+
+        let input = ApproveStagingInput {
+            region_id: pending.region_id,
+            location_id: Some(pending.location_id),
+            world_id: pending.world_id,
+            approved_by: "system".to_string(),
+            ttl_hours: 24, // Use default TTL for auto-approved staging
+            source: StagingSource::AutoApproved,
+            approved_npcs,
+            location_state_id: None,
+            region_state_id: None,
+        };
+
+        // Delegate to the approve use case
+        let approve_use_case = ApproveStagingRequest::new(
+            self.staging.clone(),
+            self.world.clone(),
+            self.character.clone(),
+            self.location.clone(),
+            self.location_state.clone(),
+            self.region_state.clone(),
+        );
+
+        let result = approve_use_case.execute(input).await?;
+
+        tracing::info!(
+            request_id = %request_id,
+            region_id = %pending.region_id,
+            world_id = %pending.world_id,
+            "Auto-approved staging on timeout"
+        );
+
+        Ok(result)
+    }
 }

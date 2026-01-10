@@ -766,6 +766,14 @@ pub(crate) fn build_test_app_with_ports(
             location_state.clone(),
             region_state.clone(),
         )),
+        Arc::new(crate::use_cases::staging::AutoApproveStagingTimeout::new(
+            character.clone(),
+            staging.clone(),
+            world.clone(),
+            location.clone(),
+            location_state.clone(),
+            region_state.clone(),
+        )),
     );
 
     let npc_uc = crate::use_cases::NpcUseCases::new(

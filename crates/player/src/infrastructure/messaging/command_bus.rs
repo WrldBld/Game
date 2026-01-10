@@ -179,7 +179,18 @@ impl CommandBus {
         &self,
         payload: RequestPayload,
     ) -> impl std::future::Future<Output = Result<ResponseResult, RequestError>> {
-        let id = uuid::Uuid::new_v4().to_string();
+        self.request_with_id(uuid::Uuid::new_v4().to_string(), payload)
+    }
+
+    /// Send a request with a pre-generated ID and await the response.
+    ///
+    /// This is useful when the caller needs to track the request ID for cleanup,
+    /// such as in timeout handling.
+    fn request_with_id(
+        &self,
+        id: String,
+        payload: RequestPayload,
+    ) -> impl std::future::Future<Output = Result<ResponseResult, RequestError>> {
         let (response_tx, response_rx) = oneshot::channel();
 
         // Register pending request
@@ -187,7 +198,7 @@ impl CommandBus {
 
         // Send the request - bridge will create ClientMessage::Request
         let send_result = self.tx.unbounded_send(BusMessage::Request {
-            id: id.clone(),
+            id,
             payload,
         });
 
@@ -206,9 +217,10 @@ impl CommandBus {
         use futures_util::future::{select, Either};
         use gloo_timers::future::TimeoutFuture;
 
-        let request_future = self.request(payload);
+        // Generate ID before creating the request so we can use it for cleanup
+        let request_id = uuid::Uuid::new_v4().to_string();
+        let request_future = self.request_with_id(request_id.clone(), payload);
         let pending = Rc::clone(&self.pending);
-        let id_for_cleanup = uuid::Uuid::new_v4().to_string(); // Note: this won't match, need to fix
 
         async move {
             let timeout_future = TimeoutFuture::new(timeout_ms as u32);
@@ -216,7 +228,8 @@ impl CommandBus {
             match select(Box::pin(request_future), Box::pin(timeout_future)).await {
                 Either::Left((result, _)) => result,
                 Either::Right((_, _)) => {
-                    // Timeout - request cleanup happens when channel is dropped
+                    // Timeout - clean up the pending request
+                    pending.borrow_mut().remove(&request_id);
                     Err(RequestError::Timeout)
                 }
             }

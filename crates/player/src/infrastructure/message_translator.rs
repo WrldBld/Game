@@ -459,9 +459,11 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
         ServerMessage::StagingPending {
             region_id,
             region_name,
+            timeout_seconds,
         } => PlayerEvent::StagingPending {
             region_id,
             region_name,
+            timeout_seconds,
         },
 
         ServerMessage::StagingReady {
@@ -1092,6 +1094,7 @@ mod tests {
         let pending = ServerMessage::StagingPending {
             region_id: "region-1".to_string(),
             region_name: "Town".to_string(),
+            timeout_seconds: 30,
         };
 
         let event = translate(pending);
@@ -1099,9 +1102,11 @@ mod tests {
             PlayerEvent::StagingPending {
                 region_id,
                 region_name,
+                timeout_seconds,
             } => {
                 assert_eq!(region_id, "region-1");
                 assert_eq!(region_name, "Town");
+                assert_eq!(timeout_seconds, 30);
             }
             _ => panic!("Expected StagingPending event"),
         }

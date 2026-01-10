@@ -99,7 +99,7 @@ pub(super) async fn handle_staging_regenerate(
     // request_id is a correlation token; resolve it to a region_id.
     let pending = {
         let guard = state.pending_staging_requests.read().await;
-        guard.get(&request_id).copied()
+        guard.get(&request_id).cloned()
     };
 
     let region_id = if let Some(pending) = pending {

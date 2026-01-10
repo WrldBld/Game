@@ -903,13 +903,21 @@ pub fn handle_server_message(
         PlayerEvent::StagingPending {
             region_id,
             region_name,
+            timeout_seconds,
         } => {
-            tracing::info!("Staging pending for region {} ({})", region_name, region_id);
+            tracing::info!(
+                "Staging pending for region {} ({}) with {}s timeout",
+                region_name,
+                region_id,
+                timeout_seconds
+            );
 
             // Update region staging status to Pending
             game_state.set_region_staging_status(region_id.clone(), RegionStagingStatus::Pending);
 
-            game_state.set_staging_pending(region_id, region_name.clone());
+            // Get current time from platform port for countdown tracking
+            let started_at_ms = platform.now_millis();
+            game_state.set_staging_pending(region_id, region_name.clone(), timeout_seconds, started_at_ms);
             session_state.add_log_entry(
                 "System".to_string(),
                 format!("Setting the scene in {}...", region_name),
@@ -1782,6 +1790,7 @@ mod tests {
                 PlayerEvent::StagingPending {
                     region_id: region_id.clone(),
                     region_name: "Town".to_string(),
+                    timeout_seconds: 30,
                 },
                 &mut session_state,
                 &mut game_state,
@@ -1792,6 +1801,8 @@ mod tests {
             );
 
             assert!(game_state.staging_pending.read().is_some());
+            let pending = game_state.staging_pending.read().clone().unwrap();
+            assert_eq!(pending.timeout_seconds, 30);
             assert_eq!(
                 game_state.get_region_staging_status(&region_id),
                 RegionStagingStatus::Pending
