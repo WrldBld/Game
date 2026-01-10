@@ -808,6 +808,15 @@ pub trait LoreRepo: Send + Sync {
         lore_id: LoreId,
         chunk_ids: &[LoreChunkId],
     ) -> Result<(), RepoError>;
+
+    // Remove chunks from existing knowledge (partial revocation)
+    // Returns true if the knowledge relationship was completely removed (no chunks left)
+    async fn remove_chunks_from_knowledge(
+        &self,
+        character_id: CharacterId,
+        lore_id: LoreId,
+        chunk_ids: &[LoreChunkId],
+    ) -> Result<bool, RepoError>;
 }
 
 #[cfg_attr(test, mockall::automock)]

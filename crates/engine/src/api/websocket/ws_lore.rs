@@ -322,14 +322,6 @@ pub(super) async fn handle_lore_request(
                 return Err(e);
             }
 
-            // Partial revocation is not supported - reject if chunk_ids is provided
-            if chunk_ids.is_some() {
-                return Ok(ResponseResult::error(
-                    ErrorCode::BadRequest,
-                    "Partial revocation not supported. Omit chunk_ids to revoke all knowledge of this lore.",
-                ));
-            }
-
             let char_uuid = match parse_character_id_for_request(&character_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
@@ -339,15 +331,51 @@ pub(super) async fn handle_lore_request(
                 Err(e) => return Err(e),
             };
 
+            // Parse chunk_ids if provided (for partial revocation)
+            let chunk_uuids = match chunk_ids {
+                Some(ids) => {
+                    let mut valid_uuids = Vec::with_capacity(ids.len());
+                    let mut invalid_ids = Vec::new();
+
+                    for id in ids {
+                        match Uuid::parse_str(&id) {
+                            Ok(uuid) => {
+                                valid_uuids.push(wrldbldr_domain::LoreChunkId::from_uuid(uuid))
+                            }
+                            Err(_) => invalid_ids.push(id),
+                        }
+                    }
+
+                    if !invalid_ids.is_empty() {
+                        return Ok(ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            format!("Invalid chunk_ids: {}", invalid_ids.join(", ")),
+                        ));
+                    }
+
+                    Some(valid_uuids)
+                }
+                None => None,
+            };
+
             match state
                 .app
                 .use_cases
                 .lore
                 .ops
-                .revoke_knowledge(char_uuid, lore_uuid)
+                .revoke_knowledge(char_uuid, lore_uuid, chunk_uuids)
                 .await
             {
                 Ok(result) => Ok(ResponseResult::success(result)),
+                Err(crate::use_cases::lore::LoreError::NotFound) => {
+                    Ok(ResponseResult::error(ErrorCode::NotFound, "Lore not found"))
+                }
+                Err(crate::use_cases::lore::LoreError::InvalidChunkIds(msg)) => {
+                    Ok(ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        format!("Invalid chunk IDs: {}", msg),
+                    ))
+                }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     &e.to_string(),

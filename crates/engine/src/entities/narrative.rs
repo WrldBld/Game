@@ -5,7 +5,8 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{
     self as domain, CharacterId, EventChainId, LocationId, NarrativeEventId, PlayerCharacterId,
-    RegionId, SceneId, StoryEvent, StoryEventId, StoryEventType, TriggerContext, WorldId,
+    RegionId, SceneId, StoryEvent, StoryEventId, StoryEventType, TimeContext, TriggerContext,
+    WorldId,
 };
 
 use crate::infrastructure::ports::{
@@ -554,18 +555,28 @@ impl Narrative {
             }
         };
 
-        // Get current scene for the world
-        let current_scene: Option<SceneId> = match self.scene_repo.get_current(world_id).await {
-            Ok(scene_opt) => scene_opt.map(|s: domain::Scene| s.id),
-            Err(e) => {
-                tracing::warn!(
-                    world_id = %world_id,
-                    error = %e,
-                    "Failed to fetch current scene for trigger evaluation"
-                );
-                None
-            }
-        };
+        // Get current scene for the world (including time context)
+        let (current_scene, time_context_string): (Option<SceneId>, Option<String>) =
+            match self.scene_repo.get_current(world_id).await {
+                Ok(Some(scene)) => {
+                    let time_str = match &scene.time_context {
+                        TimeContext::Unspecified => None,
+                        TimeContext::TimeOfDay(tod) => Some(tod.display_name().to_string()),
+                        TimeContext::During(event) => Some(event.clone()),
+                        TimeContext::Custom(desc) => Some(desc.clone()),
+                    };
+                    (Some(scene.id), time_str)
+                }
+                Ok(None) => (None, None),
+                Err(e) => {
+                    tracing::warn!(
+                        world_id = %world_id,
+                        error = %e,
+                        "Failed to fetch current scene for trigger evaluation"
+                    );
+                    (None, None)
+                }
+            };
 
         // Build trigger context with enriched PC state
         // NOTE: event_outcomes, challenge_successes, turns_since_event, turn_count
@@ -574,7 +585,7 @@ impl Narrative {
         let context = TriggerContext {
             current_location: location_id,
             current_scene,
-            time_context: None, // Caller can provide game_time context if needed
+            time_context: time_context_string,
             flags,
             inventory,
             completed_events,

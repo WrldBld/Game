@@ -549,4 +549,87 @@ impl LoreRepo for Neo4jLoreRepo {
         );
         Ok(())
     }
+
+    async fn remove_chunks_from_knowledge(
+        &self,
+        character_id: CharacterId,
+        lore_id: LoreId,
+        chunk_ids: &[LoreChunkId],
+    ) -> Result<bool, RepoError> {
+        if chunk_ids.is_empty() {
+            return Ok(false);
+        }
+
+        // First, fetch the current known_chunk_ids (stored as JSON string)
+        let fetch_q = query(
+            "MATCH (c:Character {id: $character_id})-[k:KNOWS_LORE]->(l:Lore {id: $lore_id})
+            RETURN k.known_chunk_ids as known_chunk_ids",
+        )
+        .param("character_id", character_id.to_string())
+        .param("lore_id", lore_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(fetch_q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        let current_chunks: Vec<LoreChunkId> = if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?
+        {
+            let json_str: String = row
+                .get("known_chunk_ids")
+                .unwrap_or_else(|_| "[]".to_string());
+            serde_json::from_str(&json_str).unwrap_or_default()
+        } else {
+            // No knowledge relationship exists
+            return Ok(false);
+        };
+
+        // Remove specified chunks
+        let remaining: Vec<LoreChunkId> = current_chunks
+            .into_iter()
+            .filter(|id| !chunk_ids.contains(id))
+            .collect();
+
+        // If no chunks remain, delete the relationship entirely
+        if remaining.is_empty() {
+            self.revoke_knowledge(character_id, lore_id).await?;
+            tracing::debug!(
+                "Removed all chunks from character {} knowledge of lore {}, relationship deleted",
+                character_id,
+                lore_id
+            );
+            return Ok(true);
+        }
+
+        // Otherwise, update with remaining chunks
+        let remaining_json = serde_json::to_string(&remaining)
+            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+
+        let update_q = query(
+            "MATCH (c:Character {id: $character_id})-[k:KNOWS_LORE]->(l:Lore {id: $lore_id})
+            SET k.known_chunk_ids = $known_chunk_ids
+            RETURN c.id as character_id",
+        )
+        .param("character_id", character_id.to_string())
+        .param("lore_id", lore_id.to_string())
+        .param("known_chunk_ids", remaining_json);
+
+        self.graph
+            .run(update_q)
+            .await
+            .map_err(|e| RepoError::Database(e.to_string()))?;
+
+        tracing::debug!(
+            "Removed {} chunks from character {} knowledge of lore {}, {} chunks remaining",
+            chunk_ids.len(),
+            character_id,
+            lore_id,
+            remaining.len()
+        );
+        Ok(false)
+    }
 }

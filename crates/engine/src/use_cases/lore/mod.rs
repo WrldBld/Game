@@ -137,8 +137,22 @@ impl LoreOps {
     ) -> Result<Value, LoreError> {
         let mut lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
-        let mut chunk = wrldbldr_domain::LoreChunk::new(&data.content)
-            .with_order(data.order.unwrap_or(lore.chunks.len() as u32));
+        // Determine the order: use provided order or auto-assign next sequential
+        let order = match data.order {
+            Some(provided_order) => {
+                // Validate that the provided order is unique
+                if lore.chunks.iter().any(|c| c.order == provided_order) {
+                    return Err(LoreError::DuplicateChunkOrder(provided_order));
+                }
+                provided_order
+            }
+            None => {
+                // Auto-assign next sequential order
+                lore.chunks.iter().map(|c| c.order).max().map_or(0, |max| max + 1)
+            }
+        };
+
+        let mut chunk = wrldbldr_domain::LoreChunk::new(&data.content).with_order(order);
         if let Some(title) = data.title.as_ref() {
             chunk = chunk.with_title(title);
         }
@@ -168,6 +182,17 @@ impl LoreOps {
             .into_iter()
             .find(|l| l.chunks.iter().any(|c| c.id == chunk_id))
             .ok_or(LoreError::ChunkNotFound)?;
+
+        // Validate that new order doesn't conflict with other chunks
+        if let Some(new_order) = data.order {
+            let conflicts = lore
+                .chunks
+                .iter()
+                .any(|c| c.id != chunk_id && c.order == new_order);
+            if conflicts {
+                return Err(LoreError::DuplicateChunkOrder(new_order));
+            }
+        }
 
         let chunk = lore
             .chunks
@@ -214,6 +239,12 @@ impl LoreOps {
         lore.chunks.retain(|c| c.id != chunk_id);
         if lore.chunks.len() == before {
             return Err(LoreError::ChunkNotFound);
+        }
+
+        // Re-index remaining chunks to maintain sequential order (0, 1, 2, ...)
+        lore.chunks.sort_by_key(|c| c.order);
+        for (i, chunk) in lore.chunks.iter_mut().enumerate() {
+            chunk.order = i as u32;
         }
 
         lore.updated_at = chrono::Utc::now();
@@ -267,9 +298,48 @@ impl LoreOps {
         &self,
         character_id: CharacterId,
         lore_id: LoreId,
+        chunk_ids: Option<Vec<LoreChunkId>>,
     ) -> Result<Value, LoreError> {
-        self.lore.revoke_knowledge(character_id, lore_id).await?;
-        Ok(serde_json::json!({ "revoked": true }))
+        match chunk_ids {
+            Some(ids) if !ids.is_empty() => {
+                // Validate that the lore exists and chunk IDs are valid
+                let lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
+
+                let valid_chunk_ids: std::collections::HashSet<_> =
+                    lore.chunks.iter().map(|c| c.id).collect();
+                let invalid_ids: Vec<_> = ids
+                    .iter()
+                    .filter(|id| !valid_chunk_ids.contains(id))
+                    .map(|id| id.to_string())
+                    .collect();
+
+                if !invalid_ids.is_empty() {
+                    return Err(LoreError::InvalidChunkIds(invalid_ids.join(", ")));
+                }
+
+                // Partial revocation - remove specific chunks
+                let fully_revoked = self
+                    .lore
+                    .remove_chunks_from_knowledge(character_id, lore_id, &ids)
+                    .await?;
+
+                Ok(serde_json::json!({
+                    "revoked": true,
+                    "partial": !fully_revoked,
+                    "chunksRemoved": ids.len(),
+                    "relationshipDeleted": fully_revoked,
+                }))
+            }
+            _ => {
+                // Full revocation - remove entire knowledge relationship
+                self.lore.revoke_knowledge(character_id, lore_id).await?;
+                Ok(serde_json::json!({
+                    "revoked": true,
+                    "partial": false,
+                    "relationshipDeleted": true,
+                }))
+            }
+        }
     }
 
     pub async fn get_character_lore(
@@ -326,6 +396,8 @@ pub enum LoreError {
     InvalidChunkIds(String),
     #[error("Invalid NPC ID in conversation source: {0}")]
     InvalidNpcId(String),
+    #[error("Duplicate chunk order: {0}")]
+    DuplicateChunkOrder(u32),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }

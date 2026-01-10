@@ -107,4 +107,15 @@ impl Lore {
             .add_chunks_to_knowledge(character_id, lore_id, chunk_ids)
             .await
     }
+
+    pub async fn remove_chunks_from_knowledge(
+        &self,
+        character_id: CharacterId,
+        lore_id: LoreId,
+        chunk_ids: &[LoreChunkId],
+    ) -> Result<bool, RepoError> {
+        self.repo
+            .remove_chunks_from_knowledge(character_id, lore_id, chunk_ids)
+            .await
+    }
 }
