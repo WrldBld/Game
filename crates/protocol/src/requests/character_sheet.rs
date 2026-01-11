@@ -116,6 +116,13 @@ pub enum CharacterSheetRequest {
         /// Character ID
         character_id: String,
     },
+
+    /// Unknown request type for forward compatibility.
+    ///
+    /// If a new request type is added and an older client/server doesn't recognize it,
+    /// this variant will be used instead of failing to deserialize.
+    #[serde(other)]
+    Unknown,
 }
 
 /// Data for a single field update.

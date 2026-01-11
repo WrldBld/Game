@@ -768,10 +768,23 @@ impl Narrative {
             character_stats,                     // Character stat values for StatThreshold triggers
         };
 
-        // Evaluate each candidate and collect triggered events
+        // Validate and evaluate each candidate, collecting triggered events
         let mut triggered: Vec<domain::NarrativeEvent> = candidates
             .into_iter()
             .filter(|event| {
+                // Validate trigger configurations
+                for trigger in &event.trigger_conditions {
+                    let validation_errors = trigger.trigger_type.validate();
+                    for error in validation_errors {
+                        tracing::warn!(
+                            event_id = %event.id,
+                            event_name = %event.name,
+                            trigger_id = %trigger.trigger_id,
+                            "Trigger validation warning: {}", error
+                        );
+                    }
+                }
+
                 let eval = event.evaluate_triggers(&context);
                 eval.is_triggered
             })

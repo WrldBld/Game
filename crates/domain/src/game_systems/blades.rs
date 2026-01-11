@@ -370,6 +370,8 @@ impl CharacterSheetProvider for BladesSystem {
                 self.attributes_actions_section(),
                 self.harm_section(),
                 self.stress_trauma_section(),
+                self.advancement_section(),
+                self.wealth_section(),
                 self.load_armor_section(),
                 self.special_abilities_section(),
                 self.modifiers_section(),
@@ -572,6 +574,50 @@ impl CharacterSheetProvider for BladesSystem {
                 }
             }
 
+            // Validate playbook XP (0-8)
+            "PLAYBOOK_XP" => {
+                if let Some(xp) = value.as_u64() {
+                    if xp > 8 {
+                        return Some("Playbook XP must be between 0 and 8".to_string());
+                    }
+                } else {
+                    return Some("Playbook XP must be a number".to_string());
+                }
+            }
+
+            // Validate attribute XP (0-6)
+            "INSIGHT_XP" | "PROWESS_XP" | "RESOLVE_XP" => {
+                if let Some(xp) = value.as_u64() {
+                    if xp > 6 {
+                        return Some("Attribute XP must be between 0 and 6".to_string());
+                    }
+                } else {
+                    return Some("Attribute XP must be a number".to_string());
+                }
+            }
+
+            // Validate coin (0-4)
+            "COIN" => {
+                if let Some(coin) = value.as_u64() {
+                    if coin > 4 {
+                        return Some("Coin must be between 0 and 4".to_string());
+                    }
+                } else {
+                    return Some("Coin must be a number".to_string());
+                }
+            }
+
+            // Validate stash (0-40)
+            "STASH" => {
+                if let Some(stash) = value.as_u64() {
+                    if stash > 40 {
+                        return Some("Stash must be between 0 and 40".to_string());
+                    }
+                } else {
+                    return Some("Stash must be a number".to_string());
+                }
+            }
+
             _ => {}
         }
         None
@@ -622,6 +668,19 @@ impl CharacterSheetProvider for BladesSystem {
 
         // Healing clock defaults to 0
         defaults.insert("HEALING_CLOCK".to_string(), serde_json::json!(0));
+
+        // XP fields default to 0
+        defaults.insert("PLAYBOOK_XP".to_string(), serde_json::json!(0));
+        defaults.insert("PLAYBOOK_XP_MAX".to_string(), serde_json::json!(8));
+        defaults.insert("INSIGHT_XP".to_string(), serde_json::json!(0));
+        defaults.insert("PROWESS_XP".to_string(), serde_json::json!(0));
+        defaults.insert("RESOLVE_XP".to_string(), serde_json::json!(0));
+        defaults.insert("ATTRIBUTE_XP_MAX".to_string(), serde_json::json!(6));
+
+        // Wealth defaults
+        defaults.insert("COIN".to_string(), serde_json::json!(0));
+        defaults.insert("STASH".to_string(), serde_json::json!(0));
+        defaults.insert("MAX_STASH".to_string(), serde_json::json!(40));
 
         defaults
     }
@@ -1565,6 +1624,229 @@ impl BladesSystem {
         }
     }
 
+    fn advancement_section(&self) -> SchemaSection {
+        SchemaSection {
+            id: "advancement".to_string(),
+            label: "Advancement".to_string(),
+            section_type: SectionType::Advancement,
+            fields: vec![
+                FieldDefinition {
+                    id: "PLAYBOOK_XP".to_string(),
+                    label: "Playbook XP".to_string(),
+                    field_type: SchemaFieldType::ResourceBar {
+                        max_field: "PLAYBOOK_XP_MAX".to_string(),
+                        color: ResourceColor::Orange,
+                    },
+                    editable: true,
+                    required: false,
+                    derived_from: None,
+                    validation: Some(FieldValidation {
+                        min: Some(0),
+                        max: Some(8),
+                        pattern: None,
+                        error_message: Some("Playbook XP must be 0-8".to_string()),
+                    }),
+                    layout: FieldLayout {
+                        width: Some(6),
+                        ..Default::default()
+                    },
+                    description: Some("Mark XP when you address a challenge with your playbook XP trigger. 8 XP = 1 advance.".to_string()),
+                    placeholder: None,
+                },
+                FieldDefinition {
+                    id: "PLAYBOOK_XP_MAX".to_string(),
+                    label: "Max Playbook XP".to_string(),
+                    field_type: SchemaFieldType::Integer {
+                        min: Some(8),
+                        max: Some(8),
+                        show_modifier: false,
+                    },
+                    editable: false,
+                    required: false,
+                    derived_from: None,
+                    validation: None,
+                    layout: FieldLayout {
+                        width: Some(2),
+                        ..Default::default()
+                    },
+                    description: None,
+                    placeholder: None,
+                },
+                FieldDefinition {
+                    id: "INSIGHT_XP".to_string(),
+                    label: "Insight XP".to_string(),
+                    field_type: SchemaFieldType::ResourceBar {
+                        max_field: "ATTRIBUTE_XP_MAX".to_string(),
+                        color: ResourceColor::Blue,
+                    },
+                    editable: true,
+                    required: false,
+                    derived_from: None,
+                    validation: Some(FieldValidation {
+                        min: Some(0),
+                        max: Some(6),
+                        pattern: None,
+                        error_message: Some("Insight XP must be 0-6".to_string()),
+                    }),
+                    layout: FieldLayout {
+                        width: Some(4),
+                        new_row: true,
+                        ..Default::default()
+                    },
+                    description: Some("Mark when using Insight actions in desperate position. 6 XP = unlock action.".to_string()),
+                    placeholder: None,
+                },
+                FieldDefinition {
+                    id: "PROWESS_XP".to_string(),
+                    label: "Prowess XP".to_string(),
+                    field_type: SchemaFieldType::ResourceBar {
+                        max_field: "ATTRIBUTE_XP_MAX".to_string(),
+                        color: ResourceColor::Red,
+                    },
+                    editable: true,
+                    required: false,
+                    derived_from: None,
+                    validation: Some(FieldValidation {
+                        min: Some(0),
+                        max: Some(6),
+                        pattern: None,
+                        error_message: Some("Prowess XP must be 0-6".to_string()),
+                    }),
+                    layout: FieldLayout {
+                        width: Some(4),
+                        ..Default::default()
+                    },
+                    description: Some("Mark when using Prowess actions in desperate position. 6 XP = unlock action.".to_string()),
+                    placeholder: None,
+                },
+                FieldDefinition {
+                    id: "RESOLVE_XP".to_string(),
+                    label: "Resolve XP".to_string(),
+                    field_type: SchemaFieldType::ResourceBar {
+                        max_field: "ATTRIBUTE_XP_MAX".to_string(),
+                        color: ResourceColor::Green,
+                    },
+                    editable: true,
+                    required: false,
+                    derived_from: None,
+                    validation: Some(FieldValidation {
+                        min: Some(0),
+                        max: Some(6),
+                        pattern: None,
+                        error_message: Some("Resolve XP must be 0-6".to_string()),
+                    }),
+                    layout: FieldLayout {
+                        width: Some(4),
+                        ..Default::default()
+                    },
+                    description: Some("Mark when using Resolve actions in desperate position. 6 XP = unlock action.".to_string()),
+                    placeholder: None,
+                },
+                FieldDefinition {
+                    id: "ATTRIBUTE_XP_MAX".to_string(),
+                    label: "Max Attribute XP".to_string(),
+                    field_type: SchemaFieldType::Integer {
+                        min: Some(6),
+                        max: Some(6),
+                        show_modifier: false,
+                    },
+                    editable: false,
+                    required: false,
+                    derived_from: None,
+                    validation: None,
+                    layout: FieldLayout {
+                        width: Some(2),
+                        ..Default::default()
+                    },
+                    description: None,
+                    placeholder: None,
+                },
+            ],
+            collapsible: true,
+            collapsed_default: false,
+            description: Some("Track XP for playbook and attribute advancement.".to_string()),
+        }
+    }
+
+    fn wealth_section(&self) -> SchemaSection {
+        SchemaSection {
+            id: "wealth".to_string(),
+            label: "Coin & Stash".to_string(),
+            section_type: SectionType::Resources,
+            fields: vec![
+                FieldDefinition {
+                    id: "COIN".to_string(),
+                    label: "Coin".to_string(),
+                    field_type: SchemaFieldType::Integer {
+                        min: Some(0),
+                        max: Some(4),
+                        show_modifier: false,
+                    },
+                    editable: true,
+                    required: false,
+                    derived_from: None,
+                    validation: Some(FieldValidation {
+                        min: Some(0),
+                        max: Some(4),
+                        pattern: None,
+                        error_message: Some("Coin must be 0-4".to_string()),
+                    }),
+                    layout: FieldLayout {
+                        width: Some(4),
+                        ..Default::default()
+                    },
+                    description: Some("Liquid funds available for spending. Max 4 coin at a time.".to_string()),
+                    placeholder: None,
+                },
+                FieldDefinition {
+                    id: "STASH".to_string(),
+                    label: "Stash".to_string(),
+                    field_type: SchemaFieldType::ResourceBar {
+                        max_field: "MAX_STASH".to_string(),
+                        color: ResourceColor::Orange,
+                    },
+                    editable: true,
+                    required: false,
+                    derived_from: None,
+                    validation: Some(FieldValidation {
+                        min: Some(0),
+                        max: Some(40),
+                        pattern: None,
+                        error_message: Some("Stash must be 0-40".to_string()),
+                    }),
+                    layout: FieldLayout {
+                        width: Some(6),
+                        ..Default::default()
+                    },
+                    description: Some("Retirement savings. 40 stash = you can retire safely.".to_string()),
+                    placeholder: None,
+                },
+                FieldDefinition {
+                    id: "MAX_STASH".to_string(),
+                    label: "Max Stash".to_string(),
+                    field_type: SchemaFieldType::Integer {
+                        min: Some(40),
+                        max: Some(40),
+                        show_modifier: false,
+                    },
+                    editable: false,
+                    required: false,
+                    derived_from: None,
+                    validation: None,
+                    layout: FieldLayout {
+                        width: Some(2),
+                        ..Default::default()
+                    },
+                    description: None,
+                    placeholder: None,
+                },
+            ],
+            collapsible: true,
+            collapsed_default: false,
+            description: Some("Coin is for spending, stash is for retirement.".to_string()),
+        }
+    }
+
     fn modifiers_section(&self) -> SchemaSection {
         SchemaSection {
             id: "modifiers".to_string(),
@@ -1784,7 +2066,7 @@ mod tests {
 
         assert_eq!(schema.system_id, "blades");
         assert_eq!(schema.system_name, "Blades in the Dark");
-        assert_eq!(schema.sections.len(), 6);
+        assert_eq!(schema.sections.len(), 9);
 
         // Verify section IDs
         let section_ids: Vec<&str> = schema.sections.iter().map(|s| s.id.as_str()).collect();

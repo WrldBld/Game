@@ -411,13 +411,38 @@ impl CharacterSheetProvider for Coc7eSystem {
     ) -> HashMap<String, serde_json::Value> {
         let mut derived = HashMap::new();
 
-        // Get characteristics
-        let str_val = values.get("STR").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
-        let con = values.get("CON").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
-        let siz = values.get("SIZ").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
-        let dex = values.get("DEX").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
-        let pow = values.get("POW").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
-        let edu = values.get("EDU").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
+        // Get characteristics with safe u8 conversion (clamped to 0-255)
+        // CoC 7e characteristics are typically 1-100 but we clamp for safety
+        let str_val = values
+            .get("STR")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(50)
+            .clamp(0, 255) as u8;
+        let con = values
+            .get("CON")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(50)
+            .clamp(0, 255) as u8;
+        let siz = values
+            .get("SIZ")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(50)
+            .clamp(0, 255) as u8;
+        let dex = values
+            .get("DEX")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(50)
+            .clamp(0, 255) as u8;
+        let pow = values
+            .get("POW")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(50)
+            .clamp(0, 255) as u8;
+        let edu = values
+            .get("EDU")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(50)
+            .clamp(0, 255) as u8;
 
         // Calculate HP = (CON + SIZ) / 10
         let max_hp = Self::calculate_hp(con, siz);
@@ -456,9 +481,17 @@ impl CharacterSheetProvider for Coc7eSystem {
             derived.insert(format!("{}_FIFTH", id), serde_json::json!(val / 5));
         }
 
-        // Also calculate APP and INT halves/fifths
-        let app = values.get("APP").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
-        let int = values.get("INT").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
+        // Also calculate APP and INT halves/fifths with safe conversion
+        let app = values
+            .get("APP")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(50)
+            .clamp(0, 255) as u8;
+        let int = values
+            .get("INT")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(50)
+            .clamp(0, 255) as u8;
 
         derived.insert("APP_HALF".to_string(), serde_json::json!(app / 2));
         derived.insert("APP_FIFTH".to_string(), serde_json::json!(app / 5));
@@ -476,7 +509,8 @@ impl CharacterSheetProvider for Coc7eSystem {
         let skill_ids = self.get_all_skill_ids();
         for skill_id in skill_ids {
             if let Some(val) = values.get(&skill_id).and_then(|v| v.as_i64()) {
-                let val = val as u8;
+                // Clamp skill values to valid percentile range (0-100)
+                let val = val.clamp(0, 100) as u8;
                 derived.insert(format!("{}_HALF", skill_id), serde_json::json!(val / 2));
                 derived.insert(format!("{}_FIFTH", skill_id), serde_json::json!(val / 5));
             }

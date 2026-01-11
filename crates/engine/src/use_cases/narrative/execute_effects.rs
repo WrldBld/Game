@@ -1035,17 +1035,24 @@ impl ExecuteEffects {
                 }
             }
 
-            // Narrative systems typically don't track currency
-            RuleSystemVariant::FateCore | RuleSystemVariant::PoweredByApocalypse => {
+            // FATE Core is narrative-based and doesn't track currency
+            RuleSystemVariant::FateCore => {
                 EffectExecutionResult {
                     description: format!(
-                        "Narrative system typically doesn't track currency. {} gold/coins noted for DM.",
+                        "FATE Core doesn't track currency. {} gold/coins noted for DM.",
                         amount
                     ),
                     success: true,
                     error: None,
                     requires_dm_action: true,
                 }
+            }
+
+            // PbtA systems often have COIN (Dungeon World) or BARTER (Apocalypse World)
+            RuleSystemVariant::PoweredByApocalypse => {
+                // Use COIN field which is defined for Dungeon World variant
+                self.execute_add_stat_reward(pc_id, "COIN", amount, description)
+                    .await
             }
 
             // Other systems - use generic GP field

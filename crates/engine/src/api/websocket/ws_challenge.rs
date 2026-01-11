@@ -207,12 +207,41 @@ pub(super) async fn handle_challenge_roll(
             Ok(Some(pc)) => {
                 // Look up the stat value from sheet_data using unified numeric extraction
                 if let Some(ref sheet_data) = pc.sheet_data {
-                    sheet_data.get_numeric_value(stat_name).unwrap_or(0)
+                    match sheet_data.get_numeric_value(stat_name) {
+                        Some(value) => value,
+                        None => {
+                            tracing::warn!(
+                                pc_id = %pc_id,
+                                stat_name = %stat_name,
+                                "Skill stat not found in sheet_data, using 0 modifier"
+                            );
+                            0
+                        }
+                    }
                 } else {
+                    tracing::warn!(
+                        pc_id = %pc_id,
+                        stat_name = %stat_name,
+                        "PC has no sheet_data for skill lookup, using 0 modifier"
+                    );
                     0
                 }
             }
-            _ => 0,
+            Ok(None) => {
+                tracing::warn!(
+                    pc_id = %pc_id,
+                    "PC not found for skill modifier lookup, using 0 modifier"
+                );
+                0
+            }
+            Err(e) => {
+                tracing::error!(
+                    pc_id = %pc_id,
+                    error = %e,
+                    "Error fetching PC for skill modifier lookup, using 0 modifier"
+                );
+                0
+            }
         }
     } else {
         0

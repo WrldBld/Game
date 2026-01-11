@@ -794,6 +794,14 @@ pub(super) async fn handle_character_sheet_request(
                 "calculated": calculated,
             })))
         }
+
+        CharacterSheetRequest::Unknown => {
+            tracing::warn!("Received unknown character sheet request type");
+            Ok(ResponseResult::error(
+                ErrorCode::BadRequest,
+                "Unknown request type. This may be a newer request type not supported by this server version.",
+            ))
+        }
     }
 }
 
@@ -871,13 +879,41 @@ fn update_character_field(
             }
         }
         // Identity fields (CLASS, RACE, BACKGROUND)
+        // These will go in CharacterIdentity when we implement it fully.
+        // For now, persist them in the description so the information is not lost.
         "CLASS" | "RACE" | "BACKGROUND" => {
-            // These would go in CharacterIdentity when we implement it fully
-            // For now, store as a stat for simplicity
             if let Some(val) = value.as_str() {
-                // Can't store strings directly in stats, so we'll need to extend the model
-                // For now, log it
-                tracing::debug!(field_id = %field_id, value = %val, "Identity field set (not yet persisted)");
+                if !val.is_empty() {
+                    let label = match field_id {
+                        "CLASS" => "Class",
+                        "RACE" => "Race",
+                        "BACKGROUND" => "Background",
+                        _ => "Identity",
+                    };
+
+                    // Remove any previous entry for this field
+                    let marker = format!("{}: ", label);
+                    let lines: Vec<&str> = character
+                        .description
+                        .lines()
+                        .filter(|line| !line.starts_with(&marker))
+                        .collect();
+                    character.description = lines.join("\n");
+
+                    // Prepend the new identity value
+                    let entry = format!("{}: {}", label, val);
+                    if character.description.is_empty() {
+                        character.description = entry;
+                    } else {
+                        character.description = format!("{}\n{}", entry, character.description);
+                    }
+
+                    tracing::debug!(
+                        field_id = %field_id,
+                        value = %val,
+                        "Identity field persisted in description"
+                    );
+                }
             }
         }
         // Text fields (store in description for now)

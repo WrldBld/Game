@@ -242,6 +242,64 @@ pub enum NarrativeTriggerType {
     },
 }
 
+impl NarrativeTriggerType {
+    /// Validate the trigger configuration.
+    /// Returns a list of validation errors, empty if valid.
+    pub fn validate(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+
+        match self {
+            NarrativeTriggerType::StatThreshold {
+                min_value,
+                max_value,
+                stat_name,
+                ..
+            } => {
+                // Check for impossible range (min > max)
+                if let (Some(min), Some(max)) = (min_value, max_value) {
+                    if min > max {
+                        errors.push(format!(
+                            "StatThreshold for '{}' has min_value ({}) > max_value ({}), trigger will never match",
+                            stat_name, min, max
+                        ));
+                    }
+                }
+
+                // Check for empty stat name
+                if stat_name.trim().is_empty() {
+                    errors.push("StatThreshold has empty stat_name".to_string());
+                }
+            }
+            NarrativeTriggerType::RelationshipThreshold {
+                min_sentiment,
+                max_sentiment,
+                character_name,
+                with_character_name,
+                ..
+            } => {
+                // Check for impossible sentiment range
+                if let (Some(min), Some(max)) = (min_sentiment, max_sentiment) {
+                    if min > max {
+                        errors.push(format!(
+                            "RelationshipThreshold for {} -> {} has min_sentiment ({}) > max_sentiment ({}), trigger will never match",
+                            character_name, with_character_name, min, max
+                        ));
+                    }
+                }
+            }
+            // Other trigger types don't have range validation
+            _ => {}
+        }
+
+        errors
+    }
+
+    /// Check if this trigger has a valid configuration.
+    pub fn is_valid(&self) -> bool {
+        self.validate().is_empty()
+    }
+}
+
 /// An outcome branch for a narrative event
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
