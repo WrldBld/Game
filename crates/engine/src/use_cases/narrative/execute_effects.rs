@@ -11,7 +11,7 @@ use wrldbldr_domain::{
 };
 
 use crate::entities::{
-    Challenge, Character, Flag, Inventory, Narrative, Observation, PlayerCharacter, Scene,
+    Challenge, Character, Flag, Inventory, Narrative, Observation, PlayerCharacter, Scene, World,
 };
 use crate::infrastructure::ports::ClockPort;
 
@@ -76,6 +76,7 @@ pub struct ExecuteEffects {
     player_character: Arc<PlayerCharacter>,
     scene: Arc<Scene>,
     flag: Arc<Flag>,
+    world: Arc<World>,
     clock: Arc<dyn ClockPort>,
 }
 
@@ -89,6 +90,7 @@ impl ExecuteEffects {
         player_character: Arc<PlayerCharacter>,
         scene: Arc<Scene>,
         flag: Arc<Flag>,
+        world: Arc<World>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
@@ -100,6 +102,7 @@ impl ExecuteEffects {
             player_character,
             scene,
             flag,
+            world,
             clock,
         }
     }
@@ -330,7 +333,7 @@ impl ExecuteEffects {
                 amount,
                 description,
             } => {
-                // Validate parameters before reporting unimplemented
+                // Validate parameters
                 if reward_type.trim().is_empty() {
                     return EffectExecutionResult {
                         description: "Add reward effect has empty reward type".to_string(),
@@ -356,15 +359,54 @@ impl ExecuteEffects {
                     };
                 }
 
-                // Reward/XP system not implemented - DM should handle manually
-                EffectExecutionResult {
-                    description: format!(
-                        "Add {} {} reward: {} (NOT IMPLEMENTED - reward system needed)",
-                        amount, reward_type, description
-                    ),
-                    success: false,
-                    error: Some("Reward system not implemented".to_string()),
-                    requires_dm_action: true,
+                // Handle XP rewards - use system-aware field mapping
+                let reward_type_lower = reward_type.to_lowercase();
+                if reward_type_lower == "xp"
+                    || reward_type_lower == "experience"
+                    || reward_type_lower == "exp"
+                {
+                    self.execute_add_xp_reward_system_aware(
+                        context.pc_id,
+                        context.world_id,
+                        *amount,
+                        description,
+                    )
+                    .await
+                } else if reward_type_lower == "gold"
+                    || reward_type_lower == "gp"
+                    || reward_type_lower == "coins"
+                {
+                    // Gold rewards - use system-aware gold field
+                    self.execute_add_gold_reward_system_aware(
+                        context.pc_id,
+                        context.world_id,
+                        *amount,
+                        description,
+                    )
+                    .await
+                } else if reward_type_lower == "fate"
+                    || reward_type_lower == "fate_points"
+                    || reward_type_lower == "fp"
+                {
+                    // FATE points - for FATE Core system
+                    self.execute_add_stat_reward(
+                        context.pc_id,
+                        "CURRENT_FATE_POINTS",
+                        *amount,
+                        description,
+                    )
+                    .await
+                } else {
+                    // Other reward types - mark for DM handling
+                    EffectExecutionResult {
+                        description: format!(
+                            "Add {} {} reward: {} (requires DM to apply)",
+                            amount, reward_type, description
+                        ),
+                        success: true,
+                        error: None,
+                        requires_dm_action: true,
+                    }
                 }
             }
 
@@ -755,6 +797,266 @@ impl ExecuteEffects {
                 error: Some(e.to_string()),
                 requires_dm_action: false,
             },
+        }
+    }
+
+    /// Add XP reward to a player character.
+    /// Updates XP_CURRENT in the character's sheet_data.
+    async fn execute_add_xp_reward(
+        &self,
+        pc_id: PlayerCharacterId,
+        amount: i32,
+        description: &str,
+    ) -> EffectExecutionResult {
+        self.execute_add_stat_reward(pc_id, "XP_CURRENT", amount, description)
+            .await
+    }
+
+    /// Add a numeric stat reward to a player character.
+    /// Updates the specified stat in the character's sheet_data.
+    async fn execute_add_stat_reward(
+        &self,
+        pc_id: PlayerCharacterId,
+        stat_name: &str,
+        amount: i32,
+        description: &str,
+    ) -> EffectExecutionResult {
+        // Get the PC
+        let pc = match self.player_character.get(pc_id).await {
+            Ok(Some(pc)) => pc,
+            Ok(None) => {
+                return EffectExecutionResult {
+                    description: format!("Failed to add {} {}: PC not found", amount, stat_name),
+                    success: false,
+                    error: Some("Player character not found".to_string()),
+                    requires_dm_action: false,
+                };
+            }
+            Err(e) => {
+                return EffectExecutionResult {
+                    description: format!("Failed to add {} {}: error loading PC", amount, stat_name),
+                    success: false,
+                    error: Some(e.to_string()),
+                    requires_dm_action: false,
+                };
+            }
+        };
+
+        // Get current value from sheet_data (default to 0 if not present)
+        let current_value = pc
+            .sheet_data
+            .as_ref()
+            .and_then(|sd| sd.get_number(stat_name))
+            .unwrap_or(0);
+
+        let new_value = current_value + amount;
+
+        // Create updated sheet_data
+        let mut sheet_data = pc.sheet_data.clone().unwrap_or_default();
+        sheet_data.set(stat_name, wrldbldr_domain::FieldValue::Number(new_value));
+
+        // Create updated PC
+        let updated_pc = wrldbldr_domain::PlayerCharacter {
+            sheet_data: Some(sheet_data),
+            ..pc
+        };
+
+        // Save the updated PC
+        match self.player_character.save(&updated_pc).await {
+            Ok(()) => {
+                tracing::info!(
+                    pc_id = %pc_id,
+                    stat = %stat_name,
+                    old_value = current_value,
+                    added = amount,
+                    new_value = new_value,
+                    description = %description,
+                    "Added stat reward to PC"
+                );
+                EffectExecutionResult {
+                    description: format!(
+                        "Added {} {} (now {}): {}",
+                        amount, stat_name, new_value, description
+                    ),
+                    success: true,
+                    error: None,
+                    requires_dm_action: false,
+                }
+            }
+            Err(e) => EffectExecutionResult {
+                description: format!("Failed to save {} reward", stat_name),
+                success: false,
+                error: Some(e.to_string()),
+                requires_dm_action: false,
+            },
+        }
+    }
+
+    /// Add XP reward using system-appropriate field name.
+    /// Different game systems track XP differently:
+    /// - D&D 5e, Pathfinder 2e: XP_CURRENT
+    /// - Powered by the Apocalypse: XP
+    /// - Blades in the Dark: PLAYBOOK_XP
+    /// - FATE Core, Call of Cthulhu: No XP (milestone/skill-based advancement)
+    async fn execute_add_xp_reward_system_aware(
+        &self,
+        pc_id: PlayerCharacterId,
+        world_id: WorldId,
+        amount: i32,
+        description: &str,
+    ) -> EffectExecutionResult {
+        use wrldbldr_domain::RuleSystemVariant;
+
+        // Get the world to determine the rule system
+        let world = match self.world.get(world_id).await {
+            Ok(Some(w)) => w,
+            Ok(None) => {
+                // Fall back to generic XP_CURRENT if world not found
+                tracing::warn!(world_id = %world_id, "World not found, using default XP_CURRENT field");
+                return self
+                    .execute_add_stat_reward(pc_id, "XP_CURRENT", amount, description)
+                    .await;
+            }
+            Err(e) => {
+                return EffectExecutionResult {
+                    description: format!("Failed to get world for XP reward: {}", e),
+                    success: false,
+                    error: Some(e.to_string()),
+                    requires_dm_action: false,
+                };
+            }
+        };
+
+        // Map system variant to XP field name
+        let xp_field = match world.rule_system.variant {
+            RuleSystemVariant::Dnd5e
+            | RuleSystemVariant::Pathfinder2e
+            | RuleSystemVariant::GenericD20 => "XP_CURRENT",
+
+            RuleSystemVariant::PoweredByApocalypse => "XP",
+
+            RuleSystemVariant::BladesInTheDark => "PLAYBOOK_XP",
+
+            // Systems without XP-based advancement
+            RuleSystemVariant::FateCore => {
+                return EffectExecutionResult {
+                    description: format!(
+                        "FATE Core uses milestone advancement, not XP. {} XP reward noted for DM.",
+                        amount
+                    ),
+                    success: true,
+                    error: None,
+                    requires_dm_action: true,
+                };
+            }
+            RuleSystemVariant::CallOfCthulhu7e => {
+                return EffectExecutionResult {
+                    description: format!(
+                        "Call of Cthulhu uses skill improvement checks, not XP. {} XP reward noted for DM.",
+                        amount
+                    ),
+                    success: true,
+                    error: None,
+                    requires_dm_action: true,
+                };
+            }
+
+            // Other systems - use generic XP field
+            RuleSystemVariant::KidsOnBikes
+            | RuleSystemVariant::RuneQuest
+            | RuleSystemVariant::GenericD100
+            | RuleSystemVariant::Custom(_)
+            | RuleSystemVariant::Unknown => "XP_CURRENT",
+        };
+
+        self.execute_add_stat_reward(pc_id, xp_field, amount, description)
+            .await
+    }
+
+    /// Add gold/currency reward using system-appropriate field name.
+    /// Different game systems track currency differently:
+    /// - D&D 5e, Pathfinder 2e: GP (gold pieces)
+    /// - Blades in the Dark: COIN
+    /// - Call of Cthulhu: SPENDING_LEVEL or specific currency
+    /// - FATE Core, PbtA: Usually narrative-based (no currency tracking)
+    async fn execute_add_gold_reward_system_aware(
+        &self,
+        pc_id: PlayerCharacterId,
+        world_id: WorldId,
+        amount: i32,
+        description: &str,
+    ) -> EffectExecutionResult {
+        use wrldbldr_domain::RuleSystemVariant;
+
+        // Get the world to determine the rule system
+        let world = match self.world.get(world_id).await {
+            Ok(Some(w)) => w,
+            Ok(None) => {
+                // Fall back to generic GP if world not found
+                tracing::warn!(world_id = %world_id, "World not found, using default GP field");
+                return self
+                    .execute_add_stat_reward(pc_id, "GP", amount, description)
+                    .await;
+            }
+            Err(e) => {
+                return EffectExecutionResult {
+                    description: format!("Failed to get world for gold reward: {}", e),
+                    success: false,
+                    error: Some(e.to_string()),
+                    requires_dm_action: false,
+                };
+            }
+        };
+
+        // Map system variant to currency field name
+        match world.rule_system.variant {
+            RuleSystemVariant::Dnd5e
+            | RuleSystemVariant::Pathfinder2e
+            | RuleSystemVariant::GenericD20 => {
+                self.execute_add_stat_reward(pc_id, "GP", amount, description)
+                    .await
+            }
+
+            RuleSystemVariant::BladesInTheDark => {
+                self.execute_add_stat_reward(pc_id, "COIN", amount, description)
+                    .await
+            }
+
+            RuleSystemVariant::CallOfCthulhu7e => {
+                // CoC uses Credit Rating and spending, not direct gold
+                EffectExecutionResult {
+                    description: format!(
+                        "Call of Cthulhu uses Credit Rating for wealth. {} coins noted for DM.",
+                        amount
+                    ),
+                    success: true,
+                    error: None,
+                    requires_dm_action: true,
+                }
+            }
+
+            // Narrative systems typically don't track currency
+            RuleSystemVariant::FateCore | RuleSystemVariant::PoweredByApocalypse => {
+                EffectExecutionResult {
+                    description: format!(
+                        "Narrative system typically doesn't track currency. {} gold/coins noted for DM.",
+                        amount
+                    ),
+                    success: true,
+                    error: None,
+                    requires_dm_action: true,
+                }
+            }
+
+            // Other systems - use generic GP field
+            RuleSystemVariant::KidsOnBikes
+            | RuleSystemVariant::RuneQuest
+            | RuleSystemVariant::GenericD100
+            | RuleSystemVariant::Custom(_)
+            | RuleSystemVariant::Unknown => {
+                self.execute_add_stat_reward(pc_id, "GP", amount, description)
+                    .await
+            }
         }
     }
 }

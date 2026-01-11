@@ -601,27 +601,22 @@ impl NarrativeEvent {
                     })
                     .unwrap_or(false)
             }
-            NarrativeTriggerType::StatThreshold { .. } => {
-                // KNOWN LIMITATION: StatThreshold trigger is not yet implemented.
-                //
-                // To implement this trigger:
-                // 1. Add character stats to TriggerContext:
-                //    `character_stats: HashMap<CharacterId, HashMap<String, i32>>`
-                //    where the inner HashMap maps stat names to their current values.
-                //
-                // 2. The stat data should be populated from the Character entity's
-                //    stats/attributes system. This depends on how character stats are
-                //    modeled (e.g., fixed attributes like STR/DEX/CON or dynamic stats
-                //    like health/mana/reputation).
-                //
-                // 3. Implementation should check if the stat value for `character_id`
-                //    and `stat_name` falls within the specified `min_value`/`max_value`
-                //    bounds. If only min is set, check >= min. If only max is set,
-                //    check <= max. If both are set, check min <= value <= max.
-                //
-                // 4. Stat names should use a consistent naming convention (e.g.,
-                //    lowercase with underscores: "hit_points", "reputation_guild").
-                false
+            NarrativeTriggerType::StatThreshold {
+                character_id,
+                stat_name,
+                min_value,
+                max_value,
+            } => {
+                // Check if character's stat value falls within the specified bounds.
+                // Uses effective stat value (base + active modifiers).
+                context
+                    .get_character_stat(*character_id, stat_name)
+                    .map(|stat_value| {
+                        let meets_min = min_value.map_or(true, |min| stat_value >= min);
+                        let meets_max = max_value.map_or(true, |max| stat_value <= max);
+                        meets_min && meets_max
+                    })
+                    .unwrap_or(false)
             }
             NarrativeTriggerType::CombatResult { .. } => {
                 // KNOWN LIMITATION: CombatResult trigger is not yet implemented.
@@ -741,6 +736,11 @@ pub struct TriggerContext {
     /// Value is sentiment from -1.0 (hatred) to 1.0 (love).
     #[serde(default)]
     pub relationships: HashMap<CharacterId, HashMap<CharacterId, f32>>,
+    /// Character stat values for StatThreshold trigger evaluation.
+    /// Outer key is the CharacterId, inner key is the stat name.
+    /// Value is the effective stat value (base + active modifiers).
+    #[serde(default)]
+    pub character_stats: HashMap<CharacterId, HashMap<String, i32>>,
 }
 
 impl TriggerContext {
@@ -792,6 +792,47 @@ impl TriggerContext {
         self.relationships
             .get(&from_character)
             .and_then(|inner| inner.get(&to_character))
+            .copied()
+    }
+
+    /// Add a character's stat value.
+    ///
+    /// # Arguments
+    /// * `character_id` - The character whose stat we're recording
+    /// * `stat_name` - The name of the stat (e.g., "STR", "health", "sanity")
+    /// * `value` - The effective stat value (base + active modifiers)
+    pub fn add_character_stat(
+        &mut self,
+        character_id: CharacterId,
+        stat_name: impl Into<String>,
+        value: i32,
+    ) {
+        self.character_stats
+            .entry(character_id)
+            .or_default()
+            .insert(stat_name.into(), value);
+    }
+
+    /// Add all stats for a character at once.
+    ///
+    /// # Arguments
+    /// * `character_id` - The character whose stats we're recording
+    /// * `stats` - Map of stat name to effective value
+    pub fn add_character_stats(
+        &mut self,
+        character_id: CharacterId,
+        stats: HashMap<String, i32>,
+    ) {
+        self.character_stats.insert(character_id, stats);
+    }
+
+    /// Get a character's stat value.
+    ///
+    /// Returns None if the character or stat doesn't exist in the context.
+    pub fn get_character_stat(&self, character_id: CharacterId, stat_name: &str) -> Option<i32> {
+        self.character_stats
+            .get(&character_id)
+            .and_then(|stats| stats.get(stat_name))
             .copied()
     }
 }
@@ -1098,5 +1139,232 @@ mod tests {
 
         let context = TriggerContext::new(); // No relationship data
         assert!(!event.evaluate_triggers(&context).is_triggered);
+    }
+
+    // =========================================================================
+    // StatThreshold trigger tests
+    // =========================================================================
+
+    fn create_test_event_with_stat_trigger(
+        character_id: CharacterId,
+        stat_name: &str,
+        min_value: Option<i32>,
+        max_value: Option<i32>,
+    ) -> NarrativeEvent {
+        NarrativeEvent {
+            id: NarrativeEventId::new(),
+            world_id: WorldId::new(),
+            name: "Test Stat Event".to_string(),
+            description: "Test event for stat threshold trigger".to_string(),
+            tags: vec![],
+            trigger_conditions: vec![NarrativeTrigger {
+                trigger_type: NarrativeTriggerType::StatThreshold {
+                    character_id,
+                    stat_name: stat_name.to_string(),
+                    min_value,
+                    max_value,
+                },
+                description: "Test stat trigger".to_string(),
+                is_required: true,
+                trigger_id: "stat-trigger-1".to_string(),
+            }],
+            trigger_logic: TriggerLogic::All,
+            scene_direction: "Test scene".to_string(),
+            suggested_opening: None,
+            outcomes: vec![],
+            default_outcome: None,
+            is_active: true,
+            is_triggered: false,
+            triggered_at: None,
+            selected_outcome: None,
+            is_repeatable: false,
+            trigger_count: 0,
+            delay_turns: 0,
+            expires_after_turns: None,
+            priority: 0,
+            is_favorite: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn stat_trigger_fires_when_value_above_min() {
+        let char_id = CharacterId::new();
+        let event = create_test_event_with_stat_trigger(char_id, "STR", Some(15), None);
+
+        let mut context = TriggerContext::new();
+        context.add_character_stat(char_id, "STR", 18); // Above threshold
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(eval.is_triggered);
+    }
+
+    #[test]
+    fn stat_trigger_does_not_fire_when_value_below_min() {
+        let char_id = CharacterId::new();
+        let event = create_test_event_with_stat_trigger(char_id, "STR", Some(15), None);
+
+        let mut context = TriggerContext::new();
+        context.add_character_stat(char_id, "STR", 12); // Below threshold
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(!eval.is_triggered);
+    }
+
+    #[test]
+    fn stat_trigger_fires_when_value_below_max() {
+        let char_id = CharacterId::new();
+        let event = create_test_event_with_stat_trigger(char_id, "current_hp", None, Some(10));
+
+        let mut context = TriggerContext::new();
+        context.add_character_stat(char_id, "current_hp", 5); // Below max (low HP trigger)
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(eval.is_triggered);
+    }
+
+    #[test]
+    fn stat_trigger_does_not_fire_when_value_above_max() {
+        let char_id = CharacterId::new();
+        let event = create_test_event_with_stat_trigger(char_id, "current_hp", None, Some(10));
+
+        let mut context = TriggerContext::new();
+        context.add_character_stat(char_id, "current_hp", 50); // Above max
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(!eval.is_triggered);
+    }
+
+    #[test]
+    fn stat_trigger_fires_when_value_within_range() {
+        let char_id = CharacterId::new();
+        // Range: 10 to 20
+        let event = create_test_event_with_stat_trigger(char_id, "reputation", Some(10), Some(20));
+
+        let mut context = TriggerContext::new();
+        context.add_character_stat(char_id, "reputation", 15); // Within range
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(eval.is_triggered);
+    }
+
+    #[test]
+    fn stat_trigger_does_not_fire_when_value_outside_range() {
+        let char_id = CharacterId::new();
+        // Range: 10 to 20
+        let event = create_test_event_with_stat_trigger(char_id, "reputation", Some(10), Some(20));
+
+        let mut context = TriggerContext::new();
+        context.add_character_stat(char_id, "reputation", 25); // Outside range
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(!eval.is_triggered);
+    }
+
+    #[test]
+    fn stat_trigger_does_not_fire_when_no_stat_data() {
+        let char_id = CharacterId::new();
+        let event = create_test_event_with_stat_trigger(char_id, "STR", Some(15), None);
+
+        let context = TriggerContext::new(); // No stat data
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(!eval.is_triggered);
+    }
+
+    #[test]
+    fn stat_trigger_fires_at_exact_min_boundary() {
+        let char_id = CharacterId::new();
+        let event = create_test_event_with_stat_trigger(char_id, "STR", Some(15), None);
+
+        let mut context = TriggerContext::new();
+        context.add_character_stat(char_id, "STR", 15); // Exactly at threshold
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(eval.is_triggered);
+    }
+
+    #[test]
+    fn stat_trigger_fires_at_exact_max_boundary() {
+        let char_id = CharacterId::new();
+        let event = create_test_event_with_stat_trigger(char_id, "current_hp", None, Some(10));
+
+        let mut context = TriggerContext::new();
+        context.add_character_stat(char_id, "current_hp", 10); // Exactly at threshold
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(eval.is_triggered);
+    }
+
+    #[test]
+    fn stat_trigger_with_no_bounds_fires_for_any_value() {
+        // When both min_value and max_value are None, the trigger
+        // should fire for any existing stat value.
+        let char_id = CharacterId::new();
+        let event = create_test_event_with_stat_trigger(char_id, "STR", None, None);
+
+        // Test with positive value
+        let mut context = TriggerContext::new();
+        context.add_character_stat(char_id, "STR", 18);
+        assert!(event.evaluate_triggers(&context).is_triggered);
+
+        // Test with zero value
+        let mut context = TriggerContext::new();
+        context.add_character_stat(char_id, "STR", 0);
+        assert!(event.evaluate_triggers(&context).is_triggered);
+
+        // Test with negative value
+        let mut context = TriggerContext::new();
+        context.add_character_stat(char_id, "STR", -5);
+        assert!(event.evaluate_triggers(&context).is_triggered);
+    }
+
+    #[test]
+    fn stat_trigger_with_no_bounds_does_not_fire_without_stat() {
+        // Even with no bounds, should not fire if stat doesn't exist
+        let char_id = CharacterId::new();
+        let event = create_test_event_with_stat_trigger(char_id, "STR", None, None);
+
+        let context = TriggerContext::new(); // No stat data
+        assert!(!event.evaluate_triggers(&context).is_triggered);
+    }
+
+    #[test]
+    fn trigger_context_get_character_stat_returns_none_for_unknown() {
+        let char_id = CharacterId::new();
+        let context = TriggerContext::new();
+
+        assert!(context.get_character_stat(char_id, "STR").is_none());
+    }
+
+    #[test]
+    fn trigger_context_stores_and_retrieves_character_stat() {
+        let char_id = CharacterId::new();
+        let mut context = TriggerContext::new();
+
+        context.add_character_stat(char_id, "STR", 18);
+
+        assert_eq!(context.get_character_stat(char_id, "STR"), Some(18));
+    }
+
+    #[test]
+    fn trigger_context_add_character_stats_replaces_all() {
+        let char_id = CharacterId::new();
+        let mut context = TriggerContext::new();
+
+        // Add individual stat
+        context.add_character_stat(char_id, "STR", 10);
+
+        // Replace with batch
+        let mut stats = HashMap::new();
+        stats.insert("DEX".to_string(), 14);
+        stats.insert("CON".to_string(), 16);
+        context.add_character_stats(char_id, stats);
+
+        // Original stat should be gone, new stats present
+        assert!(context.get_character_stat(char_id, "STR").is_none());
+        assert_eq!(context.get_character_stat(char_id, "DEX"), Some(14));
+        assert_eq!(context.get_character_stat(char_id, "CON"), Some(16));
     }
 }

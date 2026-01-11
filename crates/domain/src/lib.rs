@@ -7,42 +7,62 @@ pub mod types;
 pub mod common;
 
 pub mod aggregates;
+pub mod character_sheet;
 pub mod entities;
 pub mod error;
 pub mod events;
+pub mod game_systems;
 pub mod game_time;
 pub mod ids;
 pub mod value_objects;
 
 // Re-export all entities (explicit list in entities/mod.rs)
 pub use entities::{
-    default_skills_for_variant, AcquisitionMethod, Act, ActantialRole, ActantialView, AssetType,
-    BatchStatus, ChainStatus, ChainedEvent, Challenge, ChallengeEventOutcome,
+    default_skills_for_variant, AbilityUses, AcquiredFeat, AcquisitionMethod, Act, ActantialRole,
+    ActantialView, ActiveFeature, AssetType, BackgroundFeature, BatchStatus, CastingTime,
+    CastingTimeUnit, ChainStatus, ChainedEvent, Challenge, ChallengeEventOutcome,
     ChallengeLocationAvailability, ChallengeOutcomes, ChallengePrerequisite,
-    ChallengeRegionAvailability, ChallengeType, ChallengeUnlock, Character, CharacterSheetData,
-    CharacterSheetTemplate, CharacterWant, CombatEventType, CombatOutcome, Difficulty,
-    DifficultyDescriptor, DmMarkerType, EntityType, EventChain, EventChainMembership, EventEffect,
-    EventOutcome, FeaturedNpc, FieldType, FieldValue, FlagScope, FrequencyLevel, GalleryAsset,
-    GameFlag, GenerationBatch, GenerationMetadata, GenerationRequest, Goal, GridMap, InfoType,
-    InputDefault, InputType, InteractionCondition, InteractionRequirement, InteractionTarget,
-    InteractionTargetType, InteractionTemplate, InteractionType, InventoryItem, InvolvedCharacter,
-    Item, ItemListType, ItemSource, Location, LocationConnection, LocationState,
-    LocationStateSummary, LocationType, Lore, LoreCategory, LoreChunk, LoreDiscoverySource,
-    LoreKnowledge, MapBounds, MarkerImportance, MonomythStage, NarrativeEvent, NarrativeTrigger,
-    NarrativeTriggerType, NpcObservation, ObservationSummary, ObservationType, Outcome,
-    OutcomeCondition, OutcomeTrigger, OutcomeType, PlayerCharacter, PromptMapping,
-    PromptMappingType, Region, RegionConnection, RegionExit, RegionState, RegionStateSummary,
+    ChallengeRegionAvailability, ChallengeType, ChallengeUnlock, Character, CharacterFeats,
+    CharacterFeatures, CharacterIdentity, CharacterSheetData, CharacterSheetTemplate, CharacterSpells,
+    CharacterWant, ClassFeature, ClassLevel, CombatEventType, CombatOutcome, Difficulty,
+    DifficultyDescriptor, DmMarkerType, DurationUnit, EntityType, EventChain, EventChainMembership,
+    EventEffect, EventOutcome, Feat, FeatBenefit, FeaturedNpc, FeatureUses, FieldType, FieldValue,
+    FlagScope, FrequencyLevel, GalleryAsset, GameFlag, GenerationBatch, GenerationMetadata,
+    GenerationRequest, Goal, GridMap, InfoType, InputDefault, InputType, InteractionCondition,
+    InteractionRequirement, InteractionTarget, InteractionTargetType, InteractionTemplate,
+    InteractionType, InventoryItem, InvolvedCharacter, Item, ItemListType, ItemSource, KnownSpell,
+    Location, LocationConnection, LocationState, LocationStateSummary, LocationType, Lore,
+    LoreCategory, LoreChunk, LoreDiscoverySource, LoreKnowledge, MapBounds, MarkerImportance,
+    MaterialComponent, MonomythStage, NarrativeEvent, NarrativeTrigger, NarrativeTriggerType,
+    NpcObservation, ObservationSummary, ObservationType, Outcome, OutcomeCondition, OutcomeTrigger,
+    OutcomeType, PlayerCharacter, Prerequisite, PromptMapping, PromptMappingType, RacialTrait,
+    RechargeType, Region, RegionConnection, RegionExit, RegionState, RegionStateSummary,
     ResolvedStateInfo, ResolvedVisualState, Scene, SceneCharacter, SceneCharacterRole,
     SceneCondition, SectionLayout, SelectOption, SheetField, SheetSection, SheetTemplateId, Skill,
-    SkillCategory, StagedNpc, Staging, StagingSource, StatBlock, StoryEvent,
-    StoryEventInfoImportance, StoryEventType, TimeAdvanceResult, TimeContext, TriggerCondition,
-    TriggerContext, TriggerEvaluation, TriggerLogic, TriggerType, VisualStateSource, Want,
+    SkillCategory, Spell, SpellComponents, SpellDuration, SpellLevel, SpellRange, SpellSlotPool,
+    StagedNpc, Staging, StagingSource, StatBlock, StoryEvent, StoryEventInfoImportance,
+    StoryEventType, TimeAdvanceResult, TimeContext, TriggerCondition, TriggerContext,
+    TriggerEvaluation, TriggerLogic, TriggerType, UsesFormula, VisualStateSource, Want,
     WantTargetType, WantVisibility, WorkflowAnalysis, WorkflowConfiguration, WorkflowInput,
     WorkflowSlot, World,
 };
 
 pub use error::DomainError;
 pub use events::DomainEvent;
+
+// Re-export game system traits and types
+pub use game_systems::{
+    dnd5e_skill_ability, CalculationEngine, CasterType, CharacterSheetProvider, Dnd5eSystem,
+    GameSystem, GameSystemRegistry, ProficiencyLevel, RestType, SpellcastingSystem,
+};
+
+// Re-export character sheet schema types
+pub use character_sheet::{
+    CharacterSheetResponse, CharacterSheetSchema, ConditionLevel, CreationStep, DerivedField,
+    DerivationType, EntityRefType, FieldDefinition, FieldLayout, FieldUpdate,
+    FieldUpdateResponse, FieldValidation, LadderLabel, ProficiencyOption, ResourceColor,
+    SchemaFieldType, SchemaSection, SchemaSelectOption, SectionType, ValidationError,
+};
 
 // Re-export game time types
 pub use game_time::{

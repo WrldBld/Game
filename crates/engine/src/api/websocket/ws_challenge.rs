@@ -193,9 +193,38 @@ pub(super) async fn handle_challenge_roll(
         ));
     }
 
-    // TODO: Skill modifiers should be fetched from character sheet when skill system is integrated
-    // For now, using 0 as the modifier
-    let skill_modifier = 0; // Placeholder until skill system
+    // Calculate skill modifier from character stats if check_stat is specified
+    // Uses get_numeric_value() which handles all field types:
+    // - Number: direct modifier
+    // - SkillEntry: bonus value
+    // - DicePool: dice count (for Blades)
+    // - Percentile: skill value (for CoC 7e)
+    // - LadderRating: ladder position (for FATE)
+    // - Resource: current value
+    let skill_modifier = if let Some(ref stat_name) = challenge.check_stat {
+        // Get the PC's sheet_data to look up stats
+        match state.app.entities.player_character.get(pc_id).await {
+            Ok(Some(pc)) => {
+                // Look up the stat value from sheet_data using unified numeric extraction
+                if let Some(ref sheet_data) = pc.sheet_data {
+                    sheet_data.get_numeric_value(stat_name).unwrap_or(0)
+                } else {
+                    0
+                }
+            }
+            _ => 0,
+        }
+    } else {
+        0
+    };
+
+    tracing::debug!(
+        challenge_id = %challenge_id,
+        check_stat = ?challenge.check_stat,
+        skill_modifier = skill_modifier,
+        "Challenge roll with modifier"
+    );
+
     match state
         .app
         .use_cases

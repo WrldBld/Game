@@ -56,6 +56,9 @@ dashmap = { workspace = true }
 # Random
 rand = { workspace = true }
 
+# Regex (for content parsing)
+regex-lite = { workspace = true }
+
 [dev-dependencies]
 mockall = { workspace = true }
 tokio-tungstenite = { workspace = true }

@@ -334,6 +334,7 @@ impl App {
             player_character.clone(),
             scene.clone(),
             flag.clone(),
+            world.clone(),
             clock.clone(),
         ));
         let narrative_events = Arc::new(use_cases::narrative::NarrativeEventOps::new(

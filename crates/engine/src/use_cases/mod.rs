@@ -8,6 +8,7 @@ pub mod actantial;
 pub mod ai;
 pub mod assets;
 pub mod challenge;
+pub mod content;
 pub mod conversation;
 pub mod custom_condition;
 pub mod location_events;
