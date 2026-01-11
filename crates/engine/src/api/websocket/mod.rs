@@ -16,6 +16,7 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 mod ws_challenge;
+mod ws_character_sheet;
 mod ws_core;
 mod ws_creator;
 mod ws_conversation;
@@ -629,6 +630,10 @@ async fn handle_request(
         }
         RequestPayload::Stat(req) => {
             ws_stat::handle_stat_request(state, &request_id, &conn_info, req).await
+        }
+        RequestPayload::CharacterSheet(req) => {
+            ws_character_sheet::handle_character_sheet_request(state, &request_id, &conn_info, req)
+                .await
         }
         RequestPayload::Unknown => Ok(ResponseResult::error(
             ErrorCode::BadRequest,

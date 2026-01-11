@@ -222,6 +222,7 @@ pub use requests::{
     ai::AiRequest,
     challenge::ChallengeRequest,
     character::CharacterRequest,
+    character_sheet::{CharacterSheetRequest, FieldUpdateData, GameSystemInfo},
     event_chain::EventChainRequest,
     expression::ExpressionRequest,
     generation::GenerationRequest,
@@ -300,4 +301,31 @@ pub use responses::{
     ResponseResult,
     // World connection types
     WorldRole,
+};
+
+// =============================================================================
+// Character Sheet Schema Types (re-exported from domain)
+// =============================================================================
+pub use wrldbldr_domain::{
+    // Schema types
+    CharacterSheetResponse,
+    CharacterSheetSchema,
+    ConditionLevel,
+    CreationStep,
+    DerivedField,
+    DerivationType,
+    EntityRefType,
+    FieldDefinition,
+    FieldLayout,
+    FieldUpdate,
+    FieldUpdateResponse,
+    FieldValidation,
+    LadderLabel,
+    ProficiencyOption,
+    ResourceColor,
+    SchemaFieldType,
+    SchemaSection,
+    SchemaSelectOption,
+    SectionType,
+    ValidationError,
 };

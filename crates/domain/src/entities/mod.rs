@@ -2,7 +2,10 @@
 
 mod challenge;
 mod character;
+mod character_content;
+mod class_feature;
 mod event_chain;
+mod feat;
 mod gallery_asset;
 mod game_flag;
 mod generation_batch;
@@ -21,6 +24,7 @@ mod region_state;
 mod scene;
 mod sheet_template;
 mod skill;
+mod spell;
 mod staging;
 mod story_event;
 mod want;
@@ -33,7 +37,13 @@ pub use challenge::{
     Outcome, OutcomeTrigger, OutcomeType, TriggerCondition, TriggerType,
 };
 pub use character::{Character, StatBlock, StatModifier, StatValue};
+pub use character_content::{
+    AcquiredFeat, ActiveFeature, CharacterFeats, CharacterFeatures, CharacterIdentity,
+    CharacterSpells, ClassLevel, KnownSpell, SpellSlotPool,
+};
+pub use class_feature::{BackgroundFeature, ClassFeature, FeatureUses, RacialTrait};
 pub use event_chain::{ChainStatus, EventChain};
+pub use feat::{AbilityUses, Feat, FeatBenefit, Prerequisite, RechargeType, UsesFormula};
 pub use gallery_asset::{AssetType, EntityType, GalleryAsset, GenerationMetadata};
 pub use game_flag::{FlagScope, GameFlag};
 pub use generation_batch::{BatchStatus, GenerationBatch, GenerationRequest};
@@ -62,6 +72,10 @@ pub use sheet_template::{
     SelectOption, SheetField, SheetSection, SheetTemplateId,
 };
 pub use skill::{default_skills_for_variant, Skill, SkillCategory};
+pub use spell::{
+    CastingTime, CastingTimeUnit, DurationUnit, MaterialComponent, Spell, SpellComponents,
+    SpellDuration, SpellLevel, SpellRange,
+};
 pub use staging::{
     ResolvedStateInfo, ResolvedVisualState, StagedNpc, Staging, StagingSource, VisualStateSource,
 };

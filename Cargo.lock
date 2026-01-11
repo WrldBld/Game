@@ -7378,6 +7378,7 @@ dependencies = [
  "mockall",
  "neo4rs",
  "rand 0.8.5",
+ "regex-lite",
  "reqwest",
  "serde",
  "serde_json",

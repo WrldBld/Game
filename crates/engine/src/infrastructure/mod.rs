@@ -5,6 +5,7 @@
 pub mod circuit_breaker;
 pub mod clock;
 pub mod comfyui;
+pub mod importers;
 pub mod neo4j;
 pub mod ollama;
 pub mod ports;
