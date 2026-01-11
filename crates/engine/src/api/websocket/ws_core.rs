@@ -171,10 +171,79 @@ pub(super) async fn handle_world_request(
             }
         }
 
-        WorldRequest::GetSheetTemplate { .. } => Ok(ResponseResult::error(
-            ErrorCode::BadRequest,
-            "Sheet template request is not yet implemented",
-        )),
+        WorldRequest::GetSheetTemplate { world_id } => {
+            let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            // Get the world to determine its rule system
+            let world = match state
+                .app
+                .use_cases
+                .management
+                .world
+                .get(world_id_typed)
+                .await
+            {
+                Ok(Some(w)) => w,
+                Ok(None) => {
+                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
+                }
+                Err(e) => {
+                    return Ok(ResponseResult::error(
+                        ErrorCode::InternalError,
+                        e.to_string(),
+                    ));
+                }
+            };
+
+            // Get the schema based on the world's rule system
+            use wrldbldr_domain::game_systems::{
+                BladesSystem, Coc7eSystem, Dnd5eSystem, FateCoreSystem, PbtaSystem, Pf2eSystem,
+            };
+            use wrldbldr_domain::{CharacterSheetProvider, RuleSystemVariant};
+
+            let schema = match &world.rule_system.variant {
+                RuleSystemVariant::Dnd5e => Some(Dnd5eSystem::new().character_sheet_schema()),
+                RuleSystemVariant::Pathfinder2e => Some(Pf2eSystem::new().character_sheet_schema()),
+                RuleSystemVariant::CallOfCthulhu7e => {
+                    Some(Coc7eSystem::new().character_sheet_schema())
+                }
+                RuleSystemVariant::FateCore => {
+                    Some(FateCoreSystem::new().character_sheet_schema())
+                }
+                RuleSystemVariant::BladesInTheDark => {
+                    Some(BladesSystem::new().character_sheet_schema())
+                }
+                RuleSystemVariant::PoweredByApocalypse => {
+                    Some(PbtaSystem::generic().character_sheet_schema())
+                }
+                RuleSystemVariant::KidsOnBikes => {
+                    Some(PbtaSystem::generic().character_sheet_schema())
+                }
+                RuleSystemVariant::RuneQuest => Some(Coc7eSystem::new().character_sheet_schema()),
+                RuleSystemVariant::GenericD20 | RuleSystemVariant::Custom(_) => {
+                    Some(Dnd5eSystem::new().character_sheet_schema())
+                }
+                RuleSystemVariant::GenericD100 => {
+                    Some(Coc7eSystem::new().character_sheet_schema())
+                }
+                RuleSystemVariant::Unknown => Some(Dnd5eSystem::new().character_sheet_schema()),
+            };
+
+            match schema {
+                Some(schema) => Ok(ResponseResult::success(
+                    serde_json::to_value(&schema).unwrap_or_else(|e| {
+                        serde_json::json!({"error": format!("Failed to serialize schema: {}", e)})
+                    }),
+                )),
+                None => Ok(ResponseResult::error(
+                    ErrorCode::BadRequest,
+                    "No character sheet schema available for this game system",
+                )),
+            }
+        }
 
         other => {
             let msg = format!("This request type is not yet implemented: {:?}", other);
