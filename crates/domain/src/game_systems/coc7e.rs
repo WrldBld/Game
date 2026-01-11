@@ -364,6 +364,7 @@ impl CharacterSheetProvider for Coc7eSystem {
                 self.skills_section(),
                 self.combat_section(),
                 self.resources_section(),
+                self.modifiers_section(),
             ],
             creation_steps: vec![
                 CreationStep {
@@ -1338,6 +1339,36 @@ impl Coc7eSystem {
     /// Check if a field ID corresponds to a skill.
     fn is_skill_field(&self, field_id: &str) -> bool {
         self.get_all_skill_ids().contains(&field_id.to_string())
+    }
+
+    fn modifiers_section(&self) -> SchemaSection {
+        SchemaSection {
+            id: "modifiers".to_string(),
+            label: "Status & Conditions".to_string(),
+            section_type: SectionType::Modifiers,
+            fields: vec![
+                FieldDefinition {
+                    id: "ACTIVE_MODIFIERS".to_string(),
+                    label: "Active Conditions".to_string(),
+                    field_type: SchemaFieldType::ModifierList { filter_stat: None },
+                    editable: false,
+                    required: false,
+                    derived_from: None,
+                    validation: None,
+                    layout: FieldLayout {
+                        width: Some(12),
+                        ..Default::default()
+                    },
+                    description: Some(
+                        "Active conditions affecting your investigator (injuries, temporary insanity, phobias, etc.)".to_string(),
+                    ),
+                    placeholder: None,
+                },
+            ],
+            collapsible: true,
+            collapsed_default: false,
+            description: Some("Track injuries, bouts of madness, phobias, manias, and other conditions affecting skill checks.".to_string()),
+        }
     }
 }
 

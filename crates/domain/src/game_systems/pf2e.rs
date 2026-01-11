@@ -474,6 +474,7 @@ impl CharacterSheetProvider for Pf2eSystem {
                 self.saves_section(),
                 self.combat_section(),
                 self.resources_section(),
+                self.modifiers_section(),
             ],
             creation_steps: vec![
                 CreationStep {
@@ -656,6 +657,19 @@ impl CharacterSheetProvider for Pf2eSystem {
         let max_hp = ancestry_hp + (class_hp + con_mod) * level as i32;
         derived.insert("MAX_HP".to_string(), serde_json::json!(max_hp.max(1)));
 
+        // Calculate XP to next level (PF2e uses 1000 XP per level)
+        let xp_current = values
+            .get("XP_CURRENT")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0) as i32;
+        // XP_NEXT_LEVEL = 1000 - (XP_CURRENT % 1000), but always show 1000 if at 0
+        let xp_remaining = if xp_current == 0 {
+            1000
+        } else {
+            1000 - (xp_current % 1000)
+        };
+        derived.insert("XP_NEXT_LEVEL".to_string(), serde_json::json!(xp_remaining));
+
         derived
     }
 
@@ -721,6 +735,7 @@ impl CharacterSheetProvider for Pf2eSystem {
         defaults.insert("SPEED".to_string(), serde_json::json!(25));
         defaults.insert("ANCESTRY_HP".to_string(), serde_json::json!(8));
         defaults.insert("CLASS_HP".to_string(), serde_json::json!(8));
+        defaults.insert("XP_CURRENT".to_string(), serde_json::json!(0));
         defaults
     }
 }
@@ -1584,35 +1599,119 @@ impl Pf2eSystem {
             id: "resources".to_string(),
             label: "Resources".to_string(),
             section_type: SectionType::Resources,
-            fields: vec![FieldDefinition {
-                id: "HERO_POINTS".to_string(),
-                label: "Hero Points".to_string(),
-                field_type: SchemaFieldType::Integer {
-                    min: Some(0),
-                    max: Some(3),
-                    show_modifier: false,
+            fields: vec![
+                FieldDefinition {
+                    id: "HERO_POINTS".to_string(),
+                    label: "Hero Points".to_string(),
+                    field_type: SchemaFieldType::Integer {
+                        min: Some(0),
+                        max: Some(3),
+                        show_modifier: false,
+                    },
+                    editable: true,
+                    required: false,
+                    derived_from: None,
+                    validation: Some(FieldValidation {
+                        min: Some(0),
+                        max: Some(3),
+                        pattern: None,
+                        error_message: Some("Hero Points must be 0-3".to_string()),
+                    }),
+                    layout: FieldLayout {
+                        width: Some(2),
+                        ..Default::default()
+                    },
+                    description: Some(
+                        "Spend to reroll or avoid death. Start each session with 1.".to_string(),
+                    ),
+                    placeholder: None,
                 },
-                editable: true,
-                required: false,
-                derived_from: None,
-                validation: Some(FieldValidation {
-                    min: Some(0),
-                    max: Some(3),
-                    pattern: None,
-                    error_message: Some("Hero Points must be 0-3".to_string()),
-                }),
-                layout: FieldLayout {
-                    width: Some(2),
-                    ..Default::default()
+                FieldDefinition {
+                    id: "XP_CURRENT".to_string(),
+                    label: "Experience Points".to_string(),
+                    field_type: SchemaFieldType::Integer {
+                        min: Some(0),
+                        max: None,
+                        show_modifier: false,
+                    },
+                    editable: true,
+                    required: false,
+                    derived_from: None,
+                    validation: Some(FieldValidation {
+                        min: Some(0),
+                        max: None,
+                        pattern: None,
+                        error_message: Some("XP cannot be negative".to_string()),
+                    }),
+                    layout: FieldLayout {
+                        width: Some(4),
+                        new_row: true,
+                        ..Default::default()
+                    },
+                    description: Some(
+                        "Current XP toward next level. In PF2e, you need 1000 XP to level up.".to_string(),
+                    ),
+                    placeholder: None,
                 },
-                description: Some(
-                    "Spend to reroll or avoid death. Start each session with 1.".to_string(),
-                ),
-                placeholder: None,
-            }],
+                FieldDefinition {
+                    id: "XP_NEXT_LEVEL".to_string(),
+                    label: "XP to Next Level".to_string(),
+                    field_type: SchemaFieldType::Integer {
+                        min: Some(0),
+                        max: None,
+                        show_modifier: false,
+                    },
+                    editable: false,
+                    required: false,
+                    derived_from: Some(DerivedField {
+                        derivation_type: DerivationType::Custom,
+                        dependencies: vec!["XP_CURRENT".to_string()],
+                        display_format: None,
+                    }),
+                    validation: None,
+                    layout: FieldLayout {
+                        width: Some(4),
+                        ..Default::default()
+                    },
+                    description: Some(
+                        "XP remaining until you can level up (1000 XP per level).".to_string(),
+                    ),
+                    placeholder: None,
+                },
+            ],
             collapsible: true,
             collapsed_default: false,
-            description: Some("Hero Points and other trackable resources".to_string()),
+            description: Some("Hero Points, experience points, and other trackable resources".to_string()),
+        }
+    }
+
+    fn modifiers_section(&self) -> SchemaSection {
+        SchemaSection {
+            id: "modifiers".to_string(),
+            label: "Conditions & Effects".to_string(),
+            section_type: SectionType::Modifiers,
+            fields: vec![
+                FieldDefinition {
+                    id: "ACTIVE_MODIFIERS".to_string(),
+                    label: "Active Conditions".to_string(),
+                    field_type: SchemaFieldType::ModifierList { filter_stat: None },
+                    editable: false,
+                    required: false,
+                    derived_from: None,
+                    validation: None,
+                    layout: FieldLayout {
+                        width: Some(12),
+                        ..Default::default()
+                    },
+                    description: Some(
+                        "Active conditions affecting your character (Frightened, Sickened, Clumsy, etc.)".to_string(),
+                    ),
+                    placeholder: None,
+                },
+            ],
+            collapsible: true,
+            collapsed_default: false,
+            description: Some("PF2e conditions apply penalties: Frightened (-1 to -4), Sickened (-1 to -4), Clumsy (DEX checks), Enfeebled (STR checks), Stupefied (mental), Drained (CON), Doomed (dying threshold).".to_string()),
         }
     }
 }

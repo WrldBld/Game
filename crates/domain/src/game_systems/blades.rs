@@ -372,6 +372,7 @@ impl CharacterSheetProvider for BladesSystem {
                 self.stress_trauma_section(),
                 self.load_armor_section(),
                 self.special_abilities_section(),
+                self.modifiers_section(),
             ],
             creation_steps: vec![
                 CreationStep {
@@ -1561,6 +1562,36 @@ impl BladesSystem {
             collapsible: true,
             collapsed_default: true,
             description: None,
+        }
+    }
+
+    fn modifiers_section(&self) -> SchemaSection {
+        SchemaSection {
+            id: "modifiers".to_string(),
+            label: "Active Effects".to_string(),
+            section_type: SectionType::Modifiers,
+            fields: vec![
+                FieldDefinition {
+                    id: "ACTIVE_MODIFIERS".to_string(),
+                    label: "Conditions & Effects".to_string(),
+                    field_type: SchemaFieldType::ModifierList { filter_stat: None },
+                    editable: false,
+                    required: false,
+                    derived_from: None,
+                    validation: None,
+                    layout: FieldLayout {
+                        width: Some(12),
+                        ..Default::default()
+                    },
+                    description: Some(
+                        "Active effects modifying your rolls (Harm penalties, Devil's Bargains, etc.)".to_string(),
+                    ),
+                    placeholder: None,
+                },
+            ],
+            collapsible: true,
+            collapsed_default: false,
+            description: Some("Harm penalties: Level 1 = narrative only, Level 2 = -1d to related actions, Level 3 = -1d stacking and need help to act.".to_string()),
         }
     }
 }

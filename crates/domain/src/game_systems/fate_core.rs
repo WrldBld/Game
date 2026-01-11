@@ -371,6 +371,7 @@ impl CharacterSheetProvider for FateCoreSystem {
                 self.stress_section(),
                 self.consequences_section(),
                 self.resources_section(),
+                self.modifiers_section(),
             ],
             creation_steps: vec![
                 CreationStep {
@@ -1090,6 +1091,36 @@ impl FateCoreSystem {
             collapsible: false,
             collapsed_default: false,
             description: Some("Fate points let you invoke aspects for bonuses or trigger certain stunts.".to_string()),
+        }
+    }
+
+    fn modifiers_section(&self) -> SchemaSection {
+        SchemaSection {
+            id: "modifiers".to_string(),
+            label: "Active Effects".to_string(),
+            section_type: SectionType::Modifiers,
+            fields: vec![
+                FieldDefinition {
+                    id: "ACTIVE_MODIFIERS".to_string(),
+                    label: "Situational Aspects & Boosts".to_string(),
+                    field_type: SchemaFieldType::ModifierList { filter_stat: None },
+                    editable: false,
+                    required: false,
+                    derived_from: None,
+                    validation: None,
+                    layout: FieldLayout {
+                        width: Some(12),
+                        ..Default::default()
+                    },
+                    description: Some(
+                        "Active situational aspects, boosts, and temporary effects affecting your rolls.".to_string(),
+                    ),
+                    placeholder: None,
+                },
+            ],
+            collapsible: true,
+            collapsed_default: false,
+            description: Some("Aspects can be invoked for +2 or reroll. Boosts are free invokes that disappear after use. Consequences are negative aspects that can be compelled.".to_string()),
         }
     }
 }

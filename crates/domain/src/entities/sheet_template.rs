@@ -402,6 +402,57 @@ impl CharacterSheetData {
         }
         None
     }
+
+    /// Get dice pool value (number of dice) for Blades in the Dark action ratings.
+    pub fn get_dice_pool(&self, field_id: &str) -> Option<u8> {
+        match self.values.get(field_id)? {
+            FieldValue::DicePool { dice, .. } => Some(*dice),
+            FieldValue::Number(n) => Some(*n as u8),
+            _ => None,
+        }
+    }
+
+    /// Get percentile value for CoC 7e skills.
+    pub fn get_percentile(&self, field_id: &str) -> Option<u8> {
+        match self.values.get(field_id)? {
+            FieldValue::Percentile(p) => Some(*p),
+            FieldValue::Number(n) => Some(*n as u8),
+            _ => None,
+        }
+    }
+
+    /// Get ladder rating for FATE Core skills.
+    pub fn get_ladder_rating(&self, field_id: &str) -> Option<i8> {
+        match self.values.get(field_id)? {
+            FieldValue::LadderRating(r) => Some(*r),
+            FieldValue::Number(n) => Some(*n as i8),
+            _ => None,
+        }
+    }
+
+    /// Get resource current value.
+    pub fn get_resource_current(&self, field_id: &str) -> Option<i32> {
+        match self.values.get(field_id)? {
+            FieldValue::Resource { current, .. } => Some(*current),
+            FieldValue::Number(n) => Some(*n),
+            _ => None,
+        }
+    }
+
+    /// Get any numeric value from a field, regardless of specific type.
+    /// This is useful for challenge modifiers that need to extract a number
+    /// from any field type that can represent a numeric value.
+    pub fn get_numeric_value(&self, field_id: &str) -> Option<i32> {
+        match self.values.get(field_id)? {
+            FieldValue::Number(n) => Some(*n),
+            FieldValue::SkillEntry { bonus, .. } => Some(*bonus),
+            FieldValue::DicePool { dice, .. } => Some(*dice as i32),
+            FieldValue::Percentile(p) => Some(*p as i32),
+            FieldValue::LadderRating(r) => Some(*r as i32),
+            FieldValue::Resource { current, .. } => Some(*current),
+            _ => None,
+        }
+    }
 }
 
 /// A value stored for a field
@@ -423,6 +474,15 @@ pub enum FieldValue {
         proficient: bool,
         bonus: i32,
     },
+    /// Dice pool (for Blades in the Dark action ratings, etc.)
+    DicePool {
+        dice: u8,
+        die_type: u8,
+    },
+    /// Percentile skill value (for CoC 7e, etc.)
+    Percentile(u8),
+    /// Ladder rating (for FATE Core, etc.)
+    LadderRating(i8),
 }
 
 // ============================================================================

@@ -1377,6 +1377,7 @@ mod ws_integration_tests_inline {
             player_character.clone(),
             scene.clone(),
             flag.clone(),
+            world.clone(),
             clock.clone(),
         ));
         let narrative_events = Arc::new(crate::use_cases::narrative::NarrativeEventOps::new(

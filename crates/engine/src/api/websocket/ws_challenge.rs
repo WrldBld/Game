@@ -194,17 +194,20 @@ pub(super) async fn handle_challenge_roll(
     }
 
     // Calculate skill modifier from character stats if check_stat is specified
+    // Uses get_numeric_value() which handles all field types:
+    // - Number: direct modifier
+    // - SkillEntry: bonus value
+    // - DicePool: dice count (for Blades)
+    // - Percentile: skill value (for CoC 7e)
+    // - LadderRating: ladder position (for FATE)
+    // - Resource: current value
     let skill_modifier = if let Some(ref stat_name) = challenge.check_stat {
         // Get the PC's sheet_data to look up stats
         match state.app.entities.player_character.get(pc_id).await {
             Ok(Some(pc)) => {
-                // Look up the stat value from sheet_data
+                // Look up the stat value from sheet_data using unified numeric extraction
                 if let Some(ref sheet_data) = pc.sheet_data {
-                    match sheet_data.get(stat_name) {
-                        Some(wrldbldr_domain::FieldValue::Number(n)) => *n,
-                        Some(wrldbldr_domain::FieldValue::SkillEntry { bonus, .. }) => *bonus,
-                        _ => 0,
-                    }
+                    sheet_data.get_numeric_value(stat_name).unwrap_or(0)
                 } else {
                     0
                 }

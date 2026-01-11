@@ -558,6 +558,9 @@ impl PbtaSystem {
         // Add bonds section
         sections.push(self.bonds_section());
 
+        // Add modifiers/conditions section
+        sections.push(self.modifiers_section());
+
         sections
     }
 
@@ -1614,6 +1617,43 @@ impl PbtaSystem {
             }
             PbtaVariant::MonsterOfTheWeek => "History with other hunters in your team.",
             PbtaVariant::Generic => "Your relationships with other characters.",
+        }
+    }
+
+    fn modifiers_section(&self) -> SchemaSection {
+        let description = match self.variant {
+            PbtaVariant::ApocalypseWorld => "Track debilities (Shattered, Crippled, Disfigured, Broken) and ongoing effects affecting your moves.",
+            PbtaVariant::DungeonWorld => "Track debilities (Weak, Shaky, Sick, Stunned, Confused, Scarred) affecting your stat modifiers.",
+            PbtaVariant::MonsterOfTheWeek => "Track conditions and ongoing effects affecting your hunter.",
+            PbtaVariant::Generic => "Track conditions and ongoing effects affecting your character.",
+        };
+
+        SchemaSection {
+            id: "modifiers".to_string(),
+            label: "Conditions & Effects".to_string(),
+            section_type: SectionType::Modifiers,
+            fields: vec![
+                FieldDefinition {
+                    id: "ACTIVE_MODIFIERS".to_string(),
+                    label: "Active Conditions".to_string(),
+                    field_type: SchemaFieldType::ModifierList { filter_stat: None },
+                    editable: false,
+                    required: false,
+                    derived_from: None,
+                    validation: None,
+                    layout: FieldLayout {
+                        width: Some(12),
+                        ..Default::default()
+                    },
+                    description: Some(
+                        "Active conditions, debilities, and ongoing effects modifying your rolls.".to_string(),
+                    ),
+                    placeholder: None,
+                },
+            ],
+            collapsible: true,
+            collapsed_default: false,
+            description: Some(description.to_string()),
         }
     }
 }
