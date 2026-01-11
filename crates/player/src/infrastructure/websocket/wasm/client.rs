@@ -210,18 +210,14 @@ impl EngineClient {
         ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
 
         // Set up message handler
+        // Note: All messages are passed to the callback - the bridge handles
+        // resolving Response messages with its own PendingRequests.
         let on_message = Rc::clone(&self.on_message);
-        let pending_requests_clone = Rc::clone(&self.pending_requests);
         let onmessage_callback = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
             if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
                 let text: String = txt.into();
-                match parse_server_message(&text) {
-                    Ok(ParsedServerMessage::Response { request_id, result }) => {
-                        let _ = pending_requests_clone
-                            .borrow_mut()
-                            .resolve(&request_id, result);
-                    }
-                    Ok(ParsedServerMessage::Other(server_msg)) => {
+                match serde_json::from_str::<ServerMessage>(&text) {
+                    Ok(server_msg) => {
                         if let Some(ref mut cb) = *on_message.borrow_mut() {
                             cb(server_msg);
                         }
