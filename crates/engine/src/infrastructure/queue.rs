@@ -387,26 +387,22 @@ impl QueuePort for SqliteQueue {
         &self,
         callback_id: &str,
     ) -> Result<bool, QueueError> {
-        // We don't have a dedicated callback_id column; scan a bounded set of pending items.
-        let items = self.list_by_type("llm_request", 500).await?;
-        let mut cancelled_any = false;
+        // Use indexed callback_id column for efficient cancellation
+        let now = self.clock.now().to_rfc3339();
+        let result = sqlx::query(
+            r#"
+            UPDATE queue_items
+            SET status = 'failed', updated_at = ?, error_message = 'Cancelled'
+            WHERE callback_id = ? AND queue_type = 'llm_request' AND status = 'pending'
+            "#,
+        )
+        .bind(&now)
+        .bind(callback_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| QueueError::Error(e.to_string()))?;
 
-        for item in items {
-            if item.status != QueueItemStatus::Pending {
-                continue;
-            }
-
-            let QueueItemData::LlmRequest(req) = item.data else {
-                continue;
-            };
-
-            if req.callback_id == callback_id {
-                self.mark_failed(item.id, "Cancelled").await?;
-                cancelled_any = true;
-            }
-        }
-
-        Ok(cancelled_any)
+        Ok(result.rows_affected() > 0)
     }
 
     async fn get_pending_count(&self, queue_type: &str) -> Result<usize, QueueError> {

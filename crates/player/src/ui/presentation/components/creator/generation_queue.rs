@@ -692,7 +692,6 @@ fn SuggestionQueueRow(
                         button {
                             onclick: {
                                 let req_id = request_id_for_view.clone();
-                                let _entity_id = suggestion.entity_id.clone(); // Unused now, nav moved to modal
                                 let world_id_clone = world_id.clone();
                                 let gen_svc = generation_service.clone();
                                 let plat_clone = platform.clone();
