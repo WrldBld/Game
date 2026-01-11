@@ -178,6 +178,65 @@ impl SessionService {
         rx
     }
 
+    /// Subscribe to session events and set up automatic world join on connect (WASM version).
+    ///
+    /// Returns a receiver that will receive all session events.
+    #[cfg(target_arch = "wasm32")]
+    pub async fn subscribe_with_auto_join(
+        &self,
+        _user_id: String,
+        role: ParticipantRole,
+        world_id: String,
+    ) -> mpsc::UnboundedReceiver<SessionEvent> {
+        let (tx, rx) = mpsc::unbounded::<SessionEvent>();
+
+        // Subscribe to events (WASM subscribe is sync)
+        let tx_for_events = tx.clone();
+        self.event_bus.subscribe(move |event| {
+            let _ = tx_for_events.unbounded_send(SessionEvent::MessageReceived(event));
+        });
+
+        // Set up a task to monitor state and join when connected
+        let state_observer = self.state_observer.clone();
+        let command_bus = self.command_bus.clone();
+        let tx_for_state = tx.clone();
+
+        wasm_bindgen_futures::spawn_local(async move {
+            let mut last_state = state_observer.state();
+            loop {
+                let current_state = state_observer.state();
+                if current_state != last_state {
+                    let _ = tx_for_state.unbounded_send(SessionEvent::StateChanged(current_state));
+
+                    // Auto-join when connected
+                    if current_state == ConnectionState::Connected {
+                        if let Ok(world_uuid) = uuid::Uuid::parse_str(&world_id) {
+                            let world_role = participant_role_to_world_role(role.into());
+                            let _ = command_bus.send(ClientMessageBuilder::join_world(
+                                world_uuid, world_role, None, None,
+                            ));
+                        }
+                    }
+
+                    last_state = current_state;
+                }
+
+                // Poll at reasonable interval
+                gloo_timers::future::TimeoutFuture::new(50).await;
+
+                // Stop polling if disconnected or failed
+                if matches!(
+                    current_state,
+                    ConnectionState::Disconnected | ConnectionState::Failed
+                ) {
+                    break;
+                }
+            }
+        });
+
+        rx
+    }
+
     /// Disconnect from the engine.
     ///
     /// This consumes the connection handle. After calling this, the service

@@ -17,7 +17,7 @@ use wrldbldr_protocol::{
 };
 
 use crate::infrastructure::session_type_converters::participant_role_to_world_role;
-use crate::infrastructure::websocket::protocol::ConnectionState;
+use crate::infrastructure::websocket::ConnectionState;
 use crate::infrastructure::websocket::shared::{
     parse_server_message, ParsedServerMessage, MAX_RETRY_ATTEMPTS,
 };

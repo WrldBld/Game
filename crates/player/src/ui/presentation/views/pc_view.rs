@@ -83,12 +83,14 @@ pub fn PCView() -> Element {
     {
         let game_state_for_effect = game_state.clone();
         let transitioning = *game_state_for_effect.backdrop_transitioning.read();
+        let platform = crate::use_platform();
         use_effect(move || {
             if transitioning {
                 let mut gs = game_state_for_effect.clone();
+                let sleep_future = platform.sleep_ms(500);
                 spawn(async move {
                     // Wait for animation to complete (0.5s defined in tailwind.config.js)
-                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    sleep_future.await;
                     gs.clear_backdrop_transition();
                 });
             }
