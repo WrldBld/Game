@@ -236,7 +236,12 @@ impl StatBlock {
         self.stats.insert(name.into(), value);
     }
 
-    /// Add a modifier to a stat
+    /// Add a modifier to a stat.
+    ///
+    /// Note: Modifiers can be added to stats that don't have a base value yet.
+    /// In this case, `get_stat()` will return `None` and the modifier will have
+    /// no effect until a base value is set via `set_stat()`. This allows pre-staging
+    /// modifiers (e.g., from equipment) before character creation is complete.
     pub fn add_modifier(&mut self, stat_name: impl Into<String>, modifier: StatModifier) {
         self.modifiers
             .entry(stat_name.into())

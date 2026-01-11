@@ -4,9 +4,41 @@ use super::*;
 
 use crate::api::connections::ConnectionInfo;
 use serde_json::json;
-use wrldbldr_domain::{self as domain, RuleSystemConfig, RuleSystemVariant};
+use wrldbldr_domain::{self as domain, CharacterId, RuleSystemConfig, RuleSystemVariant};
 use wrldbldr_domain::entities::StatModifier;
 use wrldbldr_protocol::{ErrorCode, ResponseResult, StatRequest};
+
+/// Helper to fetch a character or return an appropriate error response.
+async fn get_character_or_error(
+    state: &WsState,
+    character_id: CharacterId,
+) -> Result<domain::Character, ResponseResult> {
+    match state.app.entities.character.get(character_id).await {
+        Ok(Some(character)) => Ok(character),
+        Ok(None) => Err(ResponseResult::error(
+            ErrorCode::NotFound,
+            "Character not found",
+        )),
+        Err(e) => Err(ResponseResult::error(
+            ErrorCode::InternalError,
+            e.to_string(),
+        )),
+    }
+}
+
+/// Helper to save a character or return an appropriate error response.
+async fn save_character_or_error(
+    state: &WsState,
+    character: &domain::Character,
+) -> Result<(), ResponseResult> {
+    state
+        .app
+        .entities
+        .character
+        .save(character)
+        .await
+        .map_err(|e| ResponseResult::error(ErrorCode::InternalError, e.to_string()))
+}
 
 pub(super) async fn handle_stat_request(
     state: &WsState,
@@ -17,20 +49,17 @@ pub(super) async fn handle_stat_request(
     match request {
         StatRequest::GetCharacterStats { character_id } => {
             let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
-            match state.app.entities.character.get(character_id_typed).await {
-                Ok(Some(character)) => {
-                    let stats_data = character_stats_to_json(&character);
-                    Ok(ResponseResult::success(stats_data))
-                }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Character not found",
-                )),
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
-            }
+            let character = match get_character_or_error(state, character_id_typed).await {
+                Ok(c) => c,
+                Err(resp) => return Ok(resp),
+            };
+
+            tracing::debug!(
+                character_id = %character_id,
+                "Retrieved character stats"
+            );
+
+            Ok(ResponseResult::success(character_stats_to_json(&character)))
         }
 
         StatRequest::SetBaseStat {
@@ -41,63 +70,62 @@ pub(super) async fn handle_stat_request(
             require_dm_for_request(conn_info, request_id)?;
             let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
 
-            match state.app.entities.character.get(character_id_typed).await {
-                Ok(Some(mut character)) => {
-                    character.stats.set_stat(&stat_name, value);
-                    if let Err(e) = state.app.entities.character.save(&character).await {
-                        return Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        ));
-                    }
-                    Ok(ResponseResult::success(character_stats_to_json(&character)))
-                }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Character not found",
-                )),
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
+            let mut character = match get_character_or_error(state, character_id_typed).await {
+                Ok(c) => c,
+                Err(resp) => return Ok(resp),
+            };
+
+            character.stats.set_stat(&stat_name, value);
+
+            if let Err(resp) = save_character_or_error(state, &character).await {
+                return Ok(resp);
             }
+
+            tracing::info!(
+                character_id = %character_id,
+                stat_name = %stat_name,
+                value = %value,
+                "Set base stat value"
+            );
+
+            Ok(ResponseResult::success(character_stats_to_json(&character)))
         }
 
         StatRequest::AddModifier { character_id, data } => {
             require_dm_for_request(conn_info, request_id)?;
             let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
 
-            match state.app.entities.character.get(character_id_typed).await {
-                Ok(Some(mut character)) => {
-                    let modifier = if data.active {
-                        StatModifier::new(&data.source, data.value)
-                    } else {
-                        StatModifier::inactive(&data.source, data.value)
-                    };
-                    let modifier_id = modifier.id;
-                    character.stats.add_modifier(&data.stat_name, modifier);
+            let mut character = match get_character_or_error(state, character_id_typed).await {
+                Ok(c) => c,
+                Err(resp) => return Ok(resp),
+            };
 
-                    if let Err(e) = state.app.entities.character.save(&character).await {
-                        return Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        ));
-                    }
+            let modifier = if data.active {
+                StatModifier::new(&data.source, data.value)
+            } else {
+                StatModifier::inactive(&data.source, data.value)
+            };
+            let modifier_id = modifier.id;
+            character.stats.add_modifier(&data.stat_name, modifier);
 
-                    Ok(ResponseResult::success(json!({
-                        "modifier_id": modifier_id.to_string(),
-                        "stats": character_stats_to_json(&character),
-                    })))
-                }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Character not found",
-                )),
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
+            if let Err(resp) = save_character_or_error(state, &character).await {
+                return Ok(resp);
             }
+
+            tracing::info!(
+                character_id = %character_id,
+                stat_name = %data.stat_name,
+                modifier_id = %modifier_id,
+                source = %data.source,
+                value = %data.value,
+                active = %data.active,
+                "Added stat modifier"
+            );
+
+            Ok(ResponseResult::success(json!({
+                "modifier_id": modifier_id.to_string(),
+                "stats": character_stats_to_json(&character),
+            })))
         }
 
         StatRequest::RemoveModifier {
@@ -117,33 +145,30 @@ pub(super) async fn handle_stat_request(
                 }
             };
 
-            match state.app.entities.character.get(character_id_typed).await {
-                Ok(Some(mut character)) => {
-                    if !character.stats.remove_modifier(&stat_name, modifier_uuid) {
-                        return Ok(ResponseResult::error(
-                            ErrorCode::NotFound,
-                            "Modifier not found",
-                        ));
-                    }
+            let mut character = match get_character_or_error(state, character_id_typed).await {
+                Ok(c) => c,
+                Err(resp) => return Ok(resp),
+            };
 
-                    if let Err(e) = state.app.entities.character.save(&character).await {
-                        return Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        ));
-                    }
-
-                    Ok(ResponseResult::success(character_stats_to_json(&character)))
-                }
-                Ok(None) => Ok(ResponseResult::error(
+            if !character.stats.remove_modifier(&stat_name, modifier_uuid) {
+                return Ok(ResponseResult::error(
                     ErrorCode::NotFound,
-                    "Character not found",
-                )),
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
+                    "Modifier not found",
+                ));
             }
+
+            if let Err(resp) = save_character_or_error(state, &character).await {
+                return Ok(resp);
+            }
+
+            tracing::info!(
+                character_id = %character_id,
+                stat_name = %stat_name,
+                modifier_id = %modifier_id,
+                "Removed stat modifier"
+            );
+
+            Ok(ResponseResult::success(character_stats_to_json(&character)))
         }
 
         StatRequest::ToggleModifier {
@@ -163,33 +188,30 @@ pub(super) async fn handle_stat_request(
                 }
             };
 
-            match state.app.entities.character.get(character_id_typed).await {
-                Ok(Some(mut character)) => {
-                    if !character.stats.toggle_modifier(&stat_name, modifier_uuid) {
-                        return Ok(ResponseResult::error(
-                            ErrorCode::NotFound,
-                            "Modifier not found",
-                        ));
-                    }
+            let mut character = match get_character_or_error(state, character_id_typed).await {
+                Ok(c) => c,
+                Err(resp) => return Ok(resp),
+            };
 
-                    if let Err(e) = state.app.entities.character.save(&character).await {
-                        return Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        ));
-                    }
-
-                    Ok(ResponseResult::success(character_stats_to_json(&character)))
-                }
-                Ok(None) => Ok(ResponseResult::error(
+            if !character.stats.toggle_modifier(&stat_name, modifier_uuid) {
+                return Ok(ResponseResult::error(
                     ErrorCode::NotFound,
-                    "Character not found",
-                )),
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
+                    "Modifier not found",
+                ));
             }
+
+            if let Err(resp) = save_character_or_error(state, &character).await {
+                return Ok(resp);
+            }
+
+            tracing::info!(
+                character_id = %character_id,
+                stat_name = %stat_name,
+                modifier_id = %modifier_id,
+                "Toggled stat modifier"
+            );
+
+            Ok(ResponseResult::success(character_stats_to_json(&character)))
         }
 
         StatRequest::ClearStatModifiers {
@@ -199,56 +221,47 @@ pub(super) async fn handle_stat_request(
             require_dm_for_request(conn_info, request_id)?;
             let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
 
-            match state.app.entities.character.get(character_id_typed).await {
-                Ok(Some(mut character)) => {
-                    character.stats.clear_modifiers(&stat_name);
+            let mut character = match get_character_or_error(state, character_id_typed).await {
+                Ok(c) => c,
+                Err(resp) => return Ok(resp),
+            };
 
-                    if let Err(e) = state.app.entities.character.save(&character).await {
-                        return Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        ));
-                    }
+            character.stats.clear_modifiers(&stat_name);
 
-                    Ok(ResponseResult::success(character_stats_to_json(&character)))
-                }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Character not found",
-                )),
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
+            if let Err(resp) = save_character_or_error(state, &character).await {
+                return Ok(resp);
             }
+
+            tracing::info!(
+                character_id = %character_id,
+                stat_name = %stat_name,
+                "Cleared all modifiers for stat"
+            );
+
+            Ok(ResponseResult::success(character_stats_to_json(&character)))
         }
 
         StatRequest::ClearAllModifiers { character_id } => {
             require_dm_for_request(conn_info, request_id)?;
             let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
 
-            match state.app.entities.character.get(character_id_typed).await {
-                Ok(Some(mut character)) => {
-                    character.stats.clear_all_modifiers();
+            let mut character = match get_character_or_error(state, character_id_typed).await {
+                Ok(c) => c,
+                Err(resp) => return Ok(resp),
+            };
 
-                    if let Err(e) = state.app.entities.character.save(&character).await {
-                        return Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        ));
-                    }
+            character.stats.clear_all_modifiers();
 
-                    Ok(ResponseResult::success(character_stats_to_json(&character)))
-                }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Character not found",
-                )),
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
+            if let Err(resp) = save_character_or_error(state, &character).await {
+                return Ok(resp);
             }
+
+            tracing::info!(
+                character_id = %character_id,
+                "Cleared all stat modifiers"
+            );
+
+            Ok(ResponseResult::success(character_stats_to_json(&character)))
         }
 
         StatRequest::GetStatTemplates { variant } => {
@@ -301,36 +314,34 @@ pub(super) async fn handle_stat_request(
             require_dm_for_request(conn_info, request_id)?;
             let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
             let rule_variant = parse_rule_system_variant(&variant);
-            let config = RuleSystemConfig::from_variant(rule_variant);
+            let config = RuleSystemConfig::from_variant(rule_variant.clone());
 
-            match state.app.entities.character.get(character_id_typed).await {
-                Ok(Some(mut character)) => {
-                    // Initialize stats from the template defaults
-                    for stat_def in &config.stat_definitions {
-                        character.stats.set_stat(&stat_def.name, stat_def.default_value);
-                    }
+            let mut character = match get_character_or_error(state, character_id_typed).await {
+                Ok(c) => c,
+                Err(resp) => return Ok(resp),
+            };
 
-                    if let Err(e) = state.app.entities.character.save(&character).await {
-                        return Ok(ResponseResult::error(
-                            ErrorCode::InternalError,
-                            e.to_string(),
-                        ));
-                    }
-
-                    Ok(ResponseResult::success(json!({
-                        "template": config.name,
-                        "stats": character_stats_to_json(&character),
-                    })))
-                }
-                Ok(None) => Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    "Character not found",
-                )),
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
+            // Initialize stats from the template defaults
+            for stat_def in &config.stat_definitions {
+                character.stats.set_stat(&stat_def.name, stat_def.default_value);
             }
+
+            if let Err(resp) = save_character_or_error(state, &character).await {
+                return Ok(resp);
+            }
+
+            tracing::info!(
+                character_id = %character_id,
+                template = %config.name,
+                variant = ?rule_variant,
+                stat_count = %config.stat_definitions.len(),
+                "Initialized character stats from template"
+            );
+
+            Ok(ResponseResult::success(json!({
+                "template": config.name,
+                "stats": character_stats_to_json(&character),
+            })))
         }
     }
 }
@@ -381,7 +392,9 @@ fn character_stats_to_json(character: &domain::Character) -> serde_json::Value {
     })
 }
 
-/// Parse a rule system variant from string
+/// Parse a rule system variant from string.
+///
+/// Unknown variants will log a warning and fall back to GenericD20.
 fn parse_rule_system_variant(variant_str: &str) -> RuleSystemVariant {
     match variant_str.to_lowercase().as_str() {
         "dnd5e" | "dnd_5e" | "d&d5e" => RuleSystemVariant::Dnd5e,
@@ -400,6 +413,13 @@ fn parse_rule_system_variant(variant_str: &str) -> RuleSystemVariant {
         }
         "genericd20" | "generic_d20" | "d20" => RuleSystemVariant::GenericD20,
         "genericd100" | "generic_d100" | "d100" => RuleSystemVariant::GenericD100,
-        _ => RuleSystemVariant::GenericD20, // Default fallback
+        unknown => {
+            tracing::warn!(
+                variant = %unknown,
+                fallback = "GenericD20",
+                "Unknown rule system variant requested, falling back to GenericD20"
+            );
+            RuleSystemVariant::GenericD20
+        }
     }
 }

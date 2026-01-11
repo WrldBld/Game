@@ -57,8 +57,18 @@ impl From<entities::StatModifier> for StatModifierStored {
 
 impl From<StatModifierStored> for entities::StatModifier {
     fn from(value: StatModifierStored) -> Self {
+        let id = Uuid::parse_str(&value.id).unwrap_or_else(|e| {
+            let new_id = Uuid::new_v4();
+            tracing::warn!(
+                stored_id = %value.id,
+                new_id = %new_id,
+                error = %e,
+                "Corrupted UUID in stored stat modifier, generating new ID. Modifier may become orphaned."
+            );
+            new_id
+        });
         Self {
-            id: Uuid::parse_str(&value.id).unwrap_or_else(|_| Uuid::new_v4()),
+            id,
             source: value.source,
             value: value.value,
             active: value.active,
