@@ -31,6 +31,7 @@ pub mod region;
 pub mod relationship;
 pub mod scene;
 pub mod skill;
+pub mod stat;
 pub mod story_event;
 pub mod time;
 pub mod want;
@@ -72,6 +73,7 @@ pub enum RequestPayload {
     Ai(ai::AiRequest),
     Items(items::ItemsRequest),
     Lore(lore::LoreRequest),
+    Stat(stat::StatRequest),
 
     #[serde(other)]
     Unknown,

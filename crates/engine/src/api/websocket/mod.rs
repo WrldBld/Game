@@ -32,6 +32,7 @@ mod ws_player;
 mod ws_session;
 mod ws_scene;
 mod ws_skill;
+mod ws_stat;
 mod ws_story_events;
 mod ws_staging;
 mod ws_time;
@@ -617,6 +618,9 @@ async fn handle_request(
         }
         RequestPayload::Skill(req) => {
             ws_skill::handle_skill_request(state, &request_id, &conn_info, req).await
+        }
+        RequestPayload::Stat(req) => {
+            ws_stat::handle_stat_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Unknown => Ok(ResponseResult::error(
             ErrorCode::BadRequest,

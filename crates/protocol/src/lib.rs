@@ -238,6 +238,8 @@ pub use requests::{
     relationship::RelationshipRequest,
     scene::SceneRequest,
     skill::SkillRequest,
+    stat::AddModifierData,
+    stat::StatRequest,
     story_event::StoryEventRequest,
     time::TimeRequest,
     want::WantRequest,
