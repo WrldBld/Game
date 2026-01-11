@@ -102,6 +102,7 @@ impl App {
             repos.location.clone(),
             repos.world.clone(),
             repos.player_character.clone(),
+            repos.character.clone(),
             repos.observation.clone(),
             repos.challenge.clone(),
             repos.flag.clone(),
