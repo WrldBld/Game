@@ -632,9 +632,21 @@ impl Narrative {
                 }
             };
 
-        // Collect NPC IDs from RelationshipThreshold triggers and fetch their dispositions
+        // Collect NPC IDs from RelationshipThreshold triggers and fetch their dispositions.
+        //
+        // SCOPE LIMITATION: Only NPC→PC relationships are supported because:
+        // - NpcDispositionState tracks NPC feelings toward PCs
+        // - PC→NPC feelings are not tracked in the disposition system
+        // - NPC→NPC relationships are not tracked
+        //
+        // For triggers using NPC→NPC or PC→NPC, the trigger will not fire
+        // (relationship data won't be found in context).
+        //
+        // NOTE: We iterate over candidates twice (here and in evaluate loop below).
+        // This is intentional for readability - the relationship fetch is logically
+        // separate from trigger evaluation. Can be combined if performance is an issue.
         let relationships = {
-            // Extract unique NPC IDs that need relationship data
+            // Extract unique NPC IDs that need relationship data (character_id in triggers)
             let mut npc_ids: std::collections::HashSet<CharacterId> =
                 std::collections::HashSet::new();
             for event in &candidates {
@@ -649,22 +661,20 @@ impl Narrative {
 
             // Fetch dispositions for each NPC toward this PC
             let mut relationships: HashMap<CharacterId, HashMap<CharacterId, f32>> = HashMap::new();
+            let pc_as_char_id = CharacterId::from(*pc_id.as_uuid());
+
             for npc_id in npc_ids {
                 match self.character_repo.get_disposition(npc_id, pc_id).await {
                     Ok(Some(disposition)) => {
-                        // The trigger uses CharacterId for both parties, but disposition
-                        // uses PlayerCharacterId for the PC. We need to convert.
-                        // For now, we use the NPC's sentiment toward the PC.
-                        let pc_as_char_id = CharacterId::from(*pc_id.as_uuid());
                         relationships
                             .entry(npc_id)
                             .or_default()
                             .insert(pc_as_char_id, disposition.sentiment);
                     }
                     Ok(None) => {
-                        // No disposition exists - NPC hasn't interacted with this PC
-                        // Default sentiment is 0.0 (neutral/stranger)
-                        let pc_as_char_id = CharacterId::from(*pc_id.as_uuid());
+                        // Default to neutral (0.0) for NPCs who haven't interacted with this PC.
+                        // This allows "stranger/neutral zone" triggers (e.g., min: -0.1, max: 0.1)
+                        // to fire for NPCs the player hasn't met yet.
                         relationships
                             .entry(npc_id)
                             .or_default()

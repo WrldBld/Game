@@ -1064,4 +1064,39 @@ mod tests {
 
         assert_eq!(context.get_relationship(npc_id, pc_id), Some(0.75));
     }
+
+    #[test]
+    fn relationship_trigger_with_no_bounds_fires_for_any_sentiment() {
+        // When both min_sentiment and max_sentiment are None, the trigger
+        // should fire for any existing relationship (any sentiment value).
+        let npc_id = CharacterId::new();
+        let pc_id = CharacterId::new();
+        let event = create_test_event_with_relationship_trigger(npc_id, pc_id, None, None);
+
+        // Test with positive sentiment
+        let mut context = TriggerContext::new();
+        context.add_relationship(npc_id, pc_id, 0.8);
+        assert!(event.evaluate_triggers(&context).is_triggered);
+
+        // Test with negative sentiment
+        let mut context = TriggerContext::new();
+        context.add_relationship(npc_id, pc_id, -0.8);
+        assert!(event.evaluate_triggers(&context).is_triggered);
+
+        // Test with neutral sentiment
+        let mut context = TriggerContext::new();
+        context.add_relationship(npc_id, pc_id, 0.0);
+        assert!(event.evaluate_triggers(&context).is_triggered);
+    }
+
+    #[test]
+    fn relationship_trigger_with_no_bounds_does_not_fire_without_relationship() {
+        // Even with no bounds, should not fire if no relationship exists
+        let npc_id = CharacterId::new();
+        let pc_id = CharacterId::new();
+        let event = create_test_event_with_relationship_trigger(npc_id, pc_id, None, None);
+
+        let context = TriggerContext::new(); // No relationship data
+        assert!(!event.evaluate_triggers(&context).is_triggered);
+    }
 }
