@@ -12,6 +12,9 @@ use tokio::sync::oneshot;
 #[cfg(target_arch = "wasm32")]
 use futures_channel::oneshot;
 
+#[cfg(target_arch = "wasm32")]
+use send_wrapper::SendWrapper;
+
 /// Connection state for the game session.
 ///
 /// This is the same enum as in the ports layer, but defined here to avoid
@@ -146,6 +149,49 @@ impl ConnectionStateObserver {
 /// Internal helper to update connection state (used by bridge).
 pub fn set_connection_state(state_ref: &AtomicU8, new_state: ConnectionState) {
     state_ref.store(new_state.to_u8(), Ordering::SeqCst);
+}
+
+// =============================================================================
+// ConnectionKeepAlive - Keeps connection alive for Dioxus context
+// =============================================================================
+
+/// Keeps the connection alive by holding onto the ConnectionHandle.
+///
+/// This is a wrapper that can be stored in Dioxus context to prevent the
+/// connection from being dropped. It implements Clone by using Arc internally.
+///
+/// When all clones of this are dropped, the connection will be closed.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone)]
+pub struct ConnectionKeepAlive {
+    _handle: Arc<std::sync::Mutex<Option<ConnectionHandle>>>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl ConnectionKeepAlive {
+    /// Create a new keep-alive wrapper from a ConnectionHandle.
+    pub fn new(handle: ConnectionHandle) -> Self {
+        Self {
+            _handle: Arc::new(std::sync::Mutex::new(Some(handle))),
+        }
+    }
+}
+
+/// Keeps the connection alive by holding onto the ConnectionHandle (WASM version).
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone)]
+pub struct ConnectionKeepAlive {
+    _handle: SendWrapper<std::rc::Rc<std::cell::RefCell<Option<ConnectionHandle>>>>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl ConnectionKeepAlive {
+    /// Create a new keep-alive wrapper from a ConnectionHandle.
+    pub fn new(handle: ConnectionHandle) -> Self {
+        Self {
+            _handle: SendWrapper::new(std::rc::Rc::new(std::cell::RefCell::new(Some(handle)))),
+        }
+    }
 }
 
 #[cfg(test)]

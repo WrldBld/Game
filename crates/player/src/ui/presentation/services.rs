@@ -23,7 +23,8 @@ use crate::application::services::{
     PlayerCharacterService, SettingsService, SkillService, StoryEventService, SuggestionService,
     WorkflowService, WorldService,
 };
-use crate::infrastructure::messaging::CommandBus;
+use crate::infrastructure::messaging::{CommandBus, ConnectionKeepAlive};
+use crate::infrastructure::websocket::Connection;
 use crate::ports::outbound::{ApiPort, RawApiPort};
 
 use crate::application::api::Api;
@@ -38,6 +39,10 @@ pub type UiServices = Services<Api>;
 /// REST services still use the generic `A: ApiPort` pattern for file uploads and large payloads.
 #[derive(Clone)]
 pub struct Services<A: ApiPort> {
+    /// Keeps the WebSocket connection alive for the app's lifetime.
+    /// This must be stored to prevent the connection from being dropped.
+    #[allow(dead_code)]
+    connection_keep_alive: ConnectionKeepAlive,
     /// Shared command bus for sending WebSocket commands.
     pub command_bus: CommandBus,
     // WebSocket-based services (non-generic)
@@ -61,14 +66,20 @@ pub struct Services<A: ApiPort> {
 }
 
 impl<A: ApiPort + Clone> Services<A> {
-    /// Create all services with the given command bus and API ports
+    /// Create all services with the given connection and API ports
     ///
     /// # Arguments
     /// * `api` - The REST API port for HTTP-based services
     /// * `raw_api` - The raw API port for services that need lower-level access
-    /// * `command_bus` - The CommandBus for WebSocket operations
-    pub fn new(api: A, raw_api: Arc<dyn RawApiPort>, command_bus: CommandBus) -> Self {
+    /// * `connection` - The WebSocket connection (handle will be kept alive)
+    pub fn new(api: A, raw_api: Arc<dyn RawApiPort>, connection: Connection) -> Self {
+        let command_bus = connection.command_bus;
+        let keep_alive = ConnectionKeepAlive::new(connection.handle);
+        // Note: connection.event_bus and connection.state_observer are also available
+        // if needed in the future
+
         Self {
+            connection_keep_alive: keep_alive,
             command_bus: command_bus.clone(),
             // WebSocket-based services use CommandBus
             world: Arc::new(WorldService::new(command_bus.clone(), raw_api)),
