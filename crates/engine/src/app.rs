@@ -10,6 +10,7 @@ use crate::infrastructure::{
     queue::SqliteQueue,
 };
 use crate::use_cases;
+use crate::use_cases::content::{ContentService, ContentServiceConfig};
 
 /// Main application state.
 ///
@@ -20,6 +21,7 @@ pub struct App {
     pub use_cases: UseCases,
     pub queue: Arc<dyn QueuePort>,
     pub llm: Arc<dyn LlmPort>,
+    pub content: Arc<ContentService>,
 }
 
 /// Container for all entity modules.
@@ -80,6 +82,7 @@ impl App {
         image_gen: Arc<dyn ImageGenPort>,
         queue: Arc<SqliteQueue>,
         settings_repo: Arc<dyn SettingsRepo>,
+        content_config: ContentServiceConfig,
     ) -> Self {
         // Create infrastructure services
         let clock: Arc<dyn ClockPort> = Arc::new(SystemClock::new());
@@ -505,11 +508,20 @@ impl App {
             custom_condition,
         };
 
+        // Create content service for game content (races, classes, spells, etc.)
+        let content = Arc::new(ContentService::new(content_config));
+
+        // Register D&D 5e provider if fivetools path is configured
+        if let Some(ref path) = content.config().fivetools_path {
+            content.register_dnd5e_provider(path);
+        }
+
         Self {
             entities,
             use_cases,
             queue: queue,
             llm,
+            content,
         }
     }
 }

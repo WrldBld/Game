@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 mod ws_challenge;
 mod ws_character_sheet;
+mod ws_content;
 mod ws_core;
 mod ws_creator;
 mod ws_conversation;
@@ -635,6 +636,9 @@ async fn handle_request(
             ws_character_sheet::handle_character_sheet_request(state, &request_id, &conn_info, req)
                 .await
         }
+        RequestPayload::Content(req) => {
+            ws_content::handle_content_request(state, &request_id, &conn_info, req).await
+        }
         RequestPayload::Unknown => Ok(ResponseResult::error(
             ErrorCode::BadRequest,
             "This request type is not yet implemented",
@@ -867,6 +871,10 @@ mod ws_integration_tests_inline {
         ) -> Result<(), QueueError> {
             Ok(())
         }
+
+        async fn delete_by_callback_id(&self, _callback_id: &str) -> Result<bool, QueueError> {
+            Ok(false)
+        }
     }
 
     struct NoopLlm;
@@ -1061,6 +1069,10 @@ mod ws_integration_tests_inline {
             _read_suggestions: &[String],
         ) -> Result<(), QueueError> {
             Ok(())
+        }
+
+        async fn delete_by_callback_id(&self, _callback_id: &str) -> Result<bool, QueueError> {
+            Ok(false)
         }
     }
 

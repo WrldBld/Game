@@ -739,6 +739,113 @@ pub struct ValidationError {
 }
 
 // =============================================================================
+// Character Sheet Data Storage
+// =============================================================================
+
+/// Character sheet data storage using JSON values for flexibility.
+///
+/// This struct stores the actual field values for a character, using JSON
+/// for flexible type handling across different game systems.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CharacterSheetData {
+    /// Field values keyed by field ID
+    #[serde(default)]
+    pub values: std::collections::HashMap<String, serde_json::Value>,
+}
+
+impl CharacterSheetData {
+    /// Create a new empty character sheet data
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set a field value
+    pub fn set(&mut self, key: impl Into<String>, value: serde_json::Value) {
+        self.values.insert(key.into(), value);
+    }
+
+    /// Get a field value
+    pub fn get(&self, key: &str) -> Option<&serde_json::Value> {
+        self.values.get(key)
+    }
+
+    /// Get a field value as an integer (i64)
+    pub fn get_number(&self, key: &str) -> Option<i64> {
+        self.values.get(key).and_then(|v| v.as_i64())
+    }
+
+    /// Get a field value as an i32 (for stat/modifier values)
+    ///
+    /// This is the unified numeric extraction method that handles all field types:
+    /// - Number: direct value
+    /// - SkillEntry: bonus value
+    /// - DicePool: dice count (for Blades)
+    /// - Percentile: skill value (for CoC 7e)
+    /// - LadderRating: ladder position (for FATE)
+    pub fn get_numeric_value(&self, key: &str) -> Option<i32> {
+        self.values.get(key).and_then(|v| {
+            // Handle various JSON representations
+            if let Some(n) = v.as_i64() {
+                return Some(n as i32);
+            }
+            if let Some(n) = v.as_f64() {
+                return Some(n as i32);
+            }
+            // Handle object types like SkillEntry with a "bonus" or "value" field
+            if let Some(obj) = v.as_object() {
+                if let Some(bonus) = obj.get("bonus").and_then(|b| b.as_i64()) {
+                    return Some(bonus as i32);
+                }
+                if let Some(value) = obj.get("value").and_then(|b| b.as_i64()) {
+                    return Some(value as i32);
+                }
+                // For dice pool, use dice count
+                if let Some(dice) = obj.get("dice").and_then(|d| d.as_i64()) {
+                    return Some(dice as i32);
+                }
+            }
+            None
+        })
+    }
+
+    /// Get a field value as a float
+    pub fn get_float(&self, key: &str) -> Option<f64> {
+        self.values.get(key).and_then(|v| v.as_f64())
+    }
+
+    /// Get a field value as a string
+    pub fn get_string(&self, key: &str) -> Option<&str> {
+        self.values.get(key).and_then(|v| v.as_str())
+    }
+
+    /// Get a field value as a boolean
+    pub fn get_bool(&self, key: &str) -> Option<bool> {
+        self.values.get(key).and_then(|v| v.as_bool())
+    }
+
+    /// Check if a field exists
+    pub fn has(&self, key: &str) -> bool {
+        self.values.contains_key(key)
+    }
+
+    /// Remove a field value
+    pub fn remove(&mut self, key: &str) -> Option<serde_json::Value> {
+        self.values.remove(key)
+    }
+
+    /// Get all field keys
+    pub fn keys(&self) -> impl Iterator<Item = &String> {
+        self.values.keys()
+    }
+
+    /// Check if the sheet data is empty
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 

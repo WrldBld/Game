@@ -4,8 +4,9 @@
 //! and mechanics, allowing different TTRPGs to implement their own rules
 //! while sharing a common API.
 
-use crate::entities::{StatBlock, StatModifier};
+use crate::entities::{ContentFilter, ContentItem, ContentType, StatBlock, StatModifier};
 use std::collections::HashMap;
+use thiserror::Error;
 
 // Re-export character sheet schema types for game system implementations
 pub use crate::character_sheet::{
@@ -233,6 +234,160 @@ pub trait CharacterSheetProvider: Send + Sync {
 
     /// Get default values for all fields.
     fn default_values(&self) -> HashMap<String, serde_json::Value>;
+}
+
+/// Error type for content loading operations.
+#[derive(Debug, Error)]
+pub enum ContentError {
+    /// Failed to load content from a data source.
+    #[error("Failed to load content: {0}")]
+    LoadError(String),
+
+    /// Content type not supported by this system.
+    #[error("Content type '{0}' not supported by this system")]
+    UnsupportedContentType(String),
+
+    /// Content not found.
+    #[error("Content not found: {0}")]
+    NotFound(String),
+
+    /// IO error during content loading.
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+
+    /// JSON parsing error.
+    #[error("JSON parse error: {0}")]
+    JsonError(#[from] serde_json::Error),
+}
+
+/// Schema for filtering content of a specific type.
+///
+/// Describes what filter options are available for a content type.
+#[derive(Debug, Clone, Default)]
+pub struct FilterSchema {
+    /// Available source books to filter by
+    pub sources: Vec<String>,
+
+    /// Available tags to filter by
+    pub tags: Vec<String>,
+
+    /// Whether text search is supported
+    pub supports_search: bool,
+
+    /// Additional filter fields specific to this content type
+    pub custom_fields: Vec<FilterField>,
+}
+
+/// A custom filter field for content queries.
+#[derive(Debug, Clone)]
+pub struct FilterField {
+    /// Machine-readable field ID
+    pub id: String,
+
+    /// Human-readable label
+    pub label: String,
+
+    /// Type of filter
+    pub field_type: FilterFieldType,
+}
+
+/// Type of filter field.
+#[derive(Debug, Clone)]
+pub enum FilterFieldType {
+    /// Single select from options
+    Select(Vec<String>),
+
+    /// Multi-select from options
+    MultiSelect(Vec<String>),
+
+    /// Numeric range (min, max)
+    Range(i32, i32),
+
+    /// Boolean toggle
+    Boolean,
+}
+
+/// Trait for systems that provide compendium content.
+///
+/// Game systems implement this trait to expose their content (races, classes,
+/// spells, etc.) through a unified API. Each system can use its own data
+/// sources (5etools JSON, Pf2eTools, manual entry) while providing a
+/// consistent interface.
+///
+/// # Example
+///
+/// ```ignore
+/// impl CompendiumProvider for Dnd5eSystem {
+///     fn content_types(&self) -> Vec<ContentType> {
+///         vec![
+///             ContentType::CharacterOrigin,    // Races
+///             ContentType::CharacterClass,
+///             ContentType::CharacterBackground,
+///             ContentType::Spell,
+///         ]
+///     }
+///
+///     fn load_content(
+///         &self,
+///         content_type: &ContentType,
+///         filter: &ContentFilter,
+///     ) -> Result<Vec<ContentItem>, ContentError> {
+///         match content_type {
+///             ContentType::CharacterOrigin => self.load_races(filter),
+///             ContentType::CharacterClass => self.load_classes(filter),
+///             _ => Err(ContentError::UnsupportedContentType(content_type.to_string())),
+///         }
+///     }
+/// }
+/// ```
+pub trait CompendiumProvider: Send + Sync {
+    /// Get the content types this system supports.
+    ///
+    /// Returns a list of all content types that can be queried from this system.
+    fn content_types(&self) -> Vec<ContentType>;
+
+    /// Check if this system supports a specific content type.
+    fn supports_content_type(&self, content_type: &ContentType) -> bool {
+        self.content_types().contains(content_type)
+    }
+
+    /// Load content of a specific type.
+    ///
+    /// Returns all items matching the filter, converted to the unified ContentItem format.
+    fn load_content(
+        &self,
+        content_type: &ContentType,
+        filter: &ContentFilter,
+    ) -> Result<Vec<ContentItem>, ContentError>;
+
+    /// Get a single content item by ID.
+    ///
+    /// The default implementation loads all content and filters by ID.
+    /// Systems should override this for better performance.
+    fn get_content_by_id(
+        &self,
+        content_type: &ContentType,
+        id: &str,
+    ) -> Result<Option<ContentItem>, ContentError> {
+        let items = self.load_content(content_type, &ContentFilter::default())?;
+        Ok(items.into_iter().find(|item| item.id == id))
+    }
+
+    /// Get the filter schema for a content type.
+    ///
+    /// Returns None if the content type is not supported.
+    fn filter_schema(&self, content_type: &ContentType) -> Option<FilterSchema>;
+
+    /// Get content statistics for this system.
+    fn content_stats(&self) -> HashMap<ContentType, usize> {
+        let mut stats = HashMap::new();
+        for ct in self.content_types() {
+            if let Ok(items) = self.load_content(&ct, &ContentFilter::default()) {
+                stats.insert(ct, items.len());
+            }
+        }
+        stats
+    }
 }
 
 #[cfg(test)]

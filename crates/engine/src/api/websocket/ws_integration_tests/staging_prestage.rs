@@ -230,6 +230,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Dm,
+            user_id: "dm-user".to_string(),
             pc_id: None,
             spectate_pc_id: None,
         },
@@ -246,6 +247,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Player,
+            user_id: "player-user".to_string(),
             pc_id: Some(*pc_id.as_uuid()),
             spectate_pc_id: None,
         },

@@ -201,6 +201,10 @@ impl QueuePort for NoopQueue {
     ) -> Result<(), QueueError> {
         Ok(())
     }
+
+    async fn delete_by_callback_id(&self, _callback_id: &str) -> Result<bool, QueueError> {
+        Ok(false)
+    }
 }
 
 pub(crate) struct NoopLlm;
@@ -395,6 +399,10 @@ impl QueuePort for RecordingApprovalQueue {
         _read_suggestions: &[String],
     ) -> Result<(), QueueError> {
         Ok(())
+    }
+
+    async fn delete_by_callback_id(&self, _callback_id: &str) -> Result<bool, QueueError> {
+        Ok(false)
     }
 }
 
@@ -890,11 +898,17 @@ pub(crate) fn build_test_app_with_ports(
         custom_condition,
     };
 
+    // Create content service for game content (races, classes, spells, etc.)
+    let content = Arc::new(crate::use_cases::content::ContentService::new(
+        crate::use_cases::content::ContentServiceConfig::default(),
+    ));
+
     Arc::new(App {
         entities,
         use_cases,
         queue,
         llm,
+        content,
     })
 }
 

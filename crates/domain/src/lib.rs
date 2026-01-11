@@ -23,28 +23,28 @@ pub use entities::{
     CastingTimeUnit, ChainStatus, ChainedEvent, Challenge, ChallengeEventOutcome,
     ChallengeLocationAvailability, ChallengeOutcomes, ChallengePrerequisite,
     ChallengeRegionAvailability, ChallengeType, ChallengeUnlock, Character, CharacterFeats,
-    CharacterFeatures, CharacterIdentity, CharacterSheetData, CharacterSheetTemplate, CharacterSpells,
-    CharacterWant, ClassFeature, ClassLevel, CombatEventType, CombatOutcome, Difficulty,
-    DifficultyDescriptor, DmMarkerType, DurationUnit, EntityType, EventChain, EventChainMembership,
-    EventEffect, EventOutcome, Feat, FeatBenefit, FeaturedNpc, FeatureUses, FieldType, FieldValue,
-    FlagScope, FrequencyLevel, GalleryAsset, GameFlag, GenerationBatch, GenerationMetadata,
-    GenerationRequest, Goal, GridMap, InfoType, InputDefault, InputType, InteractionCondition,
-    InteractionRequirement, InteractionTarget, InteractionTargetType, InteractionTemplate,
-    InteractionType, InventoryItem, InvolvedCharacter, Item, ItemListType, ItemSource, KnownSpell,
-    Location, LocationConnection, LocationState, LocationStateSummary, LocationType, Lore,
-    LoreCategory, LoreChunk, LoreDiscoverySource, LoreKnowledge, MapBounds, MarkerImportance,
+    CharacterFeatures, CharacterIdentity, CharacterSpells, CharacterWant, ClassFeature, ClassLevel,
+    CombatEventType, CombatOutcome, Difficulty, DifficultyDescriptor, DmMarkerType, DurationUnit,
+    EntityType, EventChain, EventChainMembership, EventEffect, EventOutcome, Feat, FeatBenefit,
+    FeaturedNpc, FeatureUses, FlagScope, FrequencyLevel, GalleryAsset, GameFlag, GenerationBatch,
+    GenerationMetadata, GenerationRequest, Goal, GridMap, InfoType, InputDefault, InputType,
+    InteractionCondition, InteractionRequirement, InteractionTarget, InteractionTargetType,
+    InteractionTemplate, InteractionType, InventoryItem, InvolvedCharacter, Item, ItemSource,
+    KnownSpell, Location, LocationConnection, LocationState, LocationStateSummary, LocationType,
+    Lore, LoreCategory, LoreChunk, LoreDiscoverySource, LoreKnowledge, MapBounds, MarkerImportance,
     MaterialComponent, MonomythStage, NarrativeEvent, NarrativeTrigger, NarrativeTriggerType,
     NpcObservation, ObservationSummary, ObservationType, Outcome, OutcomeCondition, OutcomeTrigger,
     OutcomeType, PlayerCharacter, Prerequisite, PromptMapping, PromptMappingType, RacialTrait,
     RechargeType, Region, RegionConnection, RegionExit, RegionState, RegionStateSummary,
     ResolvedStateInfo, ResolvedVisualState, Scene, SceneCharacter, SceneCharacterRole,
-    SceneCondition, SectionLayout, SelectOption, SheetField, SheetSection, SheetTemplateId, Skill,
-    SkillCategory, Spell, SpellComponents, SpellDuration, SpellLevel, SpellRange, SpellSlotPool,
-    StagedNpc, Staging, StagingSource, StatBlock, StoryEvent, StoryEventInfoImportance,
-    StoryEventType, TimeAdvanceResult, TimeContext, TriggerCondition, TriggerContext,
-    TriggerEvaluation, TriggerLogic, TriggerType, UsesFormula, VisualStateSource, Want,
-    WantTargetType, WantVisibility, WorkflowAnalysis, WorkflowConfiguration, WorkflowInput,
+    SceneCondition, Skill, SkillCategory, Spell, SpellComponents, SpellDuration, SpellLevel,
+    SpellRange, SpellSlotPool, StagedNpc, Staging, StagingSource, StatBlock, StoryEvent,
+    StoryEventInfoImportance, StoryEventType, TimeAdvanceResult, TimeContext, TriggerCondition,
+    TriggerContext, TriggerEvaluation, TriggerLogic, TriggerType, UsesFormula, VisualStateSource,
+    Want, WantTargetType, WantVisibility, WorkflowAnalysis, WorkflowConfiguration, WorkflowInput,
     WorkflowSlot, World,
+    // Content types for compendium system
+    ContentFilter, ContentItem, ContentSource, ContentType, SourceType,
 };
 
 pub use error::DomainError;
@@ -52,16 +52,18 @@ pub use events::DomainEvent;
 
 // Re-export game system traits and types
 pub use game_systems::{
-    dnd5e_skill_ability, CalculationEngine, CasterType, CharacterSheetProvider, Dnd5eSystem,
+    dnd5e_skill_ability, CalculationEngine, CasterType, CharacterSheetProvider,
+    CompendiumProvider, ContentError, Dnd5eSystem, FilterField, FilterFieldType, FilterSchema,
     GameSystem, GameSystemRegistry, ProficiencyLevel, RestType, SpellcastingSystem,
 };
 
 // Re-export character sheet schema types
 pub use character_sheet::{
-    CharacterSheetResponse, CharacterSheetSchema, ConditionLevel, CreationStep, DerivedField,
-    DerivationType, EntityRefType, FieldDefinition, FieldLayout, FieldUpdate,
-    FieldUpdateResponse, FieldValidation, LadderLabel, ProficiencyOption, ResourceColor,
-    SchemaFieldType, SchemaSection, SchemaSelectOption, SectionType, ValidationError,
+    CharacterSheetData, CharacterSheetResponse, CharacterSheetSchema, ConditionLevel,
+    CreationStep, DerivedField, DerivationType, EntityRefType, FieldDefinition, FieldLayout,
+    FieldUpdate, FieldUpdateResponse, FieldValidation, LadderLabel, ProficiencyOption,
+    ResourceColor, SchemaFieldType, SchemaSection, SchemaSelectOption, SectionType,
+    ValidationError,
 };
 
 // Re-export game time types

@@ -5,6 +5,7 @@
 
 use std::sync::Arc;
 
+use serde_json::json;
 use wrldbldr_domain::{
     CharacterId, EventEffect, NarrativeEventId, PlayerCharacterId, RelationshipEvent,
     RelationshipType, SceneId, WorldId,
@@ -849,11 +850,11 @@ impl ExecuteEffects {
             .and_then(|sd| sd.get_number(stat_name))
             .unwrap_or(0);
 
-        let new_value = current_value + amount;
+        let new_value = current_value + amount as i64;
 
         // Create updated sheet_data
         let mut sheet_data = pc.sheet_data.clone().unwrap_or_default();
-        sheet_data.set(stat_name, wrldbldr_domain::FieldValue::Number(new_value));
+        sheet_data.set(stat_name, json!(new_value));
 
         // Create updated PC
         let updated_pc = wrldbldr_domain::PlayerCharacter {

@@ -108,6 +108,7 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Dm,
+            user_id: "dm-user".to_string(),
             pc_id: None,
             spectate_pc_id: None,
         },

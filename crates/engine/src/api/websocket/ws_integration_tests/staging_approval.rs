@@ -255,6 +255,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Dm,
+            user_id: "dm-user".to_string(),
             pc_id: None,
             spectate_pc_id: None,
         },
@@ -271,6 +272,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Player,
+            user_id: "player-user".to_string(),
             pc_id: Some(*pc_id.as_uuid()),
             spectate_pc_id: None,
         },

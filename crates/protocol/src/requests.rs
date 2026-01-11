@@ -16,6 +16,7 @@ pub mod ai;
 pub mod challenge;
 pub mod character;
 pub mod character_sheet;
+pub mod content;
 pub mod event_chain;
 pub mod expression;
 pub mod generation;
@@ -76,6 +77,7 @@ pub enum RequestPayload {
     Lore(lore::LoreRequest),
     Stat(stat::StatRequest),
     CharacterSheet(character_sheet::CharacterSheetRequest),
+    Content(content::ContentRequest),
 
     #[serde(other)]
     Unknown,

@@ -1530,6 +1530,28 @@ enum StoredNarrativeTriggerType {
         description: String,
         llm_evaluation: bool,
     },
+    // Compendium-based triggers
+    KnowsSpell {
+        spell_id: String,
+        spell_name: String,
+    },
+    HasFeat {
+        feat_id: String,
+        feat_name: String,
+    },
+    HasClass {
+        class_id: String,
+        class_name: String,
+        min_level: Option<u8>,
+    },
+    HasOrigin {
+        origin_id: String,
+        origin_name: String,
+    },
+    KnowsCreature {
+        creature_id: String,
+        creature_name: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1998,6 +2020,43 @@ impl From<&NarrativeTriggerType> for StoredNarrativeTriggerType {
             } => StoredNarrativeTriggerType::Custom {
                 description: description.clone(),
                 llm_evaluation: *llm_evaluation,
+            },
+            // Compendium-based triggers
+            NarrativeTriggerType::KnowsSpell {
+                spell_id,
+                spell_name,
+            } => StoredNarrativeTriggerType::KnowsSpell {
+                spell_id: spell_id.clone(),
+                spell_name: spell_name.clone(),
+            },
+            NarrativeTriggerType::HasFeat { feat_id, feat_name } => {
+                StoredNarrativeTriggerType::HasFeat {
+                    feat_id: feat_id.clone(),
+                    feat_name: feat_name.clone(),
+                }
+            }
+            NarrativeTriggerType::HasClass {
+                class_id,
+                class_name,
+                min_level,
+            } => StoredNarrativeTriggerType::HasClass {
+                class_id: class_id.clone(),
+                class_name: class_name.clone(),
+                min_level: *min_level,
+            },
+            NarrativeTriggerType::HasOrigin {
+                origin_id,
+                origin_name,
+            } => StoredNarrativeTriggerType::HasOrigin {
+                origin_id: origin_id.clone(),
+                origin_name: origin_name.clone(),
+            },
+            NarrativeTriggerType::KnowsCreature {
+                creature_id,
+                creature_name,
+            } => StoredNarrativeTriggerType::KnowsCreature {
+                creature_id: creature_id.clone(),
+                creature_name: creature_name.clone(),
             },
         }
     }
@@ -2683,6 +2742,40 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
             } => NarrativeTriggerType::Custom {
                 description,
                 llm_evaluation,
+            },
+            // Compendium-based triggers
+            StoredNarrativeTriggerType::KnowsSpell {
+                spell_id,
+                spell_name,
+            } => NarrativeTriggerType::KnowsSpell {
+                spell_id,
+                spell_name,
+            },
+            StoredNarrativeTriggerType::HasFeat { feat_id, feat_name } => {
+                NarrativeTriggerType::HasFeat { feat_id, feat_name }
+            }
+            StoredNarrativeTriggerType::HasClass {
+                class_id,
+                class_name,
+                min_level,
+            } => NarrativeTriggerType::HasClass {
+                class_id,
+                class_name,
+                min_level,
+            },
+            StoredNarrativeTriggerType::HasOrigin {
+                origin_id,
+                origin_name,
+            } => NarrativeTriggerType::HasOrigin {
+                origin_id,
+                origin_name,
+            },
+            StoredNarrativeTriggerType::KnowsCreature {
+                creature_id,
+                creature_name,
+            } => NarrativeTriggerType::KnowsCreature {
+                creature_id,
+                creature_name,
             },
         }
     }

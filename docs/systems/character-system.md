@@ -52,8 +52,8 @@ The key insight is that the same person can be a HELPER in one character's model
   - *Files*: `crates/domain/src/entities/item.rs`, `crates/engine/src/use_cases/conversation/tool_execution.rs`
 
 - [x] **US-CHAR-008**: As a DM, I can view and edit character sheets based on rule system
-  - *Implementation*: CharacterSheetTemplate with dynamic field types
-  - *Files*: `crates/domain/src/entities/sheet_template.rs`, `crates/player-ui/src/presentation/components/character_sheet_viewer.rs`
+  - *Implementation*: CharacterSheetSchema with dynamic field types from game system providers
+  - *Files*: `crates/domain/src/character_sheet.rs`, `crates/player/src/ui/presentation/components/schema_character_sheet.rs`
 
 - [x] **US-CHAR-009**: As a player, I can view my character's inventory
   - *Implementation*: Full inventory panel with item categories (All/Equipped/Consumables/Key) and actions

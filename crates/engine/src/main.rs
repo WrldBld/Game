@@ -62,6 +62,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "3000".into())
         .parse()
         .unwrap_or(3000);
+    let fivetools_path = std::env::var("FIVETOOLS_DATA_PATH").ok();
 
     // Create clock for repositories
     let clock: Arc<dyn infrastructure::ports::ClockPort> = Arc::new(SystemClock);
@@ -91,8 +92,27 @@ async fn main() -> anyhow::Result<()> {
     let queue = Arc::new(SqliteQueue::new(&queue_db, clock.clone()).await?);
     let settings_repo = Arc::new(SqliteSettingsRepo::new(&queue_db, clock.clone()).await?);
 
+    // Configure content service
+    let content_config = use_cases::content::ContentServiceConfig {
+        fivetools_path: fivetools_path.map(std::path::PathBuf::from),
+        preload: false,
+    };
+    if content_config.fivetools_path.is_some() {
+        tracing::info!(
+            path = ?content_config.fivetools_path,
+            "FIVETOOLS_DATA_PATH configured, will register D&D 5e content provider"
+        );
+    }
+
     // Create application
-    let app = Arc::new(App::new(repos, llm, image_gen, queue, settings_repo));
+    let app = Arc::new(App::new(
+        repos,
+        llm,
+        image_gen,
+        queue,
+        settings_repo,
+        content_config,
+    ));
 
     // Create connection manager
     let connections = Arc::new(ConnectionManager::new());

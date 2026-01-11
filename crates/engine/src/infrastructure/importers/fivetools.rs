@@ -4,6 +4,8 @@
 //! and converts them to our domain types.
 
 use super::fivetools_types::*;
+use serde::Serialize;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;
 use tokio::fs;
@@ -11,6 +13,104 @@ use wrldbldr_domain::{
     CastingTime, CastingTimeUnit, DurationUnit, Feat, FeatBenefit, MaterialComponent, Prerequisite,
     Spell, SpellComponents, SpellDuration, SpellLevel, SpellRange,
 };
+
+// === Character Option Types ===
+
+/// A simplified race option for character creation.
+#[derive(Debug, Clone, Serialize)]
+pub struct RaceOption {
+    pub id: String,
+    pub name: String,
+    pub source: String,
+    pub size: Vec<String>,
+    pub speed: i32,
+    pub fly_speed: Option<i32>,
+    pub swim_speed: Option<i32>,
+    pub ability_bonuses: Vec<AbilityBonusOption>,
+    pub darkvision: Option<u32>,
+    pub traits: Vec<RaceTrait>,
+    pub languages: Vec<String>,
+    pub skill_proficiencies: Vec<SkillProficiencyOption>,
+}
+
+/// An ability bonus that can be fixed or a choice.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum AbilityBonusOption {
+    Fixed { bonuses: HashMap<String, i32> },
+    Choice { from: Vec<String>, count: u8, amount: i32 },
+}
+
+/// A racial trait.
+#[derive(Debug, Clone, Serialize)]
+pub struct RaceTrait {
+    pub name: String,
+    pub description: String,
+}
+
+/// A skill proficiency option.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum SkillProficiencyOption {
+    Fixed { skills: Vec<String> },
+    Choice { from: Vec<String>, count: u8 },
+    Any { count: u8 },
+}
+
+/// A simplified class option for character creation.
+#[derive(Debug, Clone, Serialize)]
+pub struct ClassOption {
+    pub id: String,
+    pub name: String,
+    pub source: String,
+    pub hit_die: u8,
+    pub saving_throws: Vec<String>,
+    pub skill_choices: SkillChoiceSpec,
+    pub armor_proficiencies: Vec<String>,
+    pub weapon_proficiencies: Vec<String>,
+    pub is_caster: bool,
+    pub spellcasting_ability: Option<String>,
+    pub caster_progression: Option<String>,
+    pub subclass_title: Option<String>,
+    pub subclasses: Vec<SubclassOption>,
+}
+
+/// Skill choice specification for a class.
+#[derive(Debug, Clone, Serialize)]
+pub struct SkillChoiceSpec {
+    pub from: Vec<String>,
+    pub count: u8,
+}
+
+/// A simplified subclass option.
+#[derive(Debug, Clone, Serialize)]
+pub struct SubclassOption {
+    pub id: String,
+    pub name: String,
+    pub short_name: String,
+    pub source: String,
+}
+
+/// A simplified background option for character creation.
+#[derive(Debug, Clone, Serialize)]
+pub struct BackgroundOption {
+    pub id: String,
+    pub name: String,
+    pub source: String,
+    pub skill_proficiencies: Vec<String>,
+    pub tool_proficiencies: Vec<String>,
+    pub languages: LanguageProficiency,
+    pub description: String,
+}
+
+/// Language proficiency options.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum LanguageProficiency {
+    Fixed { languages: Vec<String> },
+    Choice { count: u8 },
+    None,
+}
 
 /// Errors that can occur during import.
 #[derive(Debug, Error)]
@@ -132,6 +232,92 @@ impl FiveToolsImporter {
         let index: FiveToolsIndex = serde_json::from_str(&content)?;
 
         Ok(index.into_keys().collect())
+    }
+
+    // === Character Creation Options ===
+
+    /// Import all races from 5etools data.
+    pub async fn import_races(&self) -> Result<Vec<RaceOption>, ImportError> {
+        let races_path = self.data_path.join("data/races.json");
+
+        if !races_path.exists() {
+            return Err(ImportError::DataFileNotFound(races_path));
+        }
+
+        let content = fs::read_to_string(&races_path).await?;
+        let race_file: FiveToolsRaceFile = serde_json::from_str(&content)?;
+
+        let races = race_file
+            .race
+            .into_iter()
+            .filter(|r| r.copy.is_none()) // Skip copy references for now
+            .filter_map(|raw| self.convert_race(raw))
+            .collect();
+
+        Ok(races)
+    }
+
+    /// Import all classes from 5etools data.
+    pub async fn import_classes(&self) -> Result<Vec<ClassOption>, ImportError> {
+        let class_dir = self.data_path.join("data/class");
+        let index_path = class_dir.join("index.json");
+
+        if !index_path.exists() {
+            return Err(ImportError::IndexNotFound(index_path));
+        }
+
+        let index_content = fs::read_to_string(&index_path).await?;
+        let index: FiveToolsIndex = serde_json::from_str(&index_content)?;
+
+        let mut all_classes = Vec::new();
+
+        for (_source, filename) in index {
+            // Only import class files, not fluff
+            if !filename.starts_with("class-") || filename.contains("fluff") {
+                continue;
+            }
+
+            let file_path = class_dir.join(&filename);
+            if !file_path.exists() {
+                continue;
+            }
+
+            let content = fs::read_to_string(&file_path).await?;
+            let class_file: FiveToolsClassFile = serde_json::from_str(&content)?;
+
+            for raw_class in class_file.class {
+                // Only import PHB edition classes by default
+                if raw_class.edition.as_deref() == Some("one") {
+                    continue; // Skip 2024 edition for now
+                }
+                if let Some(class_opt) = self.convert_class(raw_class, &class_file.subclass) {
+                    all_classes.push(class_opt);
+                }
+            }
+        }
+
+        Ok(all_classes)
+    }
+
+    /// Import all backgrounds from 5etools data.
+    pub async fn import_backgrounds(&self) -> Result<Vec<BackgroundOption>, ImportError> {
+        let backgrounds_path = self.data_path.join("data/backgrounds.json");
+
+        if !backgrounds_path.exists() {
+            return Err(ImportError::DataFileNotFound(backgrounds_path));
+        }
+
+        let content = fs::read_to_string(&backgrounds_path).await?;
+        let bg_file: FiveToolsBackgroundFile = serde_json::from_str(&content)?;
+
+        let backgrounds = bg_file
+            .background
+            .into_iter()
+            .filter(|b| b.copy.is_none()) // Skip copy references
+            .filter_map(|raw| self.convert_background(raw))
+            .collect();
+
+        Ok(backgrounds)
     }
 
     // === Conversion Methods ===
@@ -544,6 +730,707 @@ impl FiveToolsImporter {
 
         result
     }
+
+    // === Character Option Conversions ===
+
+    fn convert_race(&self, raw: FiveToolsRace) -> Option<RaceOption> {
+        let id = format!(
+            "5e_{}_{}",
+            raw.source.to_lowercase(),
+            raw.name.to_lowercase().replace(' ', "_").replace('\'', "")
+        );
+
+        // Extract walking speed
+        let speed = match &raw.speed {
+            FiveToolsSpeed::Simple(s) => *s as i32,
+            FiveToolsSpeed::Complex(c) => match &c.walk {
+                Some(FiveToolsSpeedValue::Number(n)) => *n as i32,
+                Some(FiveToolsSpeedValue::Conditional(c)) => c.number as i32,
+                _ => 30,
+            },
+            FiveToolsSpeed::None => 30,
+        };
+
+        // Extract fly speed if present
+        let fly_speed = match &raw.speed {
+            FiveToolsSpeed::Complex(c) => match &c.fly {
+                Some(FiveToolsSpeedValue::Number(n)) => Some(*n as i32),
+                Some(FiveToolsSpeedValue::Conditional(c)) => Some(c.number as i32),
+                Some(FiveToolsSpeedValue::Bool(true)) => Some(speed), // Fly = walking speed
+                _ => None,
+            },
+            _ => None,
+        };
+
+        // Extract swim speed if present
+        let swim_speed = match &raw.speed {
+            FiveToolsSpeed::Complex(c) => match &c.swim {
+                Some(FiveToolsSpeedValue::Number(n)) => Some(*n as i32),
+                Some(FiveToolsSpeedValue::Conditional(c)) => Some(c.number as i32),
+                _ => None,
+            },
+            _ => None,
+        };
+
+        // Convert ability bonuses
+        let ability_bonuses = raw
+            .ability
+            .iter()
+            .map(|ab| match ab {
+                FiveToolsRaceAbility::Fixed(bonuses) => {
+                    let converted: HashMap<String, i32> = bonuses
+                        .iter()
+                        .map(|(k, v)| (k.to_uppercase(), *v))
+                        .collect();
+                    AbilityBonusOption::Fixed { bonuses: converted }
+                }
+                FiveToolsRaceAbility::Choice(choice) => AbilityBonusOption::Choice {
+                    from: choice
+                        .choose
+                        .from
+                        .iter()
+                        .map(|s| s.to_uppercase())
+                        .collect(),
+                    count: choice.choose.count.unwrap_or(1),
+                    amount: choice.choose.amount.unwrap_or(1),
+                },
+            })
+            .collect();
+
+        // Extract traits from entries
+        let traits = raw
+            .entries
+            .iter()
+            .filter_map(|entry| {
+                if let serde_json::Value::Object(obj) = entry {
+                    let name = obj.get("name")?.as_str()?.to_string();
+                    let entries = obj.get("entries")?.as_array()?;
+                    let description = entries
+                        .iter()
+                        .filter_map(|e| self.entry_to_string(e))
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    Some(RaceTrait { name, description })
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Extract languages
+        let languages = raw
+            .language_proficiencies
+            .iter()
+            .flat_map(|lp| {
+                lp.iter().filter_map(|(lang, val)| {
+                    if val.as_bool().unwrap_or(false) {
+                        Some(lang.clone())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
+
+        // Extract skill proficiencies
+        let skill_proficiencies = raw
+            .skill_proficiencies
+            .iter()
+            .map(|sp| match sp {
+                FiveToolsSkillProficiency::Fixed(skills) => SkillProficiencyOption::Fixed {
+                    skills: skills.keys().cloned().collect(),
+                },
+                FiveToolsSkillProficiency::Choice(choice) => {
+                    if let Some(any) = choice.any {
+                        SkillProficiencyOption::Any { count: any }
+                    } else if let Some(choose) = &choice.choose {
+                        SkillProficiencyOption::Choice {
+                            from: choose.from.clone(),
+                            count: choose.count,
+                        }
+                    } else {
+                        SkillProficiencyOption::Fixed { skills: vec![] }
+                    }
+                }
+            })
+            .collect();
+
+        Some(RaceOption {
+            id,
+            name: raw.name,
+            source: raw.source,
+            size: raw.size,
+            speed,
+            fly_speed,
+            swim_speed,
+            ability_bonuses,
+            darkvision: raw.darkvision,
+            traits,
+            languages,
+            skill_proficiencies,
+        })
+    }
+
+    fn convert_class(
+        &self,
+        raw: FiveToolsClass,
+        subclasses: &[FiveToolsSubclass],
+    ) -> Option<ClassOption> {
+        let id = format!(
+            "5e_{}_{}",
+            raw.source.to_lowercase(),
+            raw.name.to_lowercase().replace(' ', "_")
+        );
+
+        // Extract skill choices
+        let skill_choices = raw
+            .starting_proficiencies
+            .skills
+            .first()
+            .map(|sp| match sp {
+                FiveToolsSkillProficiency::Choice(choice) => {
+                    if let Some(choose) = &choice.choose {
+                        SkillChoiceSpec {
+                            from: choose.from.clone(),
+                            count: choose.count,
+                        }
+                    } else if let Some(any) = choice.any {
+                        SkillChoiceSpec {
+                            from: vec![
+                                "acrobatics",
+                                "animal handling",
+                                "arcana",
+                                "athletics",
+                                "deception",
+                                "history",
+                                "insight",
+                                "intimidation",
+                                "investigation",
+                                "medicine",
+                                "nature",
+                                "perception",
+                                "performance",
+                                "persuasion",
+                                "religion",
+                                "sleight of hand",
+                                "stealth",
+                                "survival",
+                            ]
+                            .iter()
+                            .map(|s| s.to_string())
+                            .collect(),
+                            count: any,
+                        }
+                    } else {
+                        SkillChoiceSpec {
+                            from: vec![],
+                            count: 0,
+                        }
+                    }
+                }
+                FiveToolsSkillProficiency::Fixed(skills) => SkillChoiceSpec {
+                    from: skills.keys().cloned().collect(),
+                    count: skills.len() as u8,
+                },
+            })
+            .unwrap_or(SkillChoiceSpec {
+                from: vec![],
+                count: 0,
+            });
+
+        // Filter subclasses for this class
+        let class_subclasses: Vec<SubclassOption> = subclasses
+            .iter()
+            .filter(|sc| {
+                sc.class_name.to_lowercase() == raw.name.to_lowercase()
+                    && sc.class_source.to_lowercase() == raw.source.to_lowercase()
+            })
+            .map(|sc| SubclassOption {
+                id: format!(
+                    "5e_{}_{}_{}",
+                    sc.source.to_lowercase(),
+                    sc.class_name.to_lowercase(),
+                    sc.short_name.to_lowercase().replace(' ', "_")
+                ),
+                name: sc.name.clone(),
+                short_name: sc.short_name.clone(),
+                source: sc.source.clone(),
+            })
+            .collect();
+
+        Some(ClassOption {
+            id,
+            name: raw.name,
+            source: raw.source,
+            hit_die: raw.hd.faces,
+            saving_throws: raw.proficiency.iter().map(|s| s.to_uppercase()).collect(),
+            skill_choices,
+            armor_proficiencies: raw.starting_proficiencies.armor,
+            weapon_proficiencies: raw.starting_proficiencies.weapons,
+            is_caster: raw.spellcasting_ability.is_some(),
+            spellcasting_ability: raw.spellcasting_ability.map(|s| s.to_uppercase()),
+            caster_progression: raw.caster_progression,
+            subclass_title: raw.subclass_title,
+            subclasses: class_subclasses,
+        })
+    }
+
+    fn convert_background(&self, raw: FiveToolsBackground) -> Option<BackgroundOption> {
+        let id = format!(
+            "5e_{}_{}",
+            raw.source.to_lowercase(),
+            raw.name.to_lowercase().replace(' ', "_").replace('\'', "")
+        );
+
+        // Extract skill proficiencies
+        let skill_proficiencies: Vec<String> = raw
+            .skill_proficiencies
+            .iter()
+            .flat_map(|sp| {
+                sp.iter().filter_map(|(skill, val)| {
+                    if val.as_bool().unwrap_or(false) {
+                        Some(skill.clone())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
+
+        // Extract tool proficiencies
+        let tool_proficiencies: Vec<String> = raw
+            .tool_proficiencies
+            .iter()
+            .flat_map(|tp| {
+                tp.iter().filter_map(|(tool, val)| {
+                    if val.as_bool().unwrap_or(false) {
+                        Some(tool.clone())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
+
+        // Extract language proficiencies
+        let languages = if raw.language_proficiencies.is_empty() {
+            LanguageProficiency::None
+        } else {
+            let first = &raw.language_proficiencies[0];
+            if let Some(any_count) = first.get("anyStandard") {
+                if let Some(count) = any_count.as_u64() {
+                    LanguageProficiency::Choice { count: count as u8 }
+                } else {
+                    LanguageProficiency::None
+                }
+            } else {
+                let fixed: Vec<String> = first
+                    .iter()
+                    .filter_map(|(lang, val)| {
+                        if val.as_bool().unwrap_or(false) {
+                            Some(lang.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                if fixed.is_empty() {
+                    LanguageProficiency::None
+                } else {
+                    LanguageProficiency::Fixed { languages: fixed }
+                }
+            }
+        };
+
+        let description = self.entries_to_string(&raw.entries);
+
+        Some(BackgroundOption {
+            id,
+            name: raw.name,
+            source: raw.source,
+            skill_proficiencies,
+            tool_proficiencies,
+            languages,
+            description,
+        })
+    }
+}
+
+// === CompendiumProvider Implementation ===
+
+use std::sync::Arc;
+use tokio::sync::OnceCell;
+use wrldbldr_domain::{
+    CompendiumProvider, ContentError, ContentFilter, ContentItem, ContentType, FilterField,
+    FilterFieldType, FilterSchema,
+};
+
+/// D&D 5e content provider that wraps FiveToolsImporter.
+///
+/// Implements the CompendiumProvider trait to provide a unified API for
+/// accessing D&D 5e content (races, classes, backgrounds, spells, feats).
+pub struct Dnd5eContentProvider {
+    importer: FiveToolsImporter,
+    // Cached content
+    races: OnceCell<Vec<RaceOption>>,
+    classes: OnceCell<Vec<ClassOption>>,
+    backgrounds: OnceCell<Vec<BackgroundOption>>,
+    spells: OnceCell<Vec<Spell>>,
+    feats: OnceCell<Vec<Feat>>,
+}
+
+impl Dnd5eContentProvider {
+    /// Create a new D&D 5e content provider.
+    ///
+    /// # Arguments
+    /// * `data_path` - Path to the 5etools data directory
+    pub fn new(data_path: impl Into<PathBuf>) -> Self {
+        Self {
+            importer: FiveToolsImporter::new(data_path),
+            races: OnceCell::new(),
+            classes: OnceCell::new(),
+            backgrounds: OnceCell::new(),
+            spells: OnceCell::new(),
+            feats: OnceCell::new(),
+        }
+    }
+
+    /// Create from an existing importer.
+    pub fn from_importer(importer: FiveToolsImporter) -> Self {
+        Self {
+            importer,
+            races: OnceCell::new(),
+            classes: OnceCell::new(),
+            backgrounds: OnceCell::new(),
+            spells: OnceCell::new(),
+            feats: OnceCell::new(),
+        }
+    }
+
+    /// Get the underlying importer for direct access.
+    pub fn importer(&self) -> &FiveToolsImporter {
+        &self.importer
+    }
+
+    /// Load races with caching.
+    async fn load_races_cached(&self) -> Result<&Vec<RaceOption>, ContentError> {
+        self.races
+            .get_or_try_init(|| async {
+                self.importer
+                    .import_races()
+                    .await
+                    .map_err(|e| ContentError::LoadError(e.to_string()))
+            })
+            .await
+    }
+
+    /// Load classes with caching.
+    async fn load_classes_cached(&self) -> Result<&Vec<ClassOption>, ContentError> {
+        self.classes
+            .get_or_try_init(|| async {
+                self.importer
+                    .import_classes()
+                    .await
+                    .map_err(|e| ContentError::LoadError(e.to_string()))
+            })
+            .await
+    }
+
+    /// Load backgrounds with caching.
+    async fn load_backgrounds_cached(&self) -> Result<&Vec<BackgroundOption>, ContentError> {
+        self.backgrounds
+            .get_or_try_init(|| async {
+                self.importer
+                    .import_backgrounds()
+                    .await
+                    .map_err(|e| ContentError::LoadError(e.to_string()))
+            })
+            .await
+    }
+
+    /// Load spells with caching.
+    async fn load_spells_cached(&self) -> Result<&Vec<Spell>, ContentError> {
+        self.spells
+            .get_or_try_init(|| async {
+                self.importer
+                    .import_spells()
+                    .await
+                    .map_err(|e| ContentError::LoadError(e.to_string()))
+            })
+            .await
+    }
+
+    /// Load feats with caching.
+    async fn load_feats_cached(&self) -> Result<&Vec<Feat>, ContentError> {
+        self.feats
+            .get_or_try_init(|| async {
+                self.importer
+                    .import_feats()
+                    .await
+                    .map_err(|e| ContentError::LoadError(e.to_string()))
+            })
+            .await
+    }
+
+    // === Conversion to ContentItem ===
+
+    fn race_to_content_item(race: &RaceOption) -> ContentItem {
+        let data = serde_json::json!({
+            "size": race.size,
+            "speed": race.speed,
+            "fly_speed": race.fly_speed,
+            "swim_speed": race.swim_speed,
+            "ability_bonuses": race.ability_bonuses,
+            "darkvision": race.darkvision,
+            "traits": race.traits,
+            "languages": race.languages,
+            "skill_proficiencies": race.skill_proficiencies,
+        });
+
+        let description = race
+            .traits
+            .iter()
+            .map(|t| format!("**{}**: {}", t.name, t.description))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+
+        ContentItem::new(&race.id, ContentType::CharacterOrigin, &race.name, &race.source)
+            .with_description(description)
+            .with_data(data)
+            .with_tags(vec!["race".to_string(), race.source.clone()])
+    }
+
+    fn class_to_content_item(class: &ClassOption) -> ContentItem {
+        let data = serde_json::json!({
+            "hit_die": class.hit_die,
+            "saving_throws": class.saving_throws,
+            "skill_choices": class.skill_choices,
+            "armor_proficiencies": class.armor_proficiencies,
+            "weapon_proficiencies": class.weapon_proficiencies,
+            "is_caster": class.is_caster,
+            "spellcasting_ability": class.spellcasting_ability,
+            "caster_progression": class.caster_progression,
+            "subclass_title": class.subclass_title,
+            "subclasses": class.subclasses,
+        });
+
+        let mut tags = vec!["class".to_string(), class.source.clone()];
+        if class.is_caster {
+            tags.push("spellcaster".to_string());
+        }
+
+        ContentItem::new(&class.id, ContentType::CharacterClass, &class.name, &class.source)
+            .with_description(format!("Hit Die: d{}", class.hit_die))
+            .with_data(data)
+            .with_tags(tags)
+    }
+
+    fn background_to_content_item(bg: &BackgroundOption) -> ContentItem {
+        let data = serde_json::json!({
+            "skill_proficiencies": bg.skill_proficiencies,
+            "tool_proficiencies": bg.tool_proficiencies,
+            "languages": bg.languages,
+        });
+
+        ContentItem::new(
+            &bg.id,
+            ContentType::CharacterBackground,
+            &bg.name,
+            &bg.source,
+        )
+        .with_description(&bg.description)
+        .with_data(data)
+        .with_tags(vec!["background".to_string(), bg.source.clone()])
+    }
+
+    fn spell_to_content_item(spell: &Spell) -> ContentItem {
+        let data = serde_json::json!({
+            "level": spell.level,
+            "school": spell.school,
+            "casting_time": spell.casting_time,
+            "range": spell.range,
+            "components": spell.components,
+            "duration": spell.duration,
+            "higher_levels": spell.higher_levels,
+            "classes": spell.classes,
+            "ritual": spell.ritual,
+            "concentration": spell.concentration,
+        });
+
+        let mut tags = spell.tags.clone();
+        tags.push("spell".to_string());
+        tags.push(spell.source.clone());
+        if let Some(school) = &spell.school {
+            tags.push(school.to_lowercase());
+        }
+        if spell.ritual {
+            tags.push("ritual".to_string());
+        }
+        if spell.concentration {
+            tags.push("concentration".to_string());
+        }
+
+        ContentItem::new(&spell.id, ContentType::Spell, &spell.name, &spell.source)
+            .with_description(&spell.description)
+            .with_data(data)
+            .with_tags(tags)
+    }
+
+    fn feat_to_content_item(feat: &Feat) -> ContentItem {
+        let data = serde_json::json!({
+            "prerequisites": feat.prerequisites,
+            "benefits": feat.benefits,
+            "category": feat.category,
+            "repeatable": feat.repeatable,
+        });
+
+        let mut tags = feat.tags.clone();
+        tags.push("feat".to_string());
+        tags.push(feat.source.clone());
+        if let Some(cat) = &feat.category {
+            tags.push(cat.to_lowercase());
+        }
+
+        ContentItem::new(&feat.id, ContentType::Feat, &feat.name, &feat.source)
+            .with_description(&feat.description)
+            .with_data(data)
+            .with_tags(tags)
+    }
+}
+
+impl CompendiumProvider for Dnd5eContentProvider {
+    fn content_types(&self) -> Vec<ContentType> {
+        vec![
+            ContentType::CharacterOrigin, // Races
+            ContentType::CharacterClass,
+            ContentType::CharacterBackground,
+            ContentType::Spell,
+            ContentType::Feat,
+        ]
+    }
+
+    fn load_content(
+        &self,
+        content_type: &ContentType,
+        filter: &ContentFilter,
+    ) -> Result<Vec<ContentItem>, ContentError> {
+        // Use a blocking runtime since the trait isn't async
+        let rt = tokio::runtime::Handle::try_current()
+            .map_err(|_| ContentError::LoadError("No tokio runtime available".to_string()))?;
+
+        rt.block_on(async {
+            let items: Vec<ContentItem> = match content_type {
+                ContentType::CharacterOrigin => {
+                    let races = self.load_races_cached().await?;
+                    races.iter().map(Self::race_to_content_item).collect()
+                }
+                ContentType::CharacterClass => {
+                    let classes = self.load_classes_cached().await?;
+                    classes.iter().map(Self::class_to_content_item).collect()
+                }
+                ContentType::CharacterBackground => {
+                    let backgrounds = self.load_backgrounds_cached().await?;
+                    backgrounds.iter().map(Self::background_to_content_item).collect()
+                }
+                ContentType::Spell => {
+                    let spells = self.load_spells_cached().await?;
+                    spells.iter().map(Self::spell_to_content_item).collect()
+                }
+                ContentType::Feat => {
+                    let feats = self.load_feats_cached().await?;
+                    feats.iter().map(Self::feat_to_content_item).collect()
+                }
+                _ => {
+                    return Err(ContentError::UnsupportedContentType(
+                        content_type.to_string(),
+                    ))
+                }
+            };
+
+            // Apply filter
+            Ok(filter.apply(items.iter()).into_iter().cloned().collect())
+        })
+    }
+
+    fn filter_schema(&self, content_type: &ContentType) -> Option<FilterSchema> {
+        match content_type {
+            ContentType::CharacterOrigin => Some(FilterSchema {
+                sources: vec!["PHB".to_string(), "VGM".to_string(), "XGE".to_string()],
+                tags: vec!["core".to_string()],
+                supports_search: true,
+                custom_fields: vec![FilterField {
+                    id: "size".to_string(),
+                    label: "Size".to_string(),
+                    field_type: FilterFieldType::MultiSelect(vec![
+                        "Small".to_string(),
+                        "Medium".to_string(),
+                        "Large".to_string(),
+                    ]),
+                }],
+            }),
+            ContentType::CharacterClass => Some(FilterSchema {
+                sources: vec!["PHB".to_string()],
+                tags: vec!["spellcaster".to_string()],
+                supports_search: true,
+                custom_fields: vec![FilterField {
+                    id: "is_caster".to_string(),
+                    label: "Spellcaster".to_string(),
+                    field_type: FilterFieldType::Boolean,
+                }],
+            }),
+            ContentType::CharacterBackground => Some(FilterSchema {
+                sources: vec!["PHB".to_string()],
+                tags: vec![],
+                supports_search: true,
+                custom_fields: vec![],
+            }),
+            ContentType::Spell => Some(FilterSchema {
+                sources: vec![
+                    "PHB".to_string(),
+                    "XGE".to_string(),
+                    "TCE".to_string(),
+                ],
+                tags: vec![
+                    "ritual".to_string(),
+                    "concentration".to_string(),
+                ],
+                supports_search: true,
+                custom_fields: vec![
+                    FilterField {
+                        id: "level".to_string(),
+                        label: "Spell Level".to_string(),
+                        field_type: FilterFieldType::Range(0, 9),
+                    },
+                    FilterField {
+                        id: "school".to_string(),
+                        label: "School".to_string(),
+                        field_type: FilterFieldType::MultiSelect(vec![
+                            "Abjuration".to_string(),
+                            "Conjuration".to_string(),
+                            "Divination".to_string(),
+                            "Enchantment".to_string(),
+                            "Evocation".to_string(),
+                            "Illusion".to_string(),
+                            "Necromancy".to_string(),
+                            "Transmutation".to_string(),
+                        ]),
+                    },
+                ],
+            }),
+            ContentType::Feat => Some(FilterSchema {
+                sources: vec!["PHB".to_string(), "XGE".to_string(), "TCE".to_string()],
+                tags: vec![],
+                supports_search: true,
+                custom_fields: vec![],
+            }),
+            _ => None,
+        }
+    }
+}
+
+/// Create an Arc-wrapped content provider for use in the application.
+pub fn create_dnd5e_provider(data_path: impl Into<PathBuf>) -> Arc<dyn CompendiumProvider> {
+    Arc::new(Dnd5eContentProvider::new(data_path))
 }
 
 #[cfg(test)]
@@ -597,5 +1484,73 @@ mod tests {
             importer.clean_formatting("See {@creature goblin|mm}"),
             "See goblin"
         );
+    }
+
+    // Integration tests that require actual 5etools data
+    #[cfg(feature = "integration_tests")]
+    mod integration {
+        use super::*;
+
+        const FIVETOOLS_PATH: &str = "/Users/otto/repos/WrldBldr/5etools/5etools-src";
+
+        #[tokio::test]
+        async fn import_races() {
+            let importer = FiveToolsImporter::new(FIVETOOLS_PATH);
+            let races = importer.import_races().await.expect("Failed to import races");
+
+            assert!(!races.is_empty(), "Should import at least some races");
+            println!("Imported {} races", races.len());
+
+            // Check a known race exists
+            let human = races.iter().find(|r| r.name == "Human");
+            assert!(human.is_some(), "Human race should exist");
+
+            // Check a race with darkvision
+            let elf = races.iter().find(|r| r.name == "Elf");
+            if let Some(elf) = elf {
+                assert!(elf.darkvision.is_some(), "Elf should have darkvision");
+            }
+        }
+
+        #[tokio::test]
+        async fn import_classes() {
+            let importer = FiveToolsImporter::new(FIVETOOLS_PATH);
+            let classes = importer.import_classes().await.expect("Failed to import classes");
+
+            assert!(!classes.is_empty(), "Should import at least some classes");
+            println!("Imported {} classes", classes.len());
+
+            // Check a known class exists
+            let fighter = classes.iter().find(|c| c.name == "Fighter");
+            assert!(fighter.is_some(), "Fighter class should exist");
+
+            if let Some(fighter) = fighter {
+                assert_eq!(fighter.hit_die, 10, "Fighter should have d10 hit die");
+            }
+
+            // Check a caster class
+            let wizard = classes.iter().find(|c| c.name == "Wizard");
+            if let Some(wizard) = wizard {
+                assert!(wizard.is_caster, "Wizard should be a caster");
+                assert_eq!(wizard.spellcasting_ability, Some("INT".to_string()));
+            }
+        }
+
+        #[tokio::test]
+        async fn import_backgrounds() {
+            let importer = FiveToolsImporter::new(FIVETOOLS_PATH);
+            let backgrounds = importer.import_backgrounds().await.expect("Failed to import backgrounds");
+
+            assert!(!backgrounds.is_empty(), "Should import at least some backgrounds");
+            println!("Imported {} backgrounds", backgrounds.len());
+
+            // Check a known background exists
+            let acolyte = backgrounds.iter().find(|b| b.name == "Acolyte");
+            assert!(acolyte.is_some(), "Acolyte background should exist");
+
+            if let Some(acolyte) = acolyte {
+                assert!(!acolyte.skill_proficiencies.is_empty(), "Acolyte should have skill proficiencies");
+            }
+        }
     }
 }
