@@ -54,6 +54,9 @@ pub struct SuggestionTask {
     pub context: Option<crate::application::dto::requests::SuggestionContext>,
     /// World ID for routing (needed for retries)
     pub world_id: Option<String>,
+    /// Selected suggestion text (set when user clicks a suggestion in the modal)
+    /// This triggers the corresponding SuggestionButton to call its on_select handler
+    pub selected_suggestion: Option<String>,
 }
 
 /// State for managing asset generation and suggestions
@@ -205,7 +208,7 @@ impl GenerationState {
 
     // ========== Suggestion methods ==========
 
-    /// Add a new suggestion task to the queue
+    /// Add a new suggestion task to the queue (or update existing if duplicate request_id)
     pub fn add_suggestion_task(
         &mut self,
         request_id: String,
@@ -214,6 +217,22 @@ impl GenerationState {
         context: Option<crate::application::dto::requests::SuggestionContext>,
         world_id: Option<String>,
     ) {
+        let mut suggestions = self.suggestions.write();
+
+        // Check for existing entry with same request_id (handles race with broadcast)
+        if let Some(existing) = suggestions.iter_mut().find(|s| s.request_id == request_id) {
+            // Update context/world_id if we have them (broadcast may not have these)
+            if context.is_some() {
+                existing.context = context;
+            }
+            if world_id.is_some() {
+                existing.world_id = world_id;
+            }
+            // Drop the write guard to trigger signal notification for any updates made
+            drop(suggestions);
+            return;
+        }
+
         let task = SuggestionTask {
             request_id,
             field_type,
@@ -222,8 +241,10 @@ impl GenerationState {
             is_read: false,
             context,
             world_id,
+            selected_suggestion: None,
         };
-        self.suggestions.write().push(task);
+        suggestions.push(task);
+        drop(suggestions);
         self.update_ready_flag();
     }
 
@@ -249,6 +270,7 @@ impl GenerationState {
                     is_read: false,
                     context: None,
                     world_id: None, // Not available when receiving queued event from server
+                    selected_suggestion: None,
                 });
                 true
             }
@@ -345,6 +367,16 @@ impl GenerationState {
         let mut suggestions = self.suggestions.write();
         if let Some(task) = suggestions.iter_mut().find(|s| s.request_id == request_id) {
             task.is_read = true;
+        }
+    }
+
+    /// Select a suggestion for a field_type.
+    /// This sets the selected_suggestion field which triggers the corresponding
+    /// SuggestionButton to apply the selection to its form field.
+    pub fn select_suggestion(&mut self, field_type: &str, suggestion_text: String) {
+        let mut suggestions = self.suggestions.write();
+        if let Some(task) = suggestions.iter_mut().find(|s| s.field_type == field_type) {
+            task.selected_suggestion = Some(suggestion_text);
         }
     }
 

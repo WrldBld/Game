@@ -320,6 +320,8 @@ pub enum ClientMessage {
         world_id: Uuid,
         /// Role to join as
         role: WorldRole,
+        /// Stable user identifier (from browser storage)
+        user_id: String,
         /// Player character ID (required for Player role)
         #[serde(default)]
         pc_id: Option<Uuid>,

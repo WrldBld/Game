@@ -6,6 +6,7 @@
 use dioxus::prelude::*;
 
 use crate::application::services::SuggestionContext;
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_suggestion_service;
 use crate::presentation::state::use_generation_state;
 use crate::use_platform;
@@ -55,8 +56,9 @@ impl SuggestionType {
 
 /// Suggestion button component with dropdown
 ///
-/// Fetches suggestions from the API when clicked and displays them
-/// in a dropdown. When a suggestion is selected, it calls the on_select handler.
+/// Fetches suggestions from the API when clicked. The button subscribes to
+/// suggestions by field_type - when suggestions arrive for this field type,
+/// they appear in a dropdown next to the input. No request ID tracking needed.
 #[component]
 pub fn SuggestionButton(
     suggestion_type: SuggestionType,
@@ -69,41 +71,60 @@ pub fn SuggestionButton(
     let suggestion_service = use_suggestion_service();
     let mut generation_state = use_generation_state();
     let mut loading = use_signal(|| false);
-    let mut request_id: Signal<Option<String>> = use_signal(|| None);
-    let mut suggestions: Signal<Vec<String>> = use_signal(Vec::new);
     let mut show_dropdown = use_signal(|| false);
+    let mut current_suggestions: Signal<Vec<String>> = use_signal(Vec::new);
+    let mut current_request_id: Signal<Option<String>> = use_signal(|| None);
     let mut error: Signal<Option<String>> = use_signal(|| None);
 
-    // Watch for suggestion completion from queue
     let field_type = suggestion_type.to_field_type();
+
+    // Watch for suggestions by field_type (not request_id)
+    // This allows the button to "subscribe" to suggestions for its field type
     use_effect(move || {
-        if let Some(req_id) = request_id.read().as_ref() {
-            // Check if this suggestion is ready
-            let all_suggestions = generation_state.get_suggestions();
-            if let Some(task) = all_suggestions.iter().find(|s| s.request_id == *req_id) {
-                match &task.status {
-                    crate::presentation::state::SuggestionStatus::Ready {
-                        suggestions: results,
-                    } => {
-                        if !results.is_empty() {
-                            suggestions.set(results.clone());
-                            show_dropdown.set(true);
-                            loading.set(false);
-                        }
-                    }
-                    crate::presentation::state::SuggestionStatus::Failed { error: err } => {
-                        error.set(Some(err.clone()));
+        let all_suggestions = generation_state.get_suggestions();
+
+        // Find the most recent Ready suggestion for this field_type
+        if let Some(task) = all_suggestions
+            .iter()
+            .find(|s| s.field_type == field_type)
+        {
+            match &task.status {
+                crate::presentation::state::SuggestionStatus::Ready { suggestions } => {
+                    if !suggestions.is_empty() && !*show_dropdown.read() {
+                        // New suggestions arrived - show dropdown
+                        current_suggestions.set(suggestions.clone());
+                        current_request_id.set(Some(task.request_id.clone()));
+                        show_dropdown.set(true);
                         loading.set(false);
                     }
-                    _ => {
-                        // Still processing
-                    }
                 }
+                crate::presentation::state::SuggestionStatus::Failed { error: err } => {
+                    error.set(Some(err.clone()));
+                    loading.set(false);
+                    show_dropdown.set(false);
+                }
+                crate::presentation::state::SuggestionStatus::Queued
+                | crate::presentation::state::SuggestionStatus::Processing => {
+                    // Still loading
+                    loading.set(true);
+                }
+            }
+
+            // Also handle selection from modal (if user clicks in GenerationQueuePanel)
+            if let Some(selected_text) = &task.selected_suggestion {
+                on_select.call(selected_text.clone());
+                show_dropdown.set(false);
+                loading.set(false);
+            }
+        } else {
+            // No suggestion for this field_type - reset state
+            if *loading.read() || *show_dropdown.read() {
+                loading.set(false);
+                show_dropdown.set(false);
             }
         }
     });
 
-    // Close dropdown when clicking outside
     let close_dropdown = move |_| {
         show_dropdown.set(false);
     };
@@ -120,30 +141,29 @@ pub fn SuggestionButton(
             let platform = plat.clone();
             let world_id = world_id.clone();
 
-            spawn(async move {
+            spawn_task(async move {
                 loading.set(true);
                 error.set(None);
-                suggestions.set(Vec::new());
+                show_dropdown.set(false);
+                current_suggestions.set(Vec::new());
 
                 platform.log_info(&format!("Enqueueing suggestion request for {}", field_type));
 
-                // Enqueue the suggestion request
                 match service
                     .enqueue_suggestion(&field_type, &world_id, &context)
                     .await
                 {
                     Ok(req_id) => {
                         platform.log_info(&format!("Suggestion request queued: {}", req_id));
-                        request_id.set(Some(req_id.clone()));
 
-                        // Add to generation state with context for retry
                         generation_state.add_suggestion_task(
                             req_id,
                             field_type,
-                            None,                   // entity_id not available here
-                            Some(context.clone()),  // Store context for retry
-                            Some(world_id.clone()), // Store world_id for retry
+                            None,
+                            Some(context.clone()),
+                            Some(world_id.clone()),
                         );
+                        // Loading state will be managed by use_effect watching for status changes
                     }
                     Err(e) => {
                         platform.log_error(&format!("Failed to enqueue suggestion: {}", e));
@@ -162,11 +182,10 @@ pub fn SuggestionButton(
             // The button
             button {
                 onclick: fetch_suggestions,
-                disabled: *loading.read() || request_id.read().is_some(),
-                class: "py-2 px-3 bg-purple-500 text-white border-0 rounded cursor-pointer text-xs whitespace-nowrap transition-colors",
-                onmouseenter: move |_| {},  // Could add hover state
-                if *loading.read() || request_id.read().is_some() {
-                    "Queued..."
+                disabled: *loading.read(),
+                class: "py-2 px-3 bg-purple-500 text-white border-0 rounded cursor-pointer text-xs whitespace-nowrap transition-colors hover:bg-purple-600 disabled:bg-purple-400 disabled:cursor-wait",
+                if *loading.read() {
+                    "Generating..."
                 } else {
                     "Suggest"
                 }
@@ -175,13 +194,15 @@ pub fn SuggestionButton(
             // Error tooltip
             if let Some(err) = error.read().as_ref() {
                 div {
-                    class: "absolute top-full left-0 mt-1 p-2 bg-red-500 text-white rounded text-xs whitespace-nowrap z-100",
+                    class: "absolute top-full left-0 mt-1 p-2 bg-red-500 text-white rounded text-xs whitespace-nowrap z-100 cursor-pointer",
+                    onclick: move |_| error.set(None),
+                    title: "Click to dismiss",
                     "{err}"
                 }
             }
 
-            // Dropdown with suggestions
-            if *show_dropdown.read() && !suggestions.read().is_empty() {
+            // Dropdown with suggestions (appears next to the input)
+            if *show_dropdown.read() && !current_suggestions.read().is_empty() {
                 // Backdrop to catch outside clicks
                 div {
                     onclick: close_dropdown,
@@ -190,39 +211,37 @@ pub fn SuggestionButton(
 
                 // Dropdown menu
                 div {
+                    onclick: move |evt| evt.stop_propagation(),
                     class: "suggestion-dropdown absolute top-full right-0 mt-1 min-w-48 max-w-md max-h-72 overflow-y-auto bg-gray-800 border border-gray-700 rounded-md z-100 shadow-lg",
 
-                    for (i, suggestion) in suggestions.read().iter().enumerate() {
-                        SuggestionItem {
-                            key: "{i}",
-                            text: suggestion.clone(),
-                            on_click: {
-                                let suggestion = suggestion.clone();
-                                move |_| {
-                                    on_select.call(suggestion.clone());
-                                    show_dropdown.set(false);
+                    for (idx, suggestion) in current_suggestions.read().iter().enumerate() {
+                        {
+                            let suggestion_text = suggestion.clone();
+                            let req_id = current_request_id.read().clone();
+                            rsx! {
+                                div {
+                                    key: "{idx}",
+                                    onclick: move |evt| {
+                                        evt.stop_propagation();
+                                        // Apply to form field
+                                        on_select.call(suggestion_text.clone());
+                                        // Close dropdown and reset state
+                                        show_dropdown.set(false);
+                                        current_suggestions.set(Vec::new());
+                                        loading.set(false);
+                                        // Remove from generation state
+                                        if let Some(rid) = req_id.as_ref() {
+                                            generation_state.remove_suggestion(rid);
+                                        }
+                                    },
+                                    class: "py-3 px-4 text-gray-200 cursor-pointer border-b border-gray-700 transition-colors hover:bg-purple-700",
+                                    "{suggestion}"
                                 }
-                            },
+                            }
                         }
                     }
                 }
             }
-        }
-    }
-}
-
-/// Individual suggestion item in the dropdown
-#[component]
-fn SuggestionItem(text: String, on_click: EventHandler<()>) -> Element {
-    rsx! {
-        div {
-            onclick: move |_| on_click.call(()),
-            class: "py-3 px-4 text-gray-200 cursor-pointer border-b border-gray-700 transition-colors",
-            onmouseenter: move |_evt| {
-                // Would be nice to highlight on hover, but we can't easily change style here
-                // In real app, would use a class and CSS hover state
-            },
-            "{text}"
         }
     }
 }

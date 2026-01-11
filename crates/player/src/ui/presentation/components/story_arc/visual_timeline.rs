@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::application::dto::{StoryEventData, StoryEventTypeData};
+use crate::infrastructure::spawn_task;
 use crate::presentation::components::story_arc::timeline_filters::{
     CharacterOption, LocationOption, TimelineFilters,
 };
@@ -199,7 +200,7 @@ pub fn VisualTimeline(props: VisualTimelineProps) -> Element {
     use_effect(move || {
         let world_id = world_id.clone();
         let service = service.clone();
-        spawn(async move {
+        spawn_task(async move {
             is_loading.set(true);
             error.set(None);
             match service.list_story_events(&world_id).await {

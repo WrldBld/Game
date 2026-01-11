@@ -32,6 +32,7 @@ mod ws_player;
 mod ws_session;
 mod ws_scene;
 mod ws_skill;
+mod ws_stat;
 mod ws_story_events;
 mod ws_staging;
 mod ws_time;
@@ -161,10 +162,18 @@ async fn handle_message(
         ClientMessage::JoinWorld {
             world_id,
             role,
+            user_id,
             pc_id,
             spectate_pc_id,
         } => {
-            ws_session::handle_join_world(state, connection_id, world_id, role, pc_id, spectate_pc_id)
+            tracing::info!(
+                connection_id = %connection_id,
+                world_id = %world_id,
+                ?role,
+                %user_id,
+                "JoinWorld message received"
+            );
+            ws_session::handle_join_world(state, connection_id, world_id, role, user_id, pc_id, spectate_pc_id)
                 .await
         }
 
@@ -617,6 +626,9 @@ async fn handle_request(
         }
         RequestPayload::Skill(req) => {
             ws_skill::handle_skill_request(state, &request_id, &conn_info, req).await
+        }
+        RequestPayload::Stat(req) => {
+            ws_stat::handle_stat_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Unknown => Ok(ResponseResult::error(
             ErrorCode::BadRequest,
@@ -3116,6 +3128,14 @@ fn require_dm_for_request(
     if conn_info.is_dm() {
         Ok(())
     } else {
+        tracing::warn!(
+            connection_id = %conn_info.connection_id,
+            user_id = %conn_info.user_id,
+            role = ?conn_info.role,
+            world_id = ?conn_info.world_id,
+            request_id = %request_id,
+            "DM authorization failed - connection does not have DM role"
+        );
         Err(ServerMessage::Response {
             request_id: request_id.to_string(),
             result: ResponseResult::error(

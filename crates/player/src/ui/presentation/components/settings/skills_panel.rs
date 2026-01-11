@@ -11,6 +11,7 @@ use std::collections::HashMap;
 
 use crate::application::dto::{SkillCategory, SkillData};
 use crate::application::services::{CreateSkillRequest, UpdateSkillRequest};
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_skill_service;
 
 /// Props for SkillsPanel
@@ -46,7 +47,7 @@ pub fn SkillsPanel(props: SkillsPanelProps) -> Element {
     use_effect(move || {
         let world_id = world_id_for_effect.clone();
         let service = skill_service.clone();
-        spawn(async move {
+        spawn_task(async move {
             match service.list_skills(&world_id).await {
                 Ok(list) => {
                     skills.set(list);
@@ -283,7 +284,7 @@ fn SkillRow(
             let skill_id = skill_id_for_toggle.clone();
             let new_hidden = !is_hidden;
             let service = service.clone();
-            spawn(async move {
+            spawn_task(async move {
                 match service.update_skill_visibility(&skill_id, new_hidden).await {
                     Ok(updated) => {
                         let mut skills_write = skills_signal.write();
@@ -304,7 +305,7 @@ fn SkillRow(
         move |_| {
             let skill_id = skill_id_for_delete.clone();
             let service = service.clone();
-            spawn(async move {
+            spawn_task(async move {
                 match service.delete_skill(&skill_id).await {
                     Ok(()) => {
                         skills_signal.write().retain(|s| s.id != skill_id);
@@ -400,7 +401,7 @@ fn AddSkillForm(
         let attr = base_attribute.read().clone();
         let service = skill_service.clone();
 
-        spawn(async move {
+        spawn_task(async move {
             is_creating.set(true);
             error.set(None);
 
@@ -557,7 +558,7 @@ fn EditSkillForm(
         let attr = base_attribute.read().clone();
         let service = skill_service.clone();
 
-        spawn(async move {
+        spawn_task(async move {
             is_saving.set(true);
             error.set(None);
 

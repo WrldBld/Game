@@ -114,4 +114,22 @@ impl GenerationService {
 
         result.parse_empty()
     }
+
+    /// Dismiss a suggestion, removing it from the queue permanently
+    ///
+    /// # Arguments
+    /// * `request_id` - The request ID of the suggestion to dismiss
+    pub async fn dismiss_suggestion(&self, request_id: &str) -> Result<(), ServiceError> {
+        let result = self
+            .commands
+            .request_with_timeout(
+                RequestPayload::Generation(GenerationRequest::DismissSuggestion {
+                    request_id: request_id.to_string(),
+                }),
+                get_request_timeout_ms(),
+            )
+            .await?;
+
+        result.parse_empty()
+    }
 }

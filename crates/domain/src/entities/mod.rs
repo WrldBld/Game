@@ -32,7 +32,7 @@ pub use challenge::{
     ChallengeRegionAvailability, ChallengeType, ChallengeUnlock, Difficulty, DifficultyDescriptor,
     Outcome, OutcomeTrigger, OutcomeType, TriggerCondition, TriggerType,
 };
-pub use character::{Character, StatBlock};
+pub use character::{Character, StatBlock, StatModifier, StatValue};
 pub use event_chain::{ChainStatus, EventChain};
 pub use gallery_asset::{AssetType, EntityType, GalleryAsset, GenerationMetadata};
 pub use game_flag::{FlagScope, GameFlag};

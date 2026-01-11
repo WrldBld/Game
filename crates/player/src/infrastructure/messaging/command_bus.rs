@@ -4,16 +4,19 @@
 //! supporting both fire-and-forget and request-response patterns.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use anyhow::Result;
 use wrldbldr_protocol::{ClientMessage, RequestError, RequestPayload, ResponseResult};
 
 #[cfg(not(target_arch = "wasm32"))]
+use std::sync::Arc;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::sync::{mpsc, oneshot, Mutex};
 
 #[cfg(target_arch = "wasm32")]
 use futures_channel::{mpsc, oneshot};
+#[cfg(target_arch = "wasm32")]
+use send_wrapper::SendWrapper;
 #[cfg(target_arch = "wasm32")]
 use std::cell::RefCell;
 #[cfg(target_arch = "wasm32")]
@@ -99,8 +102,8 @@ pub struct CommandBus {
 #[cfg(target_arch = "wasm32")]
 #[derive(Clone)]
 pub struct CommandBus {
-    tx: mpsc::UnboundedSender<BusMessage>,
-    pending: Rc<RefCell<PendingRequests>>,
+    tx: SendWrapper<mpsc::UnboundedSender<BusMessage>>,
+    pending: SendWrapper<Rc<RefCell<PendingRequests>>>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -203,7 +206,10 @@ impl CommandBus {
 impl CommandBus {
     /// Create a new CommandBus with the given channel sender.
     pub fn new(tx: mpsc::UnboundedSender<BusMessage>, pending: Rc<RefCell<PendingRequests>>) -> Self {
-        Self { tx, pending }
+        Self {
+            tx: SendWrapper::new(tx),
+            pending: SendWrapper::new(pending),
+        }
     }
 
     /// Send a fire-and-forget command.
@@ -259,7 +265,7 @@ impl CommandBus {
         // Generate ID before creating the request so we can use it for cleanup
         let request_id = uuid::Uuid::new_v4().to_string();
         let request_future = self.request_with_id(request_id.clone(), payload);
-        let pending = Rc::clone(&self.pending);
+        let pending = SendWrapper::clone(&self.pending);
 
         async move {
             let timeout_future = TimeoutFuture::new(timeout_ms as u32);

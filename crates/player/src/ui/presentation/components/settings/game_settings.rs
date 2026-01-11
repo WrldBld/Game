@@ -5,6 +5,7 @@
 //! where DMs can tune settings for the current world/session.
 
 use crate::application::dto::{AppSettings, BatchQueueFailurePolicy};
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_settings_service;
 use dioxus::prelude::*;
 
@@ -42,7 +43,7 @@ pub fn GameSettingsPanel(props: GameSettingsPanelProps) -> Element {
     use_effect(move || {
         let svc = service_for_load.clone();
         let wid = world_id_for_load.clone();
-        spawn(async move {
+        spawn_task(async move {
             is_loading.set(true);
             error.set(None);
 
@@ -64,7 +65,7 @@ pub fn GameSettingsPanel(props: GameSettingsPanelProps) -> Element {
         let svc = service_for_save.clone();
         let wid = world_id_for_save.clone();
         let current_settings = settings.read().clone();
-        spawn(async move {
+        spawn_task(async move {
             is_saving.set(true);
             error.set(None);
             success_message.set(None);
@@ -87,7 +88,7 @@ pub fn GameSettingsPanel(props: GameSettingsPanelProps) -> Element {
     let handle_reset = move |_| {
         let svc = service_for_reset.clone();
         let wid = world_id_for_reset.clone();
-        spawn(async move {
+        spawn_task(async move {
             is_saving.set(true);
             error.set(None);
             success_message.set(None);

@@ -14,6 +14,7 @@ use dioxus::prelude::*;
 use crate::application::services::{
     InputDefault, PromptMapping, TestWorkflowResponse, WorkflowConfig, WorkflowInput,
 };
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_workflow_service;
 
 /// Props for the WorkflowConfigEditor component
@@ -77,7 +78,7 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
     use_effect(move || {
         let slot = slot_id_for_effect.clone();
         let svc = workflow_service_for_effect.clone();
-        spawn(async move {
+        spawn_task(async move {
             is_loading.set(true);
             error.set(None);
 
@@ -111,7 +112,7 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
         let current_config = config.read().clone();
         let svc = workflow_service_for_save.clone();
 
-        spawn(async move {
+        spawn_task(async move {
             is_saving.set(true);
             error.set(None);
 
@@ -144,7 +145,7 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
         let callback = on_deleted;
         let svc = workflow_service_for_delete.clone();
 
-        spawn(async move {
+        spawn_task(async move {
             is_deleting.set(true);
 
             match svc.delete_workflow_config(&slot).await {
@@ -169,7 +170,7 @@ pub fn WorkflowConfigEditor(props: WorkflowConfigEditorProps) -> Element {
         let prompt = test_prompt.read().clone();
         let svc = workflow_service_for_test.clone();
 
-        spawn(async move {
+        spawn_task(async move {
             is_testing.set(true);
             test_error.set(None);
             test_result.set(None);

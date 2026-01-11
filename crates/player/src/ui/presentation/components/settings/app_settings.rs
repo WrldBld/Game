@@ -5,6 +5,7 @@
 //! for better organization.
 
 use crate::application::dto::{AppSettings, BatchQueueFailurePolicy};
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_settings_service;
 use dioxus::prelude::*;
 
@@ -31,7 +32,7 @@ pub fn AppSettingsPanel() -> Element {
     // Load settings on mount
     use_effect(move || {
         let svc = service_for_load.clone();
-        spawn(async move {
+        spawn_task(async move {
             is_loading.set(true);
             error.set(None);
 
@@ -52,7 +53,7 @@ pub fn AppSettingsPanel() -> Element {
     let handle_save = move |_| {
         let svc = service_for_save.clone();
         let current_settings = settings.read().clone();
-        spawn(async move {
+        spawn_task(async move {
             is_saving.set(true);
             error.set(None);
             success_message.set(None);
@@ -74,7 +75,7 @@ pub fn AppSettingsPanel() -> Element {
     // Handler for resetting settings
     let handle_reset = move |_| {
         let svc = service_for_reset.clone();
-        spawn(async move {
+        spawn_task(async move {
             is_saving.set(true);
             error.set(None);
             success_message.set(None);

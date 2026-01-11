@@ -20,6 +20,8 @@ pub struct JoinWorldInput {
     pub connection_id: Uuid,
     pub world_id: WorldId,
     pub role: ProtoWorldRole,
+    /// Stable user identifier from the client (e.g., browser storage).
+    pub user_id: String,
     pub pc_id: Option<PlayerCharacterId>,
 }
 
@@ -43,6 +45,11 @@ impl JoinWorldFlow {
             ProtoWorldRole::Player => WorldRole::Player,
             ProtoWorldRole::Spectator | ProtoWorldRole::Unknown => WorldRole::Spectator,
         };
+
+        // Update user_id from the client (stable identifier from browser storage)
+        ctx.connections
+            .set_user_id(input.connection_id, input.user_id)
+            .await;
 
         let join_result = self
             .join_world

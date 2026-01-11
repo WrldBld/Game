@@ -2,6 +2,7 @@
 
 use dioxus::prelude::*;
 
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::{
     mark_batch_read_and_sync, mark_suggestion_read_and_sync, use_asset_service,
     use_generation_service, use_suggestion_service, visible_batches, visible_suggestions,
@@ -277,6 +278,7 @@ pub fn GenerationQueuePanel(props: GenerationQueuePanelProps) -> Element {
                             selected_suggestion.set(None);
                         }
                     },
+                    on_navigate: props.on_navigate_to_entity,
                 }
             }
         }
@@ -396,7 +398,7 @@ fn QueueItemRow(
                                         let bid = batch_id.clone();
                                         let svc = asset_service.clone();
                                         let mut gen_state = state;
-                                        spawn(async move {
+                                        spawn_task(async move {
                                             match svc.cancel_batch(&bid).await {
                                                 Ok(_) => {
                                                     tracing::info!("Cancelled batch: {}", bid);
@@ -438,7 +440,7 @@ fn QueueItemRow(
                                         let bid = batch_id.clone();
                                         let svc = asset_service.clone();
                                         let mut gen_state = state;
-                                        spawn(async move {
+                                        spawn_task(async move {
                                             match svc.cancel_batch(&bid).await {
                                                 Ok(_) => {
                                                     tracing::info!("Cancelled batch: {}", bid);
@@ -482,7 +484,7 @@ fn QueueItemRow(
                                         let nav = nav_handler;
                                         let svc = gen_svc.clone();
                                         let plat = plat_clone.clone();
-                                    spawn(async move {
+                                    spawn_task(async move {
                                             if let Err(e) = mark_batch_read_and_sync(&svc, &mut gen_state, &bid, wid.as_deref(), plat.as_ref()).await {
                                             tracing::error!("Failed to mark batch read and sync: {}", e);
                                         }
@@ -534,7 +536,7 @@ fn QueueItemRow(
                                         let bid = batch_id.clone();
                                         let svc = asset_service.clone();
                                         let mut gen_state = state;
-                                        spawn(async move {
+                                        spawn_task(async move {
                                             match svc.retry_batch(&bid).await {
                                                 Ok(new_batch_id) => {
                                                     tracing::info!("Retried batch {} -> {}", bid, new_batch_id);
@@ -640,6 +642,8 @@ fn SuggestionQueueRow(
     #[props(default)] on_navigate_to_entity: Option<EventHandler<(String, String)>>,
 ) -> Element {
     let generation_service = use_generation_service();
+    let suggestion_service = use_suggestion_service();
+    let mut generation_state = use_generation_state();
     let platform = use_platform();
     let mut expanded_error: Signal<bool> = use_signal(|| false);
     let mut action_error: Signal<Option<String>> = use_signal(|| None);
@@ -688,47 +692,58 @@ fn SuggestionQueueRow(
                         button {
                             onclick: {
                                 let req_id = request_id_for_view.clone();
-                                let entity_id = suggestion.entity_id.clone();
-                                let field_type = suggestion.field_type.clone();
-                                let state = use_generation_state();
                                 let world_id_clone = world_id.clone();
-                                let nav_handler = on_navigate_to_entity;
                                 let gen_svc = generation_service.clone();
                                 let plat_clone = platform.clone();
                                 move |_| {
+                                    // Show modal only - don't auto-navigate to form
+                                    // Navigation can be done from the modal if user wants to apply
                                     selected_suggestion.set(Some(suggestion_clone.clone()));
                                     let req_id_clone = req_id.clone();
                                     let wid = world_id_clone.clone();
-                                    let mut gen_state = state;
-                                    let nav = nav_handler;
+                                    let mut gen_state = generation_state;
                                     let svc = gen_svc.clone();
                                     let plat = plat_clone.clone();
-                                spawn(async move {
+                                    spawn_task(async move {
                                         if let Err(e) = mark_suggestion_read_and_sync(&svc, &mut gen_state, &req_id_clone, wid.as_deref(), plat.as_ref()).await {
-                                        tracing::error!("Failed to mark suggestion read and sync: {}", e);
-                                    }
-                                });
-                                    // Navigate to entity if available and handler provided
-                                    if let (Some(entity_id), Some(handler)) = (entity_id.clone(), nav) {
-                                        // Determine entity type from field type
-                                        let entity_type = if field_type.starts_with("character_") {
-                                            "characters"
-                                        } else if field_type.starts_with("location_") {
-                                            "locations"
-                                        } else {
-                                            "characters" // Default fallback
-                                        };
-                                        handler.call((entity_type.to_string(), entity_id));
-                                    }
+                                            tracing::error!("Failed to mark suggestion read and sync: {}", e);
+                                        }
+                                    });
                                 }
                             },
                             class: "px-2 py-1 bg-green-500 text-white border-none rounded cursor-pointer text-xs",
                             "View"
                         }
                         button {
-                            onclick: move |_| {
-                                let mut state = use_generation_state();
-                                state.remove_suggestion(&request_id_for_clear);
+                            onclick: {
+                                let req_id = request_id_for_clear.clone();
+                                let gen_svc = generation_service.clone();
+                                move |_| {
+                                    let request_id = req_id.clone();
+                                    let svc = gen_svc.clone();
+                                    tracing::info!(request_id = %request_id, "Clear button clicked");
+
+                                    // IMPORTANT: Spawn the async dismiss task BEFORE modifying state
+                                    // to ensure it's scheduled before any re-render occurs
+                                    tracing::info!(request_id = %request_id, "Spawning dismiss_suggestion task via spawn_task");
+                                    let req_for_spawn = request_id.clone();
+                                    spawn_task(async move {
+                                        tracing::info!("ASYNC BLOCK STARTED - dismiss task");
+                                        tracing::info!(request_id = %req_for_spawn, "Calling dismiss_suggestion");
+                                        match svc.dismiss_suggestion(&req_for_spawn).await {
+                                            Ok(()) => {
+                                                tracing::info!(request_id = %req_for_spawn, "Successfully dismissed suggestion from server");
+                                            }
+                                            Err(e) => {
+                                                tracing::error!(request_id = %req_for_spawn, error = %e, "Failed to dismiss suggestion from server");
+                                            }
+                                        }
+                                    });
+
+                                    // Remove from local state after spawning for responsiveness
+                                    tracing::info!(request_id = %req_id, "Removing from local state");
+                                    generation_state.remove_suggestion(&req_id);
+                                }
                             },
                             class: "px-2 py-1 bg-gray-500 text-white border-none rounded cursor-pointer text-xs",
                             "Clear"
@@ -739,13 +754,11 @@ fn SuggestionQueueRow(
                         button {
                             onclick: {
                                 let request_id = suggestion.request_id.clone();
-                                let state = use_generation_state();
-                                let suggestion_service = use_suggestion_service();
+                                let svc = suggestion_service.clone();
                                 move |_| {
                                     let req_id = request_id.clone();
-                                    let svc = suggestion_service.clone();
-                                    let _gen_state = state;
-                                    spawn(async move {
+                                    let svc = svc.clone();
+                                    spawn_task(async move {
                                         match svc.cancel_suggestion(&req_id).await {
                                             Ok(_) => {
                                                 tracing::info!("Cancelled suggestion: {}", req_id);
@@ -777,16 +790,15 @@ fn SuggestionQueueRow(
                                 let request_id = suggestion.request_id.clone();
                                 let field_type = suggestion.field_type.clone();
                                 let context = suggestion.context.clone();
-                                let world_id = suggestion.world_id.clone();
-                                let suggestion_service = use_suggestion_service();
-                                let state = use_generation_state();
+                                let world_id_for_retry = suggestion.world_id.clone();
+                                let svc = suggestion_service.clone();
                                 move |_| {
-                                    if let (Some(ctx), Some(wid)) = (context.clone(), world_id.clone()) {
+                                    if let (Some(ctx), Some(wid)) = (context.clone(), world_id_for_retry.clone()) {
                                         let req_id = request_id.clone();
                                         let field = field_type.clone();
-                                        let svc = suggestion_service.clone();
-                                        let mut gen_state = state;
-                                        spawn(async move {
+                                        let svc = svc.clone();
+                                        let mut gen_state = generation_state;
+                                        spawn_task(async move {
                                             match svc.enqueue_suggestion(&field, &wid, &ctx).await {
                                                 Ok(new_request_id) => {
                                                     tracing::info!("Retried suggestion {} -> {}", req_id, new_request_id);
@@ -816,9 +828,30 @@ fn SuggestionQueueRow(
                             "Retry"
                         }
                         button {
-                            onclick: move |_| {
-                                let mut state = use_generation_state();
-                                state.remove_suggestion(&request_id_for_failed_clear);
+                            onclick: {
+                                let req_id = request_id_for_failed_clear.clone();
+                                let gen_svc = generation_service.clone();
+                                move |_| {
+                                    let request_id = req_id.clone();
+                                    let svc = gen_svc.clone();
+                                    tracing::info!(request_id = %request_id, "Clear (failed) button clicked");
+
+                                    // IMPORTANT: Spawn the async dismiss task BEFORE modifying state
+                                    spawn_task(async move {
+                                        tracing::info!(request_id = %request_id, "Calling dismiss_suggestion for failed item");
+                                        match svc.dismiss_suggestion(&request_id).await {
+                                            Ok(()) => {
+                                                tracing::info!(request_id = %request_id, "Successfully dismissed failed suggestion from server");
+                                            }
+                                            Err(e) => {
+                                                tracing::error!(request_id = %request_id, error = %e, "Failed to dismiss suggestion from server");
+                                            }
+                                        }
+                                    });
+
+                                    // Remove from local state after spawning
+                                    generation_state.remove_suggestion(&req_id);
+                                }
                             },
                             class: "px-2 py-1 bg-gray-500 text-white border-none rounded cursor-pointer text-xs",
                             "Clear"
@@ -862,17 +895,42 @@ fn SuggestionQueueRow(
 
 /// Modal displaying full suggestion options for a selected task
 #[component]
-fn SuggestionViewModal(suggestion: SuggestionTask, on_close: EventHandler<()>) -> Element {
+fn SuggestionViewModal(
+    suggestion: SuggestionTask,
+    on_close: EventHandler<()>,
+    #[props(default)] on_navigate: Option<EventHandler<(String, String)>>,
+) -> Element {
+    let mut generation_state = use_generation_state();
+
     // Extract suggestions if ready
-    let suggestions = match &suggestion.status {
+    let suggestions_list = match &suggestion.status {
         SuggestionStatus::Ready { suggestions } => suggestions.clone(),
         _ => Vec::new(),
     };
 
+    let field_type = suggestion.field_type.clone();
+    let request_id = suggestion.request_id.clone();
     let title = format!(
         "Suggestions for {}",
-        suggestion.field_type.replace("_", " ")
+        field_type.replace("_", " ")
     );
+
+    // Determine entity type from field type for navigation
+    let entity_type = if field_type.starts_with("character_")
+        || field_type.starts_with("deflection_")
+        || field_type.starts_with("behavioral_")
+        || field_type.starts_with("want_")
+        || field_type.starts_with("actantial_")
+    {
+        "characters"
+    } else if field_type.starts_with("location_") {
+        "locations"
+    } else {
+        "characters" // Default fallback
+    };
+
+    let can_navigate = suggestion.entity_id.is_some() && on_navigate.is_some();
+    let entity_id_for_nav = suggestion.entity_id.clone();
 
     rsx! {
         // Backdrop
@@ -890,33 +948,70 @@ fn SuggestionViewModal(suggestion: SuggestionTask, on_close: EventHandler<()>) -
                     "{title}"
                 }
 
-                if let Some(entity_id) = &suggestion.entity_id {
-                    div {
-                        class: "text-gray-400 text-xs mb-3",
-                        "Entity: {entity_id}"
+                // Show field type context
+                div {
+                    class: "text-gray-400 text-xs mb-3",
+                    "Field: {field_type}"
+                    if let Some(entity_id) = &suggestion.entity_id {
+                        " • Entity: {entity_id}"
                     }
                 }
 
-                if suggestions.is_empty() {
+                if suggestions_list.is_empty() {
                     div {
                         class: "text-gray-400 text-[0.85rem]",
                         "No suggestion options available (still processing or failed)."
                     }
                 } else {
                     div {
+                        class: "text-gray-400 text-xs mb-2",
+                        "Click a suggestion to apply it to the form field."
+                    }
+                    div {
                         class: "flex flex-col gap-2",
-                        for (idx, text) in suggestions.iter().enumerate() {
-                            div {
-                                key: "{idx}",
-                                class: "px-3 py-2 bg-gray-800 rounded-md text-gray-200 text-sm",
-                                "{text}"
+                        for (idx, text) in suggestions_list.iter().enumerate() {
+                            {
+                                let text_clone = text.clone();
+                                let field_type_clone = field_type.clone();
+                                let request_id_clone = request_id.clone();
+                                rsx! {
+                                    div {
+                                        key: "{idx}",
+                                        onclick: move |_| {
+                                            // Set the selected suggestion - this triggers SuggestionButton's use_effect
+                                            generation_state.select_suggestion(&field_type_clone, text_clone.clone());
+                                            // Remove from queue since it's been used
+                                            generation_state.remove_suggestion(&request_id_clone);
+                                            // Close the modal
+                                            on_close.call(());
+                                        },
+                                        class: "px-3 py-2 bg-gray-800 hover:bg-purple-700 rounded-md text-gray-200 text-sm cursor-pointer transition-colors",
+                                        title: "Click to apply this suggestion",
+                                        "{text}"
+                                    }
+                                }
                             }
                         }
                     }
                 }
 
                 div {
-                    class: "flex justify-end mt-3",
+                    class: "flex justify-end gap-2 mt-3",
+                    if can_navigate {
+                        button {
+                            onclick: {
+                                let entity_id = entity_id_for_nav.clone().unwrap();
+                                let entity_type = entity_type.to_string();
+                                let handler = on_navigate.unwrap();
+                                move |_| {
+                                    handler.call((entity_type.clone(), entity_id.clone()));
+                                    on_close.call(());
+                                }
+                            },
+                            class: "px-3 py-1 bg-blue-600 text-white border-none rounded-md text-[0.8rem] cursor-pointer",
+                            "Go to Form"
+                        }
+                    }
                     button {
                         onclick: move |_| on_close.call(()),
                         class: "px-3 py-1 bg-gray-600 text-white border-none rounded-md text-[0.8rem] cursor-pointer",

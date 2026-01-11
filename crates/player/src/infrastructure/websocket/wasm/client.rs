@@ -17,7 +17,7 @@ use wrldbldr_protocol::{
 };
 
 use crate::infrastructure::session_type_converters::participant_role_to_world_role;
-use crate::infrastructure::websocket::protocol::ConnectionState;
+use crate::infrastructure::websocket::ConnectionState;
 use crate::infrastructure::websocket::shared::{
     parse_server_message, ParsedServerMessage, MAX_RETRY_ATTEMPTS,
 };
@@ -210,18 +210,14 @@ impl EngineClient {
         ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
 
         // Set up message handler
+        // Note: All messages are passed to the callback - the bridge handles
+        // resolving Response messages with its own PendingRequests.
         let on_message = Rc::clone(&self.on_message);
-        let pending_requests_clone = Rc::clone(&self.pending_requests);
         let onmessage_callback = Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
             if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
                 let text: String = txt.into();
-                match parse_server_message(&text) {
-                    Ok(ParsedServerMessage::Response { request_id, result }) => {
-                        let _ = pending_requests_clone
-                            .borrow_mut()
-                            .resolve(&request_id, result);
-                    }
-                    Ok(ParsedServerMessage::Other(server_msg)) => {
+                match serde_json::from_str::<ServerMessage>(&text) {
+                    Ok(server_msg) => {
                         if let Some(ref mut cb) = *on_message.borrow_mut() {
                             cb(server_msg);
                         }
@@ -420,13 +416,14 @@ impl EngineClient {
         }
     }
 
-    pub fn join_world(&self, world_id: &str, _user_id: &str, role: ParticipantRole) -> Result<()> {
+    pub fn join_world(&self, world_id: &str, user_id: &str, role: ParticipantRole) -> Result<()> {
         let world_id = uuid::Uuid::parse_str(world_id)?;
         let world_role = participant_role_to_world_role(role);
 
         self.send(ClientMessage::JoinWorld {
             world_id,
             role: world_role,
+            user_id: user_id.to_string(),
             pc_id: None, // PC selection happens after joining
             spectate_pc_id: None,
         })

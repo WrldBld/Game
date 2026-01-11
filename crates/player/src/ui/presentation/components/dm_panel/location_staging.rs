@@ -7,6 +7,7 @@ use dioxus::prelude::*;
 
 use crate::application::dto::ApprovedNpcInfo;
 use crate::application::services::CharacterSummary;
+use crate::infrastructure::spawn_task;
 use crate::infrastructure::websocket::ClientMessageBuilder;
 use crate::presentation::services::{use_character_service, use_command_bus, use_location_service};
 use crate::presentation::state::game_state::RegionStagingStatus;
@@ -79,7 +80,7 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
             let char_service = char_svc.clone();
 
             loading.set(true);
-            spawn(async move {
+            spawn_task(async move {
                 // Load regions
                 match loc_service.get_regions(&lid).await {
                     Ok(region_list) => {

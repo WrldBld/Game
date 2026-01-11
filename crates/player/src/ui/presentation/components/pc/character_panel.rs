@@ -4,6 +4,7 @@ use dioxus::prelude::*;
 
 use crate::application::dto::SheetTemplate;
 use crate::application::services::PlayerCharacterData;
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_world_service;
 
 /// Props for CharacterPanel
@@ -27,7 +28,7 @@ pub fn CharacterPanel(props: CharacterPanelProps) -> Element {
         use_effect(move || {
             let svc = world_svc.clone();
             let world_id_clone = world_id.clone();
-            spawn(async move {
+            spawn_task(async move {
                 if let Ok(template_json) = svc.get_sheet_template(&world_id_clone).await {
                     if let Ok(template) = serde_json::from_value::<SheetTemplate>(template_json) {
                         sheet_template.set(Some(template));

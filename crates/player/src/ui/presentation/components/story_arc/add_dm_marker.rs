@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::application::services::CreateDmMarkerRequest;
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_story_event_service;
 
 #[derive(Props, Clone, PartialEq)]
@@ -222,7 +223,7 @@ pub fn AddDmMarkerModal(props: AddDmMarkerModalProps) -> Element {
 
                                             let world_id = world_id.clone();
                                             let service = service.clone();
-                                            spawn(async move {
+                                            spawn_task(async move {
                                                 is_saving.set(true);
                                                 error.set(None);
 

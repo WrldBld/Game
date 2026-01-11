@@ -14,6 +14,7 @@ pub mod event_bus;
 
 pub use command_bus::{BusMessage, CommandBus, PendingRequests};
 pub use connection::{
-    set_connection_state, ConnectionHandle, ConnectionState, ConnectionStateObserver,
+    set_connection_state, ConnectionHandle, ConnectionKeepAlive, ConnectionState,
+    ConnectionStateObserver,
 };
 pub use event_bus::EventBus;

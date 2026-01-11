@@ -16,6 +16,7 @@ pub mod motivations_tab;
 pub mod sheet_field_input;
 pub mod suggestion_button;
 
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_generation_service;
 use crate::presentation::state::use_generation_state;
 use crate::presentation::state::use_session_state;
@@ -70,7 +71,7 @@ pub fn CreatorMode(props: CreatorModeProps) -> Element {
     use_effect(move || {
         let world_id = world_id_for_fetch.clone();
         let svc = character_service.clone();
-        spawn(async move {
+        spawn_task(async move {
             match svc.list_characters(&world_id).await {
                 Ok(fetched) => {
                     characters.set(fetched);
@@ -89,7 +90,7 @@ pub fn CreatorMode(props: CreatorModeProps) -> Element {
     use_effect(move || {
         let world_id = world_id_for_locations.clone();
         let svc = location_service.clone();
-        spawn(async move {
+        spawn_task(async move {
             match svc.list_locations(&world_id).await {
                 Ok(fetched) => {
                     locations.set(fetched);
@@ -114,7 +115,7 @@ pub fn CreatorMode(props: CreatorModeProps) -> Element {
         let gen_svc = generation_service.clone();
         let user_id = session_state.user_id().read().clone();
         let world_id = world_id_for_hydrate.clone();
-        spawn(async move {
+        spawn_task(async move {
             if let Err(e) = crate::presentation::services::hydrate_generation_queue(
                 &gen_svc,
                 &mut generation_state,

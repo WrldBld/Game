@@ -7,6 +7,7 @@ use dioxus::prelude::*;
 use wrldbldr_domain::{parse_dialogue, DialogueMarker, ParsedDialogue};
 
 use crate::application::dto::DialogueChoice;
+use crate::infrastructure::spawn_task;
 use crate::use_platform;
 
 /// A marker with its trigger position in the clean text
@@ -331,7 +332,7 @@ pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
 
         // Spawn the async typewriter animation
         let platform = platform.clone();
-        spawn(async move {
+        spawn_task(async move {
             let mut current = String::new();
             let mut char_index = 0;
 

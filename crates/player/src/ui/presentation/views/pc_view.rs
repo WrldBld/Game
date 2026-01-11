@@ -7,6 +7,7 @@ use dioxus::prelude::*;
 use std::collections::HashMap;
 
 use crate::application::dto::InventoryItemData;
+use crate::infrastructure::spawn_task;
 use crate::application::dto::{
     DiceInput, FieldValue, InteractionData, PlayerAction, SheetTemplate,
 };
@@ -83,12 +84,14 @@ pub fn PCView() -> Element {
     {
         let game_state_for_effect = game_state.clone();
         let transitioning = *game_state_for_effect.backdrop_transitioning.read();
+        let platform = crate::use_platform();
         use_effect(move || {
             if transitioning {
                 let mut gs = game_state_for_effect.clone();
-                spawn(async move {
+                let sleep_future = platform.sleep_ms(500);
+                spawn_task(async move {
                     // Wait for animation to complete (0.5s defined in tailwind.config.js)
-                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    sleep_future.await;
                     gs.clear_backdrop_transition();
                 });
             }
@@ -127,7 +130,7 @@ pub fn PCView() -> Element {
             if is_panel_open {
                 if let Some(pid) = pc_id.clone() {
                     let obs_svc = obs_svc.clone();
-                    spawn(async move {
+                    spawn_task(async move {
                         match obs_svc.list_observations(&pid).await {
                             Ok(observations) => {
                                 let npc_data: Vec<NpcObservationData> = observations
@@ -326,7 +329,7 @@ pub fn PCView() -> Element {
                         if let Some(cid) = char_id {
                             selected_character_id.set(Some(cid.clone()));
                             let char_svc = character_service.clone();
-                            spawn(async move {
+                            spawn_task(async move {
                                 match char_svc.get_inventory(&cid).await {
                                     Ok(items) => {
                                         inventory_items.set(items);
@@ -368,7 +371,7 @@ pub fn PCView() -> Element {
                             selected_character_id.set(Some(cid.clone()));
                             let world_svc = world_service.clone();
                             let char_svc = character_service.clone();
-                            spawn(async move {
+                            spawn_task(async move {
                                 // Load template
                                 match world_svc.get_sheet_template(&wid).await {
                                     Ok(template_json) => {
@@ -409,7 +412,7 @@ pub fn PCView() -> Element {
                         if let Some(region) = current_region {
                             let loc_svc = location_service.clone();
                             let location_id = region.location_id.clone();
-                            spawn(async move {
+                            spawn_task(async move {
                                 match loc_svc.get_regions(&location_id).await {
                                     Ok(regions) => {
                                         // Convert to component data type
@@ -459,7 +462,7 @@ pub fn PCView() -> Element {
 
                         if let Some(pid) = pc_id {
                             let obs_svc = observation_service.clone();
-                            spawn(async move {
+                            spawn_task(async move {
                                 match obs_svc.list_observations(&pid).await {
                                     Ok(observations) => {
                                         // Convert to component data type
@@ -512,7 +515,7 @@ pub fn PCView() -> Element {
 
                         if let Some(wid) = world_id {
                             let skill_svc = skill_service.clone();
-                            spawn(async move {
+                            spawn_task(async move {
                                 match skill_svc.list_skills(&wid).await {
                                     Ok(skills) => {
                                         // Convert SkillData to PlayerSkillData
@@ -962,7 +965,7 @@ fn StagingPendingOverlay(
             }
 
             let platform = platform_for_effect.clone();
-            spawn(async move {
+            spawn_task(async move {
                 loop {
                     // Wait 1 second
                     platform.sleep_ms(1000).await;

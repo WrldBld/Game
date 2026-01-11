@@ -29,6 +29,12 @@ pub enum BroadcastEvent {
         suggestions: Vec<String>,
     },
 
+    /// LLM suggestion request started processing (Creator UI).
+    SuggestionProgress {
+        world_id: WorldId,
+        request_id: String,
+    },
+
     /// LLM suggestion request completed (Creator UI).
     SuggestionComplete {
         world_id: WorldId,
@@ -376,7 +382,14 @@ impl ProcessLlmRequest {
     /// Process the next LLM request in the queue.
     ///
     /// Returns None if the queue is empty.
-    pub async fn execute(&self) -> Result<Option<LlmRequestProcessed>, QueueError> {
+    ///
+    /// The `on_start` callback is invoked with immediate broadcast events BEFORE
+    /// the LLM call starts (e.g., SuggestionProgress). This allows the caller to
+    /// broadcast progress events before the potentially slow LLM operation.
+    pub async fn execute<F>(&self, on_start: F) -> Result<Option<LlmRequestProcessed>, QueueError>
+    where
+        F: FnOnce(Vec<BroadcastEvent>),
+    {
         // Dequeue the next LLM request
         let item = match self.queue.dequeue_llm_request().await? {
             Some(item) => item,
@@ -477,6 +490,16 @@ impl ProcessLlmRequest {
             } => {
                 // Generic content suggestions are returned directly to clients (no DM approval).
 
+                // Capture info for progress event before processing
+                let world_id = request_data.world_id;
+                let callback_id = request_data.callback_id.clone();
+
+                // Emit progress event BEFORE the LLM call starts
+                on_start(vec![BroadcastEvent::SuggestionProgress {
+                    world_id,
+                    request_id: callback_id.clone(),
+                }]);
+
                 let context = request_data.suggestion_context.clone().unwrap_or_default();
 
                 let prompt = build_suggestion_prompt(field_type, &context);
@@ -522,13 +545,14 @@ impl ProcessLlmRequest {
                 // Mark the LLM request as complete.
                 self.queue.mark_complete(item.id).await?;
 
+                // Return only the completion event (progress was already emitted via callback)
                 Ok(Some(LlmRequestProcessed {
                     request_id: item.id,
                     approval_id: uuid::Uuid::nil(),
                     npc_dialogue: llm_response.content,
                     broadcast_events: vec![BroadcastEvent::SuggestionComplete {
-                        world_id: request_data.world_id,
-                        request_id: request_data.callback_id,
+                        world_id,
+                        request_id: callback_id,
                         suggestions,
                     }],
                 }))

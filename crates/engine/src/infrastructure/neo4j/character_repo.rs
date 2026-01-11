@@ -29,14 +29,62 @@ use crate::infrastructure::ports::{
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct StatBlockStored {
     stats: std::collections::HashMap<String, i32>,
+    #[serde(default)]
+    modifiers: std::collections::HashMap<String, Vec<StatModifierStored>>,
     current_hp: Option<i32>,
     max_hp: Option<i32>,
+}
+
+/// Stored representation of StatModifier for Neo4j persistence
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct StatModifierStored {
+    id: String,
+    source: String,
+    value: i32,
+    active: bool,
+}
+
+impl From<entities::StatModifier> for StatModifierStored {
+    fn from(value: entities::StatModifier) -> Self {
+        Self {
+            id: value.id.to_string(),
+            source: value.source,
+            value: value.value,
+            active: value.active,
+        }
+    }
+}
+
+impl From<StatModifierStored> for entities::StatModifier {
+    fn from(value: StatModifierStored) -> Self {
+        let id = Uuid::parse_str(&value.id).unwrap_or_else(|e| {
+            let new_id = Uuid::new_v4();
+            tracing::warn!(
+                stored_id = %value.id,
+                new_id = %new_id,
+                error = %e,
+                "Corrupted UUID in stored stat modifier, generating new ID. Modifier may become orphaned."
+            );
+            new_id
+        });
+        Self {
+            id,
+            source: value.source,
+            value: value.value,
+            active: value.active,
+        }
+    }
 }
 
 impl From<StatBlock> for StatBlockStored {
     fn from(value: StatBlock) -> Self {
         Self {
             stats: value.stats,
+            modifiers: value
+                .modifiers
+                .into_iter()
+                .map(|(k, v)| (k, v.into_iter().map(StatModifierStored::from).collect()))
+                .collect(),
             current_hp: value.current_hp,
             max_hp: value.max_hp,
         }
@@ -47,6 +95,18 @@ impl From<StatBlockStored> for StatBlock {
     fn from(value: StatBlockStored) -> Self {
         Self {
             stats: value.stats,
+            modifiers: value
+                .modifiers
+                .into_iter()
+                .map(|(k, v)| {
+                    (
+                        k,
+                        v.into_iter()
+                            .map(entities::StatModifier::from)
+                            .collect(),
+                    )
+                })
+                .collect(),
             current_hp: value.current_hp,
             max_hp: value.max_hp,
         }

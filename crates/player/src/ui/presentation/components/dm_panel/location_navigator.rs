@@ -2,6 +2,7 @@
 
 use dioxus::prelude::*;
 
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_location_service;
 
 /// Props for LocationNavigator
@@ -29,7 +30,7 @@ pub fn LocationNavigator(props: LocationNavigatorProps) -> Element {
             let wid = world_id.clone();
             let svc = loc_svc.clone();
             loading.set(true);
-            spawn(async move {
+            spawn_task(async move {
                 match svc.list_locations(&wid).await {
                     Ok(loc_list) => {
                         locations.set(loc_list);

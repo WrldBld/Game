@@ -3,6 +3,8 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
+use crate::infrastructure::spawn_task;
+
 use crate::application::dto::{FieldValue, SheetTemplate};
 use crate::application::services::CreatePlayerCharacterRequest;
 use crate::presentation::services::{
@@ -69,7 +71,7 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
             let world_id_clone = world_id.clone();
             let plat = platform_clone.clone();
             sheet_loading.set(true);
-            spawn(async move {
+            spawn_task(async move {
                 match svc.get_sheet_template(&world_id_clone).await {
                     Ok(template_json) => {
                         match serde_json::from_value::<SheetTemplate>(template_json) {
@@ -100,7 +102,7 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
             let world_id_clone = world_id.clone();
             let plat = platform_clone.clone();
             locations_loading.set(true);
-            spawn(async move {
+            spawn_task(async move {
                 match svc.list_locations(&world_id_clone).await {
                     Ok(locations) => {
                         available_locations.set(locations);
@@ -183,7 +185,7 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
         is_creating.set(true);
         error_message.set(None);
 
-        spawn(async move {
+        spawn_task(async move {
             // Convert sheet values to JSON if present
             let sheet_data = if sheet_vals.is_empty() {
                 None

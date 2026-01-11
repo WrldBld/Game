@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::application::dto::{CreateNarrativeEventRequest, NarrativeEventData};
+use crate::infrastructure::spawn_task;
 use crate::presentation::components::story_arc::narrative_event_card::NarrativeEventCard;
 use crate::presentation::components::story_arc::trigger_builder::TriggerBuilder;
 use crate::presentation::services::use_narrative_event_service;
@@ -32,7 +33,7 @@ pub fn NarrativeEventLibrary(props: NarrativeEventLibraryProps) -> Element {
     use_effect(move || {
         let world_id = world_id.clone();
         let service = narrative_event_service_for_effect.clone();
-        spawn(async move {
+        spawn_task(async move {
             is_loading.set(true);
             error.set(None);
 
@@ -215,7 +216,7 @@ pub fn NarrativeEventLibrary(props: NarrativeEventLibraryProps) -> Element {
                                         let event_id = event_id.clone();
                                         let world_id = world_id.clone();
                                         let service = service.clone();
-                                        spawn(async move {
+                                        spawn_task(async move {
                                             if let Err(e) = service.toggle_favorite(&event_id).await {
                                                 tracing::error!("Failed to toggle favorite: {}", e);
                                             }
@@ -234,7 +235,7 @@ pub fn NarrativeEventLibrary(props: NarrativeEventLibraryProps) -> Element {
                                         let event_id = event_id.clone();
                                         let world_id = world_id.clone();
                                         let service = service.clone();
-                                        spawn(async move {
+                                        spawn_task(async move {
                                             if let Err(e) = service.set_active(&event_id, !is_active).await {
                                                 tracing::error!("Failed to toggle active: {}", e);
                                             }
@@ -315,7 +316,7 @@ fn NarrativeEventFormModal(props: NarrativeEventFormModalProps) -> Element {
             is_saving.set(true);
             save_error.set(None);
 
-            spawn(async move {
+            spawn_task(async move {
                 // Build trigger logic value
                 let trigger_logic_value = match logic.as_str() {
                     "any" => serde_json::json!("any"),

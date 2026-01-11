@@ -3,6 +3,7 @@
 use crate::application::dto::{
     ChallengeData, ChallengeDifficulty, ChallengeOutcomes, ChallengeType, SkillData,
 };
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_challenge_service;
 use dioxus::prelude::*;
 
@@ -123,7 +124,7 @@ pub fn ChallengeFormModal(props: ChallengeFormModalProps) -> Element {
         let service = challenge_service_for_save.clone();
         let wid = world_id_for_save.clone();
 
-        spawn(async move {
+        spawn_task(async move {
             let result = if is_edit {
                 service.update_challenge(&challenge_data).await
             } else {

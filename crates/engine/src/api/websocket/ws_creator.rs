@@ -260,6 +260,50 @@ pub(super) async fn handle_generation_request(
 
             Ok(ResponseResult::success_empty())
         }
+
+        GenerationRequest::DismissSuggestion { request_id: suggestion_request_id } => {
+            tracing::info!(
+                request_id = %suggestion_request_id,
+                user_id = %conn_info.user_id,
+                "DismissSuggestion request received"
+            );
+
+            // Remove the suggestion from the queue by callback_id
+            match state
+                .app
+                .queue
+                .delete_by_callback_id(&suggestion_request_id)
+                .await
+            {
+                Ok(deleted) => {
+                    if deleted {
+                        tracing::info!(
+                            request_id = %suggestion_request_id,
+                            user_id = %conn_info.user_id,
+                            "Suggestion dismissed successfully"
+                        );
+                    } else {
+                        tracing::warn!(
+                            request_id = %suggestion_request_id,
+                            user_id = %conn_info.user_id,
+                            "Suggestion NOT found in queue - callback_id may not match"
+                        );
+                    }
+                    Ok(ResponseResult::success_empty())
+                }
+                Err(e) => {
+                    tracing::error!(
+                        request_id = %suggestion_request_id,
+                        error = %e,
+                        "Failed to dismiss suggestion - database error"
+                    );
+                    Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    })
+                }
+            }
+        }
     }
 }
 

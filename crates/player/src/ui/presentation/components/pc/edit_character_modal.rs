@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use crate::application::dto::{FieldValue, SheetTemplate};
 use crate::application::services::{PlayerCharacterData, UpdatePlayerCharacterRequest};
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::{use_player_character_service, use_world_service};
 
 /// Props for EditCharacterModal
@@ -44,7 +45,7 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
         use_effect(move || {
             let svc = world_svc.clone();
             let world_id_clone = world_id.clone();
-            spawn(async move {
+            spawn_task(async move {
                 if let Ok(template_json) = svc.get_sheet_template(&world_id_clone).await {
                     if let Ok(template) = serde_json::from_value::<SheetTemplate>(template_json) {
                         sheet_template.set(Some(template));
@@ -72,7 +73,7 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
         is_saving.set(true);
         error_message.set(None);
 
-        spawn(async move {
+        spawn_task(async move {
             // Convert sheet values to JSON if present
             let sheet_data = if sheet_vals.is_empty() {
                 None

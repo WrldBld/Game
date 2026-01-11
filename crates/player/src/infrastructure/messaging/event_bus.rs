@@ -4,13 +4,15 @@
 //! from the game engine. Subscribers register callbacks that are invoked
 //! when events arrive.
 
-use std::sync::Arc;
-
 use crate::ports::outbound::player_events::PlayerEvent;
 
 #[cfg(not(target_arch = "wasm32"))]
+use std::sync::Arc;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::sync::Mutex;
 
+#[cfg(target_arch = "wasm32")]
+use send_wrapper::SendWrapper;
 #[cfg(target_arch = "wasm32")]
 use std::cell::RefCell;
 #[cfg(target_arch = "wasm32")]
@@ -34,7 +36,7 @@ pub struct EventBus {
 #[cfg(target_arch = "wasm32")]
 #[derive(Clone)]
 pub struct EventBus {
-    subscribers: Rc<RefCell<Vec<Box<dyn FnMut(PlayerEvent) + 'static>>>>,
+    subscribers: SendWrapper<Rc<RefCell<Vec<Box<dyn FnMut(PlayerEvent) + 'static>>>>>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -100,7 +102,7 @@ impl EventBus {
     /// Create a new EventBus with no subscribers.
     pub fn new() -> Self {
         Self {
-            subscribers: Rc::new(RefCell::new(Vec::new())),
+            subscribers: SendWrapper::new(Rc::new(RefCell::new(Vec::new()))),
         }
     }
 

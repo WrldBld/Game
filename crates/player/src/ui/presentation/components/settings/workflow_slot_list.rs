@@ -6,6 +6,7 @@
 use dioxus::prelude::*;
 
 use crate::application::services::{WorkflowSlotCategory, WorkflowSlotStatus};
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_workflow_service;
 
 /// Props for the WorkflowSlotList component
@@ -34,7 +35,7 @@ pub fn WorkflowSlotList(props: WorkflowSlotListProps) -> Element {
     // Fetch workflow slots on mount
     use_effect(move || {
         let svc = workflow_service.clone();
-        spawn(async move {
+        spawn_task(async move {
             match svc.list_workflows().await {
                 Ok(response) => {
                     categories.set(response.categories);

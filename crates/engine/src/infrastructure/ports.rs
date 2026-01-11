@@ -1167,6 +1167,11 @@ pub trait QueuePort: Send + Sync {
         read_batches: &[String],
         read_suggestions: &[String],
     ) -> Result<(), QueueError>;
+
+    /// Delete a queue item by callback_id (used for dismissing suggestions).
+    ///
+    /// This scans pending/completed LLM requests to find one with matching callback_id.
+    async fn delete_by_callback_id(&self, callback_id: &str) -> Result<bool, QueueError>;
 }
 
 // =============================================================================

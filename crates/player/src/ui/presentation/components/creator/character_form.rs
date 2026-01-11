@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
+use crate::infrastructure::spawn_task;
 use super::asset_gallery::AssetGallery;
 use super::expression_config_editor::ExpressionConfigEditor;
 use super::motivations_tab::MotivationsTab;
@@ -74,7 +75,7 @@ pub fn CharacterForm(
             let svc = world_svc.clone();
             let platform = plat.clone();
             let world_id_clone = world_id_for_template.clone();
-            spawn(async move {
+            spawn_task(async move {
                 match svc.get_sheet_template(&world_id_clone).await {
                     Ok(template_json) => {
                         // Parse the JSON into SheetTemplate
@@ -105,7 +106,7 @@ pub fn CharacterForm(
             let char_id = char_id_for_effect.clone();
             let svc = char_svc.clone();
             if !char_id.is_empty() {
-                spawn(async move {
+                spawn_task(async move {
                     match svc.get_character(&char_id).await {
                         Ok(char_data) => {
                             name.set(char_data.name);
@@ -496,7 +497,7 @@ pub fn CharacterForm(
                             let svc = char_svc.clone();
                             let world_id_clone = world_id.clone();
 
-                            spawn(async move {
+                            spawn_task(async move {
                                     // Get sheet values
                                     let sheet_data_to_save = {
                                         let values = sheet_values.read().clone();

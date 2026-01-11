@@ -25,6 +25,11 @@ pub struct PendingRequests {
 }
 
 impl PendingRequests {
+    /// Insert a pending request callback.
+    pub fn insert(&mut self, request_id: String, callback: PendingCallback) {
+        self.inner.insert(request_id, callback);
+    }
+
     #[allow(dead_code)]
     pub fn contains(&self, request_id: &str) -> bool {
         self.inner.contains_key(request_id)

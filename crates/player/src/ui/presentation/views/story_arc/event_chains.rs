@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::application::services::EventChainData;
+use crate::infrastructure::spawn_task;
 use crate::presentation::components::story_arc::event_chain_editor::EventChainEditor;
 use crate::presentation::components::story_arc::event_chain_list::{ChainFilter, EventChainList};
 use crate::presentation::components::story_arc::event_chain_visualizer::EventChainVisualizer;
@@ -25,7 +26,7 @@ pub fn EventChainsView(world_id: String) -> Element {
         if let Some(id) = chain_id.as_ref() {
             let svc = service.clone();
             let id_clone = id.clone();
-            spawn(async move {
+            spawn_task(async move {
                 if let Ok(chain) = svc.get_chain(&id_clone).await {
                     selected_chain_data.set(Some(chain));
                 }
