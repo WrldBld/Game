@@ -693,6 +693,58 @@ impl Narrative {
             relationships
         };
 
+        // Collect character stats for StatThreshold triggers
+        let character_stats = {
+            // Extract unique character IDs that need stat data
+            let mut char_ids: std::collections::HashSet<CharacterId> =
+                std::collections::HashSet::new();
+            for event in &candidates {
+                for trigger in &event.trigger_conditions {
+                    if let NarrativeTriggerType::StatThreshold { character_id, .. } =
+                        &trigger.trigger_type
+                    {
+                        char_ids.insert(*character_id);
+                    }
+                }
+            }
+
+            // Fetch stats for each character
+            let mut stats_map: HashMap<CharacterId, HashMap<String, i32>> = HashMap::new();
+            for char_id in char_ids {
+                match self.character_repo.get(char_id).await {
+                    Ok(Some(character)) => {
+                        // Extract effective stat values (base + modifiers)
+                        let mut char_stats = HashMap::new();
+                        for (stat_name, stat_value) in character.stats.get_all_stats() {
+                            char_stats.insert(stat_name, stat_value.effective);
+                        }
+                        // Also include HP if present
+                        if let Some(hp) = character.stats.get_current_hp() {
+                            char_stats.insert("current_hp".to_string(), hp);
+                        }
+                        if let Some(max_hp) = character.stats.get_max_hp() {
+                            char_stats.insert("max_hp".to_string(), max_hp);
+                        }
+                        stats_map.insert(char_id, char_stats);
+                    }
+                    Ok(None) => {
+                        tracing::warn!(
+                            character_id = %char_id,
+                            "Character not found for StatThreshold trigger"
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            character_id = %char_id,
+                            error = %e,
+                            "Failed to fetch character for StatThreshold trigger"
+                        );
+                    }
+                }
+            }
+            stats_map
+        };
+
         // Build trigger context with enriched PC state
         // NOTE: event_outcomes, challenge_successes, turns_since_event, turn_count
         // are caller-specific context that cannot be determined here.
@@ -713,6 +765,7 @@ impl Narrative {
             recent_player_action: None,          // Caller responsibility - session state
             custom_trigger_results,              // Pre-evaluated LLM results for Custom triggers
             relationships,                       // NPC disposition sentiments toward this PC
+            character_stats,                     // Character stat values for StatThreshold triggers
         };
 
         // Evaluate each candidate and collect triggered events
