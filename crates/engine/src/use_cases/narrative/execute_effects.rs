@@ -330,7 +330,7 @@ impl ExecuteEffects {
                 amount,
                 description,
             } => {
-                // Validate parameters before reporting unimplemented
+                // Validate parameters
                 if reward_type.trim().is_empty() {
                     return EffectExecutionResult {
                         description: "Add reward effect has empty reward type".to_string(),
@@ -356,15 +356,32 @@ impl ExecuteEffects {
                     };
                 }
 
-                // Reward/XP system not implemented - DM should handle manually
-                EffectExecutionResult {
-                    description: format!(
-                        "Add {} {} reward: {} (NOT IMPLEMENTED - reward system needed)",
-                        amount, reward_type, description
-                    ),
-                    success: false,
-                    error: Some("Reward system not implemented".to_string()),
-                    requires_dm_action: true,
+                // Handle XP rewards
+                let reward_type_lower = reward_type.to_lowercase();
+                if reward_type_lower == "xp"
+                    || reward_type_lower == "experience"
+                    || reward_type_lower == "exp"
+                {
+                    self.execute_add_xp_reward(context.pc_id, *amount, description)
+                        .await
+                } else if reward_type_lower == "gold"
+                    || reward_type_lower == "gp"
+                    || reward_type_lower == "coins"
+                {
+                    // Gold rewards - update GOLD stat
+                    self.execute_add_stat_reward(context.pc_id, "GOLD", *amount, description)
+                        .await
+                } else {
+                    // Other reward types - mark for DM handling
+                    EffectExecutionResult {
+                        description: format!(
+                            "Add {} {} reward: {} (requires DM to apply)",
+                            amount, reward_type, description
+                        ),
+                        success: true,
+                        error: None,
+                        requires_dm_action: true,
+                    }
                 }
             }
 
@@ -751,6 +768,98 @@ impl ExecuteEffects {
             },
             Err(e) => EffectExecutionResult {
                 description: format!("Failed to set flag '{}'", flag_name),
+                success: false,
+                error: Some(e.to_string()),
+                requires_dm_action: false,
+            },
+        }
+    }
+
+    /// Add XP reward to a player character.
+    /// Updates XP_CURRENT in the character's sheet_data.
+    async fn execute_add_xp_reward(
+        &self,
+        pc_id: PlayerCharacterId,
+        amount: i32,
+        description: &str,
+    ) -> EffectExecutionResult {
+        self.execute_add_stat_reward(pc_id, "XP_CURRENT", amount, description)
+            .await
+    }
+
+    /// Add a numeric stat reward to a player character.
+    /// Updates the specified stat in the character's sheet_data.
+    async fn execute_add_stat_reward(
+        &self,
+        pc_id: PlayerCharacterId,
+        stat_name: &str,
+        amount: i32,
+        description: &str,
+    ) -> EffectExecutionResult {
+        // Get the PC
+        let pc = match self.player_character.get(pc_id).await {
+            Ok(Some(pc)) => pc,
+            Ok(None) => {
+                return EffectExecutionResult {
+                    description: format!("Failed to add {} {}: PC not found", amount, stat_name),
+                    success: false,
+                    error: Some("Player character not found".to_string()),
+                    requires_dm_action: false,
+                };
+            }
+            Err(e) => {
+                return EffectExecutionResult {
+                    description: format!("Failed to add {} {}: error loading PC", amount, stat_name),
+                    success: false,
+                    error: Some(e.to_string()),
+                    requires_dm_action: false,
+                };
+            }
+        };
+
+        // Get current value from sheet_data (default to 0 if not present)
+        let current_value = pc
+            .sheet_data
+            .as_ref()
+            .and_then(|sd| sd.get_number(stat_name))
+            .unwrap_or(0);
+
+        let new_value = current_value + amount;
+
+        // Create updated sheet_data
+        let mut sheet_data = pc.sheet_data.clone().unwrap_or_default();
+        sheet_data.set(stat_name, wrldbldr_domain::FieldValue::Number(new_value));
+
+        // Create updated PC
+        let updated_pc = wrldbldr_domain::PlayerCharacter {
+            sheet_data: Some(sheet_data),
+            ..pc
+        };
+
+        // Save the updated PC
+        match self.player_character.save(&updated_pc).await {
+            Ok(()) => {
+                tracing::info!(
+                    pc_id = %pc_id,
+                    stat = %stat_name,
+                    old_value = current_value,
+                    added = amount,
+                    new_value = new_value,
+                    description = %description,
+                    "Added stat reward to PC"
+                );
+                EffectExecutionResult {
+                    description: format!(
+                        "Added {} {} (now {}): {}",
+                        amount, stat_name, new_value, description
+                    ),
+                    success: true,
+                    error: None,
+                    requires_dm_action: false,
+                }
+            }
+            Err(e) => EffectExecutionResult {
+                description: format!("Failed to save {} reward", stat_name),
                 success: false,
                 error: Some(e.to_string()),
                 requires_dm_action: false,

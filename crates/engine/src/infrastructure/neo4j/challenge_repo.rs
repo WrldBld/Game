@@ -227,6 +227,7 @@ impl Neo4jChallengeRepo {
         let order = node.get_i64_or("challenge_order", 0) as u32;
         let is_favorite = node.get_bool_or("is_favorite", false);
         let tags: Vec<String> = node.get_json_or_default("tags_json");
+        let check_stat: Option<String> = node.get_optional_string("check_stat");
 
         Ok(Challenge {
             id,
@@ -241,6 +242,7 @@ impl Neo4jChallengeRepo {
             order,
             is_favorite,
             tags,
+            check_stat,
         })
     }
 }
@@ -300,7 +302,8 @@ impl ChallengeRepo for Neo4jChallengeRepo {
                 c.active = $active,
                 c.challenge_order = $challenge_order,
                 c.is_favorite = $is_favorite,
-                c.tags_json = $tags_json
+                c.tags_json = $tags_json,
+                c.check_stat = $check_stat
             MERGE (w)-[:CONTAINS_CHALLENGE]->(c)
             RETURN c.id as id",
         )
@@ -315,7 +318,11 @@ impl ChallengeRepo for Neo4jChallengeRepo {
         .param("active", challenge.active)
         .param("challenge_order", challenge.order as i64)
         .param("is_favorite", challenge.is_favorite)
-        .param("tags_json", tags_json);
+        .param("tags_json", tags_json)
+        .param(
+            "check_stat",
+            challenge.check_stat.clone().unwrap_or_default(),
+        );
 
         self.graph
             .run(q)

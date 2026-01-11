@@ -87,6 +87,10 @@ pub enum SectionType {
     Clocks,
     /// Moves (PbtA)
     Moves,
+    /// Active modifiers/conditions
+    Modifiers,
+    /// Experience/advancement tracking
+    Advancement,
     /// Free-form section
     Custom,
     /// Unknown for forward compatibility
@@ -243,6 +247,19 @@ pub enum SchemaFieldType {
     },
     /// Tags/keywords list
     Tags,
+    /// XP progress bar showing current XP vs next level threshold
+    XpProgress {
+        /// Field ID for current XP
+        current_field: String,
+        /// Field ID for XP needed for next level (derived)
+        next_level_field: String,
+    },
+    /// List of active stat modifiers (conditions, effects, etc.)
+    ModifierList {
+        /// Which stat this modifier list is for (None = all modifiers)
+        #[serde(default)]
+        filter_stat: Option<String>,
+    },
     /// Unknown for forward compatibility
     #[serde(other)]
     Unknown,

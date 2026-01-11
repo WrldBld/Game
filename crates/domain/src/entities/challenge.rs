@@ -52,6 +52,10 @@ pub struct Challenge {
     pub is_favorite: bool,
     /// Tags for filtering
     pub tags: Vec<String>,
+    /// The stat to check for this challenge (e.g., "STR", "DEX", "ATHLETICS_MOD")
+    /// If None, the modifier will be 0 unless provided by the client.
+    #[serde(default)]
+    pub check_stat: Option<String>,
 }
 
 impl Challenge {
@@ -73,7 +77,14 @@ impl Challenge {
             order: 0,
             is_favorite: false,
             tags: Vec::new(),
+            check_stat: None,
         }
+    }
+
+    /// Set the stat to check for this challenge.
+    pub fn with_check_stat(mut self, stat: impl Into<String>) -> Self {
+        self.check_stat = Some(stat.into());
+        self
     }
 
     pub fn with_description(mut self, description: impl Into<String>) -> Self {

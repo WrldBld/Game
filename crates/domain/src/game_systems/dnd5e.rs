@@ -11,6 +11,57 @@ use super::traits::{
 use crate::entities::{StatBlock, StatModifier};
 use std::collections::HashMap;
 
+/// XP thresholds for each level in D&D 5e.
+/// Index is level - 1 (so level 1 = index 0).
+const XP_THRESHOLDS: [i32; 20] = [
+    0,      // Level 1
+    300,    // Level 2
+    900,    // Level 3
+    2700,   // Level 4
+    6500,   // Level 5
+    14000,  // Level 6
+    23000,  // Level 7
+    34000,  // Level 8
+    48000,  // Level 9
+    64000,  // Level 10
+    85000,  // Level 11
+    100000, // Level 12
+    120000, // Level 13
+    140000, // Level 14
+    165000, // Level 15
+    195000, // Level 16
+    225000, // Level 17
+    265000, // Level 18
+    305000, // Level 19
+    355000, // Level 20
+];
+
+/// Get XP required for a given level.
+fn xp_for_level(level: u8) -> i32 {
+    if level == 0 || level > 20 {
+        return 0;
+    }
+    XP_THRESHOLDS[(level - 1) as usize]
+}
+
+/// Get XP required for the next level.
+fn xp_for_next_level(current_level: u8) -> i32 {
+    if current_level >= 20 {
+        return XP_THRESHOLDS[19]; // Max level
+    }
+    XP_THRESHOLDS[current_level as usize]
+}
+
+/// Calculate level from current XP.
+fn level_from_xp(xp: i32) -> u8 {
+    for (i, &threshold) in XP_THRESHOLDS.iter().enumerate().rev() {
+        if xp >= threshold {
+            return (i + 1) as u8;
+        }
+    }
+    1
+}
+
 /// D&D 5th Edition game system.
 pub struct Dnd5eSystem;
 
@@ -342,6 +393,7 @@ impl CharacterSheetProvider for Dnd5eSystem {
                 self.skills_section(),
                 self.saving_throws_section(),
                 self.features_section(),
+                self.modifiers_section(),
             ],
             creation_steps: vec![
                 CreationStep {
@@ -398,6 +450,16 @@ impl CharacterSheetProvider for Dnd5eSystem {
         // Calculate proficiency bonus
         let prof_bonus = self.proficiency_bonus(level);
         derived.insert("PROF_BONUS".to_string(), serde_json::json!(prof_bonus));
+
+        // Calculate XP thresholds
+        let xp_next = xp_for_next_level(level);
+        derived.insert("XP_NEXT_LEVEL".to_string(), serde_json::json!(xp_next));
+
+        // Also calculate level from XP if XP_CURRENT is provided
+        if let Some(xp_current) = values.get("XP_CURRENT").and_then(|v| v.as_i64()) {
+            let calculated_level = level_from_xp(xp_current as i32);
+            derived.insert("LEVEL_FROM_XP".to_string(), serde_json::json!(calculated_level));
+        }
 
         // Calculate ability modifiers
         for ability in &["STR", "DEX", "CON", "INT", "WIS", "CHA"] {
@@ -537,6 +599,7 @@ impl CharacterSheetProvider for Dnd5eSystem {
     fn default_values(&self) -> HashMap<String, serde_json::Value> {
         let mut defaults = HashMap::new();
         defaults.insert("LEVEL".to_string(), serde_json::json!(1));
+        defaults.insert("XP_CURRENT".to_string(), serde_json::json!(0));
         defaults.insert("STR".to_string(), serde_json::json!(10));
         defaults.insert("DEX".to_string(), serde_json::json!(10));
         defaults.insert("CON".to_string(), serde_json::json!(10));
@@ -619,6 +682,54 @@ impl Dnd5eSystem {
                         ..Default::default()
                     },
                     description: Some("Based on character level".to_string()),
+                    placeholder: None,
+                },
+                FieldDefinition {
+                    id: "XP_CURRENT".to_string(),
+                    label: "Experience Points".to_string(),
+                    field_type: SchemaFieldType::Integer {
+                        min: Some(0),
+                        max: None,
+                        show_modifier: false,
+                    },
+                    editable: true,
+                    required: false,
+                    derived_from: None,
+                    validation: Some(FieldValidation {
+                        min: Some(0),
+                        max: None,
+                        pattern: None,
+                        error_message: Some("XP cannot be negative".to_string()),
+                    }),
+                    layout: FieldLayout {
+                        width: Some(3),
+                        new_row: true,
+                        ..Default::default()
+                    },
+                    description: Some("Current experience points".to_string()),
+                    placeholder: Some("0".to_string()),
+                },
+                FieldDefinition {
+                    id: "XP_NEXT_LEVEL".to_string(),
+                    label: "XP for Next Level".to_string(),
+                    field_type: SchemaFieldType::Integer {
+                        min: Some(0),
+                        max: None,
+                        show_modifier: false,
+                    },
+                    editable: false,
+                    required: false,
+                    derived_from: Some(DerivedField {
+                        derivation_type: DerivationType::Custom,
+                        dependencies: vec!["LEVEL".to_string()],
+                        display_format: None,
+                    }),
+                    validation: None,
+                    layout: FieldLayout {
+                        width: Some(3),
+                        ..Default::default()
+                    },
+                    description: Some("XP needed to reach next level".to_string()),
                     placeholder: None,
                 },
                 FieldDefinition {
@@ -1222,6 +1333,36 @@ impl Dnd5eSystem {
             description: None,
         }
     }
+
+    fn modifiers_section(&self) -> SchemaSection {
+        SchemaSection {
+            id: "modifiers".to_string(),
+            label: "Active Effects".to_string(),
+            section_type: SectionType::Modifiers,
+            fields: vec![
+                FieldDefinition {
+                    id: "ACTIVE_MODIFIERS".to_string(),
+                    label: "Conditions & Effects".to_string(),
+                    field_type: SchemaFieldType::ModifierList { filter_stat: None },
+                    editable: false,
+                    required: false,
+                    derived_from: None,
+                    validation: None,
+                    layout: FieldLayout {
+                        width: Some(12),
+                        ..Default::default()
+                    },
+                    description: Some(
+                        "Active conditions, spells, and effects modifying your stats".to_string(),
+                    ),
+                    placeholder: None,
+                },
+            ],
+            collapsible: true,
+            collapsed_default: false,
+            description: Some("View and manage active conditions and effects".to_string()),
+        }
+    }
 }
 
 // Spell slot progression tables
@@ -1675,5 +1816,53 @@ mod tests {
             Some(CasterType::Third)
         );
         assert_eq!(system.caster_type("fighter"), None);
+    }
+
+    #[test]
+    fn xp_thresholds() {
+        // Level 1 starts at 0 XP
+        assert_eq!(xp_for_level(1), 0);
+        // Level 2 requires 300 XP
+        assert_eq!(xp_for_level(2), 300);
+        // Level 5 requires 6500 XP
+        assert_eq!(xp_for_level(5), 6500);
+        // Level 20 requires 355000 XP
+        assert_eq!(xp_for_level(20), 355000);
+    }
+
+    #[test]
+    fn xp_for_next_level_calculation() {
+        // At level 1, next level requires 300 XP
+        assert_eq!(xp_for_next_level(1), 300);
+        // At level 5, next level requires 14000 XP
+        assert_eq!(xp_for_next_level(5), 14000);
+        // At level 20, returns max (355000)
+        assert_eq!(xp_for_next_level(20), 355000);
+    }
+
+    #[test]
+    fn level_from_xp_calculation() {
+        assert_eq!(level_from_xp(0), 1);
+        assert_eq!(level_from_xp(299), 1);
+        assert_eq!(level_from_xp(300), 2);
+        assert_eq!(level_from_xp(6499), 4);
+        assert_eq!(level_from_xp(6500), 5);
+        assert_eq!(level_from_xp(355000), 20);
+        assert_eq!(level_from_xp(500000), 20);
+    }
+
+    #[test]
+    fn derived_values_include_xp_next_level() {
+        let system = Dnd5eSystem::new();
+        let mut values = HashMap::new();
+        values.insert("LEVEL".to_string(), serde_json::json!(5));
+        values.insert("XP_CURRENT".to_string(), serde_json::json!(8000));
+
+        let derived = system.calculate_derived_values(&values);
+
+        // XP for next level (6) should be 14000
+        assert_eq!(derived.get("XP_NEXT_LEVEL").unwrap().as_i64().unwrap(), 14000);
+        // Level from XP (8000) should be 5
+        assert_eq!(derived.get("LEVEL_FROM_XP").unwrap().as_i64().unwrap(), 5);
     }
 }
