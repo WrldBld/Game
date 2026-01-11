@@ -3,9 +3,10 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
-use crate::application::dto::{FieldValue, SheetTemplate};
+use crate::application::dto::CharacterSheetSchema;
 use crate::application::services::{PlayerCharacterData, UpdatePlayerCharacterRequest};
 use crate::infrastructure::spawn_task;
+use crate::presentation::components::schema_character_sheet::SchemaCharacterSheet;
 use crate::presentation::services::{use_player_character_service, use_world_service};
 
 /// Props for EditCharacterModal
@@ -25,8 +26,8 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
     // Form state
     let mut name = use_signal(|| props.pc.name.clone());
     let mut description = use_signal(|| props.pc.description.clone().unwrap_or_default());
-    let mut sheet_template: Signal<Option<SheetTemplate>> = use_signal(|| None);
-    let mut sheet_values: Signal<HashMap<String, FieldValue>> = use_signal(|| {
+    let mut sheet_schema: Signal<Option<CharacterSheetSchema>> = use_signal(|| None);
+    let sheet_values: Signal<HashMap<String, serde_json::Value>> = use_signal(|| {
         props
             .pc
             .sheet_data
@@ -38,7 +39,7 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
     let mut error_message: Signal<Option<String>> = use_signal(|| None);
     let mut loading = use_signal(|| true);
 
-    // Load sheet template
+    // Load sheet schema
     {
         let world_id = props.pc.world_id.clone();
         let world_svc = world_service.clone();
@@ -46,9 +47,9 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
             let svc = world_svc.clone();
             let world_id_clone = world_id.clone();
             spawn_task(async move {
-                if let Ok(template_json) = svc.get_sheet_template(&world_id_clone).await {
-                    if let Ok(template) = serde_json::from_value::<SheetTemplate>(template_json) {
-                        sheet_template.set(Some(template));
+                if let Ok(schema_json) = svc.get_sheet_template(&world_id_clone).await {
+                    if let Ok(schema) = serde_json::from_value::<CharacterSheetSchema>(schema_json) {
+                        sheet_schema.set(Some(schema));
                     }
                 }
                 loading.set(false);
@@ -74,11 +75,11 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
         error_message.set(None);
 
         spawn_task(async move {
-            // Convert sheet values to JSON if present
+            // Convert sheet values map to JSON value for API
             let sheet_data = if sheet_vals.is_empty() {
                 None
             } else {
-                serde_json::to_value(&sheet_vals).ok()
+                Some(serde_json::json!({ "values": sheet_vals }))
             };
 
             let request = UpdatePlayerCharacterRequest {
@@ -167,16 +168,16 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
 
                     // Character Sheet
                     if !*loading.read() {
-                        if let Some(template) = sheet_template.read().as_ref() {
+                        if let Some(schema) = sheet_schema.read().as_ref() {
                             div {
                                 h3 {
                                     class: "m-0 mb-4 text-white text-base",
                                     "Character Sheet"
                                 }
-                                crate::presentation::components::creator::sheet_field_input::CharacterSheetForm {
-                                    template: template.clone(),
-                                    values: sheet_values.read().clone(),
-                                    on_values_change: move |v| sheet_values.set(v),
+                                SchemaCharacterSheet {
+                                    schema: schema.clone(),
+                                    values: sheet_values,
+                                    show_header: false,
                                 }
                             }
                         }

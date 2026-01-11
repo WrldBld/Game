@@ -444,6 +444,242 @@ pub struct CreationStep {
     /// Whether this step is required
     #[serde(default = "default_true")]
     pub required: bool,
+    /// Allocation system for this step (if applicable)
+    #[serde(default)]
+    pub allocation: Option<AllocationSystem>,
+}
+
+// =============================================================================
+// Allocation Systems
+// =============================================================================
+
+/// Allocation system for distributing points/values during character creation.
+///
+/// Different TTRPGs use different allocation mechanics for stats:
+/// - D&D 5e: Point Buy, Standard Array, or Rolling
+/// - PF2e: Ancestry/Background/Class boosts
+/// - CoC 7e: Rolling or Point Pool
+/// - FATE: Skill Pyramid
+/// - Blades: Dot Pool
+/// - PbtA: Stat Arrays per playbook
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "type")]
+pub enum AllocationSystem {
+    /// Point buy system (D&D 5e style)
+    /// Players spend points to buy stat values
+    PointBuy {
+        /// Total points available to spend
+        total_points: u32,
+        /// Minimum stat value allowed
+        min_value: i32,
+        /// Maximum stat value allowed (before racial bonuses)
+        max_value: i32,
+        /// Default starting value for each stat
+        base_value: i32,
+        /// Cost table: value -> point cost
+        cost_table: Vec<PointCost>,
+        /// Fields this applies to
+        target_fields: Vec<String>,
+    },
+
+    /// Standard array selection (D&D 5e style)
+    /// Players assign predetermined values to stats
+    StandardArray {
+        /// The array of values to assign
+        values: Vec<i32>,
+        /// Fields to assign values to
+        target_fields: Vec<String>,
+        /// Whether each value can only be used once
+        #[serde(default = "default_true")]
+        unique_assignment: bool,
+    },
+
+    /// Dice rolling for stats
+    /// Players roll dice to determine stat values
+    DiceRoll {
+        /// Dice formula (e.g., "4d6kh3" for 4d6 keep highest 3)
+        formula: String,
+        /// Human-readable description
+        description: String,
+        /// Number of rolls to generate
+        roll_count: u8,
+        /// Fields to assign rolled values to
+        target_fields: Vec<String>,
+        /// Whether to allow rerolling
+        #[serde(default)]
+        allow_reroll: bool,
+        /// Minimum total for all stats (reroll if below)
+        #[serde(default)]
+        minimum_total: Option<i32>,
+    },
+
+    /// Boost/Flaw system (PF2e style)
+    /// Players apply boosts (+2) and flaws (-2) from various sources
+    BoostFlaw {
+        /// Boost sources (ancestry, background, class, free)
+        boost_sources: Vec<BoostSource>,
+        /// Whether flaws are optional
+        #[serde(default)]
+        optional_flaws: bool,
+        /// Target fields for boosts
+        target_fields: Vec<String>,
+        /// Base value for all stats
+        base_value: i32,
+        /// Maximum value after boosts (at creation)
+        max_value: i32,
+    },
+
+    /// Skill pyramid (FATE style)
+    /// Skills must form a pyramid shape (more at lower tiers)
+    Pyramid {
+        /// Maximum skill level (apex of pyramid)
+        apex: i32,
+        /// Minimum skill level
+        base: i32,
+        /// Target skill fields
+        target_fields: Vec<String>,
+        /// Labels for each level
+        level_labels: Vec<LadderLabel>,
+    },
+
+    /// Dot pool allocation (Blades in the Dark, World of Darkness)
+    /// Players distribute dots among actions/skills
+    DotPool {
+        /// Total dots to distribute
+        total_dots: u8,
+        /// Maximum dots per field
+        max_per_field: u8,
+        /// Categories of fields with separate pools
+        categories: Vec<DotPoolCategory>,
+        /// Starting dots (e.g., from playbook)
+        #[serde(default)]
+        starting_dots: Vec<StartingDot>,
+    },
+
+    /// Fixed array selection per playbook/archetype (PbtA style)
+    /// Players choose one of several predetermined stat arrays
+    StatArray {
+        /// Available arrays to choose from
+        arrays: Vec<StatArrayOption>,
+        /// Target stat fields
+        target_fields: Vec<String>,
+    },
+
+    /// Percentile pool allocation (CoC 7e style)
+    /// Players distribute a pool of percentage points
+    PercentilePool {
+        /// Total points in the pool
+        total_points: u32,
+        /// Minimum value per skill
+        min_per_field: u8,
+        /// Maximum value per skill (at creation)
+        max_per_field: u8,
+        /// Categories with separate pools
+        categories: Vec<PercentileCategory>,
+    },
+
+    /// Free allocation with total constraint
+    /// Players distribute points freely up to a total
+    FreeAllocation {
+        /// Total points to distribute
+        total_points: u32,
+        /// Minimum per field
+        min_per_field: i32,
+        /// Maximum per field
+        max_per_field: i32,
+        /// Target fields
+        target_fields: Vec<String>,
+    },
+}
+
+/// Point cost entry for point buy systems.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PointCost {
+    /// The stat value
+    pub value: i32,
+    /// Point cost to achieve this value
+    pub cost: u32,
+}
+
+/// Source of ability boosts for PF2e-style systems.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BoostSource {
+    /// Source identifier (e.g., "ancestry", "background", "class")
+    pub id: String,
+    /// Display name
+    pub label: String,
+    /// Number of free boosts (any stat)
+    pub free_boosts: u8,
+    /// Fixed boosts (specific stats)
+    #[serde(default)]
+    pub fixed_boosts: Vec<String>,
+    /// Number of flaws to apply
+    #[serde(default)]
+    pub flaws: u8,
+    /// Fixed flaws (specific stats)
+    #[serde(default)]
+    pub fixed_flaws: Vec<String>,
+    /// Whether this source has been applied
+    #[serde(default)]
+    pub applied: bool,
+}
+
+/// Category for dot pool allocation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DotPoolCategory {
+    /// Category identifier
+    pub id: String,
+    /// Display name
+    pub label: String,
+    /// Dots available for this category
+    pub dots: u8,
+    /// Fields in this category
+    pub fields: Vec<String>,
+}
+
+/// Starting dots from playbook or archetype.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartingDot {
+    /// Field to receive starting dots
+    pub field: String,
+    /// Number of starting dots
+    pub dots: u8,
+    /// Source (playbook name, etc.)
+    pub source: String,
+}
+
+/// Stat array option for PbtA-style selection.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatArrayOption {
+    /// Option identifier
+    pub id: String,
+    /// Description (e.g., "Tough but not very bright")
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Values for each target field (in order)
+    pub values: Vec<i32>,
+}
+
+/// Category for percentile pool allocation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PercentileCategory {
+    /// Category identifier (e.g., "occupation", "personal")
+    pub id: String,
+    /// Display name
+    pub label: String,
+    /// Points available in this pool
+    pub points: u32,
+    /// Fields this pool can be applied to
+    pub fields: Vec<String>,
+    /// Formula for calculating points (e.g., "EDU * 4")
+    #[serde(default)]
+    pub formula: Option<String>,
 }
 
 // =============================================================================
@@ -500,6 +736,113 @@ pub struct ValidationError {
     pub field_id: String,
     /// Error message
     pub message: String,
+}
+
+// =============================================================================
+// Character Sheet Data Storage
+// =============================================================================
+
+/// Character sheet data storage using JSON values for flexibility.
+///
+/// This struct stores the actual field values for a character, using JSON
+/// for flexible type handling across different game systems.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CharacterSheetData {
+    /// Field values keyed by field ID
+    #[serde(default)]
+    pub values: std::collections::HashMap<String, serde_json::Value>,
+}
+
+impl CharacterSheetData {
+    /// Create a new empty character sheet data
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set a field value
+    pub fn set(&mut self, key: impl Into<String>, value: serde_json::Value) {
+        self.values.insert(key.into(), value);
+    }
+
+    /// Get a field value
+    pub fn get(&self, key: &str) -> Option<&serde_json::Value> {
+        self.values.get(key)
+    }
+
+    /// Get a field value as an integer (i64)
+    pub fn get_number(&self, key: &str) -> Option<i64> {
+        self.values.get(key).and_then(|v| v.as_i64())
+    }
+
+    /// Get a field value as an i32 (for stat/modifier values)
+    ///
+    /// This is the unified numeric extraction method that handles all field types:
+    /// - Number: direct value
+    /// - SkillEntry: bonus value
+    /// - DicePool: dice count (for Blades)
+    /// - Percentile: skill value (for CoC 7e)
+    /// - LadderRating: ladder position (for FATE)
+    pub fn get_numeric_value(&self, key: &str) -> Option<i32> {
+        self.values.get(key).and_then(|v| {
+            // Handle various JSON representations
+            if let Some(n) = v.as_i64() {
+                return Some(n as i32);
+            }
+            if let Some(n) = v.as_f64() {
+                return Some(n as i32);
+            }
+            // Handle object types like SkillEntry with a "bonus" or "value" field
+            if let Some(obj) = v.as_object() {
+                if let Some(bonus) = obj.get("bonus").and_then(|b| b.as_i64()) {
+                    return Some(bonus as i32);
+                }
+                if let Some(value) = obj.get("value").and_then(|b| b.as_i64()) {
+                    return Some(value as i32);
+                }
+                // For dice pool, use dice count
+                if let Some(dice) = obj.get("dice").and_then(|d| d.as_i64()) {
+                    return Some(dice as i32);
+                }
+            }
+            None
+        })
+    }
+
+    /// Get a field value as a float
+    pub fn get_float(&self, key: &str) -> Option<f64> {
+        self.values.get(key).and_then(|v| v.as_f64())
+    }
+
+    /// Get a field value as a string
+    pub fn get_string(&self, key: &str) -> Option<&str> {
+        self.values.get(key).and_then(|v| v.as_str())
+    }
+
+    /// Get a field value as a boolean
+    pub fn get_bool(&self, key: &str) -> Option<bool> {
+        self.values.get(key).and_then(|v| v.as_bool())
+    }
+
+    /// Check if a field exists
+    pub fn has(&self, key: &str) -> bool {
+        self.values.contains_key(key)
+    }
+
+    /// Remove a field value
+    pub fn remove(&mut self, key: &str) -> Option<serde_json::Value> {
+        self.values.remove(key)
+    }
+
+    /// Get all field keys
+    pub fn keys(&self) -> impl Iterator<Item = &String> {
+        self.values.keys()
+    }
+
+    /// Check if the sheet data is empty
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
 }
 
 // =============================================================================

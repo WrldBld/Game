@@ -9,9 +9,10 @@
 //! - Playbook-based characters
 
 use super::traits::{
-    CalculationEngine, CharacterSheetProvider, CharacterSheetSchema, CreationStep, DerivedField,
-    DerivationType, FieldDefinition, FieldLayout, FieldValidation, GameSystem, ProficiencyLevel,
-    ResourceColor, SchemaFieldType, SchemaSection, SchemaSelectOption, SectionType,
+    AllocationSystem, CalculationEngine, CharacterSheetProvider, CharacterSheetSchema,
+    CreationStep, DerivedField, DerivationType, FieldDefinition, FieldLayout, FieldValidation,
+    GameSystem, ProficiencyLevel, ResourceColor, SchemaFieldType, SchemaSection,
+    SchemaSelectOption, SectionType, StatArrayOption,
 };
 use crate::entities::{StatBlock, StatModifier};
 use std::collections::HashMap;
@@ -540,6 +541,127 @@ impl CharacterSheetProvider for PbtaSystem {
 
 // Helper methods for building the character sheet schema
 impl PbtaSystem {
+    /// Create the stat array allocation for this PbtA variant.
+    ///
+    /// PbtA games typically use stat arrays where players choose from
+    /// pre-defined distributions of stat values.
+    /// Values are positional - first value goes to first target_field, etc.
+    fn stat_array_allocation(&self) -> AllocationSystem {
+        match self.variant {
+            PbtaVariant::DungeonWorld => {
+                // Dungeon World uses D&D-style standard array
+                // Order matches target_fields: STR, DEX, CON, INT, WIS, CHA
+                AllocationSystem::StatArray {
+                    arrays: vec![StatArrayOption {
+                        id: "standard".to_string(),
+                        description: Some(
+                            "Standard Array: Assign 16, 15, 13, 12, 9, 8 to abilities".to_string(),
+                        ),
+                        values: vec![16, 15, 13, 12, 9, 8],
+                    }],
+                    target_fields: vec![
+                        "STR".to_string(),
+                        "DEX".to_string(),
+                        "CON".to_string(),
+                        "INT".to_string(),
+                        "WIS".to_string(),
+                        "CHA".to_string(),
+                    ],
+                }
+            }
+            PbtaVariant::ApocalypseWorld => {
+                // Apocalypse World: Each playbook has specific stat arrays
+                // Order matches target_fields: Cool, Hard, Hot, Sharp, Weird
+                AllocationSystem::StatArray {
+                    arrays: vec![
+                        StatArrayOption {
+                            id: "balanced".to_string(),
+                            description: Some("Balanced: +1/0/+1/+1/-1".to_string()),
+                            values: vec![1, 0, 1, 1, -1],
+                        },
+                        StatArrayOption {
+                            id: "focused".to_string(),
+                            description: Some("Focused: +2/+1/-1/+1/0".to_string()),
+                            values: vec![2, 1, -1, 1, 0],
+                        },
+                        StatArrayOption {
+                            id: "specialist".to_string(),
+                            description: Some("Specialist: 0/+2/0/-1/+2".to_string()),
+                            values: vec![0, 2, 0, -1, 2],
+                        },
+                    ],
+                    target_fields: vec![
+                        "Cool".to_string(),
+                        "Hard".to_string(),
+                        "Hot".to_string(),
+                        "Sharp".to_string(),
+                        "Weird".to_string(),
+                    ],
+                }
+            }
+            PbtaVariant::MonsterOfTheWeek => {
+                // Monster of the Week: Similar to AW, playbook-based arrays
+                // Order matches target_fields: Charm, Cool, Sharp, Tough, Weird
+                AllocationSystem::StatArray {
+                    arrays: vec![
+                        StatArrayOption {
+                            id: "action".to_string(),
+                            description: Some("Action-Oriented: 0/+1/+1/+2/-1".to_string()),
+                            values: vec![0, 1, 1, 2, -1],
+                        },
+                        StatArrayOption {
+                            id: "investigator".to_string(),
+                            description: Some("Investigator: +1/0/+2/-1/+1".to_string()),
+                            values: vec![1, 0, 2, -1, 1],
+                        },
+                        StatArrayOption {
+                            id: "social".to_string(),
+                            description: Some("Social: +2/+1/0/-1/+1".to_string()),
+                            values: vec![2, 1, 0, -1, 1],
+                        },
+                        StatArrayOption {
+                            id: "weird".to_string(),
+                            description: Some("Weird: -1/0/+1/+1/+2".to_string()),
+                            values: vec![-1, 0, 1, 1, 2],
+                        },
+                    ],
+                    target_fields: vec![
+                        "Charm".to_string(),
+                        "Cool".to_string(),
+                        "Sharp".to_string(),
+                        "Tough".to_string(),
+                        "Weird".to_string(),
+                    ],
+                }
+            }
+            PbtaVariant::Generic => {
+                // Generic: Flexible stat assignment
+                // Order matches target_fields: Stat1-5
+                AllocationSystem::StatArray {
+                    arrays: vec![
+                        StatArrayOption {
+                            id: "standard".to_string(),
+                            description: Some("Standard: +2/+1/+1/0/-1".to_string()),
+                            values: vec![2, 1, 1, 0, -1],
+                        },
+                        StatArrayOption {
+                            id: "balanced".to_string(),
+                            description: Some("Balanced: +1/+1/+1/0/0".to_string()),
+                            values: vec![1, 1, 1, 0, 0],
+                        },
+                    ],
+                    target_fields: vec![
+                        "Stat1".to_string(),
+                        "Stat2".to_string(),
+                        "Stat3".to_string(),
+                        "Stat4".to_string(),
+                        "Stat5".to_string(),
+                    ],
+                }
+            }
+        }
+    }
+
     fn build_sections(&self) -> Vec<SchemaSection> {
         let mut sections = vec![
             self.identity_section(),
@@ -573,6 +695,7 @@ impl PbtaSystem {
                 section_ids: vec!["identity".to_string()],
                 order: 1,
                 required: true,
+                allocation: None,
             },
             CreationStep {
                 id: "stats".to_string(),
@@ -581,6 +704,7 @@ impl PbtaSystem {
                 section_ids: vec!["stats".to_string()],
                 order: 2,
                 required: true,
+                allocation: Some(self.stat_array_allocation()),
             },
             CreationStep {
                 id: "moves".to_string(),
@@ -589,6 +713,7 @@ impl PbtaSystem {
                 section_ids: vec!["moves".to_string()],
                 order: 3,
                 required: true,
+                allocation: None,
             },
             CreationStep {
                 id: "bonds".to_string(),
@@ -597,6 +722,7 @@ impl PbtaSystem {
                 section_ids: vec!["bonds".to_string()],
                 order: 4,
                 required: false,
+                allocation: None,
             },
         ]
     }

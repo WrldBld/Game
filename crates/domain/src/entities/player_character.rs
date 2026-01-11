@@ -1,6 +1,6 @@
 //! Player Character entity - PCs created by players, distinct from NPCs
 
-use crate::entities::sheet_template::CharacterSheetData;
+use crate::character_sheet::CharacterSheetData;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};

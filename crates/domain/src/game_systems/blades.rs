@@ -9,10 +9,10 @@
 //! - Clocks for progress tracking
 
 use super::traits::{
-    CalculationEngine, CharacterSheetProvider, CharacterSheetSchema, ConditionLevel,
-    CreationStep, DerivedField, DerivationType, FieldDefinition, FieldLayout, FieldValidation,
-    GameSystem, ProficiencyLevel, ResourceColor, SchemaFieldType, SchemaSection,
-    SchemaSelectOption, SectionType,
+    AllocationSystem, CalculationEngine, CharacterSheetProvider, CharacterSheetSchema,
+    ConditionLevel, CreationStep, DerivedField, DerivationType, DotPoolCategory, FieldDefinition,
+    FieldLayout, FieldValidation, GameSystem, ProficiencyLevel, ResourceColor, SchemaFieldType,
+    SchemaSection, SchemaSelectOption, SectionType, StartingDot,
 };
 use crate::entities::{StatBlock, StatModifier};
 use std::collections::HashMap;
@@ -382,6 +382,7 @@ impl CharacterSheetProvider for BladesSystem {
                     section_ids: vec!["identity".to_string()],
                     order: 1,
                     required: true,
+                    allocation: None,
                 },
                 CreationStep {
                     id: "actions".to_string(),
@@ -390,6 +391,7 @@ impl CharacterSheetProvider for BladesSystem {
                     section_ids: vec!["attributes_actions".to_string()],
                     order: 2,
                     required: true,
+                    allocation: Some(Self::dot_pool_allocation()),
                 },
                 CreationStep {
                     id: "abilities".to_string(),
@@ -398,6 +400,7 @@ impl CharacterSheetProvider for BladesSystem {
                     section_ids: vec!["special_abilities".to_string()],
                     order: 3,
                     required: true,
+                    allocation: None,
                 },
                 CreationStep {
                     id: "load".to_string(),
@@ -406,6 +409,7 @@ impl CharacterSheetProvider for BladesSystem {
                     section_ids: vec!["load_armor".to_string()],
                     order: 4,
                     required: false,
+                    allocation: None,
                 },
             ],
         }
@@ -629,6 +633,91 @@ impl CharacterSheetProvider for BladesSystem {
 
 // Helper methods for building the schema
 impl BladesSystem {
+    /// Create the standard Blades dot pool allocation for action ratings.
+    ///
+    /// Players distribute 4 dots across 12 actions, organized into 3 attributes.
+    /// Each playbook also gives a starting action at rating 2.
+    pub fn dot_pool_allocation() -> AllocationSystem {
+        AllocationSystem::DotPool {
+            total_dots: 4,
+            max_per_field: 2, // During creation, max 2 dots in any action
+            categories: vec![
+                DotPoolCategory {
+                    id: "insight".to_string(),
+                    label: "Insight (information and understanding)".to_string(),
+                    dots: 0, // No per-category limit, dots can go anywhere
+                    fields: vec![
+                        "HUNT".to_string(),
+                        "STUDY".to_string(),
+                        "SURVEY".to_string(),
+                        "TINKER".to_string(),
+                    ],
+                },
+                DotPoolCategory {
+                    id: "prowess".to_string(),
+                    label: "Prowess (physical capability and violence)".to_string(),
+                    dots: 0,
+                    fields: vec![
+                        "FINESSE".to_string(),
+                        "PROWL".to_string(),
+                        "SKIRMISH".to_string(),
+                        "WRECK".to_string(),
+                    ],
+                },
+                DotPoolCategory {
+                    id: "resolve".to_string(),
+                    label: "Resolve (willpower and social interaction)".to_string(),
+                    dots: 0,
+                    fields: vec![
+                        "ATTUNE".to_string(),
+                        "COMMAND".to_string(),
+                        "CONSORT".to_string(),
+                        "SWAY".to_string(),
+                    ],
+                },
+            ],
+            starting_dots: vec![
+                // Playbook starting actions - player picks playbook, gets one action at 2
+                // UI filters these based on PLAYBOOK field value matching the source
+                StartingDot {
+                    field: "SKIRMISH".to_string(),
+                    dots: 2,
+                    source: "cutter".to_string(),
+                },
+                StartingDot {
+                    field: "HUNT".to_string(),
+                    dots: 2,
+                    source: "hound".to_string(),
+                },
+                StartingDot {
+                    field: "TINKER".to_string(),
+                    dots: 2,
+                    source: "leech".to_string(),
+                },
+                StartingDot {
+                    field: "PROWL".to_string(),
+                    dots: 2,
+                    source: "lurk".to_string(),
+                },
+                StartingDot {
+                    field: "SWAY".to_string(),
+                    dots: 2,
+                    source: "slide".to_string(),
+                },
+                StartingDot {
+                    field: "STUDY".to_string(),
+                    dots: 2,
+                    source: "spider".to_string(),
+                },
+                StartingDot {
+                    field: "ATTUNE".to_string(),
+                    dots: 2,
+                    source: "whisper".to_string(),
+                },
+            ],
+        }
+    }
+
     fn identity_section(&self) -> SchemaSection {
         SchemaSection {
             id: "identity".to_string(),
@@ -1784,7 +1873,7 @@ mod tests {
 
         assert_eq!(schema.system_id, "blades");
         assert_eq!(schema.system_name, "Blades in the Dark");
-        assert_eq!(schema.sections.len(), 6);
+        assert_eq!(schema.sections.len(), 7);
 
         // Verify section IDs
         let section_ids: Vec<&str> = schema.sections.iter().map(|s| s.id.as_str()).collect();

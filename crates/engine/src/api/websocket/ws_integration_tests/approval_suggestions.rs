@@ -42,6 +42,7 @@ async fn when_dm_accepts_approval_suggestion_then_marks_complete_and_broadcasts_
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Dm,
+            user_id: "dm-user".to_string(),
             pc_id: None,
             spectate_pc_id: None,
         },
@@ -58,6 +59,7 @@ async fn when_dm_accepts_approval_suggestion_then_marks_complete_and_broadcasts_
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Spectator,
+            user_id: "spectator-user".to_string(),
             pc_id: None,
             spectate_pc_id: None,
         },
@@ -193,6 +195,7 @@ async fn when_dm_rejects_approval_suggestion_then_marks_failed_and_does_not_broa
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Dm,
+            user_id: "dm-user".to_string(),
             pc_id: None,
             spectate_pc_id: None,
         },
@@ -209,6 +212,7 @@ async fn when_dm_rejects_approval_suggestion_then_marks_failed_and_does_not_broa
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Spectator,
+            user_id: "spectator-user".to_string(),
             pc_id: None,
             spectate_pc_id: None,
         },
@@ -320,6 +324,7 @@ async fn when_dm_modifies_approval_suggestion_then_marks_complete_and_broadcasts
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Dm,
+            user_id: "dm-user".to_string(),
             pc_id: None,
             spectate_pc_id: None,
         },
@@ -336,6 +341,7 @@ async fn when_dm_modifies_approval_suggestion_then_marks_complete_and_broadcasts
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Spectator,
+            user_id: "spectator-user".to_string(),
             pc_id: None,
             spectate_pc_id: None,
         },

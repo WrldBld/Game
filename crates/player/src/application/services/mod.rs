@@ -9,6 +9,7 @@ pub mod action_service;
 pub mod asset_service;
 pub mod challenge_service;
 pub mod character_service;
+pub mod character_sheet_service;
 pub mod event_chain_service;
 pub mod generation_service;
 pub mod location_service;
@@ -103,3 +104,9 @@ pub use actantial_service::{
 
 // Re-export user service types
 pub use user_service::UserService;
+
+// Re-export character sheet service types
+pub use character_sheet_service::{
+    CharacterSheetService, CompleteCreationResponse, GameSystemInfo, GetSheetResponse,
+    StartCreationResponse, UpdateFieldResponse,
+};

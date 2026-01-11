@@ -240,6 +240,50 @@ pub enum NarrativeTriggerType {
         /// If true, LLM will evaluate this condition against current context
         llm_evaluation: bool,
     },
+
+    // === Compendium-based triggers ===
+
+    /// Player character has a specific spell from the compendium
+    KnowsSpell {
+        /// The spell ID from the compendium
+        spell_id: String,
+        /// Display name for DM reference
+        spell_name: String,
+    },
+
+    /// Player character has a specific feat from the compendium
+    HasFeat {
+        /// The feat ID from the compendium
+        feat_id: String,
+        /// Display name for DM reference
+        feat_name: String,
+    },
+
+    /// Player character's class matches
+    HasClass {
+        /// The class ID from the compendium
+        class_id: String,
+        /// Display name for DM reference
+        class_name: String,
+        /// Optional: minimum level in that class
+        min_level: Option<u8>,
+    },
+
+    /// Player character's origin/race matches
+    HasOrigin {
+        /// The race/ancestry ID from the compendium
+        origin_id: String,
+        /// Display name for DM reference
+        origin_name: String,
+    },
+
+    /// Player character knows about a specific creature/monster
+    KnowsCreature {
+        /// The creature ID from the compendium or bestiary
+        creature_id: String,
+        /// Display name for DM reference
+        creature_name: String,
+    },
 }
 
 /// An outcome branch for a narrative event
@@ -671,6 +715,55 @@ impl NarrativeEvent {
                     false
                 }
             }
+
+            // === Compendium-based triggers ===
+
+            NarrativeTriggerType::KnowsSpell { spell_id, .. } => {
+                // Check if player character knows this spell (case-insensitive)
+                context
+                    .known_spells
+                    .iter()
+                    .any(|s| s.eq_ignore_ascii_case(spell_id))
+            }
+
+            NarrativeTriggerType::HasFeat { feat_id, .. } => {
+                // Check if player character has this feat (case-insensitive)
+                context
+                    .character_feats
+                    .iter()
+                    .any(|f| f.eq_ignore_ascii_case(feat_id))
+            }
+
+            NarrativeTriggerType::HasClass {
+                class_id,
+                min_level,
+                ..
+            } => {
+                // Check if player character has this class at the required level
+                context
+                    .class_levels
+                    .iter()
+                    .find(|(id, _)| id.eq_ignore_ascii_case(class_id))
+                    .map(|(_, level)| min_level.map_or(true, |min| *level >= min))
+                    .unwrap_or(false)
+            }
+
+            NarrativeTriggerType::HasOrigin { origin_id, .. } => {
+                // Check if player character has this origin/race (case-insensitive)
+                context
+                    .origin_id
+                    .as_ref()
+                    .map(|o| o.eq_ignore_ascii_case(origin_id))
+                    .unwrap_or(false)
+            }
+
+            NarrativeTriggerType::KnowsCreature { creature_id, .. } => {
+                // Check if player character knows about this creature (case-insensitive)
+                context
+                    .known_creatures
+                    .iter()
+                    .any(|c| c.eq_ignore_ascii_case(creature_id))
+            }
         }
     }
 
@@ -741,6 +834,28 @@ pub struct TriggerContext {
     /// Value is the effective stat value (base + active modifiers).
     #[serde(default)]
     pub character_stats: HashMap<CharacterId, HashMap<String, i32>>,
+
+    // === Compendium-based trigger context ===
+
+    /// Player character's known spells (spell IDs from compendium).
+    #[serde(default)]
+    pub known_spells: Vec<String>,
+
+    /// Player character's acquired feats (feat IDs from compendium).
+    #[serde(default)]
+    pub character_feats: Vec<String>,
+
+    /// Player character's class levels (class_id -> level).
+    #[serde(default)]
+    pub class_levels: HashMap<String, u8>,
+
+    /// Player character's origin/race ID (from compendium).
+    #[serde(default)]
+    pub origin_id: Option<String>,
+
+    /// Creatures the player character knows about (creature IDs).
+    #[serde(default)]
+    pub known_creatures: Vec<String>,
 }
 
 impl TriggerContext {

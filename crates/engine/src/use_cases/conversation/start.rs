@@ -323,6 +323,10 @@ mod tests {
         ) -> Result<(), QueueError> {
             Ok(())
         }
+
+        async fn delete_by_callback_id(&self, _callback_id: &str) -> Result<bool, QueueError> {
+            Ok(false)
+        }
     }
 
     #[tokio::test]

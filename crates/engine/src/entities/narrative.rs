@@ -766,6 +766,12 @@ impl Narrative {
             custom_trigger_results,              // Pre-evaluated LLM results for Custom triggers
             relationships,                       // NPC disposition sentiments toward this PC
             character_stats,                     // Character stat values for StatThreshold triggers
+            // Compendium-based trigger context (populated from PC sheet data)
+            known_spells: Vec::new(),       // TODO: Populate from CharacterSpells
+            character_feats: Vec::new(),    // TODO: Populate from CharacterFeats
+            class_levels: HashMap::new(),   // TODO: Populate from CharacterIdentity
+            origin_id: None,                // TODO: Populate from CharacterIdentity
+            known_creatures: Vec::new(),    // TODO: Populate from LoreKnowledge
         };
 
         // Evaluate each candidate and collect triggered events

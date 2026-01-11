@@ -263,6 +263,12 @@ tasks:
     dir: ./docker
     cmds:
       - docker-compose stop neo4j
+ 
+  docker:down:
+    desc: Stop Docker
+    dir: ./docker
+    cmds:
+      - docker-compose down
 
   docker:down:
     desc: Stop Docker services
@@ -275,6 +281,11 @@ tasks:
     dir: ./docker
     cmds:
       - docker-compose logs -f
+
+  docker:neo4j:reset:
+    desc: Remove Neo4j data and logs volumes (requires neo4j to be stopped)
+    cmds:
+      - docker volume rm docker_neo4j_data docker_neo4j_logs
 
   # ===========================================================================
   # Clean Tasks

@@ -7,12 +7,12 @@ use crate::infrastructure::spawn_task;
 use super::asset_gallery::AssetGallery;
 use super::expression_config_editor::ExpressionConfigEditor;
 use super::motivations_tab::MotivationsTab;
-use super::sheet_field_input::CharacterSheetForm;
 use super::suggestion_button::{SuggestionButton, SuggestionType};
-use crate::application::dto::{FieldValue, SheetTemplate};
+use crate::application::dto::{CharacterSheetDataApi, CharacterSheetSchema};
 use crate::application::services::SuggestionContext;
-use crate::application::services::{CharacterFormData, CharacterSheetDataApi};
+use crate::application::services::CharacterFormData;
 use crate::presentation::components::common::FormField;
+use crate::presentation::components::schema_character_sheet::SchemaCharacterSheet;
 use crate::presentation::services::{use_character_service, use_world_service};
 use crate::use_platform;
 use wrldbldr_domain::{ExpressionConfig, MoodState};
@@ -56,9 +56,9 @@ pub fn CharacterForm(
     let mut success_message: Signal<Option<String>> = use_signal(|| None);
     let mut error_message: Signal<Option<String>> = use_signal(|| None);
 
-    // Sheet template state
-    let mut sheet_template: Signal<Option<SheetTemplate>> = use_signal(|| None);
-    let mut sheet_values: Signal<HashMap<String, FieldValue>> = use_signal(HashMap::new);
+    // Sheet schema state (uses CharacterSheetSchema with JSON values)
+    let mut sheet_schema: Signal<Option<CharacterSheetSchema>> = use_signal(|| None);
+    let mut sheet_values: Signal<HashMap<String, serde_json::Value>> = use_signal(HashMap::new);
     let mut show_sheet_section = use_signal(|| true);
 
     // Expression config state (Tier 2 & 3 of emotional model)
@@ -66,32 +66,32 @@ pub fn CharacterForm(
     let mut default_mood = use_signal(|| MoodState::Calm);
     let mut show_expression_section = use_signal(|| false);
 
-    // Load sheet template on mount
+    // Load sheet schema on mount
     {
         let world_svc = world_service.clone();
         let plat = platform.clone();
-        let world_id_for_template = world_id.clone();
+        let world_id_for_schema = world_id.clone();
         use_effect(move || {
             let svc = world_svc.clone();
             let platform = plat.clone();
-            let world_id_clone = world_id_for_template.clone();
+            let world_id_clone = world_id_for_schema.clone();
             spawn_task(async move {
                 match svc.get_sheet_template(&world_id_clone).await {
-                    Ok(template_json) => {
-                        // Parse the JSON into SheetTemplate
-                        match serde_json::from_value::<SheetTemplate>(template_json) {
-                            Ok(template) => {
-                                sheet_template.set(Some(template));
+                    Ok(schema_json) => {
+                        // Parse the JSON into CharacterSheetSchema
+                        match serde_json::from_value::<CharacterSheetSchema>(schema_json) {
+                            Ok(schema) => {
+                                sheet_schema.set(Some(schema));
                             }
                             Err(_e) => {
                                 platform
-                                    .log_warn(&format!("Failed to parse sheet template: {}", _e));
+                                    .log_warn(&format!("Failed to parse sheet schema: {}", _e));
                             }
                         }
                     }
                     Err(_e) => {
-                        // Template fetch failure is not critical - sheet section just won't appear
-                        platform.log_warn(&format!("Failed to load sheet template: {}", _e));
+                        // Schema fetch failure is not critical - sheet section just won't appear
+                        platform.log_warn(&format!("Failed to load sheet schema: {}", _e));
                     }
                 }
             });
@@ -116,9 +116,13 @@ pub fn CharacterForm(
                             wants.set(char_data.wants.unwrap_or_default());
                             fears.set(char_data.fears.unwrap_or_default());
                             backstory.set(char_data.backstory.unwrap_or_default());
-                            // Load sheet values if present
+                            // Load sheet values if present (convert FieldValue to JSON)
                             if let Some(data) = char_data.sheet_data {
-                                sheet_values.set(data.values);
+                                let json_values: HashMap<String, serde_json::Value> = data.values
+                                    .into_iter()
+                                    .map(|(k, v)| (k, serde_json::to_value(v).unwrap_or(serde_json::Value::Null)))
+                                    .collect();
+                                sheet_values.set(json_values);
                             }
                             is_loading.set(false);
                         }
@@ -396,8 +400,8 @@ pub fn CharacterForm(
                         }
                     }
 
-                    // Character Sheet section (if template available)
-                    if let Some(template) = sheet_template.read().as_ref() {
+                    // Character Sheet section (if schema available)
+                    if let Some(schema) = sheet_schema.read().as_ref() {
                         div {
                             class: "sheet-section mt-6 border-t border-gray-700 pt-4",
 
@@ -411,7 +415,7 @@ pub fn CharacterForm(
 
                                 h3 {
                                     class: "text-gray-400 text-sm uppercase m-0",
-                                    "Character Sheet ({template.name})"
+                                    "Character Sheet ({schema.system_name})"
                                 }
 
                                 span {
@@ -421,12 +425,10 @@ pub fn CharacterForm(
                             }
 
                             if *show_sheet_section.read() {
-                                CharacterSheetForm {
-                                    template: template.clone(),
-                                    values: sheet_values.read().clone(),
-                                    on_change: move |(field_id, value)| {
-                                        sheet_values.write().insert(field_id, value);
-                                    },
+                                SchemaCharacterSheet {
+                                    schema: schema.clone(),
+                                    values: sheet_values,
+                                    show_header: false,
                                 }
                             }
                         }

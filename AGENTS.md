@@ -387,6 +387,50 @@ let result = repo.get(id).unwrap();
 let result = repo.get(id).await?;
 ```
 
+### Dioxus Hooks (CRITICAL)
+
+**Hooks must be called unconditionally at the top of components.** Never call hooks inside conditionals, loops, or closures.
+
+```rust
+// CORRECT - hooks at top level
+#[component]
+pub fn MyComponent() -> Element {
+    let navigator = use_navigator();  // Always called
+    let mut state = use_signal(|| 0);
+
+    if some_condition {
+        // Use navigator here, but don't call use_navigator()
+        navigator.push(Route::Home {});
+    }
+    rsx! { ... }
+}
+
+// WRONG - hook inside conditional causes RefCell panic
+#[component]
+pub fn MyComponent() -> Element {
+    if some_condition {
+        let navigator = use_navigator();  // PANIC! Hook ordering changes
+        navigator.push(Route::Home {});
+    }
+    rsx! { ... }
+}
+```
+
+**Signal reads**: Avoid nested signal reads that hold borrows across other reads:
+
+```rust
+// WRONG - nested reads cause RefCell panic
+let location = locations.read().iter()
+    .find(|l| l.id == selected_id.read())  // Reading inside iterator
+    .map(|l| l.name.clone());
+
+// CORRECT - read signals separately before combining
+let selected = selected_id.read().clone();
+let location = locations.read().iter()
+    .find(|l| Some(&l.id) == selected.as_ref())
+    .map(|l| l.name.clone());
+```
+
 ---
 
 ## Development Workflow

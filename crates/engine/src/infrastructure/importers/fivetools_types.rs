@@ -320,3 +320,339 @@ pub struct FiveToolsSubclassFeature {
 
 /// Index file mapping sources to filenames.
 pub type FiveToolsIndex = HashMap<String, String>;
+
+// === Race Types ===
+
+/// Root structure for the 5etools races.json file.
+#[derive(Debug, Deserialize)]
+pub struct FiveToolsRaceFile {
+    #[serde(default)]
+    pub race: Vec<FiveToolsRace>,
+}
+
+/// A race in 5etools format.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FiveToolsRace {
+    pub name: String,
+    pub source: String,
+    #[serde(default)]
+    pub page: Option<u32>,
+    #[serde(default)]
+    pub size: Vec<String>,
+    #[serde(default)]
+    pub speed: FiveToolsSpeed,
+    #[serde(default)]
+    pub ability: Vec<FiveToolsRaceAbility>,
+    #[serde(default)]
+    pub darkvision: Option<u32>,
+    #[serde(default)]
+    pub trait_tags: Option<Vec<String>>,
+    #[serde(default)]
+    pub language_proficiencies: Vec<HashMap<String, serde_json::Value>>,
+    #[serde(default)]
+    pub skill_proficiencies: Vec<FiveToolsSkillProficiency>,
+    #[serde(default)]
+    pub resist: Option<Vec<String>>,
+    #[serde(default)]
+    pub entries: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub age: Option<FiveToolsAge>,
+    #[serde(default)]
+    pub lineage: Option<String>,
+    #[serde(rename = "_copy", default)]
+    pub copy: Option<FiveToolsCopy>,
+}
+
+/// Speed can be a simple number or an object with multiple movement types.
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(untagged)]
+pub enum FiveToolsSpeed {
+    Simple(u32),
+    Complex(FiveToolsSpeedComplex),
+    #[default]
+    None,
+}
+
+/// Complex speed with multiple movement types.
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct FiveToolsSpeedComplex {
+    #[serde(default)]
+    pub walk: Option<FiveToolsSpeedValue>,
+    #[serde(default)]
+    pub fly: Option<FiveToolsSpeedValue>,
+    #[serde(default)]
+    pub swim: Option<FiveToolsSpeedValue>,
+    #[serde(default)]
+    pub climb: Option<FiveToolsSpeedValue>,
+    #[serde(default)]
+    pub burrow: Option<FiveToolsSpeedValue>,
+}
+
+/// Speed value can be a number or a boolean (for fly = walking speed).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum FiveToolsSpeedValue {
+    Number(u32),
+    Bool(bool),
+    Conditional(FiveToolsConditionalSpeed),
+}
+
+/// Conditional speed (e.g., fly with condition).
+#[derive(Debug, Clone, Deserialize)]
+pub struct FiveToolsConditionalSpeed {
+    pub number: u32,
+    #[serde(default)]
+    pub condition: Option<String>,
+}
+
+/// Ability bonus for a race.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum FiveToolsRaceAbility {
+    Fixed(HashMap<String, i32>),
+    Choice(FiveToolsRaceAbilityChoice),
+}
+
+/// Choice-based ability bonus.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FiveToolsRaceAbilityChoice {
+    pub choose: FiveToolsAbilityChooseSpec,
+}
+
+/// Ability choice specification.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FiveToolsAbilityChooseSpec {
+    #[serde(default)]
+    pub from: Vec<String>,
+    #[serde(default)]
+    pub count: Option<u8>,
+    #[serde(default)]
+    pub amount: Option<i32>,
+    #[serde(default)]
+    pub weighted: Option<FiveToolsWeightedChoice>,
+}
+
+/// Weighted choice for abilities.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FiveToolsWeightedChoice {
+    pub from: Vec<String>,
+    pub weights: Vec<i32>,
+}
+
+/// Skill proficiency (can have choices).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum FiveToolsSkillProficiency {
+    Fixed(HashMap<String, bool>),
+    Choice(FiveToolsSkillChoice),
+}
+
+/// Skill choice specification.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FiveToolsSkillChoice {
+    #[serde(default)]
+    pub choose: Option<FiveToolsSkillChooseSpec>,
+    #[serde(default)]
+    pub any: Option<u8>,
+}
+
+/// Skill choice details.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FiveToolsSkillChooseSpec {
+    pub from: Vec<String>,
+    #[serde(default = "default_one")]
+    pub count: u8,
+}
+
+/// Age information for a race.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FiveToolsAge {
+    #[serde(default)]
+    pub mature: Option<u32>,
+    #[serde(default)]
+    pub max: Option<u32>,
+}
+
+/// Copy directive for inherited races.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FiveToolsCopy {
+    pub name: String,
+    pub source: String,
+    #[serde(rename = "_mod", default)]
+    pub modifications: Option<serde_json::Value>,
+}
+
+fn default_one() -> u8 {
+    1
+}
+
+// === Class Types ===
+
+/// Root structure for a 5etools class file.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FiveToolsClassFile {
+    #[serde(default)]
+    pub class: Vec<FiveToolsClass>,
+    #[serde(default)]
+    pub subclass: Vec<FiveToolsSubclass>,
+    #[serde(default)]
+    pub class_feature: Vec<FiveToolsClassFeature>,
+    #[serde(default)]
+    pub subclass_feature: Vec<FiveToolsSubclassFeature>,
+}
+
+/// A class in 5etools format.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FiveToolsClass {
+    pub name: String,
+    pub source: String,
+    #[serde(default)]
+    pub page: Option<u32>,
+    #[serde(default)]
+    pub srd: Option<bool>,
+    #[serde(default)]
+    pub basic_rules: Option<bool>,
+    #[serde(default)]
+    pub edition: Option<String>,
+    pub hd: FiveToolsHitDice,
+    #[serde(default)]
+    pub proficiency: Vec<String>,
+    #[serde(default)]
+    pub starting_proficiencies: FiveToolsStartingProficiencies,
+    #[serde(default)]
+    pub starting_equipment: Option<FiveToolsStartingEquipment>,
+    #[serde(default)]
+    pub multiclassing: Option<FiveToolsMulticlassing>,
+    #[serde(default)]
+    pub class_features: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub subclass_title: Option<String>,
+    #[serde(default)]
+    pub spellcasting_ability: Option<String>,
+    #[serde(default)]
+    pub caster_progression: Option<String>,
+    #[serde(default)]
+    pub cantrip_progression: Option<Vec<u8>>,
+    #[serde(default)]
+    pub spells_known_progression: Option<Vec<u8>>,
+    #[serde(default)]
+    pub prepared_spells: Option<String>,
+    #[serde(default)]
+    pub primary_ability: Option<Vec<HashMap<String, bool>>>,
+}
+
+/// Hit dice specification.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FiveToolsHitDice {
+    #[serde(default = "default_one_u32")]
+    pub number: u32,
+    pub faces: u8,
+}
+
+fn default_one_u32() -> u32 {
+    1
+}
+
+/// Starting proficiencies for a class.
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct FiveToolsStartingProficiencies {
+    #[serde(default)]
+    pub armor: Vec<String>,
+    #[serde(default)]
+    pub weapons: Vec<String>,
+    #[serde(default)]
+    pub tools: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub skills: Vec<FiveToolsSkillProficiency>,
+}
+
+/// Starting equipment for a class.
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct FiveToolsStartingEquipment {
+    #[serde(default)]
+    pub additional_from_background: bool,
+    #[serde(default)]
+    pub default: Vec<String>,
+    #[serde(default)]
+    pub gold_alternative: Option<String>,
+}
+
+/// Multiclassing requirements and proficiencies.
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct FiveToolsMulticlassing {
+    #[serde(default)]
+    pub requirements: Option<FiveToolsMulticlassRequirements>,
+    #[serde(default)]
+    pub proficiencies_gained: Option<FiveToolsStartingProficiencies>,
+}
+
+/// Multiclassing requirements.
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct FiveToolsMulticlassRequirements {
+    #[serde(default)]
+    pub or: Option<Vec<HashMap<String, i32>>>,
+    #[serde(flatten)]
+    pub fixed: HashMap<String, i32>,
+}
+
+/// A subclass in 5etools format.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FiveToolsSubclass {
+    pub name: String,
+    #[serde(default)]
+    pub short_name: String,
+    pub source: String,
+    pub class_name: String,
+    pub class_source: String,
+    #[serde(default)]
+    pub page: Option<u32>,
+    #[serde(default)]
+    pub subclass_features: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub spellcasting_ability: Option<String>,
+    #[serde(default)]
+    pub caster_progression: Option<String>,
+}
+
+// === Background Types ===
+
+/// Root structure for the 5etools backgrounds.json file.
+#[derive(Debug, Deserialize)]
+pub struct FiveToolsBackgroundFile {
+    #[serde(default)]
+    pub background: Vec<FiveToolsBackground>,
+}
+
+/// A background in 5etools format.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FiveToolsBackground {
+    pub name: String,
+    pub source: String,
+    #[serde(default)]
+    pub page: Option<u32>,
+    #[serde(default)]
+    pub edition: Option<String>,
+    #[serde(default)]
+    pub skill_proficiencies: Vec<HashMap<String, serde_json::Value>>,
+    #[serde(default)]
+    pub tool_proficiencies: Vec<HashMap<String, serde_json::Value>>,
+    #[serde(default)]
+    pub language_proficiencies: Vec<HashMap<String, serde_json::Value>>,
+    #[serde(default)]
+    pub starting_equipment: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub entries: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub feats: Option<Vec<HashMap<String, bool>>>,
+    #[serde(default)]
+    pub ability: Option<Vec<FiveToolsRaceAbility>>,
+    #[serde(rename = "_copy", default)]
+    pub copy: Option<FiveToolsCopy>,
+}

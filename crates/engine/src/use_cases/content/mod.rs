@@ -5,4 +5,4 @@
 
 mod content_service;
 
-pub use content_service::{ContentFilter, ContentService, ContentServiceConfig};
+pub use content_service::{ContentService, ContentServiceConfig};

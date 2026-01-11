@@ -339,6 +339,10 @@ mod tests {
         ) -> Result<(), QueueError> {
             Ok(())
         }
+
+        async fn delete_by_callback_id(&self, _callback_id: &str) -> Result<bool, QueueError> {
+            Ok(false)
+        }
     }
 
     fn create_narrative_entity(narrative_repo: MockNarrativeRepo) -> Arc<entities::Narrative> {

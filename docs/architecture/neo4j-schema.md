@@ -747,8 +747,8 @@ Engine startup calls `Neo4jConnection::initialize_schema()` which runs a set of 
 | Entity                 | Field                  | Reason                    |
 | ---------------------- | ---------------------- | ------------------------- |
 | GridMap                | `tiles`                | 2D spatial data           |
-| CharacterSheetTemplate | `sections`             | Deeply nested template    |
-| CharacterSheetData     | Full sheet             | Per ADR-001, form data    |
+| CharacterSheetSchema   | `sections`             | Game system schema        |
+| CharacterSheetData     | `values`               | Per ADR-001, form data    |
 | WorkflowConfiguration  | `workflow_json`        | ComfyUI format            |
 | RuleSystemConfig       | Full config            | System configuration      |
 | DirectorialNotes       | Full notes             | Scene metadata            |

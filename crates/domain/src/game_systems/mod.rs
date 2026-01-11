@@ -56,8 +56,9 @@ pub use pbta::{
 
 // Core traits
 pub use traits::{
-    CalculationEngine, CasterType, CharacterSheetProvider, GameSystem, ProficiencyLevel,
-    RestType, SpellcastingSystem,
+    CalculationEngine, CasterType, CharacterSheetProvider, CompendiumProvider, ContentError,
+    FilterField, FilterFieldType, FilterSchema, GameSystem, ProficiencyLevel, RestType,
+    SpellcastingSystem,
 };
 
 

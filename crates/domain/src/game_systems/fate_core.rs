@@ -9,9 +9,10 @@
 //! - Four actions: Overcome, Create Advantage, Attack, Defend
 
 use super::traits::{
-    CalculationEngine, CharacterSheetProvider, CharacterSheetSchema, CreationStep, DerivedField,
-    DerivationType, FieldDefinition, FieldLayout, FieldValidation, GameSystem, LadderLabel,
-    ProficiencyLevel, ResourceColor, SchemaFieldType, SchemaSection, SectionType,
+    AllocationSystem, CalculationEngine, CharacterSheetProvider, CharacterSheetSchema,
+    CreationStep, DerivedField, DerivationType, FieldDefinition, FieldLayout, FieldValidation,
+    GameSystem, LadderLabel, ProficiencyLevel, ResourceColor, SchemaFieldType, SchemaSection,
+    SectionType,
 };
 use crate::entities::{StatBlock, StatModifier};
 use std::collections::HashMap;
@@ -381,6 +382,7 @@ impl CharacterSheetProvider for FateCoreSystem {
                     section_ids: vec!["identity".to_string()],
                     order: 1,
                     required: true,
+                    allocation: None,
                 },
                 CreationStep {
                     id: "aspects".to_string(),
@@ -390,6 +392,7 @@ impl CharacterSheetProvider for FateCoreSystem {
                     section_ids: vec!["aspects".to_string()],
                     order: 2,
                     required: true,
+                    allocation: None,
                 },
                 CreationStep {
                     id: "skills".to_string(),
@@ -398,6 +401,7 @@ impl CharacterSheetProvider for FateCoreSystem {
                     section_ids: vec!["skills".to_string()],
                     order: 3,
                     required: true,
+                    allocation: Some(Self::skill_pyramid_allocation()),
                 },
                 CreationStep {
                     id: "stunts".to_string(),
@@ -407,6 +411,7 @@ impl CharacterSheetProvider for FateCoreSystem {
                     section_ids: vec!["stunts".to_string(), "resources".to_string()],
                     order: 4,
                     required: false,
+                    allocation: None,
                 },
                 CreationStep {
                     id: "stress".to_string(),
@@ -415,6 +420,7 @@ impl CharacterSheetProvider for FateCoreSystem {
                     section_ids: vec!["stress".to_string(), "consequences".to_string()],
                     order: 5,
                     required: false,
+                    allocation: None,
                 },
             ],
         }
@@ -564,6 +570,90 @@ impl CharacterSheetProvider for FateCoreSystem {
 
 // Helper methods for building the schema
 impl FateCoreSystem {
+    /// Create the FATE Core skill pyramid allocation system.
+    ///
+    /// FATE Core uses a skill pyramid where:
+    /// - 1 skill at Great (+4)
+    /// - 2 skills at Good (+3)
+    /// - 3 skills at Fair (+2)
+    /// - 4 skills at Average (+1)
+    ///
+    /// All other skills default to Mediocre (+0).
+    /// The pyramid ensures breadth of competence with focused expertise.
+    pub fn skill_pyramid_allocation() -> AllocationSystem {
+        AllocationSystem::Pyramid {
+            apex: 4,  // Great (+4) is the highest allowed
+            base: 1,  // Average (+1) is the lowest rated level
+            target_fields: vec![
+                "ATHLETICS".to_string(),
+                "BURGLARY".to_string(),
+                "CONTACTS".to_string(),
+                "CRAFTS".to_string(),
+                "DECEIVE".to_string(),
+                "DRIVE".to_string(),
+                "EMPATHY".to_string(),
+                "FIGHT".to_string(),
+                "INVESTIGATE".to_string(),
+                "LORE".to_string(),
+                "NOTICE".to_string(),
+                "PHYSIQUE".to_string(),
+                "PROVOKE".to_string(),
+                "RAPPORT".to_string(),
+                "RESOURCES".to_string(),
+                "SHOOT".to_string(),
+                "STEALTH".to_string(),
+                "WILL".to_string(),
+            ],
+            level_labels: Self::fate_ladder_labels(),
+        }
+    }
+
+    /// Create an alternative column-based skill allocation for FATE.
+    /// Some groups prefer columns instead of pyramid.
+    pub fn skill_column_allocation() -> AllocationSystem {
+        AllocationSystem::Pyramid {
+            apex: 4,  // Same apex
+            base: 1,  // Same base
+            target_fields: vec![
+                "ATHLETICS".to_string(),
+                "BURGLARY".to_string(),
+                "CONTACTS".to_string(),
+                "CRAFTS".to_string(),
+                "DECEIVE".to_string(),
+                "DRIVE".to_string(),
+                "EMPATHY".to_string(),
+                "FIGHT".to_string(),
+                "INVESTIGATE".to_string(),
+                "LORE".to_string(),
+                "NOTICE".to_string(),
+                "PHYSIQUE".to_string(),
+                "PROVOKE".to_string(),
+                "RAPPORT".to_string(),
+                "RESOURCES".to_string(),
+                "SHOOT".to_string(),
+                "STEALTH".to_string(),
+                "WILL".to_string(),
+            ],
+            level_labels: Self::fate_ladder_labels(),
+        }
+    }
+
+    /// Get the available allocation systems for FATE Core.
+    pub fn allocation_systems() -> Vec<(&'static str, &'static str, AllocationSystem)> {
+        vec![
+            (
+                "pyramid",
+                "Skill Pyramid (Recommended)",
+                Self::skill_pyramid_allocation(),
+            ),
+            (
+                "column",
+                "Skill Columns",
+                Self::skill_column_allocation(),
+            ),
+        ]
+    }
+
     /// Get the FATE ladder labels for skill ratings.
     fn fate_ladder_labels() -> Vec<LadderLabel> {
         vec![
@@ -1251,7 +1341,7 @@ mod tests {
 
         assert_eq!(schema.system_id, "fate_core");
         assert_eq!(schema.system_name, "FATE Core");
-        assert_eq!(schema.sections.len(), 7);
+        assert_eq!(schema.sections.len(), 8);
 
         // Verify section IDs
         let section_ids: Vec<&str> = schema.sections.iter().map(|s| s.id.as_str()).collect();
