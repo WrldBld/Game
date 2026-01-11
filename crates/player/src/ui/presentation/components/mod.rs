@@ -13,6 +13,7 @@ pub mod mini_map;
 pub mod navigation_panel;
 pub mod pc;
 pub mod region_items_panel;
+pub mod schema_character_sheet;
 pub mod settings;
 pub mod story_arc;
 pub mod tactical;

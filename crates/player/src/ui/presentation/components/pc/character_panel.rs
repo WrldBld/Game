@@ -2,9 +2,10 @@
 
 use dioxus::prelude::*;
 
-use crate::application::dto::SheetTemplate;
+use crate::application::dto::CharacterSheetSchema;
 use crate::application::services::PlayerCharacterData;
 use crate::infrastructure::spawn_task;
+use crate::presentation::components::character_sheet_viewer::CharacterSheetViewer;
 use crate::presentation::services::use_world_service;
 
 /// Props for CharacterPanel
@@ -18,10 +19,10 @@ pub struct CharacterPanelProps {
 #[component]
 pub fn CharacterPanel(props: CharacterPanelProps) -> Element {
     let world_service = use_world_service();
-    let mut sheet_template: Signal<Option<SheetTemplate>> = use_signal(|| None);
+    let mut sheet_schema: Signal<Option<CharacterSheetSchema>> = use_signal(|| None);
     let mut loading = use_signal(|| true);
 
-    // Load sheet template
+    // Load sheet schema
     {
         let world_id = props.pc.world_id.clone();
         let world_svc = world_service.clone();
@@ -29,9 +30,9 @@ pub fn CharacterPanel(props: CharacterPanelProps) -> Element {
             let svc = world_svc.clone();
             let world_id_clone = world_id.clone();
             spawn_task(async move {
-                if let Ok(template_json) = svc.get_sheet_template(&world_id_clone).await {
-                    if let Ok(template) = serde_json::from_value::<SheetTemplate>(template_json) {
-                        sheet_template.set(Some(template));
+                if let Ok(schema_json) = svc.get_sheet_template(&world_id_clone).await {
+                    if let Ok(schema) = serde_json::from_value::<CharacterSheetSchema>(schema_json) {
+                        sheet_schema.set(Some(schema));
                     }
                 }
                 loading.set(false);
@@ -80,7 +81,7 @@ pub fn CharacterPanel(props: CharacterPanelProps) -> Element {
 
             // Character Sheet
             if !*loading.read() {
-                if let Some(template) = sheet_template.read().as_ref() {
+                if let Some(schema) = sheet_schema.read().as_ref() {
                     if let Some(sheet_data) = props.pc.sheet_data.as_ref() {
                         div {
                             class: "mt-4",
@@ -88,9 +89,9 @@ pub fn CharacterPanel(props: CharacterPanelProps) -> Element {
                                 class: "m-0 mb-2 text-white text-base",
                                 "Character Sheet"
                             }
-                            crate::presentation::components::character_sheet_viewer::CharacterSheetViewer {
+                            CharacterSheetViewer {
                                 character_name: props.pc.name.clone(),
-                                template: template.clone(),
+                                schema: schema.clone(),
                                 values: sheet_data.values.clone(),
                                 on_close: move |_| {},
                             }

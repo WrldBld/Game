@@ -9,10 +9,10 @@
 //! - Conditions have numeric values
 
 use super::traits::{
-    CalculationEngine, CasterType, CharacterSheetProvider, CharacterSheetSchema, CreationStep,
-    DerivedField, DerivationType, FieldDefinition, FieldLayout, FieldValidation, GameSystem,
-    ProficiencyLevel, ProficiencyOption, ResourceColor, SchemaFieldType, SchemaSection,
-    SchemaSelectOption, SectionType, SpellcastingSystem,
+    AllocationSystem, BoostSource, CalculationEngine, CasterType, CharacterSheetProvider,
+    CharacterSheetSchema, CreationStep, DerivedField, DerivationType, FieldDefinition, FieldLayout,
+    FieldValidation, GameSystem, ProficiencyLevel, ProficiencyOption, ResourceColor,
+    SchemaFieldType, SchemaSection, SchemaSelectOption, SectionType, SpellcastingSystem,
 };
 use crate::entities::{StatBlock, StatModifier};
 use std::collections::HashMap;
@@ -485,6 +485,7 @@ impl CharacterSheetProvider for Pf2eSystem {
                     section_ids: vec!["identity".to_string()],
                     order: 1,
                     required: true,
+                    allocation: None,
                 },
                 CreationStep {
                     id: "ability_boosts".to_string(),
@@ -494,6 +495,7 @@ impl CharacterSheetProvider for Pf2eSystem {
                     section_ids: vec!["ability_scores".to_string()],
                     order: 2,
                     required: true,
+                    allocation: Some(Self::boost_flaw_allocation()),
                 },
                 CreationStep {
                     id: "skills".to_string(),
@@ -503,6 +505,7 @@ impl CharacterSheetProvider for Pf2eSystem {
                     section_ids: vec!["skills".to_string()],
                     order: 3,
                     required: true,
+                    allocation: None,
                 },
                 CreationStep {
                     id: "equipment".to_string(),
@@ -511,6 +514,7 @@ impl CharacterSheetProvider for Pf2eSystem {
                     section_ids: vec!["combat".to_string()],
                     order: 4,
                     required: false,
+                    allocation: None,
                 },
             ],
         }
@@ -742,6 +746,70 @@ impl CharacterSheetProvider for Pf2eSystem {
 
 // Helper methods for building the schema
 impl Pf2eSystem {
+    /// Create the Pathfinder 2e Boost/Flaw allocation system.
+    ///
+    /// PF2e characters receive ability boosts from:
+    /// - Ancestry: 2 boosts (usually predetermined) + optional flaws
+    /// - Background: 2 boosts (choose from a limited set)
+    /// - Class: 1 boost (key ability)
+    /// - Free: 4 boosts (any abilities, but must be unique)
+    ///
+    /// Each boost increases an ability by +2 (to a max of 18 at character creation).
+    /// Optional flaws can be taken to gain additional boosts.
+    pub fn boost_flaw_allocation() -> AllocationSystem {
+        AllocationSystem::BoostFlaw {
+            boost_sources: vec![
+                BoostSource {
+                    id: "ancestry".to_string(),
+                    label: "Ancestry (2 boosts, typically predetermined)".to_string(),
+                    free_boosts: 2,
+                    fixed_boosts: vec![], // Set based on ancestry choice
+                    flaws: 0,
+                    fixed_flaws: vec![],
+                    applied: false,
+                },
+                BoostSource {
+                    id: "background".to_string(),
+                    label: "Background (2 boosts, limited choices)".to_string(),
+                    free_boosts: 2,
+                    fixed_boosts: vec![], // Set based on background choice
+                    flaws: 0,
+                    fixed_flaws: vec![],
+                    applied: false,
+                },
+                BoostSource {
+                    id: "class".to_string(),
+                    label: "Class (1 boost to key ability)".to_string(),
+                    free_boosts: 1,
+                    fixed_boosts: vec![], // Set based on class choice
+                    flaws: 0,
+                    fixed_flaws: vec![],
+                    applied: false,
+                },
+                BoostSource {
+                    id: "free".to_string(),
+                    label: "Free Boosts (4 boosts, any unique abilities)".to_string(),
+                    free_boosts: 4,
+                    fixed_boosts: vec![],
+                    flaws: 0,
+                    fixed_flaws: vec![],
+                    applied: false,
+                },
+            ],
+            optional_flaws: true,
+            target_fields: vec![
+                "STR".to_string(),
+                "DEX".to_string(),
+                "CON".to_string(),
+                "INT".to_string(),
+                "WIS".to_string(),
+                "CHA".to_string(),
+            ],
+            base_value: 10,
+            max_value: 18,
+        }
+    }
+
     fn identity_section(&self) -> SchemaSection {
         SchemaSection {
             id: "identity".to_string(),
@@ -1844,7 +1912,7 @@ mod tests {
 
         assert_eq!(schema.system_id, "pf2e");
         assert_eq!(schema.system_name, "Pathfinder 2nd Edition");
-        assert_eq!(schema.sections.len(), 6);
+        assert_eq!(schema.sections.len(), 7);
 
         // Verify section IDs
         let section_ids: Vec<&str> = schema.sections.iter().map(|s| s.id.as_str()).collect();

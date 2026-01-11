@@ -28,12 +28,10 @@ pub use world_snapshot::{
     ChallengeDifficulty,
     ChallengeOutcomes,
     ChallengeType,
-    // Character sheet data (shared API type)
+    // Character sheet data (shared API type - uses JSON values)
     CharacterSheetDataApi,
     CreateNarrativeEventRequest,
     DiceSystem,
-    FieldType,
-    FieldValue,
     InventoryItemData,
     // Inventory types (Phase 23B)
     ItemData,
@@ -47,17 +45,29 @@ pub use world_snapshot::{
     RuleSystemTypeExt,
     RuleSystemVariant,
     RuleSystemVariantExt,
-    SectionLayout,
     // Session snapshot types (simplified format from Engine)
     SessionWorldSnapshot,
-    SheetField,
-    SheetSection,
-    // Character sheet types
-    SheetTemplate,
     SkillCategory,
     // Skill types
     SkillData,
     StatDefinition,
+    // Character sheet schema types (new format from game systems)
+    CharacterSheetSchema,
+    CreationStep,
+    DerivedFieldInfo,
+    DerivationType,
+    SchemaConditionLevel,
+    SchemaEntityRefType,
+    SchemaFieldDefinition,
+    SchemaFieldLayout,
+    SchemaFieldType,
+    SchemaFieldValidation,
+    SchemaLadderLabel,
+    SchemaProficiencyOption,
+    SchemaResourceColor,
+    SchemaSection,
+    SchemaSectionType,
+    SchemaSelectOption,
     // Story arc types
     StoryEventData,
     StoryEventTypeData,

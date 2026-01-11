@@ -23,6 +23,9 @@ fn main() {
 
     tracing::info!("Starting WrldBldr Player");
 
+    // Initialize platform-specific async runtime (Tokio for desktop, no-op for WASM)
+    let _runtime_guard = wrldbldr_player::infrastructure::platform::init_async_runtime();
+
     // Platform
     let platform = wrldbldr_player::infrastructure::platform::create_platform();
     let platform: std::sync::Arc<dyn PlatformPort> = std::sync::Arc::new(platform);

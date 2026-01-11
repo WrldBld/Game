@@ -9,9 +9,10 @@ use std::collections::HashMap;
 
 // Re-export character sheet schema types for game system implementations
 pub use crate::character_sheet::{
-    CharacterSheetSchema, ConditionLevel, CreationStep, DerivedField, DerivationType,
-    FieldDefinition, FieldLayout, FieldValidation, LadderLabel, ProficiencyOption, ResourceColor,
-    SchemaFieldType, SchemaSection, SchemaSelectOption, SectionType,
+    AllocationSystem, BoostSource, CharacterSheetSchema, ConditionLevel, CreationStep,
+    DerivedField, DerivationType, DotPoolCategory, FieldDefinition, FieldLayout, FieldValidation,
+    LadderLabel, PercentileCategory, PointCost, ProficiencyOption, ResourceColor, SchemaFieldType,
+    SchemaSection, SchemaSelectOption, SectionType, StartingDot, StatArrayOption,
 };
 
 /// Core trait all game systems must implement.

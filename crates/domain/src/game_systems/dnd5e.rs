@@ -3,10 +3,10 @@
 //! Implements all calculation rules and spellcasting mechanics for D&D 5e.
 
 use super::traits::{
-    CalculationEngine, CasterType, CharacterSheetProvider, CharacterSheetSchema,
-    CreationStep, DerivedField, DerivationType, FieldDefinition, FieldLayout,
-    FieldValidation, GameSystem, ProficiencyLevel, ProficiencyOption, ResourceColor,
-    SchemaFieldType, SchemaSection, SchemaSelectOption, SectionType, SpellcastingSystem,
+    AllocationSystem, CalculationEngine, CasterType, CharacterSheetProvider, CharacterSheetSchema,
+    CreationStep, DerivedField, DerivationType, FieldDefinition, FieldLayout, FieldValidation,
+    GameSystem, PointCost, ProficiencyLevel, ProficiencyOption, ResourceColor, SchemaFieldType,
+    SchemaSection, SchemaSelectOption, SectionType, SpellcastingSystem,
 };
 use crate::entities::{StatBlock, StatModifier};
 use std::collections::HashMap;
@@ -404,6 +404,7 @@ impl CharacterSheetProvider for Dnd5eSystem {
                     section_ids: vec!["identity".to_string()],
                     order: 1,
                     required: true,
+                    allocation: None,
                 },
                 CreationStep {
                     id: "abilities".to_string(),
@@ -413,6 +414,7 @@ impl CharacterSheetProvider for Dnd5eSystem {
                     section_ids: vec!["ability_scores".to_string()],
                     order: 2,
                     required: true,
+                    allocation: Some(Self::default_allocation_system()),
                 },
                 CreationStep {
                     id: "proficiencies".to_string(),
@@ -422,6 +424,7 @@ impl CharacterSheetProvider for Dnd5eSystem {
                     section_ids: vec!["skills".to_string(), "saving_throws".to_string()],
                     order: 3,
                     required: true,
+                    allocation: None,
                 },
                 CreationStep {
                     id: "equipment".to_string(),
@@ -430,6 +433,7 @@ impl CharacterSheetProvider for Dnd5eSystem {
                     section_ids: vec!["combat".to_string()],
                     order: 4,
                     required: false,
+                    allocation: None,
                 },
             ],
         }
@@ -1362,6 +1366,106 @@ impl Dnd5eSystem {
             collapsed_default: false,
             description: Some("View and manage active conditions and effects".to_string()),
         }
+    }
+
+    // =========================================================================
+    // Allocation Systems
+    // =========================================================================
+
+    /// Get the default allocation system (Point Buy).
+    fn default_allocation_system() -> AllocationSystem {
+        Self::point_buy_allocation()
+    }
+
+    /// D&D 5e Point Buy allocation system.
+    ///
+    /// Players have 27 points to spend. Stats start at 8 and can go up to 15
+    /// (before racial bonuses). Each point above 8 costs more.
+    pub fn point_buy_allocation() -> AllocationSystem {
+        AllocationSystem::PointBuy {
+            total_points: 27,
+            min_value: 8,
+            max_value: 15,
+            base_value: 8,
+            cost_table: vec![
+                PointCost { value: 8, cost: 0 },
+                PointCost { value: 9, cost: 1 },
+                PointCost { value: 10, cost: 2 },
+                PointCost { value: 11, cost: 3 },
+                PointCost { value: 12, cost: 4 },
+                PointCost { value: 13, cost: 5 },
+                PointCost { value: 14, cost: 7 },
+                PointCost { value: 15, cost: 9 },
+            ],
+            target_fields: vec![
+                "STR".to_string(),
+                "DEX".to_string(),
+                "CON".to_string(),
+                "INT".to_string(),
+                "WIS".to_string(),
+                "CHA".to_string(),
+            ],
+        }
+    }
+
+    /// D&D 5e Standard Array allocation system.
+    ///
+    /// Players assign the values 15, 14, 13, 12, 10, 8 to their six ability scores.
+    pub fn standard_array_allocation() -> AllocationSystem {
+        AllocationSystem::StandardArray {
+            values: vec![15, 14, 13, 12, 10, 8],
+            target_fields: vec![
+                "STR".to_string(),
+                "DEX".to_string(),
+                "CON".to_string(),
+                "INT".to_string(),
+                "WIS".to_string(),
+                "CHA".to_string(),
+            ],
+            unique_assignment: true,
+        }
+    }
+
+    /// D&D 5e Rolling allocation system.
+    ///
+    /// Players roll 4d6, drop the lowest die, for each ability score.
+    pub fn rolling_allocation() -> AllocationSystem {
+        AllocationSystem::DiceRoll {
+            formula: "4d6kh3".to_string(),
+            description: "Roll 4d6 and keep the highest 3 dice".to_string(),
+            roll_count: 6,
+            target_fields: vec![
+                "STR".to_string(),
+                "DEX".to_string(),
+                "CON".to_string(),
+                "INT".to_string(),
+                "WIS".to_string(),
+                "CHA".to_string(),
+            ],
+            allow_reroll: false,
+            minimum_total: None,
+        }
+    }
+
+    /// Get all available allocation systems for D&D 5e.
+    pub fn allocation_systems() -> Vec<(&'static str, &'static str, AllocationSystem)> {
+        vec![
+            (
+                "point_buy",
+                "Point Buy (27 points)",
+                Self::point_buy_allocation(),
+            ),
+            (
+                "standard_array",
+                "Standard Array (15, 14, 13, 12, 10, 8)",
+                Self::standard_array_allocation(),
+            ),
+            (
+                "rolling",
+                "Roll 4d6 Drop Lowest",
+                Self::rolling_allocation(),
+            ),
+        ]
     }
 }
 

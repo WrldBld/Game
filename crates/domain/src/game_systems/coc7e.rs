@@ -9,9 +9,10 @@
 //! - Luck as a spendable resource
 
 use super::traits::{
-    CalculationEngine, CharacterSheetProvider, CharacterSheetSchema, CreationStep, DerivationType,
-    DerivedField, FieldDefinition, FieldLayout, FieldValidation, GameSystem, ProficiencyLevel,
-    ResourceColor, SchemaFieldType, SchemaSection, SchemaSelectOption, SectionType,
+    AllocationSystem, CalculationEngine, CharacterSheetProvider, CharacterSheetSchema,
+    CreationStep, DerivationType, DerivedField, FieldDefinition, FieldLayout, FieldValidation,
+    GameSystem, PercentileCategory, ProficiencyLevel, ResourceColor, SchemaFieldType,
+    SchemaSection, SchemaSelectOption, SectionType,
 };
 use crate::entities::{StatBlock, StatModifier};
 use std::collections::HashMap;
@@ -374,6 +375,7 @@ impl CharacterSheetProvider for Coc7eSystem {
                     section_ids: vec!["identity".to_string()],
                     order: 1,
                     required: true,
+                    allocation: None,
                 },
                 CreationStep {
                     id: "characteristics".to_string(),
@@ -383,6 +385,7 @@ impl CharacterSheetProvider for Coc7eSystem {
                     section_ids: vec!["characteristics".to_string()],
                     order: 2,
                     required: true,
+                    allocation: Some(Self::rolling_allocation()),
                 },
                 CreationStep {
                     id: "derived".to_string(),
@@ -391,6 +394,7 @@ impl CharacterSheetProvider for Coc7eSystem {
                     section_ids: vec!["derived_attributes".to_string()],
                     order: 3,
                     required: true,
+                    allocation: None,
                 },
                 CreationStep {
                     id: "skills".to_string(),
@@ -400,6 +404,7 @@ impl CharacterSheetProvider for Coc7eSystem {
                     section_ids: vec!["skills".to_string(), "combat".to_string()],
                     order: 4,
                     required: true,
+                    allocation: Some(Self::skill_point_allocation()),
                 },
             ],
         }
@@ -603,6 +608,97 @@ impl CharacterSheetProvider for Coc7eSystem {
 
 // Helper methods for building the schema
 impl Coc7eSystem {
+    /// Create the Call of Cthulhu 7e rolling allocation system for characteristics.
+    ///
+    /// CoC 7e uses different formulas for different characteristics:
+    /// - STR, CON, DEX, APP, POW: Roll 3d6*5 (range 15-90)
+    /// - SIZ, INT, EDU: Roll (2d6+6)*5 (range 40-90)
+    ///
+    /// Players can also use point-buy as an alternative.
+    pub fn rolling_allocation() -> AllocationSystem {
+        AllocationSystem::DiceRoll {
+            formula: "mixed".to_string(), // Different formulas per stat
+            description: "Roll 3d6×5 for STR, CON, DEX, APP, POW; Roll (2d6+6)×5 for SIZ, INT, EDU"
+                .to_string(),
+            roll_count: 8,
+            target_fields: vec![
+                "STR".to_string(),
+                "CON".to_string(),
+                "SIZ".to_string(),
+                "DEX".to_string(),
+                "APP".to_string(),
+                "INT".to_string(),
+                "POW".to_string(),
+                "EDU".to_string(),
+            ],
+            allow_reroll: true,
+            minimum_total: None, // CoC doesn't have a minimum total requirement
+        }
+    }
+
+    /// Create the Call of Cthulhu 7e skill point allocation system.
+    ///
+    /// Investigators receive skill points from two sources:
+    /// - Occupation skills: Points equal to EDU×4 (or other combinations depending on occupation)
+    /// - Personal interest skills: Points equal to INT×2
+    ///
+    /// Points can be distributed among skills with a maximum of 99 per skill
+    /// (except Cthulhu Mythos which cannot receive points).
+    pub fn skill_point_allocation() -> AllocationSystem {
+        AllocationSystem::PercentilePool {
+            total_points: 0, // Calculated from EDU×4 + INT×2 (varies by character)
+            min_per_field: 0,
+            max_per_field: 99,
+            categories: vec![
+                PercentileCategory {
+                    id: "occupation".to_string(),
+                    label: "Occupation Skills (EDU×4)".to_string(),
+                    points: 0, // Calculated from EDU×4
+                    fields: vec![], // Determined by occupation choice
+                    formula: Some("EDU*4".to_string()),
+                },
+                PercentileCategory {
+                    id: "personal_interest".to_string(),
+                    label: "Personal Interest (INT×2)".to_string(),
+                    points: 0, // Calculated from INT×2
+                    fields: vec![], // Any skills except Cthulhu Mythos
+                    formula: Some("INT*2".to_string()),
+                },
+            ],
+        }
+    }
+
+    /// Get the available allocation systems for CoC 7e.
+    /// Returns rolling method and optional point-buy alternative.
+    pub fn allocation_systems() -> Vec<(&'static str, &'static str, AllocationSystem)> {
+        vec![
+            (
+                "rolling",
+                "Standard Rolling (Recommended)",
+                Self::rolling_allocation(),
+            ),
+            (
+                "quick_fire",
+                "Quick-Fire Method (Point Assignment)",
+                AllocationSystem::FreeAllocation {
+                    total_points: 460, // Average total from rolling
+                    min_per_field: 15,
+                    max_per_field: 90,
+                    target_fields: vec![
+                        "STR".to_string(),
+                        "CON".to_string(),
+                        "SIZ".to_string(),
+                        "DEX".to_string(),
+                        "APP".to_string(),
+                        "INT".to_string(),
+                        "POW".to_string(),
+                        "EDU".to_string(),
+                    ],
+                },
+            ),
+        ]
+    }
+
     fn identity_section(&self) -> SchemaSection {
         SchemaSection {
             id: "identity".to_string(),
@@ -1555,7 +1651,7 @@ mod tests {
 
         assert_eq!(schema.system_id, "coc7e");
         assert_eq!(schema.system_name, "Call of Cthulhu 7th Edition");
-        assert_eq!(schema.sections.len(), 6);
+        assert_eq!(schema.sections.len(), 7);
 
         // Verify section IDs
         let section_ids: Vec<&str> = schema.sections.iter().map(|s| s.id.as_str()).collect();
