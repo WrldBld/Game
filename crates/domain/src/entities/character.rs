@@ -280,6 +280,71 @@ impl StatBlock {
         self.modifiers.clear();
     }
 
+    // =========================================================================
+    // HP Methods (with modifier support)
+    // =========================================================================
+
+    /// Get effective current HP (base + modifiers).
+    ///
+    /// Returns `None` if no base HP has been set.
+    /// Modifiers on "current_hp" are added to the base value.
+    pub fn get_current_hp(&self) -> Option<i32> {
+        self.current_hp.map(|base| {
+            let modifier_total = self.get_modifier_total("current_hp");
+            base + modifier_total
+        })
+    }
+
+    /// Get effective max HP (base + modifiers).
+    ///
+    /// Returns `None` if no max HP has been set.
+    /// Modifiers on "max_hp" are added to the base value.
+    pub fn get_max_hp(&self) -> Option<i32> {
+        self.max_hp.map(|base| {
+            let modifier_total = self.get_modifier_total("max_hp");
+            base + modifier_total
+        })
+    }
+
+    /// Get base current HP (without modifiers).
+    pub fn get_base_current_hp(&self) -> Option<i32> {
+        self.current_hp
+    }
+
+    /// Get base max HP (without modifiers).
+    pub fn get_base_max_hp(&self) -> Option<i32> {
+        self.max_hp
+    }
+
+    /// Add a temporary HP modifier (e.g., from "Aid" spell, "Inspiring Leader" feat).
+    ///
+    /// The modifier affects `get_current_hp()` calculations but not the stored base value.
+    pub fn add_hp_modifier(&mut self, source: impl Into<String>, value: i32) {
+        self.add_modifier("current_hp", StatModifier::new(source, value));
+    }
+
+    /// Add an inactive temporary HP modifier (tracked but not applied until activated).
+    pub fn add_hp_modifier_inactive(&mut self, source: impl Into<String>, value: i32) {
+        self.add_modifier("current_hp", StatModifier::inactive(source, value));
+    }
+
+    /// Add a max HP modifier (e.g., from "Heroes' Feast", Constitution changes).
+    ///
+    /// The modifier affects `get_max_hp()` calculations but not the stored base value.
+    pub fn add_max_hp_modifier(&mut self, source: impl Into<String>, value: i32) {
+        self.add_modifier("max_hp", StatModifier::new(source, value));
+    }
+
+    /// Get all current HP modifiers.
+    pub fn get_hp_modifiers(&self) -> &[StatModifier] {
+        self.get_modifiers("current_hp")
+    }
+
+    /// Get all max HP modifiers.
+    pub fn get_max_hp_modifiers(&self) -> &[StatModifier] {
+        self.get_modifiers("max_hp")
+    }
+
     /// Get a summary of all stats with their effective values
     pub fn get_all_stats(&self) -> std::collections::HashMap<String, StatValue> {
         self.stats
@@ -478,6 +543,98 @@ mod tests {
         let stats = StatBlock::new().with_hp(45, 50);
         assert_eq!(stats.current_hp, Some(45));
         assert_eq!(stats.max_hp, Some(50));
+    }
+
+    #[test]
+    fn stat_block_hp_with_modifiers() {
+        let mut stats = StatBlock::new().with_hp(45, 50);
+
+        // Base values should be accessible
+        assert_eq!(stats.get_base_current_hp(), Some(45));
+        assert_eq!(stats.get_base_max_hp(), Some(50));
+
+        // Without modifiers, effective equals base
+        assert_eq!(stats.get_current_hp(), Some(45));
+        assert_eq!(stats.get_max_hp(), Some(50));
+
+        // Add a temporary HP modifier
+        stats.add_hp_modifier("Aid Spell", 10);
+        assert_eq!(stats.get_base_current_hp(), Some(45)); // Base unchanged
+        assert_eq!(stats.get_current_hp(), Some(55)); // Effective includes modifier
+
+        // Add a max HP modifier
+        stats.add_max_hp_modifier("Constitution Boost", 5);
+        assert_eq!(stats.get_base_max_hp(), Some(50)); // Base unchanged
+        assert_eq!(stats.get_max_hp(), Some(55)); // Effective includes modifier
+    }
+
+    #[test]
+    fn stat_block_hp_modifiers_stack() {
+        let mut stats = StatBlock::new().with_hp(30, 30);
+
+        stats.add_hp_modifier("Heroism", 10);
+        stats.add_hp_modifier("Aid", 5);
+        stats.add_hp_modifier("Inspiring Leader", 8);
+
+        assert_eq!(stats.get_base_current_hp(), Some(30));
+        assert_eq!(stats.get_current_hp(), Some(53)); // 30 + 10 + 5 + 8
+    }
+
+    #[test]
+    fn stat_block_hp_negative_modifiers() {
+        let mut stats = StatBlock::new().with_hp(50, 50);
+
+        stats.add_hp_modifier("Poison", -10);
+        stats.add_max_hp_modifier("Exhaustion", -5);
+
+        assert_eq!(stats.get_current_hp(), Some(40));
+        assert_eq!(stats.get_max_hp(), Some(45));
+    }
+
+    #[test]
+    fn stat_block_hp_inactive_modifiers() {
+        let mut stats = StatBlock::new().with_hp(40, 40);
+
+        stats.add_hp_modifier_inactive("Dormant Blessing", 15);
+
+        // Inactive modifier shouldn't affect effective HP
+        assert_eq!(stats.get_current_hp(), Some(40));
+
+        // But should be retrievable
+        let modifiers = stats.get_hp_modifiers();
+        assert_eq!(modifiers.len(), 1);
+        assert_eq!(modifiers[0].source, "Dormant Blessing");
+        assert!(!modifiers[0].active);
+    }
+
+    #[test]
+    fn stat_block_hp_toggle_modifier() {
+        let mut stats = StatBlock::new().with_hp(30, 30);
+        stats.add_hp_modifier("Rage Bonus", 10);
+
+        let modifiers = stats.get_hp_modifiers();
+        let modifier_id = modifiers[0].id;
+
+        assert_eq!(stats.get_current_hp(), Some(40));
+
+        // Toggle to inactive
+        stats.toggle_modifier("current_hp", modifier_id);
+        assert_eq!(stats.get_current_hp(), Some(30));
+
+        // Toggle back to active
+        stats.toggle_modifier("current_hp", modifier_id);
+        assert_eq!(stats.get_current_hp(), Some(40));
+    }
+
+    #[test]
+    fn stat_block_hp_without_base_values() {
+        let stats = StatBlock::new();
+
+        // No HP set, should return None
+        assert_eq!(stats.get_base_current_hp(), None);
+        assert_eq!(stats.get_base_max_hp(), None);
+        assert_eq!(stats.get_current_hp(), None);
+        assert_eq!(stats.get_max_hp(), None);
     }
 
     #[test]

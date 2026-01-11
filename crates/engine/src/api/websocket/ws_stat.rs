@@ -75,7 +75,39 @@ pub(super) async fn handle_stat_request(
                 Err(resp) => return Ok(resp),
             };
 
-            character.stats.set_stat(&stat_name, value);
+            // Validate value against rule system bounds if world has stat definitions
+            let final_value = match state.app.entities.world.get(character.world_id).await {
+                Ok(Some(world)) => {
+                    // Find stat definition by name or abbreviation
+                    if let Some(stat_def) = world.rule_system.stat_definitions.iter().find(|s| {
+                        s.name.eq_ignore_ascii_case(&stat_name)
+                            || s.abbreviation.eq_ignore_ascii_case(&stat_name)
+                    }) {
+                        let clamped = value.max(stat_def.min_value).min(stat_def.max_value);
+                        if value != clamped {
+                            tracing::warn!(
+                                stat = %stat_name,
+                                requested = %value,
+                                clamped = %clamped,
+                                min = %stat_def.min_value,
+                                max = %stat_def.max_value,
+                                character_id = %character_id,
+                                "Stat value clamped to template bounds"
+                            );
+                        }
+                        clamped
+                    } else {
+                        // Unknown stat name - allow any value
+                        value
+                    }
+                }
+                _ => {
+                    // World not found or error - allow any value
+                    value
+                }
+            };
+
+            character.stats.set_stat(&stat_name, final_value);
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);
@@ -84,7 +116,8 @@ pub(super) async fn handle_stat_request(
             tracing::info!(
                 character_id = %character_id,
                 stat_name = %stat_name,
-                value = %value,
+                value = %final_value,
+                original_value = %value,
                 "Set base stat value"
             );
 
@@ -383,12 +416,25 @@ fn character_stats_to_json(character: &domain::Character) -> serde_json::Value {
         })
         .collect();
 
+    // Build HP info with base, modifiers, and effective values
+    let hp_info = json!({
+        "current_hp": {
+            "base": character.stats.get_base_current_hp(),
+            "modifier_total": character.stats.get_modifier_total("current_hp"),
+            "effective": character.stats.get_current_hp(),
+        },
+        "max_hp": {
+            "base": character.stats.get_base_max_hp(),
+            "modifier_total": character.stats.get_modifier_total("max_hp"),
+            "effective": character.stats.get_max_hp(),
+        },
+    });
+
     json!({
         "character_id": character.id.to_string(),
         "stats": stats_json,
         "modifiers": modifiers_json,
-        "current_hp": character.stats.current_hp,
-        "max_hp": character.stats.max_hp,
+        "hp": hp_info,
     })
 }
 
