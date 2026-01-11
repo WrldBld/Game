@@ -1589,7 +1589,7 @@ mod tests {
 
         assert_eq!(schema.system_id, "coc7e");
         assert_eq!(schema.system_name, "Call of Cthulhu 7th Edition");
-        assert_eq!(schema.sections.len(), 6);
+        assert_eq!(schema.sections.len(), 7);
 
         // Verify section IDs
         let section_ids: Vec<&str> = schema.sections.iter().map(|s| s.id.as_str()).collect();

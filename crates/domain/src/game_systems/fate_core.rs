@@ -1251,7 +1251,7 @@ mod tests {
 
         assert_eq!(schema.system_id, "fate_core");
         assert_eq!(schema.system_name, "FATE Core");
-        assert_eq!(schema.sections.len(), 7);
+        assert_eq!(schema.sections.len(), 8);
 
         // Verify section IDs
         let section_ids: Vec<&str> = schema.sections.iter().map(|s| s.id.as_str()).collect();
