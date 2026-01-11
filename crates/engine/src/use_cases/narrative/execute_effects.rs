@@ -1048,11 +1048,50 @@ impl ExecuteEffects {
                 }
             }
 
-            // PbtA systems often have COIN (Dungeon World) or BARTER (Apocalypse World)
+            // PbtA systems have variant-specific currency fields:
+            // - Dungeon World: COIN
+            // - Apocalypse World: BARTER
+            // - Monster of the Week: No currency (narrative)
+            // - Generic: No currency
+            // Since we can't determine the variant from RuleSystemVariant, try both fields
             RuleSystemVariant::PoweredByApocalypse => {
-                // Use COIN field which is defined for Dungeon World variant
-                self.execute_add_stat_reward(pc_id, "COIN", amount, description)
-                    .await
+                // Check which currency field exists on the character's sheet
+                let currency_field = match self.player_character.get(pc_id).await {
+                    Ok(Some(pc)) => {
+                        if let Some(ref sheet_data) = pc.sheet_data {
+                            // Check which field exists (COIN for DW, BARTER for AW)
+                            if sheet_data.get("COIN").is_some() {
+                                Some("COIN")
+                            } else if sheet_data.get("BARTER").is_some() {
+                                Some("BARTER")
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                };
+
+                match currency_field {
+                    Some(field) => {
+                        self.execute_add_stat_reward(pc_id, field, amount, description)
+                            .await
+                    }
+                    None => {
+                        // No currency field found - this variant doesn't track currency
+                        EffectExecutionResult {
+                            description: format!(
+                                "PbtA variant doesn't track currency. {} coins noted for DM.",
+                                amount
+                            ),
+                            success: true,
+                            error: None,
+                            requires_dm_action: true,
+                        }
+                    }
+                }
             }
 
             // Other systems - use generic GP field

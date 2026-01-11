@@ -819,6 +819,18 @@ fn get_character_values(
         values.insert(name.clone(), json!(stat.effective));
     }
 
+    // Extract identity fields from description (stored as "Label: value" lines)
+    // These are persisted in description until CharacterIdentity model is fully implemented
+    for line in character.description.lines() {
+        if let Some(value) = line.strip_prefix("Class: ") {
+            values.insert("CLASS".to_string(), json!(value));
+        } else if let Some(value) = line.strip_prefix("Race: ") {
+            values.insert("RACE".to_string(), json!(value));
+        } else if let Some(value) = line.strip_prefix("Background: ") {
+            values.insert("BACKGROUND".to_string(), json!(value));
+        }
+    }
+
     values
 }
 
