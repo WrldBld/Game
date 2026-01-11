@@ -70,10 +70,16 @@ fn main() {
     // Create initial connection to get CommandBus
     // Note: The connection is established immediately but the session
     // (world join) happens later when navigating to a world.
+    // IMPORTANT: We must keep the connection handle alive for the duration of the app,
+    // otherwise the bridge task will disconnect immediately when the handle is dropped.
     let connection = wrldbldr_player::infrastructure::websocket::create_connection(&ws_url);
-    let command_bus = connection.command_bus;
+    let command_bus = connection.command_bus.clone();
+    // Leak the connection to keep the handle alive for the app's lifetime.
+    // This is intentional - the connection lives as long as the app.
+    std::mem::forget(connection);
 
     // Launch Dioxus
+    #[allow(unused_mut)]
     let mut builder = dioxus::LaunchBuilder::new();
 
     #[cfg(not(target_arch = "wasm32"))]
