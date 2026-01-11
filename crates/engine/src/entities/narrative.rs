@@ -10,8 +10,8 @@ use wrldbldr_domain::{
 };
 
 use crate::infrastructure::ports::{
-    ChallengeRepo, ClockPort, FlagRepo, LocationRepo, NarrativeRepo, ObservationRepo,
-    PlayerCharacterRepo, RepoError, SceneRepo, WorldRepo,
+    ChallengeRepo, CharacterRepo, ClockPort, FlagRepo, LocationRepo, NarrativeRepo,
+    ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo, WorldRepo,
 };
 
 /// Narrative entity operations.
@@ -22,6 +22,7 @@ pub struct Narrative {
     location_repo: Arc<dyn LocationRepo>,
     world_repo: Arc<dyn WorldRepo>,
     player_character_repo: Arc<dyn PlayerCharacterRepo>,
+    character_repo: Arc<dyn CharacterRepo>,
     observation_repo: Arc<dyn ObservationRepo>,
     challenge_repo: Arc<dyn ChallengeRepo>,
     flag_repo: Arc<dyn FlagRepo>,
@@ -37,8 +38,9 @@ mod trigger_tests {
     use wrldbldr_domain::{RegionId, WorldId};
 
     use crate::infrastructure::ports::{
-        ClockPort, MockChallengeRepo, MockFlagRepo, MockLocationRepo, MockNarrativeRepo,
-        MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo, MockWorldRepo,
+        ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockLocationRepo,
+        MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
+        MockWorldRepo,
     };
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -64,6 +66,7 @@ mod trigger_tests {
         let location_repo = MockLocationRepo::new();
         let world_repo = MockWorldRepo::new();
         let player_character_repo = MockPlayerCharacterRepo::new();
+        let character_repo = MockCharacterRepo::new();
         let observation_repo = MockObservationRepo::new();
         let challenge_repo = MockChallengeRepo::new();
         let flag_repo = MockFlagRepo::new();
@@ -76,6 +79,7 @@ mod trigger_tests {
             Arc::new(location_repo),
             Arc::new(world_repo),
             Arc::new(player_character_repo),
+            Arc::new(character_repo),
             Arc::new(observation_repo),
             Arc::new(challenge_repo),
             Arc::new(flag_repo),
@@ -97,6 +101,7 @@ impl Narrative {
         location_repo: Arc<dyn LocationRepo>,
         world_repo: Arc<dyn WorldRepo>,
         player_character_repo: Arc<dyn PlayerCharacterRepo>,
+        character_repo: Arc<dyn CharacterRepo>,
         observation_repo: Arc<dyn ObservationRepo>,
         challenge_repo: Arc<dyn ChallengeRepo>,
         flag_repo: Arc<dyn FlagRepo>,
@@ -108,6 +113,7 @@ impl Narrative {
             location_repo,
             world_repo,
             player_character_repo,
+            character_repo,
             observation_repo,
             challenge_repo,
             flag_repo,
@@ -626,6 +632,57 @@ impl Narrative {
                 }
             };
 
+        // Collect NPC IDs from RelationshipThreshold triggers and fetch their dispositions
+        let relationships = {
+            // Extract unique NPC IDs that need relationship data
+            let mut npc_ids: std::collections::HashSet<CharacterId> =
+                std::collections::HashSet::new();
+            for event in &candidates {
+                for trigger in &event.trigger_conditions {
+                    if let NarrativeTriggerType::RelationshipThreshold { character_id, .. } =
+                        &trigger.trigger_type
+                    {
+                        npc_ids.insert(*character_id);
+                    }
+                }
+            }
+
+            // Fetch dispositions for each NPC toward this PC
+            let mut relationships: HashMap<CharacterId, HashMap<CharacterId, f32>> = HashMap::new();
+            for npc_id in npc_ids {
+                match self.character_repo.get_disposition(npc_id, pc_id).await {
+                    Ok(Some(disposition)) => {
+                        // The trigger uses CharacterId for both parties, but disposition
+                        // uses PlayerCharacterId for the PC. We need to convert.
+                        // For now, we use the NPC's sentiment toward the PC.
+                        let pc_as_char_id = CharacterId::from(*pc_id.as_uuid());
+                        relationships
+                            .entry(npc_id)
+                            .or_default()
+                            .insert(pc_as_char_id, disposition.sentiment);
+                    }
+                    Ok(None) => {
+                        // No disposition exists - NPC hasn't interacted with this PC
+                        // Default sentiment is 0.0 (neutral/stranger)
+                        let pc_as_char_id = CharacterId::from(*pc_id.as_uuid());
+                        relationships
+                            .entry(npc_id)
+                            .or_default()
+                            .insert(pc_as_char_id, 0.0);
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            npc_id = %npc_id,
+                            pc_id = %pc_id,
+                            error = %e,
+                            "Failed to fetch disposition for relationship trigger"
+                        );
+                    }
+                }
+            }
+            relationships
+        };
+
         // Build trigger context with enriched PC state
         // NOTE: event_outcomes, challenge_successes, turns_since_event, turn_count
         // are caller-specific context that cannot be determined here.
@@ -645,6 +702,7 @@ impl Narrative {
             recent_dialogue_topics: Vec::new(),  // Caller responsibility - session state
             recent_player_action: None,          // Caller responsibility - session state
             custom_trigger_results,              // Pre-evaluated LLM results for Custom triggers
+            relationships,                       // NPC disposition sentiments toward this PC
         };
 
         // Evaluate each candidate and collect triggered events

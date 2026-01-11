@@ -349,6 +349,7 @@ mod tests {
             Arc::new(MockLocationRepo::new()),
             Arc::new(MockWorldRepo::new()),
             Arc::new(MockPlayerCharacterRepo::new()),
+            Arc::new(MockCharacterRepo::new()),
             Arc::new(MockObservationRepo::new()),
             Arc::new(MockChallengeRepo::new()),
             Arc::new(MockFlagRepo::new()),

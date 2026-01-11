@@ -583,25 +583,23 @@ impl NarrativeEvent {
                     })
                     .unwrap_or(false)
             }
-            NarrativeTriggerType::RelationshipThreshold { .. } => {
-                // KNOWN LIMITATION: RelationshipThreshold trigger is not yet implemented.
-                //
-                // To implement this trigger:
-                // 1. Add relationship tracking to TriggerContext:
-                //    `relationships: HashMap<(CharacterId, CharacterId), f32>`
-                //    where the f32 represents sentiment (-1.0 to 1.0 scale)
-                //
-                // 2. The relationship data should be populated from the Character entity's
-                //    relationship graph edges (KNOWS, TRUSTS, etc.) or a dedicated
-                //    RelationshipRepository that tracks dynamic sentiment changes.
-                //
-                // 3. Implementation should check if the relationship between
-                //    `character_id` and `with_character` falls within the specified
-                //    `min_sentiment`/`max_sentiment` bounds (inclusive).
-                //
-                // 4. Consider bidirectional vs unidirectional relationships - the current
-                //    trigger structure implies checking A's feelings toward B specifically.
-                false
+            NarrativeTriggerType::RelationshipThreshold {
+                character_id,
+                with_character,
+                min_sentiment,
+                max_sentiment,
+                ..
+            } => {
+                // Check if relationship sentiment between character_id and with_character
+                // falls within the specified bounds (inclusive).
+                context
+                    .get_relationship(*character_id, *with_character)
+                    .map(|sentiment| {
+                        let meets_min = min_sentiment.map_or(true, |min| sentiment >= min);
+                        let meets_max = max_sentiment.map_or(true, |max| sentiment <= max);
+                        meets_min && meets_max
+                    })
+                    .unwrap_or(false)
             }
             NarrativeTriggerType::StatThreshold { .. } => {
                 // KNOWN LIMITATION: StatThreshold trigger is not yet implemented.
@@ -737,6 +735,12 @@ pub struct TriggerContext {
     /// Key is the trigger description, value is whether the trigger is met.
     /// If a custom trigger is not in this map, it will be treated as not triggered.
     pub custom_trigger_results: HashMap<String, bool>,
+    /// Relationship sentiment values between characters.
+    /// Outer key is the character whose feelings we're checking (e.g., NPC).
+    /// Inner key is the character they have feelings toward (e.g., PC).
+    /// Value is sentiment from -1.0 (hatred) to 1.0 (love).
+    #[serde(default)]
+    pub relationships: HashMap<CharacterId, HashMap<CharacterId, f32>>,
 }
 
 impl TriggerContext {
@@ -757,6 +761,38 @@ impl TriggerContext {
     ) -> Self {
         self.custom_trigger_results = results.into_iter().collect();
         self
+    }
+
+    /// Add a relationship sentiment value.
+    ///
+    /// # Arguments
+    /// * `from_character` - The character whose feelings we're recording (e.g., NPC)
+    /// * `to_character` - The character they have feelings toward (e.g., PC)
+    /// * `sentiment` - Sentiment value from -1.0 (hatred) to 1.0 (love)
+    pub fn add_relationship(
+        &mut self,
+        from_character: CharacterId,
+        to_character: CharacterId,
+        sentiment: f32,
+    ) {
+        self.relationships
+            .entry(from_character)
+            .or_default()
+            .insert(to_character, sentiment);
+    }
+
+    /// Get the relationship sentiment between two characters.
+    ///
+    /// Returns None if no relationship data exists for this pair.
+    pub fn get_relationship(
+        &self,
+        from_character: CharacterId,
+        to_character: CharacterId,
+    ) -> Option<f32> {
+        self.relationships
+            .get(&from_character)
+            .and_then(|inner| inner.get(&to_character))
+            .copied()
     }
 }
 
@@ -836,5 +872,196 @@ impl EventChainMembership {
             position,
             is_completed: false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn create_test_event_with_relationship_trigger(
+        npc_id: CharacterId,
+        pc_id: CharacterId,
+        min_sentiment: Option<f32>,
+        max_sentiment: Option<f32>,
+    ) -> NarrativeEvent {
+        NarrativeEvent {
+            id: NarrativeEventId::new(),
+            world_id: WorldId::new(),
+            name: "Test Event".to_string(),
+            description: "Test event for relationship trigger".to_string(),
+            tags: vec![],
+            trigger_conditions: vec![NarrativeTrigger {
+                trigger_type: NarrativeTriggerType::RelationshipThreshold {
+                    character_id: npc_id,
+                    character_name: "Test NPC".to_string(),
+                    with_character: pc_id,
+                    with_character_name: "Test PC".to_string(),
+                    min_sentiment,
+                    max_sentiment,
+                },
+                description: "Test relationship trigger".to_string(),
+                is_required: true,
+                trigger_id: "trigger-1".to_string(),
+            }],
+            trigger_logic: TriggerLogic::All,
+            scene_direction: "Test scene".to_string(),
+            suggested_opening: None,
+            outcomes: vec![],
+            default_outcome: None,
+            is_active: true,
+            is_triggered: false,
+            triggered_at: None,
+            selected_outcome: None,
+            is_repeatable: false,
+            trigger_count: 0,
+            delay_turns: 0,
+            expires_after_turns: None,
+            priority: 0,
+            is_favorite: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn relationship_trigger_fires_when_sentiment_above_min() {
+        let npc_id = CharacterId::new();
+        let pc_id = CharacterId::new();
+        let event = create_test_event_with_relationship_trigger(npc_id, pc_id, Some(0.5), None);
+
+        let mut context = TriggerContext::new();
+        context.add_relationship(npc_id, pc_id, 0.7); // Above threshold
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(eval.is_triggered);
+    }
+
+    #[test]
+    fn relationship_trigger_does_not_fire_when_sentiment_below_min() {
+        let npc_id = CharacterId::new();
+        let pc_id = CharacterId::new();
+        let event = create_test_event_with_relationship_trigger(npc_id, pc_id, Some(0.5), None);
+
+        let mut context = TriggerContext::new();
+        context.add_relationship(npc_id, pc_id, 0.3); // Below threshold
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(!eval.is_triggered);
+    }
+
+    #[test]
+    fn relationship_trigger_fires_when_sentiment_below_max() {
+        let npc_id = CharacterId::new();
+        let pc_id = CharacterId::new();
+        let event = create_test_event_with_relationship_trigger(npc_id, pc_id, None, Some(-0.3));
+
+        let mut context = TriggerContext::new();
+        context.add_relationship(npc_id, pc_id, -0.5); // Below max (more negative)
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(eval.is_triggered);
+    }
+
+    #[test]
+    fn relationship_trigger_does_not_fire_when_sentiment_above_max() {
+        let npc_id = CharacterId::new();
+        let pc_id = CharacterId::new();
+        let event = create_test_event_with_relationship_trigger(npc_id, pc_id, None, Some(-0.3));
+
+        let mut context = TriggerContext::new();
+        context.add_relationship(npc_id, pc_id, 0.0); // Above max
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(!eval.is_triggered);
+    }
+
+    #[test]
+    fn relationship_trigger_fires_when_sentiment_within_range() {
+        let npc_id = CharacterId::new();
+        let pc_id = CharacterId::new();
+        // Range: -0.2 to 0.2 (neutral zone)
+        let event =
+            create_test_event_with_relationship_trigger(npc_id, pc_id, Some(-0.2), Some(0.2));
+
+        let mut context = TriggerContext::new();
+        context.add_relationship(npc_id, pc_id, 0.0); // Within range
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(eval.is_triggered);
+    }
+
+    #[test]
+    fn relationship_trigger_does_not_fire_when_sentiment_outside_range() {
+        let npc_id = CharacterId::new();
+        let pc_id = CharacterId::new();
+        // Range: -0.2 to 0.2 (neutral zone)
+        let event =
+            create_test_event_with_relationship_trigger(npc_id, pc_id, Some(-0.2), Some(0.2));
+
+        let mut context = TriggerContext::new();
+        context.add_relationship(npc_id, pc_id, 0.5); // Outside range
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(!eval.is_triggered);
+    }
+
+    #[test]
+    fn relationship_trigger_does_not_fire_when_no_relationship_data() {
+        let npc_id = CharacterId::new();
+        let pc_id = CharacterId::new();
+        let event = create_test_event_with_relationship_trigger(npc_id, pc_id, Some(0.5), None);
+
+        let context = TriggerContext::new(); // No relationship data
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(!eval.is_triggered);
+    }
+
+    #[test]
+    fn relationship_trigger_fires_at_exact_min_boundary() {
+        let npc_id = CharacterId::new();
+        let pc_id = CharacterId::new();
+        let event = create_test_event_with_relationship_trigger(npc_id, pc_id, Some(0.5), None);
+
+        let mut context = TriggerContext::new();
+        context.add_relationship(npc_id, pc_id, 0.5); // Exactly at threshold
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(eval.is_triggered);
+    }
+
+    #[test]
+    fn relationship_trigger_fires_at_exact_max_boundary() {
+        let npc_id = CharacterId::new();
+        let pc_id = CharacterId::new();
+        let event = create_test_event_with_relationship_trigger(npc_id, pc_id, None, Some(0.5));
+
+        let mut context = TriggerContext::new();
+        context.add_relationship(npc_id, pc_id, 0.5); // Exactly at threshold
+
+        let eval = event.evaluate_triggers(&context);
+        assert!(eval.is_triggered);
+    }
+
+    #[test]
+    fn trigger_context_get_relationship_returns_none_for_unknown_pair() {
+        let npc_id = CharacterId::new();
+        let pc_id = CharacterId::new();
+        let context = TriggerContext::new();
+
+        assert!(context.get_relationship(npc_id, pc_id).is_none());
+    }
+
+    #[test]
+    fn trigger_context_stores_and_retrieves_relationship() {
+        let npc_id = CharacterId::new();
+        let pc_id = CharacterId::new();
+        let mut context = TriggerContext::new();
+
+        context.add_relationship(npc_id, pc_id, 0.75);
+
+        assert_eq!(context.get_relationship(npc_id, pc_id), Some(0.75));
     }
 }

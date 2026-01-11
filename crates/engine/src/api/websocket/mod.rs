@@ -1122,6 +1122,7 @@ mod ws_integration_tests_inline {
             location_repo.clone(),
             world_repo.clone(),
             player_character_repo.clone(),
+            character_repo.clone(),
             observation_repo.clone(),
             challenge_repo.clone(),
             flag_repo.clone(),
