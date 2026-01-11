@@ -5,6 +5,7 @@
 
 use dioxus::prelude::*;
 
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::{use_character_service, use_player_character_service};
 
 /// A selectable character entry
@@ -70,7 +71,7 @@ pub fn CharacterPicker(props: CharacterPickerProps) -> Element {
             let exclude_id = exclude_id.clone();
             let char_service = char_service.clone();
             let pc_svc = pc_svc.clone();
-            spawn(async move {
+            spawn_task(async move {
                 is_loading.set(true);
                 let mut all_chars: Vec<CharacterOption> = Vec::new();
 

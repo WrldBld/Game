@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::application::dto::{StoryEventData, StoryEventTypeData};
+use crate::infrastructure::spawn_task;
 use crate::presentation::components::story_arc::add_dm_marker::AddDmMarkerModal;
 use crate::presentation::components::story_arc::timeline_event_card::TimelineEventCard;
 use crate::presentation::components::story_arc::timeline_filters::{
@@ -115,7 +116,7 @@ pub fn TimelineView(props: TimelineViewProps) -> Element {
     use_effect(move || {
         let world_id = world_id.clone();
         let service = story_event_service_for_effect.clone();
-        spawn(async move {
+        spawn_task(async move {
             is_loading.set(true);
             error.set(None);
 
@@ -248,7 +249,7 @@ pub fn TimelineView(props: TimelineViewProps) -> Element {
                                     let event_id = event_id.clone();
                                     let world_id = world_id.clone();
                                     let service = service.clone();
-                                    spawn(async move {
+                                    spawn_task(async move {
                                         if let Err(e) = service.toggle_event_visibility(&event_id, new_visible).await {
                                             tracing::error!("Failed to toggle visibility: {}", e);
                                         }
@@ -277,7 +278,7 @@ pub fn TimelineView(props: TimelineViewProps) -> Element {
                             // Reload events
                             let world_id = world_id.clone();
                             let service = service.clone();
-                            spawn(async move {
+                            spawn_task(async move {
                                 if let Ok(reloaded) = service.list_story_events(&world_id).await {
                                     events.set(reloaded);
                                 }

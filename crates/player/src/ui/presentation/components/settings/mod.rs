@@ -14,6 +14,7 @@ pub mod workflow_upload_modal;
 pub use game_settings::GameSettingsPanel;
 
 use crate::application::dto::SkillData;
+use crate::infrastructure::spawn_task;
 use crate::routes::Route;
 use dioxus::prelude::*;
 
@@ -224,7 +225,7 @@ fn SkillsManagementTab(props: SkillsManagementTabProps) -> Element {
     use_effect(move || {
         let world_id = world_id_for_effect.clone();
         let svc = skill_service.clone();
-        spawn(async move {
+        spawn_task(async move {
             match svc.list_skills(&world_id).await {
                 Ok(list) => {
                     skills.set(list);

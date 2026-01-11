@@ -2,6 +2,7 @@
 
 use dioxus::prelude::*;
 
+use crate::infrastructure::spawn_task;
 use crate::application::dto::{ApprovalDecision, ApprovedNpcInfo, ChallengeData, SkillData};
 use crate::presentation::components::dm_panel::challenge_library::ChallengeLibrary;
 use crate::presentation::components::dm_panel::character_perspective::ViewAsData;
@@ -52,7 +53,7 @@ pub fn DirectorModeContent() -> Element {
     use_effect(move || {
         if let Some(world_id) = world_id_for_skills.clone() {
             let svc = skill_service.clone();
-            spawn(async move {
+            spawn_task(async move {
                 if let Ok(skill_list) = svc.list_skills(&world_id).await {
                     // Convert service types to DTO types via JSON
                     if let Ok(json) = serde_json::to_value(&skill_list) {
@@ -67,7 +68,7 @@ pub fn DirectorModeContent() -> Element {
     use_effect(move || {
         if let Some(world_id) = world_id_for_challenges.clone() {
             let svc = challenge_service.clone();
-            spawn(async move {
+            spawn_task(async move {
                 if let Ok(challenge_list) = svc.list_challenges(&world_id).await {
                     // Convert service types to DTO types via JSON
                     if let Ok(json) = serde_json::to_value(&challenge_list) {

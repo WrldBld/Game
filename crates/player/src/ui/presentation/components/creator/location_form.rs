@@ -2,6 +2,7 @@
 
 use dioxus::prelude::*;
 
+use crate::infrastructure::spawn_task;
 use super::asset_gallery::AssetGallery;
 use super::suggestion_button::{SuggestionButton, SuggestionType};
 use crate::application::services::LocationFormData;
@@ -61,7 +62,7 @@ pub fn LocationForm(
             let world_id_clone = world_id_for_effect.clone();
             let svc = loc_svc.clone();
 
-            spawn(async move {
+            spawn_task(async move {
                 // Load parent locations list
                 if let Ok(parents) = svc.list_locations(&world_id_clone).await {
                     // Convert LocationSummary to LocationFormData for the dropdown
@@ -392,7 +393,7 @@ pub fn LocationForm(
                             let svc = loc_svc.clone();
                             let world_id_clone = world_id.clone();
 
-                            spawn(async move {
+                            spawn_task(async move {
                                     let loc_data = LocationFormData {
                                         id: if is_new { None } else { Some(loc_id.clone()) },
                                         name: name.read().clone(),

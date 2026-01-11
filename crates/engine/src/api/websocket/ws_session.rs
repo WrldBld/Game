@@ -5,6 +5,7 @@ pub(super) async fn handle_join_world(
     connection_id: Uuid,
     world_id: Uuid,
     role: ProtoWorldRole,
+    user_id: String,
     pc_id: Option<Uuid>,
     _spectate_pc_id: Option<Uuid>,
 ) -> Option<ServerMessage> {
@@ -18,6 +19,7 @@ pub(super) async fn handle_join_world(
         connection_id,
         world_id: world_id_typed,
         role,
+        user_id,
         pc_id: pc_id_typed,
     };
 

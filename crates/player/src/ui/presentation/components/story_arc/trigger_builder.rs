@@ -8,6 +8,7 @@ use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
+use crate::infrastructure::spawn_task;
 use crate::presentation::components::common::CharacterPicker;
 use crate::presentation::Services;
 use wrldbldr_protocol::{NarrativeEventRequest, RequestPayload};
@@ -151,7 +152,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
         let commands = services.command_bus.clone();
         use_effect(move || {
             let commands = commands.clone();
-            spawn(async move {
+            spawn_task(async move {
                 schema_loading.set(true);
                 schema_error.set(None);
 

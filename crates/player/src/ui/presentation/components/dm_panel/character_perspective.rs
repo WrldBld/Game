@@ -2,6 +2,7 @@
 
 use dioxus::prelude::*;
 
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::{use_character_service, use_player_character_service};
 
 /// Data passed when viewing as a character
@@ -40,7 +41,7 @@ pub fn CharacterPerspectiveViewer(props: CharacterPerspectiveViewerProps) -> Ele
             let pc_svc_clone = pc_svc.clone();
             let char_svc_clone = char_svc.clone();
             loading.set(true);
-            spawn(async move {
+            spawn_task(async move {
                 // Load PCs
                 let pc_result = pc_svc_clone.list_pcs(&wid).await;
 

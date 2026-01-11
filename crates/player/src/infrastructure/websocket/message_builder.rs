@@ -34,12 +34,14 @@ impl ClientMessageBuilder {
     pub fn join_world(
         world_id: Uuid,
         role: WorldRole,
+        user_id: String,
         pc_id: Option<Uuid>,
         spectate_pc_id: Option<Uuid>,
     ) -> ClientMessage {
         ClientMessage::JoinWorld {
             world_id,
             role,
+            user_id,
             pc_id,
             spectate_pc_id,
         }

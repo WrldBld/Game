@@ -45,6 +45,10 @@ pub struct Services<A: ApiPort> {
     connection_keep_alive: ConnectionKeepAlive,
     /// Shared command bus for sending WebSocket commands.
     pub command_bus: CommandBus,
+    /// Shared event bus for receiving WebSocket events.
+    pub event_bus: crate::infrastructure::messaging::EventBus,
+    /// Observe connection state (for UI binding).
+    pub state_observer: crate::infrastructure::messaging::ConnectionStateObserver,
     // WebSocket-based services (non-generic)
     pub world: Arc<WorldService>,
     pub character: Arc<CharacterService>,
@@ -74,13 +78,15 @@ impl<A: ApiPort + Clone> Services<A> {
     /// * `connection` - The WebSocket connection (handle will be kept alive)
     pub fn new(api: A, raw_api: Arc<dyn RawApiPort>, connection: Connection) -> Self {
         let command_bus = connection.command_bus;
+        let event_bus = connection.event_bus;
+        let state_observer = connection.state_observer;
         let keep_alive = ConnectionKeepAlive::new(connection.handle);
-        // Note: connection.event_bus and connection.state_observer are also available
-        // if needed in the future
 
         Self {
             connection_keep_alive: keep_alive,
             command_bus: command_bus.clone(),
+            event_bus,
+            state_observer,
             // WebSocket-based services use CommandBus
             world: Arc::new(WorldService::new(command_bus.clone(), raw_api)),
             character: Arc::new(CharacterService::new(command_bus.clone())),
@@ -107,6 +113,18 @@ impl<A: ApiPort + Clone> Services<A> {
 pub fn use_command_bus() -> CommandBus {
     let services = use_context::<UiServices>();
     services.command_bus.clone()
+}
+
+/// Hook to access the shared EventBus from context
+pub fn use_event_bus() -> crate::infrastructure::messaging::EventBus {
+    let services = use_context::<UiServices>();
+    services.event_bus.clone()
+}
+
+/// Hook to access the connection state observer from context
+pub fn use_state_observer() -> crate::infrastructure::messaging::ConnectionStateObserver {
+    let services = use_context::<UiServices>();
+    services.state_observer.clone()
 }
 
 /// Hook to access the WorldService from context

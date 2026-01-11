@@ -7,6 +7,7 @@
 
 use dioxus::prelude::*;
 
+use crate::infrastructure::spawn_task;
 use crate::application::dto::{
     DiceSystem, ParticipantRole, RuleSystemConfig, RuleSystemPresetDetails, RuleSystemType,
     RuleSystemTypeExt, RuleSystemVariant, RuleSystemVariantExt, StatDefinition, SuccessComparison,
@@ -48,7 +49,7 @@ pub fn WorldSelectView(props: WorldSelectViewProps) -> Element {
     // Fetch worlds on mount
     use_effect(move || {
         let svc = world_service_for_list.clone();
-        spawn(async move {
+        spawn_task(async move {
             match svc.list_worlds().await {
                 Ok(list) => {
                     worlds.set(list);
@@ -282,7 +283,7 @@ fn CreateWorldForm(on_created: EventHandler<String>, on_cancel: EventHandler<()>
     use_effect(move || {
         if let Some(variant) = variant_for_effect.clone() {
             let svc = world_service_for_preset.clone();
-            spawn(async move {
+            spawn_task(async move {
                 is_loading_preset.set(true);
                 // Determine system type for the variant
                 let system_type = match variant {
@@ -363,7 +364,7 @@ fn CreateWorldForm(on_created: EventHandler<String>, on_cancel: EventHandler<()>
         let config = rule_config.read().clone();
         let svc = world_service_for_create.clone();
 
-        spawn(async move {
+        spawn_task(async move {
             is_creating.set(true);
             error.set(None);
 

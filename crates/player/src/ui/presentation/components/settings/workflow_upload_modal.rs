@@ -6,6 +6,7 @@
 use dioxus::prelude::*;
 
 use crate::application::services::AnalyzeWorkflowResponse;
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_workflow_service;
 
 /// Props for the WorkflowUploadModal component
@@ -75,7 +76,7 @@ pub fn WorkflowUploadModal(props: WorkflowUploadModalProps) -> Element {
         let json_text = workflow_json.read().clone();
         let svc = workflow_service_for_analyze.clone();
 
-        spawn(async move {
+        spawn_task(async move {
             is_analyzing.set(true);
             error.set(None);
 
@@ -120,7 +121,7 @@ pub fn WorkflowUploadModal(props: WorkflowUploadModalProps) -> Element {
         let on_save = on_save_handler;
         let svc = workflow_service_for_save.clone();
 
-        spawn(async move {
+        spawn_task(async move {
             is_saving.set(true);
             error.set(None);
 

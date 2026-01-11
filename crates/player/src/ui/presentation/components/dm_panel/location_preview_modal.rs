@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::application::services::location_service::{ConnectionData, LocationFormData};
+use crate::infrastructure::spawn_task;
 use wrldbldr_protocol::RegionListItemData;
 
 use crate::presentation::services::use_location_service;
@@ -39,7 +40,7 @@ pub fn LocationPreviewModal(props: LocationPreviewModalProps) -> Element {
             let _world_id = world_id.clone();
             let svc = svc.clone();
 
-            spawn(async move {
+            spawn_task(async move {
                 loading.set(true);
                 error.set(None);
 

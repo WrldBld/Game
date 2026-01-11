@@ -18,6 +18,7 @@ use dioxus::prelude::*;
 use std::collections::HashMap;
 
 use crate::application::dto::{ChallengeData, ChallengeType, SkillData};
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_challenge_service;
 
 /// Props for ChallengeLibrary
@@ -66,7 +67,7 @@ pub fn ChallengeLibrary(props: ChallengeLibraryProps) -> Element {
     use_effect(move || {
         let world_id = world_id_for_effect.clone();
         let service = challenge_service_for_effect.clone();
-        spawn(async move {
+        spawn_task(async move {
             match service.list_challenges(&world_id).await {
                 Ok(list) => {
                     challenges.set(list);
@@ -146,7 +147,7 @@ pub fn ChallengeLibrary(props: ChallengeLibraryProps) -> Element {
         move |challenge_id: String| {
             let id = challenge_id.clone();
             let service = service.clone();
-            spawn(async move {
+            spawn_task(async move {
                 // Save original state for rollback
                 let mut challenges_write = challenges.write();
                 let original_state = challenges_write
@@ -187,7 +188,7 @@ pub fn ChallengeLibrary(props: ChallengeLibraryProps) -> Element {
         move |challenge_id: String| {
             let id = challenge_id.clone();
             let service = service.clone();
-            spawn(async move {
+            spawn_task(async move {
                 // Save original state for rollback
                 let mut challenges_write = challenges.write();
                 let original_active = challenges_write
@@ -234,7 +235,7 @@ pub fn ChallengeLibrary(props: ChallengeLibraryProps) -> Element {
             if let Some(challenge_id) = show_delete_confirmation.read().clone() {
                 let id = challenge_id.clone();
                 let service = service.clone();
-                spawn(async move {
+                spawn_task(async move {
                     is_deleting.set(true);
                     if service.delete_challenge(&id).await.is_ok() {
                         challenges.write().retain(|c| c.id != id);

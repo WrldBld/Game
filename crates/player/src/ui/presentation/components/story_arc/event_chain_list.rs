@@ -1,6 +1,7 @@
 //! Event Chain List - Display all event chains with progress indicators
 
 use crate::application::services::EventChainData;
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_event_chain_service;
 use dioxus::prelude::*;
 use tracing::info;
@@ -38,7 +39,7 @@ pub fn EventChainList(props: EventChainListProps) -> Element {
         let world_id = world_id.clone();
         let service = service_for_effect.clone();
         let filter_val = filter;
-        spawn(async move {
+        spawn_task(async move {
             is_loading.set(true);
             error.set(None);
             // Always fetch all chains, then filter client-side
@@ -160,7 +161,7 @@ pub fn EventChainList(props: EventChainListProps) -> Element {
                                     let svc = service.clone();
                                     let mut chains_state = chains_signal;
                                     let new_favorite = !current_favorite;
-                                    spawn(async move {
+                                    spawn_task(async move {
                                         if svc.toggle_favorite(&cid, new_favorite).await.is_ok() {
                                             // Update local state
                                             let mut chains_list = chains_state.write();
@@ -179,7 +180,7 @@ pub fn EventChainList(props: EventChainListProps) -> Element {
                                     let cid = chain_id.clone();
                                     let svc = service.clone();
                                     let mut chains_state = chains_signal;
-                                    spawn(async move {
+                                    spawn_task(async move {
                                         if svc.set_active(&cid, is_active).await.is_ok() {
                                             // Update local state
                                             let mut chains_list = chains_state.write();

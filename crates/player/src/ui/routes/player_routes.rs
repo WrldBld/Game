@@ -2,6 +2,7 @@
 
 use super::world_session_layout::WorldSessionLayout;
 use super::Route;
+use crate::infrastructure::spawn_task;
 use crate::ports::session_types::ParticipantRole;
 use crate::presentation::state::SessionState;
 use crate::use_platform;
@@ -26,7 +27,7 @@ pub fn PCViewRoute(world_id: String) -> Element {
             let uid = user_id.clone();
             let nav_clone = nav;
             let pc_svc_clone = pc_svc.clone();
-            spawn(async move {
+            spawn_task(async move {
                 match pc_svc_clone.get_my_pc(&wid, &uid).await {
                     Ok(Some(_pc)) => {
                         // PC exists, continue to PC View

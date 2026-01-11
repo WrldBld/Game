@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::application::dto::NarrativeEventData;
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_narrative_event_service;
 
 #[derive(Props, Clone, PartialEq)]
@@ -26,7 +27,7 @@ pub fn PendingEventsWidget(props: PendingEventsWidgetProps) -> Element {
     use_effect(move || {
         let world_id = world_id.clone();
         let service = narrative_event_service.clone();
-        spawn(async move {
+        spawn_task(async move {
             is_loading.set(true);
             if let Ok(loaded) = service.list_pending_events(&world_id).await {
                 events.set(loaded);

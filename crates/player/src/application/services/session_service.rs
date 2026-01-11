@@ -107,14 +107,14 @@ impl SessionService {
     pub fn join_world(
         &self,
         world_id: &str,
-        _user_id: &str,
+        user_id: &str,
         role: ParticipantRole,
     ) -> anyhow::Result<()> {
         let world_id = uuid::Uuid::parse_str(world_id)?;
         let world_role = participant_role_to_world_role(role.into());
 
         self.command_bus
-            .send(ClientMessageBuilder::join_world(world_id, world_role, None, None))
+            .send(ClientMessageBuilder::join_world(world_id, world_role, user_id.to_string(), None, None))
     }
 
     /// Subscribe to session events and set up automatic world join on connect.
@@ -123,7 +123,7 @@ impl SessionService {
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn subscribe_with_auto_join(
         &self,
-        _user_id: String,
+        user_id: String,
         role: ParticipantRole,
         world_id: String,
     ) -> mpsc::UnboundedReceiver<SessionEvent> {
@@ -141,21 +141,54 @@ impl SessionService {
         let state_observer = self.state_observer.clone();
         let command_bus = self.command_bus.clone();
         let tx_for_state = tx.clone();
+        let user_id_for_task = user_id.clone();
 
         tokio::spawn(async move {
             let mut last_state = state_observer.state();
+            let mut join_sent = false;
+
+            // If already connected, send JoinWorld immediately
+            if last_state == ConnectionState::Connected {
+                if let Ok(world_uuid) = uuid::Uuid::parse_str(&world_id) {
+                    let proto_role: wrldbldr_protocol::ParticipantRole = role.into();
+                    let world_role = participant_role_to_world_role(proto_role);
+                    tracing::info!(
+                        ?role,
+                        ?proto_role,
+                        ?world_role,
+                        world_id = %world_uuid,
+                        user_id = %user_id_for_task,
+                        "Sending JoinWorld message (native) - already connected"
+                    );
+                    let _ = command_bus.send(ClientMessageBuilder::join_world(
+                        world_uuid, world_role, user_id_for_task.clone(), None, None,
+                    ));
+                    join_sent = true;
+                }
+            }
+
             loop {
                 let current_state = state_observer.state();
                 if current_state != last_state {
                     let _ = tx_for_state.unbounded_send(SessionEvent::StateChanged(current_state));
 
-                    // Auto-join when connected
-                    if current_state == ConnectionState::Connected {
+                    // Auto-join when connected (if not already sent)
+                    if current_state == ConnectionState::Connected && !join_sent {
                         if let Ok(world_uuid) = uuid::Uuid::parse_str(&world_id) {
-                            let world_role = participant_role_to_world_role(role.into());
+                            let proto_role: wrldbldr_protocol::ParticipantRole = role.into();
+                            let world_role = participant_role_to_world_role(proto_role);
+                            tracing::info!(
+                                ?role,
+                                ?proto_role,
+                                ?world_role,
+                                world_id = %world_uuid,
+                                user_id = %user_id_for_task,
+                                "Sending JoinWorld message (native)"
+                            );
                             let _ = command_bus.send(ClientMessageBuilder::join_world(
-                                world_uuid, world_role, None, None,
+                                world_uuid, world_role, user_id_for_task.clone(), None, None,
                             ));
+                            join_sent = true;
                         }
                     }
 
@@ -184,7 +217,7 @@ impl SessionService {
     #[cfg(target_arch = "wasm32")]
     pub async fn subscribe_with_auto_join(
         &self,
-        _user_id: String,
+        user_id: String,
         role: ParticipantRole,
         world_id: String,
     ) -> mpsc::UnboundedReceiver<SessionEvent> {
@@ -200,21 +233,54 @@ impl SessionService {
         let state_observer = self.state_observer.clone();
         let command_bus = self.command_bus.clone();
         let tx_for_state = tx.clone();
+        let user_id_for_task = user_id.clone();
 
         wasm_bindgen_futures::spawn_local(async move {
             let mut last_state = state_observer.state();
+            let mut join_sent = false;
+
+            // If already connected, send JoinWorld immediately
+            if last_state == ConnectionState::Connected {
+                if let Ok(world_uuid) = uuid::Uuid::parse_str(&world_id) {
+                    let proto_role: wrldbldr_protocol::ParticipantRole = role.into();
+                    let world_role = participant_role_to_world_role(proto_role);
+                    tracing::info!(
+                        ?role,
+                        ?proto_role,
+                        ?world_role,
+                        world_id = %world_uuid,
+                        user_id = %user_id_for_task,
+                        "Sending JoinWorld message (WASM) - already connected"
+                    );
+                    let _ = command_bus.send(ClientMessageBuilder::join_world(
+                        world_uuid, world_role, user_id_for_task.clone(), None, None,
+                    ));
+                    join_sent = true;
+                }
+            }
+
             loop {
                 let current_state = state_observer.state();
                 if current_state != last_state {
                     let _ = tx_for_state.unbounded_send(SessionEvent::StateChanged(current_state));
 
-                    // Auto-join when connected
-                    if current_state == ConnectionState::Connected {
+                    // Auto-join when connected (if not already sent)
+                    if current_state == ConnectionState::Connected && !join_sent {
                         if let Ok(world_uuid) = uuid::Uuid::parse_str(&world_id) {
-                            let world_role = participant_role_to_world_role(role.into());
+                            let proto_role: wrldbldr_protocol::ParticipantRole = role.into();
+                            let world_role = participant_role_to_world_role(proto_role);
+                            tracing::info!(
+                                ?role,
+                                ?proto_role,
+                                ?world_role,
+                                world_id = %world_uuid,
+                                user_id = %user_id_for_task,
+                                "Sending JoinWorld message (WASM)"
+                            );
                             let _ = command_bus.send(ClientMessageBuilder::join_world(
-                                world_uuid, world_role, None, None,
+                                world_uuid, world_role, user_id_for_task.clone(), None, None,
                             ));
+                            join_sent = true;
                         }
                     }
 

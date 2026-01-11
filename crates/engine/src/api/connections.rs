@@ -103,6 +103,23 @@ impl ConnectionManager {
             .map(|(info, _)| info.clone())
     }
 
+    /// Update the user_id for a connection.
+    ///
+    /// This is used when a client provides a stable user identifier
+    /// (e.g., from browser storage) during JoinWorld.
+    pub async fn set_user_id(&self, connection_id: Uuid, user_id: String) {
+        let mut connections = self.connections.write().await;
+        if let Some((info, _)) = connections.get_mut(&connection_id) {
+            tracing::debug!(
+                connection_id = %connection_id,
+                old_user_id = %info.user_id,
+                new_user_id = %user_id,
+                "Updating connection user_id"
+            );
+            info.user_id = user_id;
+        }
+    }
+
     /// Join a world.
     pub async fn join_world(
         &self,
@@ -113,15 +130,53 @@ impl ConnectionManager {
     ) -> Result<(), ConnectionError> {
         let mut connections = self.connections.write().await;
 
+        // Get the user_id of the joining connection
+        let joining_user_id = connections
+            .get(&connection_id)
+            .map(|(info, _)| info.user_id.clone());
+
         // Check if DM slot is already taken for this world
         if role == WorldRole::Dm {
+            let mut stale_connection_id = None;
             for (id, (info, _)) in connections.iter() {
                 if *id != connection_id
                     && info.world_id == Some(world_id)
                     && info.role == WorldRole::Dm
                 {
+                    // If same user is reconnecting, allow takeover
+                    if let Some(ref joining_uid) = joining_user_id {
+                        if &info.user_id == joining_uid || info.user_id.is_empty() {
+                            tracing::info!(
+                                old_connection_id = %id,
+                                new_connection_id = %connection_id,
+                                user_id = %joining_uid,
+                                world_id = %world_id,
+                                "Same user reconnecting as DM - allowing takeover"
+                            );
+                            stale_connection_id = Some(*id);
+                            break;
+                        }
+                    }
+                    // Different user trying to take DM slot
+                    tracing::warn!(
+                        existing_dm_connection = %id,
+                        existing_dm_user = %info.user_id,
+                        new_connection = %connection_id,
+                        new_user = ?joining_user_id,
+                        world_id = %world_id,
+                        "DM slot already taken by different user"
+                    );
                     return Err(ConnectionError::DmAlreadyConnected);
                 }
+            }
+
+            // Remove stale connection if found
+            if let Some(stale_id) = stale_connection_id {
+                connections.remove(&stale_id);
+                tracing::info!(
+                    stale_connection_id = %stale_id,
+                    "Removed stale DM connection"
+                );
             }
         }
 
@@ -133,6 +188,7 @@ impl ConnectionManager {
                 connection_id = %connection_id,
                 world_id = %world_id,
                 role = ?role,
+                user_id = %info.user_id,
                 "Connection joined world"
             );
             Ok(())

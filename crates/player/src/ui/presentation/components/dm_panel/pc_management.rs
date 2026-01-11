@@ -3,6 +3,7 @@
 use dioxus::prelude::*;
 
 use crate::application::services::PlayerCharacterData;
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_player_character_service;
 
 /// Props for PCManagementPanel
@@ -28,7 +29,7 @@ pub fn PCManagementPanel(props: PCManagementPanelProps) -> Element {
             let wid = world_id.clone();
             let svc = pc_svc.clone();
             loading.set(true);
-            spawn(async move {
+            spawn_task(async move {
                 match svc.list_pcs(&wid).await {
                     Ok(pc_list) => {
                         pcs.set(pc_list);
@@ -178,7 +179,7 @@ pub fn PCLocationsWidget(props: PCLocationsWidgetProps) -> Element {
             let wid = world_id.clone();
             let svc = pc_svc.clone();
             loading.set(true);
-            spawn(async move {
+            spawn_task(async move {
                 match svc.list_pcs(&wid).await {
                     Ok(pc_list) => {
                         pcs.set(pc_list);

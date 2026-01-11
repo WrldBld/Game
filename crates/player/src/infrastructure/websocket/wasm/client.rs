@@ -416,13 +416,14 @@ impl EngineClient {
         }
     }
 
-    pub fn join_world(&self, world_id: &str, _user_id: &str, role: ParticipantRole) -> Result<()> {
+    pub fn join_world(&self, world_id: &str, user_id: &str, role: ParticipantRole) -> Result<()> {
         let world_id = uuid::Uuid::parse_str(world_id)?;
         let world_role = participant_role_to_world_role(role);
 
         self.send(ClientMessage::JoinWorld {
             world_id,
             role: world_role,
+            user_id: user_id.to_string(),
             pc_id: None, // PC selection happens after joining
             spectate_pc_id: None,
         })

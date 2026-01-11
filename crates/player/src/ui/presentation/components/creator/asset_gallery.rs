@@ -2,6 +2,7 @@
 
 use dioxus::prelude::*;
 
+use crate::infrastructure::spawn_task;
 use crate::application::services::{Asset, GenerateRequest};
 use crate::presentation::services::{use_asset_service, use_settings_service};
 
@@ -39,7 +40,7 @@ pub fn AssetGallery(world_id: String, entity_type: String, entity_id: String) ->
             let wid = world_id_clone.clone();
             let asset_svc = asset_svc.clone();
             let settings_svc = settings_svc.clone();
-            spawn(async move {
+            spawn_task(async move {
                 // Fetch world settings to get current style reference
                 if let Ok(settings) = settings_svc.get_for_world(&wid).await {
                     world_style_reference_id.set(settings.style_reference_asset_id);
@@ -155,7 +156,7 @@ pub fn AssetGallery(world_id: String, entity_type: String, entity_id: String) ->
                                         let entity_type = entity_type_activate.clone();
                                         let entity_id = entity_id_activate.clone();
                                         let svc = asset_svc_activate.clone();
-                                        spawn(async move {
+                                        spawn_task(async move {
                                             if let Err(e) = svc.activate_asset(&entity_type, &entity_id, &id).await {
                                                 tracing::error!("Failed to activate asset: {}", e);
                                             }
@@ -165,7 +166,7 @@ pub fn AssetGallery(world_id: String, entity_type: String, entity_id: String) ->
                                         let entity_type = entity_type_delete.clone();
                                         let entity_id = entity_id_delete.clone();
                                         let svc = asset_svc_delete.clone();
-                                        spawn(async move {
+                                        spawn_task(async move {
                                             if let Err(e) = svc.delete_asset(&entity_type, &entity_id, &id).await {
                                                 tracing::error!("Failed to delete asset: {}", e);
                                             }
@@ -174,7 +175,7 @@ pub fn AssetGallery(world_id: String, entity_type: String, entity_id: String) ->
                                     on_use_as_reference: move |id: String| {
                                         let wid = world_id_for_style.clone();
                                         let svc = settings_svc_style.clone();
-                                        spawn(async move {
+                                        spawn_task(async move {
                                             // Fetch current settings, update style reference, save
                                             match svc.get_for_world(&wid).await {
                                                 Ok(mut settings) => {
@@ -223,7 +224,7 @@ pub fn AssetGallery(world_id: String, entity_type: String, entity_id: String) ->
                         let asset_svc_gen = asset_service.clone();
                         move |req| {
                             let svc = asset_svc_gen.clone();
-                            spawn(async move {
+                            spawn_task(async move {
                                 if let Err(e) = svc.generate_assets(&req).await {
                                     tracing::error!("Failed to queue generation: {}", e);
                                 }
@@ -409,7 +410,7 @@ fn GenerateAssetModal(
         let ei = entity_id_for_assets.clone();
         let svc = asset_service.clone();
         let default_ref = world_default_ref.clone();
-        spawn(async move {
+        spawn_task(async move {
             if let Ok(assets) = svc.get_assets(&et, &ei).await {
                 // If world has a default style reference, pre-populate it
                 if let Some(ref default_id) = default_ref {

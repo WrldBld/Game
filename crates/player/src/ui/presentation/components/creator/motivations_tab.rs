@@ -20,6 +20,7 @@ use crate::application::services::{
     AddActantialViewRequest, CreateGoalRequest, CreateWantRequest, RemoveActantialViewRequest,
     SetWantTargetRequest, SuggestionContext, UpdateWantRequest,
 };
+use crate::infrastructure::spawn_task;
 use crate::presentation::components::common::CharacterPicker;
 use crate::presentation::components::creator::suggestion_button::{
     SuggestionButton, SuggestionType,
@@ -74,7 +75,7 @@ pub fn MotivationsTab(props: MotivationsTabProps) -> Element {
             let _refresh = *refresh_counter.read(); // Subscribe to local refresh counter
             let _global_refresh = *game_state.actantial_refresh_counter.read(); // Subscribe to WebSocket refresh
 
-            spawn(async move {
+            spawn_task(async move {
                 is_loading.set(true);
                 error_message.set(None);
 
@@ -123,7 +124,7 @@ pub fn MotivationsTab(props: MotivationsTabProps) -> Element {
         let service = actantial_service.clone();
         move |want_id: String| {
             let service = service.clone();
-            spawn(async move {
+            spawn_task(async move {
                 match service.delete_want(&want_id).await {
                     Ok(_) => {
                         tracing::info!("Want deleted: {}", want_id);
@@ -518,7 +519,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
 
             is_saving.set(true);
 
-            spawn(async move {
+            spawn_task(async move {
                 let req = AddActantialViewRequest {
                     want_id: want_id.clone(),
                     actor_id,
@@ -563,7 +564,7 @@ fn ActantialViewsEditor(props: ActantialViewsEditorProps) -> Element {
             let on_refresh = on_refresh;
             let actor_type = actor.actor_type;
 
-            spawn(async move {
+            spawn_task(async move {
                 let req = RemoveActantialViewRequest {
                     want_id: want_id.clone(),
                     actor_id: actor.id.clone(),
@@ -816,7 +817,7 @@ fn GoalsSection(props: GoalsSectionProps) -> Element {
             let on_refresh = on_refresh;
             adding_common.set(true);
 
-            spawn(async move {
+            spawn_task(async move {
                 // Common goals from domain layer
                 let common_goals = vec![
                     ("Power", "Political or personal dominance over others"),
@@ -1081,7 +1082,7 @@ fn WantEditorModal(props: WantEditorModalProps) -> Element {
             is_saving.set(true);
             error_msg.set(None);
 
-            spawn(async move {
+            spawn_task(async move {
                 let result = if let Some(want_id) = want_id {
                     // Update existing want
                     let req = UpdateWantRequest {
@@ -1429,7 +1430,7 @@ fn GoalEditorModal(props: GoalEditorModalProps) -> Element {
             is_saving.set(true);
             error_msg.set(None);
 
-            spawn(async move {
+            spawn_task(async move {
                 let req = CreateGoalRequest {
                     name: goal_name,
                     description: if goal_desc.is_empty() {

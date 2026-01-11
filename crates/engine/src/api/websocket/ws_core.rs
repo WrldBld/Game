@@ -65,10 +65,8 @@ pub(super) async fn handle_world_request(
         }
 
         WorldRequest::CreateWorld { data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
-
+            // Note: CreateWorld does NOT require DM auth - anyone can create a world.
+            // The creator becomes the DM when they join the world.
             match state
                 .app
                 .use_cases

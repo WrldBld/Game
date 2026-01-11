@@ -3,6 +3,7 @@
 use crate::application::services::{
     CreateEventChainRequest, EventChainData, UpdateEventChainRequest,
 };
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::use_event_chain_service;
 use dioxus::prelude::*;
 
@@ -63,7 +64,7 @@ pub fn EventChainEditor(props: EventChainEditorProps) -> Element {
             let mut saving = is_saving;
             let mut err = error;
             let on_save_handler = props.on_save;
-            spawn(async move {
+            spawn_task(async move {
                 saving.set(true);
                 err.set(None);
                 let result = if let Some(id) = chain_id {

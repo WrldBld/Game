@@ -39,7 +39,8 @@ impl SqliteQueue {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 error_message TEXT,
-                result_json TEXT
+                result_json TEXT,
+                callback_id TEXT
             )
             "#,
         )
@@ -52,6 +53,22 @@ impl SqliteQueue {
             r#"
             CREATE INDEX IF NOT EXISTS idx_queue_status
             ON queue_items(queue_type, status, created_at)
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| QueueError::Error(e.to_string()))?;
+
+        // Migration: add callback_id column if missing (for existing DBs)
+        let _ = sqlx::query("ALTER TABLE queue_items ADD COLUMN callback_id TEXT")
+            .execute(&pool)
+            .await;
+
+        // Create index for callback_id lookups (used by dismiss/delete)
+        sqlx::query(
+            r#"
+            CREATE INDEX IF NOT EXISTS idx_queue_callback_id
+            ON queue_items(callback_id)
             "#,
         )
         .execute(&pool)
@@ -217,7 +234,29 @@ impl QueuePort for SqliteQueue {
 
     // LLM request queue
     async fn enqueue_llm_request(&self, data: &LlmRequestData) -> Result<Uuid, QueueError> {
-        self.enqueue_item("llm_request", data).await
+        // Specialized insert that stores callback_id in indexed column for fast lookup
+        let id = Uuid::new_v4();
+        let payload_json =
+            serde_json::to_string(data).map_err(|e| QueueError::Error(e.to_string()))?;
+        let now = self.clock.now().to_rfc3339();
+
+        sqlx::query(
+            r#"
+            INSERT INTO queue_items (id, queue_type, payload_json, status, created_at, updated_at, callback_id)
+            VALUES (?, ?, ?, 'pending', ?, ?, ?)
+            "#,
+        )
+        .bind(id.to_string())
+        .bind("llm_request")
+        .bind(&payload_json)
+        .bind(&now)
+        .bind(&now)
+        .bind(&data.callback_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| QueueError::Error(e.to_string()))?;
+
+        Ok(id)
     }
 
     async fn dequeue_llm_request(&self) -> Result<Option<QueueItem>, QueueError> {
@@ -489,5 +528,36 @@ impl QueuePort for SqliteQueue {
         .map_err(|e| QueueError::Error(e.to_string()))?;
 
         Ok(())
+    }
+
+    async fn delete_by_callback_id(&self, callback_id: &str) -> Result<bool, QueueError> {
+        tracing::debug!(callback_id = %callback_id, "Attempting to delete queue item by callback_id");
+
+        let result = sqlx::query("DELETE FROM queue_items WHERE callback_id = ?")
+            .bind(callback_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| QueueError::Error(e.to_string()))?;
+
+        let deleted = result.rows_affected() > 0;
+        if deleted {
+            tracing::info!(callback_id = %callback_id, "Deleted queue item by callback_id");
+        } else {
+            // Log existing callback_ids for debugging
+            let existing: Vec<String> = sqlx::query_scalar(
+                "SELECT callback_id FROM queue_items WHERE callback_id IS NOT NULL LIMIT 10",
+            )
+            .fetch_all(&self.pool)
+            .await
+            .unwrap_or_default();
+
+            tracing::warn!(
+                callback_id = %callback_id,
+                existing_callback_ids = ?existing,
+                "No queue item found with callback_id"
+            );
+        }
+
+        Ok(deleted)
     }
 }

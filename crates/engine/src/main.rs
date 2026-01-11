@@ -123,15 +123,43 @@ async fn main() -> anyhow::Result<()> {
             }
 
             // Process LLM requests
+            // Pass a callback for immediate events (e.g., SuggestionProgress) that need
+            // to be broadcast BEFORE the LLM call starts.
+            let immediate_connections = queue_connections.clone();
             match queue_app
                 .use_cases
                 .queues
                 .process_llm_request
-                .execute()
+                .execute(|events| {
+                    // Spawn async broadcasts for immediate events
+                    for event in events {
+                        let connections = immediate_connections.clone();
+                        tokio::spawn(async move {
+                            match event {
+                                use_cases::queues::BroadcastEvent::SuggestionProgress {
+                                    world_id,
+                                    request_id,
+                                } => {
+                                    let msg =
+                                        wrldbldr_protocol::ServerMessage::SuggestionProgress {
+                                            request_id,
+                                            status: "processing".to_string(),
+                                        };
+                                    connections.broadcast_to_world(world_id, msg).await;
+                                    tracing::info!(world_id = %world_id, "Broadcast SuggestionProgress (immediate)");
+                                }
+                                _ => {
+                                    // Other events should not be sent as immediate
+                                    tracing::warn!("Unexpected immediate event type");
+                                }
+                            }
+                        });
+                    }
+                })
                 .await
             {
                 Ok(Some(result)) => {
-                    // Handle broadcast events
+                    // Handle completion broadcast events
                     for event in result.broadcast_events {
                         match event {
                             use_cases::queues::BroadcastEvent::OutcomeSuggestionReady {
@@ -150,6 +178,20 @@ async fn main() -> anyhow::Result<()> {
                                     resolution_id = %resolution_id,
                                     "Broadcast OutcomeSuggestionReady to DMs"
                                 );
+                            }
+
+                            use_cases::queues::BroadcastEvent::SuggestionProgress {
+                                world_id,
+                                request_id,
+                            } => {
+                                // This shouldn't happen anymore (progress is now immediate)
+                                // but handle it for safety
+                                let msg = wrldbldr_protocol::ServerMessage::SuggestionProgress {
+                                    request_id,
+                                    status: "processing".to_string(),
+                                };
+                                queue_connections.broadcast_to_world(world_id, msg).await;
+                                tracing::info!(world_id = %world_id, "Broadcast SuggestionProgress");
                             }
 
                             use_cases::queues::BroadcastEvent::SuggestionComplete {

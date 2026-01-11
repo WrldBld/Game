@@ -6,6 +6,7 @@
 use dioxus::prelude::*;
 
 use crate::application::services::{Asset, GenerateRequest};
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::{use_asset_service, use_settings_service};
 
 /// Props for DirectorGenerateModal
@@ -55,7 +56,7 @@ pub fn DirectorGenerateModal(props: DirectorGenerateModalProps) -> Element {
         let wid = world_id_for_settings.clone();
         let asset_svc = asset_service_for_effect.clone();
         let settings_svc = settings_service_for_effect.clone();
-        spawn(async move {
+        spawn_task(async move {
             // First fetch world settings to get default style reference
             let world_default_ref = if let Ok(settings) = settings_svc.get_for_world(&wid).await {
                 settings.style_reference_asset_id
@@ -284,7 +285,7 @@ pub fn DirectorGenerateModal(props: DirectorGenerateModalProps) -> Element {
                                     style_reference_id: style_reference_id.read().clone(),
                                 };
                                 let svc_clone = svc.clone();
-                                spawn(async move {
+                                spawn_task(async move {
                                     if let Err(e) = svc_clone.generate_assets(&req).await {
                                         tracing::error!("Failed to queue generation: {}", e);
                                     }
