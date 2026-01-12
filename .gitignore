@@ -67,3 +67,5 @@ crates/player/package-lock.json
 
 # Log files
 *.log
+llm_test_logs/
+**/llm_test_logs/

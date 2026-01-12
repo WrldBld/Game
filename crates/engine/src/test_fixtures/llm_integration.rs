@@ -8,6 +8,15 @@
 //! for chain-of-thought before generating content. Token limits should be set high
 //! enough to accommodate both reasoning and output (typically 500-1000 tokens).
 //!
+//! # Logging LLM Interactions
+//!
+//! Set `LLM_TEST_LOG=1` to log all LLM requests and responses to files for analysis.
+//! Logs are written to `./llm_test_logs/` by default, or set `LLM_TEST_LOG_DIR` to customize.
+//!
+//! ```bash
+//! LLM_TEST_LOG=1 cargo test -p wrldbldr-engine --lib -- --ignored
+//! ```
+//!
 //! # Usage
 //!
 //! ```rust,ignore
@@ -22,7 +31,161 @@
 //! ```
 
 use crate::infrastructure::ollama::{OllamaClient, DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL};
-use crate::infrastructure::ports::{ChatMessage, LlmPort, LlmRequest};
+use crate::infrastructure::ports::{ChatMessage, LlmPort, LlmRequest, LlmResponse};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// Global counter for unique log file names.
+static LOG_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+// =============================================================================
+// LLM Interaction Logging
+// =============================================================================
+
+/// Check if LLM logging is enabled via environment variable.
+pub fn is_llm_logging_enabled() -> bool {
+    std::env::var("LLM_TEST_LOG")
+        .map(|v| v == "1" || v.to_lowercase() == "true")
+        .unwrap_or(false)
+}
+
+/// Get the directory for LLM log files.
+pub fn get_llm_log_dir() -> std::path::PathBuf {
+    std::env::var("LLM_TEST_LOG_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from("./llm_test_logs"))
+}
+
+/// Log an LLM request and response to a file.
+///
+/// Files are named with a timestamp and counter for uniqueness.
+/// Each file contains the full request (system prompt, messages) and response.
+///
+/// # Arguments
+///
+/// * `test_name` - Name of the test (e.g., "test_llm_generates_narrative")
+/// * `label` - Optional label to distinguish multiple calls within a test (e.g., "generation", "validation")
+/// * `request` - The LLM request that was sent
+/// * `response` - The LLM response that was received
+pub fn log_llm_interaction(
+    test_name: &str,
+    label: Option<&str>,
+    request: &LlmRequest,
+    response: &LlmResponse,
+) {
+    if !is_llm_logging_enabled() {
+        return;
+    }
+
+    let log_dir = get_llm_log_dir();
+    if let Err(e) = std::fs::create_dir_all(&log_dir) {
+        eprintln!("Failed to create LLM log directory: {}", e);
+        return;
+    }
+
+    let counter = LOG_COUNTER.fetch_add(1, Ordering::SeqCst);
+    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+    let sanitized_name = test_name
+        .replace("::", "_")
+        .replace(" ", "_")
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '_')
+        .collect::<String>();
+
+    let label_suffix = label
+        .map(|l| format!("_{}", l.replace(" ", "_")))
+        .unwrap_or_default();
+
+    let filename = format!("{}_{:04}_{}{}.md", timestamp, counter, sanitized_name, label_suffix);
+    let filepath = log_dir.join(&filename);
+
+    let mut content = String::new();
+    content.push_str(&format!("# LLM Test Log: {}\n\n", test_name));
+    if let Some(l) = label {
+        content.push_str(&format!("**Label:** {}\n\n", l));
+    }
+    content.push_str(&format!("**Timestamp:** {}\n\n", chrono::Utc::now().to_rfc3339()));
+    content.push_str(&format!("**Sequence:** #{}\n\n", counter));
+
+    // Request details
+    content.push_str("## Request\n\n");
+
+    if let Some(ref system) = request.system_prompt {
+        content.push_str("### System Prompt\n\n");
+        content.push_str("```\n");
+        content.push_str(system);
+        content.push_str("\n```\n\n");
+    }
+
+    content.push_str("### Messages\n\n");
+    for msg in &request.messages {
+        content.push_str(&format!("**{}:**\n", format!("{:?}", msg.role)));
+        content.push_str("```\n");
+        content.push_str(&msg.content);
+        content.push_str("\n```\n\n");
+    }
+
+    content.push_str("### Parameters\n\n");
+    content.push_str(&format!("- Temperature: {:?}\n", request.temperature));
+    content.push_str(&format!("- Max Tokens: {:?}\n\n", request.max_tokens));
+
+    // Response details
+    content.push_str("## Response\n\n");
+    content.push_str("### Content\n\n");
+    content.push_str("```\n");
+    content.push_str(&response.content);
+    content.push_str("\n```\n\n");
+
+    if !response.tool_calls.is_empty() {
+        content.push_str("### Tool Calls\n\n");
+        for (i, tool_call) in response.tool_calls.iter().enumerate() {
+            content.push_str(&format!("**Tool Call #{}:**\n", i + 1));
+            content.push_str(&format!("- ID: {}\n", tool_call.id));
+            content.push_str(&format!("- Name: {}\n", tool_call.name));
+            content.push_str("- Arguments:\n```json\n");
+            if let Ok(json) = serde_json::to_string_pretty(&tool_call.arguments) {
+                content.push_str(&json);
+            } else {
+                content.push_str(&format!("{:?}", tool_call.arguments));
+            }
+            content.push_str("\n```\n\n");
+        }
+    }
+
+    if let Some(ref usage) = response.usage {
+        content.push_str("### Usage\n\n");
+        content.push_str(&format!("- Prompt Tokens: {}\n", usage.prompt_tokens));
+        content.push_str(&format!("- Completion Tokens: {}\n", usage.completion_tokens));
+        content.push_str(&format!("- Total Tokens: {}\n", usage.total_tokens));
+    }
+
+    if let Err(e) = std::fs::write(&filepath, content) {
+        eprintln!("Failed to write LLM log file: {}", e);
+    } else {
+        eprintln!("LLM log written to: {}", filepath.display());
+    }
+}
+
+/// Generate an LLM response and log the interaction if logging is enabled.
+///
+/// This is a convenience wrapper around `client.generate()` that automatically
+/// logs the request and response when `LLM_TEST_LOG=1` is set.
+///
+/// # Arguments
+///
+/// * `client` - The LLM client to use
+/// * `request` - The request to send
+/// * `test_name` - Name of the test for the log file
+/// * `label` - Optional label to distinguish multiple calls (e.g., "generation", "validation")
+pub async fn generate_and_log(
+    client: &dyn LlmPort,
+    request: LlmRequest,
+    test_name: &str,
+    label: Option<&str>,
+) -> Result<LlmResponse, crate::infrastructure::ports::LlmError> {
+    let response = client.generate(request.clone()).await?;
+    log_llm_interaction(test_name, label, &request, &response);
+    Ok(response)
+}
 
 /// Creates an OllamaClient configured for integration testing.
 ///
@@ -182,10 +345,13 @@ The response is about cooking, not about the tavern as requested."#;
     let request = LlmRequest::new(vec![ChatMessage::user(&user_message)])
         .with_system_prompt(system_prompt)
         .with_temperature(0.0) // Use deterministic responses for validation
-        .with_max_tokens(Some(300));
+        .with_max_tokens(Some(500)); // Reasoning models need more tokens for validation
 
-    match client.generate(request).await {
+    match client.generate(request.clone()).await {
         Ok(validation_response) => {
+            // Log the validation interaction
+            log_llm_interaction("validation", Some("semantic_check"), &request, &validation_response);
+
             let content = validation_response.content.trim();
             let passed = content.to_uppercase().starts_with("PASS");
             LlmValidation {
