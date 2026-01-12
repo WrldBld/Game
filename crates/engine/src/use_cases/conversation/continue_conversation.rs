@@ -171,12 +171,13 @@ impl ContinueConversation {
         };
 
         // 5. Enqueue the player action for processing
+        // Note: target is the NPC ID (as string) so it can be parsed in build_prompt
         let action_data = PlayerActionData {
             world_id,
             player_id,
             pc_id: Some(pc_id),
             action_type: "talk".to_string(),
-            target: Some(npc.name.clone()),
+            target: Some(npc_id.to_string()),
             dialogue: Some(player_message),
             timestamp: self.clock.now(),
             conversation_id: resolved_conversation_id,

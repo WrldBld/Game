@@ -12,7 +12,7 @@ use tempfile::TempDir;
 use uuid::Uuid;
 use wrldbldr_domain::{
     ActId, ChallengeId, CharacterId, LocationId, NarrativeEventId,
-    RegionId, SceneId, WorldId,
+    RegionId, RuleSystemConfig, SceneId, WorldId,
 };
 
 use crate::app::App;
@@ -180,6 +180,10 @@ pub async fn seed_thornhaven_to_neo4j(
     let world_id = test_world.world_id;
     let now = clock.now();
 
+    // Serialize rule_system as JSON (matches WorldRepo::save format)
+    let rule_system_json = serde_json::to_string(&RuleSystemConfig::dnd_5e())
+        .expect("Failed to serialize rule_system");
+
     // 1. Create World node
     graph
         .run(
@@ -196,7 +200,7 @@ pub async fn seed_thornhaven_to_neo4j(
             .param("id", world_id.to_string())
             .param("name", "Thornhaven Village")
             .param("description", "A quaint village for testing")
-            .param("rule_system", "dnd5e")
+            .param("rule_system", rule_system_json)
             .param("created_at", now.to_rfc3339())
             .param("updated_at", now.to_rfc3339()),
         )
@@ -327,6 +331,12 @@ pub async fn seed_thornhaven_to_neo4j(
     // 5. Create NPCs
     let mut npc_ids = HashMap::new();
     for npc in &test_world.npcs {
+        // Serialize archetype_history and stats as JSON strings
+        let archetype_history_json = serde_json::to_string(&Vec::<serde_json::Value>::new())
+            .unwrap_or_else(|_| "[]".to_string());
+        let stats_json = serde_json::to_string(&npc.stats)
+            .unwrap_or_else(|_| "{}".to_string());
+
         graph
             .run(
                 query(
@@ -337,6 +347,8 @@ pub async fn seed_thornhaven_to_neo4j(
                         description: $description,
                         base_archetype: $base_archetype,
                         current_archetype: $current_archetype,
+                        archetype_history: $archetype_history,
+                        stats: $stats,
                         is_alive: $is_alive,
                         is_active: $is_active,
                         default_disposition: $disposition,
@@ -351,6 +363,8 @@ pub async fn seed_thornhaven_to_neo4j(
                 .param("description", npc.description.clone())
                 .param("base_archetype", format!("{:?}", npc.base_archetype).to_lowercase())
                 .param("current_archetype", format!("{:?}", npc.current_archetype).to_lowercase())
+                .param("archetype_history", archetype_history_json)
+                .param("stats", stats_json)
                 .param("is_alive", npc.is_alive)
                 .param("is_active", npc.is_active)
                 .param("disposition", format!("{:?}", npc.default_disposition).to_lowercase())
@@ -584,63 +598,101 @@ pub async fn create_test_player(
     world_id: WorldId,
     starting_region_id: RegionId,
     name: &str,
-) -> Result<(String, CharacterId), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(String, PlayerCharacterId), Box<dyn std::error::Error + Send + Sync>> {
     use neo4rs::query;
 
-    let player_id = Uuid::new_v4().to_string();
-    let character_id = CharacterId::from(Uuid::new_v4());
+    let user_id = Uuid::new_v4().to_string();
+    let character_id = PlayerCharacterId::from(Uuid::new_v4());
     let now = Utc::now();
 
-    // Create PlayerCharacter node
+    // Get location ID from region
+    let mut result = graph
+        .execute(
+            query(
+                "MATCH (r:Region {id: $region_id})-[:LOCATED_IN]->(l:Location)
+                 RETURN l.id as location_id",
+            )
+            .param("region_id", starting_region_id.to_string()),
+        )
+        .await?;
+
+    let location_id: String = result
+        .next()
+        .await?
+        .ok_or("Region has no location")?
+        .get("location_id")
+        .map_err(|e| format!("Failed to get location_id: {}", e))?;
+
+    // Create PlayerCharacter node with all required fields
     graph
         .run(
             query(
                 "CREATE (pc:PlayerCharacter {
                     id: $id,
-                    player_id: $player_id,
+                    user_id: $user_id,
                     world_id: $world_id,
                     name: $name,
-                    current_hp: 20,
-                    max_hp: 20,
-                    level: 1,
-                    experience: 0,
-                    created_at: datetime($created_at),
-                    updated_at: datetime($updated_at)
+                    description: '',
+                    sheet_data: '{}',
+                    current_location_id: $location_id,
+                    current_region_id: $region_id,
+                    starting_location_id: $location_id,
+                    sprite_asset: '',
+                    portrait_asset: '',
+                    is_alive: true,
+                    is_active: true,
+                    created_at: $created_at,
+                    last_active_at: $last_active_at
                 })",
             )
             .param("id", character_id.to_string())
-            .param("player_id", player_id.clone())
+            .param("user_id", user_id.clone())
             .param("world_id", world_id.to_string())
             .param("name", name)
+            .param("location_id", location_id.clone())
+            .param("region_id", starting_region_id.to_string())
             .param("created_at", now.to_rfc3339())
-            .param("updated_at", now.to_rfc3339()),
+            .param("last_active_at", now.to_rfc3339()),
         )
         .await?;
 
-    // Create relationships
+    // Create IN_WORLD relationship
     graph
         .run(
             query(
                 "MATCH (pc:PlayerCharacter {id: $pc_id}), (w:World {id: $world_id})
-                 CREATE (pc)-[:BELONGS_TO]->(w)",
+                 MERGE (pc)-[:IN_WORLD]->(w)",
             )
             .param("pc_id", character_id.to_string())
             .param("world_id", world_id.to_string()),
         )
         .await?;
 
+    // Create AT_LOCATION relationship
+    graph
+        .run(
+            query(
+                "MATCH (pc:PlayerCharacter {id: $pc_id}), (l:Location {id: $location_id})
+                 MERGE (pc)-[:AT_LOCATION]->(l)",
+            )
+            .param("pc_id", character_id.to_string())
+            .param("location_id", location_id.clone()),
+        )
+        .await?;
+
+    // Create CURRENTLY_IN relationship to Region
     graph
         .run(
             query(
                 "MATCH (pc:PlayerCharacter {id: $pc_id}), (r:Region {id: $region_id})
-                 CREATE (pc)-[:CURRENTLY_IN]->(r)",
+                 MERGE (pc)-[:CURRENTLY_IN]->(r)",
             )
             .param("pc_id", character_id.to_string())
             .param("region_id", starting_region_id.to_string()),
         )
         .await?;
 
-    Ok((player_id, character_id))
+    Ok((user_id, character_id))
 }
 
 // =============================================================================
@@ -822,5 +874,268 @@ impl QueuePort for RecordingQueue {
 
     async fn delete_by_callback_id(&self, _callback_id: &str) -> Result<bool, QueueError> {
         Ok(false)
+    }
+}
+
+// =============================================================================
+// VCR LLM Helpers
+// =============================================================================
+
+use super::vcr_llm::VcrLlm;
+use std::path::PathBuf;
+
+/// Create a VCR LLM for E2E testing based on environment.
+///
+/// Uses E2E_LLM_MODE environment variable:
+/// - "record": Call real Ollama, save responses to cassette
+/// - "playback" or unset: Load from cassette (falls back to record if missing)
+/// - "live": Call real Ollama without recording
+///
+/// Cassettes are stored in `src/e2e_tests/cassettes/<test_name>.json`.
+pub fn create_e2e_llm(test_name: &str) -> Arc<VcrLlm> {
+    let cassette_path = PathBuf::from(format!(
+        "{}/src/e2e_tests/cassettes/{}.json",
+        env!("CARGO_MANIFEST_DIR"),
+        test_name
+    ));
+    Arc::new(VcrLlm::from_env(cassette_path))
+}
+
+// =============================================================================
+// Gameplay Flow Helpers
+// =============================================================================
+
+use wrldbldr_domain::{DmApprovalDecision, PlayerCharacterId, StagingSource};
+use wrldbldr_protocol::ApprovedNpcInfo;
+
+use crate::use_cases::staging::ApproveStagingInput;
+
+/// Stage an NPC in a region (simulating DM approval).
+pub async fn approve_staging_with_npc(
+    ctx: &E2ETestContext,
+    region_id: RegionId,
+    npc_id: CharacterId,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let npc = ctx
+        .app
+        .entities
+        .character
+        .get(npc_id)
+        .await?
+        .ok_or("NPC not found")?;
+
+    let input = ApproveStagingInput {
+        region_id,
+        location_id: None,
+        world_id: ctx.world.world_id,
+        approved_by: "e2e-test".to_string(),
+        ttl_hours: 24,
+        source: StagingSource::DmCustomized,
+        approved_npcs: vec![ApprovedNpcInfo {
+            character_id: npc_id.to_string(),
+            is_present: true,
+            reasoning: Some("E2E test staging".to_string()),
+            is_hidden_from_players: false,
+            mood: Some(format!("{:?}", npc.default_mood).to_lowercase()),
+        }],
+        location_state_id: None,
+        region_state_id: None,
+    };
+
+    ctx.app.use_cases.staging.approve.execute(input).await?;
+    Ok(())
+}
+
+/// Stage multiple NPCs in a region.
+pub async fn approve_staging_with_npcs(
+    ctx: &E2ETestContext,
+    region_id: RegionId,
+    npc_ids: &[CharacterId],
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut approved_npcs = Vec::new();
+
+    for &npc_id in npc_ids {
+        let npc = ctx
+            .app
+            .entities
+            .character
+            .get(npc_id)
+            .await?
+            .ok_or("NPC not found")?;
+
+        approved_npcs.push(ApprovedNpcInfo {
+            character_id: npc_id.to_string(),
+            is_present: true,
+            reasoning: Some("E2E test staging".to_string()),
+            is_hidden_from_players: false,
+            mood: Some(format!("{:?}", npc.default_mood).to_lowercase()),
+        });
+    }
+
+    let input = ApproveStagingInput {
+        region_id,
+        location_id: None,
+        world_id: ctx.world.world_id,
+        approved_by: "e2e-test".to_string(),
+        ttl_hours: 24,
+        source: StagingSource::DmCustomized,
+        approved_npcs,
+        location_state_id: None,
+        region_state_id: None,
+    };
+
+    ctx.app.use_cases.staging.approve.execute(input).await?;
+    Ok(())
+}
+
+/// Create a player character via the management use case.
+pub async fn create_player_character_via_use_case(
+    ctx: &E2ETestContext,
+    name: &str,
+    user_id: &str,
+) -> Result<PlayerCharacterId, Box<dyn std::error::Error + Send + Sync>> {
+    // Get spawn region
+    let spawn_region = ctx
+        .world
+        .region("Common Room")
+        .ok_or("Spawn region not found")?;
+
+    // Create via management use case
+    // Signature: create(world_id, name, user_id, starting_region_id, sheet_data)
+    let pc = ctx
+        .app
+        .use_cases
+        .management
+        .player_character
+        .create(
+            ctx.world.world_id,
+            name.to_string(),
+            Some(user_id.to_string()),
+            Some(spawn_region),
+            None, // sheet_data
+        )
+        .await?;
+
+    Ok(pc.id)
+}
+
+/// Run a complete conversation turn through the queue pipeline.
+///
+/// Returns the final dialogue after DM approval.
+pub async fn run_conversation_turn(
+    ctx: &E2ETestContext,
+    pc_id: PlayerCharacterId,
+    npc_id: CharacterId,
+    player_id: &str,
+    dialogue: &str,
+    conversation_id: Option<Uuid>,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    // 1. Continue conversation - enqueues player action
+    ctx.app
+        .use_cases
+        .conversation
+        .continue_conversation
+        .execute(
+            ctx.world.world_id,
+            pc_id,
+            npc_id,
+            player_id.to_string(),
+            dialogue.to_string(),
+            conversation_id,
+        )
+        .await?;
+
+    // 2. Process player action queue
+    let _processed = ctx
+        .app
+        .use_cases
+        .queues
+        .process_player_action
+        .execute()
+        .await?;
+
+    // 3. Process LLM request queue
+    let llm_result = ctx
+        .app
+        .use_cases
+        .queues
+        .process_llm_request
+        .execute(|_| {}) // on_start callback
+        .await?;
+
+    // 4. If we got a result, approve it
+    if let Some(result) = llm_result {
+        let approval = ctx
+            .app
+            .use_cases
+            .approval
+            .decision_flow
+            .execute(result.approval_id, DmApprovalDecision::Accept)
+            .await?;
+
+        Ok(approval.final_dialogue.unwrap_or_default())
+    } else {
+        Err("No LLM request was processed".into())
+    }
+}
+
+/// Start a conversation with an NPC and process through approval.
+///
+/// Returns (conversation_id, npc_response).
+pub async fn start_conversation_with_npc(
+    ctx: &E2ETestContext,
+    pc_id: PlayerCharacterId,
+    npc_id: CharacterId,
+    player_id: &str,
+    dialogue: &str,
+) -> Result<(Uuid, String), Box<dyn std::error::Error + Send + Sync>> {
+    // 1. Start conversation - enqueues player action
+    let started = ctx
+        .app
+        .use_cases
+        .conversation
+        .start
+        .execute(
+            ctx.world.world_id,
+            pc_id,
+            npc_id,
+            player_id.to_string(),
+            dialogue.to_string(),
+        )
+        .await?;
+
+    let conversation_id = started.conversation_id;
+
+    // 2. Process player action queue
+    let _processed = ctx
+        .app
+        .use_cases
+        .queues
+        .process_player_action
+        .execute()
+        .await?;
+
+    // 3. Process LLM request queue
+    let llm_result = ctx
+        .app
+        .use_cases
+        .queues
+        .process_llm_request
+        .execute(|_| {})
+        .await?;
+
+    // 4. If we got a result, approve it
+    if let Some(result) = llm_result {
+        let approval = ctx
+            .app
+            .use_cases
+            .approval
+            .decision_flow
+            .execute(result.approval_id, DmApprovalDecision::Accept)
+            .await?;
+
+        Ok((conversation_id, approval.final_dialogue.unwrap_or_default()))
+    } else {
+        Err("No LLM request was processed".into())
     }
 }

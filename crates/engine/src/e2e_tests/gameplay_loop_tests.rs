@@ -152,13 +152,13 @@ async fn test_player_joins_world_at_starting_location() {
     let region_name: String = row.get("region_name").expect("region_name column");
     assert_eq!(region_name, "Common Room");
 
-    // Verify player belongs to world
+    // Verify player belongs to world (uses IN_WORLD relationship)
     let mut result = ctx
         .harness
         .graph()
         .execute(
             query(
-                "MATCH (pc:PlayerCharacter {id: $id})-[:BELONGS_TO]->(w:World)
+                "MATCH (pc:PlayerCharacter {id: $id})-[:IN_WORLD]->(w:World)
                  RETURN w.id as world_id"
             )
             .param("id", character_id.to_string()),

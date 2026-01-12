@@ -53,38 +53,90 @@ impl Neo4jTestHarness {
 }
 
 /// Create a Neo4j container image with the given password.
+///
+/// Configuration for reliability:
+/// - Pinned version for consistency across runs
+/// - Memory limits to prevent JVM crashes
+/// - No stdout wait (avoids race conditions with log streaming)
+/// - Connection readiness is verified by connect_with_retry with exponential backoff
 pub fn neo4j_image(password: &str) -> GenericImage {
-    GenericImage::new("neo4j", "5")
+    GenericImage::new("neo4j", "5.26.0-community")
         .with_env_var("NEO4J_AUTH", format!("neo4j/{password}"))
         .with_env_var(
             "NEO4J_dbms_connector_bolt_advertised__address",
             "localhost:7687",
         )
+        // Memory limits to prevent JVM crashes under resource pressure
+        .with_env_var("NEO4J_server_memory_heap_initial__size", "256m")
+        .with_env_var("NEO4J_server_memory_heap_max__size", "512m")
+        .with_env_var("NEO4J_server_memory_pagecache_size", "128m")
+        // Faster checkpoint for test workloads
+        .with_env_var("NEO4J_db_checkpoint_iops_limit", "500")
         .with_exposed_port(7687)
-        .with_wait_for(WaitFor::message_on_stdout("Started."))
+        .with_exposed_port(7474) // HTTP port for health checks
+        // Wait a brief period for initial container setup, then rely on
+        // connect_with_retry for actual readiness (more reliable than stdout parsing)
+        .with_wait_for(WaitFor::seconds(5))
 }
 
-/// Connect to Neo4j with retry logic.
+/// Connect to Neo4j with retry logic using exponential backoff.
 ///
-/// Retries connection up to 60 times with 250ms delay between attempts.
+/// Features:
+/// - Exponential backoff: 500ms → 1s → 2s → 4s → 5s (capped)
+/// - Connection verification with actual query
+/// - Up to 30 attempts (~45 seconds max wait)
 pub async fn connect_with_retry(
     uri: &str,
     user: &str,
     pass: &str,
 ) -> Result<Graph, Box<dyn std::error::Error + Send + Sync>> {
+    let max_attempts = 30;
+    let initial_delay = Duration::from_millis(500);
+    let max_delay = Duration::from_secs(5);
+
+    let mut attempt = 0;
+    let mut delay = initial_delay;
     let mut last_err: Option<String> = None;
-    for _ in 0..60 {
+
+    while attempt < max_attempts {
+        attempt += 1;
+
         match Graph::new(uri, user, pass).await {
-            Ok(graph) => return Ok(graph),
+            Ok(graph) => {
+                // Verify connection with a simple query before returning
+                match graph.run(query("RETURN 1")).await {
+                    Ok(_) => {
+                        tracing::info!(
+                            attempt = attempt,
+                            uri = uri,
+                            "Neo4j connection established and verified"
+                        );
+                        return Ok(graph);
+                    }
+                    Err(e) => {
+                        last_err = Some(format!("Connection test query failed: {e}"));
+                    }
+                }
+            }
             Err(e) => {
                 last_err = Some(e.to_string());
-                sleep(Duration::from_millis(250)).await;
             }
         }
+
+        tracing::debug!(
+            attempt = attempt,
+            delay_ms = delay.as_millis(),
+            error = last_err.as_deref().unwrap_or("unknown"),
+            "Retrying Neo4j connection"
+        );
+
+        sleep(delay).await;
+        // Exponential backoff with cap
+        delay = std::cmp::min(delay.saturating_mul(2), max_delay);
     }
 
     Err(format!(
-        "Failed to connect to Neo4j at {uri} after retries: {:?}",
+        "Failed to connect to Neo4j at {uri} after {max_attempts} attempts: {:?}",
         last_err
     )
     .into())

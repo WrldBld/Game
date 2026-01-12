@@ -1,0 +1,27 @@
+{
+  "version": "1.0",
+  "recorded_at": "2026-01-12T10:00:00Z",
+  "llm_model": "llama3.2",
+  "recordings": [
+    {
+      "index": 0,
+      "request_summary": "System: You are Marta Hearthwood... | User: Hello! I'm looking for information about the village.",
+      "response": {
+        "content": "Well now, a newcomer with questions! I'm always happy to help folks find their way around Thornhaven. We're a small village, but we've got everything you might need. The temple of Solara is just down the lane if you're the prayerful type. The blacksmith Grom does fine work, though he keeps odd hours. What specifically were you wondering about?",
+        "tool_calls": [],
+        "finish_reason": "Stop"
+      },
+      "recorded_at": "2026-01-12T10:00:01Z"
+    },
+    {
+      "index": 1,
+      "request_summary": "System: You are Marta Hearthwood... | User: What can you tell me about the local merchants?",
+      "response": {
+        "content": "Ah, looking to do some shopping? Well, we've got a few folks who can help you there. Old Thaddeus runs the general store near the village square - he can get you supplies, tools, that sort of thing. If you need something more... specialized, there's Elara the herbalist. Her shop's a bit out of the way, but she knows her craft. And of course, Grom the blacksmith for anything metal. Fair warning though - Grom's not much for small talk.",
+        "tool_calls": [],
+        "finish_reason": "Stop"
+      },
+      "recorded_at": "2026-01-12T10:00:02Z"
+    }
+  ]
+}
