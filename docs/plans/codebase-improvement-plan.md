@@ -1,76 +1,237 @@
-# Codebase Improvement Plan (Refined)
+# Codebase Improvement Plan (Revised v2)
 
 ## Overview
 
-This plan addresses issues found in a comprehensive codebase review, refined by multiple expert reviews.
+This plan addresses code quality as a **primary concern**, not deferred work. Technical debt compounds—fixing it now prevents exponential growth in complexity.
 
 ### Core Principles
 
-1. **Hexagonal Architecture at System Boundaries ONLY** - Ports/adapters for external systems (Neo4j, LLMs, external APIs). NOT between internal features.
-2. **Feature/Use-Case/Domain-Driven Internally** - Code organized by feature, use cases drive domain logic, no over-abstraction between features.
-3. **Testing Strategy** - VCR support (already implemented), live testing, interaction logging for prompt analysis, E2E tests simulating real gameplay.
-4. **Progressive Delivery** - Critical fixes first, then E2E WebSocket tests, then finalize the player experience.
-5. **Pragmatism Over Purity** - Don't fix what isn't broken. Focus on real pain points.
+1. **Hexagonal Architecture at ALL System Boundaries**
+   - External systems: Neo4j, LLMs, image generation, file system
+   - Platform boundaries: async runtime, serialization format, time libraries
+   - Protocol boundaries: WebSocket messages stay in API layer
 
-### Current State Assessment
+2. **Business Logic is Platform and Dependency Agnostic**
+   - Domain layer: Pure Rust, no infrastructure concerns
+   - Use case layer: Depends only on ports, not concrete implementations
+   - No protocol types in use cases
 
-| Area | Status | Notes |
-|------|--------|-------|
-| Critical Bugs | 0% | Overflow, truncation, NaN not fixed |
-| Memory Safety | 0% | HashMaps still unbounded |
-| E2E Testing | 85% | VCR, event logging, 17 test modules exist |
-| Duplication | 40% | GraphExt done, handlers not |
-| Architecture | 60% | App grouped, Narrative still large but functional |
+3. **Code Quality Over Speed**
+   - Fix compounding debt now, not later
+   - Tests should be fast, deterministic, and isolated
+   - Errors should have context and be actionable
+
+4. **Testing Strategy**
+   - VCR for LLM interactions (deterministic replay)
+   - Live testing with real services (development)
+   - Full interaction logging (prompt analysis)
+   - True E2E tests through WebSocket layer
 
 ---
 
-## Part 1: Critical Bug Fixes (IMMEDIATE)
+## Current State Assessment
 
-### 1.1 Integer Overflow in Stat Rewards
-**File:** `crates/engine/src/use_cases/narrative/execute_effects.rs:853`
+### Domain Layer: 9.5/10 Pure ✓
+- No infrastructure leaks
+- serde_json::Value usage is justified (multi-system character sheets)
+- Proper ID typing throughout
+- Good invariant enforcement
 
-**Problem:** Direct addition without overflow protection
+### Use Case Layer: CRITICAL ISSUES
+- **13 files import protocol types** (wrldbldr_protocol)
+- **tokio::sync::RwLock exposed** to business logic
+- **serde_json::json! macro** used for responses
+- Direct chrono calls instead of ClockPort
+
+### Platform Boundaries: MISSING ABSTRACTIONS
+- No FileSystemPort (logs, cassettes)
+- No EnvironmentPort (configuration)
+- Protocol types leak to use cases
+- Async primitives not abstracted
+
+### Technical Debt: COMPOUNDING
+- WsState growing unbounded (memory leak risk)
+- Monolithic use cases (1000+ lines each)
+- Repository layer lacks query abstraction
+- Error types inconsistent across modules
+
+---
+
+## Part 1: Platform Boundary Abstractions
+
+### 1.1 Remove Protocol Types from Use Cases (CRITICAL)
+
+**Problem:** 13 use case files import `wrldbldr_protocol::*`
+
+**Files Affected:**
+- `use_cases/staging/mod.rs` - imports ServerMessage, ApprovedNpcInfo, etc.
+- `use_cases/session/*.rs` - imports WorldRole, ConnectedUser
+- `use_cases/lore/mod.rs` - creates JSON responses
+- And 10 more...
+
+**Solution:** Create domain result types, let API layer translate
+
 ```rust
-let new_value = current_value + amount as i64;
+// BEFORE (use_cases/staging/mod.rs)
+use wrldbldr_protocol::{ServerMessage, ApprovedNpcInfo, StagedNpcInfo};
+
+pub async fn execute(&self) -> Result<(), StagingError> {
+    let msg = ServerMessage::ApprovalRequest { ... };  // PROTOCOL IN USE CASE
+    context.dm_notifier.notify_dms(world_id, msg).await;
+}
+
+// AFTER
+// Domain types in domain layer
+pub struct StagingApprovalResult {
+    pub world_id: WorldId,
+    pub staging_id: Uuid,
+    pub npcs: Vec<StagedNpcInfo>,  // Domain type, not protocol
+    pub waiting_pcs: Vec<WaitingPcInfo>,
+}
+
+// Use case returns domain type
+pub async fn execute(&self) -> Result<StagingApprovalResult, StagingError> {
+    Ok(StagingApprovalResult { ... })
+}
+
+// API layer translates to protocol
+// In ws_staging.rs
+let result = staging_use_case.execute().await?;
+let msg = ServerMessage::ApprovalRequest {
+    staging_id: result.staging_id.to_string(),
+    npcs: result.npcs.into_iter().map(to_protocol_npc).collect(),
+};
+connections.notify_dms(world_id, msg).await;
 ```
 
-**Fix:**
+### 1.2 Abstract Async Primitives (HIGH)
+
+**Problem:** `tokio::sync::RwLock` exposed to use cases
+
 ```rust
+// CURRENT - Use case knows about tokio
+pub struct StagingApprovalContext<'a> {
+    pub pending_staging_requests: &'a tokio::sync::RwLock<HashMap<String, PendingStagingRequest>>,
+}
+```
+
+**Solution:** Create a port for ephemeral state
+
+```rust
+// infrastructure/ports.rs
+#[async_trait]
+pub trait PendingRequestStore: Send + Sync {
+    async fn store(&self, key: String, request: PendingStagingRequest);
+    async fn get(&self, key: &str) -> Option<PendingStagingRequest>;
+    async fn remove(&self, key: &str) -> Option<PendingStagingRequest>;
+    async fn list_for_world(&self, world_id: WorldId) -> Vec<PendingStagingRequest>;
+}
+
+// Use case now depends on abstraction
+pub struct StagingApprovalContext<'a> {
+    pub dm_notifier: &'a dyn DmNotificationPort,
+    pub pending_requests: &'a dyn PendingRequestStore,  // Abstract!
+}
+```
+
+### 1.3 FileSystemPort for Logs and Cassettes (MEDIUM)
+
+**Problem:** Direct file I/O in test fixtures
+
+```rust
+// CURRENT - Direct file system access
+std::fs::create_dir_all(&log_dir)?;
+std::fs::write(&filepath, content)?;
+```
+
+**Solution:** Abstract file operations
+
+```rust
+// infrastructure/ports.rs
+pub trait FileSystemPort: Send + Sync {
+    fn write_file(&self, path: &Path, content: &[u8]) -> Result<(), IoError>;
+    fn read_file(&self, path: &Path) -> Result<Vec<u8>, IoError>;
+    fn create_dir_all(&self, path: &Path) -> Result<(), IoError>;
+    fn exists(&self, path: &Path) -> bool;
+}
+
+// Test implementation
+pub struct InMemoryFileSystem {
+    files: RwLock<HashMap<PathBuf, Vec<u8>>>,
+}
+
+// Production implementation
+pub struct RealFileSystem;
+```
+
+### 1.4 Remove serde_json from Use Case Responses (HIGH)
+
+**Problem:** Use cases construct JSON responses
+
+```rust
+// CURRENT
+pub async fn create_lore(&self) -> Result<serde_json::Value, ...> {
+    Ok(serde_json::json!({
+        "loreId": lore_id,
+        "name": name,
+    }))
+}
+```
+
+**Solution:** Return domain types, serialize in API layer
+
+```rust
+// Use case returns domain type
+pub async fn create_lore(&self) -> Result<Lore, LoreError> {
+    Ok(Lore { id, name, ... })
+}
+
+// API layer serializes
+let lore = lore_use_case.create_lore(input).await?;
+Ok(ResponseResult::success(json!(lore)))  // Serialization at edge
+```
+
+---
+
+## Part 2: Critical Bug Fixes
+
+### 2.1 Integer Overflow in Stat Rewards
+**File:** `crates/engine/src/use_cases/narrative/execute_effects.rs:853`
+
+```rust
+// FIX
 let new_value = current_value.saturating_add(amount as i64);
 ```
 
-### 1.2 Unsafe i64 to i32 Truncation
+### 2.2 Unsafe i64 to i32 Truncation
 **File:** `crates/domain/src/character_sheet.rs:786-810`
 
-**Problem:** Silent truncation in `get_numeric_value()`
-
-**Fix:**
 ```rust
+// FIX
 if let Some(n) = v.as_i64() {
-    return i32::try_from(n).ok();  // Returns None if out of range
+    return i32::try_from(n).ok();
 }
 ```
 
-### 1.3 NaN/Infinity Sentiment Values
+### 2.3 NaN/Infinity Sentiment Values
 **File:** `crates/engine/src/use_cases/narrative/execute_effects.rs:625`
 
-**Fix:**
 ```rust
+// FIX
 if !sentiment_change.is_finite() {
     return Err(EffectError::InvalidSentimentValue);
 }
-relationship.sentiment = (relationship.sentiment + sentiment_change).clamp(-1.0, 1.0);
 ```
 
-### 1.4 Silent Error Swallowing
+### 2.4 Silent Error Swallowing
 **File:** `crates/engine/src/use_cases/conversation/start.rs:125-131`
 
-**Fix:**
 ```rust
+// FIX
 let npc_disposition = match self.character.get_disposition(npc_id, pc_id).await {
     Ok(d) => d,
     Err(e) => {
-        tracing::warn!(error = %e, "Failed to get NPC disposition");
+        tracing::warn!(error = %e, npc_id = %npc_id, "Failed to get NPC disposition");
         None
     }
 };
@@ -78,17 +239,18 @@ let npc_disposition = match self.character.get_disposition(npc_id, pc_id).await 
 
 ---
 
-## Part 2: Memory Safety - TTL Cache
+## Part 3: Memory Safety
 
-### 2.1 Problem
-**File:** `crates/engine/src/api/websocket/mod.rs:64-68`
+### 3.1 TTL Cache for WsState
 
-`WsState` contains unbounded HashMaps that grow indefinitely:
-- `pending_time_suggestions`
-- `pending_staging_requests`
-- `generation_read_state`
+**Problem:** HashMaps grow indefinitely
 
-### 2.2 Solution: TTL-Based Cleanup
+```rust
+// CURRENT - Memory leak
+pub pending_time_suggestions: RwLock<HashMap<Uuid, TimeSuggestion>>,
+```
+
+**Solution:** TTL-based cache with cleanup
 
 ```rust
 // infrastructure/cache/mod.rs
@@ -103,253 +265,244 @@ impl<K: Eq + Hash + Clone, V: Clone> TtlCache<K, V> {
     pub async fn get(&self, key: &K) -> Option<V> { ... }
     pub async fn cleanup_expired(&self) -> usize { ... }
 }
+
+// TTL values:
+// - pending_time_suggestions: 30 minutes
+// - pending_staging_requests: 1 hour
+// - generation_read_state: 5 minutes
 ```
 
-**TTL Values:**
-- `pending_time_suggestions`: 30 minutes
-- `pending_staging_requests`: 1 hour
-- `generation_read_state`: 5 minutes
+### 3.2 Periodic Cleanup Task
 
-**Cleanup:** Background task every 5 minutes.
-
----
-
-## Part 3: Code Duplication Reduction
-
-### 3.1 Neo4j Error Mapping - SKIP
-
-**Status:** 609 occurrences of `.map_err(|e| RepoError::Database(e.to_string()))`
-
-**Decision:** SKIP this refactoring.
-- `GraphExt::run_or_err()` already exists for non-streaming operations
-- Remaining duplications are on `execute()` for result streaming
-- This is not a maintenance burden - the pattern is simple and consistent
-- Neo4j API constraints make wrapping impractical
-
-### 3.2 WebSocket Handler Error Patterns - HIGH PRIORITY
-
-**Problem:** 131 instances of repeated error handling pattern
-
-**Solution:** Generic wrapper function
 ```rust
-// In mod.rs helpers section
-async fn handle_use_case_result<T: Serialize>(
-    result: Result<T, impl ToString>,
-) -> Result<ResponseResult, ServerMessage> {
-    match result {
-        Ok(data) => Ok(ResponseResult::success(json!(data))),
-        Err(e) => Ok(ResponseResult::error(ErrorCode::InternalError, e.to_string())),
+// In WebSocket server setup
+tokio::spawn(async move {
+    let mut interval = tokio::time::interval(Duration::from_secs(300));
+    loop {
+        interval.tick().await;
+        let cleaned = state.cleanup_expired().await;
+        if cleaned > 0 {
+            tracing::info!(entries_cleaned = cleaned, "TTL cache cleanup");
+        }
     }
-}
-
-// Usage
-handle_use_case_result(state.app.use_cases.lore.list(world_id).await)
-```
-
-**Why not macros:** Functions are clearer, testable, and IDE-friendly.
-
-### 3.3 Game System Registry - MEDIUM PRIORITY
-
-**Problem:** Three nearly-identical functions mapping game systems (45 lines duplicated)
-- `has_schema_for_system()`
-- `get_schema_for_system()`
-- `get_provider_for_system()`
-
-**Solution:**
-```rust
-pub struct GameSystemRegistry {
-    systems: HashMap<String, SystemInfo>,
-}
-
-impl GameSystemRegistry {
-    pub fn has_schema(&self, system_id: &str) -> bool { ... }
-    pub fn get_schema(&self, system_id: &str) -> Option<CharacterSheetSchema> { ... }
-    pub fn get_provider(&self, system_id: &str) -> Option<Box<dyn CharacterSheetProvider>> { ... }
-}
-```
-
-### 3.4 ID Parsing Functions - LOW PRIORITY
-
-**Problem:** 14 wrapper functions for ID parsing
-
-**Solution:** Delete wrappers, use generic directly:
-```rust
-let world_id = parse_id_for_request(&world_id, request_id, WorldId::from_uuid, "Invalid world ID")?;
-```
-
-Or add trait for cleaner syntax:
-```rust
-impl FromWebSocketId for WorldId { ... }
-let world_id = WorldId::from_ws_string(&world_id, request_id)?;
+});
 ```
 
 ---
 
-## Part 4: Architectural Improvements
+## Part 4: Structural Debt Reduction
 
-### 4.1 Narrative Entity - CHANGE APPROACH, DON'T SPLIT
+### 4.1 Split WsState into Focused Services
 
-**Current Problem:** 10 repository dependencies injected
-
-**Root Cause:** Entity operations need cross-domain context, but injecting repos creates testing burden.
-
-**Solution:** Pass repos as method parameters instead of injecting:
+**Problem:** WsState is becoming a God Object
 
 ```rust
-// Instead of:
+// CURRENT - Everything in one struct
+pub struct WsState {
+    pub app: Arc<App>,
+    pub connections: Arc<ConnectionManager>,
+    pub pending_time_suggestions: RwLock<HashMap<...>>,
+    pub pending_staging_requests: RwLock<HashMap<...>>,
+    pub generation_read_state: RwLock<HashMap<...>>,
+}
+```
+
+**Solution:** Extract into focused services
+
+```rust
+// Split by concern
+pub struct WsState {
+    pub app: Arc<App>,
+    pub connections: Arc<ConnectionManager>,
+    pub time_store: Arc<dyn TimeSuggestionStore>,
+    pub staging_store: Arc<dyn PendingRequestStore>,
+    pub generation_store: Arc<dyn GenerationStateStore>,
+}
+
+// Each store is a port with TTL implementation
+```
+
+### 4.2 Split Monolithic Use Cases
+
+**Problem:** Management module is 1,499 lines with 10 CRUD operations
+
+**Solution:** Each entity gets its own module
+
+```
+use_cases/
+├── world/
+│   ├── mod.rs          # WorldUseCases container
+│   ├── create.rs       # CreateWorld
+│   ├── update.rs       # UpdateWorld
+│   └── query.rs        # ListWorlds, GetWorld
+├── character/
+│   ├── mod.rs
+│   ├── create.rs
+│   └── ...
+├── staging/
+│   ├── mod.rs          # StagingUseCases container
+│   ├── request.rs      # RequestStagingApproval (~300 lines)
+│   ├── regenerate.rs   # RegenerateSuggestion (~200 lines)
+│   ├── approve.rs      # ApproveStagingRequest (~200 lines)
+│   └── timeout.rs      # AutoApproveTimeout (~150 lines)
+```
+
+### 4.3 Narrative Entity - Pass Repos as Parameters
+
+**Problem:** Narrative entity has 10 repository dependencies
+
+```rust
+// CURRENT - All repos injected
 pub struct Narrative {
     repo: Arc<dyn NarrativeRepo>,
-    character_repo: Arc<dyn CharacterRepo>,
-    // ... 8 more repos
+    location_repo: Arc<dyn LocationRepo>,
+    // ... 8 more
 }
+```
 
-// Do this:
+**Solution:** Pass what you need
+
+```rust
+// AFTER - Only primary repo
 pub struct Narrative {
-    repo: Arc<dyn NarrativeRepo>,  // Only primary
+    repo: Arc<dyn NarrativeRepo>,
 }
 
 impl Narrative {
     pub async fn check_triggers(
         &self,
         region_id: RegionId,
-        character_repo: &dyn CharacterRepo,  // Pass what you need
-        location_repo: &dyn LocationRepo,
-    ) -> Result<...> { ... }
+        ctx: &TriggerContext,  // Contains what this method needs
+    ) -> Result<Vec<TriggeredEvent>, NarrativeError> { ... }
+}
+
+pub struct TriggerContext<'a> {
+    pub character_repo: &'a dyn CharacterRepo,
+    pub location_repo: &'a dyn LocationRepo,
+    pub flag_repo: &'a dyn FlagRepo,
 }
 ```
-
-**Why this works:**
-- Testability: Mock only what you use
-- Clarity: Method signature shows dependencies
-- No extra ceremony: Use cases pass what they have
-
-**DO NOT split the Narrative entity itself** - it has focused responsibility. The use_cases/narrative/ is already well-split into events.rs, chains.rs, decision.rs, execute_effects.rs.
-
-### 4.2 App Container - REDUCE CEREMONY
-
-**Current:** 529 lines, 250-line constructor
-
-**Solution:** Group into `create_X()` methods:
-
-```rust
-impl App {
-    pub fn new(config: AppConfig) -> Self {
-        let repos = Self::create_repositories(&config);
-        let entities = Self::create_entities(&repos);
-        let use_cases = Self::create_use_cases(&entities, &repos);
-        Self { entities, use_cases }
-    }
-
-    fn create_entities(repos: &Repositories) -> Entities {
-        // Character-related
-        let character = Arc::new(Character::new(repos.character.clone()));
-        let player_character = Arc::new(PlayerCharacter::new(repos.player_character.clone()));
-        // ... grouped logically
-    }
-
-    fn create_use_cases(entities: &Entities, repos: &Repositories) -> UseCases {
-        UseCases {
-            movement: Self::create_movement_use_cases(entities),
-            conversation: Self::create_conversation_use_cases(entities),
-            // ... by domain
-        }
-    }
-}
-```
-
-### 4.3 Neo4j QueryBuilder - SKIP
-
-**Decision:** Current `.param()` chain approach is fine.
-- Adding abstraction doesn't meaningfully improve code
-- Current pattern is readable and explicit
-- Neo4rs API is already reasonable
-
-### 4.4 Avoid These Traps
-
-**DO NOT:**
-1. Create wrapper services for entities (current direct access is correct)
-2. Over-abstract internal feature communication (concrete types are fine internally)
-3. Create adapters between features (use cases take entities directly)
-4. Extract patterns before they're truly needed (3+ instances = consider extraction)
 
 ---
 
-## Part 5: Testing Infrastructure
+## Part 5: Error Handling Unification
 
-### 5.1 VCR (Record/Replay) - ALREADY IMPLEMENTED
+### 5.1 Unified Error Strategy
 
-**Location:** `crates/engine/src/e2e_tests/vcr_llm.rs`
+**Problem:** Inconsistent error types (RepoError, ManagementError, SessionError, etc.)
 
-**Current Strengths:**
-- Sequential playback via `VecDeque<LlmRecording>`
-- Environment-based mode selection (`E2E_LLM_MODE=record|playback|live`)
-- Cassette serialization with request summaries
-- Integration with `E2EEventLog`
-
-**Enhancement Needed: Request Fingerprinting**
-
-For tests with variable prompts, add fuzzy matching:
+**Solution:** Layered errors with context
 
 ```rust
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LlmRequestFingerprint {
-    system_prompt_hash: Option<u64>,
-    message_structure: Vec<MessageRole>,
-    last_message_prefix: String,  // First 100 chars
-    tool_names: Vec<String>,      // Sorted
+// Domain errors - business rule violations
+#[derive(Debug, Error)]
+pub enum DomainError {
+    #[error("Validation failed: {message}")]
+    Validation { message: String, field: Option<String> },
+
+    #[error("{entity_type} not found: {id}")]
+    NotFound { entity_type: &'static str, id: String },
+
+    #[error("Invariant violated: {0}")]
+    InvariantViolation(String),
 }
 
-impl VcrLlm {
-    fn fingerprint_request(request: &LlmRequest) -> LlmRequestFingerprint { ... }
-    fn find_matching_recording(&self, request: &LlmRequest) -> Option<LlmRecording> { ... }
+// Infrastructure errors - external system failures
+#[derive(Debug, Error)]
+pub enum InfraError {
+    #[error("Database error: {message}")]
+    Database { message: String, query: Option<String> },
+
+    #[error("LLM error: {0}")]
+    Llm(#[from] LlmError),
+
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+}
+
+// Use case errors - wrap domain + infra with context
+#[derive(Debug, Error)]
+pub enum StagingError {
+    #[error("Staging failed for region {region_id}: {source}")]
+    Failed { region_id: RegionId, #[source] source: Box<dyn std::error::Error + Send + Sync> },
+
+    #[error(transparent)]
+    Domain(#[from] DomainError),
+
+    #[error(transparent)]
+    Infra(#[from] InfraError),
 }
 ```
 
-### 5.2 Mode Selection
-
-| Test Type | Mode | Environment |
-|-----------|------|-------------|
-| CI/fast | `playback` | Default (unset) |
-| New test development | `record` | `E2E_LLM_MODE=record` + Ollama |
-| Prompt iteration | `live` | `E2E_LLM_MODE=live` + Ollama |
-
-### 5.3 Interaction Logging - ALREADY IMPLEMENTED
-
-**Location:** `crates/engine/src/e2e_tests/event_log.rs`
-
-**Enhancement:** Add test summary for analytics:
+### 5.2 Add Context to RepoError
 
 ```rust
-pub struct TestSummary {
-    test_name: String,
-    total_llm_calls: usize,
-    total_tokens: usize,
-    cassette_file: String,
-    event_log_file: String,
+// CURRENT - No context
+pub enum RepoError {
+    #[error("Not found")]
+    NotFound,
 }
 
-// Append to logs/SUMMARY.jsonl after each test
+// AFTER - Actionable errors
+pub enum RepoError {
+    #[error("{entity_type} not found: {id}")]
+    NotFound { entity_type: &'static str, id: String },
+
+    #[error("Database error in {operation}: {message}")]
+    Database { operation: &'static str, message: String },
+}
 ```
 
-### 5.4 E2E Test Scenarios
+---
 
-**Tier 1: Foundation (Mostly Complete)**
-- [x] Simple conversation (`test_innkeeper_greeting`)
-- [x] Multi-turn dialogue (`test_conversation_continuation`)
-- [x] Movement + staging (movement_tests)
+## Part 6: Testing Infrastructure
 
-**Tier 2: Integrated Systems (To Add)**
-- [ ] Challenge flow (roll, succeed/fail, effects)
-- [ ] Narrative event cascade
-- [ ] DM approval flow
+### 6.1 VCR for LLM Interactions (Already 85% Done)
 
-**Tier 3: Concurrent Scenarios (Future)**
-- [ ] Two players in same region
-- [ ] DM + player session
+**Enhancements needed:**
+- Request fingerprinting for fuzzy matching
+- Cassette versioning
+- Document workflow
 
-### 5.5 WebSocket E2E Client (Phase 4)
+### 6.2 Separate Test Types
 
-For true end-to-end testing through WebSocket layer:
+```rust
+// Unit tests - mocked dependencies, fast
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_staging_decision_logic() {
+        // No LLM, no database, pure logic
+    }
+}
+
+// Integration tests - real ports, mocked externals
+#[cfg(test)]
+mod integration_tests {
+    #[tokio::test]
+    async fn test_staging_with_mock_llm() {
+        // Uses MockLlmPort, tests integration
+    }
+}
+
+// E2E tests - full stack with VCR
+#[cfg(test)]
+mod e2e_tests {
+    #[tokio::test]
+    async fn test_full_conversation_flow() {
+        // VCR cassettes, full system
+    }
+}
+
+// Live tests - real services, marked ignore
+#[tokio::test]
+#[ignore = "requires ollama"]
+async fn test_llm_prompt_quality() {
+    // Real LLM, for development only
+}
+```
+
+### 6.3 WebSocket E2E Client
 
 ```rust
 pub struct E2EWebSocketClient {
@@ -358,112 +511,131 @@ pub struct E2EWebSocketClient {
 }
 
 impl E2EWebSocketClient {
-    pub async fn connect(url: &str, world_id: WorldId) -> Result<Self> { ... }
-    pub async fn send_and_expect<P>(&mut self, msg: ClientMessage, predicate: P) -> Result<ServerMessage> { ... }
-    pub async fn join_as_player(&mut self, user_id: &str, pc_id: PlayerCharacterId) { ... }
-    pub async fn say(&mut self, message: &str) -> Result<DialogueResponse> { ... }
-    pub async fn move_to(&mut self, region_id: RegionId) -> Result<MovementResponse> { ... }
+    pub async fn connect(url: &str) -> Result<Self> { ... }
+    pub async fn join_world(&mut self, world_id: Uuid, role: WorldRole) -> Result<WorldSnapshot> { ... }
+    pub async fn say(&mut self, message: &str) -> Result<NarrativeResponse> { ... }
+    pub async fn move_to(&mut self, region_id: Uuid) -> Result<MovementResult> { ... }
+    pub async fn expect_message<P>(&mut self, predicate: P, timeout: Duration) -> Result<ServerMessage> { ... }
 }
 ```
 
-### 5.6 Ensuring Determinism
-
-- **VCR cassettes** - Record once, replay deterministically
-- **Fixed clock** - Use `FixedClock` for reproducible time-based logic
-- **Deterministic test data** - Seeded world state
-
 ---
 
-## Part 6: Implementation Phases
+## Part 7: Implementation Phases
 
-### Phase 1A: Critical Bug Fixes (2-3 days)
-**Priority: CRITICAL** | **Blocks: Production readiness**
+### Phase 1: Critical Fixes + Platform Boundaries (Week 1)
+**Priority: CRITICAL** | **No deferral**
 
-- [ ] Fix integer overflow: `execute_effects.rs:853` → `saturating_add`
-- [ ] Fix i64→i32 truncation: `character_sheet.rs:786-810` → `try_from`
-- [ ] Add NaN/Infinity validation: `execute_effects.rs:625`
+**Bug Fixes:**
+- [ ] Fix integer overflow: `execute_effects.rs:853`
+- [ ] Fix i64→i32 truncation: `character_sheet.rs:786-810`
+- [ ] Add NaN validation: `execute_effects.rs:625`
 - [ ] Add error logging: `conversation/start.rs:125-131`
 
-### Phase 1B: Memory Safety (3-4 days)
-**Priority: CRITICAL** | **Blocks: Long-running server reliability**
+**Memory Safety:**
+- [ ] Create TtlCache utility
+- [ ] Replace WsState HashMaps
+- [ ] Add cleanup task
 
-- [ ] Create `TtlCache<K,V>` utility in `infrastructure/cache/`
-- [ ] Replace WsState HashMaps with TtlCache instances
-- [ ] Add periodic cleanup task (interval: 5 min)
+**Platform Boundaries:**
+- [ ] Create PendingRequestStore port
+- [ ] Create TimeSuggestionStore port
+- [ ] Move tokio::sync::RwLock behind ports
 
-### Phase 2: E2E Testing Polish (1-2 days)
-**Priority: HIGH** | **Status: 85% complete**
+### Phase 2: Protocol Decoupling (Week 1-2)
+**Priority: HIGH** | **Prevents further coupling**
 
-- [x] VCR LLM recording/playback
-- [x] Event logging system
-- [ ] Document cassette workflow in README
-- [ ] Add Tier 2 scenarios (challenge, narrative events, DM approval)
-- [ ] Add request fingerprinting for variable prompts (optional)
+- [ ] Create domain result types for staging
+- [ ] Create domain result types for session
+- [ ] Remove wrldbldr_protocol imports from use cases
+- [ ] Move serde_json::json! to API layer
+- [ ] Update 13 affected use case files
 
-### Phase 3: Duplication Reduction (4-5 days)
-**Priority: MEDIUM** | **Can be deferred**
+### Phase 3: Structural Improvements (Week 2-3)
+**Priority: HIGH** | **Reduces compound risk**
 
-- [ ] Create `handle_use_case_result()` function
-- [ ] Refactor top 10 handlers to use it
-- [ ] Create GameSystemRegistry
-- [ ] Consolidate ID parser functions (optional)
+- [ ] Split WsState into focused services
+- [ ] Split ManagementUseCases into entity modules
+- [ ] Split StagingUseCases into focused modules
+- [ ] Refactor Narrative entity (pass repos as params)
 
-### Phase 4: Architecture Polish (DEFER)
-**Priority: LOW** | **Decision: Defer until after MVP**
+### Phase 4: Error Handling (Week 3)
+**Priority: MEDIUM** | **Improves debugging**
 
-- [ ] Refactor Narrative entity to pass repos as parameters
-- [ ] Group App constructor into `create_X()` methods
-- [ ] Add WebSocket E2E client for Tier 3 scenarios
+- [ ] Create layered error types
+- [ ] Add context to RepoError
+- [ ] Update use case errors
+- [ ] Add error logging middleware
 
-### Phase 5: Consistency Standards (Ongoing)
-**Priority: LOW** | **Applied to: New code only**
+### Phase 5: Testing Polish (Week 3-4)
+**Priority: MEDIUM** | **Enables confident changes**
 
-- [ ] Document error handling standard
-- [ ] Document constructor pattern (config structs for 4+ deps)
-- [ ] Enforce in PR reviews, don't retrofit
+- [ ] Document VCR workflow
+- [ ] Add request fingerprinting
+- [ ] Create WebSocket E2E client
+- [ ] Add Tier 2 test scenarios (challenge, narrative, DM)
+- [ ] Separate unit/integration/e2e tests
+
+### Phase 6: Ongoing Standards
+**Priority: LOW** | **Applied to new code**
+
+- [ ] Document architecture decisions (ADRs)
+- [ ] Code review checklist
+- [ ] New module template
 
 ---
 
 ## Dependency Graph
 
 ```
-Phase 1A (Critical Bugs) ──┐
-                          ├──→ Phase 2 (E2E Polish) ──→ "Finalize Player" MVP
-Phase 1B (Memory Safety) ──┘                              │
-                                                          ↓
-                                           Phase 3 (Duplication) ──→ Phase 4 (Architecture)
+Phase 1 (Critical + Boundaries) ─────────────────────────────────┐
+         │                                                        │
+         ▼                                                        │
+Phase 2 (Protocol Decoupling) ──→ Phase 3 (Structure) ──→ MVP ◀──┘
+         │                              │
+         ▼                              ▼
+Phase 4 (Errors) ◀────────────── Phase 5 (Testing)
 ```
 
-**Critical Path to MVP:** Phase 1A → Phase 1B → Phase 2 → Ship
+**Critical Path:** Phase 1 → Phase 2 → Phase 3 → MVP
 
 ---
 
-## Minimum Viable Set for "Finalizing the Player"
+## What We're NOT Deferring
 
-**Must do:**
-1. Phase 1A - Critical bugs (non-negotiable)
-2. Phase 1B - Memory safety (non-negotiable for production)
-3. Phase 2 - E2E tests (85% done, polish existing)
+Unlike the previous plan, these items are **mandatory before MVP**:
 
-**Skip for now:**
-- Phase 4 architecture refactoring (doesn't add gameplay value)
-- Fancy builder patterns (current code works)
+| Item | Why Not Defer |
+|------|---------------|
+| Protocol decoupling | Coupling compounds - more use cases will import protocol types |
+| WsState split | Memory leak risk in production |
+| Async primitive abstraction | Testing becomes impossible without this |
+| Error context | Debugging production issues requires actionable errors |
+| Monolithic use case split | 1500-line files will only grow larger |
 
-**Do later:**
-- Phase 3 duplication (nice but doesn't block features)
-- Phase 5 consistency (enforce in new code, don't retrofit)
+---
+
+## What We ARE Deferring (Safe to Defer)
+
+| Item | Why Safe |
+|------|----------|
+| Repository query builder | Current pattern works, just verbose |
+| Handler consolidation | 24 files is manageable, not growing fast |
+| Full ADR documentation | Can document incrementally |
+| N+1 query optimization | No evidence of performance issues yet |
 
 ---
 
 ## Summary
 
-| Area | Effort | Impact | Priority |
-|------|--------|--------|----------|
-| Critical bug fixes | 2-3 days | HIGH | 1 |
-| Memory safety (TTL) | 3-4 days | HIGH | 1 |
-| E2E test polish | 1-2 days | HIGH | 2 |
-| Handler error patterns | 3-4 hours | MEDIUM | 3 |
-| Game system registry | 2-3 hours | MEDIUM | 3 |
-| Narrative refactor | 2 days | LOW | 4 |
-| App container grouping | 1 day | LOW | 4 |
-| Neo4j QueryBuilder | Skip | N/A | - |
+| Phase | Focus | Effort | Impact |
+|-------|-------|--------|--------|
+| 1 | Critical fixes + platform boundaries | 5-6 days | Prevents memory leaks, enables testing |
+| 2 | Protocol decoupling | 4-5 days | Stops coupling from spreading |
+| 3 | Structural improvements | 5-7 days | Reduces complexity |
+| 4 | Error handling | 2-3 days | Improves debugging |
+| 5 | Testing polish | 3-4 days | Enables confident changes |
+
+**Total: ~20-25 days of focused work**
+
+This is NOT tech debt to fix later—it's foundation work that prevents exponential complexity growth.
