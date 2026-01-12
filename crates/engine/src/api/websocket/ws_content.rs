@@ -7,7 +7,6 @@ use super::*;
 
 use crate::api::connections::ConnectionInfo;
 use serde_json::json;
-use std::path::PathBuf;
 use wrldbldr_domain::{ContentFilter, ContentType};
 use wrldbldr_protocol::{requests::content::ContentRequest, ErrorCode, ResponseResult};
 
@@ -153,27 +152,6 @@ pub(super) async fn handle_content_request(
                 "total_systems": stats.systems,
                 "total_items": stats.total_items
             })))
-        }
-
-        ContentRequest::LoadFrom5etools { path } => {
-            let path_buf = PathBuf::from(&path);
-
-            match state.app.content.load_from_5etools(&path_buf).await {
-                Ok(count) => {
-                    let stats = state.app.content.stats();
-                    Ok(ResponseResult::success(json!({
-                        "loaded": count,
-                        "stats": {
-                            "systems": stats.systems,
-                            "total_items": stats.total_items
-                        }
-                    })))
-                }
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    format!("Failed to load from 5etools: {}", e),
-                )),
-            }
         }
     }
 }

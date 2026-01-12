@@ -7,8 +7,13 @@ use super::fivetools_types::*;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use thiserror::Error;
 use tokio::fs;
+
+// Static regex patterns for cleaning 5etools formatting (compiled once)
+static FIVETOOLS_TAG_REGEX: OnceLock<regex_lite::Regex> = OnceLock::new();
+static FIVETOOLS_DISPLAY_REGEX: OnceLock<regex_lite::Regex> = OnceLock::new();
 use wrldbldr_domain::{
     CastingTime, CastingTimeUnit, DurationUnit, Feat, FeatBenefit, MaterialComponent, Prerequisite,
     Spell, SpellComponents, SpellDuration, SpellLevel, SpellRange,
@@ -718,14 +723,17 @@ impl FiveToolsImporter {
 
     fn clean_formatting(&self, text: &str) -> String {
         // Remove 5etools formatting tags like {@damage 1d6}, {@spell fireball}, etc.
+        // Uses static regex patterns to avoid recompilation on every call.
         let mut result = text.to_string();
 
         // Pattern: {@tag content} or {@tag content|display}
-        let re = regex_lite::Regex::new(r"\{@\w+\s+([^|}]+)(?:\|[^}]*)?\}").unwrap();
+        let re = FIVETOOLS_TAG_REGEX
+            .get_or_init(|| regex_lite::Regex::new(r"\{@\w+\s+([^|}]+)(?:\|[^}]*)?\}").unwrap());
         result = re.replace_all(&result, "$1").to_string();
 
         // Pattern: {@tag content|display} - use display
-        let re2 = regex_lite::Regex::new(r"\{@\w+\s+[^|]+\|([^}]+)\}").unwrap();
+        let re2 = FIVETOOLS_DISPLAY_REGEX
+            .get_or_init(|| regex_lite::Regex::new(r"\{@\w+\s+[^|]+\|([^}]+)\}").unwrap());
         result = re2.replace_all(&result, "$1").to_string();
 
         result
@@ -1314,11 +1322,13 @@ impl CompendiumProvider for Dnd5eContentProvider {
         content_type: &ContentType,
         filter: &ContentFilter,
     ) -> Result<Vec<ContentItem>, ContentError> {
-        // Use a blocking runtime since the trait isn't async
+        // Use block_in_place to safely run async code from a sync context.
+        // This moves the current task to a blocking thread, preventing deadlocks
+        // when called from within an async context.
         let rt = tokio::runtime::Handle::try_current()
             .map_err(|_| ContentError::LoadError("No tokio runtime available".to_string()))?;
 
-        rt.block_on(async {
+        tokio::task::block_in_place(|| rt.block_on(async {
             let items: Vec<ContentItem> = match content_type {
                 ContentType::CharacterOrigin => {
                     let races = self.load_races_cached().await?;
@@ -1349,7 +1359,7 @@ impl CompendiumProvider for Dnd5eContentProvider {
 
             // Apply filter
             Ok(filter.apply(items.iter()).into_iter().cloned().collect())
-        })
+        }))
     }
 
     fn filter_schema(&self, content_type: &ContentType) -> Option<FilterSchema> {

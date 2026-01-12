@@ -65,9 +65,6 @@ pub enum ContentRequest {
 
     /// Get content statistics for a system.
     GetContentStats { system_id: String },
-
-    /// Load content from 5etools data path (for dynamic loading).
-    LoadFrom5etools { path: String },
 }
 
 fn default_search_limit() -> usize {
