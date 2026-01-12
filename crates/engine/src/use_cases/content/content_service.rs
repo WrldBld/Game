@@ -28,8 +28,6 @@ pub enum ContentError {
 pub struct ContentServiceConfig {
     /// Path to 5etools data (optional).
     pub fivetools_path: Option<PathBuf>,
-    /// Whether to preload content on startup.
-    pub preload: bool,
 }
 
 /// Service for managing game content through CompendiumProviders.
@@ -52,16 +50,6 @@ impl ContentService {
     /// Get the service configuration.
     pub fn config(&self) -> &ContentServiceConfig {
         &self.config
-    }
-
-    /// Initialize the service, optionally loading content from configured sources.
-    pub async fn initialize(&self) -> Result<(), ContentError> {
-        if self.config.preload {
-            if let Some(ref path) = self.config.fivetools_path {
-                self.load_from_5etools(path).await?;
-            }
-        }
-        Ok(())
     }
 
     // === Provider Management ===
@@ -200,15 +188,16 @@ impl ContentService {
     // === Statistics ===
 
     /// Get statistics about loaded content.
+    ///
+    /// Uses count_content() for efficient counting without loading all data.
     pub fn stats(&self) -> ContentStats {
         let mut total_items = 0;
 
         for provider_ref in self.providers.iter() {
             let provider = provider_ref.value();
-            let filter = DomainContentFilter::default();
             for ct in provider.content_types() {
-                if let Ok(items) = provider.load_content(&ct, &filter) {
-                    total_items += items.len();
+                if let Ok(count) = provider.count_content(&ct) {
+                    total_items += count;
                 }
             }
         }
@@ -406,5 +395,170 @@ mod tests {
         let stats = service.stats();
         assert_eq!(stats.systems, 1);
         assert_eq!(stats.total_items, 2);
+    }
+
+    // Integration tests that require actual 5etools data
+    // Run with: cargo test --package wrldbldr-engine content_service::tests::integration -- --ignored --nocapture
+    mod integration {
+        use super::*;
+        use crate::infrastructure::importers::Dnd5eContentProvider;
+
+        const FIVETOOLS_PATH: &str = "/Users/otto/repos/WrldBldr/5etools/5etools-src";
+
+        fn skip_if_no_data() -> bool {
+            !std::path::Path::new(FIVETOOLS_PATH).join("data").exists()
+        }
+
+        #[test]
+        #[ignore = "requires 5etools data"]
+        fn content_service_with_dnd5e_provider() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let service = ContentService::new(ContentServiceConfig::default());
+            service.register_dnd5e_provider(FIVETOOLS_PATH);
+
+            // Verify provider registered
+            assert!(
+                service.get_provider("dnd5e").is_some(),
+                "D&D 5e provider should be registered"
+            );
+            assert!(
+                service.registered_systems().contains(&"dnd5e".to_string()),
+                "dnd5e should be in registered systems"
+            );
+        }
+
+        // These tests need multi_thread runtime because CompendiumProvider uses block_in_place
+        #[tokio::test(flavor = "multi_thread")]
+        #[ignore = "requires 5etools data"]
+        async fn content_service_get_content() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let service = ContentService::new(ContentServiceConfig::default());
+            service.register_dnd5e_provider(FIVETOOLS_PATH);
+
+            // Get backgrounds (spells work too, but backgrounds are simpler)
+            let filter = DomainContentFilter::default();
+            let backgrounds = service
+                .get_content("dnd5e", &ContentType::CharacterBackground, &filter)
+                .expect("Failed to get backgrounds");
+
+            assert!(!backgrounds.is_empty(), "Should get backgrounds");
+            println!("Got {} backgrounds from service", backgrounds.len());
+
+            // Get spells
+            let spells = service
+                .get_content("dnd5e", &ContentType::Spell, &filter)
+                .expect("Failed to get spells");
+
+            assert!(!spells.is_empty(), "Should get spells");
+            println!("Got {} spells from service", spells.len());
+        }
+
+        #[tokio::test(flavor = "multi_thread")]
+        #[ignore = "requires 5etools data"]
+        async fn content_service_get_content_by_id() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let service = ContentService::new(ContentServiceConfig::default());
+            service.register_dnd5e_provider(FIVETOOLS_PATH);
+
+            // First get list to find a valid ID
+            let filter = DomainContentFilter::new().with_limit(1);
+            let backgrounds = service
+                .get_content("dnd5e", &ContentType::CharacterBackground, &filter)
+                .expect("Failed to get backgrounds");
+
+            if let Some(first_bg) = backgrounds.first() {
+                println!("Looking up background by ID: {}", first_bg.id);
+
+                let found = service
+                    .get_content_by_id("dnd5e", &ContentType::CharacterBackground, &first_bg.id)
+                    .expect("Failed to get by ID");
+
+                assert!(found.is_some(), "Should find background by ID");
+                assert_eq!(found.unwrap().name, first_bg.name);
+            }
+        }
+
+        #[tokio::test(flavor = "multi_thread")]
+        #[ignore = "requires 5etools data"]
+        async fn content_service_search() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let service = ContentService::new(ContentServiceConfig::default());
+            service.register_dnd5e_provider(FIVETOOLS_PATH);
+
+            // Search for "fireball" across all content
+            let results = service
+                .search_content("dnd5e", "fireball", 20)
+                .expect("Failed to search");
+
+            println!("Found {} items matching 'fireball'", results.len());
+            assert!(!results.is_empty(), "Should find content matching 'fireball'");
+
+            // Should include Fireball spell
+            let has_fireball = results.iter().any(|r| r.name == "Fireball");
+            assert!(has_fireball, "Should find Fireball spell");
+        }
+
+        #[tokio::test(flavor = "multi_thread")]
+        #[ignore = "requires 5etools data"]
+        async fn content_service_stats_with_real_data() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let service = ContentService::new(ContentServiceConfig::default());
+            service.register_dnd5e_provider(FIVETOOLS_PATH);
+
+            let stats = service.stats();
+
+            println!(
+                "Content stats: {} systems, {} total items",
+                stats.systems, stats.total_items
+            );
+            assert_eq!(stats.systems, 1, "Should have 1 system registered");
+            // At minimum, we have 936 spells + 149 backgrounds = 1085 items
+            assert!(
+                stats.total_items > 1000,
+                "Should have many items (got {}, expected > 1000)",
+                stats.total_items
+            );
+        }
+
+        #[test]
+        #[ignore = "requires 5etools data"]
+        fn content_service_content_types() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let service = ContentService::new(ContentServiceConfig::default());
+            service.register_dnd5e_provider(FIVETOOLS_PATH);
+
+            let types = service.content_types_for_system("dnd5e");
+
+            println!("D&D 5e content types: {:?}", types);
+            assert!(types.contains(&ContentType::CharacterOrigin));
+            assert!(types.contains(&ContentType::CharacterClass));
+            assert!(types.contains(&ContentType::CharacterBackground));
+            assert!(types.contains(&ContentType::Spell));
+            assert!(types.contains(&ContentType::Feat));
+        }
     }
 }

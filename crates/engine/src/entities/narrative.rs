@@ -504,16 +504,17 @@ impl Narrative {
         custom_trigger_results: HashMap<String, bool>,
     ) -> Result<Vec<domain::NarrativeEvent>, RepoError> {
         // Resolve world context from PC (required for safe trigger queries)
-        let world_id = self
-            .player_character_repo
-            .get(pc_id)
-            .await?
-            .map(|pc| pc.world_id);
+        let pc = self.player_character_repo.get(pc_id).await?;
+        let world_id = pc.as_ref().map(|pc| pc.world_id);
 
         let Some(world_id) = world_id else {
             tracing::warn!(pc_id = %pc_id, "Missing world_id for trigger evaluation");
             return Ok(vec![]);
         };
+
+        // Extract compendium-related data from PC sheet_data
+        let (origin_id, class_levels, known_spells, character_feats) =
+            extract_compendium_context(&pc);
 
         // Get candidate events for this region (world-bounded)
         let candidates = self.get_triggers_for_region(world_id, region_id).await?;
@@ -767,11 +768,11 @@ impl Narrative {
             relationships,                       // NPC disposition sentiments toward this PC
             character_stats,                     // Character stat values for StatThreshold triggers
             // Compendium-based trigger context (populated from PC sheet data)
-            known_spells: Vec::new(),       // TODO: Populate from CharacterSpells
-            character_feats: Vec::new(),    // TODO: Populate from CharacterFeats
-            class_levels: HashMap::new(),   // TODO: Populate from CharacterIdentity
-            origin_id: None,                // TODO: Populate from CharacterIdentity
-            known_creatures: Vec::new(),    // TODO: Populate from LoreKnowledge
+            known_spells,
+            character_feats,
+            class_levels,
+            origin_id,
+            known_creatures: Vec::new(),    // TODO: Populate from LoreKnowledge when implemented
         };
 
         // Evaluate each candidate and collect triggered events
@@ -800,6 +801,83 @@ fn truncate_dialogue(s: &str, max_chars: usize) -> String {
         let truncated: String = s.chars().take(max_chars).collect();
         format!("{}...", truncated)
     }
+}
+
+/// Extract compendium-related context from a PlayerCharacter's sheet_data.
+///
+/// Returns (origin_id, class_levels, known_spells, character_feats).
+/// Extracts from:
+/// - Individual field values (RACE, CLASS, LEVEL) for basic identity
+/// - Structured CharacterSpells, CharacterFeats, CharacterIdentity if stored in sheet_data
+fn extract_compendium_context(
+    pc: &Option<wrldbldr_domain::PlayerCharacter>,
+) -> (
+    Option<String>,
+    HashMap<String, u8>,
+    Vec<String>,
+    Vec<String>,
+) {
+    let Some(pc) = pc else {
+        return (None, HashMap::new(), Vec::new(), Vec::new());
+    };
+
+    let Some(sheet_data) = &pc.sheet_data else {
+        return (None, HashMap::new(), Vec::new(), Vec::new());
+    };
+
+    let mut origin_id = None;
+    let mut class_levels = HashMap::new();
+    let mut known_spells = Vec::new();
+    let mut character_feats = Vec::new();
+
+    // Try to extract from structured CharacterIdentity first
+    if let Some(identity_json) = sheet_data.get("character_identity") {
+        if let Ok(identity) =
+            serde_json::from_value::<wrldbldr_domain::CharacterIdentity>(identity_json.clone())
+        {
+            origin_id = identity.race.clone();
+            for class_entry in &identity.classes {
+                class_levels.insert(class_entry.class_id.to_lowercase(), class_entry.level);
+            }
+        }
+    }
+
+    // Fallback: extract from individual fields if CharacterIdentity not found
+    if origin_id.is_none() {
+        if let Some(race) = sheet_data.get_string("RACE") {
+            origin_id = Some(race.to_lowercase());
+        }
+    }
+
+    if class_levels.is_empty() {
+        if let Some(class_name) = sheet_data.get_string("CLASS") {
+            let level = sheet_data.get_number("LEVEL").unwrap_or(1) as u8;
+            class_levels.insert(class_name.to_lowercase(), level);
+        }
+    }
+
+    // Extract from structured CharacterSpells if present
+    if let Some(spells_json) = sheet_data.get("character_spells") {
+        if let Ok(spells) =
+            serde_json::from_value::<wrldbldr_domain::CharacterSpells>(spells_json.clone())
+        {
+            // Add cantrips
+            known_spells.extend(spells.cantrips.iter().map(|s| s.to_lowercase()));
+            // Add known spells
+            known_spells.extend(spells.known.iter().map(|s| s.spell_id.to_lowercase()));
+        }
+    }
+
+    // Extract from structured CharacterFeats if present
+    if let Some(feats_json) = sheet_data.get("character_feats") {
+        if let Ok(feats) =
+            serde_json::from_value::<wrldbldr_domain::CharacterFeats>(feats_json.clone())
+        {
+            character_feats.extend(feats.feats.iter().map(|f| f.feat_id.to_lowercase()));
+        }
+    }
+
+    (origin_id, class_levels, known_spells, character_feats)
 }
 
 #[cfg(test)]

@@ -95,7 +95,6 @@ async fn main() -> anyhow::Result<()> {
     // Configure content service
     let content_config = use_cases::content::ContentServiceConfig {
         fivetools_path: fivetools_path.map(std::path::PathBuf::from),
-        preload: false,
     };
     if content_config.fivetools_path.is_some() {
         tracing::info!(

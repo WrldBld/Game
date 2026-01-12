@@ -10,9 +10,21 @@ use serde_json::json;
 use wrldbldr_domain::{ContentFilter, ContentType};
 use wrldbldr_protocol::{requests::content::ContentRequest, ErrorCode, ResponseResult};
 
+// Input validation limits to prevent DoS attacks
+const MAX_QUERY_LENGTH: usize = 1024;
+const MAX_LIMIT: usize = 1000;
+const MAX_TAGS: usize = 100;
+const MAX_TAG_LENGTH: usize = 50;
+const MAX_CONTENT_TYPE_LENGTH: usize = 50;
+
 /// Convert a string content type to the domain ContentType enum.
-fn parse_content_type(content_type: &str) -> ContentType {
-    match content_type.to_lowercase().as_str() {
+fn parse_content_type(content_type: &str) -> Option<ContentType> {
+    // Reject overly long custom content types
+    if content_type.len() > MAX_CONTENT_TYPE_LENGTH {
+        return None;
+    }
+
+    Some(match content_type.to_lowercase().as_str() {
         "origin" | "race" | "ancestry" => ContentType::CharacterOrigin,
         "class" | "playbook" => ContentType::CharacterClass,
         "background" => ContentType::CharacterBackground,
@@ -27,12 +39,48 @@ fn parse_content_type(content_type: &str) -> ContentType {
         "item" => ContentType::Item,
         "magic_item" => ContentType::MagicItem,
         other => ContentType::Custom(other.to_string()),
+    })
+}
+
+/// Validate filter inputs to prevent DoS attacks.
+fn validate_filter(
+    filter: &wrldbldr_protocol::requests::content::ContentFilterRequest,
+) -> Result<(), String> {
+    if let Some(ref search) = filter.search {
+        if search.len() > MAX_QUERY_LENGTH {
+            return Err(format!(
+                "Search query too long (max {} characters)",
+                MAX_QUERY_LENGTH
+            ));
+        }
     }
+
+    if let Some(limit) = filter.limit {
+        if limit > MAX_LIMIT {
+            return Err(format!("Limit too high (max {})", MAX_LIMIT));
+        }
+    }
+
+    if let Some(ref tags) = filter.tags {
+        if tags.len() > MAX_TAGS {
+            return Err(format!("Too many tags (max {})", MAX_TAGS));
+        }
+        for tag in tags {
+            if tag.len() > MAX_TAG_LENGTH {
+                return Err(format!(
+                    "Tag too long (max {} characters)",
+                    MAX_TAG_LENGTH
+                ));
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub(super) async fn handle_content_request(
     state: &WsState,
-    request_id: &str,
+    _request_id: &str,
     _conn_info: &ConnectionInfo,
     request: ContentRequest,
 ) -> Result<ResponseResult, ServerMessage> {
@@ -60,7 +108,23 @@ pub(super) async fn handle_content_request(
             content_type,
             filter,
         } => {
-            let ct = parse_content_type(&content_type);
+            // Validate content type
+            let ct = match parse_content_type(&content_type) {
+                Some(ct) => ct,
+                None => {
+                    return Ok(ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        "Content type too long or invalid",
+                    ))
+                }
+            };
+
+            // Validate filter if present
+            if let Some(ref f) = filter {
+                if let Err(e) = validate_filter(f) {
+                    return Ok(ResponseResult::error(ErrorCode::BadRequest, e));
+                }
+            }
 
             // Convert filter
             let domain_filter = filter
@@ -76,7 +140,8 @@ pub(super) async fn handle_content_request(
                         df = df.with_tags(tags);
                     }
                     if let Some(limit) = f.limit {
-                        df = df.with_limit(limit);
+                        // Clamp limit to MAX_LIMIT
+                        df = df.with_limit(limit.min(MAX_LIMIT));
                     }
                     if let Some(offset) = f.offset {
                         df = df.with_offset(offset);
@@ -107,7 +172,16 @@ pub(super) async fn handle_content_request(
             content_type,
             content_id,
         } => {
-            let ct = parse_content_type(&content_type);
+            // Validate content type
+            let ct = match parse_content_type(&content_type) {
+                Some(ct) => ct,
+                None => {
+                    return Ok(ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        "Content type too long or invalid",
+                    ))
+                }
+            };
 
             match state
                 .app
@@ -132,17 +206,34 @@ pub(super) async fn handle_content_request(
             system_id,
             query,
             limit,
-        } => match state.app.content.search_content(&system_id, &query, limit) {
-            Ok(items) => Ok(ResponseResult::success(json!({
-                "query": query,
-                "items": items,
-                "count": items.len()
-            }))),
-            Err(e) => Ok(ResponseResult::error(
-                ErrorCode::NotFound,
-                format!("Search failed: {}", e),
-            )),
-        },
+        } => {
+            // Validate query length
+            if query.len() > MAX_QUERY_LENGTH {
+                return Ok(ResponseResult::error(
+                    ErrorCode::BadRequest,
+                    format!("Query too long (max {} characters)", MAX_QUERY_LENGTH),
+                ));
+            }
+
+            // Clamp limit
+            let safe_limit = limit.min(MAX_LIMIT);
+
+            match state
+                .app
+                .content
+                .search_content(&system_id, &query, safe_limit)
+            {
+                Ok(items) => Ok(ResponseResult::success(json!({
+                    "query": query,
+                    "items": items,
+                    "count": items.len()
+                }))),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::NotFound,
+                    format!("Search failed: {}", e),
+                )),
+            }
+        }
 
         ContentRequest::GetContentStats { system_id } => {
             let stats = state.app.content.stats();

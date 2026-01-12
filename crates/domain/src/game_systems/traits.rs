@@ -378,12 +378,22 @@ pub trait CompendiumProvider: Send + Sync {
     /// Returns None if the content type is not supported.
     fn filter_schema(&self, content_type: &ContentType) -> Option<FilterSchema>;
 
+    /// Count content items of a specific type without loading all data.
+    ///
+    /// The default implementation loads content and counts it. Providers
+    /// can override this for better performance by counting from cached
+    /// data without full conversion to ContentItem.
+    fn count_content(&self, content_type: &ContentType) -> Result<usize, ContentError> {
+        let items = self.load_content(content_type, &ContentFilter::default())?;
+        Ok(items.len())
+    }
+
     /// Get content statistics for this system.
     fn content_stats(&self) -> HashMap<ContentType, usize> {
         let mut stats = HashMap::new();
         for ct in self.content_types() {
-            if let Ok(items) = self.load_content(&ct, &ContentFilter::default()) {
-                stats.insert(ct, items.len());
+            if let Ok(count) = self.count_content(&ct) {
+                stats.insert(ct, count);
             }
         }
         stats
