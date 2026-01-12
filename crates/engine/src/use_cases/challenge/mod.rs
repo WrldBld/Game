@@ -18,6 +18,9 @@ use wrldbldr_domain::value_objects::DiceParseError;
 
 mod crud;
 
+#[cfg(test)]
+mod llm_context_tests;
+
 pub use crud::{ChallengeError as ChallengeCrudError, ChallengeOps};
 
 use crate::entities::{Challenge, Inventory, Observation, PlayerCharacter, Scene};

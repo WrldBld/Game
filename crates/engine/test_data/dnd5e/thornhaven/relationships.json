@@ -1,0 +1,173 @@
+{
+  "_comment": "NPC-to-NPC relationships in Thornhaven",
+  "relationships": [
+    {
+      "id": "00000000-0000-0000-3000-000000000001",
+      "fromCharacterId": "00000000-0000-0000-2000-000000000001",
+      "toCharacterId": "00000000-0000-0000-2000-000000000002",
+      "relationshipType": "friendship",
+      "sentiment": 0.6,
+      "knownToPlayer": true,
+      "history": [
+        {
+          "event": "Grom saved Marta's inn from a fire years ago",
+          "sentimentChange": 0.4
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-3000-000000000002",
+      "fromCharacterId": "00000000-0000-0000-2000-000000000001",
+      "toCharacterId": "00000000-0000-0000-2000-000000000006",
+      "relationshipType": "professional",
+      "sentiment": -0.2,
+      "knownToPlayer": true,
+      "history": [
+        {
+          "event": "Marta pities Tom but finds him disturbing",
+          "sentimentChange": -0.2
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-3000-000000000003",
+      "fromCharacterId": "00000000-0000-0000-2000-000000000001",
+      "toCharacterId": "00000000-0000-0000-2000-000000000003",
+      "relationshipType": "mentorship",
+      "sentiment": 0.7,
+      "knownToPlayer": true,
+      "history": [
+        {
+          "event": "Marta took Pip in when no one else would",
+          "sentimentChange": 0.5
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-3000-000000000004",
+      "fromCharacterId": "00000000-0000-0000-2000-000000000003",
+      "toCharacterId": "00000000-0000-0000-2000-000000000001",
+      "relationshipType": "mentorship",
+      "sentiment": 0.8,
+      "knownToPlayer": true,
+      "history": [
+        {
+          "event": "Pip sees Marta as the mother he never had",
+          "sentimentChange": 0.8
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-3000-000000000005",
+      "fromCharacterId": "00000000-0000-0000-2000-000000000004",
+      "toCharacterId": "00000000-0000-0000-2000-000000000008",
+      "relationshipType": "professional",
+      "sentiment": 0.5,
+      "knownToPlayer": true,
+      "history": [
+        {
+          "event": "Working together at the temple",
+          "sentimentChange": 0.3
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-3000-000000000006",
+      "fromCharacterId": "00000000-0000-0000-2000-000000000008",
+      "toCharacterId": "00000000-0000-0000-2000-000000000004",
+      "relationshipType": "professional",
+      "sentiment": 0.6,
+      "knownToPlayer": true,
+      "history": [
+        {
+          "event": "Rosie appreciates Aldric's dedication to healing",
+          "sentimentChange": 0.4
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-3000-000000000007",
+      "fromCharacterId": "00000000-0000-0000-2000-000000000007",
+      "toCharacterId": "00000000-0000-0000-2000-000000000005",
+      "relationshipType": "rivalry",
+      "sentiment": -0.4,
+      "knownToPlayer": false,
+      "history": [
+        {
+          "event": "Elena suspects Vera is not what she seems",
+          "sentimentChange": -0.4
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-3000-000000000008",
+      "fromCharacterId": "00000000-0000-0000-2000-000000000002",
+      "toCharacterId": "00000000-0000-0000-2000-000000000006",
+      "relationshipType": "enmity",
+      "sentiment": -0.7,
+      "knownToPlayer": false,
+      "history": [
+        {
+          "event": "Grom blames Tom for not warning anyone sooner about what he saw",
+          "sentimentChange": -0.5
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-3000-000000000009",
+      "fromCharacterId": "00000000-0000-0000-2000-000000000007",
+      "toCharacterId": "00000000-0000-0000-2000-000000000002",
+      "relationshipType": "professional",
+      "sentiment": 0.3,
+      "knownToPlayer": true,
+      "history": [
+        {
+          "event": "Elena respects Grom's past as an adventurer",
+          "sentimentChange": 0.3
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-3000-000000000010",
+      "fromCharacterId": "00000000-0000-0000-2000-000000000003",
+      "toCharacterId": "00000000-0000-0000-2000-000000000007",
+      "relationshipType": "rivalry",
+      "sentiment": -0.2,
+      "knownToPlayer": true,
+      "history": [
+        {
+          "event": "Elena has caught Pip stealing more than once",
+          "sentimentChange": -0.3
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-3000-000000000011",
+      "fromCharacterId": "00000000-0000-0000-2000-000000000005",
+      "toCharacterId": "00000000-0000-0000-2000-000000000001",
+      "relationshipType": "professional",
+      "sentiment": 0.2,
+      "knownToPlayer": true,
+      "history": [
+        {
+          "event": "Vera rents space from Marta for storage",
+          "sentimentChange": 0.2
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-0000-3000-000000000012",
+      "fromCharacterId": "00000000-0000-0000-2000-000000000004",
+      "toCharacterId": "00000000-0000-0000-2000-000000000006",
+      "relationshipType": "professional",
+      "sentiment": 0.3,
+      "knownToPlayer": true,
+      "history": [
+        {
+          "event": "Aldric believes Tom holds the key to understanding the darkness",
+          "sentimentChange": 0.2
+        }
+      ]
+    }
+  ]
+}

@@ -3,6 +3,9 @@
 #[cfg(test)]
 mod challenge_llm_tests;
 
+#[cfg(test)]
+mod llm_tool_tests;
+
 pub mod chains;
 pub mod decision;
 pub mod execute_effects;

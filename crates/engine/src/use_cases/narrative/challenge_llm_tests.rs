@@ -25,7 +25,14 @@ async fn test_llm_generates_success_outcome_description() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.7);
 
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_generates_success_outcome_description",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     // Use semantic validation for success outcome
     assert_llm_valid(
@@ -50,7 +57,14 @@ async fn test_llm_generates_failure_outcome_description() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.7);
 
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_generates_failure_outcome_description",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     // Use semantic validation for failure outcome
     assert_llm_valid(
@@ -81,7 +95,14 @@ async fn test_llm_generates_critical_success_description() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.8); // Higher temp for more dramatic response
 
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_generates_critical_success_description",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     // Use semantic validation for critical success
     assert_llm_valid(
@@ -108,7 +129,14 @@ async fn test_llm_generates_critical_failure_description() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.8);
 
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_generates_critical_failure_description",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     // Use semantic validation for critical failure
     assert_llm_valid(
@@ -137,7 +165,14 @@ async fn test_llm_generates_persuasion_success() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.7);
 
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_generates_persuasion_success",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     let content_lower = response.content.to_lowercase();
 
@@ -169,7 +204,14 @@ async fn test_llm_generates_athletics_success() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.7);
 
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_generates_athletics_success",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     let content_lower = response.content.to_lowercase();
 
@@ -209,7 +251,14 @@ async fn test_llm_generates_multiple_outcome_suggestions() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.8);
 
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_generates_multiple_outcome_suggestions",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     // Should have multiple suggestions (numbered or on separate lines)
     let lines: Vec<&str> = response
@@ -264,7 +313,14 @@ async fn test_llm_respects_dm_guidance_for_outcome() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.8);
 
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_respects_dm_guidance_for_outcome",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     let content_lower = response.content.to_lowercase();
 

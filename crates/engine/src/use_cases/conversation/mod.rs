@@ -15,6 +15,9 @@ mod continue_conversation;
 mod end;
 mod start;
 
+#[cfg(test)]
+mod llm_context_tests;
+
 pub use continue_conversation::{ContinueConversation, ConversationContinued};
 pub use end::{ConversationEnded, EndConversation, EndConversationError};
 pub use start::{ConversationError, ConversationStarted, StartConversation};

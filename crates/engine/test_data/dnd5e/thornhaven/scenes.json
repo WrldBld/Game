@@ -1,0 +1,201 @@
+{
+  "_comment": "Thornhaven story structure - Acts and Scenes for LLM integration testing",
+  "acts": [
+    {
+      "id": "00000000-0000-0000-5000-000000000001",
+      "worldId": "00000000-0000-0000-0000-000000000001",
+      "name": "Arrival in Thornhaven",
+      "stage": "ordinaryWorld",
+      "description": "The heroes arrive in a peaceful village, unaware of the darkness lurking beneath",
+      "order": 1
+    },
+    {
+      "id": "00000000-0000-0000-5000-000000000002",
+      "worldId": "00000000-0000-0000-0000-000000000001",
+      "name": "The Call to Adventure",
+      "stage": "callToAdventure",
+      "description": "Strange occurrences and warnings point toward the Old Mill",
+      "order": 2
+    },
+    {
+      "id": "00000000-0000-0000-5000-000000000003",
+      "worldId": "00000000-0000-0000-0000-000000000001",
+      "name": "Into the Darkness",
+      "stage": "crossingTheThreshold",
+      "description": "The heroes commit to investigating the mill and facing the shadow threat",
+      "order": 3
+    }
+  ],
+  "scenes": [
+    {
+      "id": "00000000-0000-0000-5100-000000000001",
+      "actId": "00000000-0000-0000-5000-000000000001",
+      "name": "Welcome to the Drowsy Dragon",
+      "locationId": "00000000-0000-0000-1000-000000000001",
+      "timeContext": { "timeOfDay": "evening" },
+      "backdropOverride": null,
+      "entryConditions": [],
+      "featuredCharacters": ["00000000-0000-0000-2000-000000000001"],
+      "directorialNotes": "Marta should be welcoming but observant. She's sizing up the newcomers. Drop hints about recent strange happenings if players engage in conversation. Mention that people have been avoiding the Old Mill lately.",
+      "order": 1
+    },
+    {
+      "id": "00000000-0000-0000-5100-000000000002",
+      "actId": "00000000-0000-0000-5000-000000000001",
+      "name": "The Blacksmith's Burden",
+      "locationId": "00000000-0000-0000-1000-000000000002",
+      "timeContext": { "timeOfDay": "morning" },
+      "backdropOverride": null,
+      "entryConditions": [],
+      "featuredCharacters": ["00000000-0000-0000-2000-000000000002"],
+      "directorialNotes": "Grom is focused on his work but can be drawn out by talk of adventuring or unusual weapons. He's guarded about his past but might open up to fellow warriors. He knows something about shadows from his adventuring days.",
+      "order": 2
+    },
+    {
+      "id": "00000000-0000-0000-5100-000000000003",
+      "actId": "00000000-0000-0000-5000-000000000001",
+      "name": "Market Gossip",
+      "locationId": "00000000-0000-0000-1000-000000000003",
+      "timeContext": { "timeOfDay": "morning" },
+      "backdropOverride": null,
+      "entryConditions": [],
+      "featuredCharacters": [
+        "00000000-0000-0000-2000-000000000003",
+        "00000000-0000-0000-2000-000000000005",
+        "00000000-0000-0000-2000-000000000007"
+      ],
+      "directorialNotes": "The market is bustling. Pip can provide street-level information and knows every hiding spot. Vera seems helpful but asks too many questions about the village history. Elena patrols and watches for trouble.",
+      "order": 3
+    },
+    {
+      "id": "00000000-0000-0000-5100-000000000004",
+      "actId": "00000000-0000-0000-5000-000000000002",
+      "name": "The Priest's Warning",
+      "locationId": "00000000-0000-0000-1000-000000000004",
+      "timeContext": { "timeOfDay": "morning" },
+      "backdropOverride": null,
+      "entryConditions": [
+        { "completedScene": "00000000-0000-0000-5100-000000000001" }
+      ],
+      "featuredCharacters": [
+        "00000000-0000-0000-2000-000000000004",
+        "00000000-0000-0000-2000-000000000008"
+      ],
+      "directorialNotes": "Brother Aldric is urgent but not alarmist. He has received visions of shadow spreading from the mill. He believes the players are the heroes from his prophecy. Rosie supports him but is more practical, offering to prepare healing supplies.",
+      "order": 1
+    },
+    {
+      "id": "00000000-0000-0000-5100-000000000005",
+      "actId": "00000000-0000-0000-5000-000000000002",
+      "name": "Old Tom's Ravings",
+      "locationId": "00000000-0000-0000-1000-000000000006",
+      "timeContext": { "timeOfDay": "evening" },
+      "backdropOverride": null,
+      "entryConditions": [
+        { "flagSet": "learned_about_mill" }
+      ],
+      "featuredCharacters": ["00000000-0000-0000-2000-000000000006"],
+      "directorialNotes": "Tom is terrified but desperate to be believed. He speaks in fragments and riddles. When lucid, he describes the ritual he witnessed twenty years ago. His wife's locket is proof he's telling the truth. He knows where the basement entrance is hidden.",
+      "order": 2
+    },
+    {
+      "id": "00000000-0000-0000-5100-000000000006",
+      "actId": "00000000-0000-0000-5000-000000000002",
+      "name": "Vera's Offer",
+      "locationId": "00000000-0000-0000-1000-000000000003",
+      "timeContext": { "timeOfDay": "afternoon" },
+      "backdropOverride": null,
+      "entryConditions": [
+        { "knowsCharacter": "00000000-0000-0000-2000-000000000006" }
+      ],
+      "featuredCharacters": ["00000000-0000-0000-2000-000000000005"],
+      "directorialNotes": "Vera approaches the players with an 'offer' - she has items that might help against shadow creatures. Her prices are fair, suspiciously so. She's probing for information about what they've learned. She mentions her interest in 'antiquities' from the old mill.",
+      "order": 3
+    },
+    {
+      "id": "00000000-0000-0000-5100-000000000007",
+      "actId": "00000000-0000-0000-5000-000000000003",
+      "name": "The Mill Floor",
+      "locationId": "00000000-0000-0000-1000-000000000005",
+      "timeContext": { "timeOfDay": "night" },
+      "backdropOverride": "mill_shadowy.png",
+      "entryConditions": [
+        { "flagSet": "committed_to_investigation" }
+      ],
+      "featuredCharacters": [],
+      "directorialNotes": "The atmosphere is oppressive. Describe the decay, the stopped wheel, the dust that hasn't been disturbed in years - except for fresh footprints. Shadows seem to move at the edge of vision. The basement stairs are hidden under old sacks.",
+      "order": 1
+    },
+    {
+      "id": "00000000-0000-0000-5100-000000000008",
+      "actId": "00000000-0000-0000-5000-000000000003",
+      "name": "The Ritual Chamber",
+      "locationId": "00000000-0000-0000-1000-000000000005",
+      "timeContext": { "timeOfDay": "night" },
+      "backdropOverride": "basement_ritual.png",
+      "entryConditions": [
+        { "completedScene": "00000000-0000-0000-5100-000000000007" },
+        { "custom": "Players have descended the basement stairs" }
+      ],
+      "featuredCharacters": [],
+      "directorialNotes": "The basement reveals the truth: a ritual circle, ancient symbols, and an artifact that pulses with shadow energy. This is the source of the darkness. The players must decide what to do - destroy it, contain it, or claim it. Vera may appear, revealing her true nature.",
+      "order": 2
+    }
+  ],
+  "featuredCharacterEdges": [
+    {
+      "sceneId": "00000000-0000-0000-5100-000000000001",
+      "characterId": "00000000-0000-0000-2000-000000000001",
+      "role": "primary",
+      "entranceCue": null
+    },
+    {
+      "sceneId": "00000000-0000-0000-5100-000000000002",
+      "characterId": "00000000-0000-0000-2000-000000000002",
+      "role": "primary",
+      "entranceCue": null
+    },
+    {
+      "sceneId": "00000000-0000-0000-5100-000000000003",
+      "characterId": "00000000-0000-0000-2000-000000000003",
+      "role": "secondary",
+      "entranceCue": null
+    },
+    {
+      "sceneId": "00000000-0000-0000-5100-000000000003",
+      "characterId": "00000000-0000-0000-2000-000000000005",
+      "role": "secondary",
+      "entranceCue": "Appears when players browse the market stalls"
+    },
+    {
+      "sceneId": "00000000-0000-0000-5100-000000000003",
+      "characterId": "00000000-0000-0000-2000-000000000007",
+      "role": "background",
+      "entranceCue": null
+    },
+    {
+      "sceneId": "00000000-0000-0000-5100-000000000004",
+      "characterId": "00000000-0000-0000-2000-000000000004",
+      "role": "primary",
+      "entranceCue": null
+    },
+    {
+      "sceneId": "00000000-0000-0000-5100-000000000004",
+      "characterId": "00000000-0000-0000-2000-000000000008",
+      "role": "secondary",
+      "entranceCue": null
+    },
+    {
+      "sceneId": "00000000-0000-0000-5100-000000000005",
+      "characterId": "00000000-0000-0000-2000-000000000006",
+      "role": "primary",
+      "entranceCue": "Emerges from the shadows near the mill"
+    },
+    {
+      "sceneId": "00000000-0000-0000-5100-000000000006",
+      "characterId": "00000000-0000-0000-2000-000000000005",
+      "role": "primary",
+      "entranceCue": "Approaches the players with a knowing smile"
+    }
+  ]
+}

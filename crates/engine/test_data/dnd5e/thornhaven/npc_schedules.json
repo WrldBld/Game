@@ -1,0 +1,220 @@
+{
+  "_comment": "NPC location relationships - work schedules, frequents, home locations, and avoids rules",
+  "homeLocations": [
+    {
+      "characterId": "00000000-0000-0000-2000-000000000001",
+      "locationId": "00000000-0000-0000-1000-000000000001",
+      "description": "Marta lives in rooms above the inn"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000002",
+      "locationId": "00000000-0000-0000-1000-000000000002",
+      "description": "Grom has a small room attached to the smithy"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000004",
+      "locationId": "00000000-0000-0000-1000-000000000004",
+      "description": "Brother Aldric stays in the temple's modest quarters"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000008",
+      "locationId": "00000000-0000-0000-1000-000000000004",
+      "description": "Rosie has a small cottage near the temple garden"
+    }
+  ],
+  "homeRegions": [
+    {
+      "characterId": "00000000-0000-0000-2000-000000000001",
+      "regionId": "00000000-0000-0000-1100-000000000001"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000002",
+      "regionId": "00000000-0000-0000-1100-000000000004"
+    }
+  ],
+  "worksAt": [
+    {
+      "characterId": "00000000-0000-0000-2000-000000000001",
+      "locationId": "00000000-0000-0000-1000-000000000001",
+      "role": "Innkeeper",
+      "schedule": "Always"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000002",
+      "locationId": "00000000-0000-0000-1000-000000000002",
+      "role": "Blacksmith",
+      "schedule": "Morning"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000004",
+      "locationId": "00000000-0000-0000-1000-000000000004",
+      "role": "Priest",
+      "schedule": "Always"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000008",
+      "locationId": "00000000-0000-0000-1000-000000000004",
+      "role": "Herbalist",
+      "schedule": "Morning"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000007",
+      "locationId": "00000000-0000-0000-1000-000000000003",
+      "role": "Guard Captain",
+      "schedule": "Morning"
+    }
+  ],
+  "worksAtRegion": [
+    {
+      "characterId": "00000000-0000-0000-2000-000000000001",
+      "regionId": "00000000-0000-0000-1100-000000000001",
+      "shift": "always",
+      "role": "Innkeeper - tends the bar and common room"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000002",
+      "regionId": "00000000-0000-0000-1100-000000000004",
+      "shift": "day",
+      "role": "Blacksmith - works the forge"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000004",
+      "regionId": "00000000-0000-0000-1100-000000000009",
+      "shift": "always",
+      "role": "Priest - tends the sanctuary"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000008",
+      "regionId": "00000000-0000-0000-1100-000000000010",
+      "shift": "day",
+      "role": "Herbalist - works in the healing chamber"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000007",
+      "regionId": "00000000-0000-0000-1100-000000000006",
+      "shift": "day",
+      "role": "Guard Captain - patrols the square"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000005",
+      "regionId": "00000000-0000-0000-1100-000000000007",
+      "shift": "day",
+      "role": "Merchant - sells curiosities at the market"
+    }
+  ],
+  "frequents": [
+    {
+      "characterId": "00000000-0000-0000-2000-000000000003",
+      "locationId": "00000000-0000-0000-1000-000000000003",
+      "frequency": "often",
+      "timeOfDay": "Any",
+      "reason": "Pip prowls the square looking for marks and gossip"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000002",
+      "locationId": "00000000-0000-0000-1000-000000000001",
+      "frequency": "often",
+      "timeOfDay": "Evening",
+      "reason": "Grom visits the inn for evening ale and quiet brooding"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000007",
+      "locationId": "00000000-0000-0000-1000-000000000001",
+      "frequency": "sometimes",
+      "timeOfDay": "Evening",
+      "reason": "Elena checks in at the inn to hear news"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000005",
+      "locationId": "00000000-0000-0000-1000-000000000001",
+      "frequency": "sometimes",
+      "timeOfDay": "Evening",
+      "reason": "Vera occasionally visits the inn to find customers"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000003",
+      "locationId": "00000000-0000-0000-1000-000000000001",
+      "frequency": "often",
+      "timeOfDay": "Any",
+      "reason": "Pip runs errands for Marta and earns scraps"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000008",
+      "locationId": "00000000-0000-0000-1000-000000000003",
+      "frequency": "sometimes",
+      "timeOfDay": "Morning",
+      "reason": "Rosie buys supplies from the market stalls"
+    }
+  ],
+  "frequentsRegion": [
+    {
+      "characterId": "00000000-0000-0000-2000-000000000003",
+      "regionId": "00000000-0000-0000-1100-000000000007",
+      "frequency": "often",
+      "timeOfDay": "Any"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000002",
+      "regionId": "00000000-0000-0000-1100-000000000001",
+      "frequency": "often",
+      "timeOfDay": "Evening"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000006",
+      "regionId": "00000000-0000-0000-1100-000000000011",
+      "frequency": "often",
+      "timeOfDay": "Night"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000006",
+      "regionId": "00000000-0000-0000-1100-000000000014",
+      "frequency": "sometimes",
+      "timeOfDay": "Any"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000003",
+      "regionId": "00000000-0000-0000-1100-000000000002",
+      "frequency": "sometimes",
+      "timeOfDay": "Evening"
+    }
+  ],
+  "avoids": [
+    {
+      "characterId": "00000000-0000-0000-2000-000000000006",
+      "locationId": "00000000-0000-0000-1000-000000000001",
+      "reason": "Old Tom cannot face the villagers after his breakdown"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000006",
+      "locationId": "00000000-0000-0000-1000-000000000003",
+      "reason": "Too many people, too many stares and whispers"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000001",
+      "locationId": "00000000-0000-0000-1000-000000000005",
+      "reason": "Marta knows something terrible happened at the mill and won't go near it"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000008",
+      "locationId": "00000000-0000-0000-1000-000000000005",
+      "reason": "Rosie senses something deeply wrong about that place"
+    }
+  ],
+  "avoidsRegion": [
+    {
+      "characterId": "00000000-0000-0000-2000-000000000006",
+      "regionId": "00000000-0000-0000-1100-000000000001",
+      "reason": "Cannot face the pitying looks of tavern patrons"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000001",
+      "regionId": "00000000-0000-0000-1100-000000000011",
+      "reason": "Bad memories of the fire and the screams"
+    },
+    {
+      "characterId": "00000000-0000-0000-2000-000000000001",
+      "regionId": "00000000-0000-0000-1100-000000000012",
+      "reason": "She once glimpsed something in the basement she won't speak of"
+    }
+  ]
+}

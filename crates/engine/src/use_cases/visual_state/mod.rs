@@ -5,6 +5,9 @@
 
 mod resolve_state;
 
+#[cfg(test)]
+mod llm_condition_tests;
+
 pub use resolve_state::{
     ResolveVisualState, ResolvedStateInfo, SoftRuleContext, StateResolutionContext,
     StateResolutionResult,

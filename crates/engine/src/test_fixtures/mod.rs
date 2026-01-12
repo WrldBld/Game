@@ -17,6 +17,7 @@
 
 pub mod image_mocks;
 pub mod llm_integration;
+pub mod world_seeder;
 
 use std::collections::HashMap;
 use std::path::PathBuf;

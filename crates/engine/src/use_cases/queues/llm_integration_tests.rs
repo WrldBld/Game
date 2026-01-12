@@ -20,7 +20,14 @@ async fn test_llm_generates_narrative_response() {
         "I look around the tavern and take in my surroundings.",
     );
 
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_generates_narrative_response",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     // Verify we got a non-empty narrative response
     assert!(
@@ -48,7 +55,14 @@ async fn test_llm_responds_to_simple_action() {
     let task = "I approach the bartender and wave.";
     let request = build_request_with_system(DM_SYSTEM_PROMPT, task);
 
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_responds_to_simple_action",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     assert!(!response.content.is_empty());
 
@@ -73,7 +87,14 @@ async fn test_llm_suggests_skill_check_for_lockpicking() {
     let task = "The player says: 'I want to pick the lock on this door.' What skill check should they make?";
     let request = build_request_with_system(MECHANICS_SYSTEM_PROMPT, task);
 
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_suggests_skill_check_for_lockpicking",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     // Use semantic validation - should suggest an appropriate skill for lockpicking
     assert_llm_valid(
@@ -92,7 +113,14 @@ async fn test_llm_suggests_skill_check_for_persuasion() {
     let task = "The player says: 'I try to convince the guard to let us through.' What skill check?";
     let request = build_request_with_system(MECHANICS_SYSTEM_PROMPT, task);
 
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_suggests_skill_check_for_persuasion",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     // Use semantic validation - should suggest a social/Charisma skill
     assert_llm_valid(
@@ -121,7 +149,14 @@ async fn test_llm_handles_conversation_history() {
         ],
     );
 
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_handles_conversation_history",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     let content_lower = response.content.to_lowercase();
 
@@ -146,7 +181,14 @@ async fn test_llm_maintains_character_context() {
 
     let request = build_request_with_system(system, "I examine the magical runes on the wall.");
 
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_maintains_character_context",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     // Response should be relevant to a wizard examining magic
     assert!(!response.content.is_empty());
@@ -246,7 +288,13 @@ async fn test_llm_handles_empty_prompt() {
         .with_max_tokens(Some(500));
 
     // Should handle empty prompt gracefully (either error or empty response)
-    let result = client.generate(request).await;
+    let result = generate_and_log(
+        &client,
+        request,
+        "test_llm_handles_empty_prompt",
+        None,
+    )
+    .await;
 
     // Either succeeds with some response or fails with an error
     // Both are acceptable behaviors
@@ -274,7 +322,13 @@ async fn test_llm_timeout_with_short_duration() {
     );
 
     // This should likely timeout given the short duration
-    let result = client.generate(request).await;
+    let result = generate_and_log(
+        &client,
+        request,
+        "test_llm_timeout_with_short_duration",
+        None,
+    )
+    .await;
 
     // Either times out (error) or somehow completes (unlikely but valid)
     match result {
@@ -309,7 +363,14 @@ async fn test_llm_generates_success_outcome() {
     let user = "Stealth check succeeded. The rogue rolled 18 vs DC 15. Describe sneaking past guards.";
 
     let request = build_request_with_system(system, user);
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_generates_success_outcome",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     let content_lower = response.content.to_lowercase();
 
@@ -334,7 +395,14 @@ async fn test_llm_generates_failure_outcome() {
     let user = "Stealth check failed. The rogue rolled 8 vs DC 15. Describe getting caught by guards.";
 
     let request = build_request_with_system(system, user);
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_generates_failure_outcome",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     let content_lower = response.content.to_lowercase();
 
@@ -360,7 +428,14 @@ async fn test_llm_generates_critical_success_outcome() {
     let system = "You are a TTRPG game master. Generate an exciting narrative for a critical success (natural 20).";
 
     let request = build_request_with_system(system, task);
-    let response = client.generate(request).await.expect("LLM request failed");
+    let response = generate_and_log(
+        &client,
+        request,
+        "test_llm_generates_critical_success_outcome",
+        None,
+    )
+    .await
+    .expect("LLM request failed");
 
     // Use semantic validation for dramatic content
     assert_llm_valid(
@@ -387,14 +462,22 @@ async fn test_llm_generates_different_suggestions() {
     let request1 = build_request_with_system(system, user);
     let request2 = build_request_with_system(system, user);
 
-    let response1 = client
-        .generate(request1)
-        .await
-        .expect("First LLM request failed");
-    let response2 = client
-        .generate(request2)
-        .await
-        .expect("Second LLM request failed");
+    let response1 = generate_and_log(
+        &client,
+        request1,
+        "test_llm_generates_different_suggestions_1",
+        None,
+    )
+    .await
+    .expect("First LLM request failed");
+    let response2 = generate_and_log(
+        &client,
+        request2,
+        "test_llm_generates_different_suggestions_2",
+        None,
+    )
+    .await
+    .expect("Second LLM request failed");
 
     // With temperature > 0, responses should usually be different
     // (This is probabilistic, but with temp 0.7 should be quite different)
