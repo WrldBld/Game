@@ -117,6 +117,15 @@ impl E2ETestContext {
         Self::setup_internal(llm, None).await
     }
 
+    /// Create a new E2E test context with event logging (no custom LLM).
+    ///
+    /// Uses NoopLlm for tests that don't need LLM responses but want event logging.
+    pub async fn setup_with_logging(
+        event_log: Arc<E2EEventLog>,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        Self::setup_internal(Arc::new(NoopLlm), Some(event_log)).await
+    }
+
     /// Create a new E2E test context with custom LLM and event logging.
     ///
     /// This method enables comprehensive event logging for test analysis.

@@ -31,30 +31,44 @@ use super::{
 #[tokio::test]
 #[ignore = "requires docker (testcontainers)"]
 async fn test_player_creates_character_via_use_case() {
-    let ctx = E2ETestContext::setup().await.expect("Failed to setup E2E context");
-
-    // Create a player character via the management use case
-    let pc_id = create_player_character_via_use_case(&ctx, "Aldric the Brave", "test-user-123")
+    const TEST_NAME: &str = "test_player_creates_character_via_use_case";
+    let event_log = create_shared_log(TEST_NAME);
+    let ctx = E2ETestContext::setup_with_logging(event_log.clone())
         .await
-        .expect("Failed to create player character");
+        .expect("Failed to setup E2E context");
 
-    // Verify PC was created
-    let pc = ctx
-        .app
-        .entities
-        .player_character
-        .get(pc_id)
-        .await
-        .expect("Failed to get PC")
-        .expect("PC not found");
+    let test_result = async {
+        // Create a player character via the management use case
+        let pc_id = create_player_character_via_use_case(&ctx, "Aldric the Brave", "test-user-123")
+            .await
+            .expect("Failed to create player character");
 
-    assert_eq!(pc.name, "Aldric the Brave");
-    assert_eq!(pc.user_id, "test-user-123");
-    assert_eq!(pc.world_id, ctx.world.world_id);
+        // Verify PC was created
+        let pc = ctx
+            .app
+            .entities
+            .player_character
+            .get(pc_id)
+            .await
+            .expect("Failed to get PC")
+            .expect("PC not found");
 
-    // Verify PC is in spawn region (Common Room)
-    let spawn_region = ctx.world.region("Common Room").expect("Spawn region not found");
-    assert_eq!(pc.current_region_id, Some(spawn_region));
+        assert_eq!(pc.name, "Aldric the Brave");
+        assert_eq!(pc.user_id, "test-user-123");
+        assert_eq!(pc.world_id, ctx.world.world_id);
+
+        // Verify PC is in spawn region (Common Room)
+        let spawn_region = ctx.world.region("Common Room").expect("Spawn region not found");
+        assert_eq!(pc.current_region_id, Some(spawn_region));
+
+        Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+    }
+    .await;
+
+    let outcome = if test_result.is_ok() { TestOutcome::Pass } else { TestOutcome::Fail };
+    ctx.finalize_event_log(outcome);
+    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME)).expect("save log");
+    test_result.expect("Test failed");
 }
 
 // =============================================================================
@@ -64,42 +78,56 @@ async fn test_player_creates_character_via_use_case() {
 #[tokio::test]
 #[ignore = "requires docker (testcontainers)"]
 async fn test_staging_npc_in_region() {
-    let ctx = E2ETestContext::setup().await.expect("Failed to setup E2E context");
-
-    // Get test NPC and region
-    let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");
-    let common_room = ctx.world.region("Common Room").expect("Region not found");
-
-    // Stage Marta in the Common Room
-    approve_staging_with_npc(&ctx, common_room, marta_id)
+    const TEST_NAME: &str = "test_staging_npc_in_region";
+    let event_log = create_shared_log(TEST_NAME);
+    let ctx = E2ETestContext::setup_with_logging(event_log.clone())
         .await
-        .expect("Failed to stage NPC");
+        .expect("Failed to setup E2E context");
 
-    // Verify staging was created
-    let current_game_time = ctx
-        .app
-        .entities
-        .world
-        .get(ctx.world.world_id)
-        .await
-        .expect("World query failed")
-        .expect("World not found")
-        .game_time
-        .current();
+    let test_result = async {
+        // Get test NPC and region
+        let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");
+        let common_room = ctx.world.region("Common Room").expect("Region not found");
 
-    let staged = ctx
-        .app
-        .entities
-        .staging
-        .resolve_for_region(common_room, current_game_time)
-        .await
-        .expect("Staging query failed");
+        // Stage Marta in the Common Room
+        approve_staging_with_npc(&ctx, common_room, marta_id)
+            .await
+            .expect("Failed to stage NPC");
 
-    assert!(!staged.is_empty(), "No NPCs staged");
-    assert!(
-        staged.iter().any(|s| s.character_id == marta_id),
-        "Marta not found in staged NPCs"
-    );
+        // Verify staging was created
+        let current_game_time = ctx
+            .app
+            .entities
+            .world
+            .get(ctx.world.world_id)
+            .await
+            .expect("World query failed")
+            .expect("World not found")
+            .game_time
+            .current();
+
+        let staged = ctx
+            .app
+            .entities
+            .staging
+            .resolve_for_region(common_room, current_game_time)
+            .await
+            .expect("Staging query failed");
+
+        assert!(!staged.is_empty(), "No NPCs staged");
+        assert!(
+            staged.iter().any(|s| s.character_id == marta_id),
+            "Marta not found in staged NPCs"
+        );
+
+        Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+    }
+    .await;
+
+    let outcome = if test_result.is_ok() { TestOutcome::Pass } else { TestOutcome::Fail };
+    ctx.finalize_event_log(outcome);
+    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME)).expect("save log");
+    test_result.expect("Test failed");
 }
 
 // =============================================================================
@@ -109,46 +137,66 @@ async fn test_staging_npc_in_region() {
 #[tokio::test]
 #[ignore = "requires docker (testcontainers)"]
 async fn test_start_conversation_with_staged_npc() {
-    // Create context with VCR LLM
-    let llm = create_e2e_llm("test_start_conversation_with_staged_npc");
-    let ctx = E2ETestContext::setup_with_llm(llm.clone())
+    const TEST_NAME: &str = "test_start_conversation_with_staged_npc";
+    let event_log = create_shared_log(TEST_NAME);
+
+    // Create context with VCR LLM and event logging
+    let llm = {
+        let vcr = VcrLlm::from_env(std::path::PathBuf::from(format!(
+            "{}/src/e2e_tests/cassettes/{}.json",
+            env!("CARGO_MANIFEST_DIR"),
+            TEST_NAME
+        )));
+        Arc::new(vcr.with_event_log(event_log.clone()))
+    };
+    let ctx = E2ETestContext::setup_with_llm_and_logging(llm.clone(), event_log.clone())
         .await
         .expect("Failed to setup E2E context");
 
-    // Create player character
-    let common_room = ctx.world.region("Common Room").expect("Region not found");
-    let (player_id, pc_id) = create_test_player(
-        ctx.harness.graph(),
-        ctx.world.world_id,
-        common_room,
-        "Test Hero",
-    )
-    .await
-    .expect("Failed to create test player");
-
-    // Stage Marta in the Common Room
-    let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");
-    approve_staging_with_npc(&ctx, common_room, marta_id)
+    let test_result = async {
+        // Create player character
+        let common_room = ctx.world.region("Common Room").expect("Region not found");
+        let (player_id, pc_id) = create_test_player(
+            ctx.harness.graph(),
+            ctx.world.world_id,
+            common_room,
+            "Test Hero",
+        )
         .await
-        .expect("Failed to stage NPC");
+        .expect("Failed to create test player");
 
-    // Start conversation with Marta
-    let (conversation_id, response) = start_conversation_with_npc(
-        &ctx,
-        pc_id,
-        marta_id,
-        &player_id,
-        "Good morning! I'm new to Thornhaven.",
-    )
-    .await
-    .expect("Failed to start conversation");
+        // Stage Marta in the Common Room
+        let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");
+        approve_staging_with_npc(&ctx, common_room, marta_id)
+            .await
+            .expect("Failed to stage NPC");
 
-    // Verify we got a response
-    assert!(!conversation_id.is_nil(), "Conversation ID should not be nil");
-    assert!(!response.is_empty(), "Response should not be empty");
+        // Start conversation with Marta
+        let (conversation_id, response) = start_conversation_with_npc(
+            &ctx,
+            pc_id,
+            marta_id,
+            &player_id,
+            "Good morning! I'm new to Thornhaven.",
+        )
+        .await
+        .expect("Failed to start conversation");
+
+        // Verify we got a response
+        assert!(!conversation_id.is_nil(), "Conversation ID should not be nil");
+        assert!(!response.is_empty(), "Response should not be empty");
+
+        Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+    }
+    .await;
+
+    let outcome = if test_result.is_ok() { TestOutcome::Pass } else { TestOutcome::Fail };
+    ctx.finalize_event_log(outcome);
+    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME)).expect("save log");
 
     // Save cassette if recording
     llm.save_cassette().expect("Failed to save cassette");
+    test_result.expect("Test failed");
 }
 
 #[tokio::test]
@@ -156,78 +204,98 @@ async fn test_start_conversation_with_staged_npc() {
 async fn test_multi_turn_conversation() {
     use super::run_conversation_turn;
 
-    // Create context with VCR LLM
-    let llm = create_e2e_llm("test_multi_turn_conversation");
-    let ctx = E2ETestContext::setup_with_llm(llm.clone())
+    const TEST_NAME: &str = "test_multi_turn_conversation";
+    let event_log = create_shared_log(TEST_NAME);
+
+    // Create context with VCR LLM and event logging
+    let llm = {
+        let vcr = VcrLlm::from_env(std::path::PathBuf::from(format!(
+            "{}/src/e2e_tests/cassettes/{}.json",
+            env!("CARGO_MANIFEST_DIR"),
+            TEST_NAME
+        )));
+        Arc::new(vcr.with_event_log(event_log.clone()))
+    };
+    let ctx = E2ETestContext::setup_with_llm_and_logging(llm.clone(), event_log.clone())
         .await
         .expect("Failed to setup E2E context");
 
-    // Create player character
-    let common_room = ctx.world.region("Common Room").expect("Region not found");
-    let (player_id, pc_id) = create_test_player(
-        ctx.harness.graph(),
-        ctx.world.world_id,
-        common_room,
-        "Test Hero",
-    )
-    .await
-    .expect("Failed to create test player");
-
-    // Stage Marta
-    let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");
-    approve_staging_with_npc(&ctx, common_room, marta_id)
-        .await
-        .expect("Failed to stage NPC");
-
-    // Turn 1: Start conversation
-    let (conversation_id, response1) = start_conversation_with_npc(
-        &ctx,
-        pc_id,
-        marta_id,
-        &player_id,
-        "Hello! I'm looking for information about the village.",
-    )
-    .await
-    .expect("Failed to start conversation");
-
-    assert!(!response1.is_empty(), "Turn 1 response should not be empty");
-
-    // DEBUG: Verify conversation was created after turn 1
-    use neo4rs::query;
-    let mut conv_result = ctx
-        .harness
-        .graph()
-        .execute(
-            query(
-                "MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation)<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
-                 WHERE c.is_active = true
-                 RETURN c.id as id, c.is_active as active",
-            )
-            .param("pc_id", pc_id.to_string())
-            .param("npc_id", marta_id.to_string()),
+    let test_result = async {
+        // Create player character
+        let common_room = ctx.world.region("Common Room").expect("Region not found");
+        let (player_id, pc_id) = create_test_player(
+            ctx.harness.graph(),
+            ctx.world.world_id,
+            common_room,
+            "Test Hero",
         )
         .await
-        .expect("Debug query failed");
+        .expect("Failed to create test player");
 
-    let has_conversation = conv_result.next().await.expect("Row read error").is_some();
-    assert!(has_conversation, "No active conversation found in DB after turn 1");
+        // Stage Marta
+        let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");
+        approve_staging_with_npc(&ctx, common_room, marta_id)
+            .await
+            .expect("Failed to stage NPC");
 
-    // Turn 2: Continue conversation (pass None to let the system find the active conversation)
-    let response2 = run_conversation_turn(
-        &ctx,
-        pc_id,
-        marta_id,
-        &player_id,
-        "What can you tell me about the local merchants?",
-        None,
-    )
-    .await
-    .expect("Failed to continue conversation");
+        // Turn 1: Start conversation
+        let (conversation_id, response1) = start_conversation_with_npc(
+            &ctx,
+            pc_id,
+            marta_id,
+            &player_id,
+            "Hello! I'm looking for information about the village.",
+        )
+        .await
+        .expect("Failed to start conversation");
 
-    assert!(!response2.is_empty(), "Turn 2 response should not be empty");
+        assert!(!response1.is_empty(), "Turn 1 response should not be empty");
+
+        // DEBUG: Verify conversation was created after turn 1
+        use neo4rs::query;
+        let mut conv_result = ctx
+            .harness
+            .graph()
+            .execute(
+                query(
+                    "MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation)<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
+                     WHERE c.is_active = true
+                     RETURN c.id as id, c.is_active as active",
+                )
+                .param("pc_id", pc_id.to_string())
+                .param("npc_id", marta_id.to_string()),
+            )
+            .await
+            .expect("Debug query failed");
+
+        let has_conversation = conv_result.next().await.expect("Row read error").is_some();
+        assert!(has_conversation, "No active conversation found in DB after turn 1");
+
+        // Turn 2: Continue conversation (pass None to let the system find the active conversation)
+        let response2 = run_conversation_turn(
+            &ctx,
+            pc_id,
+            marta_id,
+            &player_id,
+            "What can you tell me about the local merchants?",
+            None,
+        )
+        .await
+        .expect("Failed to continue conversation");
+
+        assert!(!response2.is_empty(), "Turn 2 response should not be empty");
+
+        Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+    }
+    .await;
+
+    let outcome = if test_result.is_ok() { TestOutcome::Pass } else { TestOutcome::Fail };
+    ctx.finalize_event_log(outcome);
+    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME)).expect("save log");
 
     // Save cassette if recording
     llm.save_cassette().expect("Failed to save cassette");
+    test_result.expect("Test failed");
 }
 
 // =============================================================================
@@ -373,61 +441,75 @@ async fn test_full_gameplay_session() {
 #[tokio::test]
 #[ignore = "requires docker (testcontainers)"]
 async fn test_queue_processes_player_action_to_llm_request() {
-    let ctx = E2ETestContext::setup().await.expect("Failed to setup E2E context");
-
-    // Create player and stage NPC
-    let common_room = ctx.world.region("Common Room").expect("Region not found");
-    let (player_id, pc_id) = create_test_player(
-        ctx.harness.graph(),
-        ctx.world.world_id,
-        common_room,
-        "Queue Test Hero",
-    )
-    .await
-    .expect("Failed to create test player");
-
-    let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");
-    approve_staging_with_npc(&ctx, common_room, marta_id)
+    const TEST_NAME: &str = "test_queue_processes_player_action_to_llm_request";
+    let event_log = create_shared_log(TEST_NAME);
+    let ctx = E2ETestContext::setup_with_logging(event_log.clone())
         .await
-        .expect("Failed to stage NPC");
+        .expect("Failed to setup E2E context");
 
-    // Start conversation (this enqueues a player action)
-    let started = ctx
-        .app
-        .use_cases
-        .conversation
-        .start
-        .execute(
+    let test_result = async {
+        // Create player and stage NPC
+        let common_room = ctx.world.region("Common Room").expect("Region not found");
+        let (player_id, pc_id) = create_test_player(
+            ctx.harness.graph(),
             ctx.world.world_id,
-            pc_id,
-            marta_id,
-            player_id.clone(),
-            "Hello!".to_string(),
+            common_room,
+            "Queue Test Hero",
         )
         .await
-        .expect("Failed to start conversation");
+        .expect("Failed to create test player");
 
-    assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");
+        approve_staging_with_npc(&ctx, common_room, marta_id)
+            .await
+            .expect("Failed to stage NPC");
 
-    // Process the player action queue
-    let processed = ctx
-        .app
-        .use_cases
-        .queues
-        .process_player_action
-        .execute()
-        .await
-        .expect("Failed to process player action");
+        // Start conversation (this enqueues a player action)
+        let started = ctx
+            .app
+            .use_cases
+            .conversation
+            .start
+            .execute(
+                ctx.world.world_id,
+                pc_id,
+                marta_id,
+                player_id.clone(),
+                "Hello!".to_string(),
+            )
+            .await
+            .expect("Failed to start conversation");
 
-    assert!(processed.is_some(), "Should have processed a player action");
+        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
 
-    // Verify LLM request was enqueued
-    let pending_llm = ctx
-        .app
-        .queue
-        .get_pending_count("llm_request")
-        .await
-        .expect("Failed to get pending count");
+        // Process the player action queue
+        let processed = ctx
+            .app
+            .use_cases
+            .queues
+            .process_player_action
+            .execute()
+            .await
+            .expect("Failed to process player action");
 
-    assert!(pending_llm > 0, "LLM request should be enqueued");
+        assert!(processed.is_some(), "Should have processed a player action");
+
+        // Verify LLM request was enqueued
+        let pending_llm = ctx
+            .app
+            .queue
+            .get_pending_count("llm_request")
+            .await
+            .expect("Failed to get pending count");
+
+        assert!(pending_llm > 0, "LLM request should be enqueued");
+
+        Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+    }
+    .await;
+
+    let outcome = if test_result.is_ok() { TestOutcome::Pass } else { TestOutcome::Fail };
+    ctx.finalize_event_log(outcome);
+    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME)).expect("save log");
+    test_result.expect("Test failed");
 }
