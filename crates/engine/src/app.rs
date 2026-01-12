@@ -320,6 +320,7 @@ impl App {
                 scene.clone(),
                 world.clone(),
                 narrative.clone(),
+                location.clone(),
             )),
             Arc::new(use_cases::queues::ProcessLlmRequest::new(
                 queue_port.clone(),

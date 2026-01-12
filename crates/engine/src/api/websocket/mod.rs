@@ -1373,6 +1373,7 @@ mod ws_integration_tests_inline {
                 scene.clone(),
                 world.clone(),
                 narrative.clone(),
+                location.clone(),
             )),
             Arc::new(crate::use_cases::queues::ProcessLlmRequest::new(
                 queue.clone(),

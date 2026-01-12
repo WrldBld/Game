@@ -13,8 +13,9 @@ mod llm_integration_tests;
 use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{
-    CharacterContext, GamePromptRequest, LlmRequestData, LlmRequestType, PlayerActionContext,
-    PlayerActionData, SceneContext, WorldId,
+    CharacterContext, GamePromptRequest, LlmRequestData, LlmRequestType, MotivationEntry,
+    MotivationsContext, PlayerActionContext, PlayerActionData, SceneContext,
+    SecretMotivationEntry, WantVisibility, WorldId,
 };
 
 use crate::infrastructure::ports::{LlmPort, QueuePort, RepoError};
@@ -84,6 +85,7 @@ pub struct ProcessPlayerAction {
     scene: Arc<crate::entities::Scene>,
     world: Arc<crate::entities::World>,
     narrative: Arc<crate::entities::Narrative>,
+    location: Arc<crate::entities::Location>,
 }
 
 impl ProcessPlayerAction {
@@ -95,6 +97,7 @@ impl ProcessPlayerAction {
         scene: Arc<crate::entities::Scene>,
         world: Arc<crate::entities::World>,
         narrative: Arc<crate::entities::Narrative>,
+        location: Arc<crate::entities::Location>,
     ) -> Self {
         Self {
             queue,
@@ -104,6 +107,7 @@ impl ProcessPlayerAction {
             scene,
             world,
             narrative,
+            location,
         }
     }
 
@@ -185,18 +189,17 @@ impl ProcessPlayerAction {
             .as_deref()
             .and_then(parse_typed_id::<wrldbldr_domain::CharacterId>);
 
-        let target_name = match npc_id {
-            Some(id) => self
-                .character
-                .get(id)
-                .await?
-                .map(|npc| npc.name)
-                .unwrap_or_else(|| "the NPC".to_string()),
-            None => action_data
-                .target
-                .clone()
-                .unwrap_or_else(|| "the NPC".to_string()),
+        // Fetch full NPC entity instead of just name
+        let npc_entity = match npc_id {
+            Some(id) => self.character.get(id).await?.clone(),
+            None => None,
         };
+
+        let target_name = npc_entity
+            .as_ref()
+            .map(|npc| npc.name.clone())
+            .or_else(|| action_data.target.clone())
+            .unwrap_or_else(|| "the NPC".to_string());
 
         // Get player dialogue
         let dialogue = action_data
@@ -211,8 +214,7 @@ impl ProcessPlayerAction {
             dialogue: action_data.dialogue.clone(),
         };
 
-        // Build minimal scene context
-        // In a full implementation, we would load scene details from the database
+        // Build scene context with actual location name
         let current_scene = self.scene.get_current(action_data.world_id).await?;
         let game_time = self
             .world
@@ -225,30 +227,138 @@ impl ProcessPlayerAction {
             .map(|gt| gt.time_of_day().display_name().to_string())
             .unwrap_or_else(|| "Present".to_string());
 
+        // Get actual location name from the location entity
+        let location_name = if let Some(location_id) = pc_location_id {
+            self.location
+                .get(location_id)
+                .await?
+                .map(|loc| loc.name)
+                .unwrap_or_else(|| "Unknown Location".to_string())
+        } else {
+            "Unknown Location".to_string()
+        };
+
         let scene_context = SceneContext {
             scene_name: current_scene
                 .as_ref()
                 .map(|scene| scene.name.clone())
                 .unwrap_or_else(|| "Current Scene".to_string()),
-            location_name: "Current Location".to_string(),
+            location_name,
             time_context,
             present_characters: vec![pc_name.clone(), target_name.clone()],
             region_items: vec![],
         };
 
-        // Build responding character context
-        // In a full implementation, we would load the NPC's full context
-        let responding_character = CharacterContext {
-            character_id: npc_id.map(|id| id.to_string()),
-            name: target_name.clone(),
-            archetype: "NPC".to_string(),
-            current_mood: None,
-            disposition_toward_player: None,
-            motivations: None,
-            social_stance: None,
-            relationship_to_player: None,
-            available_expressions: None,
-            available_actions: None,
+        // Fetch NPC disposition toward PC (if both IDs exist)
+        let disposition = match (npc_id, action_data.pc_id) {
+            (Some(npc), Some(pc)) => self.character.get_disposition(npc, pc).await.ok().flatten(),
+            _ => None,
+        };
+
+        // Fetch NPC wants (motivations)
+        let wants = match npc_id {
+            Some(npc) => self.character.get_wants(npc).await.ok(),
+            None => None,
+        };
+
+        // Build responding character context with full NPC data
+        let responding_character = if let Some(ref npc) = npc_entity {
+            // Build motivations context from wants
+            let motivations = wants.map(|want_list| {
+                let mut known = Vec::new();
+                let mut suspected = Vec::new();
+                let mut secret = Vec::new();
+
+                for want_details in want_list {
+                    let want = &want_details.want;
+                    let priority = want_details.priority;
+                    let intensity = match want.intensity {
+                        i if i >= 0.8 => "Obsessive",
+                        i if i >= 0.6 => "Strong",
+                        i if i >= 0.4 => "Moderate",
+                        _ => "Mild",
+                    }
+                    .to_string();
+
+                    match want.visibility {
+                        WantVisibility::Known => {
+                            known.push(MotivationEntry {
+                                description: want.description.clone(),
+                                priority,
+                                intensity,
+                                target: want_details.target.as_ref().map(|t| format!("{:?}", t)),
+                                helpers: vec![],
+                                opponents: vec![],
+                            });
+                        }
+                        WantVisibility::Suspected => {
+                            suspected.push(MotivationEntry {
+                                description: want.description.clone(),
+                                priority,
+                                intensity,
+                                target: want_details.target.as_ref().map(|t| format!("{:?}", t)),
+                                helpers: vec![],
+                                opponents: vec![],
+                            });
+                        }
+                        WantVisibility::Hidden => {
+                            secret.push(SecretMotivationEntry {
+                                description: want.description.clone(),
+                                priority,
+                                intensity,
+                                target: want_details.target.as_ref().map(|t| format!("{:?}", t)),
+                                helpers: vec![],
+                                opponents: vec![],
+                                sender: None,
+                                receiver: None,
+                                deflection_behavior: want
+                                    .deflection_behavior
+                                    .clone()
+                                    .unwrap_or_else(|| {
+                                        "Change the subject or become evasive".to_string()
+                                    }),
+                                tells: want.tells.clone(),
+                            });
+                        }
+                    }
+                }
+
+                MotivationsContext {
+                    known,
+                    suspected,
+                    secret,
+                }
+            });
+
+            CharacterContext {
+                character_id: npc_id.map(|id| id.to_string()),
+                name: npc.name.clone(),
+                archetype: npc.current_archetype.to_string(),
+                current_mood: Some(npc.default_mood.to_string()),
+                disposition_toward_player: disposition
+                    .as_ref()
+                    .map(|d| d.disposition.to_string())
+                    .or_else(|| Some(npc.default_disposition.to_string())),
+                motivations,
+                social_stance: None, // Could be populated from actantial context
+                relationship_to_player: disposition.as_ref().map(|d| d.relationship.to_string()),
+                available_expressions: Some(npc.expression_config.expressions.clone()),
+                available_actions: Some(npc.expression_config.actions.clone()),
+            }
+        } else {
+            // Fallback for when NPC entity is not found
+            CharacterContext {
+                character_id: npc_id.map(|id| id.to_string()),
+                name: target_name.clone(),
+                archetype: "NPC".to_string(),
+                current_mood: None,
+                disposition_toward_player: None,
+                motivations: None,
+                social_stance: None,
+                relationship_to_player: None,
+                available_expressions: None,
+                available_actions: None,
+            }
         };
 
         // Build directorial notes with the prompt
@@ -577,7 +687,7 @@ impl ProcessLlmRequest {
                         prompt.scene_context.present_characters.join(", ")
                     );
 
-                    let user_message = if let Some(ref dialogue) = prompt.player_action.dialogue {
+                    let current_message = if let Some(ref dialogue) = prompt.player_action.dialogue {
                         format!(
                             "The player character says to {}: \"{}\"",
                             prompt.player_action.target.as_deref().unwrap_or("you"),
@@ -591,11 +701,34 @@ impl ProcessLlmRequest {
                         )
                     };
 
-                    crate::infrastructure::ports::LlmRequest::new(vec![
-                        crate::infrastructure::ports::ChatMessage::user(&user_message),
-                    ])
-                    .with_system_prompt(system_prompt)
-                    .with_temperature(0.7)
+                    // Convert conversation history to chat messages
+                    // NPC turns become "assistant" messages, player turns become "user" messages
+                    // The NPC's name is in responding_character.name
+                    let npc_name = &prompt.responding_character.name;
+
+                    let mut messages: Vec<crate::infrastructure::ports::ChatMessage> = prompt
+                        .conversation_history
+                        .iter()
+                        .map(|turn| {
+                            // If the speaker matches the NPC's name, it's an assistant message
+                            // Otherwise it's a user message (player/PC)
+                            if turn.speaker == *npc_name
+                                || turn.speaker.to_lowercase() == npc_name.to_lowercase()
+                            {
+                                crate::infrastructure::ports::ChatMessage::assistant(&turn.text)
+                            } else {
+                                // Player/PC dialogue
+                                crate::infrastructure::ports::ChatMessage::user(&turn.text)
+                            }
+                        })
+                        .collect();
+
+                    // Add the current message
+                    messages.push(crate::infrastructure::ports::ChatMessage::user(&current_message));
+
+                    crate::infrastructure::ports::LlmRequest::new(messages)
+                        .with_system_prompt(system_prompt)
+                        .with_temperature(0.7)
                 } else {
                     // Fallback if no prompt was provided
                     tracing::warn!("LLM request has no prompt data, using fallback");
