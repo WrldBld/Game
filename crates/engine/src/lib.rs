@@ -20,4 +20,8 @@ pub mod use_cases;
 #[cfg(test)]
 pub mod test_fixtures;
 
+/// E2E integration tests using real Neo4j via testcontainers.
+#[cfg(test)]
+mod e2e_tests;
+
 pub use app::App;
