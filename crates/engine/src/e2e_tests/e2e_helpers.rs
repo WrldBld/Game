@@ -596,6 +596,16 @@ pub async fn seed_thornhaven_to_neo4j(
     // 10. Create Challenges
     let mut challenge_ids = HashMap::new();
     for challenge in &test_world.challenges {
+        // Serialize difficulty, outcomes, and trigger_conditions as JSON
+        let difficulty_json = serde_json::to_string(&challenge.difficulty)
+            .unwrap_or_else(|_| r#"{"DC":15}"#.to_string());
+        let outcomes_json = serde_json::to_string(&challenge.outcomes)
+            .unwrap_or_else(|_| r#"{"success":{"description":"Success","triggers":[]},"failure":{"description":"Failure","triggers":[]}}"#.to_string());
+        let triggers_json = serde_json::to_string(&challenge.trigger_conditions)
+            .unwrap_or_else(|_| "[]".to_string());
+        let tags_json = serde_json::to_string(&challenge.tags)
+            .unwrap_or_else(|_| "[]".to_string());
+
         graph
             .run(
                 query(
@@ -605,9 +615,14 @@ pub async fn seed_thornhaven_to_neo4j(
                         name: $name,
                         description: $description,
                         challenge_type: $challenge_type,
+                        difficulty_json: $difficulty_json,
+                        outcomes_json: $outcomes_json,
+                        triggers_json: $triggers_json,
+                        check_stat: $check_stat,
                         is_active: $active,
                         ordering: $ordering,
-                        is_favorite: $favorite
+                        is_favorite: $favorite,
+                        tags_json: $tags_json
                     })",
                 )
                 .param("id", challenge.id.to_string())
@@ -615,9 +630,14 @@ pub async fn seed_thornhaven_to_neo4j(
                 .param("name", challenge.name.clone())
                 .param("description", challenge.description.clone())
                 .param("challenge_type", challenge.challenge_type.clone())
+                .param("difficulty_json", difficulty_json)
+                .param("outcomes_json", outcomes_json)
+                .param("triggers_json", triggers_json)
+                .param("check_stat", challenge.check_stat.clone().unwrap_or_default())
                 .param("active", challenge.active)
                 .param("ordering", challenge.order as i64)
-                .param("favorite", challenge.is_favorite),
+                .param("favorite", challenge.is_favorite)
+                .param("tags_json", tags_json),
             )
             .await?;
 

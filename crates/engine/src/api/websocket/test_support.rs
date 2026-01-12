@@ -701,6 +701,7 @@ pub(crate) fn build_test_app_with_ports(
             world.clone(),
             narrative.clone(),
             location.clone(),
+            challenge.clone(),
         )),
         Arc::new(crate::use_cases::queues::ProcessLlmRequest::new(
             queue.clone(),

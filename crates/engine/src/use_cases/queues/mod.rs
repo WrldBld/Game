@@ -7,14 +7,17 @@
 //! 2. LLM Request Queue -> Calls LLM -> DM Approval Queue
 //! 3. DM Approval Queue -> (handled by DM via WebSocket)
 
+pub mod tool_builder;
+mod tool_extractor;
+
 #[cfg(test)]
 mod llm_integration_tests;
 
 use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{
-    CharacterContext, GamePromptRequest, LlmRequestData, LlmRequestType, MotivationEntry,
-    MotivationsContext, PlayerActionContext, PlayerActionData, SceneContext,
+    ActiveChallengeContext, CharacterContext, GamePromptRequest, LlmRequestData, LlmRequestType,
+    MotivationEntry, MotivationsContext, PlayerActionContext, PlayerActionData, SceneContext,
     SecretMotivationEntry, WantVisibility, WorldId,
 };
 
@@ -86,6 +89,7 @@ pub struct ProcessPlayerAction {
     world: Arc<crate::entities::World>,
     narrative: Arc<crate::entities::Narrative>,
     location: Arc<crate::entities::Location>,
+    challenge: Arc<crate::entities::Challenge>,
 }
 
 impl ProcessPlayerAction {
@@ -98,6 +102,7 @@ impl ProcessPlayerAction {
         world: Arc<crate::entities::World>,
         narrative: Arc<crate::entities::Narrative>,
         location: Arc<crate::entities::Location>,
+        challenge: Arc<crate::entities::Challenge>,
     ) -> Self {
         Self {
             queue,
@@ -108,6 +113,7 @@ impl ProcessPlayerAction {
             world,
             narrative,
             location,
+            challenge,
         }
     }
 
@@ -387,6 +393,47 @@ impl ProcessPlayerAction {
             _ => vec![],
         };
 
+        // Fetch active challenges for this world
+        let active_challenges = self
+            .challenge
+            .list_for_world(action_data.world_id)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "Failed to fetch active challenges");
+                vec![]
+            })
+            .into_iter()
+            .filter(|c| c.active)
+            .map(|c| {
+                // Extract trigger hints from trigger conditions
+                let trigger_hints: Vec<String> = c
+                    .trigger_conditions
+                    .iter()
+                    .flat_map(|tc| match &tc.condition_type {
+                        wrldbldr_domain::TriggerType::DialogueTopic { topic_keywords } => {
+                            topic_keywords.clone()
+                        }
+                        wrldbldr_domain::TriggerType::ObjectInteraction { keywords } => {
+                            keywords.clone()
+                        }
+                        wrldbldr_domain::TriggerType::Custom { description } => {
+                            vec![description.clone()]
+                        }
+                        _ => vec![],
+                    })
+                    .collect();
+
+                ActiveChallengeContext {
+                    id: c.id.to_string(),
+                    name: c.name,
+                    description: c.description,
+                    skill_name: c.check_stat.unwrap_or_else(|| "General".to_string()),
+                    difficulty_display: c.difficulty.display(),
+                    trigger_hints,
+                }
+            })
+            .collect();
+
         Ok(GamePromptRequest {
             world_id: Some(action_data.world_id.to_string()),
             player_action,
@@ -394,7 +441,7 @@ impl ProcessPlayerAction {
             directorial_notes,
             conversation_history,
             responding_character,
-            active_challenges: vec![],
+            active_challenges,
             active_narrative_events: vec![],
             context_budget: None,
             scene_id: current_scene.as_ref().map(|scene| scene.id.to_string()),
@@ -680,7 +727,12 @@ impl ProcessLlmRequest {
                         Scene: {} at {}\n\
                         Present characters: {}\n\n\
                         Respond in character. Keep responses concise (1-3 sentences). \
-                        Stay true to the NPC's personality and motivations.",
+                        Stay true to the NPC's personality and motivations.\n\n\
+                        You have access to tools for game actions. Use them when appropriate:\n\
+                        - give_item: When offering/giving items to the player\n\
+                        - change_relationship: When trust is gained or lost\n\
+                        - reveal_info: When sharing plot-relevant information\n\
+                        Only use tools when the narrative clearly warrants it.",
                         prompt.directorial_notes,
                         prompt.scene_context.scene_name,
                         prompt.scene_context.location_name,
@@ -742,11 +794,17 @@ impl ProcessLlmRequest {
                     )
                 };
 
+                // Build tool definitions for function calling
+                let tools = tool_builder::build_game_tool_definitions();
+
                 let llm_response = self
                     .llm
-                    .generate(llm_request)
+                    .generate_with_tools(llm_request, tools)
                     .await
                     .map_err(|e| QueueError::LlmError(e.to_string()))?;
+
+                // Extract proposed tools from LLM response
+                let proposed_tools = tool_extractor::extract_proposed_tools(llm_response.tool_calls.clone());
 
                 let (npc_id, npc_name, player_dialogue, scene_id, location_id, game_time) =
                     if let Some(ref prompt) = request_data.prompt {
@@ -783,7 +841,7 @@ impl ProcessLlmRequest {
                     npc_name,
                     proposed_dialogue: llm_response.content.clone(),
                     internal_reasoning: String::new(),
-                    proposed_tools: vec![],
+                    proposed_tools,
                     retry_count: 0,
                     challenge_suggestion: None,
                     narrative_event_suggestion: None,

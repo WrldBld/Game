@@ -123,6 +123,8 @@ pub use value_objects::{
     ChallengeSuggestionOutcomes,
     ChangeAmount,
     CharacterContext,
+    GameTool,
+    InfoImportance,
     ComfyUIConfig,
     ContextBudgetConfig,
     ContextCategory,

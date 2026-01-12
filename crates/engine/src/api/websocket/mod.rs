@@ -1374,6 +1374,7 @@ mod ws_integration_tests_inline {
                 world.clone(),
                 narrative.clone(),
                 location.clone(),
+                challenge.clone(),
             )),
             Arc::new(crate::use_cases::queues::ProcessLlmRequest::new(
                 queue.clone(),
