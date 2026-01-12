@@ -18,38 +18,22 @@ async fn test_llm_generates_success_outcome_description() {
 
     let system_prompt = "You are a TTRPG game master. Generate a brief narrative description of a successful skill check outcome. Keep it to 2-3 sentences.";
 
-    let user_prompt = "Stealth check SUCCEEDED. The rogue rolled 18 vs DC 15. \
+    let task = "Stealth check SUCCEEDED. The rogue rolled 18 vs DC 15. \
         Describe them successfully sneaking past the sleeping guards in the barracks.";
 
-    let request = LlmRequest::new(vec![ChatMessage::user(user_prompt)])
+    let request = LlmRequest::new(vec![ChatMessage::user(task)])
         .with_system_prompt(system_prompt)
         .with_temperature(0.7);
 
     let response = client.generate(request).await.expect("LLM request failed");
 
-    let content_lower = response.content.to_lowercase();
-
-    // Should describe successful outcome
-    assert!(
-        !content_lower.contains("fail")
-            && !content_lower.contains("caught")
-            && !content_lower.contains("notice")
-            && !content_lower.contains("spot"),
-        "Success outcome should not describe failure: {}",
-        response.content
-    );
-
-    // Should be about stealth/sneaking
-    assert!(
-        content_lower.contains("sneak")
-            || content_lower.contains("silent")
-            || content_lower.contains("shadow")
-            || content_lower.contains("past")
-            || content_lower.contains("avoid")
-            || content_lower.contains("undetect"),
-        "Should describe successful stealth: {}",
-        response.content
-    );
+    // Use semantic validation for success outcome
+    assert_llm_valid(
+        &client,
+        task,
+        &response.content,
+        "The response should describe a SUCCESSFUL stealth attempt - the character sneaks past undetected, avoids the guards, and is NOT caught or noticed"
+    ).await;
 }
 
 #[tokio::test]
@@ -59,30 +43,22 @@ async fn test_llm_generates_failure_outcome_description() {
 
     let system_prompt = "You are a TTRPG game master. Generate a brief narrative description of a failed skill check outcome. Keep it to 2-3 sentences.";
 
-    let user_prompt = "Stealth check FAILED. The rogue rolled 8 vs DC 15. \
+    let task = "Stealth check FAILED. The rogue rolled 8 vs DC 15. \
         Describe them failing to sneak past the guards and getting caught.";
 
-    let request = LlmRequest::new(vec![ChatMessage::user(user_prompt)])
+    let request = LlmRequest::new(vec![ChatMessage::user(task)])
         .with_system_prompt(system_prompt)
         .with_temperature(0.7);
 
     let response = client.generate(request).await.expect("LLM request failed");
 
-    let content_lower = response.content.to_lowercase();
-
-    // Should describe failure/getting caught
-    assert!(
-        content_lower.contains("notice")
-            || content_lower.contains("spot")
-            || content_lower.contains("caught")
-            || content_lower.contains("fail")
-            || content_lower.contains("alert")
-            || content_lower.contains("hear")
-            || content_lower.contains("creak")
-            || content_lower.contains("noise"),
-        "Failure outcome should describe getting caught: {}",
-        response.content
-    );
+    // Use semantic validation for failure outcome
+    assert_llm_valid(
+        &client,
+        task,
+        &response.content,
+        "The response should describe a FAILED stealth attempt - the character is detected, caught, noticed, or alerts the guards in some way"
+    ).await;
 }
 
 // =============================================================================
@@ -98,42 +74,22 @@ async fn test_llm_generates_critical_success_description() {
         for a CRITICAL SUCCESS (natural 20). This should be more impressive and impactful than a regular success. \
         Keep it to 2-3 sentences.";
 
-    let user_prompt = "CRITICAL SUCCESS! Natural 20 on attack roll. \
+    let task = "CRITICAL SUCCESS! Natural 20 on attack roll. \
         A warrior strikes at a goblin with a greatsword. Describe the devastating critical hit.";
 
-    let request = LlmRequest::new(vec![ChatMessage::user(user_prompt)])
+    let request = LlmRequest::new(vec![ChatMessage::user(task)])
         .with_system_prompt(system_prompt)
         .with_temperature(0.8); // Higher temp for more dramatic response
 
     let response = client.generate(request).await.expect("LLM request failed");
 
-    let content_lower = response.content.to_lowercase();
-
-    // Should be dramatic/impressive
-    assert!(
-        content_lower.contains("devastat")
-            || content_lower.contains("critical")
-            || content_lower.contains("powerful")
-            || content_lower.contains("perfect")
-            || content_lower.contains("cleave")
-            || content_lower.contains("slice")
-            || content_lower.contains("fell")
-            || content_lower.contains("strike")
-            || content_lower.contains("blow"),
-        "Critical success should be dramatic: {}",
-        response.content
-    );
-
-    // Should mention the weapon or attack
-    assert!(
-        content_lower.contains("sword")
-            || content_lower.contains("blade")
-            || content_lower.contains("weapon")
-            || content_lower.contains("attack")
-            || content_lower.contains("strike"),
-        "Should reference the attack: {}",
-        response.content
-    );
+    // Use semantic validation for critical success
+    assert_llm_valid(
+        &client,
+        task,
+        &response.content,
+        "The response should describe a dramatic, devastating CRITICAL HIT - an exceptionally powerful attack with vivid descriptions of impact, the weapon striking true, and significant damage to the goblin"
+    ).await;
 }
 
 #[tokio::test]
@@ -145,32 +101,22 @@ async fn test_llm_generates_critical_failure_description() {
         (natural 1). This should describe a fumble, mishap, or embarrassing failure. \
         Keep it to 2-3 sentences but make it memorable.";
 
-    let user_prompt = "CRITICAL FAILURE! Natural 1 on attack roll. \
+    let task = "CRITICAL FAILURE! Natural 1 on attack roll. \
         A warrior swings their greatsword at a goblin. Describe the disastrous fumble.";
 
-    let request = LlmRequest::new(vec![ChatMessage::user(user_prompt)])
+    let request = LlmRequest::new(vec![ChatMessage::user(task)])
         .with_system_prompt(system_prompt)
         .with_temperature(0.8);
 
     let response = client.generate(request).await.expect("LLM request failed");
 
-    let content_lower = response.content.to_lowercase();
-
-    // Should describe fumble/mishap
-    assert!(
-        content_lower.contains("fumble")
-            || content_lower.contains("miss")
-            || content_lower.contains("slip")
-            || content_lower.contains("drop")
-            || content_lower.contains("stumble")
-            || content_lower.contains("fall")
-            || content_lower.contains("fail")
-            || content_lower.contains("wild")
-            || content_lower.contains("lose")
-            || content_lower.contains("unfortunate"),
-        "Critical failure should describe a fumble: {}",
-        response.content
-    );
+    // Use semantic validation for critical failure
+    assert_llm_valid(
+        &client,
+        task,
+        &response.content,
+        "The response should describe a FUMBLE or MISHAP - the warrior fails disastrously, perhaps slipping, dropping the weapon, missing wildly, or otherwise having an embarrassing failure"
+    ).await;
 }
 
 // =============================================================================

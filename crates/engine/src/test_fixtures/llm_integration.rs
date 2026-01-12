@@ -119,6 +119,142 @@ pub const MECHANICS_SYSTEM_PROMPT: &str = r#"You are a game rules assistant.
 When players describe actions, suggest appropriate skill checks or mechanics.
 Be concise and reference D&D 5e rules when applicable."#;
 
+// =============================================================================
+// LLM-based Output Validation
+// =============================================================================
+
+/// Result of LLM-based validation.
+#[derive(Debug, Clone)]
+pub struct LlmValidation {
+    /// Whether the response passed validation.
+    pub passed: bool,
+    /// Explanation from the validator.
+    pub explanation: String,
+}
+
+/// Validate an LLM response using semantic analysis instead of keyword matching.
+///
+/// This function asks an LLM to judge whether a response meets the specified criteria.
+/// It's more robust than keyword matching because it understands context and meaning.
+///
+/// # Arguments
+///
+/// * `client` - The LLM client to use for validation
+/// * `task` - Description of what the original task was asking for
+/// * `response` - The response to validate
+/// * `criteria` - What makes a valid response (e.g., "should be dramatic and describe a critical hit")
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let validation = validate_response(
+///     &client,
+///     "Generate a dramatic description of a critical hit",
+///     &response.content,
+///     "The response should be exciting and describe a powerful attack with vivid imagery"
+/// ).await;
+/// assert!(validation.passed, "Validation failed: {}", validation.explanation);
+/// ```
+pub async fn validate_response(
+    client: &dyn LlmPort,
+    task: &str,
+    response: &str,
+    criteria: &str,
+) -> LlmValidation {
+    let system_prompt = r#"You are a test validator. Your job is to determine if a response meets the specified criteria.
+
+IMPORTANT: You must respond with EXACTLY this format:
+PASS or FAIL
+[Your brief explanation]
+
+Example responses:
+PASS
+The response describes a tavern scene with atmospheric details.
+
+FAIL
+The response is about cooking, not about the tavern as requested."#;
+
+    let user_message = format!(
+        "TASK: {}\n\nRESPONSE TO VALIDATE:\n{}\n\nCRITERIA: {}\n\nDoes this response meet the criteria? Answer PASS or FAIL with a brief explanation.",
+        task, response, criteria
+    );
+
+    let request = LlmRequest::new(vec![ChatMessage::user(&user_message)])
+        .with_system_prompt(system_prompt)
+        .with_temperature(0.0) // Use deterministic responses for validation
+        .with_max_tokens(Some(300));
+
+    match client.generate(request).await {
+        Ok(validation_response) => {
+            let content = validation_response.content.trim();
+            let passed = content.to_uppercase().starts_with("PASS");
+            LlmValidation {
+                passed,
+                explanation: content.to_string(),
+            }
+        }
+        Err(e) => LlmValidation {
+            passed: false,
+            explanation: format!("Validation request failed: {}", e),
+        },
+    }
+}
+
+/// Assert that an LLM response passes semantic validation.
+///
+/// This is a convenience macro/function for use in tests. It validates the response
+/// and panics with a helpful message if validation fails.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// assert_llm_valid(
+///     &client,
+///     "Describe a tavern scene",
+///     &response.content,
+///     "Should describe a tavern with atmospheric details like lighting, sounds, or smells"
+/// ).await;
+/// ```
+pub async fn assert_llm_valid(
+    client: &dyn LlmPort,
+    task: &str,
+    response: &str,
+    criteria: &str,
+) {
+    let validation = validate_response(client, task, response, criteria).await;
+    assert!(
+        validation.passed,
+        "LLM validation failed.\n\nTask: {}\n\nResponse: {}\n\nCriteria: {}\n\nValidator said: {}",
+        task,
+        response,
+        criteria,
+        validation.explanation
+    );
+}
+
+/// Validate multiple criteria for a single response.
+///
+/// Returns true only if ALL criteria pass. Useful for complex validations.
+pub async fn validate_all_criteria(
+    client: &dyn LlmPort,
+    task: &str,
+    response: &str,
+    criteria_list: &[&str],
+) -> (bool, Vec<LlmValidation>) {
+    let mut results = Vec::new();
+    let mut all_passed = true;
+
+    for criteria in criteria_list {
+        let validation = validate_response(client, task, response, criteria).await;
+        if !validation.passed {
+            all_passed = false;
+        }
+        results.push(validation);
+    }
+
+    (all_passed, results)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

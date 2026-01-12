@@ -45,21 +45,20 @@ async fn test_llm_generates_narrative_response() {
 async fn test_llm_responds_to_simple_action() {
     let client = create_test_ollama_client();
 
-    let request = build_request_with_system(DM_SYSTEM_PROMPT, "I approach the bartender and wave.");
+    let task = "I approach the bartender and wave.";
+    let request = build_request_with_system(DM_SYSTEM_PROMPT, task);
 
     let response = client.generate(request).await.expect("LLM request failed");
 
     assert!(!response.content.is_empty());
-    // The response should reference the bartender or social interaction
-    let content_lower = response.content.to_lowercase();
-    assert!(
-        content_lower.contains("bartender")
-            || content_lower.contains("bar")
-            || content_lower.contains("wave")
-            || content_lower.contains("nod")
-            || content_lower.contains("approach"),
-        "Response should reference the action context"
-    );
+
+    // Use semantic validation instead of keyword matching
+    assert_llm_valid(
+        &client,
+        task,
+        &response.content,
+        "The response should describe a bartender acknowledging or reacting to someone approaching and waving at them in a tavern setting"
+    ).await;
 }
 
 // =============================================================================
@@ -71,24 +70,18 @@ async fn test_llm_responds_to_simple_action() {
 async fn test_llm_suggests_skill_check_for_lockpicking() {
     let client = create_test_ollama_client();
 
-    let request = build_request_with_system(
-        MECHANICS_SYSTEM_PROMPT,
-        "The player says: 'I want to pick the lock on this door.' What skill check should they make?",
-    );
+    let task = "The player says: 'I want to pick the lock on this door.' What skill check should they make?";
+    let request = build_request_with_system(MECHANICS_SYSTEM_PROMPT, task);
 
     let response = client.generate(request).await.expect("LLM request failed");
 
-    let content_lower = response.content.to_lowercase();
-
-    // Should suggest Dexterity, Sleight of Hand, or Thieves' Tools
-    assert!(
-        content_lower.contains("dexterity")
-            || content_lower.contains("sleight of hand")
-            || content_lower.contains("thieves")
-            || content_lower.contains("lockpick"),
-        "Response should suggest appropriate skill: {}",
-        response.content
-    );
+    // Use semantic validation - should suggest an appropriate skill for lockpicking
+    assert_llm_valid(
+        &client,
+        task,
+        &response.content,
+        "The response should suggest a Dexterity-based check, Sleight of Hand, or mention thieves' tools - any skill appropriate for picking a lock in D&D 5e"
+    ).await;
 }
 
 #[tokio::test]
@@ -96,24 +89,18 @@ async fn test_llm_suggests_skill_check_for_lockpicking() {
 async fn test_llm_suggests_skill_check_for_persuasion() {
     let client = create_test_ollama_client();
 
-    let request = build_request_with_system(
-        MECHANICS_SYSTEM_PROMPT,
-        "The player says: 'I try to convince the guard to let us through.' What skill check?",
-    );
+    let task = "The player says: 'I try to convince the guard to let us through.' What skill check?";
+    let request = build_request_with_system(MECHANICS_SYSTEM_PROMPT, task);
 
     let response = client.generate(request).await.expect("LLM request failed");
 
-    let content_lower = response.content.to_lowercase();
-
-    // Should suggest Charisma, Persuasion, or Deception
-    assert!(
-        content_lower.contains("charisma")
-            || content_lower.contains("persuasion")
-            || content_lower.contains("deception")
-            || content_lower.contains("convince"),
-        "Response should suggest social skill: {}",
-        response.content
-    );
+    // Use semantic validation - should suggest a social/Charisma skill
+    assert_llm_valid(
+        &client,
+        task,
+        &response.content,
+        "The response should suggest a Charisma-based check like Persuasion, Deception, or Intimidation - any social skill appropriate for convincing someone in D&D 5e"
+    ).await;
 }
 
 // =============================================================================
@@ -369,33 +356,19 @@ async fn test_llm_generates_failure_outcome() {
 async fn test_llm_generates_critical_success_outcome() {
     let client = create_test_ollama_client();
 
+    let task = "CRITICAL SUCCESS! Natural 20 on attack roll. A warrior strikes at a goblin with a greatsword.";
     let system = "You are a TTRPG game master. Generate an exciting narrative for a critical success (natural 20).";
-    let user = "CRITICAL SUCCESS! Natural 20 on attack roll. A warrior strikes at a goblin with a greatsword.";
 
-    let request = build_request_with_system(system, user);
+    let request = build_request_with_system(system, task);
     let response = client.generate(request).await.expect("LLM request failed");
 
-    let content_lower = response.content.to_lowercase();
-
-    // Should be dramatic/impressive - check for action words indicating intensity
-    assert!(
-        content_lower.contains("critical")
-            || content_lower.contains("devastating")
-            || content_lower.contains("powerful")
-            || content_lower.contains("perfect")
-            || content_lower.contains("incredible")
-            || content_lower.contains("strike")
-            || content_lower.contains("cleave")
-            || content_lower.contains("thunder")
-            || content_lower.contains("slam")
-            || content_lower.contains("sever")
-            || content_lower.contains("blade")
-            || content_lower.contains("greatsword")
-            || content_lower.contains("warrior")
-            || content_lower.contains("goblin"),
-        "Response should be dramatic: {}",
-        response.content
-    );
+    // Use semantic validation for dramatic content
+    assert_llm_valid(
+        &client,
+        task,
+        &response.content,
+        "The response should be a dramatic, exciting description of a critical hit - conveying power, impact, or devastation of a perfectly executed attack"
+    ).await;
 }
 
 // =============================================================================
