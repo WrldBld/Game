@@ -20,14 +20,18 @@ use std::collections::VecDeque;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::infrastructure::ollama::OllamaClient;
 use crate::infrastructure::ports::{
-    FinishReason, LlmError, LlmPort, LlmRequest, LlmResponse, ToolCall, ToolDefinition,
+    FinishReason, LlmError, LlmPort, LlmRequest, LlmResponse, MessageRole, ToolCall, ToolDefinition,
 };
+
+use super::event_log::{ChatMessageLog, E2EEvent, E2EEventLog, TokenUsageLog, ToolCallLog};
 
 /// Recording mode for VCR LLM.
 #[derive(Debug, Clone)]
@@ -103,6 +107,8 @@ pub struct VcrLlm {
     playback_queue: Mutex<VecDeque<LlmRecording>>,
     /// Model name for recording.
     model_name: String,
+    /// Optional event log for comprehensive logging.
+    event_log: Option<Arc<E2EEventLog>>,
 }
 
 impl VcrLlm {
@@ -120,6 +126,7 @@ impl VcrLlm {
             }),
             playback_queue: Mutex::new(VecDeque::new()),
             model_name: model_name.to_string(),
+            event_log: None,
         }
     }
 
@@ -138,6 +145,7 @@ impl VcrLlm {
             cassette: Mutex::new(cassette),
             playback_queue: Mutex::new(playback_queue),
             model_name: String::new(),
+            event_log: None,
         })
     }
 
@@ -150,7 +158,14 @@ impl VcrLlm {
             cassette: Mutex::new(LlmCassette::default()),
             playback_queue: Mutex::new(VecDeque::new()),
             model_name: String::new(),
+            event_log: None,
         }
+    }
+
+    /// Attach an event log for comprehensive logging.
+    pub fn with_event_log(mut self, event_log: Arc<E2EEventLog>) -> Self {
+        self.event_log = Some(event_log);
+        self
     }
 
     /// Create VcrLlm based on E2E_LLM_MODE environment variable.
@@ -311,28 +326,90 @@ impl VcrLlm {
     pub fn playback_remaining(&self) -> usize {
         self.playback_queue.lock().unwrap().len()
     }
+
+    /// Log prompt sent event to the event log.
+    fn log_prompt_sent(&self, request_id: Uuid, request: &LlmRequest, tools: Option<&[ToolDefinition]>) {
+        if let Some(ref event_log) = self.event_log {
+            let messages: Vec<ChatMessageLog> = request
+                .messages
+                .iter()
+                .map(|m| {
+                    let role = match m.role {
+                        MessageRole::User => "user",
+                        MessageRole::Assistant => "assistant",
+                        MessageRole::System => "system",
+                        MessageRole::Unknown => "unknown",
+                    };
+                    ChatMessageLog::new(role, &m.content)
+                })
+                .collect();
+
+            let tool_names = tools.map(|t| t.iter().map(|td| td.name.clone()).collect());
+
+            event_log.log(E2EEvent::LlmPromptSent {
+                request_id,
+                system_prompt: request.system_prompt.clone(),
+                messages,
+                temperature: request.temperature,
+                max_tokens: request.max_tokens,
+                tools: tool_names,
+            });
+        }
+    }
+
+    /// Log response received event to the event log.
+    fn log_response_received(&self, request_id: Uuid, response: &LlmResponse, latency_ms: u64) {
+        if let Some(ref event_log) = self.event_log {
+            let tool_calls: Vec<ToolCallLog> = response
+                .tool_calls
+                .iter()
+                .map(|tc| ToolCallLog {
+                    name: tc.name.clone(),
+                    arguments: tc.arguments.clone(),
+                })
+                .collect();
+
+            let tokens = response.usage.as_ref().map(TokenUsageLog::from);
+
+            event_log.log(E2EEvent::LlmResponseReceived {
+                request_id,
+                content: response.content.clone(),
+                tool_calls,
+                finish_reason: format!("{:?}", response.finish_reason),
+                tokens,
+                latency_ms,
+            });
+        }
+    }
 }
 
 #[async_trait]
 impl LlmPort for VcrLlm {
     async fn generate(&self, request: LlmRequest) -> Result<LlmResponse, LlmError> {
-        match &self.mode {
+        let request_id = Uuid::new_v4();
+        self.log_prompt_sent(request_id, &request, None);
+        let start = Instant::now();
+
+        let response = match &self.mode {
             VcrMode::Record => {
                 let inner = self.inner.as_ref().ok_or_else(|| {
                     LlmError::RequestFailed("VcrLlm: No inner LLM in record mode".to_string())
                 })?;
                 let response = inner.generate(request.clone()).await?;
                 self.record(&request, &response);
-                Ok(response)
+                response
             }
-            VcrMode::Playback => self.playback_next(),
+            VcrMode::Playback => self.playback_next()?,
             VcrMode::Live => {
                 let inner = self.inner.as_ref().ok_or_else(|| {
                     LlmError::RequestFailed("VcrLlm: No inner LLM in live mode".to_string())
                 })?;
-                inner.generate(request).await
+                inner.generate(request).await?
             }
-        }
+        };
+
+        self.log_response_received(request_id, &response, start.elapsed().as_millis() as u64);
+        Ok(response)
     }
 
     async fn generate_with_tools(
@@ -340,23 +417,30 @@ impl LlmPort for VcrLlm {
         request: LlmRequest,
         tools: Vec<ToolDefinition>,
     ) -> Result<LlmResponse, LlmError> {
-        match &self.mode {
+        let request_id = Uuid::new_v4();
+        self.log_prompt_sent(request_id, &request, Some(&tools));
+        let start = Instant::now();
+
+        let response = match &self.mode {
             VcrMode::Record => {
                 let inner = self.inner.as_ref().ok_or_else(|| {
                     LlmError::RequestFailed("VcrLlm: No inner LLM in record mode".to_string())
                 })?;
                 let response = inner.generate_with_tools(request.clone(), tools).await?;
                 self.record(&request, &response);
-                Ok(response)
+                response
             }
-            VcrMode::Playback => self.playback_next(),
+            VcrMode::Playback => self.playback_next()?,
             VcrMode::Live => {
                 let inner = self.inner.as_ref().ok_or_else(|| {
                     LlmError::RequestFailed("VcrLlm: No inner LLM in live mode".to_string())
                 })?;
-                inner.generate_with_tools(request, tools).await
+                inner.generate_with_tools(request, tools).await?
             }
-        }
+        };
+
+        self.log_response_received(request_id, &response, start.elapsed().as_millis() as u64);
+        Ok(response)
     }
 }
 

@@ -16,9 +16,12 @@
 //! cargo test -p wrldbldr-engine --lib gameplay_flow -- --ignored --test-threads=1
 //! ```
 
+use std::sync::Arc;
+
 use super::{
     approve_staging_with_npc, create_e2e_llm, create_player_character_via_use_case,
-    create_test_player, start_conversation_with_npc, E2ETestContext,
+    create_shared_log, create_test_player, start_conversation_with_npc, E2ETestContext,
+    TestOutcome, VcrLlm,
 };
 
 // =============================================================================
@@ -234,86 +237,133 @@ async fn test_multi_turn_conversation() {
 #[tokio::test]
 #[ignore = "requires docker (testcontainers)"]
 async fn test_full_gameplay_session() {
-    // Create context with VCR LLM
-    let llm = create_e2e_llm("test_full_gameplay_session");
-    let ctx = E2ETestContext::setup_with_llm(llm.clone())
+    const TEST_NAME: &str = "test_full_gameplay_session";
+
+    // Create event log for comprehensive logging
+    let event_log = create_shared_log(TEST_NAME);
+
+    // Create VCR LLM with event logging
+    let llm = {
+        let vcr = VcrLlm::from_env(std::path::PathBuf::from(format!(
+            "{}/src/e2e_tests/cassettes/{}.json",
+            env!("CARGO_MANIFEST_DIR"),
+            TEST_NAME
+        )));
+        Arc::new(vcr.with_event_log(event_log.clone()))
+    };
+
+    // Create context with VCR LLM and event logging
+    let ctx = E2ETestContext::setup_with_llm_and_logging(llm.clone(), event_log.clone())
         .await
         .expect("Failed to setup E2E context");
 
-    // === Phase 1: Create Player Character ===
-    let pc_id = create_player_character_via_use_case(&ctx, "Aldric the Brave", "test-user-456")
-        .await
-        .expect("Failed to create player character");
+    // Track test result for finalization
+    let test_result = async {
+        // === Phase 1: Create Player Character ===
+        let pc_id = create_player_character_via_use_case(&ctx, "Aldric the Brave", "test-user-456")
+            .await
+            .expect("Failed to create player character");
 
-    let pc = ctx
-        .app
-        .entities
-        .player_character
-        .get(pc_id)
-        .await
-        .expect("PC query failed")
-        .expect("PC not found");
+        let pc = ctx
+            .app
+            .entities
+            .player_character
+            .get(pc_id)
+            .await
+            .expect("PC query failed")
+            .expect("PC not found");
 
-    let common_room = ctx.world.region("Common Room").expect("Region not found");
-    assert_eq!(pc.current_region_id, Some(common_room), "PC should be in Common Room");
+        let common_room = ctx.world.region("Common Room").expect("Region not found");
+        assert_eq!(pc.current_region_id, Some(common_room), "PC should be in Common Room");
 
-    // === Phase 2: Stage NPC ===
-    let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");
-    approve_staging_with_npc(&ctx, common_room, marta_id)
-        .await
-        .expect("Failed to stage Marta");
+        // === Phase 2: Stage NPC ===
+        let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");
+        approve_staging_with_npc(&ctx, common_room, marta_id)
+            .await
+            .expect("Failed to stage Marta");
 
-    // === Phase 3: Start Conversation ===
-    let (conversation_id, response1) = start_conversation_with_npc(
-        &ctx,
-        pc_id,
-        marta_id,
-        "test-user-456",
-        "Good morning! I've just arrived in Thornhaven. What can you tell me about this place?",
-    )
-    .await
-    .expect("Failed to start conversation");
-
-    assert!(!response1.is_empty(), "Marta should respond");
-    tracing::info!(response = %response1, "Marta's first response");
-
-    // === Phase 4: Continue Conversation ===
-    // Pass None to let the system find the active conversation
-    let response2 = super::run_conversation_turn(
-        &ctx,
-        pc_id,
-        marta_id,
-        "test-user-456",
-        "That's very helpful. Is there anyone else I should talk to?",
-        None,
-    )
-    .await
-    .expect("Failed to continue conversation");
-
-    assert!(!response2.is_empty(), "Marta should respond to follow-up");
-    tracing::info!(response = %response2, "Marta's second response");
-
-    // === Verification: Check Neo4j State ===
-    // Verify a conversation was recorded in the database (between PC and Marta)
-    use neo4rs::query;
-
-    let mut result = ctx
-        .harness
-        .graph()
-        .execute(query(
-            "MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation)<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
-             RETURN c.id as id",
+        // === Phase 3: Start Conversation ===
+        let (conversation_id, response1) = start_conversation_with_npc(
+            &ctx,
+            pc_id,
+            marta_id,
+            "test-user-456",
+            "Good morning! I've just arrived in Thornhaven. What can you tell me about this place?",
         )
-        .param("pc_id", pc_id.to_string())
-        .param("npc_id", marta_id.to_string()))
         .await
-        .expect("Conversation query failed");
+        .expect("Failed to start conversation");
 
-    let row = result.next().await;
-    assert!(row.is_ok(), "Conversation should exist in Neo4j");
+        assert!(!response1.is_empty(), "Marta should respond");
+        tracing::info!(response = %response1, "Marta's first response");
+
+        // === Phase 4: Continue Conversation ===
+        // Pass None to let the system find the active conversation
+        let response2 = super::run_conversation_turn(
+            &ctx,
+            pc_id,
+            marta_id,
+            "test-user-456",
+            "That's very helpful. Is there anyone else I should talk to?",
+            None,
+        )
+        .await
+        .expect("Failed to continue conversation");
+
+        assert!(!response2.is_empty(), "Marta should respond to follow-up");
+        tracing::info!(response = %response2, "Marta's second response");
+
+        // === Verification: Check Neo4j State ===
+        // Verify a conversation was recorded in the database (between PC and Marta)
+        use neo4rs::query;
+
+        let mut result = ctx
+            .harness
+            .graph()
+            .execute(query(
+                "MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation)<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
+                 RETURN c.id as id",
+            )
+            .param("pc_id", pc_id.to_string())
+            .param("npc_id", marta_id.to_string()))
+            .await
+            .expect("Conversation query failed");
+
+        let row = result.next().await;
+        assert!(row.is_ok(), "Conversation should exist in Neo4j");
+
+        Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+    }
+    .await;
+
+    // Finalize event log with outcome
+    let outcome = if test_result.is_ok() {
+        TestOutcome::Pass
+    } else {
+        TestOutcome::Fail
+    };
+    ctx.finalize_event_log(outcome);
+
+    // Save event log
+    let log_path = E2ETestContext::default_log_path(TEST_NAME);
+    ctx.save_event_log(&log_path).expect("Failed to save event log");
+
+    // Print summary
+    if let Some(ref log) = ctx.event_log {
+        let summary = log.summary();
+        tracing::info!(
+            llm_calls = summary.llm_calls,
+            conversations = summary.conversations_count,
+            total_tokens = summary.total_tokens.total,
+            avg_latency_ms = summary.avg_llm_latency_ms,
+            "E2E test summary"
+        );
+    }
 
     // Save cassette if recording
     llm.save_cassette().expect("Failed to save cassette");
+
+    // Propagate any test error
+    test_result.expect("Test failed");
 }
 
 // =============================================================================

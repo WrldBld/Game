@@ -4,6 +4,7 @@
 //! and seeded test data for E2E integration testing.
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use chrono::{DateTime, TimeZone, Utc};
@@ -27,6 +28,8 @@ use crate::infrastructure::settings::SqliteSettingsRepo;
 use crate::test_fixtures::world_seeder::{load_thornhaven, TestWorld};
 use crate::use_cases::content::ContentServiceConfig;
 
+use super::event_log::{E2EEventLog, TestOutcome};
+use super::logging_queue::LoggingQueue;
 use super::Neo4jTestHarness;
 
 // =============================================================================
@@ -91,6 +94,8 @@ pub struct E2ETestContext {
     pub world: SeededWorld,
     pub test_world: TestWorld,
     pub clock: Arc<FixedClock>,
+    /// Optional event log for comprehensive test analysis.
+    pub event_log: Option<Arc<E2EEventLog>>,
     _temp_dir: TempDir,
 }
 
@@ -108,6 +113,25 @@ impl E2ETestContext {
     /// Create a new E2E test context with custom LLM implementation.
     pub async fn setup_with_llm(
         llm: Arc<dyn LlmPort>,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        Self::setup_internal(llm, None).await
+    }
+
+    /// Create a new E2E test context with custom LLM and event logging.
+    ///
+    /// This method enables comprehensive event logging for test analysis.
+    /// The event log captures all events, prompts, and responses.
+    pub async fn setup_with_llm_and_logging(
+        llm: Arc<dyn LlmPort>,
+        event_log: Arc<E2EEventLog>,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        Self::setup_internal(llm, Some(event_log)).await
+    }
+
+    /// Internal setup method with optional event logging.
+    async fn setup_internal(
+        llm: Arc<dyn LlmPort>,
+        event_log: Option<Arc<E2EEventLog>>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         // Start Neo4j container
         let harness = Neo4jTestHarness::start().await?;
@@ -129,12 +153,25 @@ impl E2ETestContext {
 
         // Create repositories and app
         let repos = Neo4jRepositories::new(harness.graph_clone(), clock.clone());
-        let queue = Arc::new(SqliteQueue::new(&queue_db_str, clock.clone()).await?);
+        let base_queue = Arc::new(SqliteQueue::new(&queue_db_str, clock.clone()).await?);
+
+        // Wrap queue with logging if event_log is provided
+        let queue: Arc<dyn QueuePort> = if let Some(ref log) = event_log {
+            Arc::new(LoggingQueue::new(base_queue, log.clone()))
+        } else {
+            base_queue
+        };
+
         let settings_repo = Arc::new(SqliteSettingsRepo::new(&queue_db_str, clock.clone()).await?);
         let image_gen: Arc<dyn ImageGenPort> = Arc::new(NoopImageGen);
         let content_config = ContentServiceConfig::default();
 
         let app = App::new(repos, llm, image_gen, queue, settings_repo, content_config);
+
+        // Set world ID in event log if logging is enabled
+        if let Some(ref log) = event_log {
+            log.set_world_id(seeded.world_id);
+        }
 
         Ok(Self {
             harness,
@@ -142,6 +179,7 @@ impl E2ETestContext {
             world: seeded,
             test_world,
             clock,
+            event_log,
             _temp_dir: temp_dir,
         })
     }
@@ -160,6 +198,38 @@ impl E2ETestContext {
     /// Get the current clock time.
     pub fn now(&self) -> DateTime<Utc> {
         self.clock.now()
+    }
+
+    /// Log an event to the event log (if logging is enabled).
+    pub fn log_event(&self, event: super::event_log::E2EEvent) {
+        if let Some(ref log) = self.event_log {
+            log.log(event);
+        }
+    }
+
+    /// Finalize the event log with the test outcome.
+    pub fn finalize_event_log(&self, outcome: TestOutcome) {
+        if let Some(ref log) = self.event_log {
+            log.finalize(outcome);
+        }
+    }
+
+    /// Save the event log to a file.
+    pub fn save_event_log(&self, path: &Path) -> Result<(), std::io::Error> {
+        if let Some(ref log) = self.event_log {
+            log.save(path)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Get the default log path for a test.
+    pub fn default_log_path(test_name: &str) -> PathBuf {
+        PathBuf::from(format!(
+            "{}/src/e2e_tests/logs/{}.json",
+            env!("CARGO_MANIFEST_DIR"),
+            test_name
+        ))
     }
 }
 
@@ -882,7 +952,6 @@ impl QueuePort for RecordingQueue {
 // =============================================================================
 
 use super::vcr_llm::VcrLlm;
-use std::path::PathBuf;
 
 /// Create a VCR LLM for E2E testing based on environment.
 ///
@@ -1022,6 +1091,7 @@ pub async fn create_player_character_via_use_case(
 /// Run a complete conversation turn through the queue pipeline.
 ///
 /// Returns the final dialogue after DM approval.
+/// `turn_number` is the turn number for logging (player turn number, NPC will be turn_number + 1).
 pub async fn run_conversation_turn(
     ctx: &E2ETestContext,
     pc_id: PlayerCharacterId,
@@ -1030,6 +1100,27 @@ pub async fn run_conversation_turn(
     dialogue: &str,
     conversation_id: Option<Uuid>,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    use super::event_log::E2EEvent;
+
+    // Get NPC name for logging
+    let npc = ctx
+        .app
+        .entities
+        .character
+        .get(npc_id)
+        .await?
+        .ok_or("NPC not found")?;
+
+    // Log player turn (we don't know exact turn number in continue, use 0 as placeholder)
+    if let Some(conv_id) = conversation_id {
+        ctx.log_event(E2EEvent::ConversationTurn {
+            id: conv_id,
+            speaker: "player".to_string(),
+            content: dialogue.to_string(),
+            turn_number: 0, // Turn number not tracked in continue
+        });
+    }
+
     // 1. Continue conversation - enqueues player action
     ctx.app
         .use_cases
@@ -1065,6 +1156,14 @@ pub async fn run_conversation_turn(
 
     // 4. If we got a result, approve it
     if let Some(result) = llm_result {
+        // Log approval decision
+        ctx.log_event(E2EEvent::ApprovalDecision {
+            id: result.approval_id,
+            decision: "Accept".to_string(),
+            modified: false,
+            dm_feedback: None,
+        });
+
         let approval = ctx
             .app
             .use_cases
@@ -1073,7 +1172,19 @@ pub async fn run_conversation_turn(
             .execute(result.approval_id, DmApprovalDecision::Accept)
             .await?;
 
-        Ok(approval.final_dialogue.unwrap_or_default())
+        let npc_response = approval.final_dialogue.unwrap_or_default();
+
+        // Log NPC response turn
+        if let Some(conv_id) = conversation_id {
+            ctx.log_event(E2EEvent::ConversationTurn {
+                id: conv_id,
+                speaker: npc.name.clone(),
+                content: npc_response.clone(),
+                turn_number: 0, // Turn number not tracked in continue
+            });
+        }
+
+        Ok(npc_response)
     } else {
         Err("No LLM request was processed".into())
     }
@@ -1089,6 +1200,17 @@ pub async fn start_conversation_with_npc(
     player_id: &str,
     dialogue: &str,
 ) -> Result<(Uuid, String), Box<dyn std::error::Error + Send + Sync>> {
+    use super::event_log::E2EEvent;
+
+    // Get NPC name for logging
+    let npc = ctx
+        .app
+        .entities
+        .character
+        .get(npc_id)
+        .await?
+        .ok_or("NPC not found")?;
+
     // 1. Start conversation - enqueues player action
     let started = ctx
         .app
@@ -1105,6 +1227,22 @@ pub async fn start_conversation_with_npc(
         .await?;
 
     let conversation_id = started.conversation_id;
+
+    // Log conversation start
+    ctx.log_event(E2EEvent::ConversationStarted {
+        id: conversation_id,
+        pc_id: pc_id.to_string(),
+        npc_id: npc_id.to_string(),
+        npc_name: npc.name.clone(),
+    });
+
+    // Log player turn
+    ctx.log_event(E2EEvent::ConversationTurn {
+        id: conversation_id,
+        speaker: "player".to_string(),
+        content: dialogue.to_string(),
+        turn_number: 1,
+    });
 
     // 2. Process player action queue
     let _processed = ctx
@@ -1126,6 +1264,14 @@ pub async fn start_conversation_with_npc(
 
     // 4. If we got a result, approve it
     if let Some(result) = llm_result {
+        // Log approval decision
+        ctx.log_event(E2EEvent::ApprovalDecision {
+            id: result.approval_id,
+            decision: "Accept".to_string(),
+            modified: false,
+            dm_feedback: None,
+        });
+
         let approval = ctx
             .app
             .use_cases
@@ -1134,7 +1280,17 @@ pub async fn start_conversation_with_npc(
             .execute(result.approval_id, DmApprovalDecision::Accept)
             .await?;
 
-        Ok((conversation_id, approval.final_dialogue.unwrap_or_default()))
+        let npc_response = approval.final_dialogue.unwrap_or_default();
+
+        // Log NPC response turn
+        ctx.log_event(E2EEvent::ConversationTurn {
+            id: conversation_id,
+            speaker: npc.name.clone(),
+            content: npc_response.clone(),
+            turn_number: 2,
+        });
+
+        Ok((conversation_id, npc_response))
     } else {
         Err("No LLM request was processed".into())
     }

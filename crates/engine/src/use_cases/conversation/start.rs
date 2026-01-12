@@ -527,7 +527,7 @@ mod tests {
         assert_eq!(action.player_id, player_id);
         assert_eq!(action.pc_id, Some(pc_id));
         assert_eq!(action.action_type, "talk".to_string());
-        assert_eq!(action.target, Some("NPC".to_string()));
+        assert_eq!(action.target, Some(npc_id.to_string())); // target is NPC ID
         assert_eq!(action.dialogue, Some(initial_dialogue));
         assert_eq!(action.timestamp, now);
     }

@@ -22,11 +22,15 @@
 //! ```
 
 mod e2e_helpers;
+mod event_log;
 mod gameplay_flow_tests;
 mod gameplay_loop_tests;
+mod logging_queue;
 mod neo4j_test_harness;
 mod vcr_llm;
 
 pub use e2e_helpers::*;
+pub use event_log::*;
+pub use logging_queue::*;
 pub use neo4j_test_harness::*;
 pub use vcr_llm::*;

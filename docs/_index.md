@@ -39,6 +39,7 @@ Technical reference for developers.
 | [Hexagonal Architecture](architecture/hexagonal-architecture.md) | Ports/adapters patterns, layer rules   |
 | [WebSocket Protocol](architecture/websocket-protocol.md)         | All client/server message types        |
 | [Queue System](architecture/queue-system.md)                     | Action and approval queue architecture |
+| [E2E Testing](architecture/e2e-testing.md)                       | VCR LLM, event logging, testcontainers |
 
 ---
 

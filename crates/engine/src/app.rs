@@ -7,7 +7,6 @@ use crate::infrastructure::{
     clock::{SystemClock, SystemRandom},
     neo4j::Neo4jRepositories,
     ports::{ClockPort, ImageGenPort, LlmPort, QueuePort, RandomPort, SettingsRepo},
-    queue::SqliteQueue,
 };
 use crate::use_cases;
 use crate::use_cases::content::{ContentService, ContentServiceConfig};
@@ -80,7 +79,7 @@ impl App {
         repos: Neo4jRepositories,
         llm: Arc<dyn LlmPort>,
         image_gen: Arc<dyn ImageGenPort>,
-        queue: Arc<SqliteQueue>,
+        queue: Arc<dyn QueuePort>,
         settings_repo: Arc<dyn SettingsRepo>,
         content_config: ContentServiceConfig,
     ) -> Self {
