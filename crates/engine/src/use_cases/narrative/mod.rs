@@ -1,5 +1,8 @@
 //! Narrative use cases - Event triggering and effect execution.
 
+#[cfg(test)]
+mod challenge_llm_tests;
+
 pub mod chains;
 pub mod decision;
 pub mod execute_effects;

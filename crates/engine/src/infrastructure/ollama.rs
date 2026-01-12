@@ -18,6 +18,12 @@ pub struct OllamaClient {
     model: String,
 }
 
+/// Default Ollama base URL.
+pub const DEFAULT_OLLAMA_BASE_URL: &str = "http://localhost:11434";
+
+/// Default model for Ollama.
+pub const DEFAULT_OLLAMA_MODEL: &str = "gpt-oss:20b";
+
 impl OllamaClient {
     pub fn new(base_url: &str, model: &str) -> Self {
         // Use 120 second timeout for LLM requests (they can be slow)
@@ -31,6 +37,38 @@ impl OllamaClient {
             base_url: base_url.trim_end_matches('/').to_string(),
             model: model.to_string(),
         }
+    }
+
+    /// Create client with custom timeout (for testing).
+    pub fn with_timeout(base_url: &str, model: &str, timeout_secs: u64) -> Self {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(timeout_secs))
+            .build()
+            .unwrap_or_else(|_| Client::new());
+
+        Self {
+            client,
+            base_url: base_url.trim_end_matches('/').to_string(),
+            model: model.to_string(),
+        }
+    }
+
+    /// Create client from environment variables.
+    ///
+    /// Uses `OLLAMA_BASE_URL` and `OLLAMA_MODEL` environment variables,
+    /// falling back to defaults if not set.
+    pub fn from_env() -> Self {
+        let base_url =
+            std::env::var("OLLAMA_BASE_URL").unwrap_or_else(|_| DEFAULT_OLLAMA_BASE_URL.to_string());
+        let model =
+            std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| DEFAULT_OLLAMA_MODEL.to_string());
+        Self::new(&base_url, &model)
+    }
+}
+
+impl Default for OllamaClient {
+    fn default() -> Self {
+        Self::new(DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL)
     }
 }
 
@@ -47,7 +85,7 @@ impl LlmPort for OllamaClient {
 
         let response = self
             .client
-            .post(format!("{}/chat/completions", self.base_url))
+            .post(format!("{}/v1/chat/completions", self.base_url))
             .json(&api_request)
             .send()
             .await
@@ -96,7 +134,7 @@ impl LlmPort for OllamaClient {
 
         let response = self
             .client
-            .post(format!("{}/chat/completions", self.base_url))
+            .post(format!("{}/v1/chat/completions", self.base_url))
             .json(&api_request)
             .send()
             .await

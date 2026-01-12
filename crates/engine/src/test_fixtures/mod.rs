@@ -15,6 +15,9 @@
 //! }
 //! ```
 
+pub mod image_mocks;
+pub mod llm_integration;
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 

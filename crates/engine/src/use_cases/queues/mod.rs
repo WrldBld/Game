@@ -7,6 +7,9 @@
 //! 2. LLM Request Queue -> Calls LLM -> DM Approval Queue
 //! 3. DM Approval Queue -> (handled by DM via WebSocket)
 
+#[cfg(test)]
+mod llm_integration_tests;
+
 use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{

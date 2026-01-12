@@ -2,6 +2,9 @@
 //!
 //! Handles staging approval requests, regeneration, and approval application.
 
+#[cfg(test)]
+mod llm_integration_tests;
+
 use std::{collections::HashMap, sync::Arc};
 
 use chrono::{Datelike, Timelike};
