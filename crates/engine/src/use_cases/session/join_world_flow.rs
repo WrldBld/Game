@@ -3,8 +3,7 @@ use std::sync::Arc;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::api::connections::{ConnectionError, ConnectionManager, WorldRole};
-use crate::infrastructure::ports::RepoError;
+use crate::infrastructure::ports::{RepoError, SessionError, WorldRole, WorldSessionPort};
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use wrldbldr_protocol::{ConnectedUser, JoinError, WorldRole as ProtoWorldRole};
 
@@ -12,7 +11,7 @@ use super::{JoinWorld, JoinWorldError};
 
 /// IO dependencies for join-world flows (WS-state owned).
 pub struct JoinWorldContext<'a> {
-    pub connections: &'a ConnectionManager,
+    pub session: &'a dyn WorldSessionPort,
 }
 
 /// Input for joining a world over WebSocket.
@@ -47,7 +46,7 @@ impl JoinWorldFlow {
         };
 
         // Update user_id from the client (stable identifier from browser storage)
-        ctx.connections
+        ctx.session
             .set_user_id(input.connection_id, input.user_id)
             .await;
 
@@ -57,7 +56,7 @@ impl JoinWorldFlow {
             .await
             .map_err(JoinWorldFlowError::from)?;
 
-        ctx.connections
+        ctx.session
             .join_world(
                 input.connection_id,
                 input.world_id,
@@ -68,7 +67,7 @@ impl JoinWorldFlow {
             .map_err(JoinWorldFlowError::from)?;
 
         let connected_users = ctx
-            .connections
+            .session
             .get_world_connections(input.world_id)
             .await
             .into_iter()
@@ -86,8 +85,8 @@ impl JoinWorldFlow {
             .collect();
 
         let user_joined = ctx
-            .connections
-            .get(input.connection_id)
+            .session
+            .get_connection(input.connection_id)
             .await
             .map(|info| UserJoinedPayload {
                 user_id: info.user_id,
@@ -138,10 +137,10 @@ impl From<JoinWorldError> for JoinWorldFlowError {
     }
 }
 
-impl From<ConnectionError> for JoinWorldFlowError {
-    fn from(err: ConnectionError) -> Self {
+impl From<SessionError> for JoinWorldFlowError {
+    fn from(err: SessionError) -> Self {
         let join_error = match err {
-            ConnectionError::DmAlreadyConnected => JoinError::DmAlreadyConnected {
+            SessionError::DmAlreadyConnected => JoinError::DmAlreadyConnected {
                 existing_user_id: String::new(),
             },
             _ => JoinError::Unknown,

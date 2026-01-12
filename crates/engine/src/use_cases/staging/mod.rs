@@ -12,12 +12,12 @@ use serde::Deserialize;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use crate::api::connections::ConnectionManager;
 use crate::entities::{
     Character, Flag, Location, LocationStateEntity, RegionStateEntity, Staging, World,
 };
 use crate::infrastructure::ports::{
-    ChatMessage, LlmPort, LlmRequest, NpcRegionRelationType, RepoError, SettingsRepo,
+    ChatMessage, DmNotificationPort, LlmPort, LlmRequest, NpcRegionRelationType, RepoError,
+    SettingsRepo,
 };
 use crate::use_cases::time::TimeSuggestion;
 use crate::use_cases::visual_state::{ResolveVisualState, StateResolutionContext};
@@ -98,7 +98,7 @@ pub struct PendingStagingRequest {
 
 /// IO dependencies for staging requests (WS-state owned).
 pub struct StagingApprovalContext<'a> {
-    pub connections: &'a ConnectionManager,
+    pub dm_notifier: &'a dyn DmNotificationPort,
     pub pending_time_suggestions: &'a RwLock<HashMap<Uuid, TimeSuggestion>>,
     pub pending_staging_requests: &'a RwLock<HashMap<String, PendingStagingRequest>>,
 }
@@ -248,9 +248,7 @@ impl RequestStagingApproval {
             available_region_states,
         };
 
-        ctx.connections
-            .broadcast_to_dms(input.world_id, approval_msg)
-            .await;
+        ctx.dm_notifier.notify_dms(input.world_id, approval_msg).await;
 
         if let Some(time_suggestion) = input.time_suggestion {
             ctx.pending_time_suggestions
@@ -260,8 +258,8 @@ impl RequestStagingApproval {
             let suggestion_msg = ServerMessage::TimeSuggestion {
                 data: time_suggestion.to_protocol(),
             };
-            ctx.connections
-                .broadcast_to_dms(input.world_id, suggestion_msg)
+            ctx.dm_notifier
+                .notify_dms(input.world_id, suggestion_msg)
                 .await;
         }
 

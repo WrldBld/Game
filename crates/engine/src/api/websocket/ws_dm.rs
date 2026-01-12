@@ -21,7 +21,7 @@ pub(super) async fn handle_directorial_update(
     };
 
     let ctx = crate::use_cases::session::DirectorialUpdateContext {
-        connections: &state.connections,
+        context_store: state.connections.as_ref(),
     };
     let input = crate::use_cases::session::DirectorialUpdateInput { world_id, context };
 

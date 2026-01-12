@@ -13,7 +13,7 @@ pub(super) async fn handle_join_world(
 
     let pc_id_typed = pc_id.map(PlayerCharacterId::from_uuid);
     let ctx = crate::use_cases::session::JoinWorldContext {
-        connections: &state.connections,
+        session: state.connections.as_ref(),
     };
     let input = crate::use_cases::session::JoinWorldInput {
         connection_id,

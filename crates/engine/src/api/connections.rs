@@ -448,3 +448,110 @@ pub enum CriticalSendError {
     #[error("Send timeout - client may be slow or unresponsive")]
     Timeout,
 }
+
+// =============================================================================
+// Port Implementations
+// =============================================================================
+
+use crate::infrastructure::ports::{
+    ConnectionInfo as PortConnectionInfo, DmNotificationPort, DirectorialContextPort,
+    SessionError, WorldRole as PortWorldRole, WorldSessionPort,
+};
+
+impl From<WorldRole> for PortWorldRole {
+    fn from(role: WorldRole) -> Self {
+        match role {
+            WorldRole::Dm => PortWorldRole::Dm,
+            WorldRole::Player => PortWorldRole::Player,
+            WorldRole::Spectator => PortWorldRole::Spectator,
+        }
+    }
+}
+
+impl From<PortWorldRole> for WorldRole {
+    fn from(role: PortWorldRole) -> Self {
+        match role {
+            PortWorldRole::Dm => WorldRole::Dm,
+            PortWorldRole::Player => WorldRole::Player,
+            PortWorldRole::Spectator => WorldRole::Spectator,
+        }
+    }
+}
+
+impl From<&ConnectionInfo> for PortConnectionInfo {
+    fn from(info: &ConnectionInfo) -> Self {
+        PortConnectionInfo {
+            connection_id: info.connection_id,
+            user_id: info.user_id.clone(),
+            world_id: info.world_id,
+            role: info.role.into(),
+            pc_id: info.pc_id,
+        }
+    }
+}
+
+impl From<ConnectionError> for SessionError {
+    fn from(err: ConnectionError) -> Self {
+        match err {
+            ConnectionError::NotFound => SessionError::NotFound,
+            ConnectionError::DmAlreadyConnected => SessionError::DmAlreadyConnected,
+            ConnectionError::Unauthorized => SessionError::Unauthorized,
+            ConnectionError::WorldNotFound => SessionError::NotFound,
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl DmNotificationPort for ConnectionManager {
+    async fn notify_dms(&self, world_id: WorldId, message: ServerMessage) {
+        self.broadcast_to_dms(world_id, message).await;
+    }
+}
+
+#[async_trait::async_trait]
+impl WorldSessionPort for ConnectionManager {
+    async fn set_user_id(&self, connection_id: Uuid, user_id: String) {
+        ConnectionManager::set_user_id(self, connection_id, user_id).await;
+    }
+
+    async fn join_world(
+        &self,
+        connection_id: Uuid,
+        world_id: WorldId,
+        role: PortWorldRole,
+        pc_id: Option<PlayerCharacterId>,
+    ) -> Result<(), SessionError> {
+        ConnectionManager::join_world(self, connection_id, world_id, role.into(), pc_id)
+            .await
+            .map_err(SessionError::from)
+    }
+
+    async fn get_world_connections(&self, world_id: WorldId) -> Vec<PortConnectionInfo> {
+        ConnectionManager::get_world_connections(self, world_id)
+            .await
+            .iter()
+            .map(PortConnectionInfo::from)
+            .collect()
+    }
+
+    async fn get_connection(&self, connection_id: Uuid) -> Option<PortConnectionInfo> {
+        ConnectionManager::get(self, connection_id)
+            .await
+            .as_ref()
+            .map(PortConnectionInfo::from)
+    }
+}
+
+impl DirectorialContextPort for ConnectionManager {
+    fn set_context(&self, world_id: WorldId, context: DirectorialContext) {
+        self.set_directorial_context(world_id, context);
+    }
+
+    fn get_context(&self, world_id: WorldId) -> Option<DirectorialContext> {
+        self.get_directorial_context(world_id)
+    }
+
+    fn clear_context(&self, world_id: WorldId) {
+        self.clear_directorial_context(world_id);
+    }
+}

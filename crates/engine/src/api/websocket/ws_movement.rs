@@ -44,7 +44,7 @@ pub(super) async fn handle_move_to_region(
             match result.staging_status {
                 StagingStatus::Pending { previous_staging } => {
                     let ctx = crate::use_cases::staging::StagingApprovalContext {
-                        connections: &state.connections,
+                        dm_notifier: state.connections.as_ref(),
                         pending_time_suggestions: &state.pending_time_suggestions,
                         pending_staging_requests: &state.pending_staging_requests,
                     };
@@ -184,7 +184,7 @@ pub(super) async fn handle_exit_to_location(
             match result.staging_status {
                 StagingStatus::Pending { previous_staging } => {
                     let ctx = crate::use_cases::staging::StagingApprovalContext {
-                        connections: &state.connections,
+                        dm_notifier: state.connections.as_ref(),
                         pending_time_suggestions: &state.pending_time_suggestions,
                         pending_staging_requests: &state.pending_staging_requests,
                     };

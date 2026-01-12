@@ -69,6 +69,47 @@ pub enum QueueError {
     Error(String),
 }
 
+/// Errors from session/connection operations.
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum SessionError {
+    #[error("Connection not found")]
+    NotFound,
+    #[error("DM already connected to this world")]
+    DmAlreadyConnected,
+    #[error("Not authorized")]
+    Unauthorized,
+}
+
+// =============================================================================
+// Session/Connection Types
+// =============================================================================
+
+/// Role of a connected client in a world.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorldRole {
+    /// Dungeon Master - can approve suggestions, control NPCs
+    Dm,
+    /// Player - controls a player character
+    Player,
+    /// Spectator - can view but not interact
+    Spectator,
+}
+
+/// Information about a connected client (for use case queries).
+#[derive(Debug, Clone)]
+pub struct ConnectionInfo {
+    /// Unique ID for this connection
+    pub connection_id: Uuid,
+    /// User identifier (may be anonymous)
+    pub user_id: String,
+    /// The world this connection is associated with (if joined)
+    pub world_id: Option<WorldId>,
+    /// The role in the world
+    pub role: WorldRole,
+    /// Player character ID (if role is Player)
+    pub pc_id: Option<PlayerCharacterId>,
+}
+
 // =============================================================================
 // Infrastructure Types
 // =============================================================================
@@ -1232,4 +1273,58 @@ pub trait ClockPort: Send + Sync {
 pub trait RandomPort: Send + Sync {
     fn gen_range(&self, min: i32, max: i32) -> i32;
     fn gen_uuid(&self) -> Uuid;
+}
+
+// =============================================================================
+// Session/Connection Ports
+// =============================================================================
+
+/// Port for notifying DMs of events requiring their attention.
+///
+/// Used by staging use cases to send approval requests to DMs.
+/// This is a focused port with a single responsibility.
+#[async_trait]
+pub trait DmNotificationPort: Send + Sync {
+    /// Broadcast a message to all DMs in a world.
+    async fn notify_dms(&self, world_id: WorldId, message: wrldbldr_protocol::ServerMessage);
+}
+
+/// Port for managing world session state (join/leave/query connections).
+///
+/// Used by session use cases to track which users are in which worlds.
+/// This abstracts connection state management from the API layer.
+#[async_trait]
+pub trait WorldSessionPort: Send + Sync {
+    /// Update the user_id for a connection (from client-provided stable identifier).
+    async fn set_user_id(&self, connection_id: Uuid, user_id: String);
+
+    /// Join a world with a specific role.
+    async fn join_world(
+        &self,
+        connection_id: Uuid,
+        world_id: WorldId,
+        role: WorldRole,
+        pc_id: Option<PlayerCharacterId>,
+    ) -> Result<(), SessionError>;
+
+    /// Get all connections in a world.
+    async fn get_world_connections(&self, world_id: WorldId) -> Vec<ConnectionInfo>;
+
+    /// Get connection info by ID.
+    async fn get_connection(&self, connection_id: Uuid) -> Option<ConnectionInfo>;
+}
+
+/// Port for storing DM directorial context (scene notes, NPC motivations).
+///
+/// Used by directorial use cases to provide context for LLM prompts.
+/// This is a synchronous port since context storage is simple key-value.
+pub trait DirectorialContextPort: Send + Sync {
+    /// Set the directorial context for a world.
+    fn set_context(&self, world_id: WorldId, context: wrldbldr_protocol::DirectorialContext);
+
+    /// Get the directorial context for a world (if set).
+    fn get_context(&self, world_id: WorldId) -> Option<wrldbldr_protocol::DirectorialContext>;
+
+    /// Clear the directorial context for a world.
+    fn clear_context(&self, world_id: WorldId);
 }

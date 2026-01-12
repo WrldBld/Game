@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use crate::api::connections::ConnectionManager;
+use crate::infrastructure::ports::DirectorialContextPort;
 use wrldbldr_domain::WorldId;
 use wrldbldr_protocol::DirectorialContext;
 
 /// IO dependencies for directorial updates (WS-state owned).
 pub struct DirectorialUpdateContext<'a> {
-    pub connections: &'a ConnectionManager,
+    pub context_store: &'a dyn DirectorialContextPort,
 }
 
 /// Input for storing directorial context.
@@ -59,8 +59,7 @@ impl DirectorialUpdate {
             );
         }
 
-        ctx.connections
-            .set_directorial_context(input.world_id, context);
+        ctx.context_store.set_context(input.world_id, context);
 
         tracing::info!(
             world_id = %input.world_id,
