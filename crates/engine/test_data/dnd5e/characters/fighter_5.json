@@ -1,0 +1,97 @@
+{
+  "id": "00000000-0000-0000-0001-000000000001",
+  "userId": "test-user-001",
+  "worldId": "00000000-0000-0000-0000-000000000001",
+  "name": "Tharion Ironforge",
+  "description": "A battle-hardened human fighter from the northern mountains. Wields a greatsword with devastating precision.",
+  "sheetData": {
+    "values": {
+      "RACE": "human",
+      "CLASS": "fighter",
+      "LEVEL": 5,
+      "BACKGROUND": "soldier",
+      "STR": 18,
+      "DEX": 14,
+      "CON": 16,
+      "INT": 10,
+      "WIS": 12,
+      "CHA": 8,
+      "HP_MAX": 49,
+      "HP_CURRENT": 49,
+      "AC": 18,
+      "SPEED": 30,
+      "PROFICIENCY_BONUS": 3,
+      "character_identity": {
+        "race": "human",
+        "subrace": null,
+        "classes": [
+          {
+            "classId": "fighter",
+            "subclass": "champion",
+            "level": 5
+          }
+        ],
+        "background": "soldier",
+        "alignment": "lawful_good",
+        "totalLevel": 5
+      },
+      "character_feats": {
+        "feats": [
+          {
+            "featId": "great_weapon_master",
+            "acquiredAtLevel": 4,
+            "choices": {},
+            "notes": "Taken at Fighter 4 ASI"
+          }
+        ]
+      },
+      "character_features": {
+        "features": [
+          {
+            "featureId": "fighting_style_great_weapon",
+            "usesRemaining": null,
+            "usesMax": null,
+            "choices": {}
+          },
+          {
+            "featureId": "second_wind",
+            "usesRemaining": 1,
+            "usesMax": 1,
+            "choices": {}
+          },
+          {
+            "featureId": "action_surge",
+            "usesRemaining": 1,
+            "usesMax": 1,
+            "choices": {}
+          },
+          {
+            "featureId": "improved_critical",
+            "usesRemaining": null,
+            "usesMax": null,
+            "choices": {}
+          },
+          {
+            "featureId": "extra_attack",
+            "usesRemaining": null,
+            "usesMax": null,
+            "choices": {}
+          }
+        ]
+      },
+      "skill_proficiencies": ["athletics", "intimidation", "perception", "survival"],
+      "saving_throw_proficiencies": ["strength", "constitution"],
+      "armor_proficiencies": ["light", "medium", "heavy", "shields"],
+      "weapon_proficiencies": ["simple", "martial"]
+    }
+  },
+  "currentLocationId": "00000000-0000-0000-0002-000000000001",
+  "currentRegionId": null,
+  "startingLocationId": "00000000-0000-0000-0002-000000000001",
+  "spriteAsset": null,
+  "portraitAsset": null,
+  "isAlive": true,
+  "isActive": true,
+  "createdAt": "2024-01-01T00:00:00Z",
+  "lastActiveAt": "2024-01-01T12:00:00Z"
+}

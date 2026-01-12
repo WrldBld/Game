@@ -24,6 +24,9 @@ pub mod skill;
 pub mod staging;
 pub mod world;
 
+#[cfg(test)]
+mod narrative_integration_tests;
+
 pub use act::Act;
 pub use assets::Assets;
 pub use challenge::Challenge;

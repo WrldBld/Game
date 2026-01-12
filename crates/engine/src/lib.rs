@@ -16,4 +16,8 @@ pub mod entities;
 pub mod infrastructure;
 pub mod use_cases;
 
+/// Test fixtures module for integration testing.
+#[cfg(test)]
+pub mod test_fixtures;
+
 pub use app::App;

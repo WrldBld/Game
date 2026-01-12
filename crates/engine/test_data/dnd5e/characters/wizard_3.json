@@ -1,0 +1,97 @@
+{
+  "id": "00000000-0000-0000-0001-000000000002",
+  "userId": "test-user-002",
+  "worldId": "00000000-0000-0000-0000-000000000001",
+  "name": "Elara Moonwhisper",
+  "description": "A high elf wizard specializing in evocation magic. Curious and scholarly, she seeks ancient arcane knowledge.",
+  "sheetData": {
+    "values": {
+      "RACE": "elf",
+      "SUBRACE": "high_elf",
+      "CLASS": "wizard",
+      "LEVEL": 3,
+      "BACKGROUND": "sage",
+      "STR": 8,
+      "DEX": 14,
+      "CON": 12,
+      "INT": 17,
+      "WIS": 13,
+      "CHA": 10,
+      "HP_MAX": 17,
+      "HP_CURRENT": 17,
+      "AC": 12,
+      "SPEED": 30,
+      "PROFICIENCY_BONUS": 2,
+      "character_identity": {
+        "race": "elf",
+        "subrace": "high_elf",
+        "classes": [
+          {
+            "classId": "wizard",
+            "subclass": "evocation",
+            "level": 3
+          }
+        ],
+        "background": "sage",
+        "alignment": "neutral_good",
+        "totalLevel": 3
+      },
+      "character_spells": {
+        "cantrips": ["fire_bolt", "prestidigitation", "light", "mage_hand"],
+        "known": [
+          { "spellId": "magic_missile", "source": "class", "notes": null },
+          { "spellId": "shield", "source": "class", "notes": null },
+          { "spellId": "burning_hands", "source": "class", "notes": null },
+          { "spellId": "detect_magic", "source": "class", "notes": null },
+          { "spellId": "mage_armor", "source": "class", "notes": null },
+          { "spellId": "identify", "source": "class", "notes": null },
+          { "spellId": "fireball", "source": "class", "notes": "Learned at level 3" },
+          { "spellId": "scorching_ray", "source": "class", "notes": "Learned at level 3" }
+        ],
+        "prepared": ["magic_missile", "shield", "fireball", "mage_armor"],
+        "slots": {
+          "1": { "current": 4, "max": 4 },
+          "2": { "current": 2, "max": 2 }
+        },
+        "pactSlots": null,
+        "spellcastingAbility": "INT"
+      },
+      "character_features": {
+        "features": [
+          {
+            "featureId": "arcane_recovery",
+            "usesRemaining": 1,
+            "usesMax": 1,
+            "choices": {}
+          },
+          {
+            "featureId": "evocation_savant",
+            "usesRemaining": null,
+            "usesMax": null,
+            "choices": {}
+          },
+          {
+            "featureId": "sculpt_spells",
+            "usesRemaining": null,
+            "usesMax": null,
+            "choices": {}
+          }
+        ]
+      },
+      "skill_proficiencies": ["arcana", "history", "investigation", "insight"],
+      "saving_throw_proficiencies": ["intelligence", "wisdom"],
+      "armor_proficiencies": [],
+      "weapon_proficiencies": ["daggers", "darts", "slings", "quarterstaffs", "light_crossbows"],
+      "languages": ["common", "elvish", "draconic", "celestial"]
+    }
+  },
+  "currentLocationId": "00000000-0000-0000-0002-000000000001",
+  "currentRegionId": null,
+  "startingLocationId": "00000000-0000-0000-0002-000000000001",
+  "spriteAsset": null,
+  "portraitAsset": null,
+  "isAlive": true,
+  "isActive": true,
+  "createdAt": "2024-01-01T00:00:00Z",
+  "lastActiveAt": "2024-01-01T12:00:00Z"
+}

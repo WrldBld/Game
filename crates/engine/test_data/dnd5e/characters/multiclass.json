@@ -1,0 +1,121 @@
+{
+  "id": "00000000-0000-0000-0001-000000000003",
+  "userId": "test-user-003",
+  "worldId": "00000000-0000-0000-0000-000000000001",
+  "name": "Kael Stormborn",
+  "description": "A human variant who combines martial prowess with arcane magic. A former soldier who discovered latent magical talent.",
+  "sheetData": {
+    "values": {
+      "RACE": "human",
+      "SUBRACE": "variant",
+      "CLASS": "fighter",
+      "LEVEL": 5,
+      "BACKGROUND": "soldier",
+      "STR": 16,
+      "DEX": 12,
+      "CON": 14,
+      "INT": 14,
+      "WIS": 10,
+      "CHA": 8,
+      "HP_MAX": 38,
+      "HP_CURRENT": 38,
+      "AC": 16,
+      "SPEED": 30,
+      "PROFICIENCY_BONUS": 3,
+      "character_identity": {
+        "race": "human",
+        "subrace": "variant",
+        "classes": [
+          {
+            "classId": "fighter",
+            "subclass": "eldritch_knight",
+            "level": 3
+          },
+          {
+            "classId": "wizard",
+            "subclass": null,
+            "level": 2
+          }
+        ],
+        "background": "soldier",
+        "alignment": "neutral",
+        "totalLevel": 5
+      },
+      "character_spells": {
+        "cantrips": ["booming_blade", "green_flame_blade", "minor_illusion"],
+        "known": [
+          { "spellId": "shield", "source": "fighter_eldritch_knight", "notes": null },
+          { "spellId": "absorb_elements", "source": "fighter_eldritch_knight", "notes": null },
+          { "spellId": "find_familiar", "source": "wizard", "notes": null },
+          { "spellId": "magic_missile", "source": "wizard", "notes": null },
+          { "spellId": "sleep", "source": "wizard", "notes": null },
+          { "spellId": "detect_magic", "source": "wizard", "notes": "Ritual only" }
+        ],
+        "prepared": ["shield", "absorb_elements", "magic_missile"],
+        "slots": {
+          "1": { "current": 4, "max": 4 },
+          "2": { "current": 2, "max": 2 }
+        },
+        "pactSlots": null,
+        "spellcastingAbility": "INT"
+      },
+      "character_feats": {
+        "feats": [
+          {
+            "featId": "war_caster",
+            "acquiredAtLevel": 1,
+            "choices": {},
+            "notes": "Human variant feat"
+          }
+        ]
+      },
+      "character_features": {
+        "features": [
+          {
+            "featureId": "fighting_style_defense",
+            "usesRemaining": null,
+            "usesMax": null,
+            "choices": {}
+          },
+          {
+            "featureId": "second_wind",
+            "usesRemaining": 1,
+            "usesMax": 1,
+            "choices": {}
+          },
+          {
+            "featureId": "action_surge",
+            "usesRemaining": 1,
+            "usesMax": 1,
+            "choices": {}
+          },
+          {
+            "featureId": "weapon_bond",
+            "usesRemaining": null,
+            "usesMax": null,
+            "choices": {}
+          },
+          {
+            "featureId": "arcane_recovery",
+            "usesRemaining": 1,
+            "usesMax": 1,
+            "choices": {}
+          }
+        ]
+      },
+      "skill_proficiencies": ["athletics", "arcana", "perception", "survival"],
+      "saving_throw_proficiencies": ["strength", "constitution", "intelligence", "wisdom"],
+      "armor_proficiencies": ["light", "medium", "heavy", "shields"],
+      "weapon_proficiencies": ["simple", "martial"]
+    }
+  },
+  "currentLocationId": "00000000-0000-0000-0002-000000000001",
+  "currentRegionId": null,
+  "startingLocationId": "00000000-0000-0000-0002-000000000001",
+  "spriteAsset": null,
+  "portraitAsset": null,
+  "isAlive": true,
+  "isActive": true,
+  "createdAt": "2024-01-01T00:00:00Z",
+  "lastActiveAt": "2024-01-01T12:00:00Z"
+}
