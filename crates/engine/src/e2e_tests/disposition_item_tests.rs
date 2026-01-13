@@ -18,7 +18,8 @@ use wrldbldr_domain::DmApprovalDecision;
 
 use super::{
     approve_staging_with_npc, create_player_character_via_use_case, create_shared_log,
-    create_test_player, start_conversation_with_npc, E2ETestContext, TestOutcome, VcrLlm,
+    create_test_player, start_conversation_with_npc, E2ETestContext, LoggingLlmDecorator,
+    TestOutcome, VcrLlm,
 };
 
 // =============================================================================
@@ -387,14 +388,12 @@ async fn test_grateful_npc_offers_item() {
     const TEST_NAME: &str = "test_grateful_npc_offers_item";
     let event_log = create_shared_log(TEST_NAME);
 
-    let llm = {
-        let vcr = VcrLlm::from_env(std::path::PathBuf::from(format!(
-            "{}/src/e2e_tests/cassettes/{}.json",
-            env!("CARGO_MANIFEST_DIR"),
-            TEST_NAME
-        )));
-        Arc::new(vcr.with_event_log(event_log.clone()))
-    };
+    let vcr = Arc::new(VcrLlm::from_env(std::path::PathBuf::from(format!(
+        "{}/src/e2e_tests/cassettes/{}.json",
+        env!("CARGO_MANIFEST_DIR"),
+        TEST_NAME
+    ))));
+    let llm = Arc::new(LoggingLlmDecorator::new(vcr.clone(), event_log.clone()));
 
     let ctx = E2ETestContext::setup_with_llm_and_logging(llm.clone(), event_log.clone())
         .await
@@ -444,7 +443,7 @@ async fn test_grateful_npc_offers_item() {
     ctx.finalize_event_log(outcome);
     ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME))
         .expect("save log");
-    llm.save_cassette().expect("Failed to save cassette");
+    vcr.save_cassette().expect("Failed to save cassette");
     test_result.expect("Test failed");
 }
 
@@ -459,14 +458,12 @@ async fn test_hostile_npc_refuses_help() {
     const TEST_NAME: &str = "test_hostile_npc_refuses_help";
     let event_log = create_shared_log(TEST_NAME);
 
-    let llm = {
-        let vcr = VcrLlm::from_env(std::path::PathBuf::from(format!(
-            "{}/src/e2e_tests/cassettes/{}.json",
-            env!("CARGO_MANIFEST_DIR"),
-            TEST_NAME
-        )));
-        Arc::new(vcr.with_event_log(event_log.clone()))
-    };
+    let vcr = Arc::new(VcrLlm::from_env(std::path::PathBuf::from(format!(
+        "{}/src/e2e_tests/cassettes/{}.json",
+        env!("CARGO_MANIFEST_DIR"),
+        TEST_NAME
+    ))));
+    let llm = Arc::new(LoggingLlmDecorator::new(vcr.clone(), event_log.clone()));
 
     let ctx = E2ETestContext::setup_with_llm_and_logging(llm.clone(), event_log.clone())
         .await
@@ -516,7 +513,7 @@ async fn test_hostile_npc_refuses_help() {
     ctx.finalize_event_log(outcome);
     ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME))
         .expect("save log");
-    llm.save_cassette().expect("Failed to save cassette");
+    vcr.save_cassette().expect("Failed to save cassette");
     test_result.expect("Test failed");
 }
 
@@ -750,14 +747,12 @@ async fn test_secret_motivation_deflection() {
     const TEST_NAME: &str = "test_secret_motivation_deflection";
     let event_log = create_shared_log(TEST_NAME);
 
-    let llm = {
-        let vcr = VcrLlm::from_env(std::path::PathBuf::from(format!(
-            "{}/src/e2e_tests/cassettes/{}.json",
-            env!("CARGO_MANIFEST_DIR"),
-            TEST_NAME
-        )));
-        Arc::new(vcr.with_event_log(event_log.clone()))
-    };
+    let vcr = Arc::new(VcrLlm::from_env(std::path::PathBuf::from(format!(
+        "{}/src/e2e_tests/cassettes/{}.json",
+        env!("CARGO_MANIFEST_DIR"),
+        TEST_NAME
+    ))));
+    let llm = Arc::new(LoggingLlmDecorator::new(vcr.clone(), event_log.clone()));
 
     let ctx = E2ETestContext::setup_with_llm_and_logging(llm.clone(), event_log.clone())
         .await
@@ -807,6 +802,6 @@ async fn test_secret_motivation_deflection() {
     ctx.finalize_event_log(outcome);
     ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME))
         .expect("save log");
-    llm.save_cassette().expect("Failed to save cassette");
+    vcr.save_cassette().expect("Failed to save cassette");
     test_result.expect("Test failed");
 }

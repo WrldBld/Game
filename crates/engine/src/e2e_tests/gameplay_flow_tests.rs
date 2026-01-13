@@ -21,7 +21,7 @@ use std::sync::Arc;
 use super::{
     approve_staging_with_npc, create_e2e_llm, create_player_character_via_use_case,
     create_shared_log, create_test_player, start_conversation_with_npc, E2ETestContext,
-    TestOutcome, VcrLlm,
+    LoggingLlmDecorator, TestOutcome, VcrLlm,
 };
 
 // =============================================================================
@@ -141,14 +141,12 @@ async fn test_start_conversation_with_staged_npc() {
     let event_log = create_shared_log(TEST_NAME);
 
     // Create context with VCR LLM and event logging
-    let llm = {
-        let vcr = VcrLlm::from_env(std::path::PathBuf::from(format!(
-            "{}/src/e2e_tests/cassettes/{}.json",
-            env!("CARGO_MANIFEST_DIR"),
-            TEST_NAME
-        )));
-        Arc::new(vcr.with_event_log(event_log.clone()))
-    };
+    let vcr = Arc::new(VcrLlm::from_env(std::path::PathBuf::from(format!(
+        "{}/src/e2e_tests/cassettes/{}.json",
+        env!("CARGO_MANIFEST_DIR"),
+        TEST_NAME
+    ))));
+    let llm = Arc::new(LoggingLlmDecorator::new(vcr.clone(), event_log.clone()));
     let ctx = E2ETestContext::setup_with_llm_and_logging(llm.clone(), event_log.clone())
         .await
         .expect("Failed to setup E2E context");
@@ -195,7 +193,7 @@ async fn test_start_conversation_with_staged_npc() {
     ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME)).expect("save log");
 
     // Save cassette if recording
-    llm.save_cassette().expect("Failed to save cassette");
+    vcr.save_cassette().expect("Failed to save cassette");
     test_result.expect("Test failed");
 }
 
@@ -208,14 +206,12 @@ async fn test_multi_turn_conversation() {
     let event_log = create_shared_log(TEST_NAME);
 
     // Create context with VCR LLM and event logging
-    let llm = {
-        let vcr = VcrLlm::from_env(std::path::PathBuf::from(format!(
-            "{}/src/e2e_tests/cassettes/{}.json",
-            env!("CARGO_MANIFEST_DIR"),
-            TEST_NAME
-        )));
-        Arc::new(vcr.with_event_log(event_log.clone()))
-    };
+    let vcr = Arc::new(VcrLlm::from_env(std::path::PathBuf::from(format!(
+        "{}/src/e2e_tests/cassettes/{}.json",
+        env!("CARGO_MANIFEST_DIR"),
+        TEST_NAME
+    ))));
+    let llm = Arc::new(LoggingLlmDecorator::new(vcr.clone(), event_log.clone()));
     let ctx = E2ETestContext::setup_with_llm_and_logging(llm.clone(), event_log.clone())
         .await
         .expect("Failed to setup E2E context");
@@ -294,7 +290,7 @@ async fn test_multi_turn_conversation() {
     ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME)).expect("save log");
 
     // Save cassette if recording
-    llm.save_cassette().expect("Failed to save cassette");
+    vcr.save_cassette().expect("Failed to save cassette");
     test_result.expect("Test failed");
 }
 
@@ -311,14 +307,12 @@ async fn test_full_gameplay_session() {
     let event_log = create_shared_log(TEST_NAME);
 
     // Create VCR LLM with event logging
-    let llm = {
-        let vcr = VcrLlm::from_env(std::path::PathBuf::from(format!(
-            "{}/src/e2e_tests/cassettes/{}.json",
-            env!("CARGO_MANIFEST_DIR"),
-            TEST_NAME
-        )));
-        Arc::new(vcr.with_event_log(event_log.clone()))
-    };
+    let vcr = Arc::new(VcrLlm::from_env(std::path::PathBuf::from(format!(
+        "{}/src/e2e_tests/cassettes/{}.json",
+        env!("CARGO_MANIFEST_DIR"),
+        TEST_NAME
+    ))));
+    let llm = Arc::new(LoggingLlmDecorator::new(vcr.clone(), event_log.clone()));
 
     // Create context with VCR LLM and event logging
     let ctx = E2ETestContext::setup_with_llm_and_logging(llm.clone(), event_log.clone())
@@ -428,7 +422,7 @@ async fn test_full_gameplay_session() {
     }
 
     // Save cassette if recording
-    llm.save_cassette().expect("Failed to save cassette");
+    vcr.save_cassette().expect("Failed to save cassette");
 
     // Propagate any test error
     test_result.expect("Test failed");
