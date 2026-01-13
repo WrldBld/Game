@@ -1,12 +1,60 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use serde_json::Value;
+use serde::Serialize;
 
 use wrldbldr_domain::{self as domain, ActId, EventChain, EventChainId, NarrativeEventId, WorldId};
 
 use crate::entities::Narrative;
 use crate::infrastructure::ports::RepoError;
+
+// =============================================================================
+// Domain Result Types
+// =============================================================================
+
+/// Summary of an event chain.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EventChainSummary {
+    pub id: String,
+    pub world_id: String,
+    pub name: String,
+    pub description: String,
+    pub events: Vec<String>,
+    pub is_active: bool,
+    pub current_position: u32,
+    pub completed_events: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub act_id: Option<String>,
+    pub tags: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    pub is_favorite: bool,
+    pub progress_percent: u32,
+    pub is_complete: bool,
+    pub remaining_events: usize,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Status of an event chain.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChainStatusSummary {
+    pub chain_id: String,
+    pub chain_name: String,
+    pub is_active: bool,
+    pub is_complete: bool,
+    pub total_events: usize,
+    pub completed_events: usize,
+    pub progress_percent: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_event_id: Option<String>,
+}
+
+// =============================================================================
+// Domain Input Types
+// =============================================================================
 
 /// Input for creating an event chain (domain representation).
 #[derive(Debug, Clone, Default)]
@@ -37,17 +85,17 @@ impl EventChainOps {
         Self { narrative }
     }
 
-    pub async fn list(&self, world_id: WorldId) -> Result<Vec<Value>, EventChainError> {
+    pub async fn list(&self, world_id: WorldId) -> Result<Vec<EventChainSummary>, EventChainError> {
         let chains = self.narrative.list_chains_for_world(world_id).await?;
-        Ok(chains.iter().map(event_chain_to_json).collect())
+        Ok(chains.iter().map(event_chain_to_summary).collect())
     }
 
     pub async fn get(
         &self,
         chain_id: EventChainId,
-    ) -> Result<Option<Value>, EventChainError> {
+    ) -> Result<Option<EventChainSummary>, EventChainError> {
         let chain = self.narrative.get_chain(chain_id).await?;
-        Ok(chain.as_ref().map(event_chain_to_json))
+        Ok(chain.as_ref().map(event_chain_to_summary))
     }
 
     pub async fn create(
@@ -56,7 +104,7 @@ impl EventChainOps {
         input: CreateEventChainInput,
         act_id: Option<ActId>,
         events: Option<Vec<NarrativeEventId>>,
-    ) -> Result<Value, EventChainError> {
+    ) -> Result<EventChainSummary, EventChainError> {
         let now = Utc::now();
         let mut chain = EventChain::new(world_id, &input.name, now);
 
@@ -82,7 +130,7 @@ impl EventChainOps {
         }
 
         self.narrative.save_chain(&chain).await?;
-        Ok(event_chain_to_json(&chain))
+        Ok(event_chain_to_summary(&chain))
     }
 
     pub async fn update(
@@ -91,7 +139,7 @@ impl EventChainOps {
         input: UpdateEventChainInput,
         act_id: Option<ActId>,
         events: Option<Vec<NarrativeEventId>>,
-    ) -> Result<Value, EventChainError> {
+    ) -> Result<EventChainSummary, EventChainError> {
         let mut chain = self
             .narrative
             .get_chain(chain_id)
@@ -121,7 +169,7 @@ impl EventChainOps {
         }
 
         self.narrative.save_chain(&chain).await?;
-        Ok(event_chain_to_json(&chain))
+        Ok(event_chain_to_summary(&chain))
     }
 
     pub async fn delete(&self, chain_id: EventChainId) -> Result<(), EventChainError> {
@@ -171,7 +219,7 @@ impl EventChainOps {
         chain_id: EventChainId,
         event_id: NarrativeEventId,
         position: Option<usize>,
-    ) -> Result<Value, EventChainError> {
+    ) -> Result<EventChainSummary, EventChainError> {
         let mut chain = self
             .narrative
             .get_chain(chain_id)
@@ -184,7 +232,7 @@ impl EventChainOps {
             chain.add_event(event_id, now);
         }
         self.narrative.save_chain(&chain).await?;
-        Ok(event_chain_to_json(&chain))
+        Ok(event_chain_to_summary(&chain))
     }
 
     pub async fn remove_event(
@@ -219,7 +267,7 @@ impl EventChainOps {
         Ok(())
     }
 
-    pub async fn reset(&self, chain_id: EventChainId) -> Result<Value, EventChainError> {
+    pub async fn reset(&self, chain_id: EventChainId) -> Result<EventChainSummary, EventChainError> {
         let mut chain = self
             .narrative
             .get_chain(chain_id)
@@ -227,17 +275,17 @@ impl EventChainOps {
             .ok_or(EventChainError::NotFound)?;
         chain.reset(Utc::now());
         self.narrative.save_chain(&chain).await?;
-        Ok(event_chain_to_json(&chain))
+        Ok(event_chain_to_summary(&chain))
     }
 
-    pub async fn status(&self, chain_id: EventChainId) -> Result<Value, EventChainError> {
+    pub async fn status(&self, chain_id: EventChainId) -> Result<ChainStatusSummary, EventChainError> {
         let chain = self
             .narrative
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
         let status: domain::ChainStatus = (&chain).into();
-        Ok(chain_status_to_json(&status))
+        Ok(chain_status_to_summary(&status))
     }
 }
 
@@ -249,45 +297,37 @@ pub enum EventChainError {
     Repo(#[from] RepoError),
 }
 
-fn event_chain_to_json(chain: &EventChain) -> Value {
-    serde_json::json!({
-        "id": chain.id.to_string(),
-        "world_id": chain.world_id.to_string(),
-        "name": chain.name,
-        "description": chain.description,
-        "events": chain
-            .events
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>(),
-        "is_active": chain.is_active,
-        "current_position": chain.current_position,
-        "completed_events": chain
-            .completed_events
-            .iter()
-            .map(|id| id.to_string())
-            .collect::<Vec<_>>(),
-        "act_id": chain.act_id.map(|id| id.to_string()),
-        "tags": chain.tags,
-        "color": chain.color,
-        "is_favorite": chain.is_favorite,
-        "progress_percent": (chain.progress() * 100.0) as u32,
-        "is_complete": chain.is_complete(),
-        "remaining_events": chain.remaining_events(),
-        "created_at": chain.created_at.to_rfc3339(),
-        "updated_at": chain.updated_at.to_rfc3339(),
-    })
+fn event_chain_to_summary(chain: &EventChain) -> EventChainSummary {
+    EventChainSummary {
+        id: chain.id.to_string(),
+        world_id: chain.world_id.to_string(),
+        name: chain.name.clone(),
+        description: chain.description.clone(),
+        events: chain.events.iter().map(|id| id.to_string()).collect(),
+        is_active: chain.is_active,
+        current_position: chain.current_position,
+        completed_events: chain.completed_events.iter().map(|id| id.to_string()).collect(),
+        act_id: chain.act_id.map(|id| id.to_string()),
+        tags: chain.tags.clone(),
+        color: chain.color.clone(),
+        is_favorite: chain.is_favorite,
+        progress_percent: (chain.progress() * 100.0) as u32,
+        is_complete: chain.is_complete(),
+        remaining_events: chain.remaining_events(),
+        created_at: chain.created_at.to_rfc3339(),
+        updated_at: chain.updated_at.to_rfc3339(),
+    }
 }
 
-fn chain_status_to_json(status: &domain::ChainStatus) -> Value {
-    serde_json::json!({
-        "chain_id": status.chain_id.to_string(),
-        "chain_name": status.chain_name,
-        "is_active": status.is_active,
-        "is_complete": status.is_complete,
-        "total_events": status.total_events,
-        "completed_events": status.completed_events,
-        "progress_percent": status.progress_percent,
-        "current_event_id": status.current_event_id.map(|id| id.to_string()),
-    })
+fn chain_status_to_summary(status: &domain::ChainStatus) -> ChainStatusSummary {
+    ChainStatusSummary {
+        chain_id: status.chain_id.to_string(),
+        chain_name: status.chain_name.clone(),
+        is_active: status.is_active,
+        is_complete: status.is_complete,
+        total_events: status.total_events,
+        completed_events: status.completed_events,
+        progress_percent: status.progress_percent,
+        current_event_id: status.current_event_id.map(|id| id.to_string()),
+    }
 }
