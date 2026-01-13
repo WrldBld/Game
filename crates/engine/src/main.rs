@@ -453,6 +453,19 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // Spawn TTL cache cleanup task
+    let cleanup_ws_state = ws_state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(300)); // 5 minutes
+        loop {
+            interval.tick().await;
+            let cleaned = cleanup_ws_state.cleanup_expired().await;
+            if cleaned > 0 {
+                tracing::info!(entries_cleaned = cleaned, "TTL cache cleanup");
+            }
+        }
+    });
+
     // Build router with separate states for HTTP and WebSocket
     let mut router = api::http::routes()
         .with_state(app)

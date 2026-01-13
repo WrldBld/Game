@@ -2,7 +2,7 @@
 //!
 //! Handles the WebSocket protocol between Engine and Player clients.
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use axum::{
     extract::{
