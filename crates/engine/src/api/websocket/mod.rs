@@ -874,6 +874,12 @@ pub(crate) mod test_support;
 #[cfg(test)]
 mod ws_integration_tests;
 
+#[cfg(test)]
+pub mod e2e_client;
+
+#[cfg(test)]
+pub mod e2e_scenarios;
+
 // Legacy inline suite considers module-private items in this file.
 // Kept temporarily behind cfg(any()) to avoid a very large deletion patch.
 #[cfg(any())]
