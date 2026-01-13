@@ -1,0 +1,401 @@
+//! Location and Region CRUD operations.
+
+use std::sync::Arc;
+
+use wrldbldr_domain::{LocationId, RegionId, WorldId};
+
+use crate::entities::Location;
+
+use super::ManagementError;
+
+pub struct LocationCrud {
+    location: Arc<Location>,
+}
+
+impl LocationCrud {
+    pub fn new(location: Arc<Location>) -> Self {
+        Self { location }
+    }
+
+    pub async fn list_locations(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<wrldbldr_domain::Location>, ManagementError> {
+        Ok(self.location.list_in_world(world_id).await?)
+    }
+
+    pub async fn get_location(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Option<wrldbldr_domain::Location>, ManagementError> {
+        Ok(self.location.get(location_id).await?)
+    }
+
+    pub async fn create_location(
+        &self,
+        world_id: WorldId,
+        name: String,
+        description: Option<String>,
+        setting: Option<String>,
+    ) -> Result<wrldbldr_domain::Location, ManagementError> {
+        if name.trim().is_empty() {
+            return Err(ManagementError::InvalidInput(
+                "Location name cannot be empty".to_string(),
+            ));
+        }
+
+        let mut location =
+            wrldbldr_domain::Location::new(world_id, name, wrldbldr_domain::LocationType::Unknown);
+        if let Some(description) = description {
+            location = location.with_description(description);
+        }
+        if let Some(setting) = setting {
+            location = location.with_atmosphere(setting);
+        }
+
+        self.location.save_location(&location).await?;
+        Ok(location)
+    }
+
+    pub async fn update_location(
+        &self,
+        location_id: LocationId,
+        name: Option<String>,
+        description: Option<String>,
+        setting: Option<String>,
+    ) -> Result<wrldbldr_domain::Location, ManagementError> {
+        let mut location = self
+            .location
+            .get(location_id)
+            .await?
+            .ok_or(ManagementError::NotFound)?;
+
+        if let Some(name) = name {
+            if name.trim().is_empty() {
+                return Err(ManagementError::InvalidInput(
+                    "Location name cannot be empty".to_string(),
+                ));
+            }
+            location.name = name;
+        }
+        if let Some(description) = description {
+            location.description = description;
+        }
+        if let Some(setting) = setting {
+            location.atmosphere = Some(setting);
+        }
+
+        self.location.save_location(&location).await?;
+        Ok(location)
+    }
+
+    pub async fn delete_location(&self, location_id: LocationId) -> Result<(), ManagementError> {
+        self.location.delete(location_id).await?;
+        Ok(())
+    }
+
+    pub async fn list_regions(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Vec<wrldbldr_domain::Region>, ManagementError> {
+        Ok(self.location.list_regions_in_location(location_id).await?)
+    }
+
+    pub async fn get_region(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Option<wrldbldr_domain::Region>, ManagementError> {
+        Ok(self.location.get_region(region_id).await?)
+    }
+
+    pub async fn create_region(
+        &self,
+        location_id: LocationId,
+        name: String,
+        description: Option<String>,
+        is_spawn_point: Option<bool>,
+    ) -> Result<wrldbldr_domain::Region, ManagementError> {
+        if name.trim().is_empty() {
+            return Err(ManagementError::InvalidInput(
+                "Region name cannot be empty".to_string(),
+            ));
+        }
+
+        let mut region = wrldbldr_domain::Region::new(location_id, name);
+        if let Some(description) = description {
+            region = region.with_description(description);
+        }
+        if is_spawn_point.unwrap_or(false) {
+            region = region.as_spawn_point();
+        }
+
+        self.location.save_region(&region).await?;
+        Ok(region)
+    }
+
+    pub async fn update_region(
+        &self,
+        region_id: RegionId,
+        name: Option<String>,
+        description: Option<String>,
+        is_spawn_point: Option<bool>,
+    ) -> Result<wrldbldr_domain::Region, ManagementError> {
+        let mut region = self
+            .location
+            .get_region(region_id)
+            .await?
+            .ok_or(ManagementError::NotFound)?;
+
+        if let Some(name) = name {
+            if name.trim().is_empty() {
+                return Err(ManagementError::InvalidInput(
+                    "Region name cannot be empty".to_string(),
+                ));
+            }
+            region.name = name;
+        }
+        if let Some(description) = description {
+            region.description = description;
+        }
+        if let Some(is_spawn_point) = is_spawn_point {
+            region.is_spawn_point = is_spawn_point;
+        }
+
+        self.location.save_region(&region).await?;
+        Ok(region)
+    }
+
+    pub async fn delete_region(&self, region_id: RegionId) -> Result<(), ManagementError> {
+        self.location.delete_region(region_id).await?;
+        Ok(())
+    }
+
+    pub async fn list_spawn_points(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<wrldbldr_domain::Region>, ManagementError> {
+        let mut spawn_points = Vec::new();
+        let locations = self.location.list_in_world(world_id).await?;
+        for location in locations {
+            let regions = self.location.list_regions_in_location(location.id).await?;
+            spawn_points.extend(regions.into_iter().filter(|r| r.is_spawn_point));
+        }
+        Ok(spawn_points)
+    }
+
+    pub async fn list_location_connections(
+        &self,
+        location_id: LocationId,
+    ) -> Result<Vec<wrldbldr_domain::LocationConnection>, ManagementError> {
+        Ok(self.location.get_location_exits(location_id).await?)
+    }
+
+    pub async fn create_location_connection(
+        &self,
+        from_location: LocationId,
+        to_location: LocationId,
+        bidirectional: bool,
+    ) -> Result<(), ManagementError> {
+        let connection = wrldbldr_domain::LocationConnection {
+            from_location,
+            to_location,
+            connection_type: "Connection".to_string(),
+            description: None,
+            bidirectional,
+            travel_time: 0,
+            is_locked: false,
+            lock_description: None,
+        };
+
+        self.location.save_location_connection(&connection).await?;
+        Ok(())
+    }
+
+    pub async fn delete_location_connection(
+        &self,
+        from_location: LocationId,
+        to_location: LocationId,
+    ) -> Result<(), ManagementError> {
+        self.location
+            .delete_location_connection(from_location, to_location)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn list_region_connections(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<wrldbldr_domain::RegionConnection>, ManagementError> {
+        Ok(self.location.get_connections(region_id).await?)
+    }
+
+    pub async fn create_region_connection(
+        &self,
+        from_region: RegionId,
+        to_region: RegionId,
+        description: Option<String>,
+        bidirectional: Option<bool>,
+        locked: Option<bool>,
+        lock_description: Option<String>,
+    ) -> Result<(), ManagementError> {
+        let mut connection = wrldbldr_domain::RegionConnection::new(from_region, to_region)
+            .ok_or_else(|| {
+                ManagementError::InvalidInput("Cannot connect a region to itself".to_string())
+            })?;
+        if let Some(description) = description {
+            connection = connection.with_description(description);
+        }
+        if bidirectional == Some(false) {
+            connection = connection.one_way();
+        }
+        if locked.unwrap_or(false) {
+            connection =
+                connection.locked(lock_description.unwrap_or_else(|| "Locked".to_string()));
+        }
+
+        self.location.save_connection(&connection).await?;
+        Ok(())
+    }
+
+    pub async fn delete_region_connection(
+        &self,
+        from_region: RegionId,
+        to_region: RegionId,
+    ) -> Result<(), ManagementError> {
+        self.location
+            .delete_connection(from_region, to_region)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn unlock_region_connection(
+        &self,
+        from_region: RegionId,
+        to_region: RegionId,
+    ) -> Result<(), ManagementError> {
+        let connections = self.location.get_connections(from_region).await?;
+        let existing = connections
+            .into_iter()
+            .find(|c| c.to_region == to_region)
+            .ok_or(ManagementError::NotFound)?;
+
+        let mut updated =
+            wrldbldr_domain::RegionConnection::new(existing.from_region, existing.to_region)
+                .ok_or_else(|| {
+                    ManagementError::InvalidInput("Cannot connect a region to itself".to_string())
+                })?;
+        updated.description = existing.description;
+        updated.bidirectional = existing.bidirectional;
+        updated.is_locked = false;
+        updated.lock_description = None;
+
+        self.location.save_connection(&updated).await?;
+        Ok(())
+    }
+
+    pub async fn list_region_exits(
+        &self,
+        region_id: RegionId,
+    ) -> Result<Vec<wrldbldr_domain::RegionExit>, ManagementError> {
+        Ok(self.location.get_region_exits(region_id).await?)
+    }
+
+    pub async fn create_region_exit(
+        &self,
+        region_id: RegionId,
+        location_id: LocationId,
+        arrival_region_id: RegionId,
+        description: Option<String>,
+        bidirectional: Option<bool>,
+    ) -> Result<(), ManagementError> {
+        let is_bidirectional = bidirectional.unwrap_or(true);
+
+        // Validate source region exists
+        let source_region = self
+            .location
+            .get_region(region_id)
+            .await?
+            .ok_or_else(|| {
+                ManagementError::InvalidInput(format!(
+                    "Source region {} does not exist",
+                    region_id
+                ))
+            })?;
+
+        // Validate target location exists
+        let target_location = self
+            .location
+            .get(location_id)
+            .await?
+            .ok_or_else(|| {
+                ManagementError::InvalidInput(format!(
+                    "Target location {} does not exist",
+                    location_id
+                ))
+            })?;
+
+        // Validate arrival region exists and is in the target location
+        let arrival_region = self
+            .location
+            .get_region(arrival_region_id)
+            .await?
+            .ok_or_else(|| {
+                ManagementError::InvalidInput(format!(
+                    "Arrival region {} does not exist",
+                    arrival_region_id
+                ))
+            })?;
+
+        if arrival_region.location_id != location_id {
+            return Err(ManagementError::InvalidInput(format!(
+                "Arrival region {} is not in target location {} (it's in {})",
+                arrival_region_id, target_location.name, arrival_region.location_id
+            )));
+        }
+
+        // For bidirectional exits, validate the return path can be created
+        if is_bidirectional {
+            // The return path goes from arrival_region back to source_region's location
+            // We need to ensure source_region's location exists (should always be true if source_region exists)
+            let source_location = self
+                .location
+                .get(source_region.location_id)
+                .await?
+                .ok_or_else(|| {
+                    ManagementError::InvalidInput(format!(
+                        "Source region's location {} does not exist (data integrity issue)",
+                        source_region.location_id
+                    ))
+                })?;
+
+            tracing::debug!(
+                from_region = %region_id,
+                to_location = %target_location.name,
+                arrival_region = %arrival_region.name,
+                return_location = %source_location.name,
+                "Creating bidirectional exit with validated return path"
+            );
+        }
+
+        let exit = wrldbldr_domain::RegionExit {
+            from_region: region_id,
+            to_location: location_id,
+            arrival_region_id,
+            description,
+            bidirectional: is_bidirectional,
+        };
+        self.location.save_region_exit(&exit).await?;
+        Ok(())
+    }
+
+    pub async fn delete_region_exit(
+        &self,
+        region_id: RegionId,
+        location_id: LocationId,
+    ) -> Result<(), ManagementError> {
+        self.location
+            .delete_region_exit(region_id, location_id)
+            .await?;
+        Ok(())
+    }
+}
