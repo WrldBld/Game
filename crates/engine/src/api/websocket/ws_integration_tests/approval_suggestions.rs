@@ -5,7 +5,7 @@ async fn when_dm_accepts_approval_suggestion_then_marks_complete_and_broadcasts_
     let now = chrono::Utc::now();
 
     let world_id = WorldId::new();
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+    let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
     world.id = world_id;
 
     let mut world_repo = MockWorldRepo::new();
@@ -159,7 +159,7 @@ async fn when_dm_rejects_approval_suggestion_then_marks_failed_and_does_not_broa
     let now = chrono::Utc::now();
 
     let world_id = WorldId::new();
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+    let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
     world.id = world_id;
 
     let mut world_repo = MockWorldRepo::new();
@@ -288,7 +288,7 @@ async fn when_dm_modifies_approval_suggestion_then_marks_complete_and_broadcasts
     let now = chrono::Utc::now();
 
     let world_id = WorldId::new();
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+    let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
     world.id = world_id;
 
     let mut world_repo = MockWorldRepo::new();

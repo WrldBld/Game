@@ -5,6 +5,7 @@
 //! Regions are separate nodes with HAS_REGION edges (see region.rs).
 
 use super::region::MapBounds;
+use crate::error::DomainError;
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{LocationId, RegionId, WorldId};
 
@@ -49,11 +50,27 @@ pub struct Location {
 }
 
 impl Location {
-    pub fn new(world_id: WorldId, name: impl Into<String>, location_type: LocationType) -> Self {
-        Self {
+    pub fn new(
+        world_id: WorldId,
+        name: impl Into<String>,
+        location_type: LocationType,
+    ) -> Result<Self, DomainError> {
+        let name = name.into();
+        let name = name.trim().to_string();
+
+        if name.is_empty() {
+            return Err(DomainError::validation("Location name cannot be empty"));
+        }
+        if name.len() > 200 {
+            return Err(DomainError::validation(
+                "Location name cannot exceed 200 characters",
+            ));
+        }
+
+        Ok(Self {
             id: LocationId::new(),
             world_id,
-            name: name.into(),
+            name,
             description: String::new(),
             location_type,
             backdrop_asset: None,
@@ -63,7 +80,7 @@ impl Location {
             atmosphere: None,
             presence_cache_ttl_hours: 3,
             use_llm_presence: true,
-        }
+        })
     }
 
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
@@ -268,5 +285,71 @@ impl LocationConnection {
         self.is_locked = true;
         self.lock_description = Some(description.into());
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_with_empty_name_returns_error() {
+        let world_id = WorldId::new();
+        let result = Location::new(world_id, "", LocationType::Interior);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+        assert!(err.to_string().contains("cannot be empty"));
+    }
+
+    #[test]
+    fn new_with_whitespace_only_name_returns_error() {
+        let world_id = WorldId::new();
+        let result = Location::new(world_id, "   \t\n  ", LocationType::Interior);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+        assert!(err.to_string().contains("cannot be empty"));
+    }
+
+    #[test]
+    fn new_with_name_exceeding_200_chars_returns_error() {
+        let world_id = WorldId::new();
+        let long_name = "a".repeat(201);
+        let result = Location::new(world_id, long_name, LocationType::Interior);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+        assert!(err.to_string().contains("cannot exceed 200 characters"));
+    }
+
+    #[test]
+    fn new_with_valid_name_succeeds() {
+        let world_id = WorldId::new();
+        let result = Location::new(world_id, "Test Location", LocationType::Interior);
+        assert!(result.is_ok());
+        let location = result.unwrap();
+        assert_eq!(location.name, "Test Location");
+        assert_eq!(location.world_id, world_id);
+        assert!(matches!(location.location_type, LocationType::Interior));
+    }
+
+    #[test]
+    fn new_trims_whitespace_from_name() {
+        let world_id = WorldId::new();
+        let result = Location::new(world_id, "  Test Location  ", LocationType::Interior);
+        assert!(result.is_ok());
+        let location = result.unwrap();
+        assert_eq!(location.name, "Test Location");
+    }
+
+    #[test]
+    fn new_with_exactly_200_chars_succeeds() {
+        let world_id = WorldId::new();
+        let name_200 = "a".repeat(200);
+        let result = Location::new(world_id, name_200.clone(), LocationType::Interior);
+        assert!(result.is_ok());
+        let location = result.unwrap();
+        assert_eq!(location.name, name_200);
     }
 }

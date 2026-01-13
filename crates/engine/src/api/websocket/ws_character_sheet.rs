@@ -5,6 +5,7 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
 use wrldbldr_domain::{CharacterSheetProvider, CharacterSheetSchema, GameSystemRegistry};
 use wrldbldr_protocol::{CharacterSheetRequest, ErrorCode, ResponseResult};
@@ -183,25 +184,33 @@ pub(super) async fn handle_character_sheet_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get world"),
                     ));
                 }
             }
 
             // Create a draft character
             let character_name = name.unwrap_or_else(|| "New Character".to_string());
-            let character = wrldbldr_domain::Character::new(
+            let character = match wrldbldr_domain::Character::new(
                 world_id_typed,
                 character_name,
                 wrldbldr_domain::CampbellArchetype::Hero,
-            );
+            ) {
+                Ok(c) => c,
+                Err(e) => {
+                    return Ok(ResponseResult::error(
+                        ErrorCode::ValidationError,
+                        format!("Invalid character name: {}", e),
+                    ));
+                }
+            };
             let character_id = character.id;
 
             // Save the draft character
             if let Err(e) = state.app.entities.character.save(&character).await {
                 return Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    format!("Failed to create character: {}", e),
+                    sanitize_repo_error(&e, "create character"),
                 ));
             }
 
@@ -251,7 +260,7 @@ pub(super) async fn handle_character_sheet_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get character"),
                     ));
                 }
             };
@@ -265,7 +274,7 @@ pub(super) async fn handle_character_sheet_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get world"),
                     ));
                 }
             };
@@ -301,7 +310,7 @@ pub(super) async fn handle_character_sheet_request(
             if let Err(e) = state.app.entities.character.save(&character).await {
                 return Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    format!("Failed to save character: {}", e),
+                    sanitize_repo_error(&e, "save character"),
                 ));
             }
 
@@ -339,7 +348,7 @@ pub(super) async fn handle_character_sheet_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get character"),
                     ));
                 }
             };
@@ -353,7 +362,7 @@ pub(super) async fn handle_character_sheet_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get world"),
                     ));
                 }
             };
@@ -413,7 +422,7 @@ pub(super) async fn handle_character_sheet_request(
             {
                 return Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    format!("Failed to delete character: {}", e),
+                    sanitize_repo_error(&e, "delete character"),
                 ));
             }
 
@@ -448,7 +457,7 @@ pub(super) async fn handle_character_sheet_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get character"),
                     ));
                 }
             };
@@ -462,7 +471,7 @@ pub(super) async fn handle_character_sheet_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get world"),
                     ));
                 }
             };
@@ -516,7 +525,7 @@ pub(super) async fn handle_character_sheet_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get character"),
                     ));
                 }
             };
@@ -530,7 +539,7 @@ pub(super) async fn handle_character_sheet_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get world"),
                     ));
                 }
             };
@@ -562,7 +571,7 @@ pub(super) async fn handle_character_sheet_request(
             if let Err(e) = state.app.entities.character.save(&character).await {
                 return Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    format!("Failed to save character: {}", e),
+                    sanitize_repo_error(&e, "save character"),
                 ));
             }
 
@@ -602,7 +611,7 @@ pub(super) async fn handle_character_sheet_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get character"),
                     ));
                 }
             };
@@ -616,7 +625,7 @@ pub(super) async fn handle_character_sheet_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get world"),
                     ));
                 }
             };
@@ -659,7 +668,7 @@ pub(super) async fn handle_character_sheet_request(
             if let Err(e) = state.app.entities.character.save(&character).await {
                 return Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    format!("Failed to save character: {}", e),
+                    sanitize_repo_error(&e, "save character"),
                 ));
             }
 
@@ -695,7 +704,7 @@ pub(super) async fn handle_character_sheet_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get character"),
                     ));
                 }
             };
@@ -709,7 +718,7 @@ pub(super) async fn handle_character_sheet_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get world"),
                     ));
                 }
             };
@@ -746,7 +755,7 @@ pub(super) async fn handle_character_sheet_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get character"),
                     ));
                 }
             };
@@ -760,7 +769,7 @@ pub(super) async fn handle_character_sheet_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get world"),
                     ));
                 }
             };
@@ -780,7 +789,7 @@ pub(super) async fn handle_character_sheet_request(
             if let Err(e) = state.app.entities.character.save(&character).await {
                 return Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    format!("Failed to save character: {}", e),
+                    sanitize_repo_error(&e, "save character"),
                 ));
             }
 

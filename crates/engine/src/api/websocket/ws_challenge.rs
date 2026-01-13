@@ -1,9 +1,10 @@
 use super::*;
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
 use wrldbldr_domain::{DiceRollInput, OutcomeType};
-use wrldbldr_protocol::{ChallengeRequest, ErrorCode, ResponseResult};
 use wrldbldr_protocol::types::ProposedToolInfo;
+use wrldbldr_protocol::{ChallengeRequest, ErrorCode, ResponseResult};
 
 pub(super) async fn handle_challenge_request(
     state: &WsState,
@@ -18,7 +19,7 @@ pub(super) async fn handle_challenge_request(
                 Ok(challenges) => Ok(ResponseResult::success(json!(challenges))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list challenges"),
                 )),
             }
         }
@@ -32,7 +33,7 @@ pub(super) async fn handle_challenge_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get challenge"),
                 )),
             }
         }
@@ -57,7 +58,7 @@ pub(super) async fn handle_challenge_request(
                 Ok(challenge) => Ok(ResponseResult::success(json!(challenge))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create challenge"),
                 )),
             }
         }
@@ -85,7 +86,7 @@ pub(super) async fn handle_challenge_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update challenge"),
                 )),
             }
         }
@@ -103,7 +104,7 @@ pub(super) async fn handle_challenge_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete challenge"),
                 )),
             }
         }
@@ -127,7 +128,7 @@ pub(super) async fn handle_challenge_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "set challenge active"),
                 )),
             }
         }
@@ -151,7 +152,7 @@ pub(super) async fn handle_challenge_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "set challenge favorite"),
                 )),
             }
         }
@@ -190,7 +191,12 @@ pub(super) async fn handle_challenge_roll(
     let challenge = match state.app.entities.challenge.get(challenge_uuid).await {
         Ok(Some(c)) => c,
         Ok(None) => return Some(error_response("NOT_FOUND", "Challenge not found")),
-        Err(e) => return Some(error_response("CHALLENGE_ERROR", &e.to_string())),
+        Err(e) => {
+            return Some(error_response(
+                "CHALLENGE_ERROR",
+                &sanitize_repo_error(&e, "get challenge"),
+            ))
+        }
     };
 
     if challenge.world_id != world_id {
@@ -322,7 +328,10 @@ pub(super) async fn handle_challenge_roll(
         Err(crate::use_cases::challenge::ChallengeError::DiceParse(_)) => {
             Some(error_response("INVALID_DICE_INPUT", "Invalid dice input"))
         }
-        Err(e) => Some(error_response("ROLL_ERROR", &e.to_string())),
+        Err(e) => Some(error_response(
+            "ROLL_ERROR",
+            &sanitize_repo_error(&e, "process challenge roll"),
+        )),
     }
 }
 
@@ -444,7 +453,10 @@ pub(super) async fn handle_challenge_roll_input(
         Err(crate::use_cases::challenge::ChallengeError::DiceParse(_)) => {
             Some(error_response("INVALID_DICE_INPUT", "Invalid dice input"))
         }
-        Err(e) => Some(error_response("ROLL_ERROR", &e.to_string())),
+        Err(e) => Some(error_response(
+            "ROLL_ERROR",
+            &sanitize_repo_error(&e, "process challenge roll input"),
+        )),
     }
 }
 
@@ -499,7 +511,10 @@ pub(super) async fn handle_trigger_challenge(
         Err(crate::use_cases::challenge::ChallengeError::NotFound) => {
             Some(error_response("NOT_FOUND", "Challenge not found"))
         }
-        Err(e) => Some(error_response("CHALLENGE_ERROR", &e.to_string())),
+        Err(e) => Some(error_response(
+            "CHALLENGE_ERROR",
+            &sanitize_repo_error(&e, "trigger challenge"),
+        )),
     }
 }
 
@@ -550,8 +565,10 @@ pub(super) async fn handle_challenge_suggestion_decision(
             }
         }
         Err(e) => {
-            tracing::error!(error = %e, "Challenge suggestion decision failed");
-            Some(error_response("APPROVAL_ERROR", &e.to_string()))
+            Some(error_response(
+                "APPROVAL_ERROR",
+                &sanitize_repo_error(&e, "process challenge suggestion decision"),
+            ))
         }
     }
 }
@@ -621,8 +638,10 @@ pub(super) async fn handle_challenge_outcome_decision(
             Some(error_response("INVALID_ID", "Invalid resolution ID format"))
         }
         Err(e) => {
-            tracing::error!(error = %e, "Challenge outcome decision failed");
-            Some(error_response("RESOLVE_ERROR", &e.to_string()))
+            Some(error_response(
+                "RESOLVE_ERROR",
+                &sanitize_repo_error(&e, "process challenge outcome decision"),
+            ))
         }
     }
 }

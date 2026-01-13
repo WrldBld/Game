@@ -5,7 +5,8 @@ use wrldbldr_protocol::{ClientMessage, ErrorCode, RequestPayload, ResponseResult
 
 /// Create a D&D 5e world for testing.
 fn create_dnd5e_world(world_id: WorldId, now: chrono::DateTime<chrono::Utc>) -> wrldbldr_domain::World {
-    let mut world = wrldbldr_domain::World::new("Test D&D 5e World", "A test world", now);
+    let mut world = wrldbldr_domain::World::new("Test D&D 5e World", "A test world", now)
+        .expect("valid world");
     world.id = world_id;
     world.rule_system = RuleSystemConfig::dnd_5e();
     world

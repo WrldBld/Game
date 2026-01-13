@@ -44,7 +44,7 @@ impl WorldCrud {
 
         let now = self.clock.now();
         let mut world =
-            wrldbldr_domain::World::new(name, description.clone().unwrap_or_default(), now);
+            wrldbldr_domain::World::new(name, description.clone().unwrap_or_default(), now)?;
 
         if world.description.is_empty() {
             if let Some(setting) = setting {

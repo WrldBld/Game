@@ -3,6 +3,7 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
 use wrldbldr_domain::{self as domain, CharacterId, RuleSystemConfig, RuleSystemVariant};
 use wrldbldr_domain::entities::StatModifier;
@@ -21,7 +22,7 @@ async fn get_character_or_error(
         )),
         Err(e) => Err(ResponseResult::error(
             ErrorCode::InternalError,
-            e.to_string(),
+            sanitize_repo_error(&e, "getting character"),
         )),
     }
 }
@@ -37,7 +38,12 @@ async fn save_character_or_error(
         .character
         .save(character)
         .await
-        .map_err(|e| ResponseResult::error(ErrorCode::InternalError, e.to_string()))
+        .map_err(|e| {
+            ResponseResult::error(
+                ErrorCode::InternalError,
+                sanitize_repo_error(&e, "saving character"),
+            )
+        })
 }
 
 pub(super) async fn handle_stat_request(

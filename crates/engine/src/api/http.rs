@@ -441,7 +441,8 @@ mod tests {
         let repos = TestAppRepos::new(world_repo);
         let router = build_router_with_repos(repos);
 
-        let world = wrldbldr_domain::World::new("Test World", "Desc", Utc::now());
+        let world = wrldbldr_domain::World::new("Test World", "Desc", Utc::now())
+            .expect("valid world");
         let export = crate::use_cases::world::WorldExport {
             world: world.clone(),
             locations: Vec::new(),

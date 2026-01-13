@@ -653,7 +653,7 @@ mod tests {
         let mut time_config = GameTimeConfig::default();
         time_config.mode = TimeMode::Auto;
 
-        let mut domain_world = wrldbldr_domain::World::new("World", "Desc", now);
+        let mut domain_world = wrldbldr_domain::World::new("World", "Desc", now).expect("valid world");
         domain_world.id = world_id;
         domain_world.time_config = time_config;
 
@@ -707,7 +707,7 @@ mod tests {
         let mut time_config = GameTimeConfig::default();
         time_config.mode = TimeMode::Manual;
 
-        let mut domain_world = wrldbldr_domain::World::new("World", "Desc", now);
+        let mut domain_world = wrldbldr_domain::World::new("World", "Desc", now).expect("valid world");
         domain_world.id = world_id;
         domain_world.time_config = time_config;
 
@@ -744,7 +744,7 @@ mod tests {
 
         // Default config cost for unknown action types is 0.
         let domain_world = {
-            let mut w = wrldbldr_domain::World::new("World", "Desc", now);
+            let mut w = wrldbldr_domain::World::new("World", "Desc", now).expect("valid world");
             w.id = world_id;
             w
         };

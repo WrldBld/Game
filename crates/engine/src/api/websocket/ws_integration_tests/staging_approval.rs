@@ -16,7 +16,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let hidden_npc_id = CharacterId::new();
 
     // World (manual time, so movement doesn't generate time suggestions).
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+    let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
     world.id = world_id;
     world.set_time_mode(TimeMode::Manual, now);
 
@@ -25,7 +25,8 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         world_id,
         "Test Location",
         wrldbldr_domain::LocationType::Exterior,
-    );
+    )
+    .expect("valid location");
     location.id = location_id;
 
     let mut region = wrldbldr_domain::Region::new(location_id, "Unstaged Region");
@@ -37,10 +38,12 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     pc.current_region_id = None; // initial spawn; skip connection validation
 
     let mut visible_npc =
-        wrldbldr_domain::Character::new(world_id, "Visible NPC", CampbellArchetype::Hero);
+        wrldbldr_domain::Character::new(world_id, "Visible NPC", CampbellArchetype::Hero)
+            .expect("valid character");
     visible_npc.id = visible_npc_id;
     let mut hidden_npc =
-        wrldbldr_domain::Character::new(world_id, "Hidden NPC", CampbellArchetype::Herald);
+        wrldbldr_domain::Character::new(world_id, "Hidden NPC", CampbellArchetype::Herald)
+            .expect("valid character");
     hidden_npc.id = hidden_npc_id;
 
     // World repo: serve the world for both time + visual state resolution.
@@ -383,7 +386,7 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
     let region_id = RegionId::new();
 
     // World (manual time)
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+    let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
     world.id = world_id;
     world.set_time_mode(TimeMode::Manual, now);
 
@@ -392,7 +395,8 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
         world_id,
         "Test Location",
         wrldbldr_domain::LocationType::Exterior,
-    );
+    )
+    .expect("valid location");
     location.id = location_id;
 
     let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");
@@ -518,7 +522,7 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
     let region_id = RegionId::new();
 
     // World (manual time)
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+    let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
     world.id = world_id;
     world.set_time_mode(TimeMode::Manual, now);
 
@@ -527,7 +531,8 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
         world_id,
         "Test Location",
         wrldbldr_domain::LocationType::Exterior,
-    );
+    )
+    .expect("valid location");
     location.id = location_id;
 
     let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");

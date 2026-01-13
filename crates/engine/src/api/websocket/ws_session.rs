@@ -1,4 +1,5 @@
 use super::*;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::infrastructure::ports::{
     JoinWorldError as PortJoinWorldError, WorldRole as PortWorldRole,
 };
@@ -68,7 +69,8 @@ pub(super) async fn handle_join_world(
             })
         }
         Err(crate::use_cases::session::JoinWorldFlowError::Repo(e)) => {
-            tracing::error!(error = %e, "Failed to build world snapshot");
+            // sanitize_repo_error logs internally; response uses generic error
+            let _ = sanitize_repo_error(&e, "building world snapshot");
             return Some(ServerMessage::WorldJoinFailed {
                 world_id,
                 error: wrldbldr_protocol::JoinError::Unknown,

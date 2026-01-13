@@ -12,14 +12,15 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
     let region_id = RegionId::new();
     let npc_id = CharacterId::new();
 
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+    let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
     world.id = world_id;
 
     let mut location = wrldbldr_domain::Location::new(
         world_id,
         "Test Location",
         wrldbldr_domain::LocationType::Exterior,
-    );
+    )
+    .expect("valid location");
     location.id = location_id;
 
     let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");

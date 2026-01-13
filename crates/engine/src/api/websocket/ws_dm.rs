@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+
 pub(super) async fn handle_directorial_update(
     state: &WsState,
     connection_id: Uuid,
@@ -77,8 +79,7 @@ pub(super) async fn handle_trigger_approach_event(
     {
         Ok(result) => result,
         Err(e) => {
-            tracing::error!(error = %e, "Failed to build approach event");
-            return Some(error_response("APPROACH_EVENT_ERROR", &e.to_string()));
+            return Some(error_response("APPROACH_EVENT_ERROR", &sanitize_repo_error(&e, "build approach event")));
         }
     };
 
@@ -133,8 +134,7 @@ pub(super) async fn handle_trigger_location_event(
             return Some(error_response("NOT_FOUND", "Region not found"))
         }
         Err(e) => {
-            tracing::error!(error = %e, "Failed to trigger location event");
-            return Some(error_response("LOCATION_EVENT_ERROR", &e.to_string()));
+            return Some(error_response("LOCATION_EVENT_ERROR", &sanitize_repo_error(&e, "trigger location event")));
         }
     };
 
@@ -199,8 +199,7 @@ pub(super) async fn handle_share_npc_location(
     {
         Ok(result) => result,
         Err(e) => {
-            tracing::error!(error = %e, "Failed to share NPC location");
-            return Some(error_response("NPC_LOCATION_ERROR", &e.to_string()));
+            return Some(error_response("NPC_LOCATION_ERROR", &sanitize_repo_error(&e, "share NPC location")));
         }
     };
 

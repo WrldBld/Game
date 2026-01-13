@@ -25,6 +25,7 @@ pub use skill::SkillCrud;
 pub use world::WorldCrud;
 
 use crate::infrastructure::ports::RepoError;
+use wrldbldr_domain::DomainError;
 
 /// Shared error type for management use cases.
 #[derive(Debug, thiserror::Error)]
@@ -37,6 +38,18 @@ pub enum ManagementError {
     Repo(#[from] RepoError),
     #[error("Domain error: {0}")]
     Domain(String),
+}
+
+impl From<DomainError> for ManagementError {
+    fn from(err: DomainError) -> Self {
+        match err {
+            DomainError::Validation(msg) => ManagementError::InvalidInput(msg),
+            DomainError::NotFound { entity_type, id } => {
+                ManagementError::Domain(format!("{} with id {} not found", entity_type, id))
+            }
+            other => ManagementError::Domain(other.to_string()),
+        }
+    }
 }
 
 /// Container for management use cases.

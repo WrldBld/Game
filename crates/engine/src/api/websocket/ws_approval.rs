@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+
 pub(super) async fn handle_approval_decision(
     state: &WsState,
     connection_id: Uuid,
@@ -94,8 +96,10 @@ pub(super) async fn handle_approval_decision(
             Some(error_response("NOT_FOUND", "Approval request not found"))
         }
         Err(e) => {
-            tracing::error!(error = %e, "Approval decision failed");
-            Some(error_response("APPROVAL_ERROR", &e.to_string()))
+            Some(error_response(
+                "APPROVAL_ERROR",
+                &sanitize_repo_error(&e, "process approval decision"),
+            ))
         }
     }
 }

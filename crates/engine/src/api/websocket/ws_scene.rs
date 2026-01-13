@@ -1,6 +1,7 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
 use wrldbldr_domain::{self as domain, InteractionTarget, InteractionType};
 use wrldbldr_protocol::{ActRequest, ErrorCode, InteractionRequest, ResponseResult, SceneRequest};
@@ -29,7 +30,7 @@ pub(super) async fn handle_act_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "listing acts"),
                 )),
             }
         }
@@ -50,7 +51,7 @@ pub(super) async fn handle_act_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "creating act"),
                 )),
             }
         }
@@ -81,7 +82,7 @@ pub(super) async fn handle_scene_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "listing scenes"),
                 )),
             }
         }
@@ -102,7 +103,7 @@ pub(super) async fn handle_scene_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "getting scene"),
                 )),
             }
         }
@@ -127,7 +128,7 @@ pub(super) async fn handle_scene_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "creating scene"),
                 )),
             }
         }
@@ -155,7 +156,7 @@ pub(super) async fn handle_scene_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "updating scene"),
                 )),
             }
         }
@@ -176,7 +177,7 @@ pub(super) async fn handle_scene_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "deleting scene"),
                 )),
             }
         }
@@ -207,7 +208,7 @@ pub(super) async fn handle_interaction_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "listing interactions"),
                 )),
             }
         }
@@ -231,7 +232,7 @@ pub(super) async fn handle_interaction_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "getting interaction"),
                 )),
             }
         }
@@ -260,7 +261,7 @@ pub(super) async fn handle_interaction_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "creating interaction"),
                 )),
             }
         }
@@ -296,7 +297,7 @@ pub(super) async fn handle_interaction_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "updating interaction"),
                 )),
             }
         }
@@ -318,7 +319,7 @@ pub(super) async fn handle_interaction_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "deleting interaction"),
                 )),
             }
         }
@@ -345,7 +346,7 @@ pub(super) async fn handle_interaction_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "setting interaction availability"),
                 )),
             }
         }

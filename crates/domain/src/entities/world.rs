@@ -3,6 +3,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::error::DomainError;
 use crate::value_objects::RuleSystemConfig;
 use crate::{GameTime, GameTimeConfig, TimeAdvanceReason, TimeCostConfig, TimeMode, WorldId};
 
@@ -44,17 +45,30 @@ impl World {
         name: impl Into<String>,
         description: impl Into<String>,
         now: DateTime<Utc>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, DomainError> {
+        let name = name.into();
+        let name = name.trim().to_string();
+        let description = description.into();
+
+        if name.is_empty() {
+            return Err(DomainError::validation("World name cannot be empty"));
+        }
+        if name.len() > 200 {
+            return Err(DomainError::validation(
+                "World name cannot exceed 200 characters",
+            ));
+        }
+
+        Ok(Self {
             id: WorldId::new(),
-            name: name.into(),
-            description: description.into(),
+            name,
+            description,
             rule_system: RuleSystemConfig::default(),
             game_time: GameTime::new(now),
             time_config: GameTimeConfig::default(),
             created_at: now,
             updated_at: now,
-        }
+        })
     }
 
     pub fn with_rule_system(mut self, rule_system: RuleSystemConfig) -> Self {
@@ -166,5 +180,70 @@ impl Act {
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = description.into();
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_world_new_empty_name_returns_error() {
+        let now = Utc::now();
+        let result = World::new("", "Description", now);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+        assert!(err.to_string().contains("cannot be empty"));
+    }
+
+    #[test]
+    fn test_world_new_whitespace_only_name_returns_error() {
+        let now = Utc::now();
+        let result = World::new("   \t\n  ", "Description", now);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+        assert!(err.to_string().contains("cannot be empty"));
+    }
+
+    #[test]
+    fn test_world_new_name_exceeds_200_chars_returns_error() {
+        let now = Utc::now();
+        let long_name = "a".repeat(201);
+        let result = World::new(long_name, "Description", now);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, DomainError::Validation(_)));
+        assert!(err.to_string().contains("exceed 200 characters"));
+    }
+
+    #[test]
+    fn test_world_new_valid_name_succeeds() {
+        let now = Utc::now();
+        let result = World::new("My World", "Description", now);
+        assert!(result.is_ok());
+        let world = result.unwrap();
+        assert_eq!(world.name, "My World");
+        assert_eq!(world.description, "Description");
+    }
+
+    #[test]
+    fn test_world_new_trims_whitespace_from_name() {
+        let now = Utc::now();
+        let result = World::new("  My World  ", "Description", now);
+        assert!(result.is_ok());
+        let world = result.unwrap();
+        assert_eq!(world.name, "My World");
+    }
+
+    #[test]
+    fn test_world_new_name_exactly_200_chars_succeeds() {
+        let now = Utc::now();
+        let name = "a".repeat(200);
+        let result = World::new(name.clone(), "Description", now);
+        assert!(result.is_ok());
+        let world = result.unwrap();
+        assert_eq!(world.name, name);
     }
 }

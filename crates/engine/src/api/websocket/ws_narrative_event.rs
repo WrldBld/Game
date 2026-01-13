@@ -1,6 +1,7 @@
 use super::*;
-use crate::use_cases::narrative::decision::NarrativeDecisionError;
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use crate::use_cases::narrative::decision::NarrativeDecisionError;
 use serde_json::json;
 use wrldbldr_domain::{self as domain, NarrativeTrigger};
 use wrldbldr_protocol::{ErrorCode, NarrativeEventRequest, ResponseResult, TriggerSchema};
@@ -25,7 +26,7 @@ pub(super) async fn handle_narrative_event_request(
                 Ok(events) => Ok(ResponseResult::success(json!(events))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list narrative events"),
                 )),
             }
         }
@@ -39,7 +40,7 @@ pub(super) async fn handle_narrative_event_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get narrative event"),
                 )),
             }
         }
@@ -66,7 +67,7 @@ pub(super) async fn handle_narrative_event_request(
                 Ok(event) => Ok(ResponseResult::success(json!(event))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create narrative event"),
                 )),
             }
         }
@@ -96,7 +97,7 @@ pub(super) async fn handle_narrative_event_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update narrative event"),
                 )),
             }
         }
@@ -107,7 +108,7 @@ pub(super) async fn handle_narrative_event_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete narrative event"),
                 )),
             }
         }
@@ -128,7 +129,7 @@ pub(super) async fn handle_narrative_event_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "set event active"),
                 )),
             }
         }
@@ -149,7 +150,7 @@ pub(super) async fn handle_narrative_event_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "set event favorite"),
                 )),
             }
         }
@@ -216,7 +217,7 @@ pub(super) async fn handle_narrative_event_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "trigger narrative event"),
                 )),
             }
         }
@@ -230,7 +231,7 @@ pub(super) async fn handle_narrative_event_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "reset narrative event"),
                 )),
             }
         }
@@ -309,8 +310,7 @@ pub(super) async fn handle_narrative_event_decision(
             Some(error_response("NOT_FOUND", "Approval request not found"))
         }
         Err(e) => {
-            tracing::error!(error = %e, "Narrative event decision failed");
-            Some(error_response("APPROVAL_ERROR", &e.to_string()))
+            Some(error_response("APPROVAL_ERROR", &sanitize_repo_error(&e, "process narrative event decision")))
         }
     }
 }
@@ -325,7 +325,7 @@ fn parse_optional_triggers(
             Err(e) => {
                 return Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::BadRequest, e.to_string()),
+                    result: ResponseResult::error(ErrorCode::BadRequest, sanitize_repo_error(&e, "parse narrative triggers")),
                 })
             }
         }
@@ -344,7 +344,7 @@ fn parse_optional_outcomes(
             Err(e) => {
                 return Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::BadRequest, e.to_string()),
+                    result: ResponseResult::error(ErrorCode::BadRequest, sanitize_repo_error(&e, "parse event outcomes")),
                 })
             }
         }

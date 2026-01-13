@@ -14,7 +14,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     let pc_id = PlayerCharacterId::new();
     let npc_id = CharacterId::new();
 
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+    let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
     world.id = world_id;
     world.set_time_mode(TimeMode::Manual, now);
 
@@ -22,7 +22,8 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         world_id,
         "Test Location",
         wrldbldr_domain::LocationType::Exterior,
-    );
+    )
+    .expect("valid location");
     location.id = location_id;
 
     let mut region = wrldbldr_domain::Region::new(location_id, "Region");
@@ -33,7 +34,8 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     pc.id = pc_id;
     pc.current_region_id = None;
 
-    let mut npc = wrldbldr_domain::Character::new(world_id, "NPC", CampbellArchetype::Hero);
+    let mut npc = wrldbldr_domain::Character::new(world_id, "NPC", CampbellArchetype::Hero)
+        .expect("valid character");
     npc.id = npc_id;
 
     let mut world_repo = MockWorldRepo::new();

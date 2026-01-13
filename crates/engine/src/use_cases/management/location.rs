@@ -38,14 +38,8 @@ impl LocationCrud {
         description: Option<String>,
         setting: Option<String>,
     ) -> Result<wrldbldr_domain::Location, ManagementError> {
-        if name.trim().is_empty() {
-            return Err(ManagementError::InvalidInput(
-                "Location name cannot be empty".to_string(),
-            ));
-        }
-
         let mut location =
-            wrldbldr_domain::Location::new(world_id, name, wrldbldr_domain::LocationType::Unknown);
+            wrldbldr_domain::Location::new(world_id, name, wrldbldr_domain::LocationType::Unknown)?;
         if let Some(description) = description {
             location = location.with_description(description);
         }

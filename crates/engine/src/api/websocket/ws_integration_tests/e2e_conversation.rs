@@ -18,7 +18,8 @@ use crate::infrastructure::ports::LlmPort;
 
 /// Create a D&D 5e world for testing.
 fn create_test_world(world_id: WorldId, now: chrono::DateTime<chrono::Utc>) -> wrldbldr_domain::World {
-    let mut world = wrldbldr_domain::World::new("Integration Test World", "A test world for LLM integration", now);
+    let mut world = wrldbldr_domain::World::new("Integration Test World", "A test world for LLM integration", now)
+        .expect("valid world");
     world.id = world_id;
     world.rule_system = RuleSystemConfig::dnd_5e();
     world

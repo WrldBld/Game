@@ -5,7 +5,7 @@
 This plan addresses architectural issues in the WrldBldr Game codebase. The goal is to enforce the existing 4-layer architecture correctly, not add new abstractions.
 
 **Date:** 2026-01-13
-**Status:** COMPLETED (with deferred items)
+**Status:** FULLY COMPLETED
 **Completed:** 2026-01-13
 
 ---
@@ -104,15 +104,15 @@ Use cases injecting other use cases (5 instances). This is acceptable but needs 
 - [x] Task 3.4: Move `scene_operations.rs` → `entities/scene.rs` (only 1 repo dep, no split needed)
 - [x] Task 3.5: Update all imports
 
-### Phase 4: Complete Unfinished Work ✅ PARTIALLY COMPLETED
+### Phase 4: Complete Unfinished Work ✅ FULLY COMPLETED
 
 **Goal:** Finish work that was started but not completed.
 
-- [ ] Task 4.1: Add validation to `Character::new()` constructor (DEFERRED - requires API change)
-- [ ] Task 4.2: Add validation to `Location::new()` constructor (DEFERRED - requires API change)
-- [ ] Task 4.3: Add validation to `World::new()` constructor (DEFERRED - requires API change)
+- [x] Task 4.1: Add validation to `Character::new()` constructor
+- [x] Task 4.2: Add validation to `Location::new()` constructor
+- [x] Task 4.3: Add validation to `World::new()` constructor
 - [x] Task 4.4: Fix DnD5e `stack_modifiers()` bug
-- [ ] Task 4.5: Update remaining WebSocket handlers to use error_sanitizer (DEFERRED - 24 files)
+- [x] Task 4.5: Update all 24 WebSocket handlers to use error_sanitizer
 
 ### Phase 5: Final Verification ✅ COMPLETED
 
@@ -122,18 +122,6 @@ Use cases injecting other use cases (5 instances). This is acceptable but needs 
 - [x] Task 5.2: Run `cargo test --workspace --lib` - PASS (all 62+ tests)
 - [x] Task 5.3: Run `cargo clippy --workspace` - PASS (no errors, warnings are pre-existing)
 - [x] Task 5.4: Final architecture review - Architecture is now correctly organized
-
----
-
-## Deferred Items
-
-The following items were deferred to future work:
-
-### Constructor Validation (Tasks 4.1-4.3)
-**Reason:** Adding validation to constructors would change the API from `new() -> Self` to `try_new() -> Result<Self, DomainError>`, which is a breaking change requiring updates to all callers. This should be done in a dedicated refactoring session.
-
-### Error Sanitization (Task 4.5)
-**Reason:** Updating 24 WebSocket handlers to use error_sanitizer requires careful per-handler review to ensure appropriate error messages. This is a significant undertaking that should be done methodically.
 
 ---
 
@@ -224,9 +212,9 @@ After each task:
 - [x] No files named `*_operations.rs` in use_cases/ (except narrative_operations.rs which contains complex orchestration)
 - [x] `narrative_operations.rs` split - CRUD moved to entities/narrative.rs, complex logic remains with NarrativeOps alias
 - [x] `scene_operations.rs` moved to entities/scene.rs (only 1 repo dep, no split needed)
-- [ ] All domain constructors validate required fields (DEFERRED)
-- [ ] All 25 WebSocket handlers use error_sanitizer (DEFERRED - 1/25 done)
+- [x] All domain constructors validate required fields (Character, Location, World)
+- [x] All 24 WebSocket handlers use error_sanitizer
 - [x] DnD5e `stack_modifiers()` correctly handles same-source vs different-source bonuses
 - [x] `cargo check --workspace` passes
-- [x] `cargo test --workspace --lib` passes
+- [x] `cargo test --workspace --lib` passes (620+ tests)
 - [x] AGENTS.md documents the correct architecture

@@ -54,7 +54,8 @@ impl CharacterCrud {
             .parse::<wrldbldr_domain::CampbellArchetype>()
             .map_err(ManagementError::Domain)?;
 
-        let mut character = wrldbldr_domain::Character::new(world_id, name, archetype_value);
+        let mut character = wrldbldr_domain::Character::new(world_id, name, archetype_value)
+            .map_err(|e| ManagementError::Domain(e.to_string()))?;
 
         if let Some(description) = description {
             character = character.with_description(description);

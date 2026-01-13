@@ -1,5 +1,6 @@
 use super::*;
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::use_cases::narrative::{CreateEventChainInput, UpdateEventChainInput};
 use serde_json::json;
 use wrldbldr_domain::{ActId, NarrativeEventId};
@@ -18,7 +19,7 @@ pub(super) async fn handle_event_chain_request(
                 Ok(chains) => Ok(ResponseResult::success(json!(chains))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list event chains"),
                 )),
             }
         }
@@ -32,7 +33,7 @@ pub(super) async fn handle_event_chain_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get event chain"),
                 )),
             }
         }
@@ -60,7 +61,7 @@ pub(super) async fn handle_event_chain_request(
                 Ok(chain) => Ok(ResponseResult::success(json!(chain))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create event chain"),
                 )),
             }
         }
@@ -91,7 +92,7 @@ pub(super) async fn handle_event_chain_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update event chain"),
                 )),
             }
         }
@@ -102,7 +103,7 @@ pub(super) async fn handle_event_chain_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete event chain"),
                 )),
             }
         }
@@ -123,7 +124,7 @@ pub(super) async fn handle_event_chain_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "set event chain active"),
                 )),
             }
         }
@@ -144,7 +145,7 @@ pub(super) async fn handle_event_chain_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "set event chain favorite"),
                 )),
             }
         }
@@ -171,7 +172,7 @@ pub(super) async fn handle_event_chain_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "add event to chain"),
                 )),
             }
         }
@@ -193,7 +194,7 @@ pub(super) async fn handle_event_chain_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "remove event from chain"),
                 )),
             }
         }
@@ -215,7 +216,7 @@ pub(super) async fn handle_event_chain_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "complete chain event"),
                 )),
             }
         }
@@ -229,7 +230,7 @@ pub(super) async fn handle_event_chain_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "reset event chain"),
                 )),
             }
         }
@@ -242,7 +243,7 @@ pub(super) async fn handle_event_chain_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get event chain status"),
                 )),
             }
         }

@@ -1,6 +1,7 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use wrldbldr_domain::{
     ActantialActor, ActantialContext, ActantialRole, ActantialTarget, CharacterId, GoalId, WantId,
     WantTarget, WantVisibility,
@@ -64,7 +65,7 @@ pub(super) async fn handle_goal_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list goals"),
                 )),
             }
         }
@@ -91,7 +92,7 @@ pub(super) async fn handle_goal_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get goal"),
                 )),
             }
         }
@@ -137,7 +138,7 @@ pub(super) async fn handle_goal_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create goal"),
                 )),
             }
         }
@@ -185,7 +186,7 @@ pub(super) async fn handle_goal_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update goal"),
                 )),
             }
         }
@@ -218,7 +219,7 @@ pub(super) async fn handle_goal_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete goal"),
                 )),
             }
         }
@@ -265,7 +266,7 @@ pub(super) async fn handle_want_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list wants"),
                 )),
             }
         }
@@ -291,7 +292,7 @@ pub(super) async fn handle_want_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get want"),
                     ));
                 }
             };
@@ -352,7 +353,7 @@ pub(super) async fn handle_want_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "create want"),
                     ));
                 }
             };
@@ -377,7 +378,7 @@ pub(super) async fn handle_want_request(
                         Err(e) => {
                             return Ok(ResponseResult::error(
                                 ErrorCode::InternalError,
-                                e.to_string(),
+                                sanitize_repo_error(&e, "set want target"),
                             ));
                         }
                     },
@@ -440,7 +441,7 @@ pub(super) async fn handle_want_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "update want"),
                     ));
                 }
             };
@@ -480,7 +481,7 @@ pub(super) async fn handle_want_request(
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        sanitize_repo_error(&e, "get want"),
                     ));
                 }
             };
@@ -498,7 +499,7 @@ pub(super) async fn handle_want_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete want"),
                 )),
             }
         }
@@ -545,7 +546,7 @@ pub(super) async fn handle_want_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "set want target"),
                 )),
             }
         }
@@ -579,7 +580,7 @@ pub(super) async fn handle_want_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "remove want target"),
                 )),
             }
         }
@@ -621,7 +622,7 @@ pub(super) async fn handle_actantial_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get actantial context"),
                 )),
             }
         }
@@ -679,7 +680,7 @@ pub(super) async fn handle_actantial_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "add actantial view"),
                 )),
             }
         }
@@ -735,7 +736,7 @@ pub(super) async fn handle_actantial_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "remove actantial view"),
                 )),
             }
         }

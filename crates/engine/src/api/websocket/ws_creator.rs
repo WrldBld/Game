@@ -3,6 +3,7 @@ use super::*;
 use std::collections::{HashMap, HashSet};
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::use_cases::ai::{ActantialRole, SuggestionContextInput};
 use wrldbldr_domain::{LlmRequestType, WorldId};
 
@@ -83,7 +84,7 @@ pub(super) async fn handle_generation_request(
                     .await
                     .map_err(|e| ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                        result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "load generation read state")),
                     })?;
 
                 if let Some((read_batches, read_suggestions)) = persisted {
@@ -110,7 +111,7 @@ pub(super) async fn handle_generation_request(
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "list asset generation queue")),
                 })?;
 
             let mut pending_asset_ids_in_order: Vec<String> = asset_items
@@ -176,7 +177,7 @@ pub(super) async fn handle_generation_request(
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "list LLM request queue")),
                 })?;
 
             let suggestions: Vec<serde_json::Value> = llm_items
@@ -259,7 +260,7 @@ pub(super) async fn handle_generation_request(
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "save generation read state")),
                 })?;
 
             let read_key = format!("{}:{}", conn_info.user_id, world_uuid);
@@ -308,14 +309,9 @@ pub(super) async fn handle_generation_request(
                     Ok(ResponseResult::success_empty())
                 }
                 Err(e) => {
-                    tracing::error!(
-                        request_id = %suggestion_request_id,
-                        error = %e,
-                        "Failed to dismiss suggestion - database error"
-                    );
                     Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                        result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "dismiss suggestion")),
                     })
                 }
             }
@@ -364,7 +360,7 @@ pub(super) async fn handle_ai_request(
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "enqueue content suggestion")),
                 })?;
 
             // Best-effort broadcast to world so the queue UI can update.
@@ -396,7 +392,7 @@ pub(super) async fn handle_ai_request(
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "cancel content suggestion")),
                 })?;
 
             Ok(ResponseResult::success(serde_json::json!({
@@ -499,7 +495,7 @@ pub(super) async fn handle_ai_request(
             }
             .map_err(|e| ServerMessage::Response {
                 request_id: request_id.to_string(),
-                result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "suggest AI content")),
             })?;
 
             // Best-effort broadcast to world so the queue UI can update.
@@ -594,7 +590,7 @@ pub(super) async fn handle_expression_request(
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                    result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "queue expression sheet generation")),
                 })?;
 
             Ok(ResponseResult::success(serde_json::json!({

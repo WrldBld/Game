@@ -6,6 +6,7 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
 use wrldbldr_domain::{ContentFilter, ContentType};
 use wrldbldr_protocol::{requests::content::ContentRequest, ErrorCode, ResponseResult};
@@ -162,7 +163,7 @@ pub(super) async fn handle_content_request(
                 }))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
-                    format!("Failed to load content: {}", e),
+                    sanitize_repo_error(&e, "load content"),
                 )),
             }
         }
@@ -197,7 +198,7 @@ pub(super) async fn handle_content_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
-                    format!("Failed to load content: {}", e),
+                    sanitize_repo_error(&e, "load content"),
                 )),
             }
         }
@@ -230,7 +231,7 @@ pub(super) async fn handle_content_request(
                 }))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
-                    format!("Search failed: {}", e),
+                    sanitize_repo_error(&e, "search content"),
                 )),
             }
         }

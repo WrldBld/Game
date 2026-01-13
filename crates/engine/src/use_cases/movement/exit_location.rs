@@ -428,6 +428,7 @@ mod tests {
 
         let mut location =
             wrldbldr_domain::Location::new(world_id, "Target", LocationType::Interior)
+                .expect("valid location")
                 .with_description("Desc");
         location.id = target_location_id;
 
@@ -486,6 +487,7 @@ mod tests {
 
         let mut location =
             wrldbldr_domain::Location::new(world_id, "Target", LocationType::Interior)
+                .expect("valid location")
                 .with_description("Desc");
         location.id = target_location_id;
         location.default_region_id = None;
@@ -540,6 +542,7 @@ mod tests {
         let target_location_id = LocationId::new();
         let mut target_location =
             wrldbldr_domain::Location::new(world_id, "Target", LocationType::Interior)
+                .expect("valid location")
                 .with_description("Desc");
         target_location.id = target_location_id;
 

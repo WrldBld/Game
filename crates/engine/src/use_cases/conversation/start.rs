@@ -358,7 +358,8 @@ mod tests {
         pc.current_region_id = Some(region_id);
 
         let npc = {
-            let mut c = Character::new(world_id, "NPC", CampbellArchetype::Mentor);
+            let mut c = Character::new(world_id, "NPC", CampbellArchetype::Mentor)
+                .expect("valid character");
             c.id = npc_id;
             c
         };
@@ -381,7 +382,7 @@ mod tests {
             .returning(|_, _| Ok(None));
 
         let mut world_repo = MockWorldRepo::new();
-        let mut world = wrldbldr_domain::World::new("W", "D", now);
+        let mut world = wrldbldr_domain::World::new("W", "D", now).expect("valid world");
         world.id = world_id;
         let world_for_get = world.clone();
         world_repo
@@ -442,7 +443,8 @@ mod tests {
         pc.current_region_id = Some(region_id);
 
         let npc = {
-            let mut c = Character::new(world_id, "NPC", CampbellArchetype::Mentor);
+            let mut c = Character::new(world_id, "NPC", CampbellArchetype::Mentor)
+                .expect("valid character");
             c.id = npc_id;
             c
         };
@@ -465,7 +467,7 @@ mod tests {
             .returning(|_, _| Ok(None));
 
         let mut world_repo = MockWorldRepo::new();
-        let mut world = wrldbldr_domain::World::new("W", "D", now);
+        let mut world = wrldbldr_domain::World::new("W", "D", now).expect("valid world");
         world.id = world_id;
         let current_game_time = world.game_time.current();
         let world_for_get = world.clone();

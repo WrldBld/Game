@@ -1,4 +1,5 @@
 use super::*;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use wrldbldr_domain::{TimeAdvanceReason, TimeOfDay};
 
 pub(super) async fn handle_set_game_time(
@@ -35,7 +36,12 @@ pub(super) async fn handle_set_game_time(
         Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
             return Some(error_response("NOT_FOUND", "World not found"))
         }
-        Err(e) => return Some(error_response("TIME_ERROR", &e.to_string())),
+        Err(e) => {
+            return Some(error_response(
+                "TIME_ERROR",
+                &sanitize_repo_error(&e, "setting game time"),
+            ))
+        }
     };
 
     if notify_players {
@@ -99,7 +105,12 @@ pub(super) async fn handle_skip_to_period(
         Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
             return Some(error_response("NOT_FOUND", "World not found"))
         }
-        Err(e) => return Some(error_response("TIME_ERROR", &e.to_string())),
+        Err(e) => {
+            return Some(error_response(
+                "TIME_ERROR",
+                &sanitize_repo_error(&e, "skipping to time period"),
+            ))
+        }
     };
 
     let reason = TimeAdvanceReason::DmSkipToPeriod {
@@ -153,7 +164,12 @@ pub(super) async fn handle_pause_game_time(
         Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
             return Some(error_response("NOT_FOUND", "World not found"))
         }
-        Err(e) => return Some(error_response("TIME_ERROR", &e.to_string())),
+        Err(e) => {
+            return Some(error_response(
+                "TIME_ERROR",
+                &sanitize_repo_error(&e, "pausing game time"),
+            ))
+        }
     }
 
     let msg = ServerMessage::GameTimePaused {
@@ -201,7 +217,12 @@ pub(super) async fn handle_set_time_mode(
         Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
             return Some(error_response("NOT_FOUND", "World not found"))
         }
-        Err(e) => return Some(error_response("TIME_ERROR", &e.to_string())),
+        Err(e) => {
+            return Some(error_response(
+                "TIME_ERROR",
+                &sanitize_repo_error(&e, "getting time config"),
+            ))
+        }
     };
 
     config.mode = mode;
@@ -218,7 +239,12 @@ pub(super) async fn handle_set_time_mode(
         Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
             return Some(error_response("NOT_FOUND", "World not found"))
         }
-        Err(e) => return Some(error_response("TIME_ERROR", &e.to_string())),
+        Err(e) => {
+            return Some(error_response(
+                "TIME_ERROR",
+                &sanitize_repo_error(&e, "setting time mode"),
+            ))
+        }
     }
 
     let msg = ServerMessage::TimeModeChanged {
@@ -265,7 +291,12 @@ pub(super) async fn handle_set_time_costs(
         Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
             return Some(error_response("NOT_FOUND", "World not found"))
         }
-        Err(e) => return Some(error_response("TIME_ERROR", &e.to_string())),
+        Err(e) => {
+            return Some(error_response(
+                "TIME_ERROR",
+                &sanitize_repo_error(&e, "getting time config"),
+            ))
+        }
     };
 
     config.time_costs = costs;
@@ -282,7 +313,12 @@ pub(super) async fn handle_set_time_costs(
         Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
             return Some(error_response("NOT_FOUND", "World not found"))
         }
-        Err(e) => return Some(error_response("TIME_ERROR", &e.to_string())),
+        Err(e) => {
+            return Some(error_response(
+                "TIME_ERROR",
+                &sanitize_repo_error(&e, "setting time costs"),
+            ))
+        }
     };
 
     let msg = ServerMessage::TimeConfigUpdated {
@@ -352,7 +388,10 @@ pub(super) async fn handle_respond_to_time_suggestion(
         Err(crate::use_cases::time::TimeSuggestionError::WorldMismatch) => {
             Some(error_response("TIME_SUGGESTION_INVALID", "Time suggestion world mismatch"))
         }
-        Err(e) => Some(error_response("TIME_ERROR", &e.to_string())),
+        Err(e) => Some(error_response(
+            "TIME_ERROR",
+            &sanitize_repo_error(&e, "responding to time suggestion"),
+        )),
     }
 }
 

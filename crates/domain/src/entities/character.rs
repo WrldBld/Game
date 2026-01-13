@@ -10,6 +10,7 @@
 //!
 //! Archetype history remains as JSON (acceptable per ADR - complex nested non-relational)
 
+use crate::error::DomainError;
 use crate::value_objects::{
     ArchetypeChange, CampbellArchetype, DispositionLevel, ExpressionConfig, MoodState,
 };
@@ -57,11 +58,27 @@ pub struct Character {
 }
 
 impl Character {
-    pub fn new(world_id: WorldId, name: impl Into<String>, archetype: CampbellArchetype) -> Self {
-        Self {
+    pub fn new(
+        world_id: WorldId,
+        name: impl Into<String>,
+        archetype: CampbellArchetype,
+    ) -> Result<Self, DomainError> {
+        let name = name.into();
+        let name = name.trim().to_string();
+
+        if name.is_empty() {
+            return Err(DomainError::validation("Character name cannot be empty"));
+        }
+        if name.len() > 200 {
+            return Err(DomainError::validation(
+                "Character name cannot exceed 200 characters",
+            ));
+        }
+
+        Ok(Self {
             id: CharacterId::new(),
             world_id,
-            name: name.into(),
+            name,
             description: String::new(),
             sprite_asset: None,
             portrait_asset: None,
@@ -74,7 +91,7 @@ impl Character {
             default_disposition: DispositionLevel::Neutral,
             default_mood: MoodState::default(),
             expression_config: ExpressionConfig::default(),
-        }
+        })
     }
 
     pub fn with_default_disposition(mut self, disposition: DispositionLevel) -> Self {
@@ -670,5 +687,92 @@ mod tests {
             effective: 14,
         };
         assert_eq!(v1, v2);
+    }
+
+    // =========================================================================
+    // Character::new() validation tests
+    // =========================================================================
+
+    #[test]
+    fn character_new_empty_name_returns_error() {
+        use crate::value_objects::CampbellArchetype;
+        use wrldbldr_domain::WorldId;
+
+        let world_id = WorldId::new();
+        let result = Character::new(world_id, "", CampbellArchetype::Hero);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("empty"));
+    }
+
+    #[test]
+    fn character_new_whitespace_only_name_returns_error() {
+        use crate::value_objects::CampbellArchetype;
+        use wrldbldr_domain::WorldId;
+
+        let world_id = WorldId::new();
+        let result = Character::new(world_id, "   \t\n  ", CampbellArchetype::Hero);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("empty"));
+    }
+
+    #[test]
+    fn character_new_name_exceeds_200_chars_returns_error() {
+        use crate::value_objects::CampbellArchetype;
+        use wrldbldr_domain::WorldId;
+
+        let world_id = WorldId::new();
+        let long_name = "a".repeat(201);
+        let result = Character::new(world_id, long_name, CampbellArchetype::Hero);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("200"));
+    }
+
+    #[test]
+    fn character_new_name_exactly_200_chars_succeeds() {
+        use crate::value_objects::CampbellArchetype;
+        use wrldbldr_domain::WorldId;
+
+        let world_id = WorldId::new();
+        let name_200 = "a".repeat(200);
+        let result = Character::new(world_id, name_200.clone(), CampbellArchetype::Hero);
+
+        assert!(result.is_ok());
+        let character = result.unwrap();
+        assert_eq!(character.name, name_200);
+    }
+
+    #[test]
+    fn character_new_valid_name_succeeds() {
+        use crate::value_objects::CampbellArchetype;
+        use wrldbldr_domain::WorldId;
+
+        let world_id = WorldId::new();
+        let result = Character::new(world_id, "Gandalf", CampbellArchetype::Mentor);
+
+        assert!(result.is_ok());
+        let character = result.unwrap();
+        assert_eq!(character.name, "Gandalf");
+        assert_eq!(character.world_id, world_id);
+        assert_eq!(character.base_archetype, CampbellArchetype::Mentor);
+        assert_eq!(character.current_archetype, CampbellArchetype::Mentor);
+    }
+
+    #[test]
+    fn character_new_trims_whitespace_from_name() {
+        use crate::value_objects::CampbellArchetype;
+        use wrldbldr_domain::WorldId;
+
+        let world_id = WorldId::new();
+        let result = Character::new(world_id, "  Frodo Baggins  ", CampbellArchetype::Hero);
+
+        assert!(result.is_ok());
+        let character = result.unwrap();
+        assert_eq!(character.name, "Frodo Baggins");
     }
 }

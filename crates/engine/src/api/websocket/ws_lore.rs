@@ -1,6 +1,7 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::use_cases::lore::{
     CreateLoreChunkInput, CreateLoreInput, LoreDiscoverySourceInput, UpdateLoreChunkInput,
     UpdateLoreInput,
@@ -46,7 +47,7 @@ pub(super) async fn handle_lore_request(
                 Ok(data) => Ok(ResponseResult::success(data)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list lore"),
                 )),
             }
         }
@@ -65,7 +66,7 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    sanitize_repo_error(&e, "get lore"),
                 )),
             }
         }
@@ -112,7 +113,7 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    sanitize_repo_error(&e, "create lore"),
                 )),
             }
         }
@@ -149,7 +150,7 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+                    result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "update lore")),
                 }),
             }
         }
@@ -168,7 +169,7 @@ pub(super) async fn handle_lore_request(
                 Ok(result) => Ok(ResponseResult::success(result)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    sanitize_repo_error(&e, "delete lore"),
                 )),
             }
         }
@@ -214,7 +215,7 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+                    result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "add lore chunk")),
                 }),
             }
         }
@@ -276,7 +277,7 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+                    result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "update lore chunk")),
                 }),
             }
         }
@@ -322,7 +323,7 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+                    result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "delete lore chunk")),
                 }),
             }
         }
@@ -400,7 +401,7 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    sanitize_repo_error(&e, "grant lore knowledge"),
                 )),
             }
         }
@@ -476,7 +477,7 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    sanitize_repo_error(&e, "revoke lore knowledge"),
                 )),
             }
         }
@@ -498,7 +499,7 @@ pub(super) async fn handle_lore_request(
                 Ok(data) => Ok(ResponseResult::success(data)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    sanitize_repo_error(&e, "get character lore"),
                 )),
             }
         }
@@ -520,7 +521,7 @@ pub(super) async fn handle_lore_request(
                 Ok(data) => Ok(ResponseResult::success(data)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    sanitize_repo_error(&e, "get lore knowers"),
                 )),
             }
         }

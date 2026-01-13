@@ -1,6 +1,7 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use wrldbldr_protocol::{LocationRequest, RegionRequest};
 
 pub(super) async fn handle_location_request(
@@ -39,7 +40,7 @@ pub(super) async fn handle_location_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list locations"),
                 )),
             }
         }
@@ -73,7 +74,7 @@ pub(super) async fn handle_location_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get location"),
                 )),
             }
         }
@@ -110,7 +111,7 @@ pub(super) async fn handle_location_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create location"),
                 )),
             }
         }
@@ -150,7 +151,7 @@ pub(super) async fn handle_location_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update location"),
                 )),
             }
         }
@@ -179,7 +180,7 @@ pub(super) async fn handle_location_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete location"),
                 )),
             }
         }
@@ -216,7 +217,7 @@ pub(super) async fn handle_location_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get location connections"),
                 )),
             }
         }
@@ -246,7 +247,7 @@ pub(super) async fn handle_location_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create location connection"),
                 )),
             }
         }
@@ -276,7 +277,7 @@ pub(super) async fn handle_location_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete location connection"),
                 )),
             }
         }
@@ -333,7 +334,7 @@ pub(super) async fn handle_region_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list regions"),
                 )),
             }
         }
@@ -379,7 +380,7 @@ pub(super) async fn handle_region_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get region"),
                 )),
             }
         }
@@ -428,7 +429,7 @@ pub(super) async fn handle_region_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create region"),
                 )),
             }
         }
@@ -480,7 +481,7 @@ pub(super) async fn handle_region_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update region"),
                 )),
             }
         }
@@ -509,7 +510,7 @@ pub(super) async fn handle_region_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete region"),
                 )),
             }
         }
@@ -546,7 +547,7 @@ pub(super) async fn handle_region_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get region connections"),
                 )),
             }
         }
@@ -587,7 +588,7 @@ pub(super) async fn handle_region_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create region connection"),
                 )),
             }
         }
@@ -617,7 +618,7 @@ pub(super) async fn handle_region_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete region connection"),
                 )),
             }
         }
@@ -650,7 +651,7 @@ pub(super) async fn handle_region_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "unlock region connection"),
                 )),
             }
         }
@@ -686,7 +687,7 @@ pub(super) async fn handle_region_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get region exits"),
                 )),
             }
         }
@@ -733,7 +734,7 @@ pub(super) async fn handle_region_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create region exit"),
                 )),
             }
         }
@@ -766,7 +767,7 @@ pub(super) async fn handle_region_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete region exit"),
                 )),
             }
         }
@@ -811,7 +812,7 @@ pub(super) async fn handle_region_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list spawn points"),
                 )),
             }
         }

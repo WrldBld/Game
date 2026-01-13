@@ -1,6 +1,7 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use wrldbldr_protocol::{ObservationRequest, PlayerCharacterRequest, RelationshipRequest};
 
 pub(super) async fn handle_player_character_request(
@@ -30,7 +31,7 @@ pub(super) async fn handle_player_character_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list player characters"),
                 )),
             }
         }
@@ -56,7 +57,7 @@ pub(super) async fn handle_player_character_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get player character"),
                 )),
             }
         }
@@ -79,7 +80,7 @@ pub(super) async fn handle_player_character_request(
                 Ok(None) => Ok(ResponseResult::success(serde_json::Value::Null)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get my player character"),
                 )),
             }
         }
@@ -115,7 +116,7 @@ pub(super) async fn handle_player_character_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create player character"),
                 )),
             }
         }
@@ -143,7 +144,7 @@ pub(super) async fn handle_player_character_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update player character"),
                 )),
             }
         }
@@ -168,7 +169,7 @@ pub(super) async fn handle_player_character_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete player character"),
                 )),
             }
         }
@@ -200,7 +201,7 @@ pub(super) async fn handle_player_character_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update player character location"),
                 )),
             }
         }
@@ -246,7 +247,7 @@ pub(super) async fn handle_relationship_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get social network"),
                 )),
             }
         }
@@ -282,7 +283,7 @@ pub(super) async fn handle_relationship_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create relationship"),
                 )),
             }
         }
@@ -312,7 +313,7 @@ pub(super) async fn handle_relationship_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete relationship"),
                 )),
             }
         }
@@ -343,7 +344,7 @@ pub(super) async fn handle_observation_request(
                 Ok(observations) => Ok(ResponseResult::success(serde_json::json!(observations))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list observations"),
                 )),
             }
         }
@@ -399,7 +400,7 @@ pub(super) async fn handle_observation_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create observation"),
                 )),
             }
         }
@@ -429,7 +430,7 @@ pub(super) async fn handle_observation_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete observation"),
                 )),
             }
         }

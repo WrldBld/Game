@@ -1,4 +1,5 @@
 use super::*;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 
 pub(super) async fn handle_player_action(
     state: &WsState,
@@ -58,12 +59,16 @@ pub(super) async fn handle_player_action(
             ))
         }
         Err(crate::use_cases::player_action::PlayerActionError::Conversation(e)) => {
-            tracing::error!(error = %e, "Failed to start conversation");
-            return Some(error_response("CONVERSATION_ERROR", &e.to_string()));
+            return Some(error_response(
+                "CONVERSATION_ERROR",
+                &sanitize_repo_error(&e, "starting conversation"),
+            ));
         }
         Err(crate::use_cases::player_action::PlayerActionError::Queue(e)) => {
-            tracing::error!(error = %e, "Failed to enqueue player action");
-            return Some(error_response("QUEUE_ERROR", &e));
+            return Some(error_response(
+                "QUEUE_ERROR",
+                &sanitize_repo_error(&e, "enqueuing player action"),
+            ));
         }
     };
 

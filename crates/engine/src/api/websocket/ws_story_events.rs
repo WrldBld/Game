@@ -1,6 +1,7 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 
 use wrldbldr_protocol::StoryEventRequest;
 
@@ -29,7 +30,7 @@ pub(super) async fn handle_story_event_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "getting story event"),
                 )),
             }
         }
@@ -59,7 +60,7 @@ pub(super) async fn handle_story_event_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "updating story event"),
                 )),
             }
         }
@@ -88,7 +89,7 @@ pub(super) async fn handle_story_event_request(
                 Ok(events) => Ok(ResponseResult::success(events)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "listing story events"),
                 )),
             }
         }
@@ -116,7 +117,7 @@ pub(super) async fn handle_story_event_request(
                 }))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "creating DM marker"),
                 )),
             }
         }
@@ -146,7 +147,7 @@ pub(super) async fn handle_story_event_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "setting story event visibility"),
                 )),
             }
         }

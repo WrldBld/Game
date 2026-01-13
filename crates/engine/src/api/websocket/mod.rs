@@ -1884,7 +1884,7 @@ mod ws_integration_tests_inline {
         let now = chrono::Utc::now();
 
         let world_id = WorldId::new();
-        let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+        let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
         world.id = world_id;
 
         // World repo mock: always returns the same world and accepts saves.
@@ -2029,7 +2029,7 @@ mod ws_integration_tests_inline {
         let hidden_npc_id = CharacterId::new();
 
         // World (manual time, so movement doesn't generate time suggestions).
-        let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+        let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
         world.id = world_id;
         world.set_time_mode(TimeMode::Manual, now);
 
@@ -2038,7 +2038,8 @@ mod ws_integration_tests_inline {
             world_id,
             "Test Location",
             wrldbldr_domain::LocationType::Exterior,
-        );
+        )
+        .expect("valid location");
         location.id = location_id;
 
         let mut region = wrldbldr_domain::Region::new(location_id, "Unstaged Region");
@@ -2050,10 +2051,12 @@ mod ws_integration_tests_inline {
         pc.current_region_id = None; // initial spawn; skip connection validation
 
         let mut visible_npc =
-            wrldbldr_domain::Character::new(world_id, "Visible NPC", CampbellArchetype::Hero);
+            wrldbldr_domain::Character::new(world_id, "Visible NPC", CampbellArchetype::Hero)
+                .expect("valid character");
         visible_npc.id = visible_npc_id;
         let mut hidden_npc =
-            wrldbldr_domain::Character::new(world_id, "Hidden NPC", CampbellArchetype::Herald);
+            wrldbldr_domain::Character::new(world_id, "Hidden NPC", CampbellArchetype::Herald)
+                .expect("valid character");
         hidden_npc.id = hidden_npc_id;
 
         // World repo: serve the world for both time + visual state resolution.
@@ -2380,7 +2383,7 @@ mod ws_integration_tests_inline {
         let now = chrono::Utc::now();
 
         let world_id = WorldId::new();
-        let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+        let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
         world.id = world_id;
 
         let mut world_repo = MockWorldRepo::new();
@@ -2533,7 +2536,7 @@ mod ws_integration_tests_inline {
         let now = chrono::Utc::now();
 
         let world_id = WorldId::new();
-        let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+        let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
         world.id = world_id;
 
         let mut world_repo = MockWorldRepo::new();
@@ -2660,7 +2663,7 @@ mod ws_integration_tests_inline {
         let now = chrono::Utc::now();
 
         let world_id = WorldId::new();
-        let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+        let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
         world.id = world_id;
 
         let mut world_repo = MockWorldRepo::new();
@@ -2821,7 +2824,7 @@ mod ws_integration_tests_inline {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+        let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
         world.id = world_id;
         world.set_time_mode(TimeMode::Manual, now);
 
@@ -2829,7 +2832,8 @@ mod ws_integration_tests_inline {
             world_id,
             "Test Location",
             wrldbldr_domain::LocationType::Exterior,
-        );
+        )
+        .expect("valid location");
         location.id = location_id;
 
         let mut region = wrldbldr_domain::Region::new(location_id, "Region");
@@ -2840,7 +2844,8 @@ mod ws_integration_tests_inline {
         pc.id = pc_id;
         pc.current_region_id = None;
 
-        let mut npc = wrldbldr_domain::Character::new(world_id, "NPC", CampbellArchetype::Hero);
+        let mut npc = wrldbldr_domain::Character::new(world_id, "NPC", CampbellArchetype::Hero)
+            .expect("valid character");
         npc.id = npc_id;
 
         let mut world_repo = MockWorldRepo::new();
@@ -3127,14 +3132,15 @@ mod ws_integration_tests_inline {
         let region_id = RegionId::new();
         let npc_id = CharacterId::new();
 
-        let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
+        let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
         world.id = world_id;
 
         let mut location = wrldbldr_domain::Location::new(
             world_id,
             "Test Location",
             wrldbldr_domain::LocationType::Exterior,
-        );
+        )
+        .expect("valid location");
         location.id = location_id;
 
         let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");

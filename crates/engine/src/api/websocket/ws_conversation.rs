@@ -2,6 +2,8 @@ use super::*;
 use chrono::Utc;
 use wrldbldr_domain::{InteractionTarget, InteractionType, PlayerActionData};
 
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+
 pub(super) async fn handle_start_conversation(
     state: &WsState,
     connection_id: Uuid,
@@ -56,7 +58,7 @@ pub(super) async fn handle_start_conversation(
         Err(crate::use_cases::conversation::ConversationError::NpcNotInRegion) => {
             return Some(error_response("INVALID_TARGET", "NPC is not in this region"))
         }
-        Err(e) => return Some(error_response("CONVERSATION_ERROR", &e.to_string())),
+        Err(e) => return Some(error_response("CONVERSATION_ERROR", &sanitize_repo_error(&e, "start conversation"))),
     };
 
     broadcast_action_queued(
@@ -144,7 +146,7 @@ pub(super) async fn handle_continue_conversation(
         Err(crate::use_cases::conversation::ConversationError::WorldNotFound) => {
             return Some(error_response("NOT_FOUND", "World not found"))
         }
-        Err(e) => return Some(error_response("CONVERSATION_ERROR", &e.to_string())),
+        Err(e) => return Some(error_response("CONVERSATION_ERROR", &sanitize_repo_error(&e, "continue conversation"))),
     };
 
     broadcast_action_queued(
@@ -196,7 +198,7 @@ pub(super) async fn handle_perform_interaction(
     let interaction = match state.app.entities.interaction.get(interaction_uuid).await {
         Ok(Some(interaction)) => interaction,
         Ok(None) => return Some(error_response("NOT_FOUND", "Interaction not found")),
-        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
+        Err(e) => return Some(error_response("REPO_ERROR", &sanitize_repo_error(&e, "fetch interaction"))),
     };
 
     if matches!(interaction.interaction_type, InteractionType::Dialogue) {
@@ -225,7 +227,7 @@ pub(super) async fn handle_perform_interaction(
             .await
         {
             Ok(result) => result,
-            Err(e) => return Some(error_response("CONVERSATION_ERROR", &e.to_string())),
+            Err(e) => return Some(error_response("CONVERSATION_ERROR", &sanitize_repo_error(&e, "start conversation from interaction"))),
         };
 
         broadcast_action_queued(
@@ -262,7 +264,7 @@ pub(super) async fn handle_perform_interaction(
 
     let action_id = match state.app.queue.enqueue_player_action(&action_data).await {
         Ok(id) => id,
-        Err(e) => return Some(error_response("QUEUE_ERROR", &e.to_string())),
+        Err(e) => return Some(error_response("QUEUE_ERROR", &sanitize_repo_error(&e, "enqueue player action"))),
     };
 
     let queue_depth = state

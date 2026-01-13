@@ -275,7 +275,8 @@ mod tests {
         pc.id = pc_id;
 
         let npc = {
-            let mut c = Character::new(world_id, "TestNPC", CampbellArchetype::Mentor);
+            let mut c = Character::new(world_id, "TestNPC", CampbellArchetype::Mentor)
+                .expect("valid character");
             c.id = npc_id;
             c
         };
@@ -334,7 +335,8 @@ mod tests {
         pc.id = pc_id;
 
         let npc = {
-            let mut c = Character::new(world_id, "TestNPC", CampbellArchetype::Mentor);
+            let mut c = Character::new(world_id, "TestNPC", CampbellArchetype::Mentor)
+                .expect("valid character");
             c.id = npc_id;
             c
         };
@@ -389,7 +391,8 @@ mod tests {
         pc.id = pc_id;
 
         let npc = {
-            let mut c = Character::new(world_id, "TestNPC", CampbellArchetype::Mentor);
+            let mut c = Character::new(world_id, "TestNPC", CampbellArchetype::Mentor)
+                .expect("valid character");
             c.id = npc_id;
             c
         };

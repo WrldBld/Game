@@ -1,4 +1,5 @@
 use super::*;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 
 /// Maximum allowed TTL in hours (1 year).
 const MAX_TTL_HOURS: i32 = 8760;
@@ -95,7 +96,12 @@ pub(super) async fn handle_staging_approval(
         .collect::<Result<Vec<_>, _>>()
     {
         Ok(npcs) => npcs,
-        Err(e) => return Some(error_response("VALIDATION_ERROR", &e.to_string())),
+        Err(e) => {
+            return Some(error_response(
+                "VALIDATION_ERROR",
+                &sanitize_repo_error(&e, "validating approved NPCs"),
+            ))
+        }
     };
 
     let input = crate::use_cases::staging::ApproveStagingInput {
@@ -118,7 +124,12 @@ pub(super) async fn handle_staging_approval(
         Err(crate::use_cases::staging::StagingError::WorldNotFound) => {
             return Some(error_response("NOT_FOUND", "World not found"))
         }
-        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
+        Err(e) => {
+            return Some(error_response(
+                "REPO_ERROR",
+                &sanitize_repo_error(&e, "approving staging"),
+            ))
+        }
     };
 
     // Convert domain types to protocol types for the response
@@ -194,7 +205,12 @@ pub(super) async fn handle_staging_regenerate(
         Err(crate::use_cases::staging::StagingError::RegionNotFound) => {
             return Some(error_response("NOT_FOUND", "Region not found"))
         }
-        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
+        Err(e) => {
+            return Some(error_response(
+                "REPO_ERROR",
+                &sanitize_repo_error(&e, "regenerating staging"),
+            ))
+        }
     };
 
     // Convert domain types to protocol types for the response
@@ -257,7 +273,12 @@ pub(super) async fn handle_pre_stage_region(
         .collect::<Result<Vec<_>, _>>()
     {
         Ok(npcs) => npcs,
-        Err(e) => return Some(error_response("VALIDATION_ERROR", &e.to_string())),
+        Err(e) => {
+            return Some(error_response(
+                "VALIDATION_ERROR",
+                &sanitize_repo_error(&e, "validating pre-staged NPCs"),
+            ))
+        }
     };
 
     let input = crate::use_cases::staging::ApproveStagingInput {
@@ -280,7 +301,7 @@ pub(super) async fn handle_pre_stage_region(
             crate::use_cases::staging::StagingError::WorldNotFound => {
                 error_response("NOT_FOUND", "World not found")
             }
-            _ => error_response("REPO_ERROR", &e.to_string()),
+            _ => error_response("REPO_ERROR", &sanitize_repo_error(&e, "pre-staging region")),
         });
     }
 

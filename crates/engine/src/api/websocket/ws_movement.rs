@@ -1,4 +1,5 @@
 use super::*;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::use_cases::movement::scene_change::{
     NavigationExitInfo, NavigationInfo, NavigationTargetInfo, NpcPresenceInfo, RegionInfo,
     RegionItemInfo,
@@ -186,7 +187,7 @@ pub(super) async fn handle_move_to_region(
 
                             None
                         }
-                        Err(e) => Some(error_response("STAGING_ERROR", &e.to_string())),
+                        Err(e) => Some(error_response("STAGING_ERROR", &sanitize_repo_error(&e, "process staging"))),
                     }
                 }
                 StagingStatus::Ready => {
@@ -202,7 +203,7 @@ pub(super) async fn handle_move_to_region(
                     {
                         Ok(sc) => sc,
                         Err(e) => {
-                            return Some(error_response("SCENE_BUILD_ERROR", &e.to_string()));
+                            return Some(error_response("SCENE_BUILD_ERROR", &sanitize_repo_error(&e, "build scene")));
                         }
                     };
 
@@ -250,7 +251,7 @@ pub(super) async fn handle_move_to_region(
         Err(EnterRegionError::MovementBlocked(reason)) => {
             Some(ServerMessage::MovementBlocked { pc_id, reason })
         }
-        Err(e) => Some(error_response("MOVE_ERROR", &e.to_string())),
+        Err(e) => Some(error_response("MOVE_ERROR", &sanitize_repo_error(&e, "move to region"))),
     }
 }
 
@@ -353,7 +354,7 @@ pub(super) async fn handle_exit_to_location(
 
                             None
                         }
-                        Err(e) => Some(error_response("STAGING_ERROR", &e.to_string())),
+                        Err(e) => Some(error_response("STAGING_ERROR", &sanitize_repo_error(&e, "process staging"))),
                     }
                 }
                 StagingStatus::Ready => {
@@ -369,7 +370,7 @@ pub(super) async fn handle_exit_to_location(
                     {
                         Ok(sc) => sc,
                         Err(e) => {
-                            return Some(error_response("SCENE_BUILD_ERROR", &e.to_string()));
+                            return Some(error_response("SCENE_BUILD_ERROR", &sanitize_repo_error(&e, "build scene")));
                         }
                     };
 
@@ -417,7 +418,7 @@ pub(super) async fn handle_exit_to_location(
         Err(crate::use_cases::movement::ExitLocationError::WorldNotFound) => {
             Some(error_response("NOT_FOUND", "World not found"))
         }
-        Err(e) => Some(error_response("MOVE_ERROR", &e.to_string())),
+        Err(e) => Some(error_response("MOVE_ERROR", &sanitize_repo_error(&e, "exit to location"))),
     }
 }
 

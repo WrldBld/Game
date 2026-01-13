@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+
 #[derive(Debug)]
 pub(super) enum InventoryAction {
     Equip,
@@ -90,8 +92,13 @@ pub(super) async fn handle_inventory_action(
             }),
         },
         Err(e) => {
-            tracing::error!(error = %e, action = ?action, "Inventory action failed");
-            Some(error_response("INVENTORY_ERROR", &e.to_string()))
+            let action_desc = match action {
+                InventoryAction::Equip => "equip item",
+                InventoryAction::Unequip => "unequip item",
+                InventoryAction::Drop => "drop item",
+                InventoryAction::Pickup => "pickup item",
+            };
+            Some(error_response("INVENTORY_ERROR", &sanitize_repo_error(&e, action_desc)))
         }
     }
 }

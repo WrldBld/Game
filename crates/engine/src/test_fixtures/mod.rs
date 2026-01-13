@@ -128,7 +128,8 @@ pub mod worlds {
             "The Realm of Shadows",
             "A classic fantasy world for testing D&D 5e mechanics.",
             Utc::now(),
-        );
+        )
+        .expect("valid world");
         world.rule_system = RuleSystemConfig::dnd_5e();
         world.id = wrldbldr_domain::WorldId::from(
             uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),

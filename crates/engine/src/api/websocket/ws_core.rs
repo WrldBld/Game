@@ -496,7 +496,7 @@ pub(super) async fn handle_character_request(
                         .await
                         .map_err(|e| ServerMessage::Response {
                             request_id: request_id.to_string(),
-                            result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                            result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "retrieve character inventory")),
                         })?
                 }
             };
@@ -582,7 +582,7 @@ pub(super) async fn handle_time_request(
                 Err(e) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                        result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "advance game time")),
                     });
                 }
             };
@@ -644,7 +644,7 @@ pub(super) async fn handle_time_request(
                 Err(e) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                        result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "advance game minutes")),
                     });
                 }
             };
@@ -708,7 +708,7 @@ pub(super) async fn handle_time_request(
                 Err(e) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                        result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "set game time")),
                     });
                 }
             };
@@ -786,7 +786,7 @@ pub(super) async fn handle_time_request(
                 Err(e) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                        result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "skip to period")),
                     });
                 }
             };
@@ -852,7 +852,7 @@ pub(super) async fn handle_time_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "pause game"),
                 )),
             }
         }
@@ -886,7 +886,7 @@ pub(super) async fn handle_time_request(
                 Err(e) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, e.to_string()),
+                        result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "update time config")),
                     });
                 }
             };
