@@ -2,7 +2,7 @@
 //!
 //! Handles the WebSocket protocol between Engine and Player clients.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use axum::{
     extract::{
@@ -52,10 +52,20 @@ use wrldbldr_protocol::{
 
 use super::connections::ConnectionManager;
 use crate::app::App;
+use crate::infrastructure::cache::TtlCache;
 use crate::use_cases::staging::PendingStagingRequest;
 
 /// Buffer size for per-connection message channel.
 const CONNECTION_CHANNEL_BUFFER: usize = 256;
+
+/// TTL for pending staging requests (1 hour).
+const STAGING_REQUEST_TTL: Duration = Duration::from_secs(60 * 60);
+
+/// TTL for time suggestions (30 minutes).
+const TIME_SUGGESTION_TTL: Duration = Duration::from_secs(30 * 60);
+
+/// TTL for generation read state (5 minutes).
+const GENERATION_STATE_TTL: Duration = Duration::from_secs(5 * 60);
 
 /// Combined state for WebSocket handlers.
 pub struct WsState {
@@ -63,34 +73,59 @@ pub struct WsState {
     pub connections: Arc<ConnectionManager>,
     pub pending_time_suggestions: TimeSuggestionStoreImpl,
     pub pending_staging_requests: PendingStagingStoreImpl,
-    pub generation_read_state:
-        tokio::sync::RwLock<HashMap<String, ws_creator::GenerationReadState>>,
+    pub generation_read_state: GenerationStateStoreImpl,
+}
+
+impl WsState {
+    /// Cleanup expired entries from all TTL caches.
+    /// Returns total number of entries removed.
+    pub async fn cleanup_expired(&self) -> usize {
+        let staging = self.pending_staging_requests.cleanup_expired().await;
+        let time = self.pending_time_suggestions.cleanup_expired().await;
+        let generation = self.generation_read_state.cleanup_expired().await;
+        staging + time + generation
+    }
 }
 
 // =============================================================================
-// Store Implementations
+// Store Implementations (TTL-based)
 // =============================================================================
 
-/// RwLock-based implementation of PendingStagingStore.
+/// TTL-based implementation of PendingStagingStore (1 hour TTL).
 pub struct PendingStagingStoreImpl {
-    inner: tokio::sync::RwLock<HashMap<String, PendingStagingRequest>>,
+    inner: TtlCache<String, PendingStagingRequest>,
 }
 
 impl PendingStagingStoreImpl {
     pub fn new() -> Self {
         Self {
-            inner: tokio::sync::RwLock::new(HashMap::new()),
+            inner: TtlCache::new(STAGING_REQUEST_TTL),
         }
     }
 
-    /// Read access for handlers that need to query the store.
-    pub async fn read(&self) -> tokio::sync::RwLockReadGuard<'_, HashMap<String, PendingStagingRequest>> {
-        self.inner.read().await
+    /// Get a pending request by key.
+    pub async fn get(&self, key: &str) -> Option<PendingStagingRequest> {
+        self.inner.get(&key.to_string()).await
     }
 
-    /// Write access for handlers that need to modify the store.
-    pub async fn write(&self) -> tokio::sync::RwLockWriteGuard<'_, HashMap<String, PendingStagingRequest>> {
-        self.inner.write().await
+    /// Remove and return a pending request.
+    pub async fn remove(&self, key: &str) -> Option<PendingStagingRequest> {
+        self.inner.remove(&key.to_string()).await
+    }
+
+    /// Check if a key exists.
+    pub async fn contains(&self, key: &str) -> bool {
+        self.inner.contains(&key.to_string()).await
+    }
+
+    /// Get all non-expired entries.
+    pub async fn entries(&self) -> Vec<(String, PendingStagingRequest)> {
+        self.inner.entries().await
+    }
+
+    /// Remove expired entries and return count.
+    pub async fn cleanup_expired(&self) -> usize {
+        self.inner.cleanup_expired().await
     }
 }
 
@@ -103,38 +138,60 @@ impl Default for PendingStagingStoreImpl {
 #[async_trait::async_trait]
 impl crate::use_cases::staging::PendingStagingStore for PendingStagingStoreImpl {
     async fn insert(&self, key: String, request: PendingStagingRequest) {
-        self.inner.write().await.insert(key, request);
+        self.inner.insert(key, request).await;
     }
 
     async fn get(&self, key: &str) -> Option<PendingStagingRequest> {
-        self.inner.read().await.get(key).cloned()
+        self.inner.get(&key.to_string()).await
     }
 
     async fn remove(&self, key: &str) -> Option<PendingStagingRequest> {
-        self.inner.write().await.remove(key)
+        self.inner.remove(&key.to_string()).await
     }
 }
 
-/// RwLock-based implementation of TimeSuggestionStore.
+/// TTL-based implementation of TimeSuggestionStore (30 minute TTL).
 pub struct TimeSuggestionStoreImpl {
-    inner: tokio::sync::RwLock<HashMap<Uuid, crate::use_cases::time::TimeSuggestion>>,
+    inner: TtlCache<Uuid, crate::use_cases::time::TimeSuggestion>,
 }
 
 impl TimeSuggestionStoreImpl {
     pub fn new() -> Self {
         Self {
-            inner: tokio::sync::RwLock::new(HashMap::new()),
+            inner: TtlCache::new(TIME_SUGGESTION_TTL),
         }
     }
 
-    /// Read access for handlers that need to query the store.
-    pub async fn read(&self) -> tokio::sync::RwLockReadGuard<'_, HashMap<Uuid, crate::use_cases::time::TimeSuggestion>> {
-        self.inner.read().await
+    /// Insert a time suggestion.
+    pub async fn insert(&self, key: Uuid, suggestion: crate::use_cases::time::TimeSuggestion) {
+        self.inner.insert(key, suggestion).await;
     }
 
-    /// Write access for handlers that need to modify the store.
-    pub async fn write(&self) -> tokio::sync::RwLockWriteGuard<'_, HashMap<Uuid, crate::use_cases::time::TimeSuggestion>> {
-        self.inner.write().await
+    /// Get a time suggestion by key.
+    pub async fn get(&self, key: &Uuid) -> Option<crate::use_cases::time::TimeSuggestion> {
+        self.inner.get(key).await
+    }
+
+    /// Remove and return a time suggestion.
+    pub async fn remove(&self, key: &Uuid) -> Option<crate::use_cases::time::TimeSuggestion> {
+        self.inner.remove(key).await
+    }
+
+    /// Remove all suggestions for a given PC.
+    /// This prevents unbounded growth when a player performs multiple actions
+    /// before the DM resolves the first suggestion.
+    pub async fn remove_for_pc(&self, pc_id: wrldbldr_domain::PlayerCharacterId) {
+        let entries = self.inner.entries().await;
+        for (key, suggestion) in entries {
+            if suggestion.pc_id == pc_id {
+                self.inner.remove(&key).await;
+            }
+        }
+    }
+
+    /// Remove expired entries and return count.
+    pub async fn cleanup_expired(&self) -> usize {
+        self.inner.cleanup_expired().await
     }
 }
 
@@ -147,11 +204,50 @@ impl Default for TimeSuggestionStoreImpl {
 #[async_trait::async_trait]
 impl crate::use_cases::staging::TimeSuggestionStore for TimeSuggestionStoreImpl {
     async fn insert(&self, key: Uuid, suggestion: crate::use_cases::time::TimeSuggestion) {
-        self.inner.write().await.insert(key, suggestion);
+        self.inner.insert(key, suggestion).await;
     }
 
     async fn remove(&self, key: Uuid) -> Option<crate::use_cases::time::TimeSuggestion> {
-        self.inner.write().await.remove(&key)
+        self.inner.remove(&key).await
+    }
+}
+
+/// TTL-based store for generation read state (5 minute TTL).
+pub struct GenerationStateStoreImpl {
+    inner: TtlCache<String, ws_creator::GenerationReadState>,
+}
+
+impl GenerationStateStoreImpl {
+    pub fn new() -> Self {
+        Self {
+            inner: TtlCache::new(GENERATION_STATE_TTL),
+        }
+    }
+
+    /// Get generation state by key.
+    pub async fn get(&self, key: &str) -> Option<ws_creator::GenerationReadState> {
+        self.inner.get(&key.to_string()).await
+    }
+
+    /// Insert or update generation state.
+    pub async fn insert(&self, key: String, state: ws_creator::GenerationReadState) {
+        self.inner.insert(key, state).await;
+    }
+
+    /// Remove and return generation state.
+    pub async fn remove(&self, key: &str) -> Option<ws_creator::GenerationReadState> {
+        self.inner.remove(&key.to_string()).await
+    }
+
+    /// Remove expired entries and return count.
+    pub async fn cleanup_expired(&self) -> usize {
+        self.inner.cleanup_expired().await
+    }
+}
+
+impl Default for GenerationStateStoreImpl {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

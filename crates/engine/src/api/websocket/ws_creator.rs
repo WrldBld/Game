@@ -73,10 +73,7 @@ pub(super) async fn handle_generation_request(
             let read_key = format!("{}:{}", effective_user_id, world_uuid);
 
             // Read-through cache: check memory first, then fall back to persisted state.
-            let mut read_state = {
-                let read_map = state.generation_read_state.read().await;
-                read_map.get(&read_key).cloned()
-            };
+            let mut read_state = state.generation_read_state.get(&read_key).await;
 
             if read_state.is_none() {
                 let persisted = state
@@ -97,8 +94,10 @@ pub(super) async fn handle_generation_request(
                 }
 
                 // Populate cache even if empty, to avoid repeated DB reads.
-                let mut map = state.generation_read_state.write().await;
-                map.insert(read_key.clone(), read_state.clone().unwrap_or_default());
+                state
+                    .generation_read_state
+                    .insert(read_key.clone(), read_state.clone().unwrap_or_default())
+                    .await;
             }
 
             let read_state = read_state.unwrap_or_default();
@@ -264,11 +263,16 @@ pub(super) async fn handle_generation_request(
                 })?;
 
             let read_key = format!("{}:{}", conn_info.user_id, world_uuid);
-            let mut map = state.generation_read_state.write().await;
-            let entry = map.entry(read_key).or_default();
+            let mut entry = state
+                .generation_read_state
+                .get(&read_key)
+                .await
+                .unwrap_or_default();
 
             entry.read_batches = read_batches.iter().cloned().collect();
             entry.read_suggestions = read_suggestions.iter().cloned().collect();
+
+            state.generation_read_state.insert(read_key, entry).await;
 
             Ok(ResponseResult::success_empty())
         }

@@ -50,10 +50,7 @@ pub(super) async fn handle_staging_approval(
     }
 
     // request_id is a correlation token; resolve it to a region_id.
-    let pending = {
-        let mut guard = state.pending_staging_requests.write().await;
-        guard.remove(&request_id)
-    };
+    let pending = state.pending_staging_requests.remove(&request_id).await;
 
     let (region_id, location_id) = if let Some(pending) = pending {
         (pending.region_id, Some(pending.location_id))
@@ -148,10 +145,7 @@ pub(super) async fn handle_staging_regenerate(
     }
 
     // request_id is a correlation token; resolve it to a region_id.
-    let pending = {
-        let guard = state.pending_staging_requests.read().await;
-        guard.get(&request_id).cloned()
-    };
+    let pending = state.pending_staging_requests.get(&request_id).await;
 
     let region_id = if let Some(pending) = pending {
         pending.region_id

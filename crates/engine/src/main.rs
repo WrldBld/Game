@@ -18,7 +18,7 @@ mod infrastructure;
 mod use_cases;
 
 use api::{
-    websocket::{PendingStagingStoreImpl, TimeSuggestionStoreImpl, WsState},
+    websocket::{GenerationStateStoreImpl, PendingStagingStoreImpl, TimeSuggestionStoreImpl, WsState},
     ConnectionManager,
 };
 use app::App;
@@ -125,7 +125,7 @@ async fn main() -> anyhow::Result<()> {
         connections,
         pending_time_suggestions: TimeSuggestionStoreImpl::new(),
         pending_staging_requests: PendingStagingStoreImpl::new(),
-        generation_read_state: tokio::sync::RwLock::new(std::collections::HashMap::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     // Spawn queue processor
@@ -327,13 +327,7 @@ async fn main() -> anyhow::Result<()> {
             let now = chrono::Utc::now();
 
             // Collect all pending requests with their world IDs
-            let pending_requests: Vec<(String, use_cases::staging::PendingStagingRequest)> = {
-                let guard = staging_ws_state.pending_staging_requests.read().await;
-                guard
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect()
-            };
+            let pending_requests = staging_ws_state.pending_staging_requests.entries().await;
 
             // Process each pending request, checking world-specific settings
             for (request_id, pending) in pending_requests {
@@ -372,10 +366,11 @@ async fn main() -> anyhow::Result<()> {
 
                 // Request has expired - atomically remove from pending
                 // Only process if we successfully removed it (prevents double processing)
-                let was_removed = {
-                    let mut guard = staging_ws_state.pending_staging_requests.write().await;
-                    guard.remove(&request_id).is_some()
-                };
+                let was_removed = staging_ws_state
+                    .pending_staging_requests
+                    .remove(&request_id)
+                    .await
+                    .is_some();
 
                 if !was_removed {
                     // Another task (e.g., manual DM approval) already handled this request

@@ -379,14 +379,17 @@ async fn maybe_broadcast_time_suggestion(
         let msg = ServerMessage::TimeSuggestion {
             data: suggestion.to_protocol(),
         };
-        {
-            let mut guard = state.pending_time_suggestions.write().await;
-            // Remove any existing suggestion for the same PC to prevent unbounded growth.
-            // This handles the case where a player performs multiple actions before
-            // the DM resolves the first suggestion.
-            guard.retain(|_, existing| existing.pc_id != suggestion.pc_id);
-            guard.insert(suggestion.id, suggestion.clone());
-        }
+        // Remove any existing suggestion for the same PC to prevent unbounded growth.
+        // This handles the case where a player performs multiple actions before
+        // the DM resolves the first suggestion.
+        state
+            .pending_time_suggestions
+            .remove_for_pc(suggestion.pc_id)
+            .await;
+        state
+            .pending_time_suggestions
+            .insert(suggestion.id, suggestion.clone())
+            .await;
         state.connections.broadcast_to_dms(world_id, msg).await;
     }
 }
