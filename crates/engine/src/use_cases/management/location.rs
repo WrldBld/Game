@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{LocationId, RegionId, WorldId};
 
-use crate::use_cases::location_operations::Location;
+use crate::entities::location::Location;
 
 use super::ManagementError;
 

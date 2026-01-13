@@ -10,7 +10,7 @@ use wrldbldr_domain::{
 };
 
 use crate::entities::Goal;
-use crate::use_cases::character_operations::Character;
+use crate::entities::character::Character;
 use crate::infrastructure::ports::{
     ActantialViewRecord, ClockPort, GoalDetails, RepoError, WantDetails, WantTargetRef,
 };

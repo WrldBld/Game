@@ -63,33 +63,33 @@ Only infrastructure that might realistically be swapped:
 
 ```
 engine/src/
-  entities/           # Entity operations (one file per domain entity)
-    character.rs      # Character operations
-    player_character.rs # Player character operations
-    location.rs       # Location/region operations
+  entities/           # Repository facades (1-2 repo deps MAX, CRUD + simple queries only)
+    character.rs      # Character CRUD operations
+    player_character.rs # Player character CRUD
+    location.rs       # Location/region CRUD
     location_state.rs # Location state tracking
     region_state.rs   # Region state tracking
-    scene.rs          # Scene management
+    scene.rs          # Scene CRUD
     challenge.rs      # Challenge/dice operations
-    narrative.rs      # Events, triggers, chains
-    staging.rs        # NPC presence
+    narrative.rs      # Narrative CRUD (events, triggers)
+    staging.rs        # NPC presence CRUD
     observation.rs    # Player knowledge
-    inventory.rs      # Items
+    inventory.rs      # Item CRUD
     goal.rs           # Goals (actantial targets)
     act.rs            # Actantial acts
-    assets.rs         # Asset generation
-    world.rs          # World operations
+    assets.rs         # Asset operations
+    world.rs          # World CRUD
     settings.rs       # Global/world settings
     lore.rs           # Lore entries
     skill.rs          # Skill definitions
     flag.rs           # Game flags
     interaction.rs    # Interaction records
 
-  use_cases/          # User story orchestration
+  use_cases/          # Multi-entity orchestration (coordinates entities, NOT repos directly)
     movement/         # Player movement (enter_region, exit_location, scene_change)
     conversation/     # NPC dialogue (start, continue, end)
     challenge/        # Challenge flows
-    narrative/        # Narrative events, chains, decisions, effects
+    narrative/        # Narrative orchestration (trigger evaluation, effect execution)
     approval/         # DM approval flows
     staging/          # NPC staging flows
     session/          # Session management (join_world, directorial)
@@ -105,6 +105,7 @@ engine/src/
     npc/              # NPC behavior
     story_events/     # Story event handling
     location_events/  # Location-based events
+    scene/            # Scene resolution logic
 
   infrastructure/     # External dependencies
     ports.rs          # All port trait definitions (~10 traits)
@@ -169,22 +170,35 @@ impl Character {
 }
 ```
 
-### Entities vs Use Cases (Avoiding Duplicate Code)
+### Entities vs Use Cases (Classification Rules)
 
 **Entity modules** (`entities/`) wrap repository ports and provide direct domain operations. They are the single source of truth for interacting with domain data.
 
 **Use cases** (`use_cases/`) orchestrate across multiple entities to fulfill user stories. They should **never duplicate** entity functionality.
+
+#### Classification Criteria
+
+| Criteria | Layer | Example |
+|----------|-------|---------|
+| 1-2 repo dependencies | `entities/` | `Character` (1 repo) |
+| 3+ entity dependencies | `use_cases/` | `EnterRegion` (3+ entities) |
+| <300 lines, pure CRUD | `entities/` | `Staging` (218 lines) |
+| >300 lines, complex logic | `use_cases/` (or split) | `TriggerEvaluator` |
+| Coordinates multiple entities | `use_cases/` | `Movement` flow |
+
+#### Layer Rules
 
 | Layer | Purpose | Example |
 |-------|---------|---------|
 | Entity | Direct domain operations | `inventory.get_pc_inventory(pc_id)` |
 | Use Case | Multi-entity orchestration | `EnterRegion` (updates position + triggers events + resolves staging) |
 
-**Rules to prevent duplication:**
+#### Rules to Prevent Duplication
 
 1. **Don't wrap entities in use cases** - If a use case just calls through to an entity, delete the use case
 2. **Access entities directly when appropriate** - Handlers can call `app.entities.inventory` for simple operations
 3. **Use cases are for orchestration** - Only create use cases when coordinating multiple entities
+4. **No `*_operations.rs` in use_cases/** - Files named `*_operations.rs` belong in `entities/`
 
 **Example - Settings access:**
 ```rust

@@ -25,7 +25,7 @@ pub struct App {
 
 /// Container for all entity modules.
 pub struct Entities {
-    pub character: Arc<use_cases::Character>,
+    pub character: Arc<entities::Character>,
     pub player_character: Arc<entities::PlayerCharacter>,
     pub location: Arc<use_cases::Location>,
     pub scene: Arc<use_cases::Scene>,
@@ -34,9 +34,9 @@ pub struct Entities {
     pub interaction: Arc<entities::Interaction>,
     pub challenge: Arc<entities::Challenge>,
     pub narrative: Arc<use_cases::Narrative>,
-    pub staging: Arc<use_cases::Staging>,
+    pub staging: Arc<entities::Staging>,
     pub observation: Arc<entities::Observation>,
-    pub inventory: Arc<use_cases::Inventory>,
+    pub inventory: Arc<entities::Inventory>,
     pub assets: Arc<entities::Assets>,
     pub world: Arc<entities::World>,
     pub flag: Arc<entities::Flag>,
@@ -89,7 +89,7 @@ impl App {
         let queue_port: Arc<dyn QueuePort> = queue.clone();
 
         // Create entity modules
-        let character = Arc::new(use_cases::Character::new(repos.character.clone()));
+        let character = Arc::new(entities::Character::new(repos.character.clone()));
         let player_character = Arc::new(entities::PlayerCharacter::new(
             repos.player_character.clone(),
         ));
@@ -111,13 +111,13 @@ impl App {
             repos.scene.clone(),
             clock.clone(),
         ));
-        let staging = Arc::new(use_cases::Staging::new(repos.staging.clone()));
+        let staging = Arc::new(entities::Staging::new(repos.staging.clone()));
         let observation = Arc::new(entities::Observation::new(
             repos.observation.clone(),
             repos.location.clone(),
             clock.clone(),
         ));
-        let inventory = Arc::new(use_cases::Inventory::new(
+        let inventory = Arc::new(entities::Inventory::new(
             repos.item.clone(),
             repos.character.clone(),
             repos.player_character.clone(),

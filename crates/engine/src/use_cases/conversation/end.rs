@@ -9,7 +9,7 @@ use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 
 use crate::entities::PlayerCharacter;
-use crate::use_cases::character_operations::Character;
+use crate::entities::character::Character;
 use crate::use_cases::narrative_operations::Narrative;
 use crate::infrastructure::ports::RepoError;
 
@@ -168,7 +168,8 @@ mod tests {
         MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
         MockWorldRepo,
     };
-    use crate::use_cases::{Character as CharacterOp, Narrative};
+    use crate::entities::Character as CharacterOp;
+    use crate::use_cases::Narrative;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 

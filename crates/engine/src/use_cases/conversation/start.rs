@@ -9,9 +9,9 @@ use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerActionData, PlayerCharacterId, WorldId};
 
 use crate::entities::{PlayerCharacter, World};
-use crate::use_cases::character_operations::Character;
-use crate::use_cases::scene_operations::Scene;
-use crate::use_cases::staging_operations::Staging;
+use crate::entities::character::Character;
+use crate::entities::scene::Scene;
+use crate::entities::staging::Staging;
 use crate::infrastructure::ports::{ClockPort, QueuePort, RepoError};
 
 /// Result of starting a conversation.
@@ -212,7 +212,7 @@ mod tests {
         ClockPort, MockCharacterRepo, MockPlayerCharacterRepo, MockSceneRepo, MockStagingRepo,
         MockWorldRepo, QueueError, QueueItem, QueuePort,
     };
-    use crate::use_cases::{Character as CharacterOp, Scene as SceneOp, Staging as StagingOp};
+    use crate::entities::{Character as CharacterOp, Scene as SceneOp, Staging as StagingOp};
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 

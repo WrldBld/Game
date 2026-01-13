@@ -25,9 +25,8 @@ pub use crud::{
     ChallengeError as ChallengeCrudError, ChallengeOps, CreateChallengeInput, UpdateChallengeInput,
 };
 
-use crate::entities::{Challenge, Observation, PlayerCharacter};
-use crate::use_cases::inventory_operations::Inventory;
-use crate::use_cases::scene_operations::Scene;
+use crate::entities::{Challenge, Inventory, Observation, PlayerCharacter};
+use crate::entities::scene::Scene;
 use crate::infrastructure::ports::{ClockPort, QueuePort, RandomPort, RepoError};
 
 /// Container for challenge use cases.
@@ -797,7 +796,8 @@ mod tests {
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockItemRepo, MockLocationRepo,
         MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
     };
-    use crate::use_cases::{Inventory, Scene};
+    use crate::entities::Inventory;
+    use crate::use_cases::Scene;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{CharacterId, RelationshipId, WorldId};
 
-use crate::use_cases::character_operations::Character;
+use crate::entities::character::Character;
 use crate::infrastructure::ports::ClockPort;
 
 use super::ManagementError;

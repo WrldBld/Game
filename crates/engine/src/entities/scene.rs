@@ -1,4 +1,4 @@
-//! Scene entity operations.
+//! Scene entity CRUD and resolution operations.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;

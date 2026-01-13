@@ -7,13 +7,12 @@ use std::sync::Arc;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId};
 
 use crate::entities::{
-    Flag, Observation, PlayerCharacter, World,
+    Flag, Inventory, Observation, PlayerCharacter, World,
 };
-use crate::use_cases::inventory_operations::Inventory;
-use crate::use_cases::location_operations::Location;
+use crate::entities::location::Location;
 use crate::use_cases::narrative_operations::Narrative;
-use crate::use_cases::scene_operations::Scene;
-use crate::use_cases::staging_operations::Staging;
+use crate::entities::scene::Scene;
+use crate::entities::staging::Staging;
 use crate::infrastructure::ports::RepoError;
 use crate::use_cases::time::SuggestTime;
 
@@ -272,9 +271,8 @@ mod tests {
         MockLocationRepo, MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
         MockSceneRepo, MockStagingRepo, MockWorldRepo,
     };
-    use crate::use_cases::{
-        Inventory, Location, Narrative, Scene, Staging as StagingOp,
-    };
+    use crate::entities::{Inventory, Staging as StagingOp};
+    use crate::use_cases::{Location, Narrative, Scene};
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 

@@ -1,4 +1,4 @@
-//! Location entity operations.
+//! Location entity CRUD operations.
 
 use std::sync::Arc;
 use wrldbldr_domain::{

@@ -1,23 +1,39 @@
-//! Narrative entity operations.
+//! Narrative operations with complex trigger evaluation.
+//!
+//! This module handles complex narrative operations that require multiple
+//! repositories, including trigger evaluation and dialogue recording.
+//! For simple CRUD operations, see `entities::narrative::Narrative`.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use wrldbldr_domain::{
-    self as domain, CharacterId, EventChainId, LocationId, NarrativeEventId, NarrativeTriggerType,
+    self as domain, CharacterId, LocationId, NarrativeTriggerType,
     PlayerCharacterId, RegionId, SceneId, StoryEvent, StoryEventId, StoryEventType, TimeContext,
     TriggerContext, WorldId,
 };
 
+use crate::entities::narrative::Narrative as NarrativeEntity;
 use crate::infrastructure::ports::{
     ChallengeRepo, CharacterRepo, ClockPort, FlagRepo, LocationRepo, NarrativeRepo,
     ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo, WorldRepo,
 };
 
-/// Narrative entity operations.
+/// Backward-compatible alias for `NarrativeOps`.
 ///
-/// Handles narrative events, event chains, story events, and triggers.
-pub struct Narrative {
+/// Consumers that import `narrative_operations::Narrative` will continue to work.
+/// New code should prefer importing `NarrativeOps` directly.
+pub type Narrative = NarrativeOps;
+
+/// Narrative operations requiring multiple repositories.
+///
+/// Handles complex operations like trigger evaluation and dialogue recording
+/// that need access to multiple data sources. Uses `entities::Narrative` for
+/// simple CRUD operations.
+pub struct NarrativeOps {
+    /// Entity for CRUD operations
+    entity: Arc<NarrativeEntity>,
+    /// Repo for complex operations that need direct access
     repo: Arc<dyn NarrativeRepo>,
     location_repo: Arc<dyn LocationRepo>,
     world_repo: Arc<dyn WorldRepo>,
@@ -74,7 +90,7 @@ mod trigger_tests {
 
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
 
-        let narrative = super::Narrative::new(
+        let narrative_ops = super::NarrativeOps::new(
             Arc::new(narrative_repo),
             Arc::new(location_repo),
             Arc::new(world_repo),
@@ -87,14 +103,14 @@ mod trigger_tests {
             clock,
         );
 
-        narrative
+        narrative_ops
             .get_triggers_for_region(world_id, region_id)
             .await
             .expect("get_triggers_for_region should succeed");
     }
 }
 
-impl Narrative {
+impl NarrativeOps {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         repo: Arc<dyn NarrativeRepo>,
@@ -108,7 +124,11 @@ impl Narrative {
         scene_repo: Arc<dyn SceneRepo>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
+        // Create the entity for CRUD operations
+        let entity = Arc::new(NarrativeEntity::new(repo.clone()));
+
         Self {
+            entity,
             repo,
             location_repo,
             world_repo,
@@ -122,84 +142,72 @@ impl Narrative {
         }
     }
 
+    /// Get the underlying Narrative entity for CRUD operations.
+    pub fn entity(&self) -> &Arc<NarrativeEntity> {
+        &self.entity
+    }
+
     // =========================================================================
-    // Narrative Events
+    // Delegated CRUD operations (pass-through to entity)
     // =========================================================================
 
     pub async fn get_event(
         &self,
-        id: NarrativeEventId,
+        id: wrldbldr_domain::NarrativeEventId,
     ) -> Result<Option<domain::NarrativeEvent>, RepoError> {
-        self.repo.get_event(id).await
+        self.entity.get_event(id).await
     }
 
     pub async fn save_event(&self, event: &domain::NarrativeEvent) -> Result<(), RepoError> {
-        self.repo.save_event(event).await
+        self.entity.save_event(event).await
     }
 
     pub async fn list_events(
         &self,
         world_id: WorldId,
     ) -> Result<Vec<domain::NarrativeEvent>, RepoError> {
-        self.repo.list_events_for_world(world_id).await
+        self.entity.list_events(world_id).await
     }
 
-    /// Delete a narrative event by ID.
-    ///
-    /// Uses DETACH DELETE to remove all relationships.
-    pub async fn delete_event(&self, id: NarrativeEventId) -> Result<(), RepoError> {
-        self.repo.delete_event(id).await
+    pub async fn delete_event(&self, id: wrldbldr_domain::NarrativeEventId) -> Result<(), RepoError> {
+        self.entity.delete_event(id).await
     }
-
-    // =========================================================================
-    // Event Chains
-    // =========================================================================
 
     pub async fn get_chain(
         &self,
-        id: EventChainId,
+        id: wrldbldr_domain::EventChainId,
     ) -> Result<Option<domain::EventChain>, RepoError> {
-        self.repo.get_chain(id).await
+        self.entity.get_chain(id).await
     }
 
     pub async fn save_chain(&self, chain: &domain::EventChain) -> Result<(), RepoError> {
-        self.repo.save_chain(chain).await
+        self.entity.save_chain(chain).await
     }
 
-    /// Delete an event chain by ID.
-    ///
-    /// Uses DETACH DELETE to remove all relationships.
-    pub async fn delete_chain(&self, id: EventChainId) -> Result<(), RepoError> {
-        self.repo.delete_chain(id).await
+    pub async fn delete_chain(&self, id: wrldbldr_domain::EventChainId) -> Result<(), RepoError> {
+        self.entity.delete_chain(id).await
     }
 
     pub async fn list_chains_for_world(
         &self,
         world_id: WorldId,
     ) -> Result<Vec<domain::EventChain>, RepoError> {
-        self.repo.list_chains_for_world(world_id).await
+        self.entity.list_chains_for_world(world_id).await
     }
-
-    // =========================================================================
-    // Story Events
-    // =========================================================================
 
     pub async fn get_story_event(
         &self,
-        id: StoryEventId,
+        id: wrldbldr_domain::StoryEventId,
     ) -> Result<Option<domain::StoryEvent>, RepoError> {
-        self.repo.get_story_event(id).await
+        self.entity.get_story_event(id).await
     }
 
     pub async fn save_story_event(&self, event: &domain::StoryEvent) -> Result<(), RepoError> {
-        self.repo.save_story_event(event).await
+        self.entity.save_story_event(event).await
     }
 
-    /// Delete a story event by ID.
-    ///
-    /// Uses DETACH DELETE to remove all relationships.
-    pub async fn delete_story_event(&self, id: StoryEventId) -> Result<(), RepoError> {
-        self.repo.delete_story_event(id).await
+    pub async fn delete_story_event(&self, id: wrldbldr_domain::StoryEventId) -> Result<(), RepoError> {
+        self.entity.delete_story_event(id).await
     }
 
     pub async fn list_story_events(
@@ -207,8 +215,73 @@ impl Narrative {
         world_id: WorldId,
         limit: usize,
     ) -> Result<Vec<domain::StoryEvent>, RepoError> {
-        self.repo.list_story_events(world_id, limit).await
+        self.entity.list_story_events(world_id, limit).await
     }
+
+    pub async fn get_dialogues_with_npc(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        limit: usize,
+    ) -> Result<Vec<domain::StoryEvent>, RepoError> {
+        self.entity.get_dialogues_with_npc(pc_id, npc_id, limit).await
+    }
+
+    pub async fn get_conversation_turns(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        limit: usize,
+    ) -> Result<Vec<domain::ConversationTurn>, RepoError> {
+        self.entity.get_conversation_turns(pc_id, npc_id, limit).await
+    }
+
+    pub async fn get_active_conversation_id(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+    ) -> Result<Option<uuid::Uuid>, RepoError> {
+        self.entity.get_active_conversation_id(pc_id, npc_id).await
+    }
+
+    pub async fn is_conversation_active(
+        &self,
+        conversation_id: uuid::Uuid,
+    ) -> Result<bool, RepoError> {
+        self.entity.is_conversation_active(conversation_id).await
+    }
+
+    pub async fn end_conversation(&self, conversation_id: uuid::Uuid) -> Result<bool, RepoError> {
+        self.entity.end_conversation(conversation_id).await
+    }
+
+    pub async fn end_active_conversation(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+    ) -> Result<Option<uuid::Uuid>, RepoError> {
+        self.entity.end_active_conversation(pc_id, npc_id).await
+    }
+
+    pub async fn get_triggers_for_region(
+        &self,
+        world_id: WorldId,
+        region_id: RegionId,
+    ) -> Result<Vec<domain::NarrativeEvent>, RepoError> {
+        self.entity.get_triggers_for_region(world_id, region_id).await
+    }
+
+    pub async fn set_event_active(
+        &self,
+        id: wrldbldr_domain::NarrativeEventId,
+        active: bool,
+    ) -> Result<(), RepoError> {
+        self.entity.set_event_active(id, active).await
+    }
+
+    // =========================================================================
+    // Complex operations (require multiple repos)
+    // =========================================================================
 
     /// Record a dialogue exchange between a PC and NPC.
     ///
@@ -337,112 +410,6 @@ impl Narrative {
         }
 
         Ok(event_id)
-    }
-
-    /// Get dialogue history between a PC and NPC.
-    ///
-    /// Returns DialogueExchange story events in reverse chronological order.
-    pub async fn get_dialogues_with_npc(
-        &self,
-        pc_id: PlayerCharacterId,
-        npc_id: CharacterId,
-        limit: usize,
-    ) -> Result<Vec<domain::StoryEvent>, RepoError> {
-        self.repo.get_dialogues_with_npc(pc_id, npc_id, limit).await
-    }
-
-    /// Get conversation turns for LLM context.
-    ///
-    /// Returns ConversationTurn records from the active conversation between
-    /// PC and NPC, in chronological order (oldest first). These are formatted
-    /// for use in LLM prompts.
-    ///
-    /// # Arguments
-    /// * `pc_id` - The player character ID
-    /// * `npc_id` - The NPC character ID
-    /// * `limit` - Maximum number of turns to return
-    pub async fn get_conversation_turns(
-        &self,
-        pc_id: PlayerCharacterId,
-        npc_id: CharacterId,
-        limit: usize,
-    ) -> Result<Vec<domain::ConversationTurn>, RepoError> {
-        let records = self.repo.get_conversation_turns(pc_id, npc_id, limit).await?;
-
-        // Convert ConversationTurnRecord to ConversationTurn
-        let turns = records
-            .into_iter()
-            .map(|r| domain::ConversationTurn {
-                speaker: r.speaker,
-                text: r.text,
-            })
-            .collect();
-
-        Ok(turns)
-    }
-
-    /// Get the active conversation ID between PC and NPC (if one exists).
-    pub async fn get_active_conversation_id(
-        &self,
-        pc_id: PlayerCharacterId,
-        npc_id: CharacterId,
-    ) -> Result<Option<uuid::Uuid>, RepoError> {
-        self.repo.get_active_conversation_id(pc_id, npc_id).await
-    }
-
-    /// Check if a specific conversation is still active (not ended).
-    ///
-    /// Returns true if the conversation exists and has is_active = true.
-    /// Returns false if the conversation doesn't exist or has been ended.
-    pub async fn is_conversation_active(
-        &self,
-        conversation_id: uuid::Uuid,
-    ) -> Result<bool, RepoError> {
-        self.repo.is_conversation_active(conversation_id).await
-    }
-
-    /// End a conversation by setting is_active = false.
-    ///
-    /// This marks the conversation as ended so it cannot be resumed.
-    /// Returns Ok(true) if the conversation was found and ended,
-    /// Ok(false) if the conversation was not found or already ended.
-    pub async fn end_conversation(&self, conversation_id: uuid::Uuid) -> Result<bool, RepoError> {
-        self.repo.end_conversation(conversation_id).await
-    }
-
-    /// End the active conversation between PC and NPC (if one exists).
-    ///
-    /// Finds the active conversation and marks it as ended.
-    /// Returns the conversation ID if one was ended, None if no active conversation.
-    pub async fn end_active_conversation(
-        &self,
-        pc_id: PlayerCharacterId,
-        npc_id: CharacterId,
-    ) -> Result<Option<uuid::Uuid>, RepoError> {
-        self.repo.end_active_conversation(pc_id, npc_id).await
-    }
-
-    // =========================================================================
-    // Triggers
-    // =========================================================================
-
-    pub async fn get_triggers_for_region(
-        &self,
-        world_id: WorldId,
-        region_id: RegionId,
-    ) -> Result<Vec<domain::NarrativeEvent>, RepoError> {
-        self.repo.get_triggers_for_region(world_id, region_id).await
-    }
-
-    /// Set a narrative event's active status.
-    ///
-    /// Used by EnableEvent/DisableEvent effects.
-    pub async fn set_event_active(
-        &self,
-        id: NarrativeEventId,
-        active: bool,
-    ) -> Result<(), RepoError> {
-        self.repo.set_event_active(id, active).await
     }
 
     /// Get all unique custom trigger descriptions from events in a region.

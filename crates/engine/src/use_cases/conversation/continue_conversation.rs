@@ -9,9 +9,9 @@ use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerActionData, PlayerCharacterId, WorldId};
 
 use crate::entities::{PlayerCharacter, World};
-use crate::use_cases::character_operations::Character;
+use crate::entities::character::Character;
 use crate::use_cases::narrative_operations::Narrative;
-use crate::use_cases::staging_operations::Staging;
+use crate::entities::staging::Staging;
 use crate::infrastructure::ports::{ClockPort, QueuePort};
 
 // Re-use the shared ConversationError from start.rs
@@ -219,7 +219,8 @@ mod tests {
         MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
         MockStagingRepo, MockWorldRepo, QueueError, QueueItem, QueuePort,
     };
-    use crate::use_cases::{Character as CharacterOp, Narrative, Staging as StagingOp};
+    use crate::entities::{Character as CharacterOp, Staging as StagingOp};
+    use crate::use_cases::Narrative;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 

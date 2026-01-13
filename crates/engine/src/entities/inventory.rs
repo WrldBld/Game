@@ -1,4 +1,4 @@
-//! Inventory entity operations.
+//! Inventory entity CRUD operations.
 
 use std::sync::Arc;
 use wrldbldr_domain::{self as domain, CharacterId, ItemId, PlayerCharacterId, RegionId, WorldId};

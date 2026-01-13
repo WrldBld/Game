@@ -5,7 +5,7 @@ use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, LlmRequestData, LlmRequestType, SuggestionContext, WorldId};
 
 use crate::entities::World;
-use crate::use_cases::character_operations::Character;
+use crate::entities::character::Character;
 use crate::infrastructure::ports::{QueueError, QueuePort, RepoError};
 
 /// Actantial role for NPC want relationships (domain representation).

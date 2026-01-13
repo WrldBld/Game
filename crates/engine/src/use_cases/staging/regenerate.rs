@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use wrldbldr_domain::RegionId;
 
-use crate::use_cases::character_operations::Character;
-use crate::use_cases::location_operations::Location;
+use crate::entities::character::Character;
+use crate::entities::location::Location;
 use crate::infrastructure::ports::LlmPort;
 
 use super::suggestions::generate_llm_based_suggestions;

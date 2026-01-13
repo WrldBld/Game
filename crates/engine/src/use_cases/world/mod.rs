@@ -6,9 +6,9 @@ use std::sync::Arc;
 use wrldbldr_domain::WorldId;
 
 use crate::entities::World;
-use crate::use_cases::character_operations::Character;
-use crate::use_cases::inventory_operations::Inventory;
-use crate::use_cases::location_operations::Location;
+use crate::entities::character::Character;
+use crate::entities::inventory::Inventory;
+use crate::entities::location::Location;
 use crate::use_cases::narrative_operations::Narrative;
 use crate::infrastructure::ports::RepoError;
 

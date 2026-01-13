@@ -168,16 +168,27 @@ impl CalculationEngine for Dnd5eSystem {
 
     fn stack_modifiers(&self, modifiers: &[StatModifier]) -> i32 {
         // D&D 5e stacking rules:
-        // - Same-named bonuses don't stack (take highest)
-        // - Different-named bonuses do stack
+        // - Same-named bonuses don't stack (take highest from each source)
+        // - Different-named bonuses do stack (sum across sources)
         // - Penalties always stack
-        // For simplicity, we take the highest active bonus
-        modifiers
-            .iter()
-            .filter(|m| m.active)
-            .map(|m| m.value)
-            .max()
-            .unwrap_or(0)
+        use std::collections::HashMap;
+
+        let mut bonus_by_source: HashMap<&str, i32> = HashMap::new();
+        let mut total_penalty = 0;
+
+        for modifier in modifiers.iter().filter(|m| m.active) {
+            if modifier.value >= 0 {
+                // Bonus - same source doesn't stack, take highest
+                let current = bonus_by_source.entry(&modifier.source).or_insert(0);
+                *current = (*current).max(modifier.value);
+            } else {
+                // Penalty - always stacks
+                total_penalty += modifier.value;
+            }
+        }
+
+        // Sum all bonuses (different sources stack) plus all penalties
+        bonus_by_source.values().sum::<i32>() + total_penalty
     }
 
     fn calculate_ac(
