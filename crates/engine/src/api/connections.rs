@@ -13,7 +13,12 @@ use uuid::Uuid;
 const CRITICAL_SEND_TIMEOUT: Duration = Duration::from_secs(5);
 
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
-use wrldbldr_protocol::{DirectorialContext, ServerMessage};
+use wrldbldr_protocol::ServerMessage;
+
+use crate::infrastructure::ports::{
+    ConnectionInfo as PortConnectionInfo, DirectorialContext, DirectorialContextPort,
+    DmNotificationPort, SessionError, WorldRole as PortWorldRole, WorldSessionPort,
+};
 
 /// Represents a connected client's role in a world.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -452,11 +457,6 @@ pub enum CriticalSendError {
 // =============================================================================
 // Port Implementations
 // =============================================================================
-
-use crate::infrastructure::ports::{
-    ConnectionInfo as PortConnectionInfo, DmNotificationPort, DirectorialContextPort,
-    SessionError, WorldRole as PortWorldRole, WorldSessionPort,
-};
 
 impl From<WorldRole> for PortWorldRole {
     fn from(role: WorldRole) -> Self {

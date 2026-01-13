@@ -3,9 +3,11 @@ use std::sync::Arc;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::infrastructure::ports::{RepoError, SessionError, WorldRole, WorldSessionPort};
+use crate::infrastructure::ports::{
+    ConnectedUserInfo, JoinWorldError as PortJoinWorldError, RepoError, SessionError,
+    UserJoinedInfo, WorldRole, WorldSessionPort,
+};
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
-use wrldbldr_protocol::{ConnectedUser, JoinError, WorldRole as ProtoWorldRole};
 
 use super::{JoinWorld, JoinWorldError};
 
@@ -14,14 +16,40 @@ pub struct JoinWorldContext<'a> {
     pub session: &'a dyn WorldSessionPort,
 }
 
-/// Input for joining a world over WebSocket.
+/// Input for joining a world over WebSocket (domain types).
 pub struct JoinWorldInput {
     pub connection_id: Uuid,
     pub world_id: WorldId,
-    pub role: ProtoWorldRole,
+    pub role: WorldRole,
     /// Stable user identifier from the client (e.g., browser storage).
     pub user_id: String,
     pub pc_id: Option<PlayerCharacterId>,
+}
+
+impl JoinWorldInput {
+    /// Create input from protocol types (API layer conversion helper).
+    pub fn from_protocol(
+        connection_id: Uuid,
+        world_id: WorldId,
+        role: wrldbldr_protocol::WorldRole,
+        user_id: String,
+        pc_id: Option<PlayerCharacterId>,
+    ) -> Self {
+        let internal_role = match role {
+            wrldbldr_protocol::WorldRole::Dm => WorldRole::Dm,
+            wrldbldr_protocol::WorldRole::Player => WorldRole::Player,
+            wrldbldr_protocol::WorldRole::Spectator | wrldbldr_protocol::WorldRole::Unknown => {
+                WorldRole::Spectator
+            }
+        };
+        Self {
+            connection_id,
+            world_id,
+            role: internal_role,
+            user_id,
+            pc_id,
+        }
+    }
 }
 
 /// Use case for joining a world and updating connection state.
@@ -39,30 +67,19 @@ impl JoinWorldFlow {
         ctx: &JoinWorldContext<'_>,
         input: JoinWorldInput,
     ) -> Result<JoinWorldFlowResult, JoinWorldFlowError> {
-        let internal_role = match input.role {
-            ProtoWorldRole::Dm => WorldRole::Dm,
-            ProtoWorldRole::Player => WorldRole::Player,
-            ProtoWorldRole::Spectator | ProtoWorldRole::Unknown => WorldRole::Spectator,
-        };
-
         // Update user_id from the client (stable identifier from browser storage)
         ctx.session
-            .set_user_id(input.connection_id, input.user_id)
+            .set_user_id(input.connection_id, input.user_id.clone())
             .await;
 
         let join_result = self
             .join_world
-            .execute_with_role(input.world_id, internal_role, input.pc_id)
+            .execute_with_role(input.world_id, input.role, input.pc_id)
             .await
             .map_err(JoinWorldFlowError::from)?;
 
         ctx.session
-            .join_world(
-                input.connection_id,
-                input.world_id,
-                internal_role,
-                input.pc_id,
-            )
+            .join_world(input.connection_id, input.world_id, input.role, input.pc_id)
             .await
             .map_err(JoinWorldFlowError::from)?;
 
@@ -71,15 +88,11 @@ impl JoinWorldFlow {
             .get_world_connections(input.world_id)
             .await
             .into_iter()
-            .map(|info| ConnectedUser {
+            .map(|info| ConnectedUserInfo {
                 user_id: info.user_id,
                 username: None,
-                role: match info.role {
-                    WorldRole::Dm => ProtoWorldRole::Dm,
-                    WorldRole::Player => ProtoWorldRole::Player,
-                    WorldRole::Spectator => ProtoWorldRole::Spectator,
-                },
-                pc_id: info.pc_id.map(|id| id.to_string()),
+                role: info.role,
+                pc_id: info.pc_id,
                 connection_count: 1,
             })
             .collect();
@@ -88,7 +101,7 @@ impl JoinWorldFlow {
             .session
             .get_connection(input.connection_id)
             .await
-            .map(|info| UserJoinedPayload {
+            .map(|info| UserJoinedInfo {
                 user_id: info.user_id,
                 role: input.role,
                 pc: join_result.your_pc.clone(),
@@ -107,15 +120,9 @@ impl JoinWorldFlow {
 pub struct JoinWorldFlowResult {
     pub world_id: WorldId,
     pub snapshot: Value,
-    pub connected_users: Vec<ConnectedUser>,
+    pub connected_users: Vec<ConnectedUserInfo>,
     pub your_pc: Option<Value>,
-    pub user_joined: Option<UserJoinedPayload>,
-}
-
-pub struct UserJoinedPayload {
-    pub user_id: String,
-    pub role: ProtoWorldRole,
-    pub pc: Option<Value>,
+    pub user_joined: Option<UserJoinedInfo>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -124,8 +131,8 @@ pub enum JoinWorldFlowError {
     WorldNotFound,
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
-    #[error("Join error: {0:?}")]
-    JoinError(JoinError),
+    #[error("Join error: {0}")]
+    JoinError(PortJoinWorldError),
 }
 
 impl From<JoinWorldError> for JoinWorldFlowError {
@@ -140,10 +147,10 @@ impl From<JoinWorldError> for JoinWorldFlowError {
 impl From<SessionError> for JoinWorldFlowError {
     fn from(err: SessionError) -> Self {
         let join_error = match err {
-            SessionError::DmAlreadyConnected => JoinError::DmAlreadyConnected {
+            SessionError::DmAlreadyConnected => PortJoinWorldError::DmAlreadyConnected {
                 existing_user_id: String::new(),
             },
-            _ => JoinError::Unknown,
+            _ => PortJoinWorldError::Unknown,
         };
 
         JoinWorldFlowError::JoinError(join_error)

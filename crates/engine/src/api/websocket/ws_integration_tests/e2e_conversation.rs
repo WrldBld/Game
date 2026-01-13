@@ -63,8 +63,8 @@ async fn test_e2e_join_world_and_get_template() {
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: tokio::sync::RwLock::new(std::collections::HashMap::new()),
-        pending_staging_requests: tokio::sync::RwLock::new(std::collections::HashMap::new()),
+        pending_time_suggestions: TimeSuggestionStoreImpl::new(),
+        pending_staging_requests: PendingStagingStoreImpl::new(),
         generation_read_state: tokio::sync::RwLock::new(std::collections::HashMap::new()),
     });
 

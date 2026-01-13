@@ -5,12 +5,11 @@
 use std::sync::Arc;
 
 use crate::entities::{Character, Location, Observation, Staging};
-use crate::infrastructure::ports::{ClockPort, RepoError};
+use crate::infrastructure::ports::{ClockPort, NpcDispositionInfo, RepoError};
 use wrldbldr_domain::{
     CharacterId, DispositionLevel, LocationId, MoodState, NpcDispositionState, PlayerCharacterId,
     RegionId, RelationshipLevel,
 };
-use wrldbldr_protocol::NpcDispositionData;
 
 /// Container for NPC use cases.
 pub struct NpcUseCases {
@@ -123,7 +122,7 @@ impl NpcDisposition {
     pub async fn list_for_pc(
         &self,
         pc_id: PlayerCharacterId,
-    ) -> Result<Vec<NpcDispositionData>, NpcError> {
+    ) -> Result<Vec<NpcDispositionInfo>, NpcError> {
         let dispositions = self.character.list_dispositions_for_pc(pc_id).await?;
         let mut response = Vec::with_capacity(dispositions.len());
 
@@ -137,7 +136,7 @@ impl NpcDisposition {
                 .map(|npc| npc.name)
                 .unwrap_or_else(|| "Unknown NPC".to_string());
 
-            response.push(NpcDispositionData {
+            response.push(NpcDispositionInfo {
                 npc_id: disposition.npc_id.to_string(),
                 npc_name,
                 disposition: disposition.disposition.to_string(),

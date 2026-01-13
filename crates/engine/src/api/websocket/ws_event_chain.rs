@@ -1,5 +1,6 @@
 use super::*;
 use crate::api::connections::ConnectionInfo;
+use crate::use_cases::narrative::{CreateEventChainInput, UpdateEventChainInput};
 use serde_json::json;
 use wrldbldr_domain::{ActId, NarrativeEventId};
 use wrldbldr_protocol::{ErrorCode, EventChainRequest, ResponseResult};
@@ -40,12 +41,20 @@ pub(super) async fn handle_event_chain_request(
             let world_id_typed = parse_world_id_for_request(&world_id, request_id)?;
             let act_id = parse_optional_act_id(data.act_id.clone(), request_id)?;
             let events = parse_event_ids(data.events.as_ref(), request_id)?;
+            // Convert protocol data to domain input
+            let input = CreateEventChainInput {
+                name: data.name,
+                description: data.description,
+                tags: data.tags,
+                color: data.color,
+                is_active: data.is_active,
+            };
             match state
                 .app
                 .use_cases
                 .narrative
                 .chains
-                .create(world_id_typed, data, act_id, events)
+                .create(world_id_typed, input, act_id, events)
                 .await
             {
                 Ok(chain) => Ok(ResponseResult::success(json!(chain))),
@@ -60,12 +69,20 @@ pub(super) async fn handle_event_chain_request(
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
             let act_id = parse_optional_act_id(data.act_id.clone(), request_id)?;
             let events = parse_event_ids(data.events.as_ref(), request_id)?;
+            // Convert protocol data to domain input
+            let input = UpdateEventChainInput {
+                name: data.name,
+                description: data.description,
+                tags: data.tags,
+                color: data.color,
+                is_active: data.is_active,
+            };
             match state
                 .app
                 .use_cases
                 .narrative
                 .chains
-                .update(chain_id_typed, data, act_id, events)
+                .update(chain_id_typed, input, act_id, events)
                 .await
             {
                 Ok(chain) => Ok(ResponseResult::success(json!(chain))),

@@ -11,7 +11,9 @@ pub mod decision;
 pub mod execute_effects;
 pub mod events;
 
-pub use chains::{EventChainError, EventChainOps};
+pub use chains::{
+    CreateEventChainInput, EventChainError, EventChainOps, UpdateEventChainInput,
+};
 pub use decision::{NarrativeDecisionFlow, NarrativeDecisionOutcome, NarrativeTriggeredPayload};
 pub use execute_effects::{
     EffectExecutionContext, EffectExecutionResult, EffectExecutionSummary, ExecuteEffects,

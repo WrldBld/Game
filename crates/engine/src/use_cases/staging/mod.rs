@@ -5,11 +5,10 @@
 #[cfg(test)]
 mod llm_integration_tests;
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use chrono::{Datelike, Timelike};
 use serde::Deserialize;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::entities::{
@@ -96,11 +95,38 @@ pub struct PendingStagingRequest {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Port for storing pending staging requests.
+///
+/// Abstracts the storage mechanism so use cases don't depend on tokio::sync::RwLock.
+#[async_trait::async_trait]
+pub trait PendingStagingStore: Send + Sync {
+    /// Insert a pending staging request.
+    async fn insert(&self, key: String, request: PendingStagingRequest);
+
+    /// Get a pending staging request by key.
+    async fn get(&self, key: &str) -> Option<PendingStagingRequest>;
+
+    /// Remove a pending staging request by key.
+    async fn remove(&self, key: &str) -> Option<PendingStagingRequest>;
+}
+
+/// Port for storing time suggestions.
+///
+/// Abstracts the storage mechanism so use cases don't depend on tokio::sync::RwLock.
+#[async_trait::async_trait]
+pub trait TimeSuggestionStore: Send + Sync {
+    /// Insert a time suggestion.
+    async fn insert(&self, key: Uuid, suggestion: TimeSuggestion);
+
+    /// Remove a time suggestion by key.
+    async fn remove(&self, key: Uuid) -> Option<TimeSuggestion>;
+}
+
 /// IO dependencies for staging requests (WS-state owned).
 pub struct StagingApprovalContext<'a> {
     pub dm_notifier: &'a dyn DmNotificationPort,
-    pub pending_time_suggestions: &'a RwLock<HashMap<Uuid, TimeSuggestion>>,
-    pub pending_staging_requests: &'a RwLock<HashMap<String, PendingStagingRequest>>,
+    pub pending_time_suggestions: &'a dyn TimeSuggestionStore,
+    pub pending_staging_requests: &'a dyn PendingStagingStore,
 }
 
 /// Request input for staging approval.
@@ -155,9 +181,8 @@ impl RequestStagingApproval {
     ) -> Result<ServerMessage, StagingError> {
         let request_id = Uuid::new_v4().to_string();
 
-        {
-            let mut guard = ctx.pending_staging_requests.write().await;
-            guard.insert(
+        ctx.pending_staging_requests
+            .insert(
                 request_id.clone(),
                 PendingStagingRequest {
                     region_id: input.region.id,
@@ -165,8 +190,8 @@ impl RequestStagingApproval {
                     world_id: input.world_id,
                     created_at: chrono::Utc::now(),
                 },
-            );
-        }
+            )
+            .await;
 
         let world = self
             .world
@@ -252,9 +277,8 @@ impl RequestStagingApproval {
 
         if let Some(time_suggestion) = input.time_suggestion {
             ctx.pending_time_suggestions
-                .write()
-                .await
-                .insert(time_suggestion.id, time_suggestion.clone());
+                .insert(time_suggestion.id, time_suggestion.clone())
+                .await;
             let suggestion_msg = ServerMessage::TimeSuggestion {
                 data: time_suggestion.to_protocol(),
             };

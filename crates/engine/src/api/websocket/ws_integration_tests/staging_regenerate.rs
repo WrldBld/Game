@@ -79,8 +79,8 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
-        pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+        pending_time_suggestions: TimeSuggestionStoreImpl::new(),
+        pending_staging_requests: PendingStagingStoreImpl::new(),
         generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
     });
 

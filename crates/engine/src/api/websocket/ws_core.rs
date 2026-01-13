@@ -1065,7 +1065,7 @@ pub(super) async fn handle_npc_request(
             };
             let pc_id_typed = PlayerCharacterId::from_uuid(pc_uuid);
 
-            let response_data = match state
+            let domain_data = match state
                 .app
                 .use_cases
                 .npc
@@ -1082,9 +1082,22 @@ pub(super) async fn handle_npc_request(
                 }
             };
 
+            // Convert domain types to protocol types
+            let dispositions = domain_data
+                .into_iter()
+                .map(|d| wrldbldr_protocol::NpcDispositionData {
+                    npc_id: d.npc_id,
+                    npc_name: d.npc_name,
+                    disposition: d.disposition,
+                    relationship: d.relationship,
+                    sentiment: d.sentiment,
+                    last_reason: d.last_reason,
+                })
+                .collect();
+
             let msg = ServerMessage::NpcDispositionsResponse {
                 pc_id: pc_id_typed.to_string(),
-                dispositions: response_data,
+                dispositions,
             };
 
             match state

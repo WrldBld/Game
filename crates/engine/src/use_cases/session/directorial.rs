@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
-use crate::infrastructure::ports::DirectorialContextPort;
+use crate::infrastructure::ports::{DirectorialContext, DirectorialContextPort, NpcMotivation};
 use wrldbldr_domain::WorldId;
-use wrldbldr_protocol::DirectorialContext;
 
 /// IO dependencies for directorial updates (WS-state owned).
 pub struct DirectorialUpdateContext<'a> {
@@ -13,6 +12,33 @@ pub struct DirectorialUpdateContext<'a> {
 pub struct DirectorialUpdateInput {
     pub world_id: WorldId,
     pub context: DirectorialContext,
+}
+
+impl DirectorialUpdateInput {
+    /// Create input from protocol types (API layer conversion helper).
+    pub fn from_protocol(
+        world_id: WorldId,
+        proto_context: wrldbldr_protocol::DirectorialContext,
+    ) -> Self {
+        Self {
+            world_id,
+            context: DirectorialContext {
+                scene_notes: proto_context.scene_notes,
+                tone: proto_context.tone,
+                npc_motivations: proto_context
+                    .npc_motivations
+                    .into_iter()
+                    .map(|m| NpcMotivation {
+                        character_id: m.character_id,
+                        emotional_guidance: m.emotional_guidance,
+                        immediate_goal: m.immediate_goal,
+                        secret_agenda: m.secret_agenda,
+                    })
+                    .collect(),
+                forbidden_topics: proto_context.forbidden_topics,
+            },
+        }
+    }
 }
 
 /// Use case for updating directorial context.

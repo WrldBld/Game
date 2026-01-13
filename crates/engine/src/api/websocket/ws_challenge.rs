@@ -39,12 +39,19 @@ pub(super) async fn handle_challenge_request(
         ChallengeRequest::CreateChallenge { world_id, data } => {
             require_dm_for_request(conn_info, request_id)?;
             let world_id_typed = parse_world_id_for_request(&world_id, request_id)?;
+            let input = crate::use_cases::challenge::CreateChallengeInput {
+                name: data.name,
+                difficulty: data.difficulty,
+                description: data.description,
+                success_outcome: data.success_outcome,
+                failure_outcome: data.failure_outcome,
+            };
             match state
                 .app
                 .use_cases
                 .challenge
                 .ops
-                .create(world_id_typed, data)
+                .create(world_id_typed, input)
                 .await
             {
                 Ok(challenge) => Ok(ResponseResult::success(json!(challenge))),
@@ -57,12 +64,19 @@ pub(super) async fn handle_challenge_request(
         ChallengeRequest::UpdateChallenge { challenge_id, data } => {
             require_dm_for_request(conn_info, request_id)?;
             let challenge_id_typed = parse_challenge_id_for_request(&challenge_id, request_id)?;
+            let input = crate::use_cases::challenge::UpdateChallengeInput {
+                name: data.name,
+                description: data.description,
+                difficulty: data.difficulty,
+                success_outcome: data.success_outcome,
+                failure_outcome: data.failure_outcome,
+            };
             match state
                 .app
                 .use_cases
                 .challenge
                 .ops
-                .update(challenge_id_typed, data)
+                .update(challenge_id_typed, input)
                 .await
             {
                 Ok(challenge) => Ok(ResponseResult::success(json!(challenge))),

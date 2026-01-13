@@ -3,9 +3,21 @@ use super::*;
 use std::collections::{HashMap, HashSet};
 
 use crate::api::connections::ConnectionInfo;
+use crate::use_cases::ai::{ActantialRole, SuggestionContextInput};
 use wrldbldr_domain::{LlmRequestType, WorldId};
 
-use wrldbldr_protocol::{AiRequest, ExpressionRequest, GenerationRequest};
+use wrldbldr_protocol::{AiRequest, ActantialRoleData, ExpressionRequest, GenerationRequest};
+
+/// Convert protocol ActantialRoleData to domain ActantialRole.
+fn proto_role_to_domain(role: ActantialRoleData) -> ActantialRole {
+    match role {
+        ActantialRoleData::Helper => ActantialRole::Helper,
+        ActantialRoleData::Opponent => ActantialRole::Opponent,
+        ActantialRoleData::Sender => ActantialRole::Sender,
+        ActantialRoleData::Receiver => ActantialRole::Receiver,
+        ActantialRoleData::Unknown => ActantialRole::Unknown,
+    }
+}
 
 #[derive(Debug, Default, Clone)]
 pub struct GenerationReadState {
@@ -329,12 +341,22 @@ pub(super) async fn handle_ai_request(
                 }
             };
 
+            // Convert protocol context to domain input
+            let domain_context = SuggestionContextInput {
+                entity_type: context.entity_type,
+                entity_name: context.entity_name,
+                world_setting: context.world_setting,
+                hints: context.hints,
+                additional_context: context.additional_context,
+                world_id: context.world_id,
+            };
+
             let result = state
                 .app
                 .use_cases
                 .ai
                 .suggestions
-                .enqueue_content_suggestion(world_uuid, suggestion_type.to_string(), context)
+                .enqueue_content_suggestion(world_uuid, suggestion_type.to_string(), domain_context)
                 .await
                 .map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
@@ -453,6 +475,8 @@ pub(super) async fn handle_ai_request(
                     role,
                 } => {
                     let npc_id_typed = parse_character_id(&npc_id)?;
+                    // Convert protocol role to domain role
+                    let domain_role = proto_role_to_domain(role);
                     state
                         .app
                         .use_cases
@@ -463,7 +487,7 @@ pub(super) async fn handle_ai_request(
                             npc_id_typed,
                             want_id,
                             target_id,
-                            role,
+                            domain_role,
                         )
                         .await
                 }

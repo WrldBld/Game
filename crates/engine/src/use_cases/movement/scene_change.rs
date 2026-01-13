@@ -1,10 +1,68 @@
 use std::sync::Arc;
 
 use wrldbldr_domain::{LocationId, Region, RegionId, StagedNpc};
-use wrldbldr_protocol::{NavigationData, NpcPresenceData, RegionData, RegionItemData};
 
 use crate::entities::{Inventory, Location};
 use crate::infrastructure::ports::RepoError;
+
+// =============================================================================
+// Domain Types (for use case output)
+// =============================================================================
+
+/// Region data for scene changes (domain representation).
+#[derive(Debug, Clone)]
+pub struct RegionInfo {
+    pub id: String,
+    pub name: String,
+    pub location_id: String,
+    pub location_name: String,
+    pub backdrop_asset: Option<String>,
+    pub atmosphere: Option<String>,
+    pub map_asset: Option<String>,
+}
+
+/// NPC presence info for scene display (domain representation).
+#[derive(Debug, Clone)]
+pub struct NpcPresenceInfo {
+    pub character_id: String,
+    pub name: String,
+    pub sprite_asset: Option<String>,
+    pub portrait_asset: Option<String>,
+}
+
+/// Navigation options from current region (domain representation).
+#[derive(Debug, Clone)]
+pub struct NavigationInfo {
+    pub connected_regions: Vec<NavigationTargetInfo>,
+    pub exits: Vec<NavigationExitInfo>,
+}
+
+/// A navigation target (region within same location) (domain representation).
+#[derive(Debug, Clone)]
+pub struct NavigationTargetInfo {
+    pub region_id: String,
+    pub name: String,
+    pub is_locked: bool,
+    pub lock_description: Option<String>,
+}
+
+/// An exit to another location (domain representation).
+#[derive(Debug, Clone)]
+pub struct NavigationExitInfo {
+    pub location_id: String,
+    pub location_name: String,
+    pub arrival_region_id: String,
+    pub description: Option<String>,
+}
+
+/// Item data for region display (domain representation).
+#[derive(Debug, Clone)]
+pub struct RegionItemInfo {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub item_type: Option<String>,
+}
 
 /// Errors that can occur when building scene change data.
 #[derive(Debug, thiserror::Error)]
@@ -44,7 +102,7 @@ impl SceneChangeBuilder {
             .await?
             .ok_or(SceneChangeError::LocationNotFound(region.location_id))?;
 
-        let region_data = RegionData {
+        let region_data = RegionInfo {
             id: region.id.to_string(),
             name: region.name.clone(),
             location_id: region.location_id.to_string(),
@@ -54,10 +112,10 @@ impl SceneChangeBuilder {
             map_asset: None,
         };
 
-        let npcs_present: Vec<NpcPresenceData> = npcs
+        let npcs_present: Vec<NpcPresenceInfo> = npcs
             .into_iter()
             .filter(|npc| include_hidden_npcs || npc.is_visible_to_players())
-            .map(|npc| NpcPresenceData {
+            .map(|npc| NpcPresenceInfo {
                 character_id: npc.character_id.to_string(),
                 name: npc.name,
                 sprite_asset: npc.sprite_asset,
@@ -79,7 +137,7 @@ impl SceneChangeBuilder {
     async fn build_navigation_data(
         &self,
         region_id: RegionId,
-    ) -> Result<NavigationData, SceneChangeError> {
+    ) -> Result<NavigationInfo, SceneChangeError> {
         let connections = self.location.get_connections(region_id).await?;
 
         let mut connected_regions = Vec::new();
@@ -90,7 +148,7 @@ impl SceneChangeBuilder {
                 .await?
                 .ok_or(SceneChangeError::RegionNotFound(connection.to_region))?;
 
-            connected_regions.push(wrldbldr_protocol::NavigationTarget {
+            connected_regions.push(NavigationTargetInfo {
                 region_id: connection.to_region.to_string(),
                 name: target_region.name,
                 is_locked: connection.is_locked,
@@ -111,7 +169,7 @@ impl SceneChangeBuilder {
         let exits = exits_result
             .exits
             .into_iter()
-            .map(|exit| wrldbldr_protocol::NavigationExit {
+            .map(|exit| NavigationExitInfo {
                 location_id: exit.location_id.to_string(),
                 location_name: exit.location_name,
                 arrival_region_id: exit.arrival_region_id.to_string(),
@@ -119,18 +177,18 @@ impl SceneChangeBuilder {
             })
             .collect();
 
-        Ok(NavigationData {
+        Ok(NavigationInfo {
             connected_regions,
             exits,
         })
     }
 
-    async fn build_region_items(&self, region_id: RegionId) -> Vec<RegionItemData> {
+    async fn build_region_items(&self, region_id: RegionId) -> Vec<RegionItemInfo> {
         // Region items are optional/non-critical, keep graceful degradation here
         match self.inventory.list_in_region(region_id).await {
             Ok(items) => items
                 .into_iter()
-                .map(|item| RegionItemData {
+                .map(|item| RegionItemInfo {
                     id: item.id.to_string(),
                     name: item.name,
                     description: item.description,
@@ -145,9 +203,10 @@ impl SceneChangeBuilder {
     }
 }
 
+/// Scene change data returned by the use case (domain representation).
 pub struct SceneChangeData {
-    pub region: RegionData,
-    pub npcs_present: Vec<NpcPresenceData>,
-    pub navigation: NavigationData,
-    pub region_items: Vec<RegionItemData>,
+    pub region: RegionInfo,
+    pub npcs_present: Vec<NpcPresenceInfo>,
+    pub navigation: NavigationInfo,
+    pub region_items: Vec<RegionItemInfo>,
 }

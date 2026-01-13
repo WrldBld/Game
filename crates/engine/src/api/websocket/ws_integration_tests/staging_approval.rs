@@ -239,8 +239,8 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
-        pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+        pending_time_suggestions: TimeSuggestionStoreImpl::new(),
+        pending_staging_requests: PendingStagingStoreImpl::new(),
         generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
     });
 

@@ -21,7 +21,9 @@ mod crud;
 #[cfg(test)]
 mod llm_context_tests;
 
-pub use crud::{ChallengeError as ChallengeCrudError, ChallengeOps};
+pub use crud::{
+    ChallengeError as ChallengeCrudError, ChallengeOps, CreateChallengeInput, UpdateChallengeInput,
+};
 
 use crate::entities::{Challenge, Inventory, Observation, PlayerCharacter, Scene};
 use crate::infrastructure::ports::{ClockPort, QueuePort, RandomPort, RepoError};

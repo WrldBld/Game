@@ -50,7 +50,7 @@ pub(super) async fn handle_story_event_request(
                 .use_cases
                 .story_events
                 .ops
-                .update(event_uuid, data)
+                .update(event_uuid, data.summary, data.tags)
                 .await
             {
                 Ok(event) => Ok(ResponseResult::success(event)),
@@ -108,7 +108,7 @@ pub(super) async fn handle_story_event_request(
                 .use_cases
                 .story_events
                 .ops
-                .create_dm_marker(world_uuid, data)
+                .create_dm_marker(world_uuid, data.title, data.content)
                 .await
             {
                 Ok(event_id) => Ok(ResponseResult::success(serde_json::json!({

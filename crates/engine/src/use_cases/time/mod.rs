@@ -401,17 +401,14 @@ impl TimeSuggestions {
 
     pub async fn resolve(
         &self,
-        store: &tokio::sync::RwLock<std::collections::HashMap<Uuid, TimeSuggestion>>,
+        store: &dyn crate::use_cases::staging::TimeSuggestionStore,
         world_id: WorldId,
         suggestion_id: Uuid,
         decision: wrldbldr_protocol::types::TimeSuggestionDecision,
     ) -> Result<Option<TimeSuggestionResolution>, TimeSuggestionError> {
-        let suggestion = {
-            let mut guard = store.write().await;
-            match guard.remove(&suggestion_id) {
-                Some(s) => s,
-                None => return Err(TimeSuggestionError::NotFound),
-            }
+        let suggestion = match store.remove(suggestion_id).await {
+            Some(s) => s,
+            None => return Err(TimeSuggestionError::NotFound),
         };
 
         if suggestion.world_id != world_id {

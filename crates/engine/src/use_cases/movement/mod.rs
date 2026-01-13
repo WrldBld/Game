@@ -2,11 +2,14 @@
 
 mod enter_region;
 mod exit_location;
-mod scene_change;
+pub mod scene_change;
 
 pub use enter_region::{EnterRegion, EnterRegionError, EnterRegionResult, StagingStatus};
 pub use exit_location::{ExitLocation, ExitLocationError};
-pub use scene_change::{SceneChangeBuilder, SceneChangeData};
+pub use scene_change::{
+    NavigationExitInfo, NavigationInfo, NavigationTargetInfo, NpcPresenceInfo, RegionInfo,
+    RegionItemInfo, SceneChangeBuilder, SceneChangeData, SceneChangeError,
+};
 
 use crate::entities::{
     Flag, Inventory, Observation, Scene, SceneResolutionContext, Staging as StagingEntity,

@@ -17,7 +17,10 @@ mod entities;
 mod infrastructure;
 mod use_cases;
 
-use api::{websocket::WsState, ConnectionManager};
+use api::{
+    websocket::{PendingStagingStoreImpl, TimeSuggestionStoreImpl, WsState},
+    ConnectionManager,
+};
 use app::App;
 use infrastructure::{
     clock::SystemClock,
@@ -120,8 +123,8 @@ async fn main() -> anyhow::Result<()> {
     let ws_state = Arc::new(WsState {
         app: app.clone(),
         connections,
-        pending_time_suggestions: tokio::sync::RwLock::new(std::collections::HashMap::new()),
-        pending_staging_requests: tokio::sync::RwLock::new(std::collections::HashMap::new()),
+        pending_time_suggestions: TimeSuggestionStoreImpl::new(),
+        pending_staging_requests: PendingStagingStoreImpl::new(),
         generation_read_state: tokio::sync::RwLock::new(std::collections::HashMap::new()),
     });
 

@@ -61,11 +61,98 @@ const CONNECTION_CHANNEL_BUFFER: usize = 256;
 pub struct WsState {
     pub app: Arc<App>,
     pub connections: Arc<ConnectionManager>,
-    pub pending_time_suggestions:
-        tokio::sync::RwLock<HashMap<Uuid, crate::use_cases::time::TimeSuggestion>>,
-    pub pending_staging_requests: tokio::sync::RwLock<HashMap<String, PendingStagingRequest>>,
+    pub pending_time_suggestions: TimeSuggestionStoreImpl,
+    pub pending_staging_requests: PendingStagingStoreImpl,
     pub generation_read_state:
         tokio::sync::RwLock<HashMap<String, ws_creator::GenerationReadState>>,
+}
+
+// =============================================================================
+// Store Implementations
+// =============================================================================
+
+/// RwLock-based implementation of PendingStagingStore.
+pub struct PendingStagingStoreImpl {
+    inner: tokio::sync::RwLock<HashMap<String, PendingStagingRequest>>,
+}
+
+impl PendingStagingStoreImpl {
+    pub fn new() -> Self {
+        Self {
+            inner: tokio::sync::RwLock::new(HashMap::new()),
+        }
+    }
+
+    /// Read access for handlers that need to query the store.
+    pub async fn read(&self) -> tokio::sync::RwLockReadGuard<'_, HashMap<String, PendingStagingRequest>> {
+        self.inner.read().await
+    }
+
+    /// Write access for handlers that need to modify the store.
+    pub async fn write(&self) -> tokio::sync::RwLockWriteGuard<'_, HashMap<String, PendingStagingRequest>> {
+        self.inner.write().await
+    }
+}
+
+impl Default for PendingStagingStoreImpl {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::use_cases::staging::PendingStagingStore for PendingStagingStoreImpl {
+    async fn insert(&self, key: String, request: PendingStagingRequest) {
+        self.inner.write().await.insert(key, request);
+    }
+
+    async fn get(&self, key: &str) -> Option<PendingStagingRequest> {
+        self.inner.read().await.get(key).cloned()
+    }
+
+    async fn remove(&self, key: &str) -> Option<PendingStagingRequest> {
+        self.inner.write().await.remove(key)
+    }
+}
+
+/// RwLock-based implementation of TimeSuggestionStore.
+pub struct TimeSuggestionStoreImpl {
+    inner: tokio::sync::RwLock<HashMap<Uuid, crate::use_cases::time::TimeSuggestion>>,
+}
+
+impl TimeSuggestionStoreImpl {
+    pub fn new() -> Self {
+        Self {
+            inner: tokio::sync::RwLock::new(HashMap::new()),
+        }
+    }
+
+    /// Read access for handlers that need to query the store.
+    pub async fn read(&self) -> tokio::sync::RwLockReadGuard<'_, HashMap<Uuid, crate::use_cases::time::TimeSuggestion>> {
+        self.inner.read().await
+    }
+
+    /// Write access for handlers that need to modify the store.
+    pub async fn write(&self) -> tokio::sync::RwLockWriteGuard<'_, HashMap<Uuid, crate::use_cases::time::TimeSuggestion>> {
+        self.inner.write().await
+    }
+}
+
+impl Default for TimeSuggestionStoreImpl {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::use_cases::staging::TimeSuggestionStore for TimeSuggestionStoreImpl {
+    async fn insert(&self, key: Uuid, suggestion: crate::use_cases::time::TimeSuggestion) {
+        self.inner.write().await.insert(key, suggestion);
+    }
+
+    async fn remove(&self, key: Uuid) -> Option<crate::use_cases::time::TimeSuggestion> {
+        self.inner.write().await.remove(&key)
+    }
 }
 
 /// WebSocket upgrade handler - entry point for new connections.
@@ -1707,8 +1794,8 @@ mod ws_integration_tests_inline {
         let ws_state = Arc::new(WsState {
             app,
             connections,
-            pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
-            pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+            pending_time_suggestions: TimeSuggestionStoreImpl::new(),
+            pending_staging_requests: PendingStagingStoreImpl::new(),
             generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
         });
 
@@ -2050,8 +2137,8 @@ mod ws_integration_tests_inline {
         let ws_state = Arc::new(WsState {
             app,
             connections,
-            pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
-            pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+            pending_time_suggestions: TimeSuggestionStoreImpl::new(),
+            pending_staging_requests: PendingStagingStoreImpl::new(),
             generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
         });
 
@@ -2205,8 +2292,8 @@ mod ws_integration_tests_inline {
         let ws_state = Arc::new(WsState {
             app,
             connections,
-            pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
-            pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+            pending_time_suggestions: TimeSuggestionStoreImpl::new(),
+            pending_staging_requests: PendingStagingStoreImpl::new(),
             generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
         });
 
@@ -2357,8 +2444,8 @@ mod ws_integration_tests_inline {
         let ws_state = Arc::new(WsState {
             app,
             connections,
-            pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
-            pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+            pending_time_suggestions: TimeSuggestionStoreImpl::new(),
+            pending_staging_requests: PendingStagingStoreImpl::new(),
             generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
         });
 
@@ -2484,8 +2571,8 @@ mod ws_integration_tests_inline {
         let ws_state = Arc::new(WsState {
             app,
             connections,
-            pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
-            pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+            pending_time_suggestions: TimeSuggestionStoreImpl::new(),
+            pending_staging_requests: PendingStagingStoreImpl::new(),
             generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
         });
 
@@ -2821,8 +2908,8 @@ mod ws_integration_tests_inline {
         let ws_state = Arc::new(WsState {
             app,
             connections,
-            pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
-            pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+            pending_time_suggestions: TimeSuggestionStoreImpl::new(),
+            pending_staging_requests: PendingStagingStoreImpl::new(),
             generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
         });
 
@@ -2998,8 +3085,8 @@ mod ws_integration_tests_inline {
         let ws_state = Arc::new(WsState {
             app,
             connections,
-            pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
-            pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
+            pending_time_suggestions: TimeSuggestionStoreImpl::new(),
+            pending_staging_requests: PendingStagingStoreImpl::new(),
             generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
         });
 

@@ -1,6 +1,76 @@
 use super::*;
+use crate::use_cases::movement::scene_change::{
+    NavigationExitInfo, NavigationInfo, NavigationTargetInfo, NpcPresenceInfo, RegionInfo,
+    RegionItemInfo,
+};
 use crate::use_cases::movement::{EnterRegionError, StagingStatus};
-use wrldbldr_protocol::{CharacterData, CharacterPosition, InteractionData, SceneData};
+use wrldbldr_protocol::{
+    CharacterData, CharacterPosition, InteractionData, NavigationData, NavigationExit,
+    NavigationTarget, NpcPresenceData, RegionData, RegionItemData, SceneData,
+};
+
+// =============================================================================
+// Domain -> Protocol Conversions for Scene Change
+// =============================================================================
+
+fn region_to_proto(region: RegionInfo) -> RegionData {
+    RegionData {
+        id: region.id,
+        name: region.name,
+        location_id: region.location_id,
+        location_name: region.location_name,
+        backdrop_asset: region.backdrop_asset,
+        atmosphere: region.atmosphere,
+        map_asset: region.map_asset,
+    }
+}
+
+fn npc_presence_to_proto(npc: NpcPresenceInfo) -> NpcPresenceData {
+    NpcPresenceData {
+        character_id: npc.character_id,
+        name: npc.name,
+        sprite_asset: npc.sprite_asset,
+        portrait_asset: npc.portrait_asset,
+    }
+}
+
+fn navigation_to_proto(nav: NavigationInfo) -> NavigationData {
+    NavigationData {
+        connected_regions: nav
+            .connected_regions
+            .into_iter()
+            .map(nav_target_to_proto)
+            .collect(),
+        exits: nav.exits.into_iter().map(nav_exit_to_proto).collect(),
+    }
+}
+
+fn nav_target_to_proto(target: NavigationTargetInfo) -> NavigationTarget {
+    NavigationTarget {
+        region_id: target.region_id,
+        name: target.name,
+        is_locked: target.is_locked,
+        lock_description: target.lock_description,
+    }
+}
+
+fn nav_exit_to_proto(exit: NavigationExitInfo) -> NavigationExit {
+    NavigationExit {
+        location_id: exit.location_id,
+        location_name: exit.location_name,
+        arrival_region_id: exit.arrival_region_id,
+        description: exit.description,
+    }
+}
+
+fn region_item_to_proto(item: RegionItemInfo) -> RegionItemData {
+    RegionItemData {
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        item_type: item.item_type,
+    }
+}
 
 pub(super) async fn handle_move_to_region(
     state: &WsState,
@@ -108,10 +178,18 @@ pub(super) async fn handle_move_to_region(
 
                     Some(ServerMessage::SceneChanged {
                         pc_id: pc_id.clone(),
-                        region: scene_change.region,
-                        npcs_present: scene_change.npcs_present,
-                        navigation: scene_change.navigation,
-                        region_items: scene_change.region_items,
+                        region: region_to_proto(scene_change.region),
+                        npcs_present: scene_change
+                            .npcs_present
+                            .into_iter()
+                            .map(npc_presence_to_proto)
+                            .collect(),
+                        navigation: navigation_to_proto(scene_change.navigation),
+                        region_items: scene_change
+                            .region_items
+                            .into_iter()
+                            .map(region_item_to_proto)
+                            .collect(),
                     })
                 }
             }
@@ -253,10 +331,18 @@ pub(super) async fn handle_exit_to_location(
 
                     Some(ServerMessage::SceneChanged {
                         pc_id: pc_id.clone(),
-                        region: scene_change.region,
-                        npcs_present: scene_change.npcs_present,
-                        navigation: scene_change.navigation,
-                        region_items: scene_change.region_items,
+                        region: region_to_proto(scene_change.region),
+                        npcs_present: scene_change
+                            .npcs_present
+                            .into_iter()
+                            .map(npc_presence_to_proto)
+                            .collect(),
+                        navigation: navigation_to_proto(scene_change.navigation),
+                        region_items: scene_change
+                            .region_items
+                            .into_iter()
+                            .map(region_item_to_proto)
+                            .collect(),
                     })
                 }
             }

@@ -8,8 +8,6 @@ use uuid::Uuid;
 use crate::entities::Narrative;
 use crate::infrastructure::ports::RepoError;
 use wrldbldr_domain::{StoryEventId, StoryEventType, WorldId};
-use wrldbldr_protocol::requests::UpdateStoryEventData;
-use wrldbldr_protocol::CreateDmMarkerData;
 
 /// Container for story event use cases.
 pub struct StoryEventUseCases {
@@ -49,7 +47,8 @@ impl StoryEventOps {
     pub async fn update(
         &self,
         event_id: StoryEventId,
-        data: UpdateStoryEventData,
+        summary: Option<String>,
+        tags: Option<Vec<String>>,
     ) -> Result<Value, StoryEventError> {
         let mut event = self
             .narrative
@@ -57,10 +56,10 @@ impl StoryEventOps {
             .await?
             .ok_or(StoryEventError::NotFound)?;
 
-        if let Some(summary) = data.summary {
+        if let Some(summary) = summary {
             event.summary = summary;
         }
-        if let Some(tags) = data.tags {
+        if let Some(tags) = tags {
             event.tags = tags;
         }
 
@@ -71,15 +70,16 @@ impl StoryEventOps {
     pub async fn create_dm_marker(
         &self,
         world_id: WorldId,
-        data: CreateDmMarkerData,
+        title: String,
+        content: Option<String>,
     ) -> Result<Uuid, StoryEventError> {
         let now = chrono::Utc::now();
         let event = wrldbldr_domain::StoryEvent {
             id: StoryEventId::new(),
             world_id,
             event_type: StoryEventType::DmMarker {
-                title: data.title.clone(),
-                note: data.content.unwrap_or_default(),
+                title: title.clone(),
+                note: content.unwrap_or_default(),
                 importance: wrldbldr_domain::MarkerImportance::Notable,
                 marker_type: wrldbldr_domain::DmMarkerType::Note,
             },

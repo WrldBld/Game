@@ -10,10 +10,61 @@ use crate::infrastructure::ports::RepoError;
 use wrldbldr_domain::{
     CharacterId, LoreCategory, LoreChunkId, LoreDiscoverySource, LoreId, LoreKnowledge, WorldId,
 };
-use wrldbldr_protocol::requests::{
-    CreateLoreChunkData, CreateLoreData, UpdateLoreChunkData, UpdateLoreData,
-};
-use wrldbldr_protocol::types::LoreDiscoverySourceData;
+
+// =============================================================================
+// Domain Input Types
+// =============================================================================
+
+/// Input for creating a lore entry (domain representation).
+#[derive(Debug, Clone, Default)]
+pub struct CreateLoreInput {
+    pub title: String,
+    pub summary: Option<String>,
+    pub category: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub is_common_knowledge: Option<bool>,
+    pub chunks: Option<Vec<CreateLoreChunkInput>>,
+}
+
+/// Input for updating a lore entry (domain representation).
+#[derive(Debug, Clone, Default)]
+pub struct UpdateLoreInput {
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub category: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub is_common_knowledge: Option<bool>,
+}
+
+/// Input for creating a lore chunk (domain representation).
+#[derive(Debug, Clone)]
+pub struct CreateLoreChunkInput {
+    pub title: Option<String>,
+    pub content: String,
+    pub order: Option<u32>,
+    pub discovery_hint: Option<String>,
+}
+
+/// Input for updating a lore chunk (domain representation).
+#[derive(Debug, Clone, Default)]
+pub struct UpdateLoreChunkInput {
+    pub title: Option<String>,
+    pub content: Option<String>,
+    pub order: Option<u32>,
+    pub discovery_hint: Option<String>,
+}
+
+/// Source of lore discovery (domain representation).
+#[derive(Debug, Clone)]
+pub enum LoreDiscoverySourceInput {
+    ReadBook { book_name: String },
+    Conversation { npc_id: String, npc_name: String },
+    Investigation,
+    DmGranted { reason: Option<String> },
+    CommonKnowledge,
+    LlmDiscovered { context: String },
+    Unknown,
+}
 
 /// Container for lore use cases.
 pub struct LoreUseCases {
@@ -49,9 +100,9 @@ impl LoreOps {
     pub async fn create(
         &self,
         world_id: WorldId,
-        data: CreateLoreData,
+        input: CreateLoreInput,
     ) -> Result<Value, LoreError> {
-        let category = match data.category.as_deref() {
+        let category = match input.category.as_deref() {
             Some(cat_str) => cat_str
                 .parse::<LoreCategory>()
                 .map_err(|e| LoreError::InvalidCategory(e))?,
@@ -59,19 +110,19 @@ impl LoreOps {
         };
 
         let now = chrono::Utc::now();
-        let mut lore = wrldbldr_domain::Lore::new(world_id, &data.title, category, now);
+        let mut lore = wrldbldr_domain::Lore::new(world_id, &input.title, category, now);
 
-        if let Some(summary) = data.summary.as_ref() {
+        if let Some(summary) = input.summary.as_ref() {
             lore = lore.with_summary(summary);
         }
-        if let Some(tags) = data.tags.as_ref() {
+        if let Some(tags) = input.tags.as_ref() {
             lore = lore.with_tags(tags.clone());
         }
-        if data.is_common_knowledge.unwrap_or(false) {
+        if input.is_common_knowledge.unwrap_or(false) {
             lore = lore.as_common_knowledge();
         }
 
-        if let Some(chunks) = data.chunks.as_ref() {
+        if let Some(chunks) = input.chunks.as_ref() {
             let mut domain_chunks = Vec::new();
             let mut used_orders = std::collections::HashSet::new();
             let mut next_auto_order = 0u32;
@@ -119,24 +170,24 @@ impl LoreOps {
         }))
     }
 
-    pub async fn update(&self, lore_id: LoreId, data: UpdateLoreData) -> Result<Value, LoreError> {
+    pub async fn update(&self, lore_id: LoreId, input: UpdateLoreInput) -> Result<Value, LoreError> {
         let mut lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
-        if let Some(title) = data.title.as_ref() {
+        if let Some(title) = input.title.as_ref() {
             lore.title = title.clone();
         }
-        if let Some(summary) = data.summary.as_ref() {
+        if let Some(summary) = input.summary.as_ref() {
             lore.summary = summary.clone();
         }
-        if let Some(category_str) = data.category.as_ref() {
+        if let Some(category_str) = input.category.as_ref() {
             lore.category = category_str
                 .parse::<LoreCategory>()
                 .map_err(|e| LoreError::InvalidCategory(e))?;
         }
-        if let Some(tags) = data.tags.as_ref() {
+        if let Some(tags) = input.tags.as_ref() {
             lore.tags = tags.clone();
         }
-        if let Some(is_common) = data.is_common_knowledge {
+        if let Some(is_common) = input.is_common_knowledge {
             lore.is_common_knowledge = is_common;
         }
         lore.updated_at = chrono::Utc::now();
@@ -165,12 +216,12 @@ impl LoreOps {
     pub async fn add_chunk(
         &self,
         lore_id: LoreId,
-        data: CreateLoreChunkData,
+        input: CreateLoreChunkInput,
     ) -> Result<Value, LoreError> {
         let mut lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
         // Determine the order: use provided order or auto-assign next sequential
-        let order = match data.order {
+        let order = match input.order {
             Some(provided_order) => {
                 // Validate that the provided order is unique
                 if lore.chunks.iter().any(|c| c.order == provided_order) {
@@ -184,11 +235,11 @@ impl LoreOps {
             }
         };
 
-        let mut chunk = wrldbldr_domain::LoreChunk::new(&data.content).with_order(order);
-        if let Some(title) = data.title.as_ref() {
+        let mut chunk = wrldbldr_domain::LoreChunk::new(&input.content).with_order(order);
+        if let Some(title) = input.title.as_ref() {
             chunk = chunk.with_title(title);
         }
-        if let Some(hint) = data.discovery_hint.as_ref() {
+        if let Some(hint) = input.discovery_hint.as_ref() {
             chunk = chunk.with_discovery_hint(hint);
         }
 
@@ -205,7 +256,7 @@ impl LoreOps {
         &self,
         world_id: WorldId,
         chunk_id: LoreChunkId,
-        data: UpdateLoreChunkData,
+        input: UpdateLoreChunkInput,
     ) -> Result<Value, LoreError> {
         let mut lore = self
             .lore
@@ -216,7 +267,7 @@ impl LoreOps {
             .ok_or(LoreError::ChunkNotFound)?;
 
         // Validate that new order doesn't conflict with other chunks
-        if let Some(new_order) = data.order {
+        if let Some(new_order) = input.order {
             let conflicts = lore
                 .chunks
                 .iter()
@@ -232,16 +283,16 @@ impl LoreOps {
             .find(|c| c.id == chunk_id)
             .ok_or(LoreError::ChunkNotFound)?;
 
-        if let Some(title) = data.title.as_ref() {
+        if let Some(title) = input.title.as_ref() {
             chunk.title = Some(title.clone());
         }
-        if let Some(content) = data.content.as_ref() {
+        if let Some(content) = input.content.as_ref() {
             chunk.content = content.clone();
         }
-        if let Some(order) = data.order {
+        if let Some(order) = input.order {
             chunk.order = order;
         }
-        if let Some(hint) = data.discovery_hint.as_ref() {
+        if let Some(hint) = input.discovery_hint.as_ref() {
             chunk.discovery_hint = Some(hint.clone());
         }
 
@@ -294,7 +345,7 @@ impl LoreOps {
         character_id: CharacterId,
         lore_id: LoreId,
         chunk_ids: Option<Vec<LoreChunkId>>,
-        discovery_source: LoreDiscoverySourceData,
+        discovery_source: LoreDiscoverySourceInput,
     ) -> Result<Value, LoreError> {
         // Validate that the lore exists and chunk IDs are valid
         let lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
@@ -440,12 +491,12 @@ pub enum LoreError {
     Repo(#[from] RepoError),
 }
 
-fn lore_discovery_source(data: LoreDiscoverySourceData) -> Result<LoreDiscoverySource, LoreError> {
-    match data {
-        LoreDiscoverySourceData::ReadBook { book_name } => {
+fn lore_discovery_source(input: LoreDiscoverySourceInput) -> Result<LoreDiscoverySource, LoreError> {
+    match input {
+        LoreDiscoverySourceInput::ReadBook { book_name } => {
             Ok(LoreDiscoverySource::ReadBook { book_name })
         }
-        LoreDiscoverySourceData::Conversation { npc_id, npc_name } => {
+        LoreDiscoverySourceInput::Conversation { npc_id, npc_name } => {
             let npc_uuid = Uuid::parse_str(&npc_id)
                 .map(CharacterId::from_uuid)
                 .map_err(|_| LoreError::InvalidNpcId(npc_id))?;
@@ -454,15 +505,15 @@ fn lore_discovery_source(data: LoreDiscoverySourceData) -> Result<LoreDiscoveryS
                 npc_name,
             })
         }
-        LoreDiscoverySourceData::Investigation => Ok(LoreDiscoverySource::Investigation),
-        LoreDiscoverySourceData::DmGranted { reason } => {
+        LoreDiscoverySourceInput::Investigation => Ok(LoreDiscoverySource::Investigation),
+        LoreDiscoverySourceInput::DmGranted { reason } => {
             Ok(LoreDiscoverySource::DmGranted { reason })
         }
-        LoreDiscoverySourceData::CommonKnowledge => Ok(LoreDiscoverySource::CommonKnowledge),
-        LoreDiscoverySourceData::LlmDiscovered { context } => {
+        LoreDiscoverySourceInput::CommonKnowledge => Ok(LoreDiscoverySource::CommonKnowledge),
+        LoreDiscoverySourceInput::LlmDiscovered { context } => {
             Ok(LoreDiscoverySource::LlmDiscovered { context })
         }
-        LoreDiscoverySourceData::Unknown => Ok(LoreDiscoverySource::DmGranted {
+        LoreDiscoverySourceInput::Unknown => Ok(LoreDiscoverySource::DmGranted {
             reason: Some("Unknown source type".to_string()),
         }),
     }
@@ -518,7 +569,6 @@ mod tests {
     use crate::entities::Lore as LoreEntity;
     use crate::infrastructure::ports::MockLoreRepo;
     use std::sync::Arc;
-    use wrldbldr_protocol::requests::CreateLoreChunkData;
 
     fn create_test_lore(world_id: WorldId) -> wrldbldr_domain::Lore {
         wrldbldr_domain::Lore::new(
@@ -562,14 +612,14 @@ mod tests {
         let ops = LoreOps::new(lore_entity);
 
         // Try to add chunk with order 1 (already exists)
-        let data = CreateLoreChunkData {
+        let input = CreateLoreChunkInput {
             content: "New content".to_string(),
             title: None,
             order: Some(1),
             discovery_hint: None,
         };
 
-        let result = ops.add_chunk(lore_id, data).await;
+        let result = ops.add_chunk(lore_id, input).await;
         assert!(matches!(result, Err(LoreError::DuplicateChunkOrder(1))));
     }
 
@@ -594,14 +644,14 @@ mod tests {
         let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
         let ops = LoreOps::new(lore_entity);
 
-        let data = CreateLoreChunkData {
+        let input = CreateLoreChunkInput {
             content: "New content".to_string(),
             title: None,
             order: None, // Auto-assign
             discovery_hint: None,
         };
 
-        let result = ops.add_chunk(lore_id, data).await;
+        let result = ops.add_chunk(lore_id, input).await;
         assert!(result.is_ok());
     }
 
@@ -620,14 +670,14 @@ mod tests {
         let ops = LoreOps::new(lore_entity);
 
         // Try to update chunk 2's order to 0 (already taken)
-        let data = wrldbldr_protocol::requests::UpdateLoreChunkData {
+        let input = UpdateLoreChunkInput {
             title: None,
             content: None,
             order: Some(0),
             discovery_hint: None,
         };
 
-        let result = ops.update_chunk(world_id, chunk_id, data).await;
+        let result = ops.update_chunk(world_id, chunk_id, input).await;
         assert!(matches!(result, Err(LoreError::DuplicateChunkOrder(0))));
     }
 
@@ -744,20 +794,20 @@ mod tests {
         let ops = LoreOps::new(lore_entity);
 
         // Create with duplicate orders
-        let data = CreateLoreData {
+        let data = CreateLoreInput {
             title: "Test".to_string(),
             summary: None,
             category: None,
             tags: None,
             is_common_knowledge: None,
             chunks: Some(vec![
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "First".to_string(),
                     title: None,
                     order: Some(0),
                     discovery_hint: None,
                 },
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "Second".to_string(),
                     title: None,
                     order: Some(0), // Duplicate!
@@ -787,26 +837,26 @@ mod tests {
         let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
         let ops = LoreOps::new(lore_entity);
 
-        let data = CreateLoreData {
+        let data = CreateLoreInput {
             title: "Test".to_string(),
             summary: None,
             category: None,
             tags: None,
             is_common_knowledge: None,
             chunks: Some(vec![
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "First".to_string(),
                     title: None,
                     order: None, // Auto-assign
                     discovery_hint: None,
                 },
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "Second".to_string(),
                     title: None,
                     order: None, // Auto-assign
                     discovery_hint: None,
                 },
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "Third".to_string(),
                     title: None,
                     order: None, // Auto-assign
@@ -838,26 +888,26 @@ mod tests {
         let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo)));
         let ops = LoreOps::new(lore_entity);
 
-        let data = CreateLoreData {
+        let data = CreateLoreInput {
             title: "Test".to_string(),
             summary: None,
             category: None,
             tags: None,
             is_common_knowledge: None,
             chunks: Some(vec![
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "First".to_string(),
                     title: None,
                     order: Some(5), // Explicit
                     discovery_hint: None,
                 },
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "Second".to_string(),
                     title: None,
                     order: None, // Auto-assign (should get 0)
                     discovery_hint: None,
                 },
-                CreateLoreChunkData {
+                CreateLoreChunkInput {
                     content: "Third".to_string(),
                     title: None,
                     order: Some(2), // Explicit

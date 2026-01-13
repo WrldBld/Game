@@ -23,7 +23,7 @@ pub(super) async fn handle_directorial_update(
     let ctx = crate::use_cases::session::DirectorialUpdateContext {
         context_store: state.connections.as_ref(),
     };
-    let input = crate::use_cases::session::DirectorialUpdateInput { world_id, context };
+    let input = crate::use_cases::session::DirectorialUpdateInput::from_protocol(world_id, context);
 
     // Store directorial context in per-world cache for LLM prompts.
     state

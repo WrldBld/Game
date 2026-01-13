@@ -4,10 +4,29 @@ use chrono::Utc;
 use serde_json::Value;
 
 use wrldbldr_domain::{self as domain, ActId, EventChain, EventChainId, NarrativeEventId, WorldId};
-use wrldbldr_protocol::requests::{CreateEventChainData, UpdateEventChainData};
 
 use crate::entities::Narrative;
 use crate::infrastructure::ports::RepoError;
+
+/// Input for creating an event chain (domain representation).
+#[derive(Debug, Clone, Default)]
+pub struct CreateEventChainInput {
+    pub name: String,
+    pub description: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub color: Option<String>,
+    pub is_active: Option<bool>,
+}
+
+/// Input for updating an event chain (domain representation).
+#[derive(Debug, Clone, Default)]
+pub struct UpdateEventChainInput {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub color: Option<String>,
+    pub is_active: Option<bool>,
+}
 
 pub struct EventChainOps {
     narrative: Arc<Narrative>,
@@ -34,23 +53,23 @@ impl EventChainOps {
     pub async fn create(
         &self,
         world_id: WorldId,
-        data: CreateEventChainData,
+        input: CreateEventChainInput,
         act_id: Option<ActId>,
         events: Option<Vec<NarrativeEventId>>,
     ) -> Result<Value, EventChainError> {
         let now = Utc::now();
-        let mut chain = EventChain::new(world_id, &data.name, now);
+        let mut chain = EventChain::new(world_id, &input.name, now);
 
-        if let Some(description) = data.description {
+        if let Some(description) = input.description {
             chain.description = description;
         }
-        if let Some(tags) = data.tags {
+        if let Some(tags) = input.tags {
             chain.tags = tags;
         }
-        if let Some(color) = data.color {
+        if let Some(color) = input.color {
             chain.color = Some(color);
         }
-        if let Some(active) = data.is_active {
+        if let Some(active) = input.is_active {
             chain.is_active = active;
         }
         if let Some(act_id) = act_id {
@@ -69,7 +88,7 @@ impl EventChainOps {
     pub async fn update(
         &self,
         chain_id: EventChainId,
-        data: UpdateEventChainData,
+        input: UpdateEventChainInput,
         act_id: Option<ActId>,
         events: Option<Vec<NarrativeEventId>>,
     ) -> Result<Value, EventChainError> {
@@ -79,19 +98,19 @@ impl EventChainOps {
             .await?
             .ok_or(EventChainError::NotFound)?;
 
-        if let Some(name) = data.name {
+        if let Some(name) = input.name {
             chain.name = name;
         }
-        if let Some(description) = data.description {
+        if let Some(description) = input.description {
             chain.description = description;
         }
-        if let Some(tags) = data.tags {
+        if let Some(tags) = input.tags {
             chain.tags = tags;
         }
-        if let Some(color) = data.color {
+        if let Some(color) = input.color {
             chain.color = Some(color);
         }
-        if let Some(active) = data.is_active {
+        if let Some(active) = input.is_active {
             chain.is_active = active;
         }
         if let Some(act_id) = act_id {

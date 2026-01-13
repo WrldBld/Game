@@ -32,8 +32,8 @@ async fn get_sheet_template_returns_dnd5e_schema_for_dnd5e_world() {
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: tokio::sync::RwLock::new(std::collections::HashMap::new()),
-        pending_staging_requests: tokio::sync::RwLock::new(std::collections::HashMap::new()),
+        pending_time_suggestions: TimeSuggestionStoreImpl::new(),
+        pending_staging_requests: PendingStagingStoreImpl::new(),
         generation_read_state: tokio::sync::RwLock::new(std::collections::HashMap::new()),
     });
 
@@ -134,8 +134,8 @@ async fn get_sheet_template_returns_error_for_nonexistent_world() {
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: tokio::sync::RwLock::new(std::collections::HashMap::new()),
-        pending_staging_requests: tokio::sync::RwLock::new(std::collections::HashMap::new()),
+        pending_time_suggestions: TimeSuggestionStoreImpl::new(),
+        pending_staging_requests: PendingStagingStoreImpl::new(),
         generation_read_state: tokio::sync::RwLock::new(std::collections::HashMap::new()),
     });
 
@@ -204,8 +204,8 @@ async fn get_sheet_template_schema_has_ability_score_validation() {
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: tokio::sync::RwLock::new(std::collections::HashMap::new()),
-        pending_staging_requests: tokio::sync::RwLock::new(std::collections::HashMap::new()),
+        pending_time_suggestions: TimeSuggestionStoreImpl::new(),
+        pending_staging_requests: PendingStagingStoreImpl::new(),
         generation_read_state: tokio::sync::RwLock::new(std::collections::HashMap::new()),
     });
 
@@ -315,8 +315,8 @@ async fn get_sheet_template_schema_includes_creation_steps() {
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: tokio::sync::RwLock::new(std::collections::HashMap::new()),
-        pending_staging_requests: tokio::sync::RwLock::new(std::collections::HashMap::new()),
+        pending_time_suggestions: TimeSuggestionStoreImpl::new(),
+        pending_staging_requests: PendingStagingStoreImpl::new(),
         generation_read_state: tokio::sync::RwLock::new(std::collections::HashMap::new()),
     });
 

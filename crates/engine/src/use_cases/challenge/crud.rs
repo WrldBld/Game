@@ -3,10 +3,27 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use wrldbldr_domain::{self as domain, ChallengeId, Difficulty, WorldId};
-use wrldbldr_protocol::requests::{CreateChallengeData, UpdateChallengeData};
 
 use crate::entities::Challenge;
 use crate::infrastructure::ports::RepoError;
+
+/// Input for creating a challenge (domain representation).
+pub struct CreateChallengeInput {
+    pub name: String,
+    pub difficulty: String,
+    pub description: Option<String>,
+    pub success_outcome: Option<String>,
+    pub failure_outcome: Option<String>,
+}
+
+/// Input for updating a challenge (domain representation).
+pub struct UpdateChallengeInput {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub difficulty: Option<String>,
+    pub success_outcome: Option<String>,
+    pub failure_outcome: Option<String>,
+}
 
 pub struct ChallengeOps {
     challenge: Arc<Challenge>,
@@ -30,10 +47,10 @@ impl ChallengeOps {
     pub async fn create(
         &self,
         world_id: WorldId,
-        data: CreateChallengeData,
+        input: CreateChallengeInput,
     ) -> Result<Value, ChallengeError> {
         // Validate that name is not empty or whitespace-only
-        if data.name.trim().is_empty() {
+        if input.name.trim().is_empty() {
             return Err(ChallengeError::ValidationError(
                 "Challenge name cannot be empty".to_string(),
             ));
@@ -43,12 +60,12 @@ impl ChallengeOps {
         // This is intentional to support freeform difficulty descriptions
         let mut challenge = domain::Challenge::new(
             world_id,
-            &data.name,
-            Difficulty::parse(&data.difficulty),
+            &input.name,
+            Difficulty::parse(&input.difficulty),
         );
-        challenge.description = data.description.unwrap_or_default();
-        challenge.outcomes.success.description = data.success_outcome.unwrap_or_default();
-        challenge.outcomes.failure.description = data.failure_outcome.unwrap_or_default();
+        challenge.description = input.description.unwrap_or_default();
+        challenge.outcomes.success.description = input.success_outcome.unwrap_or_default();
+        challenge.outcomes.failure.description = input.failure_outcome.unwrap_or_default();
         challenge.order = 0;
 
         // Validate triggers before saving
@@ -66,7 +83,7 @@ impl ChallengeOps {
     pub async fn update(
         &self,
         challenge_id: ChallengeId,
-        data: UpdateChallengeData,
+        input: UpdateChallengeInput,
     ) -> Result<Value, ChallengeError> {
         let mut challenge = self
             .challenge
@@ -74,7 +91,7 @@ impl ChallengeOps {
             .await?
             .ok_or(ChallengeError::NotFound)?;
 
-        if let Some(name) = data.name {
+        if let Some(name) = input.name {
             if name.trim().is_empty() {
                 return Err(ChallengeError::ValidationError(
                     "Challenge name cannot be empty".to_string(),
@@ -82,18 +99,18 @@ impl ChallengeOps {
             }
             challenge.name = name;
         }
-        if let Some(description) = data.description {
+        if let Some(description) = input.description {
             challenge.description = description;
         }
-        if let Some(difficulty) = data.difficulty {
+        if let Some(difficulty) = input.difficulty {
             // Note: Difficulty::parse never fails - invalid formats become Difficulty::Custom(string)
             // This is intentional to support freeform difficulty descriptions
             challenge.difficulty = Difficulty::parse(&difficulty);
         }
-        if let Some(success) = data.success_outcome {
+        if let Some(success) = input.success_outcome {
             challenge.outcomes.success.description = success;
         }
-        if let Some(failure) = data.failure_outcome {
+        if let Some(failure) = input.failure_outcome {
             challenge.outcomes.failure.description = failure;
         }
 
