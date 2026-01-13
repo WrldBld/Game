@@ -420,6 +420,10 @@ async fn main() -> anyhow::Result<()> {
                     .await
                 {
                     Ok(payload) => {
+                        // Convert domain types to protocol types
+                        let npcs_present_proto: Vec<wrldbldr_protocol::NpcPresentInfo> =
+                            payload.npcs_present.iter().map(|n| n.to_protocol()).collect();
+
                         // Broadcast StagingReady to all players in world
                         staging_ws_state
                             .connections
@@ -427,7 +431,7 @@ async fn main() -> anyhow::Result<()> {
                                 world_id,
                                 wrldbldr_protocol::ServerMessage::StagingReady {
                                     region_id: payload.region_id.to_string(),
-                                    npcs_present: payload.npcs_present,
+                                    npcs_present: npcs_present_proto,
                                     visual_state: payload.visual_state,
                                 },
                             )

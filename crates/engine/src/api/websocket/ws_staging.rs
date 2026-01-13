@@ -79,6 +79,16 @@ pub(super) async fn handle_staging_approval(
         None => return Some(error_response("NOT_CONNECTED", "World not joined")),
     };
 
+    // Convert protocol types to domain types
+    let domain_approved_npcs: Vec<crate::use_cases::staging::ApprovedNpc> = match approved_npcs
+        .iter()
+        .map(crate::use_cases::staging::ApprovedNpc::from_protocol)
+        .collect::<Result<Vec<_>, _>>()
+    {
+        Ok(npcs) => npcs,
+        Err(e) => return Some(error_response("VALIDATION_ERROR", &e.to_string())),
+    };
+
     let input = crate::use_cases::staging::ApproveStagingInput {
         region_id,
         location_id,
@@ -86,7 +96,7 @@ pub(super) async fn handle_staging_approval(
         approved_by: conn_info.user_id.clone(),
         ttl_hours,
         source: parse_staging_source(&source),
-        approved_npcs,
+        approved_npcs: domain_approved_npcs,
         location_state_id,
         region_state_id,
     };
@@ -102,13 +112,17 @@ pub(super) async fn handle_staging_approval(
         Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
     };
 
+    // Convert domain types to protocol types for the response
+    let npcs_present_proto: Vec<wrldbldr_protocol::NpcPresentInfo> =
+        payload.npcs_present.iter().map(|n| n.to_protocol()).collect();
+
     state
         .connections
         .broadcast_to_world(
             world_id,
             ServerMessage::StagingReady {
                 region_id: payload.region_id.to_string(),
-                npcs_present: payload.npcs_present,
+                npcs_present: npcs_present_proto,
                 visual_state: payload.visual_state,
             },
         )
@@ -177,9 +191,13 @@ pub(super) async fn handle_staging_regenerate(
         Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
     };
 
+    // Convert domain types to protocol types for the response
+    let llm_based_npcs_proto: Vec<wrldbldr_protocol::StagedNpcInfo> =
+        llm_based_npcs.iter().map(|n| n.to_protocol()).collect();
+
     Some(ServerMessage::StagingRegenerated {
         request_id,
-        llm_based_npcs,
+        llm_based_npcs: llm_based_npcs_proto,
     })
 }
 
@@ -218,6 +236,16 @@ pub(super) async fn handle_pre_stage_region(
         None => return Some(error_response("NOT_CONNECTED", "World not joined")),
     };
 
+    // Convert protocol types to domain types
+    let domain_approved_npcs: Vec<crate::use_cases::staging::ApprovedNpc> = match npcs
+        .iter()
+        .map(crate::use_cases::staging::ApprovedNpc::from_protocol)
+        .collect::<Result<Vec<_>, _>>()
+    {
+        Ok(npcs) => npcs,
+        Err(e) => return Some(error_response("VALIDATION_ERROR", &e.to_string())),
+    };
+
     let input = crate::use_cases::staging::ApproveStagingInput {
         region_id: region_uuid,
         location_id: None,
@@ -225,7 +253,7 @@ pub(super) async fn handle_pre_stage_region(
         approved_by: conn_info.user_id.clone(),
         ttl_hours,
         source: StagingSource::PreStaged,
-        approved_npcs: npcs,
+        approved_npcs: domain_approved_npcs,
         location_state_id,
         region_state_id,
     };

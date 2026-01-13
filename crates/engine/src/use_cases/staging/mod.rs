@@ -24,10 +24,7 @@ use wrldbldr_domain::{
     CharacterId, LocationId, PlayerCharacter, RegionId, Staging as DomainStaging, StagingSource,
     WorldId,
 };
-use wrldbldr_protocol::{
-    ApprovedNpcInfo, NpcPresentInfo, PreviousStagingInfo, ServerMessage, StagedNpcInfo,
-    WaitingPcInfo,
-};
+use wrldbldr_protocol::ServerMessage;
 
 /// Timeout in seconds before a pending staging request auto-approves.
 /// This is the delay shown to players while waiting for DM approval.
@@ -120,6 +117,130 @@ pub trait TimeSuggestionStore: Send + Sync {
 
     /// Remove a time suggestion by key.
     async fn remove(&self, key: Uuid) -> Option<TimeSuggestion>;
+}
+
+// =============================================================================
+// Domain Types for Staging
+// =============================================================================
+
+/// Domain type for a staged NPC (for approval UI).
+#[derive(Debug, Clone)]
+pub struct StagedNpc {
+    pub character_id: CharacterId,
+    pub name: String,
+    pub sprite_asset: Option<String>,
+    pub portrait_asset: Option<String>,
+    pub is_present: bool,
+    pub reasoning: String,
+    pub is_hidden_from_players: bool,
+    pub mood: Option<String>,
+}
+
+impl StagedNpc {
+    /// Convert to protocol type for wire transmission.
+    pub fn to_protocol(&self) -> wrldbldr_protocol::StagedNpcInfo {
+        wrldbldr_protocol::StagedNpcInfo {
+            character_id: self.character_id.to_string(),
+            name: self.name.clone(),
+            sprite_asset: self.sprite_asset.clone(),
+            portrait_asset: self.portrait_asset.clone(),
+            is_present: self.is_present,
+            reasoning: self.reasoning.clone(),
+            is_hidden_from_players: self.is_hidden_from_players,
+            mood: self.mood.clone(),
+        }
+    }
+}
+
+/// Domain type for approved NPC info.
+#[derive(Debug, Clone)]
+pub struct ApprovedNpc {
+    pub character_id: CharacterId,
+    pub is_present: bool,
+    pub reasoning: Option<String>,
+    pub is_hidden_from_players: bool,
+    pub mood: Option<String>,
+}
+
+impl ApprovedNpc {
+    /// Convert from protocol type.
+    pub fn from_protocol(info: &wrldbldr_protocol::ApprovedNpcInfo) -> Result<Self, StagingError> {
+        let character_id = info
+            .character_id
+            .parse::<uuid::Uuid>()
+            .map(CharacterId::from)
+            .map_err(|_| StagingError::Validation("Invalid character ID".to_string()))?;
+        Ok(Self {
+            character_id,
+            is_present: info.is_present,
+            reasoning: info.reasoning.clone(),
+            is_hidden_from_players: info.is_hidden_from_players,
+            mood: info.mood.clone(),
+        })
+    }
+}
+
+/// Domain type for a waiting PC.
+#[derive(Debug, Clone)]
+pub struct WaitingPc {
+    pub pc_id: wrldbldr_domain::PlayerCharacterId,
+    pub pc_name: String,
+    pub player_id: String,
+}
+
+impl WaitingPc {
+    /// Convert to protocol type for wire transmission.
+    pub fn to_protocol(&self) -> wrldbldr_protocol::WaitingPcInfo {
+        wrldbldr_protocol::WaitingPcInfo {
+            pc_id: self.pc_id.to_string(),
+            pc_name: self.pc_name.clone(),
+            player_id: self.player_id.clone(),
+        }
+    }
+}
+
+/// Domain type for NPC presence info (for players).
+#[derive(Debug, Clone)]
+pub struct NpcPresent {
+    pub character_id: CharacterId,
+    pub name: String,
+    pub sprite_asset: Option<String>,
+    pub portrait_asset: Option<String>,
+    pub is_hidden_from_players: bool,
+    pub mood: Option<String>,
+}
+
+impl NpcPresent {
+    /// Convert to protocol type for wire transmission.
+    pub fn to_protocol(&self) -> wrldbldr_protocol::NpcPresentInfo {
+        wrldbldr_protocol::NpcPresentInfo {
+            character_id: self.character_id.to_string(),
+            name: self.name.clone(),
+            sprite_asset: self.sprite_asset.clone(),
+            portrait_asset: self.portrait_asset.clone(),
+            is_hidden_from_players: self.is_hidden_from_players,
+            mood: self.mood.clone(),
+        }
+    }
+}
+
+/// Domain type for previous staging info.
+#[derive(Debug, Clone)]
+pub struct PreviousStagingData {
+    pub staging_id: Uuid,
+    pub approved_at: chrono::DateTime<chrono::Utc>,
+    pub npcs: Vec<StagedNpc>,
+}
+
+impl PreviousStagingData {
+    /// Convert to protocol type for wire transmission.
+    pub fn to_protocol(&self) -> wrldbldr_protocol::PreviousStagingInfo {
+        wrldbldr_protocol::PreviousStagingInfo {
+            staging_id: self.staging_id.to_string(),
+            approved_at: self.approved_at.to_rfc3339(),
+            npcs: self.npcs.iter().map(|n| n.to_protocol()).collect(),
+        }
+    }
 }
 
 /// IO dependencies for staging requests (WS-state owned).
@@ -228,25 +349,30 @@ impl RequestStagingApproval {
             .resolve_visual_states(input.world_id, input.region.location_id, input.region.id)
             .await;
 
-        let previous_staging = input.previous_staging.map(|s| PreviousStagingInfo {
-            staging_id: s.id.to_string(),
-            approved_at: s.approved_at.to_rfc3339(),
-            npcs: s
-                .npcs
-                .into_iter()
-                .map(|n| StagedNpcInfo {
-                    character_id: n.character_id.to_string(),
-                    name: n.name,
-                    sprite_asset: n.sprite_asset,
-                    portrait_asset: n.portrait_asset,
-                    is_present: n.is_present,
-                    reasoning: n.reasoning,
-                    is_hidden_from_players: n.is_hidden_from_players,
-                    mood: Some(n.mood.to_string()),
-                })
-                .collect(),
+        // Convert previous staging to domain type, then to protocol
+        let previous_staging = input.previous_staging.map(|s| {
+            PreviousStagingData {
+                staging_id: s.id.into(),
+                approved_at: s.approved_at,
+                npcs: s
+                    .npcs
+                    .into_iter()
+                    .map(|n| StagedNpc {
+                        character_id: n.character_id,
+                        name: n.name,
+                        sprite_asset: n.sprite_asset,
+                        portrait_asset: n.portrait_asset,
+                        is_present: n.is_present,
+                        reasoning: n.reasoning,
+                        is_hidden_from_players: n.is_hidden_from_players,
+                        mood: Some(n.mood.to_string()),
+                    })
+                    .collect(),
+            }
+            .to_protocol()
         });
 
+        // Convert domain types to protocol for the message
         let approval_msg = ServerMessage::StagingApprovalRequired {
             request_id: request_id.clone(),
             region_id: input.region.id.to_string(),
@@ -260,14 +386,15 @@ impl RequestStagingApproval {
                 is_paused: world.game_time.is_paused(),
             },
             previous_staging,
-            rule_based_npcs,
-            llm_based_npcs,
+            rule_based_npcs: rule_based_npcs.iter().map(|n| n.to_protocol()).collect(),
+            llm_based_npcs: llm_based_npcs.iter().map(|n| n.to_protocol()).collect(),
             default_ttl_hours: settings.default_presence_cache_ttl_hours,
-            waiting_pcs: vec![WaitingPcInfo {
-                pc_id: input.pc.id.to_string(),
+            waiting_pcs: vec![WaitingPc {
+                pc_id: input.pc.id,
                 pc_name: input.pc.name.clone(),
                 player_id: input.pc.user_id.clone(),
-            }],
+            }
+            .to_protocol()],
             resolved_visual_state,
             available_location_states,
             available_region_states,
@@ -417,7 +544,7 @@ impl RegenerateStagingSuggestions {
         &self,
         region_id: RegionId,
         guidance: Option<&str>,
-    ) -> Result<Vec<StagedNpcInfo>, StagingError> {
+    ) -> Result<Vec<StagedNpc>, StagingError> {
         let region = self
             .location
             .get_region(region_id)
@@ -601,25 +728,12 @@ impl ApproveStagingRequest {
 
     async fn build_staged_npcs(
         &self,
-        approved_npcs: &[ApprovedNpcInfo],
+        approved_npcs: &[ApprovedNpc],
     ) -> Vec<wrldbldr_domain::StagedNpc> {
         let mut staged_npcs = Vec::new();
 
         for npc_info in approved_npcs {
-            let char_uuid = match Uuid::parse_str(&npc_info.character_id) {
-                Ok(u) => u,
-                Err(e) => {
-                    tracing::warn!(
-                        character_id = %npc_info.character_id,
-                        error = %e,
-                        "Failed to parse character UUID during staging approval, skipping NPC"
-                    );
-                    continue;
-                }
-            };
-            let character_id = CharacterId::from_uuid(char_uuid);
-
-            let character = self.character.get(character_id).await.ok().flatten();
+            let character = self.character.get(npc_info.character_id).await.ok().flatten();
             let (name, sprite_asset, portrait_asset, default_mood, has_incomplete_data) =
                 match character {
                     Some(c) => (c.name, c.sprite_asset, c.portrait_asset, c.default_mood, false),
@@ -645,7 +759,7 @@ impl ApproveStagingRequest {
                 .unwrap_or(default_mood);
 
             staged_npcs.push(wrldbldr_domain::StagedNpc {
-                character_id,
+                character_id: npc_info.character_id,
                 name,
                 sprite_asset,
                 portrait_asset,
@@ -660,49 +774,36 @@ impl ApproveStagingRequest {
         staged_npcs
     }
 
-    async fn build_npcs_present(&self, approved_npcs: &[ApprovedNpcInfo]) -> Vec<NpcPresentInfo> {
+    async fn build_npcs_present(&self, approved_npcs: &[ApprovedNpc]) -> Vec<NpcPresent> {
         let mut npcs_present = Vec::new();
         for npc_info in approved_npcs {
             if npc_info.is_present && !npc_info.is_hidden_from_players {
                 let (name, sprite_asset, portrait_asset) =
-                    match Uuid::parse_str(&npc_info.character_id) {
-                        Ok(char_uuid) => {
-                            let char_id = CharacterId::from_uuid(char_uuid);
-                            match self.character.get(char_id).await {
-                                Ok(Some(character)) => (
-                                    character.name,
-                                    character.sprite_asset,
-                                    character.portrait_asset,
-                                ),
-                                Ok(None) => {
-                                    tracing::warn!(
-                                        character_id = %npc_info.character_id,
-                                        "Character not found when building NPCs present, using empty defaults"
-                                    );
-                                    (String::new(), None, None)
-                                }
-                                Err(e) => {
-                                    tracing::warn!(
-                                        character_id = %npc_info.character_id,
-                                        error = %e,
-                                        "Failed to fetch character when building NPCs present, using empty defaults"
-                                    );
-                                    (String::new(), None, None)
-                                }
-                            }
+                    match self.character.get(npc_info.character_id).await {
+                        Ok(Some(character)) => (
+                            character.name,
+                            character.sprite_asset,
+                            character.portrait_asset,
+                        ),
+                        Ok(None) => {
+                            tracing::warn!(
+                                character_id = %npc_info.character_id,
+                                "Character not found when building NPCs present, using empty defaults"
+                            );
+                            (String::new(), None, None)
                         }
                         Err(e) => {
                             tracing::warn!(
                                 character_id = %npc_info.character_id,
                                 error = %e,
-                                "Failed to parse character UUID when building NPCs present, using empty defaults"
+                                "Failed to fetch character when building NPCs present, using empty defaults"
                             );
                             (String::new(), None, None)
                         }
                     };
 
-                npcs_present.push(NpcPresentInfo {
-                    character_id: npc_info.character_id.clone(),
+                npcs_present.push(NpcPresent {
+                    character_id: npc_info.character_id,
                     name,
                     sprite_asset,
                     portrait_asset,
@@ -756,32 +857,14 @@ impl ApproveStagingRequest {
     ///
     /// Validation rules:
     /// - Empty array is allowed (represents staging with no NPCs)
-    /// - Each NPC must have a non-empty character_id
-    /// - Each character_id must be a valid UUID format
-    fn validate_approved_npcs(&self, approved_npcs: &[ApprovedNpcInfo]) -> Result<(), StagingError> {
-        for (index, npc_info) in approved_npcs.iter().enumerate() {
-            // Check for empty character_id
-            if npc_info.character_id.is_empty() {
-                return Err(StagingError::Validation(format!(
-                    "NPC at index {} has empty character_id",
-                    index
-                )));
-            }
-
-            // Validate UUID format
-            if Uuid::parse_str(&npc_info.character_id).is_err() {
-                return Err(StagingError::Validation(format!(
-                    "NPC at index {} has invalid character_id '{}': not a valid UUID",
-                    index, npc_info.character_id
-                )));
-            }
-        }
-
+    /// - CharacterId is already a valid typed ID (no string parsing needed)
+    fn validate_approved_npcs(&self, approved_npcs: &[ApprovedNpc]) -> Result<(), StagingError> {
         // Log when empty array is explicitly approved
         if approved_npcs.is_empty() {
             tracing::debug!("Staging approved with empty NPC list (no NPCs present)");
         }
 
+        // CharacterId is already typed, no further validation needed
         Ok(())
     }
 }
@@ -793,14 +876,14 @@ pub struct ApproveStagingInput {
     pub approved_by: String,
     pub ttl_hours: i32,
     pub source: StagingSource,
-    pub approved_npcs: Vec<ApprovedNpcInfo>,
+    pub approved_npcs: Vec<ApprovedNpc>,
     pub location_state_id: Option<String>,
     pub region_state_id: Option<String>,
 }
 
 pub struct StagingReadyPayload {
     pub region_id: RegionId,
-    pub npcs_present: Vec<NpcPresentInfo>,
+    pub npcs_present: Vec<NpcPresent>,
     pub visual_state: Option<wrldbldr_protocol::types::ResolvedVisualStateData>,
 }
 
@@ -826,14 +909,14 @@ async fn generate_rule_based_suggestions(
     character: &Character,
     staging: &Staging,
     region_id: RegionId,
-) -> Vec<StagedNpcInfo> {
+) -> Vec<StagedNpc> {
     let npcs_with_relationships = character
         .get_npcs_for_region(region_id)
         .await
         .ok()
         .unwrap_or_default();
 
-    let mut suggestions: Vec<StagedNpcInfo> = npcs_with_relationships
+    let mut suggestions: Vec<StagedNpc> = npcs_with_relationships
         .into_iter()
         .filter(|n| n.relationship_type != NpcRegionRelationType::Avoids)
         .map(|npc| {
@@ -855,8 +938,8 @@ async fn generate_rule_based_suggestions(
                 NpcRegionRelationType::Avoids => "Avoids this area".to_string(),
             };
 
-            StagedNpcInfo {
-                character_id: npc.character_id.to_string(),
+            StagedNpc {
+                character_id: npc.character_id,
                 name: npc.name,
                 sprite_asset: npc.sprite_asset,
                 portrait_asset: npc.portrait_asset,
@@ -872,10 +955,10 @@ async fn generate_rule_based_suggestions(
         for staged in staged_npcs {
             if !suggestions
                 .iter()
-                .any(|s| s.character_id == staged.character_id.to_string())
+                .any(|s| s.character_id == staged.character_id)
             {
-                suggestions.push(StagedNpcInfo {
-                    character_id: staged.character_id.to_string(),
+                suggestions.push(StagedNpc {
+                    character_id: staged.character_id,
                     name: staged.name,
                     sprite_asset: staged.sprite_asset,
                     portrait_asset: staged.portrait_asset,
@@ -898,7 +981,7 @@ async fn generate_llm_based_suggestions(
     region_name: &str,
     location_name: &str,
     guidance: Option<&str>,
-) -> Vec<StagedNpcInfo> {
+) -> Vec<StagedNpc> {
     let npcs_with_relationships = match character.get_npcs_for_region(region_id).await {
         Ok(npcs) => npcs,
         Err(e) => {
@@ -977,7 +1060,7 @@ fn normalize_name(name: &str) -> String {
 fn parse_llm_staging_response(
     content: &str,
     candidates: &[crate::infrastructure::ports::NpcWithRegionInfo],
-) -> Vec<StagedNpcInfo> {
+) -> Vec<StagedNpc> {
     let json_start = content.find('[');
     let json_end = content.rfind(']');
 
@@ -1011,8 +1094,8 @@ fn parse_llm_staging_response(
                 .iter()
                 .find(|c| normalize_name(&c.name) == normalize_name(&suggestion.name))?;
 
-            Some(StagedNpcInfo {
-                character_id: npc.character_id.to_string(),
+            Some(StagedNpc {
+                character_id: npc.character_id,
                 name: npc.name.clone(),
                 sprite_asset: npc.sprite_asset.clone(),
                 portrait_asset: npc.portrait_asset.clone(),
@@ -1072,10 +1155,10 @@ impl AutoApproveStagingTimeout {
             generate_rule_based_suggestions(&self.character, &self.staging, pending.region_id)
                 .await;
 
-        // Convert to ApprovedNpcInfo format
-        let approved_npcs: Vec<ApprovedNpcInfo> = rule_based_npcs
+        // Convert to ApprovedNpc domain type
+        let approved_npcs: Vec<ApprovedNpc> = rule_based_npcs
             .into_iter()
-            .map(|npc| ApprovedNpcInfo {
+            .map(|npc| ApprovedNpc {
                 character_id: npc.character_id,
                 is_present: npc.is_present,
                 reasoning: Some(format!("[Auto-approved] {}", npc.reasoning)),

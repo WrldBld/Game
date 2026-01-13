@@ -1004,9 +1004,8 @@ pub fn create_e2e_llm(test_name: &str) -> Arc<VcrLlm> {
 // =============================================================================
 
 use wrldbldr_domain::{DmApprovalDecision, PlayerCharacterId, StagingSource};
-use wrldbldr_protocol::ApprovedNpcInfo;
 
-use crate::use_cases::staging::ApproveStagingInput;
+use crate::use_cases::staging::{ApprovedNpc, ApproveStagingInput};
 
 /// Stage an NPC in a region (simulating DM approval).
 pub async fn approve_staging_with_npc(
@@ -1029,8 +1028,8 @@ pub async fn approve_staging_with_npc(
         approved_by: "e2e-test".to_string(),
         ttl_hours: 24,
         source: StagingSource::DmCustomized,
-        approved_npcs: vec![ApprovedNpcInfo {
-            character_id: npc_id.to_string(),
+        approved_npcs: vec![ApprovedNpc {
+            character_id: npc_id,
             is_present: true,
             reasoning: Some("E2E test staging".to_string()),
             is_hidden_from_players: false,
@@ -1061,8 +1060,8 @@ pub async fn approve_staging_with_npcs(
             .await?
             .ok_or("NPC not found")?;
 
-        approved_npcs.push(ApprovedNpcInfo {
-            character_id: npc_id.to_string(),
+        approved_npcs.push(ApprovedNpc {
+            character_id: npc_id,
             is_present: true,
             reasoning: Some("E2E test staging".to_string()),
             is_hidden_from_players: false,
