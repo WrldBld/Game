@@ -122,13 +122,22 @@ impl StartConversation {
         let conversation_id = Uuid::new_v4();
 
         // 5. Get NPC's current disposition toward the PC if available
-        let npc_disposition = self
+        let npc_disposition = match self
             .character
             .get_disposition(npc_id, pc_id)
             .await
-            .ok()
-            .flatten()
-            .map(|d| d.disposition.to_string());
+        {
+            Ok(disposition) => disposition.map(|d| d.disposition.to_string()),
+            Err(e) => {
+                tracing::warn!(
+                    npc_id = %npc_id,
+                    pc_id = %pc_id,
+                    error = %e,
+                    "Failed to get NPC disposition, continuing without it"
+                );
+                None
+            }
+        };
 
         // 6. Enqueue the player action for processing
         // Note: target is the NPC ID (as string) so it can be parsed in build_prompt

@@ -622,6 +622,25 @@ impl ExecuteEffects {
                     }
                 };
 
+                // Validate sentiment change is a finite number
+                if !sentiment_change.is_finite() {
+                    tracing::warn!(
+                        from_character = %from_character,
+                        to_character = %to_character,
+                        sentiment_change = %sentiment_change,
+                        "Invalid sentiment change value (NaN or Infinity), skipping"
+                    );
+                    return EffectExecutionResult {
+                        description: format!(
+                            "Invalid sentiment change value: {}",
+                            sentiment_change
+                        ),
+                        success: false,
+                        error: Some("Sentiment change is NaN or Infinity".to_string()),
+                        requires_dm_action: false,
+                    };
+                }
+
                 // Apply sentiment change
                 let old_sentiment = relationship.sentiment;
                 relationship.sentiment =
@@ -850,7 +869,7 @@ impl ExecuteEffects {
             .and_then(|sd| sd.get_number(stat_name))
             .unwrap_or(0);
 
-        let new_value = current_value + amount as i64;
+        let new_value = current_value.saturating_add(amount as i64);
 
         // Create updated sheet_data
         let mut sheet_data = pc.sheet_data.clone().unwrap_or_default();

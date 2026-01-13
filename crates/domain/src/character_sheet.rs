@@ -787,22 +787,26 @@ impl CharacterSheetData {
         self.values.get(key).and_then(|v| {
             // Handle various JSON representations
             if let Some(n) = v.as_i64() {
-                return Some(n as i32);
+                return i32::try_from(n).ok();
             }
             if let Some(n) = v.as_f64() {
-                return Some(n as i32);
+                // Check if float is finite and within i32 range
+                if n.is_finite() && n >= i32::MIN as f64 && n <= i32::MAX as f64 {
+                    return Some(n as i32);
+                }
+                return None;
             }
             // Handle object types like SkillEntry with a "bonus" or "value" field
             if let Some(obj) = v.as_object() {
                 if let Some(bonus) = obj.get("bonus").and_then(|b| b.as_i64()) {
-                    return Some(bonus as i32);
+                    return i32::try_from(bonus).ok();
                 }
                 if let Some(value) = obj.get("value").and_then(|b| b.as_i64()) {
-                    return Some(value as i32);
+                    return i32::try_from(value).ok();
                 }
                 // For dice pool, use dice count
                 if let Some(dice) = obj.get("dice").and_then(|d| d.as_i64()) {
-                    return Some(dice as i32);
+                    return i32::try_from(dice).ok();
                 }
             }
             None
