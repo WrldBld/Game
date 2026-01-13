@@ -52,7 +52,7 @@ impl JoinWorldFlow {
 
         let join_result = self
             .join_world
-            .execute_with_role(input.world_id, input.role, input.pc_id)
+            .execute_with_role(input.world_id, internal_role, input.pc_id)
             .await
             .map_err(JoinWorldFlowError::from)?;
 

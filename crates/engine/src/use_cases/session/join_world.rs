@@ -3,8 +3,7 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use crate::entities::{Character, Location, PlayerCharacter, Scene, World};
-use crate::infrastructure::ports::RepoError;
-use wrldbldr_protocol::WorldRole as ProtoWorldRole;
+use crate::infrastructure::ports::{RepoError, WorldRole};
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 
 /// Use case for joining a world and building the session snapshot.
@@ -131,10 +130,10 @@ impl JoinWorld {
     pub async fn execute_with_role(
         &self,
         world_id: WorldId,
-        role: ProtoWorldRole,
+        role: WorldRole,
         pc_id: Option<PlayerCharacterId>,
     ) -> Result<JoinWorldResult, JoinWorldError> {
-        let include_pc = matches!(role, ProtoWorldRole::Player);
+        let include_pc = matches!(role, WorldRole::Player);
         self.execute(world_id, pc_id, include_pc).await
     }
 
