@@ -6,6 +6,7 @@ pub mod cache;
 pub mod circuit_breaker;
 pub mod clock;
 pub mod comfyui;
+pub mod error;
 pub mod importers;
 pub mod neo4j;
 pub mod ollama;

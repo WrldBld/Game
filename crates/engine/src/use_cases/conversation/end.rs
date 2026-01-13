@@ -410,8 +410,9 @@ mod tests {
             .expect_end_active_conversation()
             .withf(move |p, n| *p == pc_id && *n == npc_id)
             .returning(|_, _| {
-                Err(crate::infrastructure::ports::RepoError::Database(
-                    "Database connection lost".to_string(),
+                Err(crate::infrastructure::ports::RepoError::database(
+                    "end_conversation",
+                    "Database connection lost",
                 ))
             });
 

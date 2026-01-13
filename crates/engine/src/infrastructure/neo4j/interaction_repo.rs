@@ -26,15 +26,15 @@ impl Neo4jInteractionRepo {
     fn row_to_interaction(&self, row: Row) -> Result<InteractionTemplate, RepoError> {
         let node: neo4rs::Node = row
             .get("i")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let id: InteractionId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
         let scene_id: SceneId =
-            parse_typed_id(&node, "scene_id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "scene_id").map_err(|e| RepoError::database("query", e))?;
         let name: String = node
             .get("name")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let prompt_hints: String = node.get_string_or("prompt_hints", "");
         let is_available = node.get_bool_or("is_available", true);
         let order_num = node.get_i64_or("order_num", 0);
@@ -84,12 +84,12 @@ impl InteractionRepo for Neo4jInteractionRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_interaction(row)?))
         } else {
@@ -136,7 +136,7 @@ impl InteractionRepo for Neo4jInteractionRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Saved interaction: {}", interaction.name);
         Ok(())
@@ -149,7 +149,7 @@ impl InteractionRepo for Neo4jInteractionRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -165,13 +165,13 @@ impl InteractionRepo for Neo4jInteractionRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut interactions = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             interactions.push(self.row_to_interaction(row)?);
         }

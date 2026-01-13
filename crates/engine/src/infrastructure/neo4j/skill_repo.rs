@@ -23,15 +23,15 @@ impl Neo4jSkillRepo {
     fn row_to_skill(&self, row: Row) -> Result<Skill, RepoError> {
         let node: neo4rs::Node = row
             .get("s")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let id: SkillId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
         let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
         let name: String = node
             .get("name")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let description: String = node.get_string_or("description", "");
         let category_str = node.get_string_or("category", "other");
         let category = category_str
@@ -65,12 +65,12 @@ impl SkillRepo for Neo4jSkillRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_skill(row)?))
         } else {
@@ -110,7 +110,7 @@ impl SkillRepo for Neo4jSkillRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Saved skill: {}", skill.name);
         Ok(())
@@ -123,7 +123,7 @@ impl SkillRepo for Neo4jSkillRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -139,13 +139,13 @@ impl SkillRepo for Neo4jSkillRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut skills = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             skills.push(self.row_to_skill(row)?);
         }

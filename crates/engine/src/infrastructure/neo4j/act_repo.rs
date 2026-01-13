@@ -23,15 +23,15 @@ impl Neo4jActRepo {
     fn row_to_act(&self, row: Row) -> Result<Act, RepoError> {
         let node: neo4rs::Node = row
             .get("a")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let id: ActId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
         let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
         let name: String = node
             .get("name")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let stage_str = node.get_string_or("stage", MonomythStage::Unknown.as_str());
         let stage = stage_str
             .parse::<MonomythStage>()
@@ -59,12 +59,12 @@ impl ActRepo for Neo4jActRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_act(row)?))
         } else {
@@ -95,7 +95,7 @@ impl ActRepo for Neo4jActRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Saved act: {}", act.name);
         Ok(())
@@ -108,7 +108,7 @@ impl ActRepo for Neo4jActRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -124,13 +124,13 @@ impl ActRepo for Neo4jActRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut acts = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             acts.push(self.row_to_act(row)?);
         }

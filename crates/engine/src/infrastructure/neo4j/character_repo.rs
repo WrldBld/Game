@@ -166,28 +166,28 @@ impl Neo4jCharacterRepo {
     fn row_to_character(&self, row: Row) -> Result<Character, RepoError> {
         let node: neo4rs::Node = row
             .get("c")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let id: CharacterId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
         let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
         let name: String = node
             .get("name")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let description: String = node
             .get("description")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let base_archetype_str: String = node
             .get("base_archetype")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let current_archetype_str: String = node
             .get("current_archetype")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let default_disposition_str: String = node
             .get("default_disposition")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let base_archetype: CampbellArchetype = base_archetype_str
             .parse()
@@ -198,19 +198,19 @@ impl Neo4jCharacterRepo {
 
         let archetype_history: Vec<ArchetypeChange> = node
             .get_json::<Vec<ArchetypeChangeStored>>("archetype_history")
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
             .into_iter()
             .map(Into::into)
             .collect();
 
         let stats: StatBlock = node
             .get_json::<StatBlockStored>("stats")
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
             .into();
 
         let default_disposition = default_disposition_str
             .parse()
-            .map_err(|e: String| RepoError::Database(e))?;
+            .map_err(|e: String| RepoError::database("query", e))?;
 
         // Parse default_mood from stored string (falls back to Calm)
         let default_mood_str: String = node
@@ -258,12 +258,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_character(row)?))
         } else {
@@ -339,13 +339,13 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // Verify the operation succeeded
         if result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
             .is_none()
         {
             tracing::warn!(
@@ -353,7 +353,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 character.world_id,
                 character.id
             );
-            return Err(RepoError::NotFound);
+            return Err(RepoError::not_found("Entity", "unknown"));
         }
 
         tracing::debug!("Saved character: {}", character.name);
@@ -373,7 +373,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted character: {}", id);
         Ok(())
@@ -396,13 +396,13 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut characters = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             characters.push(self.row_to_character(row)?);
         }
@@ -422,13 +422,13 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut characters = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             characters.push(self.row_to_character(row)?);
         }
@@ -459,13 +459,13 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // Verify the operation succeeded
         if result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
             .is_none()
         {
             tracing::warn!(
@@ -473,7 +473,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 id,
                 region_id
             );
-            return Err(RepoError::NotFound);
+            return Err(RepoError::not_found("Entity", "unknown"));
         }
 
         tracing::debug!("Updated character {} position to region {}", id, region_id);
@@ -496,31 +496,31 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut relationships = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let rel_id_str: String = row
                 .get("rel_id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let rel_id = RelationshipId::from(
-                Uuid::parse_str(&rel_id_str).map_err(|e| RepoError::Database(e.to_string()))?,
+                Uuid::parse_str(&rel_id_str).map_err(|e| RepoError::database("query", e))?,
             );
 
             let other_id_str: String = row
                 .get("other_id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let other_id = CharacterId::from(
-                Uuid::parse_str(&other_id_str).map_err(|e| RepoError::Database(e.to_string()))?,
+                Uuid::parse_str(&other_id_str).map_err(|e| RepoError::database("query", e))?,
             );
 
             let rel_type_str: String = row
                 .get("rel_type")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let relationship_type: RelationshipType = rel_type_str
                 .parse()
                 .unwrap_or(RelationshipType::Custom(rel_type_str));
@@ -573,7 +573,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!(
             "Saved relationship from {} to {}",
@@ -593,7 +593,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted relationship: {}", id);
         Ok(())
@@ -614,13 +614,13 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut items = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             items.push(row_to_item(row)?);
         }
@@ -644,7 +644,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Added item {} to character {}", item_id, character_id);
         Ok(())
@@ -665,7 +665,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Removed item {} from character {}", item_id, character_id);
         Ok(())
@@ -687,17 +687,17 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut wants = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let node: neo4rs::Node = row
                 .get("w")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let want = node_to_want(&node)?;
 
             let priority: i64 = row.get("priority").unwrap_or(1);
@@ -726,19 +726,19 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let node: neo4rs::Node = row
                 .get("w")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let want = node_to_want(&node)?;
             let character_id: CharacterId = parse_typed_id_from_row(&row, "character_id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let priority: i64 = row.get("priority").unwrap_or(1);
             let target = parse_want_target_from_row(&row)?;
 
@@ -795,7 +795,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Saved want {} for character {}", want.id, character_id);
         Ok(())
@@ -811,7 +811,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted want: {}", id);
         Ok(())
@@ -856,16 +856,16 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
-            parse_want_target_from_row(&row)?.ok_or(RepoError::NotFound)
+            parse_want_target_from_row(&row)?.ok_or(RepoError::not_found("Entity", "unknown"))
         } else {
-            Err(RepoError::NotFound)
+            Err(RepoError::not_found("Entity", "unknown"))
         }
     }
 
@@ -879,7 +879,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }
@@ -906,19 +906,19 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let disposition_str: String = row
                 .get("disposition")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let disposition: DispositionLevel = disposition_str
                 .parse()
-                .map_err(|e: String| RepoError::Database(e))?;
+                .map_err(|e: String| RepoError::database("query", e))?;
 
             let relationship_str: String = row
                 .get("relationship")
@@ -979,7 +979,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!(
             "Saved disposition from NPC {} toward PC {}",
@@ -1005,27 +1005,27 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut dispositions = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let npc_id_str: String = row
                 .get("npc_id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let npc_id = Uuid::parse_str(&npc_id_str)
-                .map_err(|e| RepoError::Database(e.to_string()))?
+                .map_err(|e| RepoError::database("query", e))?
                 .into();
 
             let disposition_str: String = row
                 .get("disposition")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let disposition: DispositionLevel = disposition_str
                 .parse()
-                .map_err(|e: String| RepoError::Database(e))?;
+                .map_err(|e: String| RepoError::database("query", e))?;
 
             let relationship_str: String = row
                 .get("relationship")
@@ -1072,15 +1072,15 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(char_q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let character_name: String = if let Some(row) = char_result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             row.get("name")
-                .map_err(|e| RepoError::Database(e.to_string()))?
+                .map_err(|e| RepoError::database("query", e))?
         } else {
             return Ok(None); // Character not found
         };
@@ -1182,13 +1182,13 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut views = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let role_str: String = row.get("role").unwrap_or_default();
             let role = match role_str.as_str() {
@@ -1201,12 +1201,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
             let want_id_str: String = row.get("want_id").unwrap_or_default();
             let want_uuid = Uuid::parse_str(&want_id_str)
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let want_id = WantId::from_uuid(want_uuid);
 
             let target_id_str: String = row.get("target_id").unwrap_or_default();
             let target_uuid = Uuid::parse_str(&target_id_str)
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let target_labels: Vec<String> = row.get("target_labels").unwrap_or_default();
             let target = if target_labels.iter().any(|l| l == "PlayerCharacter") {
                 ActantialTarget::pc(target_uuid)
@@ -1259,17 +1259,17 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let target_name: String = row.get("target_name").unwrap_or_else(|_| "Unknown".into());
             let target_labels: Vec<String> = row.get("target_labels").unwrap_or_default();
             let target_uuid =
-                Uuid::parse_str(&target_id).map_err(|e| RepoError::Database(e.to_string()))?;
+                Uuid::parse_str(&target_id).map_err(|e| RepoError::database("query", e))?;
             let resolved_target = if target_labels.iter().any(|l| l == "PlayerCharacter") {
                 ActantialTarget::pc(target_uuid)
             } else {
@@ -1284,7 +1284,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 reason,
             })
         } else {
-            Err(RepoError::NotFound)
+            Err(RepoError::not_found("Entity", "unknown"))
         }
     }
 
@@ -1312,7 +1312,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }
@@ -1343,14 +1343,14 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut relationships = Vec::new();
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             // Parse home regions
             if let Ok(homes) = row.get::<Vec<serde_json::Value>>("home") {
@@ -1464,7 +1464,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Set home region for character {} to {}", id, region_id);
         Ok(())
@@ -1492,7 +1492,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Set work region for character {} to {}", id, region_id);
         Ok(())
@@ -1519,7 +1519,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!(
             "Added frequents region for character {} to {}",
@@ -1548,7 +1548,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Added avoids region for character {} to {}", id, region_id);
         Ok(())
@@ -1578,7 +1578,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 "MATCH (c:Character {id: $id})-[r:AVOIDS_REGION]->(region:Region {id: $region_id}) DELETE r",
                 "AVOIDS_REGION"
             ),
-            _ => return Err(RepoError::Database(format!("Unknown relationship type: {}", relationship_type))),
+            _ => return Err(RepoError::database("query", format!("Unknown relationship type: {}", relationship_type))),
         };
 
         let q = query(cypher)
@@ -1588,7 +1588,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!(
             "Removed {} relationship from character {} to region {}",
@@ -1628,30 +1628,30 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut npcs = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let character_id_str: String = row
                 .get("character_id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let character_id = CharacterId::from_uuid(
                 Uuid::parse_str(&character_id_str)
-                    .map_err(|e| RepoError::Database(e.to_string()))?,
+                    .map_err(|e| RepoError::database("query", e))?,
             );
             let name: String = row
                 .get("name")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let sprite_asset: Option<String> = row.get("sprite_asset").ok();
             let portrait_asset: Option<String> = row.get("portrait_asset").ok();
             let rel_type_str: String = row
                 .get("relationship_type")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let shift: Option<String> = row.get("shift").ok();
             let frequency: Option<String> = row.get("frequency").ok();
             let time_of_day: Option<String> = row.get("time_of_day").ok();
@@ -1691,7 +1691,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
 fn node_to_want(node: &neo4rs::Node) -> Result<Want, RepoError> {
     let want_id: WantId =
-        parse_typed_id(node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(node, "id").map_err(|e| RepoError::database("query", e))?;
     let description: String = node.get_string_or("description", "");
     let intensity: f64 = node.get_f64_or("intensity", 0.5);
     let visibility_str: String = node.get_string_or("visibility", "Hidden");
@@ -1724,7 +1724,7 @@ fn parse_want_target_from_row(row: &Row) -> Result<Option<WantTarget>, RepoError
 
     let target_id = node
         .get_uuid("id")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
     let target_name: String = node.get_string_or("name", "");
     let target_labels: Vec<String> = row.get("target_labels").unwrap_or_default();
 

@@ -33,21 +33,21 @@ impl GoalRepo for Neo4jGoalRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let node: neo4rs::Node = row
                 .get("g")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
 
             let goal_id: GoalId =
-                parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+                parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
             let world_id: WorldId =
-                parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+                parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
             let name: String = node.get_string_or("name", "");
             let description = node.get_optional_string("description");
             let usage_count: i64 = row.get("usage_count").unwrap_or(0);
@@ -84,7 +84,7 @@ impl GoalRepo for Neo4jGoalRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }
@@ -99,7 +99,7 @@ impl GoalRepo for Neo4jGoalRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted goal: {}", id);
         Ok(())
@@ -118,22 +118,22 @@ impl GoalRepo for Neo4jGoalRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut goals = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let node: neo4rs::Node = row
                 .get("g")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
 
             let goal_id: GoalId =
-                parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+                parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
             let world_id: WorldId =
-                parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+                parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
             let name: String = node.get_string_or("name", "");
             let description = node.get_optional_string("description");
             let usage_count: i64 = row.get("usage_count").unwrap_or(0);

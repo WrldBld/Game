@@ -36,12 +36,12 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(row_to_narrative_event(row, self.clock.now())?))
         } else {
@@ -156,7 +156,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -175,13 +175,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut events = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             events.push(row_to_narrative_event(row, self.clock.now())?);
         }
@@ -199,7 +199,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted narrative event: {}", id);
         Ok(())
@@ -216,12 +216,12 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(row_to_event_chain(row, self.clock.now())?))
         } else {
@@ -292,7 +292,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -306,7 +306,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted event chain: {}", id);
         Ok(())
@@ -324,14 +324,14 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut chains = Vec::new();
         let now = self.clock.now();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             chains.push(row_to_event_chain(row, now)?);
         }
@@ -350,12 +350,12 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(row_to_story_event(row, self.clock.now())?))
         } else {
@@ -403,7 +403,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -417,7 +417,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted story event: {}", id);
         Ok(())
@@ -442,13 +442,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut events = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             events.push(row_to_story_event(row, self.clock.now())?);
         }
@@ -483,14 +483,14 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut events = Vec::new();
         let now = self.clock.now();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             events.push(row_to_narrative_event(row, now)?);
         }
@@ -518,13 +518,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q_fallback)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let region_id_str = region_id.to_string();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let event = row_to_narrative_event(row, now)?;
             // Filter events that have a trigger condition for this region/location
@@ -579,13 +579,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut events = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             events.push(row_to_story_event(row, self.clock.now())?);
         }
@@ -623,7 +623,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -671,14 +671,14 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
-            let id: String = row.get("id").map_err(|e| RepoError::Database(e.to_string()))?;
+            let id: String = row.get("id").map_err(|e| RepoError::database("query", e))?;
             conversation_id = Some(id);
         }
 
@@ -698,7 +698,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
 
             existing_id
         } else {
@@ -730,7 +730,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
 
             new_id
         };
@@ -747,7 +747,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         if !location_id_str.is_empty() {
@@ -762,7 +762,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         if !region_id_str.is_empty() {
@@ -777,7 +777,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         let mut time_node_id = None;
@@ -816,15 +816,15 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 .graph
                 .execute(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
 
             if let Some(row) = result
                 .next()
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?
+                .map_err(|e| RepoError::database("query", e))?
             {
                 let id: String =
-                    row.get("id").map_err(|e| RepoError::Database(e.to_string()))?;
+                    row.get("id").map_err(|e| RepoError::database("query", e))?;
                 time_node_id = Some(id);
             }
         }
@@ -841,7 +841,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         let last_order = {
@@ -855,15 +855,15 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 .graph
                 .execute(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
 
             if let Some(row) = result
                 .next()
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?
+                .map_err(|e| RepoError::database("query", e))?
             {
                 row.get("last_order")
-                    .map_err(|e| RepoError::Database(e.to_string()))?
+                    .map_err(|e| RepoError::database("query", e))?
             } else {
                 0
             }
@@ -915,7 +915,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if !scene_id_str.is_empty() {
             let q = query(
@@ -932,7 +932,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         if let Some(ref time_id) = time_node_id {
@@ -950,7 +950,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         let q = query(
@@ -964,7 +964,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if !scene_id_str.is_empty() {
             let q = query(
@@ -978,7 +978,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         if !location_id_str.is_empty() {
@@ -993,7 +993,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         if let Some(ref time_id) = time_node_id {
@@ -1008,7 +1008,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             self.graph
                 .run(q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         Ok(())
@@ -1026,7 +1026,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!(
             event_id = %id,
@@ -1052,13 +1052,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut completed_events = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let completed_strs: Vec<String> = row.get("completed").unwrap_or_default();
             for id_str in completed_strs {
@@ -1106,13 +1106,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut turns = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let speaker: String = row
                 .get("speaker_name")
@@ -1148,17 +1148,17 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let id_str: String = row
                 .get("conversation_id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
-            let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
+            let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::database("query", e))?;
             Ok(Some(uuid))
         } else {
             Ok(None)
@@ -1176,12 +1176,12 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let is_active: bool = row.get("is_active").unwrap_or(false);
             Ok(is_active)
@@ -1203,13 +1203,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // If we got a result, the conversation was found and ended
         let ended = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
             .is_some();
 
         Ok(ended)
@@ -1233,17 +1233,17 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let id_str: String = row
                 .get("conversation_id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
-            let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
+            let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::database("query", e))?;
             Ok(Some(uuid))
         } else {
             Ok(None)
@@ -1258,15 +1258,15 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
 fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<NarrativeEvent, RepoError> {
     let node: Node = row
         .get("e")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
 
     let id: NarrativeEventId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
     let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
     let name: String = node
         .get("name")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
 
     let description = node.get_string_or("description", "");
     let scene_direction = node.get_string_or("scene_direction", "");
@@ -1344,15 +1344,15 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
 fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, RepoError> {
     let node: Node = row
         .get("c")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
 
     let id: EventChainId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
     let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
     let name: String = node
         .get("name")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
 
     let description: String = node.get_string_or("description", "");
     let events_strs: Vec<String> = node.get("events").unwrap_or_default();
@@ -1360,7 +1360,7 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
     let current_position: i64 = node.get_i64_or("current_position", 0);
     let completed_strs: Vec<String> = node.get("completed_events").unwrap_or_default();
     let act_id: Option<ActId> =
-        parse_optional_typed_id(&node, "act_id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_optional_typed_id(&node, "act_id").map_err(|e| RepoError::database("query", e))?;
     let tags: Vec<String> = node.get_json_or_default("tags_json");
     let color: Option<String> = node.get_optional_string("color");
     let is_favorite: bool = node.get_bool_or("is_favorite", false);
@@ -1398,20 +1398,20 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
 fn row_to_story_event(row: Row, fallback: DateTime<Utc>) -> Result<StoryEvent, RepoError> {
     let node: Node = row
         .get("e")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
 
     let id: StoryEventId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
     let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
     let event_type_json: String = node
         .get("event_type_json")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
     let timestamp = node.get_datetime_or("timestamp", fallback);
     let game_time = node.get_optional_string("game_time");
     let summary: String = node
         .get("summary")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
     let is_hidden = node.get_bool_or("is_hidden", false);
     let tags: Vec<String> = node.get_json_or_default("tags_json");
 

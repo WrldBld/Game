@@ -43,49 +43,49 @@ impl ObservationRepo for Neo4jObservationRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut observations = Vec::new();
         let now = self.clock.now();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let npc_id_str: String = row
                 .get("npc_id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let location_id_str: String = row
                 .get("location_id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let region_id_str: String = row
                 .get("region_id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let game_time_str: String = row
                 .get("game_time")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let observation_type_str: String = row
                 .get("observation_type")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let is_revealed_to_player: bool = row.get("is_revealed_to_player").unwrap_or(true);
             let notes: String = row.get("notes").unwrap_or_default();
             let created_at_str: String = row
                 .get("created_at")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
 
             let observation = NpcObservation {
                 pc_id,
                 npc_id: CharacterId::from_uuid(
                     uuid::Uuid::parse_str(&npc_id_str)
-                        .map_err(|e| RepoError::Database(e.to_string()))?,
+                        .map_err(|e| RepoError::database("query", e))?,
                 ),
                 location_id: LocationId::from_uuid(
                     uuid::Uuid::parse_str(&location_id_str)
-                        .map_err(|e| RepoError::Database(e.to_string()))?,
+                        .map_err(|e| RepoError::database("query", e))?,
                 ),
                 region_id: RegionId::from_uuid(
                     uuid::Uuid::parse_str(&region_id_str)
-                        .map_err(|e| RepoError::Database(e.to_string()))?,
+                        .map_err(|e| RepoError::database("query", e))?,
                 ),
                 game_time: parse_datetime_or(&game_time_str, now),
                 observation_type: observation_type_str
@@ -118,7 +118,7 @@ impl ObservationRepo for Neo4jObservationRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         tracing::debug!("Deleted observation from PC {} to NPC {}", pc_id, target_id);
         Ok(())
     }
@@ -149,7 +149,7 @@ impl ObservationRepo for Neo4jObservationRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -170,12 +170,12 @@ impl ObservationRepo for Neo4jObservationRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let has_observed: bool = row.get("has_observed").unwrap_or(false);
             Ok(has_observed)
@@ -212,7 +212,7 @@ impl ObservationRepo for Neo4jObservationRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 }

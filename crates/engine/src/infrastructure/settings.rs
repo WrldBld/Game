@@ -17,7 +17,7 @@ impl SqliteSettingsRepo {
     pub async fn new(db_path: &str, clock: Arc<dyn ClockPort>) -> Result<Self, RepoError> {
         let pool = SqlitePool::connect(&format!("sqlite:{}?mode=rwc", db_path))
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("settings", e))?;
 
         sqlx::query(
             r#"
@@ -32,7 +32,7 @@ impl SqliteSettingsRepo {
         )
         .execute(&pool)
         .await
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("settings", e))?;
 
         Ok(Self { pool, clock })
     }
@@ -59,7 +59,7 @@ impl SqliteSettingsRepo {
         let row = q
             .fetch_optional(&self.pool)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("settings", e))?;
 
         match row {
             Some(row) => {
@@ -97,7 +97,7 @@ impl SqliteSettingsRepo {
         .bind(now)
         .execute(&self.pool)
         .await
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("settings", e))?;
 
         Ok(())
     }
@@ -135,7 +135,7 @@ impl SettingsRepo for SqliteSettingsRepo {
         .bind(world_id.to_string())
         .execute(&self.pool)
         .await
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("settings", e))?;
         Ok(())
     }
 }

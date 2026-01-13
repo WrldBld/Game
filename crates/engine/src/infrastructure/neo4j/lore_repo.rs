@@ -36,13 +36,13 @@ impl Neo4jLoreRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut chunks = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             chunks.push(self.row_to_chunk(row)?);
         }
@@ -53,16 +53,16 @@ impl Neo4jLoreRepo {
     fn row_to_chunk(&self, row: Row) -> Result<LoreChunk, RepoError> {
         let node: neo4rs::Node = row
             .get("c")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let id: LoreChunkId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
         let order: i64 = node
             .get("order")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let content: String = node
             .get("content")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let title: Option<String> = node.get_optional_string("title");
         let discovery_hint: Option<String> = node.get_optional_string("discovery_hint");
 
@@ -78,16 +78,16 @@ impl Neo4jLoreRepo {
     fn row_to_lore_without_chunks(&self, row: Row) -> Result<Lore, RepoError> {
         let node: neo4rs::Node = row
             .get("l")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let fallback = self.clock.now();
 
         let id: LoreId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
         let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
         let title: String = node
             .get("title")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let summary: String = node.get_string_or("summary", "");
         let category_str: String = node.get_string_or("category", "common");
         let category: LoreCategory = category_str.parse().unwrap_or(LoreCategory::Common);
@@ -125,27 +125,27 @@ impl Neo4jLoreRepo {
         // Get the relationship properties
         let lore_id_str: String = row
             .get("lore_id")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let character_id_str: String = row
             .get("character_id")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let known_chunk_ids_json: String = row
             .get::<String>("known_chunk_ids")
             .unwrap_or_else(|_| "[]".to_string());
         let discovery_source_json: String = row
             .get("discovery_source")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let discovered_at_str: String = row
             .get("discovered_at")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let notes: Option<String> = row.get("notes").ok();
 
         let lore_id = LoreId::from_uuid(
-            uuid::Uuid::parse_str(&lore_id_str).map_err(|e| RepoError::Database(e.to_string()))?,
+            uuid::Uuid::parse_str(&lore_id_str).map_err(|e| RepoError::database("query", e))?,
         );
         let character_id = CharacterId::from_uuid(
             uuid::Uuid::parse_str(&character_id_str)
-                .map_err(|e| RepoError::Database(e.to_string()))?,
+                .map_err(|e| RepoError::database("query", e))?,
         );
         let known_chunk_ids: Vec<LoreChunkId> = serde_json::from_str(&known_chunk_ids_json)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
@@ -180,12 +180,12 @@ impl LoreRepo for Neo4jLoreRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_lore(row).await?))
         } else {
@@ -226,7 +226,7 @@ impl LoreRepo for Neo4jLoreRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // Get existing chunk IDs to determine what to delete
         let existing_chunks = self.fetch_chunks(lore.id).await?;
@@ -246,7 +246,7 @@ impl LoreRepo for Neo4jLoreRepo {
             self.graph
                 .run(del_q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         // Upsert each chunk as a separate node
@@ -285,7 +285,7 @@ impl LoreRepo for Neo4jLoreRepo {
                         chunk.order, lore.id
                     ))
                 } else {
-                    RepoError::Database(msg)
+                    RepoError::database("save_lore", msg)
                 }
             })?;
         }
@@ -306,7 +306,7 @@ impl LoreRepo for Neo4jLoreRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted lore: {}", id);
         Ok(())
@@ -323,13 +323,13 @@ impl LoreRepo for Neo4jLoreRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut lore_entries = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             lore_entries.push(self.row_to_lore(row).await?);
         }
@@ -353,13 +353,13 @@ impl LoreRepo for Neo4jLoreRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut lore_entries = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             lore_entries.push(self.row_to_lore(row).await?);
         }
@@ -378,13 +378,13 @@ impl LoreRepo for Neo4jLoreRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut lore_entries = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             lore_entries.push(self.row_to_lore(row).await?);
         }
@@ -431,13 +431,13 @@ impl LoreRepo for Neo4jLoreRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut lore_entries = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             lore_entries.push(self.row_to_lore(row).await?);
         }
@@ -471,7 +471,7 @@ impl LoreRepo for Neo4jLoreRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!(
             "Granted lore {} to character {}",
@@ -496,7 +496,7 @@ impl LoreRepo for Neo4jLoreRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Revoked lore {} from character {}", lore_id, character_id);
         Ok(())
@@ -520,13 +520,13 @@ impl LoreRepo for Neo4jLoreRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut knowledge_list = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             knowledge_list.push(self.row_to_knowledge(row)?);
         }
@@ -552,13 +552,13 @@ impl LoreRepo for Neo4jLoreRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut knowledge_list = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             knowledge_list.push(self.row_to_knowledge(row)?);
         }
@@ -586,12 +586,12 @@ impl LoreRepo for Neo4jLoreRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_knowledge(row)?))
         } else {
@@ -621,19 +621,19 @@ impl LoreRepo for Neo4jLoreRepo {
             .graph
             .execute(fetch_q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let current_chunks: Vec<LoreChunkId> = if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let json_str: String = row
                 .get("known_chunk_ids")
                 .unwrap_or_else(|_| "[]".to_string());
             serde_json::from_str(&json_str).unwrap_or_default()
         } else {
-            return Err(RepoError::NotFound);
+            return Err(RepoError::not_found("Entity", "unknown"));
         };
 
         // Merge new chunks with existing, deduplicating
@@ -660,7 +660,7 @@ impl LoreRepo for Neo4jLoreRepo {
         self.graph
             .run(update_q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!(
             "Added {} chunks to character {} knowledge of lore {}",
@@ -693,12 +693,12 @@ impl LoreRepo for Neo4jLoreRepo {
             .graph
             .execute(fetch_q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let current_chunks: Vec<LoreChunkId> = if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let json_str: String = row
                 .get("known_chunk_ids")
@@ -742,7 +742,7 @@ impl LoreRepo for Neo4jLoreRepo {
         self.graph
             .run(update_q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!(
             "Removed {} chunks from character {} knowledge of lore {}, {} chunks remaining",

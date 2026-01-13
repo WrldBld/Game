@@ -19,7 +19,7 @@ use crate::infrastructure::ports::RepoError;
 ///
 /// This trait reduces the common pattern of:
 /// ```ignore
-/// graph.run(query).await.map_err(|e| RepoError::Database(e.to_string()))?;
+/// graph.run(query).await.map_err(|e| RepoError::database("query", e))?;
 /// ```
 ///
 /// Usage (can be adopted incrementally):
@@ -32,7 +32,7 @@ use crate::infrastructure::ports::RepoError;
 /// Note: `execute` is not wrapped because neo4rs 0.8 doesn't export
 /// `DetachedRowStream` publicly. Use the standard pattern for queries:
 /// ```ignore
-/// let mut result = graph.execute(q).await.map_err(|e| RepoError::Database(e.to_string()))?;
+/// let mut result = graph.execute(q).await.map_err(|e| RepoError::database("query", e))?;
 /// ```
 #[async_trait::async_trait]
 pub trait GraphExt {
@@ -47,7 +47,7 @@ impl GraphExt for Graph {
     async fn run_or_err(&self, query: Query) -> Result<(), RepoError> {
         self.run(query)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))
+            .map_err(|e| RepoError::database("query", e))
     }
 }
 
@@ -269,14 +269,14 @@ use wrldbldr_domain::{Item, ItemId, WorldId};
 pub fn row_to_item(row: Row) -> Result<Item, RepoError> {
     let node: Node = row
         .get("i")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
 
-    let id: ItemId = parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+    let id: ItemId = parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
     let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
     let name: String = node
         .get("name")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
     let description = node.get_optional_string("description");
     let item_type = node.get_optional_string("item_type");
     let is_unique = node.get_bool_or("is_unique", false);

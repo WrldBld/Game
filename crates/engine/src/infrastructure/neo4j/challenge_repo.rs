@@ -187,15 +187,15 @@ impl Neo4jChallengeRepo {
     fn row_to_challenge(&self, row: Row) -> Result<Challenge, RepoError> {
         let node: neo4rs::Node = row
             .get("c")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let id: ChallengeId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
         let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
         let name: String = node
             .get("name")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let description: String = node.get_string_or("description", "");
 
         let challenge_type_str: String = node.get_string_or("challenge_type", "SkillCheck");
@@ -256,12 +256,12 @@ impl ChallengeRepo for Neo4jChallengeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_challenge(row)?))
         } else {
@@ -327,7 +327,7 @@ impl ChallengeRepo for Neo4jChallengeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Saved challenge: {}", challenge.name);
         Ok(())
@@ -343,7 +343,7 @@ impl ChallengeRepo for Neo4jChallengeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted challenge: {}", id);
         Ok(())
@@ -361,13 +361,13 @@ impl ChallengeRepo for Neo4jChallengeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut challenges = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             challenges.push(self.row_to_challenge(row)?);
         }
@@ -387,13 +387,13 @@ impl ChallengeRepo for Neo4jChallengeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut challenges = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             challenges.push(self.row_to_challenge(row)?);
         }
@@ -414,13 +414,13 @@ impl ChallengeRepo for Neo4jChallengeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut challenges = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             challenges.push(self.row_to_challenge(row)?);
         }
@@ -440,7 +440,7 @@ impl ChallengeRepo for Neo4jChallengeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Marked challenge {} as resolved", id);
         Ok(())
@@ -458,7 +458,7 @@ impl ChallengeRepo for Neo4jChallengeRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Set challenge {} enabled={}", id, enabled);
         Ok(())
@@ -479,17 +479,17 @@ impl ChallengeRepo for Neo4jChallengeRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut challenge_ids = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let id_str: String = row
                 .get("id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             if let Ok(id) = id_str.parse::<uuid::Uuid>() {
                 challenge_ids.push(ChallengeId::from(id));
             }

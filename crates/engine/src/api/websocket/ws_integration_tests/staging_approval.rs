@@ -560,7 +560,7 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
     repos
         .settings_repo
         .expect_get_for_world()
-        .returning(|_| Err(crate::infrastructure::ports::RepoError::NotFound));
+        .returning(|_| Err(crate::infrastructure::ports::RepoError::not_found("Entity", "unknown")));
 
     // Staging repo
     repos

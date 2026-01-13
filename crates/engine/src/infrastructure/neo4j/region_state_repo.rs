@@ -23,20 +23,20 @@ impl Neo4jRegionStateRepo {
     fn row_to_state(&self, row: Row) -> Result<RegionState, RepoError> {
         let node: neo4rs::Node = row
             .get("s")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let fallback = self.clock.now();
 
         let id: RegionStateId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
         let region_id: RegionId =
-            parse_typed_id(&node, "region_id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "region_id").map_err(|e| RepoError::database("query", e))?;
         let location_id: LocationId =
-            parse_typed_id(&node, "location_id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "location_id").map_err(|e| RepoError::database("query", e))?;
         let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
         let name: String = node
             .get("name")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let description: String = node.get_string_or("description", "");
 
         let backdrop_override: Option<String> = node.get_optional_string("backdrop_override");
@@ -88,12 +88,12 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_state(row)?))
         } else {
@@ -156,7 +156,7 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Saved region state: {}", state.name);
         Ok(())
@@ -172,7 +172,7 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted region state: {}", id);
         Ok(())
@@ -189,13 +189,13 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut states = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             states.push(self.row_to_state(row)?);
         }
@@ -214,12 +214,12 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_state(row)?))
         } else {
@@ -250,16 +250,16 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // Check if the query matched anything (region and state both exist)
         if result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
             .is_none()
         {
-            return Err(RepoError::NotFound);
+            return Err(RepoError::not_found("Entity", "unknown"));
         }
 
         tracing::debug!(
@@ -281,12 +281,12 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_state(row)?))
         } else {
@@ -304,7 +304,7 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Cleared active region state for region {}", region_id);
         Ok(())

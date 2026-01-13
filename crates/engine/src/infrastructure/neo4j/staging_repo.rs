@@ -46,13 +46,13 @@ impl StagingRepo for Neo4jStagingRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut npcs = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             npcs.push(row_to_staged_npc(row)?);
         }
@@ -82,12 +82,12 @@ impl StagingRepo for Neo4jStagingRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
             .is_none()
         {
             // No current staging exists, create one
@@ -126,7 +126,7 @@ impl StagingRepo for Neo4jStagingRepo {
             self.graph
                 .run(create_q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         Ok(())
@@ -148,7 +148,7 @@ impl StagingRepo for Neo4jStagingRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -178,14 +178,14 @@ impl StagingRepo for Neo4jStagingRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut stagings = Vec::new();
         let now = self.clock.now();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let staging = row_to_staging_with_npcs(row, now)?;
             stagings.push(staging);
@@ -268,7 +268,7 @@ impl StagingRepo for Neo4jStagingRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }
@@ -284,7 +284,7 @@ impl StagingRepo for Neo4jStagingRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -318,12 +318,12 @@ impl StagingRepo for Neo4jStagingRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let staging = row_to_staging_with_npcs(row, current_game_time)?;
 
@@ -360,7 +360,7 @@ impl StagingRepo for Neo4jStagingRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -398,14 +398,14 @@ impl StagingRepo for Neo4jStagingRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut stagings = Vec::new();
         let now = self.clock.now();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let staging = row_to_staging_with_npcs(row, now)?;
             stagings.push(staging);
@@ -437,12 +437,12 @@ impl StagingRepo for Neo4jStagingRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let mood_str: String = row.get("mood").unwrap_or_else(|_| "calm".to_string());
             Ok(mood_str.parse().unwrap_or(MoodState::Calm))
@@ -458,17 +458,17 @@ impl StagingRepo for Neo4jStagingRepo {
                 .graph
                 .execute(default_q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
 
             if let Some(row) = default_result
                 .next()
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?
+                .map_err(|e| RepoError::database("query", e))?
             {
                 let mood_str: String = row.get("mood").unwrap_or_else(|_| "calm".to_string());
                 Ok(mood_str.parse().unwrap_or(MoodState::Calm))
             } else {
-                Err(RepoError::NotFound)
+                Err(RepoError::not_found("Entity", "unknown"))
             }
         }
     }
@@ -495,16 +495,16 @@ impl StagingRepo for Neo4jStagingRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
             .is_none()
         {
             // NPC is not staged in this region
-            return Err(RepoError::NotFound);
+            return Err(RepoError::not_found("Entity", "unknown"));
         }
 
         Ok(())
@@ -532,13 +532,13 @@ impl Neo4jStagingRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut npcs = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             npcs.push(row_to_staged_npc(row)?);
         }
@@ -554,21 +554,21 @@ impl Neo4jStagingRepo {
 fn row_to_staged_npc(row: Row) -> Result<StagedNpc, RepoError> {
     let character_id_str: String = row
         .get("character_id")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
     let name: String = row
         .get("name")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
     let is_present: bool = row
         .get("is_present")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
     let is_hidden_from_players: bool = row.get("is_hidden_from_players").unwrap_or(false);
     let reasoning: String = row
         .get("reasoning")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
 
     let character_id = uuid::Uuid::parse_str(&character_id_str)
         .map(CharacterId::from)
-        .map_err(|e| RepoError::Database(format!("Invalid character_id: {}", e)))?;
+        .map_err(|e| RepoError::database("query", format!("Invalid character_id: {}", e)))?;
 
     // Optional string fields
     let sprite_asset: Option<String> = row
@@ -604,29 +604,29 @@ fn row_to_staged_npc(row: Row) -> Result<StagedNpc, RepoError> {
 fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoError> {
     let node: Node = row
         .get("s")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
 
     let id: StagingId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
     let region_id: RegionId =
-        parse_typed_id(&node, "region_id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(&node, "region_id").map_err(|e| RepoError::database("query", e))?;
     let location_id: LocationId =
-        parse_typed_id(&node, "location_id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(&node, "location_id").map_err(|e| RepoError::database("query", e))?;
     let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
 
     let ttl_hours: i64 = node
         .get("ttl_hours")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
     let approved_by: String = node
         .get("approved_by")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
     let source_str: String = node
         .get("source")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
     let is_active: bool = node
         .get("is_active")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
 
     let game_time = node.get_datetime_or("game_time", fallback);
     let approved_at = node.get_datetime_or("approved_at", fallback);
@@ -661,7 +661,7 @@ fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
     // COLLECT returns a list of maps
     let npcs_data: Vec<neo4rs::BoltMap> = row
         .get("npcs")
-        .map_err(|e| RepoError::Database(format!("Failed to get npcs: {}", e)))?;
+        .map_err(|e| RepoError::database("query", format!("Failed to get npcs: {}", e)))?;
 
     let mut npcs = Vec::with_capacity(npcs_data.len());
     for npc_map in npcs_data {
@@ -674,7 +674,7 @@ fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
 
         let character_id = uuid::Uuid::parse_str(&character_id_str)
             .map(CharacterId::from)
-            .map_err(|e| RepoError::Database(format!("Invalid character_id: {}", e)))?;
+            .map_err(|e| RepoError::database("query", format!("Invalid character_id: {}", e)))?;
 
         let name: String = npc_map.get("name").unwrap_or_default();
         let sprite_asset: Option<String> = npc_map
@@ -711,29 +711,29 @@ fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
 fn row_to_staging(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoError> {
     let node: Node = row
         .get("s")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
 
     let id: StagingId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
     let region_id: RegionId =
-        parse_typed_id(&node, "region_id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(&node, "region_id").map_err(|e| RepoError::database("query", e))?;
     let location_id: LocationId =
-        parse_typed_id(&node, "location_id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(&node, "location_id").map_err(|e| RepoError::database("query", e))?;
     let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
+        parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
 
     let ttl_hours: i64 = node
         .get("ttl_hours")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
     let approved_by: String = node
         .get("approved_by")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
     let source_str: String = node
         .get("source")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
     let is_active: bool = node
         .get("is_active")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
 
     let game_time = node.get_datetime_or("game_time", fallback);
     let approved_at = node.get_datetime_or("approved_at", fallback);

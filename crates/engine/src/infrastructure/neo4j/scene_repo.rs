@@ -109,15 +109,15 @@ impl SceneConditionStored {
         Ok(match self {
             SceneConditionStored::CompletedScene(id) => {
                 SceneCondition::CompletedScene(SceneId::from(
-                    uuid::Uuid::parse_str(&id).map_err(|e| RepoError::Database(e.to_string()))?,
+                    uuid::Uuid::parse_str(&id).map_err(|e| RepoError::database("query", e))?,
                 ))
             }
             SceneConditionStored::HasItem(id) => SceneCondition::HasItem(ItemId::from(
-                uuid::Uuid::parse_str(&id).map_err(|e| RepoError::Database(e.to_string()))?,
+                uuid::Uuid::parse_str(&id).map_err(|e| RepoError::database("query", e))?,
             )),
             SceneConditionStored::KnowsCharacter(id) => {
                 SceneCondition::KnowsCharacter(CharacterId::from(
-                    uuid::Uuid::parse_str(&id).map_err(|e| RepoError::Database(e.to_string()))?,
+                    uuid::Uuid::parse_str(&id).map_err(|e| RepoError::database("query", e))?,
                 ))
             }
             SceneConditionStored::FlagSet(s) => SceneCondition::FlagSet(s),
@@ -144,22 +144,22 @@ impl Neo4jSceneRepo {
     fn row_to_scene(&self, row: Row) -> Result<Scene, RepoError> {
         let node: neo4rs::Node = row
             .get("s")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let id: SceneId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
         let act_id: ActId =
-            parse_typed_id(&node, "act_id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "act_id").map_err(|e| RepoError::database("query", e))?;
         let name: String = node
             .get("name")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let directorial_notes: String = node.get_string_or("directorial_notes", "");
         let order_num: i64 = node.get_i64_or("order_num", 0);
 
         // location_id is stored directly - may be placeholder if using AT_LOCATION edge
         let location_id = match node.get_optional_string("location_id") {
             Some(s) => LocationId::from(
-                uuid::Uuid::parse_str(&s).map_err(|e| RepoError::Database(e.to_string()))?,
+                uuid::Uuid::parse_str(&s).map_err(|e| RepoError::database("query", e))?,
             ),
             None => LocationId::new(), // Placeholder
         };
@@ -212,12 +212,12 @@ impl SceneRepo for Neo4jSceneRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_scene(row)?))
         } else {
@@ -283,7 +283,7 @@ impl SceneRepo for Neo4jSceneRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // Update FEATURES_CHARACTER edges atomically:
         // Delete existing edges and create new ones in a single query using UNWIND
@@ -310,7 +310,7 @@ impl SceneRepo for Neo4jSceneRepo {
         self.graph
             .run(features_q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Saved scene: {}", scene.name);
         Ok(())
@@ -326,7 +326,7 @@ impl SceneRepo for Neo4jSceneRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted scene: {}", id);
         Ok(())
@@ -343,12 +343,12 @@ impl SceneRepo for Neo4jSceneRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_scene(row)?))
         } else {
@@ -374,13 +374,13 @@ impl SceneRepo for Neo4jSceneRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // Verify the operation succeeded
         if result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
             .is_none()
         {
             tracing::warn!(
@@ -388,7 +388,7 @@ impl SceneRepo for Neo4jSceneRepo {
                 world_id,
                 scene_id
             );
-            return Err(RepoError::NotFound);
+            return Err(RepoError::not_found("Entity", "unknown"));
         }
 
         tracing::debug!("Set current scene {} for world {}", scene_id, world_id);
@@ -408,13 +408,13 @@ impl SceneRepo for Neo4jSceneRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut scenes = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             scenes.push(self.row_to_scene(row)?);
         }
@@ -434,13 +434,13 @@ impl SceneRepo for Neo4jSceneRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut scenes = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             scenes.push(self.row_to_scene(row)?);
         }
@@ -462,20 +462,20 @@ impl SceneRepo for Neo4jSceneRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut characters = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let char_id_str: String = row
                 .get("character_id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let char_id = CharacterId::from(
                 uuid::Uuid::parse_str(&char_id_str)
-                    .map_err(|e| RepoError::Database(e.to_string()))?,
+                    .map_err(|e| RepoError::database("query", e))?,
             );
 
             // Parse role from string, defaulting to Secondary if parsing fails
@@ -529,7 +529,7 @@ impl SceneRepo for Neo4jSceneRepo {
         self.graph
             .run(delete_q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // Create new edges if there are any characters
         if !char_ids.is_empty() {
@@ -548,7 +548,7 @@ impl SceneRepo for Neo4jSceneRepo {
             self.graph
                 .run(create_q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         tracing::debug!(
@@ -575,16 +575,16 @@ impl SceneRepo for Neo4jSceneRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let completed: bool = row
                 .get("completed")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             Ok(completed)
         } else {
             Ok(false)
@@ -616,28 +616,28 @@ impl SceneRepo for Neo4jSceneRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // Check if we got a result - if not, one or both nodes don't exist
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let pc_exists: bool = row
                 .get("pc_exists")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let scene_exists: bool = row
                 .get("scene_exists")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
 
             if !pc_exists {
                 tracing::warn!("mark_scene_completed failed: PlayerCharacter {} not found", pc_id);
-                return Err(RepoError::NotFound);
+                return Err(RepoError::not_found("Entity", "unknown"));
             }
             if !scene_exists {
                 tracing::warn!("mark_scene_completed failed: Scene {} not found", scene_id);
-                return Err(RepoError::NotFound);
+                return Err(RepoError::not_found("Entity", "unknown"));
             }
 
             tracing::debug!("Marked scene {} as completed for PC {}", scene_id, pc_id);
@@ -657,12 +657,12 @@ impl SceneRepo for Neo4jSceneRepo {
                 .graph
                 .execute(check_q)
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
 
             if let Some(check_row) = check_result
                 .next()
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?
+                .map_err(|e| RepoError::database("query", e))?
             {
                 let pc_exists: bool = check_row.get("pc_exists").unwrap_or(false);
                 let scene_exists: bool = check_row.get("scene_exists").unwrap_or(false);
@@ -674,7 +674,7 @@ impl SceneRepo for Neo4jSceneRepo {
                 }
             }
 
-            Err(RepoError::NotFound)
+            Err(RepoError::not_found("Entity", "unknown"))
         }
     }
 
@@ -692,20 +692,20 @@ impl SceneRepo for Neo4jSceneRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut scenes = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             let scene_id_str: String = row
                 .get("scene_id")
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
             let scene_id = SceneId::from(
                 uuid::Uuid::parse_str(&scene_id_str)
-                    .map_err(|e| RepoError::Database(e.to_string()))?,
+                    .map_err(|e| RepoError::database("query", e))?,
             );
             scenes.push(scene_id);
         }
