@@ -34,7 +34,7 @@ async fn get_sheet_template_returns_dnd5e_schema_for_dnd5e_world() {
         connections,
         pending_time_suggestions: TimeSuggestionStoreImpl::new(),
         pending_staging_requests: PendingStagingStoreImpl::new(),
-        generation_read_state: tokio::sync::RwLock::new(std::collections::HashMap::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -136,7 +136,7 @@ async fn get_sheet_template_returns_error_for_nonexistent_world() {
         connections,
         pending_time_suggestions: TimeSuggestionStoreImpl::new(),
         pending_staging_requests: PendingStagingStoreImpl::new(),
-        generation_read_state: tokio::sync::RwLock::new(std::collections::HashMap::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -206,7 +206,7 @@ async fn get_sheet_template_schema_has_ability_score_validation() {
         connections,
         pending_time_suggestions: TimeSuggestionStoreImpl::new(),
         pending_staging_requests: PendingStagingStoreImpl::new(),
-        generation_read_state: tokio::sync::RwLock::new(std::collections::HashMap::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -317,7 +317,7 @@ async fn get_sheet_template_schema_includes_creation_steps() {
         connections,
         pending_time_suggestions: TimeSuggestionStoreImpl::new(),
         pending_staging_requests: PendingStagingStoreImpl::new(),
-        generation_read_state: tokio::sync::RwLock::new(std::collections::HashMap::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;

@@ -65,7 +65,7 @@ async fn test_e2e_join_world_and_get_template() {
         connections,
         pending_time_suggestions: TimeSuggestionStoreImpl::new(),
         pending_staging_requests: PendingStagingStoreImpl::new(),
-        generation_read_state: tokio::sync::RwLock::new(std::collections::HashMap::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;

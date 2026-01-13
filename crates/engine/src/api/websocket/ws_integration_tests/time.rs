@@ -26,7 +26,7 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
         connections,
         pending_time_suggestions: TimeSuggestionStoreImpl::new(),
         pending_staging_requests: PendingStagingStoreImpl::new(),
-        generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -97,10 +97,10 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
         period_change: None,
     };
 
-    {
-        let mut guard = ws_state.pending_time_suggestions.write().await;
-        guard.insert(suggestion_id, suggestion);
-    }
+    ws_state
+        .pending_time_suggestions
+        .insert(suggestion_id, suggestion)
+        .await;
 
     // DM approves the suggestion (no direct response; only broadcast).
     ws_send_client(

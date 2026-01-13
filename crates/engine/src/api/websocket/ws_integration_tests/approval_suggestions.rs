@@ -28,7 +28,7 @@ async fn when_dm_accepts_approval_suggestion_then_marks_complete_and_broadcasts_
         connections,
         pending_time_suggestions: TimeSuggestionStoreImpl::new(),
         pending_staging_requests: PendingStagingStoreImpl::new(),
-        generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -181,7 +181,7 @@ async fn when_dm_rejects_approval_suggestion_then_marks_failed_and_does_not_broa
         connections,
         pending_time_suggestions: TimeSuggestionStoreImpl::new(),
         pending_staging_requests: PendingStagingStoreImpl::new(),
-        generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -310,7 +310,7 @@ async fn when_dm_modifies_approval_suggestion_then_marks_complete_and_broadcasts
         connections,
         pending_time_suggestions: TimeSuggestionStoreImpl::new(),
         pending_staging_requests: PendingStagingStoreImpl::new(),
-        generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;

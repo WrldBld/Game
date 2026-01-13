@@ -81,14 +81,14 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
         connections,
         pending_time_suggestions: TimeSuggestionStoreImpl::new(),
         pending_staging_requests: PendingStagingStoreImpl::new(),
-        generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     // Seed a pending staging request correlation.
     let request_id = "req-123".to_string();
-    {
-        let mut guard = ws_state.pending_staging_requests.write().await;
-        guard.insert(
+    ws_state
+        .pending_staging_requests
+        .insert(
             request_id.clone(),
             PendingStagingRequest {
                 region_id,
@@ -96,8 +96,8 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
                 world_id,
                 created_at: now,
             },
-        );
-    }
+        )
+        .await;
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;
     let mut dm_ws = ws_connect(addr).await;

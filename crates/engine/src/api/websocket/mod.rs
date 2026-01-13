@@ -103,6 +103,11 @@ impl PendingStagingStoreImpl {
         }
     }
 
+    /// Insert a pending request.
+    pub async fn insert(&self, key: String, request: PendingStagingRequest) {
+        self.inner.insert(key, request).await;
+    }
+
     /// Get a pending request by key.
     pub async fn get(&self, key: &str) -> Option<PendingStagingRequest> {
         self.inner.get(&key.to_string()).await
@@ -1892,7 +1897,7 @@ mod ws_integration_tests_inline {
             connections,
             pending_time_suggestions: TimeSuggestionStoreImpl::new(),
             pending_staging_requests: PendingStagingStoreImpl::new(),
-            generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+            generation_read_state: GenerationStateStoreImpl::new(),
         });
 
         let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -1961,10 +1966,10 @@ mod ws_integration_tests_inline {
             period_change: None,
         };
 
-        {
-            let mut guard = ws_state.pending_time_suggestions.write().await;
-            guard.insert(suggestion_id, suggestion);
-        }
+        ws_state
+            .pending_time_suggestions
+            .insert(suggestion_id, suggestion)
+            .await;
 
         // DM approves the suggestion (no direct response; only broadcast).
         ws_send_client(
@@ -2235,7 +2240,7 @@ mod ws_integration_tests_inline {
             connections,
             pending_time_suggestions: TimeSuggestionStoreImpl::new(),
             pending_staging_requests: PendingStagingStoreImpl::new(),
-            generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+            generation_read_state: GenerationStateStoreImpl::new(),
         });
 
         let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -2390,7 +2395,7 @@ mod ws_integration_tests_inline {
             connections,
             pending_time_suggestions: TimeSuggestionStoreImpl::new(),
             pending_staging_requests: PendingStagingStoreImpl::new(),
-            generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+            generation_read_state: GenerationStateStoreImpl::new(),
         });
 
         let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -2542,7 +2547,7 @@ mod ws_integration_tests_inline {
             connections,
             pending_time_suggestions: TimeSuggestionStoreImpl::new(),
             pending_staging_requests: PendingStagingStoreImpl::new(),
-            generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+            generation_read_state: GenerationStateStoreImpl::new(),
         });
 
         let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -2669,7 +2674,7 @@ mod ws_integration_tests_inline {
             connections,
             pending_time_suggestions: TimeSuggestionStoreImpl::new(),
             pending_staging_requests: PendingStagingStoreImpl::new(),
-            generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+            generation_read_state: GenerationStateStoreImpl::new(),
         });
 
         let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -3006,7 +3011,7 @@ mod ws_integration_tests_inline {
             connections,
             pending_time_suggestions: TimeSuggestionStoreImpl::new(),
             pending_staging_requests: PendingStagingStoreImpl::new(),
-            generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+            generation_read_state: GenerationStateStoreImpl::new(),
         });
 
         let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -3183,21 +3188,23 @@ mod ws_integration_tests_inline {
             connections,
             pending_time_suggestions: TimeSuggestionStoreImpl::new(),
             pending_staging_requests: PendingStagingStoreImpl::new(),
-            generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+            generation_read_state: GenerationStateStoreImpl::new(),
         });
 
         // Seed a pending staging request correlation.
         let request_id = "req-123".to_string();
-        {
-            let mut guard = ws_state.pending_staging_requests.write().await;
-            guard.insert(
+        ws_state
+            .pending_staging_requests
+            .insert(
                 request_id.clone(),
                 PendingStagingRequest {
                     region_id,
                     location_id,
+                    world_id,
+                    created_at: now,
                 },
-            );
-        }
+            )
+            .await;
 
         let (addr, server) = spawn_ws_server(ws_state.clone()).await;
         let mut dm_ws = ws_connect(addr).await;
