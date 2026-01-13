@@ -408,8 +408,7 @@ pub async fn sync_generation_read_state(
     Ok(())
 }
 
-/// View-model helpers for generation queue filtering and actions
-
+/// View-model helpers for generation queue filtering and actions.
 /// Get visible batches based on show_read filter
 pub fn visible_batches(state: &GenerationState, show_read: bool) -> Vec<GenerationBatch> {
     state

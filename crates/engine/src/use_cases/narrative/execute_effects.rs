@@ -11,12 +11,12 @@ use wrldbldr_domain::{
     RelationshipType, SceneId, WorldId,
 };
 
-use crate::entities::{
+use crate::repositories::{
     Challenge, Flag, Inventory, Observation, PlayerCharacter, World,
 };
-use crate::entities::character::Character;
+use crate::repositories::character::Character;
 use crate::use_cases::narrative_operations::Narrative;
-use crate::entities::scene::Scene;
+use crate::repositories::scene::Scene;
 use crate::infrastructure::ports::ClockPort;
 
 /// Result of executing a single effect.
@@ -825,6 +825,7 @@ impl ExecuteEffects {
 
     /// Add XP reward to a player character.
     /// Updates XP_CURRENT in the character's sheet_data.
+    #[allow(dead_code)]
     async fn execute_add_xp_reward(
         &self,
         pc_id: PlayerCharacterId,

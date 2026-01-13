@@ -475,7 +475,7 @@ impl CharacterSheetProvider for FateCoreSystem {
         // Validate skill ratings
         if self.skill_names().iter().any(|s| s.to_uppercase() == field_id) {
             if let Some(rating) = value.as_i64() {
-                if rating < -2 || rating > 8 {
+                if !(-2..=8).contains(&rating) {
                     return Some("Skill rating must be between -2 (Terrible) and +8 (Legendary)".to_string());
                 }
             } else {

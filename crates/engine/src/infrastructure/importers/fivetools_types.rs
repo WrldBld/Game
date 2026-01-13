@@ -2,6 +2,11 @@
 //!
 //! These types mirror the 5etools JSON schema for spells, feats, items, etc.
 //! They are used for deserialization and then converted to our domain types.
+//!
+//! Note: Some fields are parsed but not yet used in the conversion to domain types.
+//! They are kept for future expansion and to maintain compatibility with the JSON schema.
+
+#![allow(dead_code)]
 
 use serde::Deserialize;
 use std::collections::HashMap;

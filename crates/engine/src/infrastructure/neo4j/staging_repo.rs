@@ -513,6 +513,7 @@ impl StagingRepo for Neo4jStagingRepo {
 
 impl Neo4jStagingRepo {
     /// Load NPCs for a specific staging
+    #[allow(dead_code)]
     async fn load_staging_npcs(&self, staging_id: StagingId) -> Result<Vec<StagedNpc>, RepoError> {
         let q = query(
             "MATCH (s:Staging {id: $staging_id})-[rel:INCLUDES_NPC]->(c:Character)
@@ -708,6 +709,7 @@ fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
     Ok(npcs)
 }
 
+#[allow(dead_code)]
 fn row_to_staging(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoError> {
     let node: Node = row
         .get("s")

@@ -435,7 +435,7 @@ impl CharacterSheetProvider for PbtaSystem {
                 match field_id {
                     "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA" => {
                         if let Some(score) = value.as_i64() {
-                            if score < 3 || score > 18 {
+                            if !(3..=18).contains(&score) {
                                 return Some(
                                     "Ability scores must be between 3 and 18".to_string(),
                                 );
@@ -452,7 +452,7 @@ impl CharacterSheetProvider for PbtaSystem {
                 let stat_names: Vec<&str> = self.stat_names().to_vec();
                 if stat_names.contains(&field_id) {
                     if let Some(stat) = value.as_i64() {
-                        if stat < -2 || stat > 3 {
+                        if !(-2..=3).contains(&stat) {
                             return Some("Stats must be between -2 and +3".to_string());
                         }
                     } else {

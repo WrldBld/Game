@@ -43,7 +43,7 @@ async fn test_grateful_disposition_in_prompt() {
         // Get the NPC data
         let marta = ctx
             .app
-            .entities
+            .repositories
             .character
             .get(marta_id)
             .await
@@ -125,7 +125,7 @@ async fn test_hostile_disposition_in_prompt() {
 
         let grom = ctx
             .app
-            .entities
+            .repositories
             .character
             .get(grom_id)
             .await
@@ -254,7 +254,7 @@ async fn test_dm_approves_give_item_adds_to_inventory() {
         // Get initial inventory count
         let initial_inventory = ctx
             .app
-            .entities
+            .repositories
             .inventory
             .get_pc_inventory(pc_id)
             .await
@@ -264,7 +264,7 @@ async fn test_dm_approves_give_item_adds_to_inventory() {
 
         // Test the give_item_to_pc method which is used by GiveItem trigger
         ctx.app
-            .entities
+            .repositories
             .inventory
             .give_item_to_pc(
                 pc_id,
@@ -277,7 +277,7 @@ async fn test_dm_approves_give_item_adds_to_inventory() {
         // Verify item was added
         let updated_inventory = ctx
             .app
-            .entities
+            .repositories
             .inventory
             .get_pc_inventory(pc_id)
             .await
@@ -333,7 +333,7 @@ async fn test_dm_rejects_give_item_no_change() {
         // Get initial inventory count
         let initial_inventory = ctx
             .app
-            .entities
+            .repositories
             .inventory
             .get_pc_inventory(pc_id)
             .await
@@ -350,7 +350,7 @@ async fn test_dm_rejects_give_item_no_change() {
         // Verify inventory is still at initial count
         let final_inventory = ctx
             .app
-            .entities
+            .repositories
             .inventory
             .get_pc_inventory(pc_id)
             .await
@@ -583,7 +583,7 @@ async fn test_multiple_npcs_different_dispositions() {
 
         let marta = ctx
             .app
-            .entities
+            .repositories
             .character
             .get(marta_id)
             .await
@@ -592,7 +592,7 @@ async fn test_multiple_npcs_different_dispositions() {
 
         let grom = ctx
             .app
-            .entities
+            .repositories
             .character
             .get(grom_id)
             .await
@@ -641,7 +641,7 @@ async fn test_npc_archetype_in_context() {
 
         let marta = ctx
             .app
-            .entities
+            .repositories
             .character
             .get(marta_id)
             .await
@@ -659,7 +659,7 @@ async fn test_npc_archetype_in_context() {
         let grom_id = ctx.world.npc("Grom Ironhand").expect("Grom not found");
         let grom = ctx
             .app
-            .entities
+            .repositories
             .character
             .get(grom_id)
             .await

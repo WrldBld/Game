@@ -5,10 +5,10 @@
 use std::sync::Arc;
 use wrldbldr_domain::WorldId;
 
-use crate::entities::World;
-use crate::entities::character::Character;
-use crate::entities::inventory::Inventory;
-use crate::entities::location::Location;
+use crate::repositories::World;
+use crate::repositories::character::Character;
+use crate::repositories::inventory::Inventory;
+use crate::repositories::location::Location;
 use crate::use_cases::narrative_operations::Narrative;
 use crate::infrastructure::ports::RepoError;
 

@@ -1015,7 +1015,7 @@ pub async fn approve_staging_with_npc(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let npc = ctx
         .app
-        .entities
+        .repositories
         .character
         .get(npc_id)
         .await?
@@ -1054,7 +1054,7 @@ pub async fn approve_staging_with_npcs(
     for &npc_id in npc_ids {
         let npc = ctx
             .app
-            .entities
+            .repositories
             .character
             .get(npc_id)
             .await?
@@ -1133,7 +1133,7 @@ pub async fn run_conversation_turn(
     // Get NPC name for logging
     let npc = ctx
         .app
-        .entities
+        .repositories
         .character
         .get(npc_id)
         .await?
@@ -1233,7 +1233,7 @@ pub async fn start_conversation_with_npc(
     // Get NPC name for logging
     let npc = ctx
         .app
-        .entities
+        .repositories
         .character
         .get(npc_id)
         .await?

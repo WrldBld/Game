@@ -9,7 +9,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, DmApprovalDecision, RegionId, WorldId};
 
-use crate::entities::staging::Staging;
+use crate::repositories::staging::Staging;
 use crate::infrastructure::ports::{QueuePort, RepoError};
 
 /// Container for approval use cases.

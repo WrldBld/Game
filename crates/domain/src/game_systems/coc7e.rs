@@ -500,7 +500,7 @@ impl CharacterSheetProvider for Coc7eSystem {
             // Characteristics: 0-99 percentile
             "STR" | "CON" | "SIZ" | "DEX" | "APP" | "INT" | "POW" | "EDU" => {
                 if let Some(score) = value.as_i64() {
-                    if score < 0 || score > 99 {
+                    if !(0..=99).contains(&score) {
                         return Some("Characteristics must be between 0 and 99".to_string());
                     }
                 } else {
@@ -510,7 +510,7 @@ impl CharacterSheetProvider for Coc7eSystem {
             // Skills: 0-99 percentile (except Cthulhu Mythos which is special)
             _ if field_id.ends_with("_SKILL") || self.is_skill_field(field_id) => {
                 if let Some(score) = value.as_i64() {
-                    if score < 0 || score > 99 {
+                    if !(0..=99).contains(&score) {
                         return Some("Skills must be between 0 and 99".to_string());
                     }
                 } else {
@@ -520,7 +520,7 @@ impl CharacterSheetProvider for Coc7eSystem {
             // Luck: 0-99
             "LUCK" | "CURRENT_LUCK" => {
                 if let Some(luck) = value.as_i64() {
-                    if luck < 0 || luck > 99 {
+                    if !(0..=99).contains(&luck) {
                         return Some("Luck must be between 0 and 99".to_string());
                     }
                 } else {
@@ -530,7 +530,7 @@ impl CharacterSheetProvider for Coc7eSystem {
             // Sanity: 0-99
             "CURRENT_SANITY" => {
                 if let Some(san) = value.as_i64() {
-                    if san < 0 || san > 99 {
+                    if !(0..=99).contains(&san) {
                         return Some("Sanity must be between 0 and 99".to_string());
                     }
                 } else {
@@ -540,7 +540,7 @@ impl CharacterSheetProvider for Coc7eSystem {
             // Age: reasonable range
             "AGE" => {
                 if let Some(age) = value.as_i64() {
-                    if age < 15 || age > 90 {
+                    if !(15..=90).contains(&age) {
                         return Some("Age must be between 15 and 90".to_string());
                     }
                 } else {

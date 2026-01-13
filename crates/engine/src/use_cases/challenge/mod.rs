@@ -25,8 +25,8 @@ pub use crud::{
     ChallengeError as ChallengeCrudError, ChallengeOps, CreateChallengeInput, UpdateChallengeInput,
 };
 
-use crate::entities::{Challenge, Inventory, Observation, PlayerCharacter};
-use crate::entities::scene::Scene;
+use crate::repositories::{Challenge, Inventory, Observation, PlayerCharacter};
+use crate::repositories::scene::Scene;
 use crate::infrastructure::ports::{ClockPort, QueuePort, RandomPort, RepoError};
 
 /// Container for challenge use cases.
@@ -791,12 +791,12 @@ mod tests {
         PlayerCharacterId, SceneId, WorldId,
     };
 
-    use crate::entities;
+    use crate::repositories;
     use crate::infrastructure::ports::{
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockItemRepo, MockLocationRepo,
         MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
     };
-    use crate::entities::Inventory;
+    use crate::repositories::Inventory;
     use crate::use_cases::Scene;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -913,7 +913,7 @@ mod tests {
         // ---------------------------------------------------------------------
         // Wire entities + use case
         // ---------------------------------------------------------------------
-        let challenge_entity = Arc::new(entities::Challenge::new(Arc::new(challenge_repo)));
+        let challenge_entity = Arc::new(repositories::Challenge::new(Arc::new(challenge_repo)));
 
         let pc_repo: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> = Arc::new(pc_repo);
         let inventory_entity = Arc::new(Inventory::new(
@@ -921,13 +921,13 @@ mod tests {
             Arc::new(character_repo),
             pc_repo.clone(),
         ));
-        let observation_entity = Arc::new(entities::Observation::new(
+        let observation_entity = Arc::new(repositories::Observation::new(
             Arc::new(observation_repo),
             Arc::new(location_repo),
             clock,
         ));
         let scene_entity = Arc::new(Scene::new(Arc::new(scene_repo)));
-        let player_character_entity = Arc::new(entities::PlayerCharacter::new(pc_repo));
+        let player_character_entity = Arc::new(repositories::PlayerCharacter::new(pc_repo));
 
         let resolve = super::ResolveOutcome::new(
             challenge_entity,

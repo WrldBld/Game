@@ -14,7 +14,7 @@ async fn get_character_or_error(
     state: &WsState,
     character_id: CharacterId,
 ) -> Result<domain::Character, ResponseResult> {
-    match state.app.entities.character.get(character_id).await {
+    match state.app.repositories.character.get(character_id).await {
         Ok(Some(character)) => Ok(character),
         Ok(None) => Err(ResponseResult::error(
             ErrorCode::NotFound,
@@ -34,7 +34,7 @@ async fn save_character_or_error(
 ) -> Result<(), ResponseResult> {
     state
         .app
-        .entities
+        .repositories
         .character
         .save(character)
         .await
@@ -82,7 +82,7 @@ pub(super) async fn handle_stat_request(
             };
 
             // Validate value against rule system bounds if world has stat definitions
-            let final_value = match state.app.entities.world.get(character.world_id).await {
+            let final_value = match state.app.repositories.world.get(character.world_id).await {
                 Ok(Some(world)) => {
                     // Find stat definition by name or abbreviation
                     if let Some(stat_def) = world.rule_system.stat_definitions.iter().find(|s| {

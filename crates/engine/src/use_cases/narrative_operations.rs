@@ -13,7 +13,7 @@ use wrldbldr_domain::{
     TriggerContext, WorldId,
 };
 
-use crate::entities::narrative::Narrative as NarrativeEntity;
+use crate::repositories::narrative::Narrative as NarrativeEntity;
 use crate::infrastructure::ports::{
     ChallengeRepo, CharacterRepo, ClockPort, FlagRepo, LocationRepo, NarrativeRepo,
     ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo, WorldRepo,

@@ -429,7 +429,7 @@ impl SpellcastingSystem for Pf2eSystem {
 
         // Full caster progression (simplified)
         // Gets slots for spell levels up to (level + 1) / 2
-        let max_spell_level = ((level + 1) / 2).min(10);
+        let max_spell_level = level.div_ceil(2).min(10);
 
         for spell_level in 1..=max_spell_level {
             let slot_count = if spell_level == max_spell_level {
@@ -686,7 +686,7 @@ impl CharacterSheetProvider for Pf2eSystem {
         match field_id {
             "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA" => {
                 if let Some(score) = value.as_i64() {
-                    if score < 1 || score > 30 {
+                    if !(1..=30).contains(&score) {
                         return Some("Ability scores must be between 1 and 30".to_string());
                     }
                 } else {
@@ -695,7 +695,7 @@ impl CharacterSheetProvider for Pf2eSystem {
             }
             "LEVEL" => {
                 if let Some(level) = value.as_i64() {
-                    if level < 1 || level > 20 {
+                    if !(1..=20).contains(&level) {
                         return Some("Level must be between 1 and 20".to_string());
                     }
                 } else {
@@ -713,7 +713,7 @@ impl CharacterSheetProvider for Pf2eSystem {
             }
             "HERO_POINTS" => {
                 if let Some(points) = value.as_i64() {
-                    if points < 0 || points > 3 {
+                    if !(0..=3).contains(&points) {
                         return Some("Hero Points must be between 0 and 3".to_string());
                     }
                 } else {

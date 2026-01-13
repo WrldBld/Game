@@ -33,10 +33,10 @@ pub mod world;
 pub use approval::ApprovalUseCases;
 pub use actantial::ActantialUseCases;
 pub use ai::AiUseCases;
-pub use crate::entities::location::Location;
+pub use crate::repositories::location::Location;
 // Re-export NarrativeOps (for complex trigger evaluation) - also exports type alias Narrative
 pub use narrative_operations::{Narrative, NarrativeOps};
-pub use crate::entities::scene::{Scene, SceneResolutionContext, SceneResolutionResult};
+pub use crate::repositories::scene::{Scene, SceneResolutionContext, SceneResolutionResult};
 pub use assets::AssetUseCases;
 pub use challenge::ChallengeUseCases;
 pub use conversation::ConversationUseCases;

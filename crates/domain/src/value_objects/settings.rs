@@ -228,7 +228,7 @@ impl AppSettings {
     /// from `wrldbldr_engine_adapters::infrastructure::settings_loader`.
     pub fn for_world(base: AppSettings, world_id: WorldId) -> Self {
         let mut settings = base;
-        settings.world_id = Some(world_id.into());
+        settings.world_id = Some(world_id);
         settings
     }
 

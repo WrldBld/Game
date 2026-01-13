@@ -901,7 +901,7 @@ mod ws_integration_tests_inline {
     use tokio::net::TcpListener;
     use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
 
-    use crate::app::{App, Entities, UseCases};
+    use crate::app::{App, Repositories, UseCases};
     use crate::infrastructure::ports::{
         ClockPort, ImageGenError, ImageGenPort, LlmError, LlmPort, QueueError, QueueItem,
         QueuePort, RandomPort,
@@ -1332,16 +1332,16 @@ mod ws_integration_tests_inline {
         let region_state_repo = Arc::new(repos.region_state_repo);
 
         // Entities
-        let character = Arc::new(crate::entities::character::Character::new(character_repo.clone()));
-        let player_character = Arc::new(crate::entities::PlayerCharacter::new(
+        let character = Arc::new(crate::repositories::character::Character::new(character_repo.clone()));
+        let player_character = Arc::new(crate::repositories::PlayerCharacter::new(
             player_character_repo.clone(),
         ));
-        let location = Arc::new(crate::entities::location::Location::new(location_repo.clone()));
-        let scene = Arc::new(crate::entities::scene::Scene::new(scene_repo.clone()));
-        let act = Arc::new(crate::entities::Act::new(act_repo.clone()));
-        let skill = Arc::new(crate::entities::Skill::new(skill_repo.clone()));
-        let interaction = Arc::new(crate::entities::Interaction::new(interaction_repo.clone()));
-        let challenge = Arc::new(crate::entities::Challenge::new(challenge_repo.clone()));
+        let location = Arc::new(crate::repositories::location::Location::new(location_repo.clone()));
+        let scene = Arc::new(crate::repositories::scene::Scene::new(scene_repo.clone()));
+        let act = Arc::new(crate::repositories::Act::new(act_repo.clone()));
+        let skill = Arc::new(crate::repositories::Skill::new(skill_repo.clone()));
+        let interaction = Arc::new(crate::repositories::Interaction::new(interaction_repo.clone()));
+        let challenge = Arc::new(crate::repositories::Challenge::new(challenge_repo.clone()));
         let narrative = Arc::new(crate::use_cases::narrative_operations::Narrative::new(
             narrative_repo.clone(),
             location_repo.clone(),
@@ -1354,28 +1354,28 @@ mod ws_integration_tests_inline {
             scene_repo.clone(),
             clock.clone(),
         ));
-        let staging = Arc::new(crate::entities::staging::Staging::new(staging_repo.clone()));
-        let observation = Arc::new(crate::entities::Observation::new(
+        let staging = Arc::new(crate::repositories::staging::Staging::new(staging_repo.clone()));
+        let observation = Arc::new(crate::repositories::Observation::new(
             observation_repo.clone(),
             location_repo.clone(),
             clock.clone(),
         ));
-        let inventory = Arc::new(crate::entities::inventory::Inventory::new(
+        let inventory = Arc::new(crate::repositories::inventory::Inventory::new(
             item_repo.clone(),
             character_repo.clone(),
             player_character_repo.clone(),
         ));
-        let assets = Arc::new(crate::entities::Assets::new(asset_repo.clone(), image_gen));
-        let world = Arc::new(crate::entities::World::new(world_repo, clock.clone()));
-        let flag = Arc::new(crate::entities::Flag::new(flag_repo.clone()));
-        let goal = Arc::new(crate::entities::Goal::new(goal_repo.clone()));
-        let lore = Arc::new(crate::entities::Lore::new(lore_repo.clone()));
-        let location_state = Arc::new(crate::entities::LocationStateEntity::new(
+        let assets = Arc::new(crate::repositories::Assets::new(asset_repo.clone(), image_gen));
+        let world = Arc::new(crate::repositories::World::new(world_repo, clock.clone()));
+        let flag = Arc::new(crate::repositories::Flag::new(flag_repo.clone()));
+        let goal = Arc::new(crate::repositories::Goal::new(goal_repo.clone()));
+        let lore = Arc::new(crate::repositories::Lore::new(lore_repo.clone()));
+        let location_state = Arc::new(crate::repositories::LocationStateEntity::new(
             location_state_repo.clone(),
         ));
-        let region_state = Arc::new(crate::entities::RegionStateEntity::new(region_state_repo));
+        let region_state = Arc::new(crate::repositories::RegionStateEntity::new(region_state_repo));
 
-        let entities = Entities {
+        let repositories_container = Repositories {
             character: character.clone(),
             player_character: player_character.clone(),
             location: location.clone(),
@@ -1664,7 +1664,7 @@ mod ws_integration_tests_inline {
         );
 
         // Create settings entity
-        let settings_entity = Arc::new(crate::entities::Settings::new(settings_repo.clone()));
+        let settings_entity = Arc::new(crate::repositories::Settings::new(settings_repo.clone()));
 
         let npc_uc = crate::use_cases::NpcUseCases::new(
             Arc::new(crate::use_cases::npc::NpcDisposition::new(
@@ -1769,10 +1769,11 @@ mod ws_integration_tests_inline {
         };
 
         Arc::new(App {
-            entities,
+            repositories: repositories_container,
             use_cases,
             queue,
             llm,
+            content: Arc::new(crate::use_cases::content::ContentService::new(Default::default())),
         })
     }
 
@@ -3315,6 +3316,7 @@ fn parse_challenge_id(id_str: &str) -> Result<ChallengeId, ServerMessage> {
 }
 
 /// Parse a narrative event ID from a string.
+#[allow(dead_code)]
 fn parse_narrative_event_id(id_str: &str) -> Result<NarrativeEventId, ServerMessage> {
     parse_id(
         id_str,
@@ -3324,6 +3326,7 @@ fn parse_narrative_event_id(id_str: &str) -> Result<NarrativeEventId, ServerMess
 }
 
 /// Parse an event chain ID from a string.
+#[allow(dead_code)]
 fn parse_event_chain_id(id_str: &str) -> Result<EventChainId, ServerMessage> {
     parse_id(
         id_str,

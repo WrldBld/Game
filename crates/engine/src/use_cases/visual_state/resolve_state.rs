@@ -11,7 +11,7 @@ use wrldbldr_domain::{
     LocationState, NarrativeEventId, RegionId, RegionState, WorldId,
 };
 
-use crate::entities::{Flag, LocationStateEntity, RegionStateEntity};
+use crate::repositories::{Flag, LocationStateEntity, RegionStateEntity};
 use crate::infrastructure::ports::RepoError;
 
 /// Context for evaluating activation rules
@@ -829,15 +829,15 @@ mod tests {
             }
         }
 
-        let location_state = Arc::new(crate::entities::LocationStateEntity::new(Arc::new(
+        let location_state = Arc::new(crate::repositories::LocationStateEntity::new(Arc::new(
             MockLocationStateRepo,
         )
             as Arc<dyn LocationStateRepo>));
-        let region_state = Arc::new(crate::entities::RegionStateEntity::new(Arc::new(
+        let region_state = Arc::new(crate::repositories::RegionStateEntity::new(Arc::new(
             MockRegionStateRepo,
         )
             as Arc<dyn RegionStateRepo>));
-        let flag = Arc::new(crate::entities::Flag::new(
+        let flag = Arc::new(crate::repositories::Flag::new(
             Arc::new(MockFlagRepo) as Arc<dyn FlagRepo>
         ));
 

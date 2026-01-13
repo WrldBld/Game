@@ -5,10 +5,10 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{LocationId, RegionId, StagingSource, WorldId};
 
-use crate::entities::{LocationStateEntity, RegionStateEntity, World};
-use crate::entities::character::Character;
-use crate::entities::location::Location;
-use crate::entities::staging::Staging;
+use crate::repositories::{LocationStateEntity, RegionStateEntity, World};
+use crate::repositories::character::Character;
+use crate::repositories::location::Location;
+use crate::repositories::staging::Staging;
 
 use super::types::{ApprovedNpc, NpcPresent};
 use super::StagingError;

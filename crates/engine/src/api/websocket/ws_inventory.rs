@@ -43,25 +43,25 @@ pub(super) async fn handle_inventory_action(
     let result = match action {
         InventoryAction::Equip => state
             .app
-            .entities
+            .repositories
             .inventory
             .equip_item(pc_uuid, item_uuid)
             .await,
         InventoryAction::Unequip => state
             .app
-            .entities
+            .repositories
             .inventory
             .unequip_item(pc_uuid, item_uuid)
             .await,
         InventoryAction::Drop => state
             .app
-            .entities
+            .repositories
             .inventory
             .drop_item(pc_uuid, item_uuid, quantity)
             .await,
         InventoryAction::Pickup => state
             .app
-            .entities
+            .repositories
             .inventory
             .pickup_item(pc_uuid, item_uuid)
             .await,

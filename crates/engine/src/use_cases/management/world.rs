@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use wrldbldr_domain::WorldId;
 
-use crate::entities::World;
+use crate::repositories::World;
 use crate::infrastructure::ports::ClockPort;
 
 use super::ManagementError;

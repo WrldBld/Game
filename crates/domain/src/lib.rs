@@ -38,7 +38,7 @@ pub use entities::{
     RechargeType, Region, RegionConnection, RegionExit, RegionState, RegionStateSummary,
     ResolvedStateInfo, ResolvedVisualState, Scene, SceneCharacter, SceneCharacterRole,
     SceneCondition, Skill, SkillCategory, Spell, SpellComponents, SpellDuration, SpellLevel,
-    SpellRange, SpellSlotPool, StagedNpc, Staging, StagingSource, StatBlock, StoryEvent,
+    SpellRange, SpellSlotPool, StagedNpc, Staging, StagingSource, StatBlock, StatModifier, StoryEvent,
     StoryEventInfoImportance, StoryEventType, TimeAdvanceResult, TimeContext, TriggerCondition,
     TriggerContext, TriggerEvaluation, TriggerLogic, TriggerType, UsesFormula, VisualStateSource,
     Want, WantTargetType, WantVisibility, WorkflowAnalysis, WorkflowConfiguration, WorkflowInput,
@@ -48,7 +48,35 @@ pub use entities::{
 };
 
 pub use error::DomainError;
-pub use events::DomainEvent;
+pub use events::{
+    ArchetypeShift, ChallengeOutcome, DamageOutcome, DomainEvent, HealOutcome, ResurrectOutcome,
+};
+
+// Re-export aggregate types
+// NOTE: aggregates::Character is the new Rustic DDD version with private fields.
+// entities::Character is the legacy version with public fields.
+// During migration (Phase 4-6), both exist. After Phase 7, only aggregates::Character remains.
+pub use aggregates::Character as CharacterAggregate;
+// NOTE: aggregates::Location is the new Rustic DDD version with private fields.
+// entities::Location is the legacy version with public fields.
+// During migration (Phase 4-6), both exist. After Phase 7, only aggregates::Location remains.
+pub use aggregates::Location as LocationAggregate;
+// NOTE: aggregates::NarrativeEvent is the new Rustic DDD version with private fields.
+// entities::NarrativeEvent is the legacy version with public fields.
+// During migration (Phase 4-6), both exist. After Phase 7, only aggregates::NarrativeEvent remains.
+pub use aggregates::NarrativeEvent as NarrativeEventAggregate;
+// NOTE: aggregates::PlayerCharacter is the new Rustic DDD version with private fields.
+// entities::PlayerCharacter is the legacy version with public fields.
+// During migration (Phase 4-6), both exist. After Phase 7, only aggregates::PlayerCharacter remains.
+pub use aggregates::PlayerCharacter as PlayerCharacterAggregate;
+// NOTE: aggregates::Scene is the new Rustic DDD version with private fields.
+// entities::Scene is the legacy version with public fields.
+// During migration (Phase 4-6), both exist. After Phase 7, only aggregates::Scene remains.
+pub use aggregates::Scene as SceneAggregate;
+// NOTE: aggregates::World is the new Rustic DDD version with private fields.
+// entities::World is the legacy version with public fields.
+// During migration (Phase 4-6), both exist. After Phase 7, only aggregates::World remains.
+pub use aggregates::World as WorldAggregate;
 
 // Re-export game system traits and types
 pub use game_systems::{
@@ -123,6 +151,10 @@ pub use value_objects::{
     ChallengeSuggestionOutcomes,
     ChangeAmount,
     CharacterContext,
+    // Validated name newtypes
+    CharacterName,
+    // Character lifecycle state enum
+    CharacterState,
     GameTool,
     InfoImportance,
     ComfyUIConfig,
@@ -130,6 +162,7 @@ pub use value_objects::{
     ContextCategory,
     ConversationEntry,
     ConversationTurn,
+    Description,
     // Dialogue marker parsing
     DialogueMarker,
     DiceRollInput,
@@ -144,6 +177,7 @@ pub use value_objects::{
     GamePromptRequest,
     LlmRequestData,
     LlmRequestType,
+    LocationName,
     MoodState,
     MotivationEntry,
     MotivationsContext,
@@ -191,4 +225,5 @@ pub use value_objects::{
     ToneGuidance,
     WantContext,
     WantTarget,
+    WorldName,
 };

@@ -21,7 +21,7 @@ async fn test_acts_loaded_from_world() {
     // Get acts for the world
     let acts = ctx
         .app
-        .entities
+        .repositories
         .act
         .list_in_world(ctx.world.world_id)
         .await
@@ -47,7 +47,7 @@ async fn test_scenes_loaded_for_act() {
     // Get first act
     let acts = ctx
         .app
-        .entities
+        .repositories
         .act
         .list_in_world(ctx.world.world_id)
         .await
@@ -57,7 +57,7 @@ async fn test_scenes_loaded_for_act() {
         // Get scenes for this act
         let scenes = ctx
             .app
-            .entities
+            .repositories
             .scene
             .list_for_act(first_act.id)
             .await
@@ -119,7 +119,7 @@ async fn test_scene_directorial_notes() {
     // Get all scenes
     let acts = ctx
         .app
-        .entities
+        .repositories
         .act
         .list_in_world(ctx.world.world_id)
         .await
@@ -128,7 +128,7 @@ async fn test_scene_directorial_notes() {
     for act in &acts {
         let scenes = ctx
             .app
-            .entities
+            .repositories
             .scene
             .list_for_act(act.id)
             .await

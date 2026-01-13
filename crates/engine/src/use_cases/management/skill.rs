@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{SkillCategory, SkillId, WorldId};
 
-use crate::entities::Skill;
+use crate::repositories::Skill;
 
 use super::ManagementError;
 

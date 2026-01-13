@@ -11,7 +11,7 @@ use wrldbldr_domain::{
     WorldId,
 };
 
-use crate::entities::Assets;
+use crate::repositories::Assets;
 use crate::infrastructure::ports::{ClockPort, ImageGenError, ImageRequest, QueuePort, RepoError};
 
 pub use expression_sheet::{

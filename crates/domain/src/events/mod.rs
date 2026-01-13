@@ -3,6 +3,17 @@
 //! Coarse-grained events representing significant state changes in the domain.
 //! These are the domain's internal events - they get mapped to protocol AppEvent
 //! at the adapter boundary for persistence and cross-system communication.
+//!
+//! ## Aggregate Mutation Events
+//!
+//! The `character_events` and `combat_events` submodules contain return types
+//! from aggregate mutations, communicating what happened when state was modified.
+
+pub mod character_events;
+pub mod combat_events;
+
+pub use character_events::*;
+pub use combat_events::*;
 
 use serde::{Deserialize, Serialize};
 

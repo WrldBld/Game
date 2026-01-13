@@ -20,7 +20,7 @@ async fn test_world_has_game_time() {
     // Get the world
     let world = ctx
         .app
-        .entities
+        .repositories
         .world
         .get(ctx.world.world_id)
         .await
@@ -83,7 +83,7 @@ async fn test_advance_time() {
     // Get initial world time
     let world = ctx
         .app
-        .entities
+        .repositories
         .world
         .get(ctx.world.world_id)
         .await
@@ -158,7 +158,7 @@ async fn test_time_in_world_context() {
     // Get world context - should include time information
     let world = ctx
         .app
-        .entities
+        .repositories
         .world
         .get(ctx.world.world_id)
         .await
@@ -232,7 +232,7 @@ async fn test_time_reached_trigger() {
     // Verify event exists
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await
@@ -306,7 +306,7 @@ async fn test_time_at_location_trigger() {
     // Verify event exists
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await

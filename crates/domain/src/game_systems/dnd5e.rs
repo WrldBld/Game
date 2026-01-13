@@ -37,6 +37,7 @@ const XP_THRESHOLDS: [i32; 20] = [
 ];
 
 /// Get XP required for a given level.
+#[allow(dead_code)]
 fn xp_for_level(level: u8) -> i32 {
     if level == 0 || level > 20 {
         return 0;
@@ -581,7 +582,7 @@ impl CharacterSheetProvider for Dnd5eSystem {
         match field_id {
             "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA" => {
                 if let Some(score) = value.as_i64() {
-                    if score < 1 || score > 30 {
+                    if !(1..=30).contains(&score) {
                         return Some("Ability scores must be between 1 and 30".to_string());
                     }
                 } else {
@@ -590,7 +591,7 @@ impl CharacterSheetProvider for Dnd5eSystem {
             }
             "LEVEL" => {
                 if let Some(level) = value.as_i64() {
-                    if level < 1 || level > 20 {
+                    if !(1..=20).contains(&level) {
                         return Some("Level must be between 1 and 20".to_string());
                     }
                 } else {

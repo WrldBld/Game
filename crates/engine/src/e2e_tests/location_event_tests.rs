@@ -72,7 +72,7 @@ async fn test_player_enters_location_trigger() {
     // Verify event exists
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await
@@ -306,7 +306,7 @@ async fn test_repeatable_location_event() {
     // Verify event is marked as repeatable
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await

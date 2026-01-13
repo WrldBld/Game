@@ -20,7 +20,7 @@ async fn test_list_active_events() {
     // List active narrative events
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await
@@ -73,7 +73,7 @@ async fn test_trigger_narrative_event() {
     // Note: mark_triggered doesn't exist, use set_event_active to toggle event state
     let trigger_result = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .set_event_active(wrldbldr_domain::NarrativeEventId::from(event_id), false)
         .await;
@@ -152,7 +152,7 @@ async fn test_repeatable_events() {
     // List events - both should be active
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await
@@ -211,7 +211,7 @@ async fn test_event_priority() {
     // List events - should be ordered by priority
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await
@@ -242,7 +242,7 @@ async fn test_event_in_context() {
     // Get active events for context building
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await
@@ -295,7 +295,7 @@ async fn test_favorite_events() {
     // Note: list_favorites doesn't exist, so we filter from list_events
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await

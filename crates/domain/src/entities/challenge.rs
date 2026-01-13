@@ -306,6 +306,7 @@ impl Challenge {
     }
 
     /// Evaluate a narrative roll based on resolution style
+    #[allow(clippy::too_many_arguments)]
     fn evaluate_narrative_roll(
         &self,
         roll: i32,
@@ -544,7 +545,7 @@ impl Difficulty {
     /// let difficulty = Difficulty::percentage(45); // 45% chance of success
     /// ```
     pub fn percentage(value: u32) -> Self {
-        assert!(value >= 1 && value <= 100, "Percentage must be 1-100");
+        assert!((1..=100).contains(&value), "Percentage must be 1-100");
         Difficulty::Percentage(value)
     }
 
@@ -610,8 +611,8 @@ impl Difficulty {
                 return Self::DC(dc);
             }
         }
-        if s.ends_with('%') {
-            if let Ok(pct) = s[..s.len() - 1].trim().parse::<u32>() {
+        if let Some(stripped) = s.strip_suffix('%') {
+            if let Ok(pct) = stripped.trim().parse::<u32>() {
                 return Self::Percentage(pct);
             }
         }
@@ -1058,9 +1059,7 @@ impl TriggerType {
     }
 }
 
-/// Result of a challenge resolution
-
-/// Type of outcome achieved
+/// Type of outcome achieved in a challenge resolution
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum OutcomeType {

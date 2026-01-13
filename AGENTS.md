@@ -2,15 +2,29 @@
 
 ## Architecture
 
-### Core Principle
+### Core Principles
 
-**Hexagonal architecture is for infrastructure boundaries only.** Internal code calls internal code directly as concrete types.
+1. **Hexagonal architecture for infrastructure boundaries only** - Port traits (~10 total) at database, LLM, and external system boundaries
+2. **Rustic DDD** - Idiomatic Rust domain-driven design leveraging ownership, newtypes, and enums
+3. **Internal code uses concrete types** - No abstraction layers within the same crate
+
+### Rustic DDD Philosophy
+
+Instead of porting Java/C# DDD patterns, we leverage Rust's strengths:
+
+| Java DDD Pattern | Rustic Equivalent |
+|------------------|-------------------|
+| Private fields + getters | **Newtypes** valid by construction |
+| Aggregate root guards | **Ownership** (borrow checker enforces) |
+| Value Object immutability | `#[derive(Clone)]` + no `&mut` methods |
+| Factory pattern | `::new()` + builder pattern |
+| Domain Events | Return enums from mutations |
 
 ### Crate Structure (4 crates)
 
 ```
 crates/
-  domain/       # Pure business types (entities, value objects, typed IDs)
+  domain/       # Pure business types (aggregates, value objects, typed IDs, events)
   protocol/     # Wire format for Engine <-> Player communication
   engine/       # All server-side code
   player/       # All client-side code (Dioxus UI + platform adapters)
@@ -32,10 +46,272 @@ Only infrastructure that might realistically be swapped:
 
 ### What Does NOT Get Abstracted
 
-- Entity-to-entity calls (all in same crate)
+- Aggregate-to-aggregate calls (all in same crate)
 - Use case orchestration
 - Handler-to-use-case calls
 - Application state
+
+---
+
+## Domain Crate Structure
+
+```
+domain/src/
+  lib.rs              # Re-exports
+  error.rs            # DomainError
+  ids.rs              # Typed IDs (CharacterId, LocationId, etc.)
+
+  aggregates/         # Aggregate roots (own their data, private fields)
+    mod.rs
+    character.rs      # Character aggregate
+    location.rs       # Location aggregate (owns regions)
+    world.rs          # World aggregate
+    scene.rs          # Scene aggregate
+    player_character.rs
+    narrative_event.rs
+    challenge.rs
+    item.rs
+
+  value_objects/      # Immutable, no identity, validated by construction
+    mod.rs
+    names.rs          # CharacterName, LocationName, WorldName, Description
+    stat_block.rs     # StatBlock with modifiers
+    archetype.rs      # CampbellArchetype enum
+    mood.rs           # MoodState, DispositionLevel
+    expression.rs     # ExpressionConfig
+
+  events/             # Domain events (return types from mutations)
+    mod.rs
+    character_events.rs  # DamageOutcome, HealOutcome, ArchetypeShift
+    combat_events.rs     # ChallengeOutcome
+```
+
+### Aggregate Design Rules
+
+1. **Private fields** - All aggregate fields are private
+2. **Accessors for reading** - `fn name(&self) -> &CharacterName`
+3. **Newtypes for validated data** - `CharacterName` not `String`
+4. **Enums for state machines** - `CharacterState` not `is_alive: bool`
+5. **Mutations return events** - `fn apply_damage(&mut self, amount: i32) -> DamageOutcome`
+
+**Example Aggregate:**
+```rust
+// domain/src/aggregates/character.rs
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Character {
+    id: CharacterId,          // Private
+    name: CharacterName,      // Newtype (validated)
+    state: CharacterState,    // Enum (not booleans)
+    stats: StatBlock,         // Owned
+}
+
+impl Character {
+    pub fn new(world_id: WorldId, name: CharacterName, archetype: CampbellArchetype) -> Self { ... }
+
+    // Read accessors
+    pub fn id(&self) -> CharacterId { self.id }
+    pub fn name(&self) -> &CharacterName { &self.name }
+    pub fn is_alive(&self) -> bool { self.state.is_alive() }
+
+    // Mutations return events
+    pub fn apply_damage(&mut self, amount: i32) -> DamageOutcome {
+        // ... modify state ...
+        DamageOutcome::Wounded { damage_dealt: amount, remaining_hp: new_hp }
+    }
+}
+```
+
+### Value Object Design Rules
+
+1. **Valid by construction** - Constructor validates, returns `Result<Self, DomainError>`
+2. **Serde integration** - `#[serde(try_from = "String")]` for automatic validation on deserialize
+3. **Display trait** - Implement for easy string conversion
+4. **No mutation** - Only `&self` methods (except builder patterns that consume self)
+
+**Example Value Object:**
+```rust
+// domain/src/value_objects/names.rs
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct CharacterName(String);
+
+impl CharacterName {
+    pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
+        let name = name.into().trim().to_string();
+        if name.is_empty() {
+            return Err(DomainError::validation("Character name cannot be empty"));
+        }
+        if name.len() > 200 {
+            return Err(DomainError::validation("Character name cannot exceed 200 characters"));
+        }
+        Ok(Self(name))
+    }
+
+    pub fn as_str(&self) -> &str { &self.0 }
+}
+
+impl TryFrom<String> for CharacterName {
+    type Error = DomainError;
+    fn try_from(s: String) -> Result<Self, Self::Error> { Self::new(s) }
+}
+
+impl From<CharacterName> for String {
+    fn from(name: CharacterName) -> String { name.0 }
+}
+```
+
+### Domain Event Design Rules
+
+1. **Enums with data** - Each variant carries relevant information
+2. **Descriptive variants** - Names describe what happened
+3. **Used as return types** - From aggregate mutation methods
+
+**Example Domain Event:**
+```rust
+// domain/src/events/character_events.rs
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DamageOutcome {
+    AlreadyDead,
+    Wounded { damage_dealt: i32, remaining_hp: i32 },
+    Killed { damage_dealt: i32 },
+    NoHpTracking,
+}
+```
+
+---
+
+## Engine Structure
+
+```
+engine/src/
+  repositories/       # Data access wrappers around port traits
+    mod.rs
+    character.rs      # CharacterRepository (wraps CharacterRepo port)
+    location.rs       # LocationRepository
+    world.rs          # WorldRepository
+    player_character.rs
+    scene.rs
+    narrative.rs
+    staging.rs
+    observation.rs
+    inventory.rs
+    goal.rs
+    act.rs
+    assets.rs
+    settings.rs
+    lore.rs
+    skill.rs
+    flag.rs
+    interaction.rs
+    location_state.rs
+    region_state.rs
+
+  use_cases/          # Multi-repository orchestration
+    movement/         # Player movement (enter_region, exit_location)
+    conversation/     # NPC dialogue (start, continue, end)
+    challenge/        # Challenge flows
+    narrative/        # Trigger evaluation, effect execution
+    approval/         # DM approval flows
+    staging/          # NPC staging flows
+    session/          # Session management
+    visual_state/     # Scene visual state
+    assets/           # Asset generation
+    world/            # World import/export
+    queues/           # Queue processing
+    time/             # Game time
+    player_action/    # Player action processing
+    actantial/        # Goals, wants
+    ai/               # AI/LLM orchestration
+    lore/             # Lore management
+    npc/              # NPC behavior
+    story_events/     # Story events
+    location_events/  # Location events
+    scene/            # Scene resolution
+
+  infrastructure/     # External dependencies
+    ports.rs          # All port trait definitions (~10 traits)
+    neo4j/            # Database implementation (23 repository files)
+    ollama.rs         # LLM client
+    comfyui.rs        # Image generation
+    queue.rs          # SQLite queues
+    clock.rs          # System clock
+    settings.rs       # Settings infrastructure
+
+  api/                # Entry points
+    connections.rs    # Connection management
+    http.rs           # HTTP routes
+    websocket/        # WebSocket handling (24 handler modules)
+
+  app.rs              # App struct (composition root)
+  main.rs             # Entry point
+```
+
+### Repository Design Rules
+
+1. **Named `*Repository`** - `CharacterRepository`, not `Character`
+2. **Wraps port trait** - `repo: Arc<dyn CharacterRepo>`
+3. **Async CRUD methods** - `async fn get(&self, id: CharacterId) -> Result<Option<Character>, RepoError>`
+4. **No business logic** - Only data access
+
+**Example Repository:**
+```rust
+// engine/src/repositories/character.rs
+pub struct CharacterRepository {
+    repo: Arc<dyn CharacterRepo>,
+}
+
+impl CharacterRepository {
+    pub fn new(repo: Arc<dyn CharacterRepo>) -> Self {
+        Self { repo }
+    }
+
+    pub async fn get(&self, id: CharacterId) -> Result<Option<domain::Character>, RepoError> {
+        self.repo.get(id).await
+    }
+
+    pub async fn save(&self, character: &domain::Character) -> Result<(), RepoError> {
+        self.repo.save(character).await
+    }
+
+    pub async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<domain::Character>, RepoError> {
+        self.repo.list_in_world(world_id).await
+    }
+}
+```
+
+### Repositories vs Use Cases
+
+| Criteria | Layer | Example |
+|----------|-------|---------|
+| 1-2 repo dependencies | `repositories/` | `CharacterRepository` (1 port) |
+| 3+ repository dependencies | `use_cases/` | `EnterRegion` (3+ repos) |
+| Pure data access | `repositories/` | `get`, `save`, `list` |
+| Business orchestration | `use_cases/` | Movement, conversation, challenges |
+
+### Use Case Design Rules
+
+1. **Inject repositories** - Not port traits directly
+2. **Orchestrate multiple operations** - Coordinate repos + domain logic
+3. **Return domain types** - Not raw database records
+
+**Example Use Case:**
+```rust
+// engine/src/use_cases/movement/enter_region.rs
+pub struct EnterRegion {
+    character_repo: Arc<CharacterRepository>,
+    staging_repo: Arc<StagingRepository>,
+    narrative_repo: Arc<NarrativeRepository>,
+}
+
+impl EnterRegion {
+    pub async fn execute(&self, pc_id: PlayerCharacterId, region_id: RegionId) -> Result<EnterRegionResult, MovementError> {
+        let npcs = self.staging_repo.resolve_for_region(region_id).await?;
+        let events = self.narrative_repo.check_triggers(region_id, pc_id).await?;
+        self.character_repo.update_position(pc_id, region_id).await?;
+        Ok(EnterRegionResult { npcs, events })
+    }
+}
+```
 
 ---
 
@@ -59,207 +335,6 @@ Only infrastructure that might realistically be swapped:
 
 ---
 
-## Engine Structure
-
-```
-engine/src/
-  entities/           # Repository facades (1-2 repo deps MAX, CRUD + simple queries only)
-    character.rs      # Character CRUD operations
-    player_character.rs # Player character CRUD
-    location.rs       # Location/region CRUD
-    location_state.rs # Location state tracking
-    region_state.rs   # Region state tracking
-    scene.rs          # Scene CRUD
-    challenge.rs      # Challenge/dice operations
-    narrative.rs      # Narrative CRUD (events, triggers)
-    staging.rs        # NPC presence CRUD
-    observation.rs    # Player knowledge
-    inventory.rs      # Item CRUD
-    goal.rs           # Goals (actantial targets)
-    act.rs            # Actantial acts
-    assets.rs         # Asset operations
-    world.rs          # World CRUD
-    settings.rs       # Global/world settings
-    lore.rs           # Lore entries
-    skill.rs          # Skill definitions
-    flag.rs           # Game flags
-    interaction.rs    # Interaction records
-
-  use_cases/          # Multi-entity orchestration (coordinates entities, NOT repos directly)
-    movement/         # Player movement (enter_region, exit_location, scene_change)
-    conversation/     # NPC dialogue (start, continue, end)
-    challenge/        # Challenge flows
-    narrative/        # Narrative orchestration (trigger evaluation, effect execution)
-    approval/         # DM approval flows
-    staging/          # NPC staging flows
-    session/          # Session management (join_world, directorial)
-    visual_state/     # Scene visual state resolution
-    assets/           # Asset generation flows
-    world/            # World import/export
-    queues/           # Queue processing
-    time/             # Game time advancement
-    player_action/    # Player action processing
-    actantial/        # Goals, wants context
-    ai/               # AI/LLM orchestration
-    lore/             # Lore management
-    npc/              # NPC behavior
-    story_events/     # Story event handling
-    location_events/  # Location-based events
-    scene/            # Scene resolution logic
-
-  infrastructure/     # External dependencies
-    ports.rs          # All port trait definitions (~10 traits)
-    neo4j/            # Database implementation (23 repository files)
-    ollama.rs         # LLM client
-    comfyui.rs        # Image generation
-    queue.rs          # SQLite queues
-    clock.rs          # System clock
-    settings.rs       # Settings infrastructure
-
-  api/                # Entry points
-    connections.rs    # Connection management
-    http.rs           # HTTP routes
-    websocket/        # WebSocket handling (24 handler modules)
-      mod.rs          # Connection lifecycle + dispatch
-      ws_core.rs      # Core RequestPayload handlers
-      ws_actantial.rs # Goal/Want/Actantial requests
-      ws_approval.rs  # Approval decisions
-      ws_challenge.rs # Challenge requests
-      ws_conversation.rs # NPC dialogue
-      ws_creator.rs   # Generation/AI/Expression requests
-      ws_dm.rs        # DM-specific actions
-      ws_event_chain.rs # Event chain requests
-      ws_inventory.rs # Inventory operations
-      ws_location.rs  # Location/Region requests
-      ws_lore.rs      # Lore requests
-      ws_movement.rs  # Movement requests
-      ws_narrative_event.rs # Narrative event requests
-      ws_player.rs    # PlayerCharacter requests
-      ws_player_action.rs # Player action handling
-      ws_scene.rs     # Scene requests
-      ws_session.rs   # Session management
-      ws_skill.rs     # Skill requests
-      ws_staging.rs   # Staging requests
-      ws_story_events.rs # Story event requests
-      ws_time.rs      # Time advancement
-
-  app.rs              # App struct (composition of entities + use_cases)
-  main.rs             # Entry point
-```
-
-### Entity Modules
-
-Encapsulate all operations for a domain concept:
-
-```rust
-// engine/src/entities/character.rs
-pub struct Character {
-    repo: Arc<dyn CharacterRepo>,
-}
-
-impl Character {
-    pub async fn get(&self, id: CharacterId) -> Result<Option<domain::Character>> {
-        self.repo.get(id).await
-    }
-
-    pub async fn list_in_region(&self, region_id: RegionId) -> Result<Vec<domain::Character>> {
-        self.repo.list_in_region(region_id).await
-    }
-
-    // All character operations...
-}
-```
-
-### Entities vs Use Cases (Classification Rules)
-
-**Entity modules** (`entities/`) wrap repository ports and provide direct domain operations. They are the single source of truth for interacting with domain data.
-
-**Use cases** (`use_cases/`) orchestrate across multiple entities to fulfill user stories. They should **never duplicate** entity functionality.
-
-#### Classification Criteria
-
-| Criteria | Layer | Example |
-|----------|-------|---------|
-| 1-2 repo dependencies | `entities/` | `Character` (1 repo) |
-| 3+ entity dependencies | `use_cases/` | `EnterRegion` (3+ entities) |
-| <300 lines, pure CRUD | `entities/` | `Staging` (218 lines) |
-| >300 lines, complex logic | `use_cases/` (or split) | `TriggerEvaluator` |
-| Coordinates multiple entities | `use_cases/` | `Movement` flow |
-
-#### Layer Rules
-
-| Layer | Purpose | Example |
-|-------|---------|---------|
-| Entity | Direct domain operations | `inventory.get_pc_inventory(pc_id)` |
-| Use Case | Multi-entity orchestration | `EnterRegion` (updates position + triggers events + resolves staging) |
-
-#### Rules to Prevent Duplication
-
-1. **Don't wrap entities in use cases** - If a use case just calls through to an entity, delete the use case
-2. **Access entities directly when appropriate** - Handlers can call `app.entities.inventory` for simple operations
-3. **Use cases are for orchestration** - Only create use cases when coordinating multiple entities
-4. **No `*_operations.rs` in use_cases/** - Files named `*_operations.rs` belong in `entities/`
-
-**Example - Settings access:**
-```rust
-// Settings is an entity mounted in use_cases for historical reasons
-// Access directly - no wrapper layer
-app.use_cases.settings.get_global().await?
-app.use_cases.settings.get_for_world(world_id).await?
-
-// NOT: app.use_cases.settings.ops.get_global() - this pattern is wrong
-```
-
-**Example - Inventory access:**
-```rust
-// Access entity directly from handlers
-app.entities.inventory.get_pc_inventory(pc_id).await?
-app.entities.inventory.equip_item(pc_id, item_id).await?
-
-// NOT: app.use_cases.inventory.ops.get_pc_inventory() - dead code, deleted
-```
-
-### Use Cases
-
-Orchestrate across entities for user stories:
-
-```rust
-// engine/src/use_cases/movement/enter_region.rs
-pub struct EnterRegion {
-    character: Arc<Character>,
-    staging: Arc<Staging>,
-    narrative: Arc<Narrative>,
-}
-
-impl EnterRegion {
-    pub async fn execute(&self, pc_id: PcId, region_id: RegionId) -> Result<EnterRegionResult> {
-        let npcs = self.staging.resolve_for_region(region_id).await?;
-        let events = self.narrative.check_triggers(region_id, pc_id).await?;
-        self.character.update_position(pc_id, region_id).await?;
-        Ok(EnterRegionResult { npcs, events })
-    }
-}
-```
-
-### API Layer
-
-Handlers call use cases directly:
-
-```rust
-// engine/src/api/http.rs
-async fn move_to_region(
-    State(app): State<Arc<App>>,
-    Json(req): Json<MoveRequest>,
-) -> Result<Json<MoveResponse>> {
-    let result = app.use_cases.movement.enter_region
-        .execute(req.pc_id, req.region_id)
-        .await?;
-    Ok(Json(result.into()))
-}
-```
-
----
-
 ## Player Structure
 
 ```
@@ -268,74 +343,27 @@ player/src/
     api.rs            # API orchestration
     error.rs          # Error types
     services/         # Business services (16+ modules)
-      session.rs      # Session management
-      challenge.rs    # Challenge handling
-      character.rs    # Character operations
-      observation.rs  # Knowledge tracking
-      ...
     dto/              # Data transfer objects
-      requests.rs     # Request types
-      player_events.rs
-      session_dto.rs
-      websocket_messages.rs
 
   infrastructure/     # External adapters
     websocket/        # Platform-specific WebSocket
-      desktop/        # Desktop WebSocket client
-      wasm/           # WASM WebSocket client
-      bridge.rs       # Platform abstraction
-      protocol.rs     # Protocol handling
     messaging/        # Message bus
-      command_bus.rs
-      event_bus.rs
-      connection.rs
     platform/         # Platform abstractions
-      desktop.rs
-      wasm.rs
     storage.rs        # Storage implementations
     http_client.rs    # HTTP client
 
   ports/              # Port trait definitions
     outbound/         # Outbound ports
-      api_port.rs
-      platform_port.rs
-      player_events.rs
 
   ui/                 # User interface (Dioxus)
     presentation/
-      views/          # Page-level components (9 views)
-        main_menu.rs
-        pc_view.rs
-        dm_view.rs
-        world_select.rs
-        pc_creation.rs
-        role_select.rs
-        ...
-      components/     # Reusable UI components (40+ organized by feature)
-        visual_novel/   # Dialogue display
-        dm_panel/       # DM controls (20+ components)
-        story_arc/      # Narrative timeline
-        inventory_panel/
-        character_sheet_viewer/
-        mini_map/
-        settings/
-        tactical/
-        ...
+      views/          # Page-level components
+      components/     # Reusable UI components
       state/          # UI state management
-        connection.rs
-        game.rs
-        dialogue.rs
-        session.rs
-        challenge.rs
-        ...
       handlers/       # Event handlers
-        session_event_handler.rs
-        session_message_handler.rs
     routes/           # Dioxus routing
 
   state/              # Dependency injection
-    platform.rs
-
   main.rs             # Entry point
   lib.rs              # Library exports
 ```
@@ -349,7 +377,10 @@ The domain crate must be **pure**:
 **DO**:
 - Use `serde`, `uuid`, `chrono`, `thiserror` only
 - Use typed IDs (`CharacterId`, not raw `Uuid`)
-- Implement business logic in entity methods
+- Use newtypes for validated strings (`CharacterName`, not `String`)
+- Use enums for state machines (`CharacterState`, not booleans)
+- Return events from mutations (`DamageOutcome`, not `()`)
+- Implement business logic in aggregate methods
 
 **DON'T**:
 - Import tokio, axum, neo4rs, or any framework
@@ -357,6 +388,7 @@ The domain crate must be **pure**:
 - Call `Utc::now()` - inject via `ClockPort`
 - Use `rand` - inject via `RandomPort`
 - Perform any I/O
+- Use public fields on aggregates
 
 **Exception**: `Uuid::new_v4()` is allowed for ID generation (ADR-001).
 
@@ -389,6 +421,47 @@ fn get_character(&self, id: CharacterId) -> Character;
 fn get_character(&self, id: Uuid) -> Character;
 ```
 
+### Newtypes for Validated Data
+
+Always use newtypes for validated strings:
+
+```rust
+// CORRECT
+pub struct Character {
+    name: CharacterName,  // Guaranteed valid
+}
+
+// WRONG
+pub struct Character {
+    pub name: String,  // Could be empty or too long
+}
+```
+
+### State Enums over Booleans
+
+Use enums for mutually exclusive states:
+
+```rust
+// CORRECT
+pub enum CharacterState { Active, Inactive, Dead }
+
+// WRONG
+pub is_alive: bool,
+pub is_active: bool,  // What if is_alive=false && is_active=true?
+```
+
+### Return Events from Mutations
+
+Return what happened, don't just mutate:
+
+```rust
+// CORRECT
+pub fn apply_damage(&mut self, amount: i32) -> DamageOutcome { ... }
+
+// WRONG
+pub fn apply_damage(&mut self, amount: i32) { ... }  // Caller has no idea what happened
+```
+
 ### Error Handling
 
 Never swallow errors:
@@ -409,40 +482,19 @@ let result = repo.get(id).await?;
 // CORRECT - hooks at top level
 #[component]
 pub fn MyComponent() -> Element {
-    let navigator = use_navigator();  // Always called
+    let navigator = use_navigator();
     let mut state = use_signal(|| 0);
-
-    if some_condition {
-        // Use navigator here, but don't call use_navigator()
-        navigator.push(Route::Home {});
-    }
-    rsx! { ... }
+    // ...
 }
 
 // WRONG - hook inside conditional causes RefCell panic
 #[component]
 pub fn MyComponent() -> Element {
     if some_condition {
-        let navigator = use_navigator();  // PANIC! Hook ordering changes
-        navigator.push(Route::Home {});
+        let navigator = use_navigator();  // PANIC!
     }
-    rsx! { ... }
+    // ...
 }
-```
-
-**Signal reads**: Avoid nested signal reads that hold borrows across other reads:
-
-```rust
-// WRONG - nested reads cause RefCell panic
-let location = locations.read().iter()
-    .find(|l| l.id == selected_id.read())  // Reading inside iterator
-    .map(|l| l.name.clone());
-
-// CORRECT - read signals separately before combining
-let selected = selected_id.read().clone();
-let location = locations.read().iter()
-    .find(|l| Some(&l.id) == selected.as_ref())
-    .map(|l| l.name.clone());
 ```
 
 ---
@@ -474,22 +526,29 @@ dx serve --platform web
 
 ## Adding Features
 
-### New Entity Operations
+### New Aggregate
 
-1. Add to `engine/src/entities/{entity}.rs`
-2. Add repository methods to port trait if needed
+1. Create `domain/src/aggregates/{name}.rs` with private fields
+2. Add value objects if needed in `domain/src/value_objects/`
+3. Add domain events if needed in `domain/src/events/`
+4. Export from `domain/src/aggregates/mod.rs`
+
+### New Repository
+
+1. Create `engine/src/repositories/{name}.rs`
+2. Add port trait methods if needed in `infrastructure/ports.rs`
 3. Implement in `engine/src/infrastructure/neo4j/`
 
 ### New Use Case
 
 1. Create `engine/src/use_cases/{category}/{name}.rs`
-2. Inject required entity modules
+2. Inject required repositories
 3. Add to `App` struct
 4. Wire in API layer
 
 ### New API Endpoint
 
-1. Add handler to `engine/src/api/http.rs` or `engine/src/api/websocket/mod.rs`
+1. Add handler to `engine/src/api/http.rs` or `engine/src/api/websocket/`
 2. Call appropriate use case
 3. Add protocol types if needed
 
@@ -499,20 +558,21 @@ dx serve --platform web
 
 | Document | Purpose |
 |----------|---------|
+| `docs/plans/RUSTIC_DDD_REFACTOR.md` | Current refactoring plan |
 | `docs/architecture/neo4j-schema.md` | Database schema |
 | `docs/architecture/websocket-protocol.md` | Client-server protocol |
+| `docs/architecture/ADR-*.md` | Architecture decision records |
 | `docs/systems/*.md` | Game system specifications |
 | `docs/designs/*.md` | Feature design documents |
-| `docs/progress/ACTIVE_DEVELOPMENT.md` | Current development status |
 
 ---
 
 ## Testing
 
 ### Unit Tests
-- Domain: Pure tests, no mocking
-- Entities: Mock repository ports
-- Use cases: Mock entity modules
+- Domain: Pure tests, no mocking (aggregates, value objects)
+- Repositories: Mock port traits
+- Use cases: Mock repositories
 
 ### Integration Tests
 - Use testcontainers for Neo4j
@@ -524,10 +584,10 @@ async fn enter_region_updates_position() {
     let mut repo = MockCharacterRepo::new();
     repo.expect_update_position()
         .returning(|_, _| Ok(()));
-        
-    let character = Character::new(Arc::new(repo));
-    let use_case = EnterRegion::new(character, ...);
-    
+
+    let character_repo = CharacterRepository::new(Arc::new(repo));
+    let use_case = EnterRegion::new(character_repo, ...);
+
     let result = use_case.execute(pc_id, region_id).await;
     assert!(result.is_ok());
 }

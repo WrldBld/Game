@@ -23,7 +23,7 @@ async fn test_npc_stats_loaded() {
     // Get NPC with stats
     let npc = ctx
         .app
-        .entities
+        .repositories
         .character
         .get(mira_id)
         .await
@@ -58,7 +58,7 @@ async fn test_pc_sheet_data() {
     // Get PC
     let pc = ctx
         .app
-        .entities
+        .repositories
         .player_character
         .get(pc_id)
         .await
@@ -112,7 +112,7 @@ async fn test_update_pc_sheet_data() {
             // Verify update
             let pc = ctx
                 .app
-                .entities
+                .repositories
                 .player_character
                 .get(pc_id)
                 .await
@@ -140,7 +140,7 @@ async fn test_stats_in_character_context() {
     // Get character context for NPC
     let npc = ctx
         .app
-        .entities
+        .repositories
         .character
         .get(mira_id)
         .await
@@ -176,7 +176,7 @@ async fn test_stat_system() {
     // Get PC and check stats via sheet_data
     let pc = ctx
         .app
-        .entities
+        .repositories
         .player_character
         .get(pc_id)
         .await

@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
-use crate::entities::{PlayerCharacter, World};
-use crate::entities::character::Character;
-use crate::entities::location::Location;
-use crate::entities::scene::Scene;
+use crate::repositories::{PlayerCharacter, World};
+use crate::repositories::character::Character;
+use crate::repositories::location::Location;
+use crate::repositories::scene::Scene;
 use crate::infrastructure::ports::{RepoError, WorldRole};
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 

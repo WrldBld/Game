@@ -1,7 +1,7 @@
-//! Entity modules - Domain capability encapsulation.
+//! Repository modules - Data access wrappers around port traits.
 //!
-//! Each module wraps operations for a domain entity type.
-//! They depend on repository ports and provide the building blocks for use cases.
+//! Each repository wraps a port trait and provides the interface
+//! for use cases to access persisted aggregates.
 
 pub mod act;
 pub mod assets;

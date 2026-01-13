@@ -147,7 +147,7 @@ impl ExpressionConfig {
 
         if !self.actions.is_empty() {
             if !result.is_empty() {
-                result.push_str("\n");
+                result.push('\n');
             }
             result.push_str("Available actions: ");
             result.push_str(&self.actions.join(", "));

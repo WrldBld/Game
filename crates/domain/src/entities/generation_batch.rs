@@ -44,6 +44,7 @@ pub struct GenerationBatch {
 
 impl GenerationBatch {
     /// Create a new generation batch request
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         world_id: WorldId,
         entity_type: EntityType,

@@ -24,8 +24,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{AssetId, CharacterId};
 
-use crate::entities::Assets;
-use crate::entities::character::Character;
+use crate::repositories::Assets;
+use crate::repositories::character::Character;
 use crate::infrastructure::ports::{ClockPort, QueuePort, RepoError};
 
 /// Standard expression order in a 4x4 grid
@@ -124,6 +124,7 @@ pub struct SlicedExpression {
 }
 
 /// Generate expression sheet use case.
+#[allow(dead_code)]
 pub struct GenerateExpressionSheet {
     assets: Arc<Assets>,
     character: Arc<Character>,

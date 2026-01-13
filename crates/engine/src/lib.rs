@@ -4,15 +4,15 @@
 //!
 //! ## Structure
 //!
-//! - `entities/` - Entity modules wrapping domain operations
-//! - `use_cases/` - User story orchestration across entities  
+//! - `repositories/` - Repository modules wrapping port traits for data access
+//! - `use_cases/` - User story orchestration across repositories
 //! - `infrastructure/` - External dependency implementations (ports + adapters)
 //! - `api/` - HTTP and WebSocket entry points
 //! - `app` - Application composition
 
 pub mod api;
 pub mod app;
-pub mod entities;
+pub mod repositories;
 pub mod infrastructure;
 pub mod use_cases;
 

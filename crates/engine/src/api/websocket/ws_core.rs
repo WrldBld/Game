@@ -480,7 +480,7 @@ pub(super) async fn handle_character_request(
             let pc_id = PlayerCharacterId::from_uuid(char_uuid);
             let items = match state
                 .app
-                .entities
+                .repositories
                 .inventory
                 .get_pc_inventory(pc_id)
                 .await
@@ -490,7 +490,7 @@ pub(super) async fn handle_character_request(
                     let npc_id = CharacterId::from_uuid(char_uuid);
                     state
                         .app
-                        .entities
+                        .repositories
                         .inventory
                         .get_character_inventory(npc_id)
                         .await
@@ -1465,7 +1465,7 @@ pub(super) async fn handle_items_request(
 
             match state
                 .app
-                .entities
+                .repositories
                 .inventory
                 .place_item_in_region(item_uuid, region_uuid)
                 .await
@@ -1512,7 +1512,7 @@ pub(super) async fn handle_items_request(
 
             match state
                 .app
-                .entities
+                .repositories
                 .inventory
                 .create_and_place_in_region(item, region_uuid)
                 .await

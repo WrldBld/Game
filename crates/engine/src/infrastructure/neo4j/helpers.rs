@@ -34,6 +34,7 @@ use crate::infrastructure::ports::RepoError;
 /// ```ignore
 /// let mut result = graph.execute(q).await.map_err(|e| RepoError::database("query", e))?;
 /// ```
+#[allow(dead_code)]
 #[async_trait::async_trait]
 pub trait GraphExt {
     /// Execute a query that doesn't return results (INSERT, UPDATE, DELETE).
@@ -144,6 +145,7 @@ impl NodeExt for Node {
 }
 
 /// Extension trait for Neo4j Row to simplify common deserialization patterns.
+#[allow(dead_code)]
 pub trait RowExt {
     /// Get a required UUID column and parse it.
     fn get_uuid(&self, column: &str) -> Result<Uuid>;

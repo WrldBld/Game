@@ -219,6 +219,7 @@ pub struct ContentStats {
 }
 
 /// Create a shared content service.
+#[allow(dead_code)]
 pub fn create_content_service(config: ContentServiceConfig) -> Arc<ContentService> {
     Arc::new(ContentService::new(config))
 }

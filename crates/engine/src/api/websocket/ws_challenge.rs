@@ -188,7 +188,7 @@ pub(super) async fn handle_challenge_roll(
     };
 
     // Validate challenge belongs to this world and is active
-    let challenge = match state.app.entities.challenge.get(challenge_uuid).await {
+    let challenge = match state.app.repositories.challenge.get(challenge_uuid).await {
         Ok(Some(c)) => c,
         Ok(None) => return Some(error_response("NOT_FOUND", "Challenge not found")),
         Err(e) => {
@@ -223,7 +223,7 @@ pub(super) async fn handle_challenge_roll(
     // - Resource: current value
     let skill_modifier = if let Some(ref stat_name) = challenge.check_stat {
         // Get the PC's sheet_data to look up stats
-        match state.app.entities.player_character.get(pc_id).await {
+        match state.app.repositories.player_character.get(pc_id).await {
             Ok(Some(pc)) => {
                 // Look up the stat value from sheet_data using unified numeric extraction
                 if let Some(ref sheet_data) = pc.sheet_data {

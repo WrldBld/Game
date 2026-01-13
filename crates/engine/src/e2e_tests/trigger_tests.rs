@@ -78,7 +78,7 @@ async fn test_flag_set_trigger_evaluation() {
 
     // Set the flag that should trigger the event
     ctx.app
-        .entities
+        .repositories
         .flag
         .set_world_flag(ctx.world.world_id, "quest_accepted")
         .await
@@ -89,7 +89,7 @@ async fn test_flag_set_trigger_evaluation() {
     // may need to be called explicitly depending on implementation
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await
@@ -159,7 +159,7 @@ async fn test_item_acquired_trigger_type() {
     // Verify event exists with trigger
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await
@@ -234,7 +234,7 @@ async fn test_relationship_threshold_trigger_type() {
     // Verify event exists
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await
@@ -311,7 +311,7 @@ async fn test_challenge_completed_trigger_type() {
     // Verify event exists
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await
@@ -402,7 +402,7 @@ async fn test_multiple_triggers_and_logic() {
 
     // Set only first flag
     ctx.app
-        .entities
+        .repositories
         .flag
         .set_world_flag(ctx.world.world_id, "condition_one")
         .await
@@ -411,7 +411,7 @@ async fn test_multiple_triggers_and_logic() {
     // Event should still be active (both conditions not met)
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await
@@ -478,7 +478,7 @@ async fn test_event_marked_as_triggered() {
     // (depending on implementation of list_active)
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{InteractionId, SceneId};
 
-use crate::entities::Interaction;
+use crate::repositories::Interaction;
 
 use super::ManagementError;
 

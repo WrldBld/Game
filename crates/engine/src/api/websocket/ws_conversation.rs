@@ -195,7 +195,7 @@ pub(super) async fn handle_perform_interaction(
         Err(e) => return Some(e),
     };
 
-    let interaction = match state.app.entities.interaction.get(interaction_uuid).await {
+    let interaction = match state.app.repositories.interaction.get(interaction_uuid).await {
         Ok(Some(interaction)) => interaction,
         Ok(None) => return Some(error_response("NOT_FOUND", "Interaction not found")),
         Err(e) => return Some(error_response("REPO_ERROR", &sanitize_repo_error(&e, "fetch interaction"))),

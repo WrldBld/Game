@@ -193,7 +193,7 @@ impl ConnectionType {
     }
 
     /// Parse a connection type from a string (case-insensitive)
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "door" => Self::Door,
             "path" => Self::Path,

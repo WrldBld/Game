@@ -11,11 +11,11 @@ pub use scene_change::{
     RegionItemInfo, SceneChangeBuilder, SceneChangeData, SceneChangeError,
 };
 
-use crate::entities::{
+use crate::repositories::{
     Flag, Inventory, Observation,
 };
-use crate::entities::scene::{Scene, SceneResolutionContext};
-use crate::entities::staging::Staging as StagingEntity;
+use crate::repositories::scene::{Scene, SceneResolutionContext};
+use crate::repositories::staging::Staging as StagingEntity;
 use crate::infrastructure::ports::RepoError;
 use crate::use_cases::custom_condition::{CustomConditionEvaluator, EvaluationContext};
 use crate::use_cases::time::{SuggestTime, SuggestTimeResult, TimeSuggestion};

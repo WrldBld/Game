@@ -9,8 +9,8 @@ use wrldbldr_domain::{
     WantTarget, WantVisibility, WorldId,
 };
 
-use crate::entities::Goal;
-use crate::entities::character::Character;
+use crate::repositories::Goal;
+use crate::repositories::character::Character;
 use crate::infrastructure::ports::{
     ActantialViewRecord, ClockPort, GoalDetails, RepoError, WantDetails, WantTargetRef,
 };

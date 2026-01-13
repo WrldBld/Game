@@ -13,7 +13,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
 mod app;
-mod entities;
+mod repositories;
 mod infrastructure;
 mod use_cases;
 

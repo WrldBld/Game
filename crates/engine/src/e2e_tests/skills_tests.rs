@@ -21,7 +21,7 @@ async fn test_list_world_skills() {
     // Note: get_skills doesn't exist on character entity, use skill.list_in_world
     let skills = ctx
         .app
-        .entities
+        .repositories
         .skill
         .list_in_world(ctx.world.world_id)
         .await;
@@ -83,7 +83,7 @@ async fn test_pc_skills_from_sheet() {
             // Get PC to verify
             let pc = ctx
                 .app
-                .entities
+                .repositories
                 .player_character
                 .get(pc_id)
                 .await
@@ -123,7 +123,7 @@ async fn test_skills_in_challenge_context() {
         // Get challenge details
         let challenge = ctx
             .app
-            .entities
+            .repositories
             .challenge
             .get(challenge_id)
             .await
@@ -204,7 +204,7 @@ async fn test_skills_in_llm_context() {
     // Get character for context
     let npc = ctx
         .app
-        .entities
+        .repositories
         .character
         .get(mira_id)
         .await

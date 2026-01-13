@@ -7,10 +7,11 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Type of content source (for UI badges and filtering).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SourceType {
     /// Official publisher content (e.g., WotC for D&D)
+    #[default]
     Official,
     /// Third-party published content (e.g., Kobold Press)
     ThirdParty,
@@ -32,11 +33,6 @@ impl SourceType {
     }
 }
 
-impl Default for SourceType {
-    fn default() -> Self {
-        SourceType::Official
-    }
-}
 
 /// Detailed source information for content items.
 ///

@@ -547,20 +547,15 @@ pub enum ActivationRuleData {
 }
 
 /// How rules are combined (wire format)
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ActivationLogicData {
+    #[default]
     All,
     Any,
     AtLeast(u32),
     #[serde(other)]
     Unknown,
-}
-
-impl Default for ActivationLogicData {
-    fn default() -> Self {
-        ActivationLogicData::All
-    }
 }
 
 /// Location state for wire transfer

@@ -416,9 +416,7 @@ impl RuleSystemConfig {
 
     /// Get the narrative resolution config, or a default if not set
     pub fn narrative_config_or_default(&self) -> NarrativeResolutionConfig {
-        self.narrative_config
-            .clone()
-            .unwrap_or_else(NarrativeResolutionConfig::default)
+        self.narrative_config.clone().unwrap_or_default()
     }
 }
 

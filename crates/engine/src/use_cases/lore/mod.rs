@@ -5,7 +5,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::entities::Lore;
+use crate::repositories::Lore;
 use crate::infrastructure::ports::RepoError;
 use wrldbldr_domain::{
     CharacterId, LoreCategory, LoreChunkId, LoreDiscoverySource, LoreId, LoreKnowledge, WorldId,
@@ -694,7 +694,7 @@ fn lore_to_detail(lore: wrldbldr_domain::Lore) -> LoreDetail {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entities::Lore as LoreEntity;
+    use crate::repositories::Lore as LoreEntity;
     use crate::infrastructure::ports::MockLoreRepo;
     use std::sync::Arc;
 

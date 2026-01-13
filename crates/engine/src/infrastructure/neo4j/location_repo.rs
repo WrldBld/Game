@@ -184,7 +184,7 @@ impl Neo4jLocationRepo {
         Ok(LocationConnection {
             from_location: LocationId::from_uuid(from_id),
             to_location: LocationId::from_uuid(to_id),
-            connection_type: ConnectionType::from_str(&connection_type_str),
+            connection_type: ConnectionType::parse(&connection_type_str),
             description,
             bidirectional,
             travel_time: travel_time as u32,

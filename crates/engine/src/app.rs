@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use crate::entities;
+use crate::repositories;
 use crate::infrastructure::{
     clock::{SystemClock, SystemRandom},
     neo4j::Neo4jRepositories,
@@ -13,37 +13,37 @@ use crate::use_cases::content::{ContentService, ContentServiceConfig};
 
 /// Main application state.
 ///
-/// Holds all entity modules and use cases.
+/// Holds all repository modules and use cases.
 /// Passed to HTTP/WebSocket handlers via Axum state.
 pub struct App {
-    pub entities: Entities,
+    pub repositories: Repositories,
     pub use_cases: UseCases,
     pub queue: Arc<dyn QueuePort>,
     pub llm: Arc<dyn LlmPort>,
     pub content: Arc<ContentService>,
 }
 
-/// Container for all entity modules.
-pub struct Entities {
-    pub character: Arc<entities::Character>,
-    pub player_character: Arc<entities::PlayerCharacter>,
+/// Container for all repository modules.
+pub struct Repositories {
+    pub character: Arc<repositories::Character>,
+    pub player_character: Arc<repositories::PlayerCharacter>,
     pub location: Arc<use_cases::Location>,
     pub scene: Arc<use_cases::Scene>,
-    pub act: Arc<entities::Act>,
-    pub skill: Arc<entities::Skill>,
-    pub interaction: Arc<entities::Interaction>,
-    pub challenge: Arc<entities::Challenge>,
+    pub act: Arc<repositories::Act>,
+    pub skill: Arc<repositories::Skill>,
+    pub interaction: Arc<repositories::Interaction>,
+    pub challenge: Arc<repositories::Challenge>,
     pub narrative: Arc<use_cases::Narrative>,
-    pub staging: Arc<entities::Staging>,
-    pub observation: Arc<entities::Observation>,
-    pub inventory: Arc<entities::Inventory>,
-    pub assets: Arc<entities::Assets>,
-    pub world: Arc<entities::World>,
-    pub flag: Arc<entities::Flag>,
-    pub goal: Arc<entities::Goal>,
-    pub lore: Arc<entities::Lore>,
-    pub location_state: Arc<entities::LocationStateEntity>,
-    pub region_state: Arc<entities::RegionStateEntity>,
+    pub staging: Arc<repositories::Staging>,
+    pub observation: Arc<repositories::Observation>,
+    pub inventory: Arc<repositories::Inventory>,
+    pub assets: Arc<repositories::Assets>,
+    pub world: Arc<repositories::World>,
+    pub flag: Arc<repositories::Flag>,
+    pub goal: Arc<repositories::Goal>,
+    pub lore: Arc<repositories::Lore>,
+    pub location_state: Arc<repositories::LocationStateEntity>,
+    pub region_state: Arc<repositories::RegionStateEntity>,
 }
 
 /// Container for all use cases.
@@ -64,7 +64,7 @@ pub struct UseCases {
     pub visual_state: use_cases::VisualStateUseCases,
     pub management: use_cases::ManagementUseCases,
     pub session: use_cases::SessionUseCases,
-    pub settings: Arc<entities::Settings>,
+    pub settings: Arc<repositories::Settings>,
     pub staging: use_cases::StagingUseCases,
     pub npc: use_cases::NpcUseCases,
     pub story_events: use_cases::StoryEventUseCases,
@@ -88,17 +88,17 @@ impl App {
         let random: Arc<dyn RandomPort> = Arc::new(SystemRandom::new());
         let queue_port: Arc<dyn QueuePort> = queue.clone();
 
-        // Create entity modules
-        let character = Arc::new(entities::Character::new(repos.character.clone()));
-        let player_character = Arc::new(entities::PlayerCharacter::new(
+        // Create repository modules
+        let character = Arc::new(repositories::Character::new(repos.character.clone()));
+        let player_character = Arc::new(repositories::PlayerCharacter::new(
             repos.player_character.clone(),
         ));
         let location = Arc::new(use_cases::Location::new(repos.location.clone()));
         let scene = Arc::new(use_cases::Scene::new(repos.scene.clone()));
-        let act = Arc::new(entities::Act::new(repos.act.clone()));
-        let skill = Arc::new(entities::Skill::new(repos.skill.clone()));
-        let interaction = Arc::new(entities::Interaction::new(repos.interaction.clone()));
-        let challenge = Arc::new(entities::Challenge::new(repos.challenge.clone()));
+        let act = Arc::new(repositories::Act::new(repos.act.clone()));
+        let skill = Arc::new(repositories::Skill::new(repos.skill.clone()));
+        let interaction = Arc::new(repositories::Interaction::new(repos.interaction.clone()));
+        let challenge = Arc::new(repositories::Challenge::new(repos.challenge.clone()));
         let narrative = Arc::new(use_cases::Narrative::new(
             repos.narrative.clone(),
             repos.location.clone(),
@@ -111,28 +111,28 @@ impl App {
             repos.scene.clone(),
             clock.clone(),
         ));
-        let staging = Arc::new(entities::Staging::new(repos.staging.clone()));
-        let observation = Arc::new(entities::Observation::new(
+        let staging = Arc::new(repositories::Staging::new(repos.staging.clone()));
+        let observation = Arc::new(repositories::Observation::new(
             repos.observation.clone(),
             repos.location.clone(),
             clock.clone(),
         ));
-        let inventory = Arc::new(entities::Inventory::new(
+        let inventory = Arc::new(repositories::Inventory::new(
             repos.item.clone(),
             repos.character.clone(),
             repos.player_character.clone(),
         ));
-        let assets = Arc::new(entities::Assets::new(repos.asset.clone(), image_gen));
-        let world = Arc::new(entities::World::new(repos.world.clone(), clock.clone()));
-        let flag = Arc::new(entities::Flag::new(repos.flag.clone()));
-        let goal = Arc::new(entities::Goal::new(repos.goal.clone()));
-        let lore = Arc::new(entities::Lore::new(repos.lore.clone()));
-        let location_state = Arc::new(entities::LocationStateEntity::new(
+        let assets = Arc::new(repositories::Assets::new(repos.asset.clone(), image_gen));
+        let world = Arc::new(repositories::World::new(repos.world.clone(), clock.clone()));
+        let flag = Arc::new(repositories::Flag::new(repos.flag.clone()));
+        let goal = Arc::new(repositories::Goal::new(repos.goal.clone()));
+        let lore = Arc::new(repositories::Lore::new(repos.lore.clone()));
+        let location_state = Arc::new(repositories::LocationStateEntity::new(
             repos.location_state.clone(),
         ));
-        let region_state = Arc::new(entities::RegionStateEntity::new(repos.region_state.clone()));
+        let region_state = Arc::new(repositories::RegionStateEntity::new(repos.region_state.clone()));
 
-        let entities = Entities {
+        let repositories_container = Repositories {
             character: character.clone(),
             player_character: player_character.clone(),
             location: location.clone(),
@@ -406,8 +406,8 @@ impl App {
             )),
         );
 
-        // Create settings entity
-        let settings_entity = Arc::new(entities::Settings::new(settings_repo.clone()));
+        // Create settings repository
+        let settings_entity = Arc::new(repositories::Settings::new(settings_repo.clone()));
 
         let npc_uc = use_cases::NpcUseCases::new(
             Arc::new(use_cases::npc::NpcDisposition::new(
@@ -518,9 +518,9 @@ impl App {
         }
 
         Self {
-            entities,
+            repositories: repositories_container,
             use_cases,
-            queue: queue,
+            queue,
             llm,
             content,
         }

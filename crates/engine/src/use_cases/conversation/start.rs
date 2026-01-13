@@ -8,10 +8,10 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerActionData, PlayerCharacterId, WorldId};
 
-use crate::entities::{PlayerCharacter, World};
-use crate::entities::character::Character;
-use crate::entities::scene::Scene;
-use crate::entities::staging::Staging;
+use crate::repositories::{PlayerCharacter, World};
+use crate::repositories::character::Character;
+use crate::repositories::scene::Scene;
+use crate::repositories::staging::Staging;
 use crate::infrastructure::ports::{ClockPort, QueuePort, RepoError};
 
 /// Result of starting a conversation.
@@ -30,6 +30,7 @@ pub struct ConversationStarted {
 /// Start conversation use case.
 ///
 /// Orchestrates: NPC validation, staging check, player action queuing.
+#[allow(dead_code)]
 pub struct StartConversation {
     character: Arc<Character>,
     player_character: Arc<PlayerCharacter>,
@@ -207,12 +208,12 @@ mod tests {
         StagedNpc, Staging, StagingSource, WorldId,
     };
 
-    use crate::entities;
+    use crate::repositories;
     use crate::infrastructure::ports::{
         ClockPort, MockCharacterRepo, MockPlayerCharacterRepo, MockSceneRepo, MockStagingRepo,
         MockWorldRepo, QueueError, QueueItem, QueuePort,
     };
-    use crate::entities::{Character as CharacterOp, Scene as SceneOp, Staging as StagingOp};
+    use crate::repositories::{Character as CharacterOp, Scene as SceneOp, Staging as StagingOp};
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -402,10 +403,10 @@ mod tests {
 
         let use_case = super::StartConversation::new(
             Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
+            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
             Arc::new(StagingOp::new(Arc::new(staging_repo))),
             Arc::new(SceneOp::new(Arc::new(MockSceneRepo::new()))),
-            Arc::new(entities::World::new(Arc::new(world_repo), clock.clone())),
+            Arc::new(repositories::World::new(Arc::new(world_repo), clock.clone())),
             queue.clone(),
             clock.clone(),
         );
@@ -512,10 +513,10 @@ mod tests {
 
         let use_case = super::StartConversation::new(
             Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
+            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
             Arc::new(StagingOp::new(Arc::new(staging_repo))),
             Arc::new(SceneOp::new(Arc::new(MockSceneRepo::new()))),
-            Arc::new(entities::World::new(Arc::new(world_repo), clock.clone())),
+            Arc::new(repositories::World::new(Arc::new(world_repo), clock.clone())),
             queue.clone(),
             clock.clone(),
         );

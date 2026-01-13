@@ -639,8 +639,8 @@ impl NarrativeEvent {
                 context
                     .get_relationship(*character_id, *with_character)
                     .map(|sentiment| {
-                        let meets_min = min_sentiment.map_or(true, |min| sentiment >= min);
-                        let meets_max = max_sentiment.map_or(true, |max| sentiment <= max);
+                        let meets_min = min_sentiment.is_none_or(|min| sentiment >= min);
+                        let meets_max = max_sentiment.is_none_or(|max| sentiment <= max);
                         meets_min && meets_max
                     })
                     .unwrap_or(false)
@@ -656,8 +656,8 @@ impl NarrativeEvent {
                 context
                     .get_character_stat(*character_id, stat_name)
                     .map(|stat_value| {
-                        let meets_min = min_value.map_or(true, |min| stat_value >= min);
-                        let meets_max = max_value.map_or(true, |max| stat_value <= max);
+                        let meets_min = min_value.is_none_or(|min| stat_value >= min);
+                        let meets_max = max_value.is_none_or(|max| stat_value <= max);
                         meets_min && meets_max
                     })
                     .unwrap_or(false)
@@ -744,7 +744,7 @@ impl NarrativeEvent {
                     .class_levels
                     .iter()
                     .find(|(id, _)| id.eq_ignore_ascii_case(class_id))
-                    .map(|(_, level)| min_level.map_or(true, |min| *level >= min))
+                    .map(|(_, level)| min_level.is_none_or(|min| *level >= min))
                     .unwrap_or(false)
             }
 

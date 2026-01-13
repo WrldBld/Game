@@ -457,7 +457,7 @@ async fn build_scene_update(
     pc: &wrldbldr_domain::PlayerCharacter,
     npcs: &[wrldbldr_domain::StagedNpc],
 ) -> Option<ServerMessage> {
-    let location_name = match state.app.entities.location.get(scene.location_id).await {
+    let location_name = match state.app.repositories.location.get(scene.location_id).await {
         Ok(Some(location)) => location.name,
         _ => "Unknown Location".to_string(),
     };
@@ -513,7 +513,7 @@ async fn build_scene_update(
         });
     }
 
-    let interactions = match state.app.entities.interaction.list_for_scene(scene.id).await {
+    let interactions = match state.app.repositories.interaction.list_for_scene(scene.id).await {
         Ok(list) => list,
         Err(e) => {
             tracing::warn!(error = %e, scene_id = %scene.id, "Failed to load scene interactions");
@@ -595,7 +595,7 @@ async fn resolve_interaction_target(
         wrldbldr_domain::InteractionTarget::Character(id) => {
             let name = state
                 .app
-                .entities
+                .repositories
                 .character
                 .get(*id)
                 .await
@@ -607,7 +607,7 @@ async fn resolve_interaction_target(
         wrldbldr_domain::InteractionTarget::Item(id) => {
             let name = state
                 .app
-                .entities
+                .repositories
                 .inventory
                 .get(*id)
                 .await

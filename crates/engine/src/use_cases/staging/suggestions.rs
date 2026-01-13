@@ -2,8 +2,8 @@
 
 use serde::Deserialize;
 
-use crate::entities::character::Character;
-use crate::entities::staging::Staging;
+use crate::repositories::character::Character;
+use crate::repositories::staging::Staging;
 use crate::infrastructure::ports::{ChatMessage, LlmPort, LlmRequest, NpcRegionRelationType};
 use wrldbldr_domain::RegionId;
 

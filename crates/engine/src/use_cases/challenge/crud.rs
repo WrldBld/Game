@@ -4,7 +4,7 @@ use serde_json::Value;
 
 use wrldbldr_domain::{self as domain, ChallengeId, Difficulty, WorldId};
 
-use crate::entities::Challenge;
+use crate::repositories::Challenge;
 use crate::infrastructure::ports::RepoError;
 
 /// Input for creating a challenge (domain representation).

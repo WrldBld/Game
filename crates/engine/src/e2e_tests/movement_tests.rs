@@ -38,7 +38,7 @@ async fn test_pc_moves_to_connected_region() {
     // Verify initial location
     let pc = ctx
         .app
-        .entities
+        .repositories
         .player_character
         .get(pc_id)
         .await
@@ -65,7 +65,7 @@ async fn test_pc_moves_to_connected_region() {
     // Verify location updated
     let pc_after = ctx
         .app
-        .entities
+        .repositories
         .player_character
         .get(pc_id)
         .await
@@ -158,7 +158,7 @@ async fn test_movement_changes_npc_context() {
     // Get staged NPCs at starting location
     let staged_before = ctx
         .app
-        .entities
+        .repositories
         .staging
         .get_staged_npcs(common_room)
         .await
@@ -180,7 +180,7 @@ async fn test_movement_changes_npc_context() {
     // Get staged NPCs at new location
     let staged_after = ctx
         .app
-        .entities
+        .repositories
         .staging
         .get_staged_npcs(tavern_bar)
         .await
@@ -296,7 +296,7 @@ async fn test_multiple_sequential_moves() {
     // Verify location
     let pc = ctx
         .app
-        .entities
+        .repositories
         .player_character
         .get(pc_id)
         .await
@@ -316,7 +316,7 @@ async fn test_multiple_sequential_moves() {
     // Verify back at original location
     let pc = ctx
         .app
-        .entities
+        .repositories
         .player_character
         .get(pc_id)
         .await

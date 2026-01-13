@@ -6,13 +6,13 @@
 use std::sync::Arc;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId};
 
-use crate::entities::{
+use crate::repositories::{
     Flag, Inventory, Observation, PlayerCharacter, World,
 };
-use crate::entities::location::Location;
+use crate::repositories::location::Location;
 use crate::use_cases::narrative_operations::Narrative;
-use crate::entities::scene::Scene;
-use crate::entities::staging::Staging;
+use crate::repositories::scene::Scene;
+use crate::repositories::staging::Staging;
 use crate::infrastructure::ports::RepoError;
 use crate::use_cases::time::SuggestTime;
 
@@ -265,13 +265,13 @@ mod tests {
     use chrono::Utc;
     use wrldbldr_domain::{LocationId, LocationType, PlayerCharacterId, Region, RegionId, WorldId};
 
-    use crate::entities;
+    use crate::repositories;
     use crate::infrastructure::ports::{
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockItemRepo,
         MockLocationRepo, MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
         MockSceneRepo, MockStagingRepo, MockWorldRepo,
     };
-    use crate::entities::{Inventory, Staging as StagingOp};
+    use crate::repositories::{Inventory, Staging as StagingOp};
     use crate::use_cases::{Location, Narrative, Scene};
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -288,7 +288,7 @@ mod tests {
         world_repo: MockWorldRepo,
         clock: Arc<dyn ClockPort>,
     ) -> super::ExitLocation {
-        let player_character = Arc::new(entities::PlayerCharacter::new(Arc::new(
+        let player_character = Arc::new(repositories::PlayerCharacter::new(Arc::new(
             player_character_repo,
         )));
 
@@ -298,7 +298,7 @@ mod tests {
 
         let staging = Arc::new(StagingOp::new(Arc::new(MockStagingRepo::new())));
 
-        let observation = Arc::new(entities::Observation::new(
+        let observation = Arc::new(repositories::Observation::new(
             Arc::new(MockObservationRepo::new()),
             location_repo.clone(),
             clock.clone(),
@@ -323,9 +323,9 @@ mod tests {
             Arc::new(MockCharacterRepo::new()),
             Arc::new(MockPlayerCharacterRepo::new()),
         ));
-        let flag = Arc::new(entities::Flag::new(Arc::new(MockFlagRepo::new())));
+        let flag = Arc::new(repositories::Flag::new(Arc::new(MockFlagRepo::new())));
 
-        let world = Arc::new(entities::World::new(Arc::new(world_repo), clock.clone()));
+        let world = Arc::new(repositories::World::new(Arc::new(world_repo), clock.clone()));
         let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
             world.clone(),
             clock,

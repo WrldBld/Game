@@ -176,7 +176,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Verify the world exists
-            match state.app.entities.world.get(world_id_typed).await {
+            match state.app.repositories.world.get(world_id_typed).await {
                 Ok(Some(_)) => {}
                 Ok(None) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
@@ -207,7 +207,7 @@ pub(super) async fn handle_character_sheet_request(
             let character_id = character.id;
 
             // Save the draft character
-            if let Err(e) = state.app.entities.character.save(&character).await {
+            if let Err(e) = state.app.repositories.character.save(&character).await {
                 return Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "create character"),
@@ -245,7 +245,7 @@ pub(super) async fn handle_character_sheet_request(
 
             let mut character = match state
                 .app
-                .entities
+                .repositories
                 .character
                 .get(character_id_typed)
                 .await
@@ -266,7 +266,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the world to determine the system
-            let world = match state.app.entities.world.get(character.world_id).await {
+            let world = match state.app.repositories.world.get(character.world_id).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
@@ -307,7 +307,7 @@ pub(super) async fn handle_character_sheet_request(
             }
 
             // Save the character
-            if let Err(e) = state.app.entities.character.save(&character).await {
+            if let Err(e) = state.app.repositories.character.save(&character).await {
                 return Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "save character"),
@@ -333,7 +333,7 @@ pub(super) async fn handle_character_sheet_request(
 
             let character = match state
                 .app
-                .entities
+                .repositories
                 .character
                 .get(character_id_typed)
                 .await
@@ -354,7 +354,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the world to determine the system
-            let world = match state.app.entities.world.get(character.world_id).await {
+            let world = match state.app.repositories.world.get(character.world_id).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
@@ -415,7 +415,7 @@ pub(super) async fn handle_character_sheet_request(
             // Delete the draft character
             if let Err(e) = state
                 .app
-                .entities
+                .repositories
                 .character
                 .delete(character_id_typed)
                 .await
@@ -442,7 +442,7 @@ pub(super) async fn handle_character_sheet_request(
 
             let character = match state
                 .app
-                .entities
+                .repositories
                 .character
                 .get(character_id_typed)
                 .await
@@ -463,7 +463,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the world to determine the system
-            let world = match state.app.entities.world.get(character.world_id).await {
+            let world = match state.app.repositories.world.get(character.world_id).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
@@ -510,7 +510,7 @@ pub(super) async fn handle_character_sheet_request(
 
             let mut character = match state
                 .app
-                .entities
+                .repositories
                 .character
                 .get(character_id_typed)
                 .await
@@ -531,7 +531,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the world to determine the system
-            let world = match state.app.entities.world.get(character.world_id).await {
+            let world = match state.app.repositories.world.get(character.world_id).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
@@ -568,7 +568,7 @@ pub(super) async fn handle_character_sheet_request(
                 update_character_field(&mut character, field, val);
             }
 
-            if let Err(e) = state.app.entities.character.save(&character).await {
+            if let Err(e) = state.app.repositories.character.save(&character).await {
                 return Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "save character"),
@@ -596,7 +596,7 @@ pub(super) async fn handle_character_sheet_request(
 
             let mut character = match state
                 .app
-                .entities
+                .repositories
                 .character
                 .get(character_id_typed)
                 .await
@@ -617,7 +617,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the world to determine the system
-            let world = match state.app.entities.world.get(character.world_id).await {
+            let world = match state.app.repositories.world.get(character.world_id).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
@@ -665,7 +665,7 @@ pub(super) async fn handle_character_sheet_request(
                 update_character_field(&mut character, field, val);
             }
 
-            if let Err(e) = state.app.entities.character.save(&character).await {
+            if let Err(e) = state.app.repositories.character.save(&character).await {
                 return Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "save character"),
@@ -689,7 +689,7 @@ pub(super) async fn handle_character_sheet_request(
 
             let character = match state
                 .app
-                .entities
+                .repositories
                 .character
                 .get(character_id_typed)
                 .await
@@ -710,7 +710,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the world to determine the system
-            let world = match state.app.entities.world.get(character.world_id).await {
+            let world = match state.app.repositories.world.get(character.world_id).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
@@ -740,7 +740,7 @@ pub(super) async fn handle_character_sheet_request(
 
             let mut character = match state
                 .app
-                .entities
+                .repositories
                 .character
                 .get(character_id_typed)
                 .await
@@ -761,7 +761,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the world to determine the system
-            let world = match state.app.entities.world.get(character.world_id).await {
+            let world = match state.app.repositories.world.get(character.world_id).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
@@ -786,7 +786,7 @@ pub(super) async fn handle_character_sheet_request(
                 update_character_field(&mut character, field, val);
             }
 
-            if let Err(e) = state.app.entities.character.save(&character).await {
+            if let Err(e) = state.app.repositories.character.save(&character).await {
                 return Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "save character"),

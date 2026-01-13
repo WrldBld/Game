@@ -137,6 +137,7 @@ pub struct ResolvedStateInfo {
 }
 
 impl Staging {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         region_id: RegionId,
         location_id: LocationId,

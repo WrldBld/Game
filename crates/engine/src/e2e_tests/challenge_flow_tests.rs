@@ -645,7 +645,7 @@ async fn test_active_challenges_in_prompt_context() {
 
     let test_result = async {
         // Verify challenges exist in the seeded world
-        let challenges = ctx.app.entities.challenge
+        let challenges = ctx.app.repositories.challenge
             .list_for_world(ctx.world.world_id)
             .await
             .expect("Failed to list challenges");

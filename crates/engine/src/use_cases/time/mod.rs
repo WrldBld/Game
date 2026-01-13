@@ -13,7 +13,7 @@ use wrldbldr_domain::{
     GameTime, PlayerCharacterId, TimeAdvanceReason, TimeMode, TimeOfDay, WorldId,
 };
 
-use crate::entities::{World, WorldError};
+use crate::repositories::{World, WorldError};
 use crate::infrastructure::ports::QueueError;
 use crate::infrastructure::ports::{ClockPort, RepoError};
 
@@ -75,6 +75,7 @@ pub enum SuggestTimeResult {
 /// 2. Based on time mode:
 ///    - Suggested: Creates a suggestion for DM approval
 ///    - Manual: Does nothing (DM advances manually)
+#[allow(dead_code)]
 pub struct SuggestTime {
     world: Arc<World>,
     clock: Arc<dyn ClockPort>,
@@ -634,7 +635,7 @@ mod tests {
     use chrono::Utc;
     use wrldbldr_domain::{GameTimeConfig, TimeMode, WorldId};
 
-    use crate::entities;
+    use crate::repositories;
     use crate::infrastructure::ports::{ClockPort, MockWorldRepo};
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -666,7 +667,7 @@ mod tests {
         world_repo.expect_save().times(0);
 
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let world_entity = Arc::new(entities::World::new(Arc::new(world_repo), clock.clone()));
+        let world_entity = Arc::new(repositories::World::new(Arc::new(world_repo), clock.clone()));
         let suggest_time = super::SuggestTime::new(world_entity, clock);
 
         let result = suggest_time
@@ -720,7 +721,7 @@ mod tests {
         world_repo.expect_save().times(0);
 
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let world_entity = Arc::new(entities::World::new(Arc::new(world_repo), clock.clone()));
+        let world_entity = Arc::new(repositories::World::new(Arc::new(world_repo), clock.clone()));
         let suggest_time = super::SuggestTime::new(world_entity, clock);
 
         let result = suggest_time
@@ -758,7 +759,7 @@ mod tests {
         world_repo.expect_save().times(0);
 
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let world_entity = Arc::new(entities::World::new(Arc::new(world_repo), clock.clone()));
+        let world_entity = Arc::new(repositories::World::new(Arc::new(world_repo), clock.clone()));
         let suggest_time = super::SuggestTime::new(world_entity, clock);
 
         let result = suggest_time

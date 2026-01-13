@@ -1,6 +1,8 @@
 //! Value objects - Immutable objects defined by their attributes
 
 mod actantial_context;
+mod character_state;
+mod names;
 mod activation_rules;
 mod ad_hoc_outcomes;
 mod archetype;
@@ -113,6 +115,12 @@ pub use queue_data::{
     DmActionType, DmApprovalDecision, LlmRequestData, LlmRequestType, NarrativeEventSuggestion,
     PlayerActionData, ProposedTool, SuggestionContext,
 };
+
+// Validated name newtypes
+pub use names::{CharacterName, Description, LocationName, WorldName};
+
+// Character lifecycle state enum
+pub use character_state::CharacterState;
 
 // NOTE: Want has been promoted to an entity (domain/entities/want.rs)
 // ActantTarget is no longer used - targets are now Neo4j edges

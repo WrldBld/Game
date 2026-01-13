@@ -20,7 +20,7 @@ async fn test_set_and_get_world_flag() {
 
     // Set a world flag
     ctx.app
-        .entities
+        .repositories
         .flag
         .set_world_flag(ctx.world.world_id, "dragon_awakened")
         .await
@@ -29,7 +29,7 @@ async fn test_set_and_get_world_flag() {
     // Verify flag is set
     let is_set = ctx
         .app
-        .entities
+        .repositories
         .flag
         .is_world_flag_set(ctx.world.world_id, "dragon_awakened")
         .await
@@ -39,7 +39,7 @@ async fn test_set_and_get_world_flag() {
     // Get all world flags
     let flags = ctx
         .app
-        .entities
+        .repositories
         .flag
         .get_world_flags(ctx.world.world_id)
         .await
@@ -72,7 +72,7 @@ async fn test_set_and_get_pc_flag() {
 
     // Set a PC flag
     ctx.app
-        .entities
+        .repositories
         .flag
         .set_pc_flag(pc_id, "completed_tutorial")
         .await
@@ -81,7 +81,7 @@ async fn test_set_and_get_pc_flag() {
     // Verify flag is set
     let is_set = ctx
         .app
-        .entities
+        .repositories
         .flag
         .is_pc_flag_set(pc_id, "completed_tutorial")
         .await
@@ -91,7 +91,7 @@ async fn test_set_and_get_pc_flag() {
     // Get all PC flags
     let flags = ctx
         .app
-        .entities
+        .repositories
         .flag
         .get_pc_flags(pc_id)
         .await
@@ -124,7 +124,7 @@ async fn test_world_vs_pc_flag_scope() {
 
     // Set a world flag
     ctx.app
-        .entities
+        .repositories
         .flag
         .set_world_flag(ctx.world.world_id, "global_event")
         .await
@@ -132,7 +132,7 @@ async fn test_world_vs_pc_flag_scope() {
 
     // Set a PC flag with different name
     ctx.app
-        .entities
+        .repositories
         .flag
         .set_pc_flag(pc_id, "personal_quest")
         .await
@@ -141,7 +141,7 @@ async fn test_world_vs_pc_flag_scope() {
     // PC flag should NOT be visible at world scope
     let is_world_flag = ctx
         .app
-        .entities
+        .repositories
         .flag
         .is_world_flag_set(ctx.world.world_id, "personal_quest")
         .await
@@ -151,7 +151,7 @@ async fn test_world_vs_pc_flag_scope() {
     // World flag should NOT be visible at PC scope
     let is_pc_flag = ctx
         .app
-        .entities
+        .repositories
         .flag
         .is_pc_flag_set(pc_id, "global_event")
         .await
@@ -161,7 +161,7 @@ async fn test_world_vs_pc_flag_scope() {
     // Combined flags should include both
     let all_flags = ctx
         .app
-        .entities
+        .repositories
         .flag
         .get_all_flags_for_pc(ctx.world.world_id, pc_id)
         .await
@@ -186,7 +186,7 @@ async fn test_unset_flag() {
 
     // Set a world flag
     ctx.app
-        .entities
+        .repositories
         .flag
         .set_world_flag(ctx.world.world_id, "temporary_effect")
         .await
@@ -195,7 +195,7 @@ async fn test_unset_flag() {
     // Verify it's set
     let is_set = ctx
         .app
-        .entities
+        .repositories
         .flag
         .is_world_flag_set(ctx.world.world_id, "temporary_effect")
         .await
@@ -204,7 +204,7 @@ async fn test_unset_flag() {
 
     // Unset the flag
     ctx.app
-        .entities
+        .repositories
         .flag
         .unset_world_flag(ctx.world.world_id, "temporary_effect")
         .await
@@ -213,7 +213,7 @@ async fn test_unset_flag() {
     // Verify it's no longer set
     let is_still_set = ctx
         .app
-        .entities
+        .repositories
         .flag
         .is_world_flag_set(ctx.world.world_id, "temporary_effect")
         .await
@@ -242,14 +242,14 @@ async fn test_same_flag_name_different_scopes() {
 
     // Set same flag name at both scopes
     ctx.app
-        .entities
+        .repositories
         .flag
         .set_world_flag(ctx.world.world_id, "quest_started")
         .await
         .expect("Setting world flag should succeed");
 
     ctx.app
-        .entities
+        .repositories
         .flag
         .set_pc_flag(pc_id, "quest_started")
         .await
@@ -257,7 +257,7 @@ async fn test_same_flag_name_different_scopes() {
 
     // Unset world flag only
     ctx.app
-        .entities
+        .repositories
         .flag
         .unset_world_flag(ctx.world.world_id, "quest_started")
         .await
@@ -266,7 +266,7 @@ async fn test_same_flag_name_different_scopes() {
     // World flag should be unset
     let world_set = ctx
         .app
-        .entities
+        .repositories
         .flag
         .is_world_flag_set(ctx.world.world_id, "quest_started")
         .await
@@ -276,7 +276,7 @@ async fn test_same_flag_name_different_scopes() {
     // PC flag should still be set
     let pc_set = ctx
         .app
-        .entities
+        .repositories
         .flag
         .is_pc_flag_set(pc_id, "quest_started")
         .await
@@ -306,14 +306,14 @@ async fn test_flags_in_character_context() {
 
     // Set flags
     ctx.app
-        .entities
+        .repositories
         .flag
         .set_world_flag(ctx.world.world_id, "main_quest_active")
         .await
         .expect("Setting flag should succeed");
 
     ctx.app
-        .entities
+        .repositories
         .flag
         .set_pc_flag(pc_id, "has_magic_item")
         .await
@@ -322,7 +322,7 @@ async fn test_flags_in_character_context() {
     // Get all flags for context
     let flags = ctx
         .app
-        .entities
+        .repositories
         .flag
         .get_all_flags_for_pc(ctx.world.world_id, pc_id)
         .await

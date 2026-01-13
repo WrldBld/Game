@@ -20,7 +20,7 @@ async fn test_list_world_lore() {
     // List all lore for the world
     let lore = ctx
         .app
-        .entities
+        .repositories
         .lore
         .list_for_world(ctx.world.world_id)
         .await
@@ -69,7 +69,7 @@ async fn test_create_lore_entry() {
     // Verify lore exists
     let lore = ctx
         .app
-        .entities
+        .repositories
         .lore
         .list_for_world(ctx.world.world_id)
         .await
@@ -166,7 +166,7 @@ async fn test_lore_in_context() {
     let pc_char_id = wrldbldr_domain::CharacterId::from(*pc_id.as_uuid());
     let knowledge = ctx
         .app
-        .entities
+        .repositories
         .lore
         .get_character_knowledge(pc_char_id)
         .await;
@@ -268,7 +268,7 @@ async fn test_lore_discovered_trigger() {
     // Verify event exists
     let events = ctx
         .app
-        .entities
+        .repositories
         .narrative
         .list_events(ctx.world.world_id)
         .await

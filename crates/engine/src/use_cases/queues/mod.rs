@@ -80,29 +80,30 @@ pub struct PlayerActionProcessed {
 /// Process player action from queue.
 ///
 /// Dequeues player actions, builds LLM prompts, and enqueues LLM requests.
+#[allow(dead_code)]
 pub struct ProcessPlayerAction {
     queue: Arc<dyn QueuePort>,
-    character: Arc<crate::entities::character::Character>,
-    player_character: Arc<crate::entities::PlayerCharacter>,
-    staging: Arc<crate::entities::staging::Staging>,
-    scene: Arc<crate::entities::scene::Scene>,
-    world: Arc<crate::entities::World>,
+    character: Arc<crate::repositories::character::Character>,
+    player_character: Arc<crate::repositories::PlayerCharacter>,
+    staging: Arc<crate::repositories::staging::Staging>,
+    scene: Arc<crate::repositories::scene::Scene>,
+    world: Arc<crate::repositories::World>,
     narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
-    location: Arc<crate::entities::location::Location>,
-    challenge: Arc<crate::entities::Challenge>,
+    location: Arc<crate::repositories::location::Location>,
+    challenge: Arc<crate::repositories::Challenge>,
 }
 
 impl ProcessPlayerAction {
     pub fn new(
         queue: Arc<dyn QueuePort>,
-        character: Arc<crate::entities::character::Character>,
-        player_character: Arc<crate::entities::PlayerCharacter>,
-        staging: Arc<crate::entities::staging::Staging>,
-        scene: Arc<crate::entities::scene::Scene>,
-        world: Arc<crate::entities::World>,
+        character: Arc<crate::repositories::character::Character>,
+        player_character: Arc<crate::repositories::PlayerCharacter>,
+        staging: Arc<crate::repositories::staging::Staging>,
+        scene: Arc<crate::repositories::scene::Scene>,
+        world: Arc<crate::repositories::World>,
         narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
-        location: Arc<crate::entities::location::Location>,
-        challenge: Arc<crate::entities::Challenge>,
+        location: Arc<crate::repositories::location::Location>,
+        challenge: Arc<crate::repositories::Challenge>,
     ) -> Self {
         Self {
             queue,

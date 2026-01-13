@@ -46,7 +46,7 @@ async fn test_player_creates_character_via_use_case() {
         // Verify PC was created
         let pc = ctx
             .app
-            .entities
+            .repositories
             .player_character
             .get(pc_id)
             .await
@@ -97,7 +97,7 @@ async fn test_staging_npc_in_region() {
         // Verify staging was created
         let current_game_time = ctx
             .app
-            .entities
+            .repositories
             .world
             .get(ctx.world.world_id)
             .await
@@ -108,7 +108,7 @@ async fn test_staging_npc_in_region() {
 
         let staged = ctx
             .app
-            .entities
+            .repositories
             .staging
             .resolve_for_region(common_room, current_game_time)
             .await
@@ -328,7 +328,7 @@ async fn test_full_gameplay_session() {
 
         let pc = ctx
             .app
-            .entities
+            .repositories
             .player_character
             .get(pc_id)
             .await
