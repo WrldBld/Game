@@ -21,10 +21,12 @@
 //! cargo test -p wrldbldr-engine --lib e2e_tests -- --ignored --test-threads=1
 //! ```
 
+mod approval_timeout_tests;
 mod challenge_flow_tests;
 mod character_stats_tests;
 mod disposition_item_tests;
 mod e2e_helpers;
+mod event_chain_tests;
 mod event_log;
 mod flag_tests;
 mod gameplay_flow_tests;
@@ -33,12 +35,14 @@ mod location_event_tests;
 mod logging_queue;
 mod lore_tests;
 mod movement_tests;
+mod multiplayer_tests;
 mod neo4j_test_harness;
 mod observations_tests;
 mod scene_act_tests;
 mod skills_tests;
 mod story_event_tests;
 mod time_tests;
+mod tool_call_tests;
 mod trigger_tests;
 mod vcr_llm;
 
