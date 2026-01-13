@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use serde_json::Value;
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::entities::Lore;
@@ -10,6 +10,139 @@ use crate::infrastructure::ports::RepoError;
 use wrldbldr_domain::{
     CharacterId, LoreCategory, LoreChunkId, LoreDiscoverySource, LoreId, LoreKnowledge, WorldId,
 };
+
+// =============================================================================
+// Domain Result Types
+// =============================================================================
+
+/// Result of creating a lore entry.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateLoreResult {
+    pub id: String,
+    pub title: String,
+}
+
+/// Result of updating a lore entry.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateLoreResult {
+    pub id: String,
+    pub title: String,
+}
+
+/// Result of deleting a lore entry.
+#[derive(Debug, Clone, Serialize)]
+pub struct DeleteLoreResult {
+    pub deleted: bool,
+}
+
+/// Result of adding a chunk to lore.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddChunkResult {
+    pub chunk_id: String,
+}
+
+/// Result of updating a chunk.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateChunkResult {
+    pub lore_id: String,
+    pub chunk_id: String,
+}
+
+/// Result of deleting a chunk.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteChunkResult {
+    pub deleted: bool,
+    pub lore_id: String,
+    pub chunk_id: String,
+}
+
+/// Result of granting knowledge.
+#[derive(Debug, Clone, Serialize)]
+pub struct GrantKnowledgeResult {
+    pub granted: bool,
+}
+
+/// Result of revoking knowledge.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RevokeKnowledgeResult {
+    pub revoked: bool,
+    pub partial: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunks_removed: Option<usize>,
+    pub relationship_deleted: bool,
+}
+
+/// Lore knowledge info for a character.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CharacterLoreInfo {
+    pub lore_id: String,
+    pub character_id: String,
+    pub known_chunk_ids: Vec<String>,
+    pub discovered_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+}
+
+/// Info about a character who knows some lore.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoreKnowerInfo {
+    pub character_id: String,
+    pub known_chunk_ids: Vec<String>,
+    pub discovered_at: String,
+}
+
+/// Summary of a lore entry (for list views).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoreSummary {
+    pub id: String,
+    pub world_id: String,
+    pub title: String,
+    pub summary: String,
+    pub category: String,
+    pub is_common_knowledge: bool,
+    pub tags: Vec<String>,
+    pub chunk_count: usize,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Detailed lore entry (for single item view).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoreDetail {
+    pub id: String,
+    pub world_id: String,
+    pub title: String,
+    pub summary: String,
+    pub category: String,
+    pub is_common_knowledge: bool,
+    pub tags: Vec<String>,
+    pub chunks: Vec<LoreChunkDetail>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Detail of a lore chunk.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoreChunkDetail {
+    pub id: String,
+    pub order: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discovery_hint: Option<String>,
+}
 
 // =============================================================================
 // Domain Input Types
@@ -87,21 +220,21 @@ impl LoreOps {
         Self { lore }
     }
 
-    pub async fn list(&self, world_id: WorldId) -> Result<Vec<Value>, LoreError> {
+    pub async fn list(&self, world_id: WorldId) -> Result<Vec<LoreSummary>, LoreError> {
         let lore_list = self.lore.list_for_world(world_id).await?;
-        Ok(lore_list.into_iter().map(lore_summary_to_json).collect())
+        Ok(lore_list.into_iter().map(lore_to_summary).collect())
     }
 
-    pub async fn get(&self, lore_id: LoreId) -> Result<Option<Value>, LoreError> {
+    pub async fn get(&self, lore_id: LoreId) -> Result<Option<LoreDetail>, LoreError> {
         let lore = self.lore.get(lore_id).await?;
-        Ok(lore.map(lore_to_json))
+        Ok(lore.map(lore_to_detail))
     }
 
     pub async fn create(
         &self,
         world_id: WorldId,
         input: CreateLoreInput,
-    ) -> Result<Value, LoreError> {
+    ) -> Result<CreateLoreResult, LoreError> {
         let category = match input.category.as_deref() {
             Some(cat_str) => cat_str
                 .parse::<LoreCategory>()
@@ -164,13 +297,13 @@ impl LoreOps {
 
         self.lore.save(&lore).await?;
 
-        Ok(serde_json::json!({
-            "id": lore.id.to_string(),
-            "title": lore.title,
-        }))
+        Ok(CreateLoreResult {
+            id: lore.id.to_string(),
+            title: lore.title,
+        })
     }
 
-    pub async fn update(&self, lore_id: LoreId, input: UpdateLoreInput) -> Result<Value, LoreError> {
+    pub async fn update(&self, lore_id: LoreId, input: UpdateLoreInput) -> Result<UpdateLoreResult, LoreError> {
         let mut lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
         if let Some(title) = input.title.as_ref() {
@@ -194,15 +327,15 @@ impl LoreOps {
 
         self.lore.save(&lore).await?;
 
-        Ok(serde_json::json!({
-            "id": lore.id.to_string(),
-            "title": lore.title,
-        }))
+        Ok(UpdateLoreResult {
+            id: lore.id.to_string(),
+            title: lore.title,
+        })
     }
 
-    pub async fn delete(&self, lore_id: LoreId) -> Result<Value, LoreError> {
+    pub async fn delete(&self, lore_id: LoreId) -> Result<DeleteLoreResult, LoreError> {
         self.lore.delete(lore_id).await?;
-        Ok(serde_json::json!({ "deleted": true }))
+        Ok(DeleteLoreResult { deleted: true })
     }
 
     /// Add a chunk to existing lore.
@@ -217,7 +350,7 @@ impl LoreOps {
         &self,
         lore_id: LoreId,
         input: CreateLoreChunkInput,
-    ) -> Result<Value, LoreError> {
+    ) -> Result<AddChunkResult, LoreError> {
         let mut lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
         // Determine the order: use provided order or auto-assign next sequential
@@ -249,7 +382,7 @@ impl LoreOps {
 
         self.lore.save(&lore).await?;
 
-        Ok(serde_json::json!({ "chunkId": chunk_id }))
+        Ok(AddChunkResult { chunk_id })
     }
 
     pub async fn update_chunk(
@@ -257,7 +390,7 @@ impl LoreOps {
         world_id: WorldId,
         chunk_id: LoreChunkId,
         input: UpdateLoreChunkInput,
-    ) -> Result<Value, LoreError> {
+    ) -> Result<UpdateChunkResult, LoreError> {
         let mut lore = self
             .lore
             .list_for_world(world_id)
@@ -299,17 +432,17 @@ impl LoreOps {
         lore.updated_at = chrono::Utc::now();
         self.lore.save(&lore).await?;
 
-        Ok(serde_json::json!({
-            "loreId": lore.id.to_string(),
-            "chunkId": chunk_id.to_string(),
-        }))
+        Ok(UpdateChunkResult {
+            lore_id: lore.id.to_string(),
+            chunk_id: chunk_id.to_string(),
+        })
     }
 
     pub async fn delete_chunk(
         &self,
         world_id: WorldId,
         chunk_id: LoreChunkId,
-    ) -> Result<Value, LoreError> {
+    ) -> Result<DeleteChunkResult, LoreError> {
         let mut lore = self
             .lore
             .list_for_world(world_id)
@@ -333,11 +466,11 @@ impl LoreOps {
         lore.updated_at = chrono::Utc::now();
         self.lore.save(&lore).await?;
 
-        Ok(serde_json::json!({
-            "deleted": true,
-            "loreId": lore.id.to_string(),
-            "chunkId": chunk_id.to_string(),
-        }))
+        Ok(DeleteChunkResult {
+            deleted: true,
+            lore_id: lore.id.to_string(),
+            chunk_id: chunk_id.to_string(),
+        })
     }
 
     pub async fn grant_knowledge(
@@ -346,7 +479,7 @@ impl LoreOps {
         lore_id: LoreId,
         chunk_ids: Option<Vec<LoreChunkId>>,
         discovery_source: LoreDiscoverySourceInput,
-    ) -> Result<Value, LoreError> {
+    ) -> Result<GrantKnowledgeResult, LoreError> {
         // Validate that the lore exists and chunk IDs are valid
         let lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
@@ -374,7 +507,7 @@ impl LoreOps {
         };
 
         self.lore.grant_knowledge(&knowledge).await?;
-        Ok(serde_json::json!({ "granted": true }))
+        Ok(GrantKnowledgeResult { granted: true })
     }
 
     pub async fn revoke_knowledge(
@@ -382,7 +515,7 @@ impl LoreOps {
         character_id: CharacterId,
         lore_id: LoreId,
         chunk_ids: Option<Vec<LoreChunkId>>,
-    ) -> Result<Value, LoreError> {
+    ) -> Result<RevokeKnowledgeResult, LoreError> {
         match chunk_ids {
             // Explicit empty list is an error - use None for full revocation
             Some(ref ids) if ids.is_empty() => {
@@ -410,21 +543,22 @@ impl LoreOps {
                     .remove_chunks_from_knowledge(character_id, lore_id, &ids)
                     .await?;
 
-                Ok(serde_json::json!({
-                    "revoked": true,
-                    "partial": !fully_revoked,
-                    "chunksRemoved": ids.len(),
-                    "relationshipDeleted": fully_revoked,
-                }))
+                Ok(RevokeKnowledgeResult {
+                    revoked: true,
+                    partial: !fully_revoked,
+                    chunks_removed: Some(ids.len()),
+                    relationship_deleted: fully_revoked,
+                })
             }
             None => {
                 // Full revocation - remove entire knowledge relationship
                 self.lore.revoke_knowledge(character_id, lore_id).await?;
-                Ok(serde_json::json!({
-                    "revoked": true,
-                    "partial": false,
-                    "relationshipDeleted": true,
-                }))
+                Ok(RevokeKnowledgeResult {
+                    revoked: true,
+                    partial: false,
+                    chunks_removed: None,
+                    relationship_deleted: true,
+                })
             }
         }
     }
@@ -432,40 +566,36 @@ impl LoreOps {
     pub async fn get_character_lore(
         &self,
         character_id: CharacterId,
-    ) -> Result<Vec<Value>, LoreError> {
+    ) -> Result<Vec<CharacterLoreInfo>, LoreError> {
         let knowledge_list = self.lore.get_character_knowledge(character_id).await?;
         Ok(knowledge_list
             .into_iter()
-            .map(|k| {
-                serde_json::json!({
-                    "loreId": k.lore_id.to_string(),
-                    "characterId": k.character_id.to_string(),
-                    "knownChunkIds": k
-                        .known_chunk_ids
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<_>>(),
-                    "discoveredAt": k.discovered_at.to_rfc3339(),
-                    "notes": k.notes,
-                })
+            .map(|k| CharacterLoreInfo {
+                lore_id: k.lore_id.to_string(),
+                character_id: k.character_id.to_string(),
+                known_chunk_ids: k
+                    .known_chunk_ids
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect(),
+                discovered_at: k.discovered_at.to_rfc3339(),
+                notes: k.notes,
             })
             .collect())
     }
 
-    pub async fn get_lore_knowers(&self, lore_id: LoreId) -> Result<Vec<Value>, LoreError> {
+    pub async fn get_lore_knowers(&self, lore_id: LoreId) -> Result<Vec<LoreKnowerInfo>, LoreError> {
         let knowledge_list = self.lore.get_knowledge_for_lore(lore_id).await?;
         Ok(knowledge_list
             .into_iter()
-            .map(|k| {
-                serde_json::json!({
-                    "characterId": k.character_id.to_string(),
-                    "knownChunkIds": k
-                        .known_chunk_ids
-                        .iter()
-                        .map(|id| id.to_string())
-                        .collect::<Vec<_>>(),
-                    "discoveredAt": k.discovered_at.to_rfc3339(),
-                })
+            .map(|k| LoreKnowerInfo {
+                character_id: k.character_id.to_string(),
+                known_chunk_ids: k
+                    .known_chunk_ids
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect(),
+                discovered_at: k.discovered_at.to_rfc3339(),
             })
             .collect())
     }
@@ -519,48 +649,46 @@ fn lore_discovery_source(input: LoreDiscoverySourceInput) -> Result<LoreDiscover
     }
 }
 
-fn lore_summary_to_json(lore: wrldbldr_domain::Lore) -> Value {
-    serde_json::json!({
-        "id": lore.id.to_string(),
-        "worldId": lore.world_id.to_string(),
-        "title": lore.title,
-        "summary": lore.summary,
-        "category": format!("{}", lore.category),
-        "isCommonKnowledge": lore.is_common_knowledge,
-        "tags": lore.tags,
-        "chunkCount": lore.chunks.len(),
-        "createdAt": lore.created_at.to_rfc3339(),
-        "updatedAt": lore.updated_at.to_rfc3339(),
-    })
+fn lore_to_summary(lore: wrldbldr_domain::Lore) -> LoreSummary {
+    LoreSummary {
+        id: lore.id.to_string(),
+        world_id: lore.world_id.to_string(),
+        title: lore.title,
+        summary: lore.summary,
+        category: format!("{}", lore.category),
+        is_common_knowledge: lore.is_common_knowledge,
+        tags: lore.tags,
+        chunk_count: lore.chunks.len(),
+        created_at: lore.created_at.to_rfc3339(),
+        updated_at: lore.updated_at.to_rfc3339(),
+    }
 }
 
-fn lore_to_json(lore: wrldbldr_domain::Lore) -> Value {
-    let chunks: Vec<Value> = lore
+fn lore_to_detail(lore: wrldbldr_domain::Lore) -> LoreDetail {
+    let chunks: Vec<LoreChunkDetail> = lore
         .chunks
         .iter()
-        .map(|c| {
-            serde_json::json!({
-                "id": c.id.to_string(),
-                "order": c.order,
-                "title": c.title,
-                "content": c.content,
-                "discoveryHint": c.discovery_hint,
-            })
+        .map(|c| LoreChunkDetail {
+            id: c.id.to_string(),
+            order: c.order,
+            title: c.title.clone(),
+            content: c.content.clone(),
+            discovery_hint: c.discovery_hint.clone(),
         })
         .collect();
 
-    serde_json::json!({
-        "id": lore.id.to_string(),
-        "worldId": lore.world_id.to_string(),
-        "title": lore.title,
-        "summary": lore.summary,
-        "category": format!("{}", lore.category),
-        "isCommonKnowledge": lore.is_common_knowledge,
-        "tags": lore.tags,
-        "chunks": chunks,
-        "createdAt": lore.created_at.to_rfc3339(),
-        "updatedAt": lore.updated_at.to_rfc3339(),
-    })
+    LoreDetail {
+        id: lore.id.to_string(),
+        world_id: lore.world_id.to_string(),
+        title: lore.title,
+        summary: lore.summary,
+        category: format!("{}", lore.category),
+        is_common_knowledge: lore.is_common_knowledge,
+        tags: lore.tags,
+        chunks,
+        created_at: lore.created_at.to_rfc3339(),
+        updated_at: lore.updated_at.to_rfc3339(),
+    }
 }
 
 #[cfg(test)]
@@ -751,10 +879,10 @@ mod tests {
         let result = ops.revoke_knowledge(character_id, lore_id, None).await;
         assert!(result.is_ok());
 
-        let json = result.unwrap();
-        assert_eq!(json["revoked"], true);
-        assert_eq!(json["partial"], false);
-        assert_eq!(json["relationshipDeleted"], true);
+        let result = result.unwrap();
+        assert!(result.revoked);
+        assert!(!result.partial);
+        assert!(result.relationship_deleted);
     }
 
     #[tokio::test]
