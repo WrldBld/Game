@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::entities::Narrative;
+use crate::use_cases::narrative_operations::Narrative;
 use crate::infrastructure::ports::{QueuePort, RepoError};
 use crate::use_cases::approval::{ApproveSuggestion, ApprovalError};
 use crate::use_cases::narrative::{EffectExecutionContext, ExecuteEffects};

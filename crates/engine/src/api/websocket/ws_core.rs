@@ -3,6 +3,7 @@ use super::*;
 use chrono::Timelike;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 
 use wrldbldr_protocol::{CharacterRequest, ItemsRequest, NpcRequest, TimeRequest, WorldRequest};
 
@@ -30,7 +31,7 @@ pub(super) async fn handle_world_request(
             }
             Err(e) => Ok(ResponseResult::error(
                 ErrorCode::InternalError,
-                e.to_string(),
+                sanitize_repo_error(&e, "list worlds"),
             )),
         },
 
@@ -59,7 +60,7 @@ pub(super) async fn handle_world_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "retrieve world"),
                 )),
             }
         }
@@ -82,7 +83,7 @@ pub(super) async fn handle_world_request(
                 }))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create world"),
                 )),
             }
         }
@@ -115,7 +116,7 @@ pub(super) async fn handle_world_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update world"),
                 )),
             }
         }
@@ -144,7 +145,7 @@ pub(super) async fn handle_world_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete world"),
                 )),
             }
         }

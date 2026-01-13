@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{ActId, LocationId, SceneId};
 
-use crate::entities::Scene;
+use crate::use_cases::scene_operations::Scene;
 
 use super::ManagementError;
 

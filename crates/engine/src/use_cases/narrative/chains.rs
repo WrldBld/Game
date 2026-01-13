@@ -5,7 +5,7 @@ use serde::Serialize;
 
 use wrldbldr_domain::{self as domain, ActId, EventChain, EventChainId, NarrativeEventId, WorldId};
 
-use crate::entities::Narrative;
+use crate::use_cases::narrative_operations::Narrative;
 use crate::infrastructure::ports::RepoError;
 
 // =============================================================================

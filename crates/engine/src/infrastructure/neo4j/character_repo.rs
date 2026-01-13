@@ -79,11 +79,11 @@ impl From<StatModifierStored> for entities::StatModifier {
 impl From<StatBlock> for StatBlockStored {
     fn from(value: StatBlock) -> Self {
         Self {
-            stats: value.stats,
+            stats: value.stats().clone(),
             modifiers: value
-                .modifiers
-                .into_iter()
-                .map(|(k, v)| (k, v.into_iter().map(StatModifierStored::from).collect()))
+                .modifiers()
+                .iter()
+                .map(|(k, v)| (k.clone(), v.iter().cloned().map(StatModifierStored::from).collect()))
                 .collect(),
             current_hp: value.current_hp,
             max_hp: value.max_hp,
@@ -93,23 +93,21 @@ impl From<StatBlock> for StatBlockStored {
 
 impl From<StatBlockStored> for StatBlock {
     fn from(value: StatBlockStored) -> Self {
-        Self {
-            stats: value.stats,
-            modifiers: value
-                .modifiers
-                .into_iter()
-                .map(|(k, v)| {
-                    (
-                        k,
-                        v.into_iter()
-                            .map(entities::StatModifier::from)
-                            .collect(),
-                    )
-                })
-                .collect(),
-            current_hp: value.current_hp,
-            max_hp: value.max_hp,
+        let mut stat_block = StatBlock::new();
+        stat_block.current_hp = value.current_hp;
+        stat_block.max_hp = value.max_hp;
+        for (k, v) in value.stats {
+            stat_block.stats_mut().insert(k, v);
         }
+        for (k, v) in value.modifiers {
+            stat_block.modifiers_mut().insert(
+                k,
+                v.into_iter()
+                    .map(entities::StatModifier::from)
+                    .collect(),
+            );
+        }
+        stat_block
     }
 }
 

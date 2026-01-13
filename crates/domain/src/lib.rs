@@ -30,7 +30,7 @@ pub use entities::{
     GenerationMetadata, GenerationRequest, Goal, GridMap, InfoType, InputDefault, InputType,
     InteractionCondition, InteractionRequirement, InteractionTarget, InteractionTargetType,
     InteractionTemplate, InteractionType, InventoryItem, InvolvedCharacter, Item, ItemSource,
-    KnownSpell, Location, LocationConnection, LocationState, LocationStateSummary, LocationType,
+    KnownSpell, Location, LocationConnection, ConnectionType, LocationState, LocationStateSummary, LocationType,
     Lore, LoreCategory, LoreChunk, LoreDiscoverySource, LoreKnowledge, MapBounds, MarkerImportance,
     MaterialComponent, MonomythStage, NarrativeEvent, NarrativeTrigger, NarrativeTriggerType,
     NpcObservation, ObservationSummary, ObservationType, Outcome, OutcomeCondition, OutcomeTrigger,

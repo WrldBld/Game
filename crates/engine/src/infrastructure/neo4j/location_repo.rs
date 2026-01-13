@@ -167,7 +167,7 @@ impl Neo4jLocationRepo {
         let to_id_str: String = row
             .get("to_id")
             .map_err(|e| RepoError::database("query", e))?;
-        let connection_type: String = row
+        let connection_type_str: String = row
             .get("connection_type")
             .map_err(|e| RepoError::database("query", e))?;
         let bidirectional: bool = row.get("bidirectional").unwrap_or(true);
@@ -184,7 +184,7 @@ impl Neo4jLocationRepo {
         Ok(LocationConnection {
             from_location: LocationId::from_uuid(from_id),
             to_location: LocationId::from_uuid(to_id),
-            connection_type,
+            connection_type: ConnectionType::from_str(&connection_type_str),
             description,
             bidirectional,
             travel_time: travel_time as u32,
@@ -644,7 +644,7 @@ impl LocationRepo for Neo4jLocationRepo {
         )
         .param("from_id", connection.from_location.to_string())
         .param("to_id", connection.to_location.to_string())
-        .param("connection_type", connection.connection_type.clone())
+        .param("connection_type", connection.connection_type.as_str())
         .param(
             "description",
             connection.description.clone().unwrap_or_default(),
@@ -676,7 +676,7 @@ impl LocationRepo for Neo4jLocationRepo {
             )
             .param("from_id", connection.from_location.to_string())
             .param("to_id", connection.to_location.to_string())
-            .param("connection_type", connection.connection_type.clone())
+            .param("connection_type", connection.connection_type.as_str())
             .param(
                 "description",
                 connection.description.clone().unwrap_or_default(),

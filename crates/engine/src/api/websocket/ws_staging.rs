@@ -3,6 +3,10 @@ use super::*;
 /// Maximum allowed TTL in hours (1 year).
 const MAX_TTL_HOURS: i32 = 8760;
 
+/// Maximum number of NPCs that can be approved in a single request.
+/// Prevents DoS via oversized payloads.
+const MAX_APPROVED_NPCS: usize = 100;
+
 /// Validates TTL hours value.
 /// Returns an error response if TTL is invalid (negative, zero, or unreasonably large).
 fn validate_ttl_hours(ttl_hours: i32) -> Result<(), ServerMessage> {
@@ -47,6 +51,14 @@ pub(super) async fn handle_staging_approval(
     // Validate TTL hours
     if let Err(e) = validate_ttl_hours(ttl_hours) {
         return Some(e);
+    }
+
+    // Validate input sizes to prevent DoS via oversized payloads
+    if approved_npcs.len() > MAX_APPROVED_NPCS {
+        return Some(error_response(
+            "BAD_REQUEST",
+            &format!("Too many NPCs (max {})", MAX_APPROVED_NPCS),
+        ));
     }
 
     // request_id is a correlation token; resolve it to a region_id.
@@ -217,6 +229,14 @@ pub(super) async fn handle_pre_stage_region(
     // Validate TTL hours
     if let Err(e) = validate_ttl_hours(ttl_hours) {
         return Some(e);
+    }
+
+    // Validate input sizes to prevent DoS via oversized payloads
+    if npcs.len() > MAX_APPROVED_NPCS {
+        return Some(error_response(
+            "BAD_REQUEST",
+            &format!("Too many NPCs (max {})", MAX_APPROVED_NPCS),
+        ));
     }
 
     // Parse region ID

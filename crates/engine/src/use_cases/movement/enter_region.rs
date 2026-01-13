@@ -10,8 +10,13 @@ use wrldbldr_domain::{
 };
 
 use crate::entities::{
-    Flag, Inventory, Location, Narrative, Observation, PlayerCharacter, Scene, Staging, World,
+    Flag, Observation, PlayerCharacter, World,
 };
+use crate::use_cases::inventory_operations::Inventory;
+use crate::use_cases::location_operations::Location;
+use crate::use_cases::narrative_operations::Narrative;
+use crate::use_cases::scene_operations::Scene;
+use crate::use_cases::staging_operations::Staging;
 use crate::infrastructure::ports::RepoError;
 use crate::use_cases::time::{SuggestTime, TimeSuggestion};
 
@@ -296,6 +301,9 @@ mod tests {
         MockLocationRepo, MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
         MockSceneRepo, MockStagingRepo, MockWorldRepo,
     };
+    use crate::use_cases::{
+        Inventory, Location, Narrative, Scene, Staging as StagingOp,
+    };
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -317,9 +325,9 @@ mod tests {
 
         let location_repo: Arc<dyn crate::infrastructure::ports::LocationRepo> =
             Arc::new(location_repo);
-        let location = Arc::new(entities::Location::new(location_repo.clone()));
+        let location = Arc::new(Location::new(location_repo.clone()));
 
-        let staging = Arc::new(entities::Staging::new(Arc::new(MockStagingRepo::new())));
+        let staging = Arc::new(StagingOp::new(Arc::new(MockStagingRepo::new())));
 
         let observation = Arc::new(entities::Observation::new(
             Arc::new(MockObservationRepo::new()),
@@ -327,7 +335,7 @@ mod tests {
             clock.clone(),
         ));
 
-        let narrative = Arc::new(entities::Narrative::new(
+        let narrative = Arc::new(Narrative::new(
             Arc::new(MockNarrativeRepo::new()),
             location_repo.clone(),
             Arc::new(MockWorldRepo::new()),
@@ -340,8 +348,8 @@ mod tests {
             clock.clone(),
         ));
 
-        let scene = Arc::new(entities::Scene::new(Arc::new(MockSceneRepo::new())));
-        let inventory = Arc::new(entities::Inventory::new(
+        let scene = Arc::new(Scene::new(Arc::new(MockSceneRepo::new())));
+        let inventory = Arc::new(Inventory::new(
             Arc::new(MockItemRepo::new()),
             Arc::new(MockCharacterRepo::new()),
             Arc::new(MockPlayerCharacterRepo::new()),

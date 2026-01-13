@@ -6,6 +6,7 @@ use std::sync::Arc;
 use crate::infrastructure::ports::ClockPort;
 
 mod helpers;
+pub mod query_helpers;
 mod schema;
 
 pub use schema::ensure_schema;

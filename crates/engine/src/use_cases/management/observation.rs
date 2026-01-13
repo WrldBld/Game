@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 
-use crate::entities::{Character, Location, Observation, PlayerCharacter, World};
+use crate::entities::{Observation, PlayerCharacter, World};
+use crate::use_cases::character_operations::Character;
+use crate::use_cases::location_operations::Location;
 use crate::infrastructure::ports::ClockPort;
 
 use super::ManagementError;

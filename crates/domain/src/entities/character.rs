@@ -176,10 +176,10 @@ impl StatModifier {
 #[serde(rename_all = "camelCase")]
 pub struct StatBlock {
     /// Map of stat name to base value
-    pub stats: std::collections::HashMap<String, i32>,
+    stats: std::collections::HashMap<String, i32>,
     /// Map of stat name to modifiers affecting that stat
     #[serde(default)]
-    pub modifiers: std::collections::HashMap<String, Vec<StatModifier>>,
+    modifiers: std::collections::HashMap<String, Vec<StatModifier>>,
     /// Current hit points
     pub current_hp: Option<i32>,
     /// Maximum hit points
@@ -189,6 +189,26 @@ pub struct StatBlock {
 impl StatBlock {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Get all stats (immutable view).
+    pub fn stats(&self) -> &std::collections::HashMap<String, i32> {
+        &self.stats
+    }
+
+    /// Get all modifiers (immutable view).
+    pub fn modifiers(&self) -> &std::collections::HashMap<String, Vec<StatModifier>> {
+        &self.modifiers
+    }
+
+    /// Get a mutable reference to stats for controlled modification.
+    pub fn stats_mut(&mut self) -> &mut std::collections::HashMap<String, i32> {
+        &mut self.stats
+    }
+
+    /// Get a mutable reference to modifiers for controlled modification.
+    pub fn modifiers_mut(&mut self) -> &mut std::collections::HashMap<String, Vec<StatModifier>> {
+        &mut self.modifiers
     }
 
     pub fn with_stat(mut self, name: impl Into<String>, value: i32) -> Self {

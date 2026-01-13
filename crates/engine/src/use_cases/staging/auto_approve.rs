@@ -4,7 +4,10 @@ use std::sync::Arc;
 
 use wrldbldr_domain::StagingSource;
 
-use crate::entities::{Character, Location, LocationStateEntity, RegionStateEntity, Staging, World};
+use crate::entities::{LocationStateEntity, RegionStateEntity, World};
+use crate::use_cases::character_operations::Character;
+use crate::use_cases::location_operations::Location;
+use crate::use_cases::staging_operations::Staging;
 use crate::infrastructure::ports::SettingsRepo;
 
 use super::approve::{ApproveStagingInput, ApproveStagingRequest, StagingReadyPayload};

@@ -12,8 +12,11 @@ pub use scene_change::{
 };
 
 use crate::entities::{
-    Flag, Inventory, Observation, Scene, SceneResolutionContext, Staging as StagingEntity,
+    Flag, Observation,
 };
+use crate::use_cases::inventory_operations::Inventory;
+use crate::use_cases::scene_operations::{Scene, SceneResolutionContext};
+use crate::use_cases::staging_operations::Staging as StagingEntity;
 use crate::infrastructure::ports::RepoError;
 use crate::use_cases::custom_condition::{CustomConditionEvaluator, EvaluationContext};
 use crate::use_cases::time::{SuggestTime, SuggestTimeResult, TimeSuggestion};

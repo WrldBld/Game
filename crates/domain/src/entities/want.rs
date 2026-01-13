@@ -86,11 +86,29 @@ pub struct Want {
 }
 
 impl Want {
-    pub fn new(description: impl Into<String>, now: DateTime<Utc>) -> Self {
+    /// Create a Want with explicit intensity.
+    ///
+    /// The intensity is clamped to the range 0.0..=1.0 where 0.0 represents
+    /// mild interest and 1.0 represents obsession.
+    ///
+    /// # Arguments
+    /// * `description` - A description of what the character wants
+    /// * `intensity` - How strongly the character wants this (0.0 to 1.0)
+    /// * `now` - The current timestamp for created_at
+    ///
+    /// # Example
+    /// ```ignore
+    /// let want = Want::new_with_intensity("Avenge my father", 0.9, Utc::now());
+    /// ```
+    pub fn new_with_intensity(
+        description: impl Into<String>,
+        intensity: f32,
+        now: DateTime<Utc>,
+    ) -> Self {
         Self {
             id: WantId::new(),
             description: description.into(),
-            intensity: 0.5,
+            intensity: intensity.clamp(0.0, 1.0),
             visibility: WantVisibility::Hidden,
             created_at: now,
             deflection_behavior: None,
@@ -98,31 +116,55 @@ impl Want {
         }
     }
 
+    /// Create a new Want with default intensity (0.5).
+    ///
+    /// # Arguments
+    /// * `description` - A description of what the character wants
+    /// * `now` - The current timestamp for created_at
+    ///
+    /// # Example
+    /// ```ignore
+    /// let want = Want::new("Find the ancient artifact", Utc::now());
+    /// ```
+    pub fn new(description: impl Into<String>, now: DateTime<Utc>) -> Self {
+        Self::new_with_intensity(description, 0.5, now)
+    }
+
+    /// Set the intensity of this want using builder pattern.
+    ///
+    /// The intensity is clamped to 0.0..=1.0.
     pub fn with_intensity(mut self, intensity: f32) -> Self {
         self.intensity = intensity.clamp(0.0, 1.0);
         self
     }
 
+    /// Set the visibility of this want using builder pattern.
     pub fn with_visibility(mut self, visibility: WantVisibility) -> Self {
         self.visibility = visibility;
         self
     }
 
+    /// Mark this want as known to the player using builder pattern.
     pub fn known(mut self) -> Self {
         self.visibility = WantVisibility::Known;
         self
     }
 
+    /// Set the deflection behavior for when the NPC is probed about this want.
+    ///
+    /// This is used for Hidden/Suspected wants to guide NPC behavior.
     pub fn with_deflection(mut self, behavior: impl Into<String>) -> Self {
         self.deflection_behavior = Some(behavior.into());
         self
     }
 
+    /// Set the behavioral tells that hint at this want.
     pub fn with_tells(mut self, tells: Vec<String>) -> Self {
         self.tells = tells;
         self
     }
 
+    /// Add a single behavioral tell to this want.
     pub fn add_tell(mut self, tell: impl Into<String>) -> Self {
         self.tells.push(tell.into());
         self

@@ -12,8 +12,12 @@ use wrldbldr_domain::{
 };
 
 use crate::entities::{
-    Challenge, Character, Flag, Inventory, Narrative, Observation, PlayerCharacter, Scene, World,
+    Challenge, Flag, Observation, PlayerCharacter, World,
 };
+use crate::use_cases::character_operations::Character;
+use crate::use_cases::inventory_operations::Inventory;
+use crate::use_cases::narrative_operations::Narrative;
+use crate::use_cases::scene_operations::Scene;
 use crate::infrastructure::ports::ClockPort;
 
 /// Result of executing a single effect.

@@ -405,6 +405,10 @@ impl LoreRepo for Neo4jLoreRepo {
         // Tags are stored as JSON arrays, so we check if the JSON string contains
         // each tag as a quoted string (e.g., `"history"` for tag "history").
         // Build a WHERE clause with OR conditions for each tag.
+        // SAFETY: tag_conditions are generated programmatically from enumerate(),
+        // not from user input. The format string only contains numeric indices
+        // like "$tag0", "$tag1", etc. Tag values themselves are passed as
+        // parameterized values, preventing Cypher injection.
         let tag_conditions: Vec<String> = tags
             .iter()
             .enumerate()
@@ -412,6 +416,10 @@ impl LoreRepo for Neo4jLoreRepo {
             .collect();
         let where_clause = tag_conditions.join(" OR ");
 
+        // SAFETY: The cypher query uses format!() only to interpolate `where_clause`,
+        // which contains only programmatically-generated conditions with numeric
+        // parameter placeholders (e.g., "$tag0 OR $tag1"). No user input is
+        // interpolated into the query string itself.
         let cypher = format!(
             "MATCH (l:Lore {{world_id: $world_id}})
             WHERE {}
@@ -421,7 +429,9 @@ impl LoreRepo for Neo4jLoreRepo {
 
         let mut q = query(&cypher).param("world_id", world_id.to_string());
 
-        // Add each tag as a quoted JSON string parameter
+        // SAFETY: Parameter names ("tag0", "tag1", etc.) are generated from
+        // enumerate() indices, not user input. The tag values are properly
+        // passed as parameterized values to neo4rs, which handles escaping.
         for (i, tag) in tags.iter().enumerate() {
             // Tags in JSON are stored as `["tag1", "tag2"]`, so we search for `"tag"`
             q = q.param(&format!("tag{}", i), format!("\"{}\"", tag));

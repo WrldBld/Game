@@ -55,7 +55,7 @@ pub use interaction::{
     InteractionTemplate, InteractionType,
 };
 pub use item::{AcquisitionMethod, FrequencyLevel, InventoryItem, Item};
-pub use location::{Location, LocationConnection, LocationType};
+pub use location::{ConnectionType, Location, LocationConnection, LocationType};
 pub use location_state::{LocationState, LocationStateSummary};
 pub use lore::{Lore, LoreCategory, LoreChunk, LoreDiscoverySource, LoreKnowledge};
 pub use narrative_event::{

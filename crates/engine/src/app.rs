@@ -25,18 +25,18 @@ pub struct App {
 
 /// Container for all entity modules.
 pub struct Entities {
-    pub character: Arc<entities::Character>,
+    pub character: Arc<use_cases::Character>,
     pub player_character: Arc<entities::PlayerCharacter>,
-    pub location: Arc<entities::Location>,
-    pub scene: Arc<entities::Scene>,
+    pub location: Arc<use_cases::Location>,
+    pub scene: Arc<use_cases::Scene>,
     pub act: Arc<entities::Act>,
     pub skill: Arc<entities::Skill>,
     pub interaction: Arc<entities::Interaction>,
     pub challenge: Arc<entities::Challenge>,
-    pub narrative: Arc<entities::Narrative>,
-    pub staging: Arc<entities::Staging>,
+    pub narrative: Arc<use_cases::Narrative>,
+    pub staging: Arc<use_cases::Staging>,
     pub observation: Arc<entities::Observation>,
-    pub inventory: Arc<entities::Inventory>,
+    pub inventory: Arc<use_cases::Inventory>,
     pub assets: Arc<entities::Assets>,
     pub world: Arc<entities::World>,
     pub flag: Arc<entities::Flag>,
@@ -89,17 +89,17 @@ impl App {
         let queue_port: Arc<dyn QueuePort> = queue.clone();
 
         // Create entity modules
-        let character = Arc::new(entities::Character::new(repos.character.clone()));
+        let character = Arc::new(use_cases::Character::new(repos.character.clone()));
         let player_character = Arc::new(entities::PlayerCharacter::new(
             repos.player_character.clone(),
         ));
-        let location = Arc::new(entities::Location::new(repos.location.clone()));
-        let scene = Arc::new(entities::Scene::new(repos.scene.clone()));
+        let location = Arc::new(use_cases::Location::new(repos.location.clone()));
+        let scene = Arc::new(use_cases::Scene::new(repos.scene.clone()));
         let act = Arc::new(entities::Act::new(repos.act.clone()));
         let skill = Arc::new(entities::Skill::new(repos.skill.clone()));
         let interaction = Arc::new(entities::Interaction::new(repos.interaction.clone()));
         let challenge = Arc::new(entities::Challenge::new(repos.challenge.clone()));
-        let narrative = Arc::new(entities::Narrative::new(
+        let narrative = Arc::new(use_cases::Narrative::new(
             repos.narrative.clone(),
             repos.location.clone(),
             repos.world.clone(),
@@ -111,13 +111,13 @@ impl App {
             repos.scene.clone(),
             clock.clone(),
         ));
-        let staging = Arc::new(entities::Staging::new(repos.staging.clone()));
+        let staging = Arc::new(use_cases::Staging::new(repos.staging.clone()));
         let observation = Arc::new(entities::Observation::new(
             repos.observation.clone(),
             repos.location.clone(),
             clock.clone(),
         ));
-        let inventory = Arc::new(entities::Inventory::new(
+        let inventory = Arc::new(use_cases::Inventory::new(
             repos.item.clone(),
             repos.character.clone(),
             repos.player_character.clone(),

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::entities::Narrative;
+use crate::use_cases::narrative_operations::Narrative;
 use crate::infrastructure::ports::RepoError;
 use wrldbldr_domain::{StoryEventId, StoryEventType, WorldId};
 

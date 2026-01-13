@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{LocationId, RegionId, WorldId};
 
-use crate::entities::Location;
+use crate::use_cases::location_operations::Location;
 
 use super::ManagementError;
 
@@ -199,7 +199,7 @@ impl LocationCrud {
         let connection = wrldbldr_domain::LocationConnection {
             from_location,
             to_location,
-            connection_type: "Connection".to_string(),
+            connection_type: wrldbldr_domain::ConnectionType::Other,
             description: None,
             bidirectional,
             travel_time: 0,

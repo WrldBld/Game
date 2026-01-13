@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{LocationId, Region, RegionId, StagedNpc};
 
-use crate::entities::{Inventory, Location};
+use crate::use_cases::inventory_operations::Inventory;
+use crate::use_cases::location_operations::Location;
 use crate::infrastructure::ports::RepoError;
 
 // =============================================================================

@@ -4,7 +4,10 @@
 
 use std::sync::Arc;
 
-use crate::entities::{Character, Location, Observation, Staging};
+use crate::entities::Observation;
+use crate::use_cases::character_operations::Character;
+use crate::use_cases::location_operations::Location;
+use crate::use_cases::staging_operations::Staging;
 use crate::infrastructure::ports::{ClockPort, NpcDispositionInfo, RepoError};
 use wrldbldr_domain::{
     CharacterId, DispositionLevel, LocationId, MoodState, NpcDispositionState, PlayerCharacterId,

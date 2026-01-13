@@ -502,7 +502,10 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
 
         // Fallback: check trigger_conditions JSON (slower - requires fetching all events)
         // This handles legacy events that don't have TIED_TO_LOCATION edges
-        // TODO: Migration to add TIED_TO_LOCATION edges for all location-based triggers
+        // TODO(deferred): Add TIED_TO_LOCATION edges migration for location triggers
+        // This optimization would improve query performance by avoiding full-world scans
+        // in trigger evaluation. Currently not a bottleneck, safe to defer until needed.
+        // See get_triggers_for_region() above for the optimized edge-based query path.
         let q_fallback = query(
             "MATCH (w:World {id: $world_id})-[:HAS_NARRATIVE_EVENT]->(e:NarrativeEvent)
                         WHERE e.is_active = true

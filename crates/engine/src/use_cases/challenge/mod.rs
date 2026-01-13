@@ -25,7 +25,9 @@ pub use crud::{
     ChallengeError as ChallengeCrudError, ChallengeOps, CreateChallengeInput, UpdateChallengeInput,
 };
 
-use crate::entities::{Challenge, Inventory, Observation, PlayerCharacter, Scene};
+use crate::entities::{Challenge, Observation, PlayerCharacter};
+use crate::use_cases::inventory_operations::Inventory;
+use crate::use_cases::scene_operations::Scene;
 use crate::infrastructure::ports::{ClockPort, QueuePort, RandomPort, RepoError};
 
 /// Container for challenge use cases.
@@ -795,6 +797,7 @@ mod tests {
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockItemRepo, MockLocationRepo,
         MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
     };
+    use crate::use_cases::{Inventory, Scene};
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -913,7 +916,7 @@ mod tests {
         let challenge_entity = Arc::new(entities::Challenge::new(Arc::new(challenge_repo)));
 
         let pc_repo: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> = Arc::new(pc_repo);
-        let inventory_entity = Arc::new(entities::Inventory::new(
+        let inventory_entity = Arc::new(Inventory::new(
             Arc::new(item_repo),
             Arc::new(character_repo),
             pc_repo.clone(),
@@ -923,7 +926,7 @@ mod tests {
             Arc::new(location_repo),
             clock,
         ));
-        let scene_entity = Arc::new(entities::Scene::new(Arc::new(scene_repo)));
+        let scene_entity = Arc::new(Scene::new(Arc::new(scene_repo)));
         let player_character_entity = Arc::new(entities::PlayerCharacter::new(pc_repo));
 
         let resolve = super::ResolveOutcome::new(

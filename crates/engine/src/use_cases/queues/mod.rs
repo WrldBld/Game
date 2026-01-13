@@ -82,26 +82,26 @@ pub struct PlayerActionProcessed {
 /// Dequeues player actions, builds LLM prompts, and enqueues LLM requests.
 pub struct ProcessPlayerAction {
     queue: Arc<dyn QueuePort>,
-    character: Arc<crate::entities::Character>,
+    character: Arc<crate::use_cases::character_operations::Character>,
     player_character: Arc<crate::entities::PlayerCharacter>,
-    staging: Arc<crate::entities::Staging>,
-    scene: Arc<crate::entities::Scene>,
+    staging: Arc<crate::use_cases::staging_operations::Staging>,
+    scene: Arc<crate::use_cases::scene_operations::Scene>,
     world: Arc<crate::entities::World>,
-    narrative: Arc<crate::entities::Narrative>,
-    location: Arc<crate::entities::Location>,
+    narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
+    location: Arc<crate::use_cases::location_operations::Location>,
     challenge: Arc<crate::entities::Challenge>,
 }
 
 impl ProcessPlayerAction {
     pub fn new(
         queue: Arc<dyn QueuePort>,
-        character: Arc<crate::entities::Character>,
+        character: Arc<crate::use_cases::character_operations::Character>,
         player_character: Arc<crate::entities::PlayerCharacter>,
-        staging: Arc<crate::entities::Staging>,
-        scene: Arc<crate::entities::Scene>,
+        staging: Arc<crate::use_cases::staging_operations::Staging>,
+        scene: Arc<crate::use_cases::scene_operations::Scene>,
         world: Arc<crate::entities::World>,
-        narrative: Arc<crate::entities::Narrative>,
-        location: Arc<crate::entities::Location>,
+        narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
+        location: Arc<crate::use_cases::location_operations::Location>,
         challenge: Arc<crate::entities::Challenge>,
     ) -> Self {
         Self {

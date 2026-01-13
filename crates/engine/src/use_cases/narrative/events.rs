@@ -5,7 +5,7 @@ use serde::Serialize;
 
 use wrldbldr_domain::{self as domain, NarrativeEvent, NarrativeEventId, NarrativeTrigger, WorldId};
 
-use crate::entities::Narrative;
+use crate::use_cases::narrative_operations::Narrative;
 use crate::infrastructure::ports::RepoError;
 use crate::use_cases::narrative::{EffectExecutionContext, EffectExecutionSummary, ExecuteEffects};
 

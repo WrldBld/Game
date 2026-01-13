@@ -9,7 +9,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, DmApprovalDecision, RegionId, WorldId};
 
-use crate::entities::Staging;
+use crate::use_cases::staging_operations::Staging;
 use crate::infrastructure::ports::{QueuePort, RepoError};
 
 /// Container for approval use cases.
@@ -203,14 +203,14 @@ impl ApproveSuggestion {
 /// Full approval decision flow (approval + dialogue persistence).
 pub struct ApprovalDecisionFlow {
     approve_suggestion: Arc<ApproveSuggestion>,
-    narrative: Arc<crate::entities::Narrative>,
+    narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
     queue: Arc<dyn QueuePort>,
 }
 
 impl ApprovalDecisionFlow {
     pub fn new(
         approve_suggestion: Arc<ApproveSuggestion>,
-        narrative: Arc<crate::entities::Narrative>,
+        narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
         queue: Arc<dyn QueuePort>,
     ) -> Self {
         Self {

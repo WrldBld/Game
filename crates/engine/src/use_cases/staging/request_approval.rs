@@ -6,7 +6,10 @@ use chrono::{Datelike, Timelike};
 use uuid::Uuid;
 use wrldbldr_domain::{LocationId, PlayerCharacter, RegionId, Staging as DomainStaging, WorldId};
 
-use crate::entities::{Character, Flag, Location, Staging, World};
+use crate::entities::{Flag, World};
+use crate::use_cases::character_operations::Character;
+use crate::use_cases::location_operations::Location;
+use crate::use_cases::staging_operations::Staging;
 use crate::infrastructure::ports::{LlmPort, SettingsRepo};
 use crate::use_cases::time::TimeSuggestion;
 use crate::use_cases::visual_state::{ResolveVisualState, StateResolutionContext};

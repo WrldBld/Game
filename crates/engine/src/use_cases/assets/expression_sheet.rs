@@ -24,7 +24,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{AssetId, CharacterId};
 
-use crate::entities::{Assets, Character};
+use crate::entities::Assets;
+use crate::use_cases::character_operations::Character;
 use crate::infrastructure::ports::{ClockPort, QueuePort, RepoError};
 
 /// Standard expression order in a 4x4 grid

@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use crate::entities::Location;
+use crate::use_cases::location_operations::Location;
 use crate::infrastructure::ports::RepoError;
 use wrldbldr_domain::RegionId;
 

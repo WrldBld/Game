@@ -737,12 +737,14 @@ impl FiveToolsImporter {
 
         // Pattern: {@tag content} or {@tag content|display}
         let re = FIVETOOLS_TAG_REGEX
-            .get_or_init(|| regex_lite::Regex::new(r"\{@\w+\s+([^|}]+)(?:\|[^}]*)?\}").unwrap());
+            .get_or_init(|| regex_lite::Regex::new(r"\{@\w+\s+([^|}]+)(?:\|[^}]*)?\}")
+                .expect("FIVETOOLS_TAG_REGEX pattern is invalid"));
         result = re.replace_all(&result, "$1").to_string();
 
         // Pattern: {@tag content|display} - use display
         let re2 = FIVETOOLS_DISPLAY_REGEX
-            .get_or_init(|| regex_lite::Regex::new(r"\{@\w+\s+[^|]+\|([^}]+)\}").unwrap());
+            .get_or_init(|| regex_lite::Regex::new(r"\{@\w+\s+[^|]+\|([^}]+)\}")
+                .expect("FIVETOOLS_DISPLAY_REGEX pattern is invalid"));
         result = re2.replace_all(&result, "$1").to_string();
 
         result

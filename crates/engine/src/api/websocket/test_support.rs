@@ -466,17 +466,17 @@ pub(crate) fn build_test_app_with_ports(
     let region_state_repo = Arc::new(repos.region_state_repo);
 
     // Entities
-    let character = Arc::new(crate::entities::Character::new(character_repo.clone()));
+    let character = Arc::new(crate::use_cases::character_operations::Character::new(character_repo.clone()));
     let player_character = Arc::new(crate::entities::PlayerCharacter::new(
         player_character_repo.clone(),
     ));
-    let location = Arc::new(crate::entities::Location::new(location_repo.clone()));
-    let scene = Arc::new(crate::entities::Scene::new(scene_repo.clone()));
+    let location = Arc::new(crate::use_cases::location_operations::Location::new(location_repo.clone()));
+    let scene = Arc::new(crate::use_cases::scene_operations::Scene::new(scene_repo.clone()));
     let act = Arc::new(crate::entities::Act::new(act_repo.clone()));
     let skill = Arc::new(crate::entities::Skill::new(skill_repo.clone()));
     let interaction = Arc::new(crate::entities::Interaction::new(interaction_repo.clone()));
     let challenge = Arc::new(crate::entities::Challenge::new(challenge_repo.clone()));
-    let narrative = Arc::new(crate::entities::Narrative::new(
+    let narrative = Arc::new(crate::use_cases::narrative_operations::Narrative::new(
         narrative_repo.clone(),
         location_repo.clone(),
         world_repo.clone(),
@@ -488,13 +488,13 @@ pub(crate) fn build_test_app_with_ports(
         scene_repo.clone(),
         clock.clone(),
     ));
-    let staging = Arc::new(crate::entities::Staging::new(staging_repo.clone()));
+    let staging = Arc::new(crate::use_cases::staging_operations::Staging::new(staging_repo.clone()));
     let observation = Arc::new(crate::entities::Observation::new(
         observation_repo.clone(),
         location_repo.clone(),
         clock.clone(),
     ));
-    let inventory = Arc::new(crate::entities::Inventory::new(
+    let inventory = Arc::new(crate::use_cases::inventory_operations::Inventory::new(
         item_repo.clone(),
         character_repo.clone(),
         player_character_repo.clone(),

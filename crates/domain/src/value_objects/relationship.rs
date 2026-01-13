@@ -1,9 +1,10 @@
 //! Character relationships for social network modeling
 
+use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{CharacterId, RelationshipId};
 
 /// A relationship between two characters
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Relationship {
     pub id: RelationshipId,
     pub from_character: CharacterId,
@@ -17,6 +18,24 @@ pub struct Relationship {
 }
 
 impl Relationship {
+    /// Create a new relationship between two characters.
+    ///
+    /// The relationship starts with neutral sentiment (0.0) and is visible
+    /// to the player by default.
+    ///
+    /// # Arguments
+    /// * `from` - The character this relationship originates from
+    /// * `to` - The character this relationship points to
+    /// * `relationship_type` - The type of relationship (ally, enemy, family, etc.)
+    ///
+    /// # Example
+    /// ```ignore
+    /// let friendship = Relationship::new(
+    ///     alice_id,
+    ///     bob_id,
+    ///     RelationshipType::Friendship,
+    /// );
+    /// ```
     pub fn new(from: CharacterId, to: CharacterId, relationship_type: RelationshipType) -> Self {
         Self {
             id: RelationshipId::new(),
@@ -29,23 +48,67 @@ impl Relationship {
         }
     }
 
+    /// Create a relationship with explicit sentiment.
+    ///
+    /// The sentiment is clamped to the range -1.0..=1.0 where -1.0 represents
+    /// hatred and 1.0 represents love/deep affection.
+    ///
+    /// # Arguments
+    /// * `from` - The character this relationship originates from
+    /// * `to` - The character this relationship points to
+    /// * `relationship_type` - The type of relationship
+    /// * `sentiment` - Initial sentiment value (-1.0 to 1.0)
+    ///
+    /// # Example
+    /// ```ignore
+    /// let rivalry = Relationship::new_with_sentiment(
+    ///     hero_id,
+    ///     villain_id,
+    ///     RelationshipType::Rivalry,
+    ///     -0.8,
+    /// );
+    /// ```
+    pub fn new_with_sentiment(
+        from: CharacterId,
+        to: CharacterId,
+        relationship_type: RelationshipType,
+        sentiment: f32,
+    ) -> Self {
+        Self {
+            id: RelationshipId::new(),
+            from_character: from,
+            to_character: to,
+            relationship_type,
+            sentiment: sentiment.clamp(-1.0, 1.0),
+            history: Vec::new(),
+            known_to_player: true,
+        }
+    }
+
+    /// Set the sentiment of this relationship using builder pattern.
+    ///
+    /// The sentiment is clamped to -1.0..=1.0.
     pub fn with_sentiment(mut self, sentiment: f32) -> Self {
         self.sentiment = sentiment.clamp(-1.0, 1.0);
         self
     }
 
+    /// Mark this relationship as secret (hidden from the player).
     pub fn secret(mut self) -> Self {
         self.known_to_player = false;
         self
     }
 
+    /// Add a historical event to this relationship.
+    ///
+    /// Events track how the relationship has evolved over time.
     pub fn add_event(&mut self, event: RelationshipEvent) {
         self.history.push(event);
     }
 }
 
 /// Types of relationships between characters
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RelationshipType {
     Family(FamilyRelation),
     Romantic,
@@ -58,7 +121,7 @@ pub enum RelationshipType {
 }
 
 /// Family relationship subtypes
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum FamilyRelation {
     Parent,
     Child,
@@ -72,7 +135,7 @@ pub enum FamilyRelation {
 }
 
 /// An event that affected a relationship
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RelationshipEvent {
     pub description: String,
     pub sentiment_change: f32,

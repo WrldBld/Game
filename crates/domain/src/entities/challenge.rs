@@ -508,6 +508,46 @@ impl Default for Difficulty {
 }
 
 impl Difficulty {
+    /// Create a DC (Difficulty Class) difficulty for D20 systems.
+    ///
+    /// The DC must be at least 1. A roll + modifier >= DC results in success.
+    ///
+    /// # Arguments
+    /// * `value` - The difficulty class value (must be >= 1)
+    ///
+    /// # Panics
+    /// Panics if value is 0.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let difficulty = Difficulty::dc(15); // DC 15 check
+    /// ```
+    pub fn dc(value: u32) -> Self {
+        assert!(value >= 1, "DC must be at least 1");
+        Difficulty::DC(value)
+    }
+
+    /// Create a percentage difficulty for D100/percentile systems.
+    ///
+    /// The percentage must be between 1 and 100 inclusive.
+    /// In percentage systems, the roll must be <= the target to succeed
+    /// (lower is better).
+    ///
+    /// # Arguments
+    /// * `value` - The percentage target (1-100)
+    ///
+    /// # Panics
+    /// Panics if value is not in the range 1-100.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let difficulty = Difficulty::percentage(45); // 45% chance of success
+    /// ```
+    pub fn percentage(value: u32) -> Self {
+        assert!(value >= 1 && value <= 100, "Percentage must be 1-100");
+        Difficulty::Percentage(value)
+    }
+
     /// Get a human-readable description
     pub fn display(&self) -> String {
         match self {

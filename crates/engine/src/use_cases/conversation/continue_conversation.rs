@@ -8,7 +8,10 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerActionData, PlayerCharacterId, WorldId};
 
-use crate::entities::{Character, Narrative, PlayerCharacter, Staging, World};
+use crate::entities::{PlayerCharacter, World};
+use crate::use_cases::character_operations::Character;
+use crate::use_cases::narrative_operations::Narrative;
+use crate::use_cases::staging_operations::Staging;
 use crate::infrastructure::ports::{ClockPort, QueuePort};
 
 // Re-use the shared ConversationError from start.rs
@@ -216,6 +219,7 @@ mod tests {
         MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
         MockStagingRepo, MockWorldRepo, QueueError, QueueItem, QueuePort,
     };
+    use crate::use_cases::{Character as CharacterOp, Narrative, Staging as StagingOp};
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -346,10 +350,10 @@ mod tests {
         }
     }
 
-    fn create_narrative_entity(narrative_repo: MockNarrativeRepo) -> Arc<entities::Narrative> {
+    fn create_narrative_entity(narrative_repo: MockNarrativeRepo) -> Arc<Narrative> {
         let now = Utc::now();
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        Arc::new(entities::Narrative::new(
+        Arc::new(Narrative::new(
             Arc::new(narrative_repo),
             Arc::new(MockLocationRepo::new()),
             Arc::new(MockWorldRepo::new()),
@@ -380,9 +384,9 @@ mod tests {
         let queue = Arc::new(RecordingQueuePort::new(Uuid::new_v4()));
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(entities::Character::new(Arc::new(MockCharacterRepo::new()))),
+            Arc::new(CharacterOp::new(Arc::new(MockCharacterRepo::new()))),
             Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(entities::Staging::new(Arc::new(MockStagingRepo::new()))),
+            Arc::new(StagingOp::new(Arc::new(MockStagingRepo::new()))),
             Arc::new(entities::World::new(
                 Arc::new(MockWorldRepo::new()),
                 clock.clone(),
@@ -442,9 +446,9 @@ mod tests {
         let queue = Arc::new(RecordingQueuePort::new(Uuid::new_v4()));
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(entities::Character::new(Arc::new(character_repo))),
+            Arc::new(CharacterOp::new(Arc::new(character_repo))),
             Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(entities::Staging::new(Arc::new(MockStagingRepo::new()))),
+            Arc::new(StagingOp::new(Arc::new(MockStagingRepo::new()))),
             Arc::new(entities::World::new(
                 Arc::new(MockWorldRepo::new()),
                 clock.clone(),
@@ -511,9 +515,9 @@ mod tests {
         let queue = Arc::new(RecordingQueuePort::new(Uuid::new_v4()));
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(entities::Character::new(Arc::new(character_repo))),
+            Arc::new(CharacterOp::new(Arc::new(character_repo))),
             Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(entities::Staging::new(Arc::new(MockStagingRepo::new()))),
+            Arc::new(StagingOp::new(Arc::new(MockStagingRepo::new()))),
             Arc::new(entities::World::new(
                 Arc::new(MockWorldRepo::new()),
                 clock.clone(),
@@ -586,9 +590,9 @@ mod tests {
         let queue = Arc::new(RecordingQueuePort::new(Uuid::new_v4()));
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(entities::Character::new(Arc::new(character_repo))),
+            Arc::new(CharacterOp::new(Arc::new(character_repo))),
             Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(entities::Staging::new(Arc::new(MockStagingRepo::new()))),
+            Arc::new(StagingOp::new(Arc::new(MockStagingRepo::new()))),
             Arc::new(entities::World::new(Arc::new(world_repo), clock.clone())),
             create_narrative_entity(MockNarrativeRepo::new()),
             queue.clone(),
@@ -694,9 +698,9 @@ mod tests {
         let queue = Arc::new(RecordingQueuePort::new(Uuid::new_v4()));
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(entities::Character::new(Arc::new(character_repo))),
+            Arc::new(CharacterOp::new(Arc::new(character_repo))),
             Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(entities::Staging::new(Arc::new(staging_repo))),
+            Arc::new(StagingOp::new(Arc::new(staging_repo))),
             Arc::new(entities::World::new(Arc::new(world_repo), clock.clone())),
             create_narrative_entity(MockNarrativeRepo::new()),
             queue.clone(),
@@ -808,9 +812,9 @@ mod tests {
         let queue = Arc::new(RecordingQueuePort::new(Uuid::new_v4()));
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(entities::Character::new(Arc::new(character_repo))),
+            Arc::new(CharacterOp::new(Arc::new(character_repo))),
             Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(entities::Staging::new(Arc::new(staging_repo))),
+            Arc::new(StagingOp::new(Arc::new(staging_repo))),
             Arc::new(entities::World::new(Arc::new(world_repo), clock.clone())),
             create_narrative_entity(narrative_repo),
             queue.clone(),
@@ -922,9 +926,9 @@ mod tests {
         let queue = Arc::new(RecordingQueuePort::new(Uuid::new_v4()));
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(entities::Character::new(Arc::new(character_repo))),
+            Arc::new(CharacterOp::new(Arc::new(character_repo))),
             Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(entities::Staging::new(Arc::new(staging_repo))),
+            Arc::new(StagingOp::new(Arc::new(staging_repo))),
             Arc::new(entities::World::new(Arc::new(world_repo), clock.clone())),
             create_narrative_entity(narrative_repo),
             queue.clone(),
@@ -1040,9 +1044,9 @@ mod tests {
         let queue = Arc::new(RecordingQueuePort::new(queue_id));
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(entities::Character::new(Arc::new(character_repo))),
+            Arc::new(CharacterOp::new(Arc::new(character_repo))),
             Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(entities::Staging::new(Arc::new(staging_repo))),
+            Arc::new(StagingOp::new(Arc::new(staging_repo))),
             Arc::new(entities::World::new(Arc::new(world_repo), clock.clone())),
             create_narrative_entity(narrative_repo),
             queue.clone(),
@@ -1168,9 +1172,9 @@ mod tests {
         let queue = Arc::new(RecordingQueuePort::new(queue_id));
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(entities::Character::new(Arc::new(character_repo))),
+            Arc::new(CharacterOp::new(Arc::new(character_repo))),
             Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(entities::Staging::new(Arc::new(staging_repo))),
+            Arc::new(StagingOp::new(Arc::new(staging_repo))),
             Arc::new(entities::World::new(Arc::new(world_repo), clock.clone())),
             create_narrative_entity(narrative_repo),
             queue.clone(),

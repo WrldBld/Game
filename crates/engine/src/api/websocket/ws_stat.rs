@@ -398,7 +398,7 @@ fn character_stats_to_json(character: &domain::Character) -> serde_json::Value {
 
     let modifiers_json: serde_json::Map<String, serde_json::Value> = character
         .stats
-        .modifiers
+        .modifiers()
         .iter()
         .map(|(stat_name, mods)| {
             (

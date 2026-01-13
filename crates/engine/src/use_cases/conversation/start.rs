@@ -8,7 +8,10 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerActionData, PlayerCharacterId, WorldId};
 
-use crate::entities::{Character, PlayerCharacter, Scene, Staging, World};
+use crate::entities::{PlayerCharacter, World};
+use crate::use_cases::character_operations::Character;
+use crate::use_cases::scene_operations::Scene;
+use crate::use_cases::staging_operations::Staging;
 use crate::infrastructure::ports::{ClockPort, QueuePort, RepoError};
 
 /// Result of starting a conversation.
@@ -209,6 +212,7 @@ mod tests {
         ClockPort, MockCharacterRepo, MockPlayerCharacterRepo, MockSceneRepo, MockStagingRepo,
         MockWorldRepo, QueueError, QueueItem, QueuePort,
     };
+    use crate::use_cases::{Character as CharacterOp, Scene as SceneOp, Staging as StagingOp};
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -396,10 +400,10 @@ mod tests {
         let queue = Arc::new(RecordingQueuePort::new(queue_id));
 
         let use_case = super::StartConversation::new(
-            Arc::new(entities::Character::new(Arc::new(character_repo))),
+            Arc::new(CharacterOp::new(Arc::new(character_repo))),
             Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(entities::Staging::new(Arc::new(staging_repo))),
-            Arc::new(entities::Scene::new(Arc::new(MockSceneRepo::new()))),
+            Arc::new(StagingOp::new(Arc::new(staging_repo))),
+            Arc::new(SceneOp::new(Arc::new(MockSceneRepo::new()))),
             Arc::new(entities::World::new(Arc::new(world_repo), clock.clone())),
             queue.clone(),
             clock.clone(),
@@ -505,10 +509,10 @@ mod tests {
         let queue = Arc::new(RecordingQueuePort::new(queue_id));
 
         let use_case = super::StartConversation::new(
-            Arc::new(entities::Character::new(Arc::new(character_repo))),
+            Arc::new(CharacterOp::new(Arc::new(character_repo))),
             Arc::new(entities::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(entities::Staging::new(Arc::new(staging_repo))),
-            Arc::new(entities::Scene::new(Arc::new(MockSceneRepo::new()))),
+            Arc::new(StagingOp::new(Arc::new(staging_repo))),
+            Arc::new(SceneOp::new(Arc::new(MockSceneRepo::new()))),
             Arc::new(entities::World::new(Arc::new(world_repo), clock.clone())),
             queue.clone(),
             clock.clone(),
