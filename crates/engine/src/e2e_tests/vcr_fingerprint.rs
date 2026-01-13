@@ -45,26 +45,23 @@ impl RequestFingerprint {
 
     /// Create a fingerprint from an LLM request with optional tools.
     ///
-    /// Hashes structural elements to create a content-based identifier
-    /// that survives minor content variations.
+    /// Hashes the full content of request elements to create a content-based
+    /// identifier for cassette matching.
     pub fn from_request_with_tools(request: &LlmRequest, tools: Option<&[ToolDefinition]>) -> Self {
         let mut hasher = Sha256::new();
 
-        // Hash system prompt prefix (first 200 chars for fuzzy matching)
+        // Hash full system prompt
         if let Some(system) = &request.system_prompt {
             hasher.update(b"system:");
-            let prefix: String = system.chars().take(200).collect();
-            hasher.update(prefix.as_bytes());
+            hasher.update(system.as_bytes());
         }
 
-        // Hash message structure (role + content prefix)
+        // Hash full message structure (role + full content)
         for msg in &request.messages {
             hasher.update(b"msg:");
             hasher.update(format!("{:?}", msg.role).as_bytes());
             hasher.update(b":");
-            // First 200 chars of content for fuzzy matching
-            let content_prefix: String = msg.content.chars().take(200).collect();
-            hasher.update(content_prefix.as_bytes());
+            hasher.update(msg.content.as_bytes());
         }
 
         // Hash tool names if present (order-independent by sorting)

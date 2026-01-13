@@ -1,27 +1,31 @@
 {
-  "version": "1.0",
-  "recorded_at": "2026-01-12T10:00:00Z",
-  "llm_model": "llama3.2",
-  "recordings": [
-    {
-      "index": 0,
-      "request_summary": "System: You are Marta Hearthwood... | User: Hello! I'm looking for information about the village.",
-      "response": {
-        "content": "Well now, a newcomer with questions! I'm always happy to help folks find their way around Thornhaven. We're a small village, but we've got everything you might need. The temple of Solara is just down the lane if you're the prayerful type. The blacksmith Grom does fine work, though he keeps odd hours. What specifically were you wondering about?",
-        "tool_calls": [],
-        "finish_reason": "Stop"
-      },
-      "recorded_at": "2026-01-12T10:00:01Z"
-    },
-    {
-      "index": 1,
-      "request_summary": "System: You are Marta Hearthwood... | User: What can you tell me about the local merchants?",
-      "response": {
-        "content": "Ah, looking to do some shopping? Well, we've got a few folks who can help you there. Old Thaddeus runs the general store near the village square - he can get you supplies, tools, that sort of thing. If you need something more... specialized, there's Elara the herbalist. Her shop's a bit out of the way, but she knows her craft. And of course, Grom the blacksmith for anything metal. Fair warning though - Grom's not much for small talk.",
-        "tool_calls": [],
-        "finish_reason": "Stop"
-      },
-      "recorded_at": "2026-01-12T10:00:02Z"
-    }
-  ]
+  "version": "2.0",
+  "recorded_at": "2026-01-13T15:03:06.380725+00:00",
+  "llm_model": "gpt-oss:20b",
+  "recordings": {
+    "0b6842fd7f9aa5cec673eda75f12beda9678203b7f34d895ea005962594277cd": [
+      {
+        "fingerprint": "0b6842fd7f9aa5cec673eda75f12beda9678203b7f34d895ea005962594277cd",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 0... | tools:11",
+        "response": {
+          "content": "Marta Hearthwood smiles warmly. \"Welcome to the Drowsy Dragon! The village is a quiet place, just a few farms and a blacksmith, but there’s a rumor about a hidden cave near the old mill—some say it holds forgotten treasure.\"",
+          "tool_calls": [],
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-13T15:05:07.697334+00:00"
+      }
+    ],
+    "ef696556d079ff69486e0d2c3f3f5a44f284c539ff215b3cf338d5f967cf018f": [
+      {
+        "fingerprint": "ef696556d079ff69486e0d2c3f3f5a44f284c539ff215b3cf338d5f967cf018f",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 0... | tools:11",
+        "response": {
+          "content": "“Most of the trade in Hereford comes from the merchants who set up shop at the market square—there’s a spice trader named Liora who deals in rare herbs, a stout‑blacksmith called Brann who sells sturdy wares, and a traveling merchant, Joren, who brings goods from the coast. Keep an eye on their stalls; they’re usually honest but always look for a good deal.”",
+          "tool_calls": [],
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-13T15:05:23.167750+00:00"
+      }
+    ]
+  }
 }

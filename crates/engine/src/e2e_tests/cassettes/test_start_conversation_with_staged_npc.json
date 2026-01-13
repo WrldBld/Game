@@ -1,17 +1,19 @@
 {
-  "version": "1.0",
-  "recorded_at": "2026-01-12T10:00:00Z",
-  "llm_model": "llama3.2",
-  "recordings": [
-    {
-      "index": 0,
-      "request_summary": "System: You are Marta Hearthwood... | User: Good morning! I'm new to Thornhaven.",
-      "response": {
-        "content": "Good morning, traveler! Welcome to the Drowsy Dragon Inn. I'm Marta Hearthwood, the innkeeper here. You picked a good place to start your visit to Thornhaven - we've got the best stew in the village, if I do say so myself. What brings you to our quiet little corner of the world?",
-        "tool_calls": [],
-        "finish_reason": "Stop"
-      },
-      "recorded_at": "2026-01-12T10:00:01Z"
-    }
-  ]
+  "version": "2.0",
+  "recorded_at": "2026-01-13T14:57:02.798544+00:00",
+  "llm_model": "gpt-oss:20b",
+  "recordings": {
+    "e59a7ec6ea5d752553b7cc13e81789d735bd94b15f9692beeecdf2c106b8d4ba": [
+      {
+        "fingerprint": "e59a7ec6ea5d752553b7cc13e81789d735bd94b15f9692beeecdf2c106b8d4ba",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 0... | tools:11",
+        "response": {
+          "content": "Welcome to Thornhaven, stranger. The Drowsy Dragon Inn has a cozy hearth and a hearty stew waiting for newcomers. Let me know if you need a place to rest or a warm drink.",
+          "tool_calls": [],
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-13T14:59:30.185857+00:00"
+      }
+    ]
+  }
 }
