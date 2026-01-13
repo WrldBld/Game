@@ -280,11 +280,6 @@ pub(super) async fn handle_location_request(
                 )),
             }
         }
-
-        other => {
-            let msg = format!("This request type is not yet implemented: {:?}", other);
-            Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
-        }
     }
 }
 

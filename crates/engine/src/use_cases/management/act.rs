@@ -55,4 +55,43 @@ impl ActCrud {
         self.act.save(&act).await?;
         Ok(act)
     }
+
+    pub async fn update(
+        &self,
+        act_id: ActId,
+        name: Option<String>,
+        description: Option<String>,
+        order: Option<u32>,
+    ) -> Result<wrldbldr_domain::Act, ManagementError> {
+        let mut act = self
+            .act
+            .get(act_id)
+            .await?
+            .ok_or(ManagementError::NotFound)?;
+
+        if let Some(name) = name {
+            if name.trim().is_empty() {
+                return Err(ManagementError::InvalidInput(
+                    "Act name cannot be empty".to_string(),
+                ));
+            }
+            act.name = name;
+        }
+
+        if let Some(description) = description {
+            act.description = description;
+        }
+
+        if let Some(order) = order {
+            act.order = order;
+        }
+
+        self.act.save(&act).await?;
+        Ok(act)
+    }
+
+    pub async fn delete(&self, act_id: ActId) -> Result<(), ManagementError> {
+        self.act.delete(act_id).await?;
+        Ok(())
+    }
 }

@@ -822,6 +822,9 @@ impl CharacterRepo for Neo4jCharacterRepo {
         want_id: WantId,
         target: WantTargetRef,
     ) -> Result<WantTarget, RepoError> {
+        // SAFETY: target_match comes from a match on WantTargetRef enum and produces
+        // only static query fragments. Cypher does not support parameterized query
+        // structure, so format!() is required here for the MATCH clause.
         let (target_match, target_id) = match target {
             WantTargetRef::Character(id) => (
                 "MATCH (target) WHERE target.id = $target_id AND (target:Character OR target:PlayerCharacter)",
@@ -1234,6 +1237,9 @@ impl CharacterRepo for Neo4jCharacterRepo {
         role: ActantialRole,
         reason: String,
     ) -> Result<ActantialViewRecord, RepoError> {
+        // SAFETY: relationship_type comes from actantial_role_to_relationship() which
+        // returns only static strings from an enum match. Cypher does not support
+        // parameterized relationship types, so format!() is required here.
         let relationship_type = actantial_role_to_relationship(role);
         let target_id = target.id_string();
 
@@ -1289,6 +1295,9 @@ impl CharacterRepo for Neo4jCharacterRepo {
         target: ActantialTarget,
         role: ActantialRole,
     ) -> Result<(), RepoError> {
+        // SAFETY: relationship_type comes from actantial_role_to_relationship() which
+        // returns only static strings from an enum match. Cypher does not support
+        // parameterized relationship types, so format!() is required here.
         let relationship_type = actantial_role_to_relationship(role);
 
         let q = query(&format!(

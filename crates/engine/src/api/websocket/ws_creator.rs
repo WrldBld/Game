@@ -520,11 +520,6 @@ pub(super) async fn handle_ai_request(
                 "status": "queued",
             })))
         }
-
-        other => {
-            let msg = format!("This request type is not yet implemented: {:?}", other);
-            Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
-        }
     }
 }
 

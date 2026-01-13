@@ -60,4 +60,36 @@ impl RelationshipCrud {
         self.character.delete_relationship(relationship_id).await?;
         Ok(())
     }
+
+    pub async fn get_for_character(
+        &self,
+        character_id: CharacterId,
+    ) -> Result<Vec<wrldbldr_domain::Relationship>, ManagementError> {
+        Ok(self.character.get_relationships(character_id).await?)
+    }
+
+    pub async fn add_event(
+        &self,
+        from_id: CharacterId,
+        to_id: CharacterId,
+        description: String,
+        sentiment_change: f32,
+    ) -> Result<wrldbldr_domain::Relationship, ManagementError> {
+        // Find the existing relationship
+        let relationships = self.character.get_relationships(from_id).await?;
+        let mut relationship = relationships
+            .into_iter()
+            .find(|r| r.to_character == to_id)
+            .ok_or(ManagementError::NotFound)?;
+
+        // Add the event
+        relationship.add_event(wrldbldr_domain::RelationshipEvent {
+            description,
+            sentiment_change,
+            timestamp: self.clock.now(),
+        });
+
+        self.character.save_relationship(&relationship).await?;
+        Ok(relationship)
+    }
 }

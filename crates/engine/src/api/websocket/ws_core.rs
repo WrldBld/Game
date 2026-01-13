@@ -244,11 +244,6 @@ pub(super) async fn handle_world_request(
                 )),
             }
         }
-
-        other => {
-            let msg = format!("This request type is not yet implemented: {:?}", other);
-            Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
-        }
     }
 }
 
@@ -519,11 +514,6 @@ pub(super) async fn handle_character_request(
                 })
                 .collect();
             Ok(ResponseResult::success(data))
-        }
-
-        other => {
-            let msg = format!("This request type is not yet implemented: {:?}", other);
-            Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
         }
     }
 }
@@ -1446,11 +1436,6 @@ pub(super) async fn handle_npc_request(
                     &e.to_string(),
                 )),
             }
-        }
-
-        other => {
-            let msg = format!("This request type is not yet implemented: {:?}", other);
-            Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
         }
     }
 }
