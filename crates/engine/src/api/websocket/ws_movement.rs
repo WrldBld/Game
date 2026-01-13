@@ -72,6 +72,28 @@ fn region_item_to_proto(item: RegionItemInfo) -> RegionItemData {
     }
 }
 
+/// Convert staging approval domain data to protocol message.
+fn staging_approval_to_server_message(
+    approval: &crate::use_cases::staging::StagingApprovalData,
+) -> ServerMessage {
+    ServerMessage::StagingApprovalRequired {
+        request_id: approval.request_id.clone(),
+        region_id: approval.region_id.to_string(),
+        region_name: approval.region_name.clone(),
+        location_id: approval.location_id.to_string(),
+        location_name: approval.location_name.clone(),
+        game_time: approval.game_time.to_protocol(),
+        previous_staging: approval.previous_staging.as_ref().map(|s| s.to_protocol()),
+        rule_based_npcs: approval.rule_based_npcs.iter().map(|n| n.to_protocol()).collect(),
+        llm_based_npcs: approval.llm_based_npcs.iter().map(|n| n.to_protocol()).collect(),
+        default_ttl_hours: approval.default_ttl_hours,
+        waiting_pcs: approval.waiting_pcs.iter().map(|pc| pc.to_protocol()).collect(),
+        resolved_visual_state: approval.resolved_visual_state.clone(),
+        available_location_states: approval.available_location_states.clone(),
+        available_region_states: approval.available_region_states.clone(),
+    }
+}
+
 pub(super) async fn handle_move_to_region(
     state: &WsState,
     connection_id: Uuid,
@@ -114,7 +136,6 @@ pub(super) async fn handle_move_to_region(
             match result.staging_status {
                 StagingStatus::Pending { previous_staging } => {
                     let ctx = crate::use_cases::staging::StagingApprovalContext {
-                        dm_notifier: state.connections.as_ref(),
                         pending_time_suggestions: &state.pending_time_suggestions,
                         pending_staging_requests: &state.pending_staging_requests,
                     };
@@ -135,12 +156,32 @@ pub(super) async fn handle_move_to_region(
                         .execute(&ctx, input)
                         .await
                     {
-                        Ok(pending_msg) => {
-                            // Note: use case already broadcasts StagingApprovalRequired to DMs
-                            maybe_broadcast_time_suggestion(state, world_id, &result.time_suggestion)
+                        Ok(staging_result) => {
+                            // Convert domain types to protocol and notify DMs
+                            let approval_msg =
+                                staging_approval_to_server_message(&staging_result.approval);
+                            state
+                                .connections
+                                .broadcast_to_dms(world_id, approval_msg)
                                 .await;
 
-                            // Send StagingPending to player (includes timeout for countdown)
+                            // Send time suggestion to DMs if present
+                            if let Some(ref time_suggestion) = staging_result.time_suggestion {
+                                let suggestion_msg = ServerMessage::TimeSuggestion {
+                                    data: time_suggestion.to_protocol(),
+                                };
+                                state
+                                    .connections
+                                    .broadcast_to_dms(world_id, suggestion_msg)
+                                    .await;
+                            }
+
+                            // Send StagingPending to player
+                            let pending_msg = ServerMessage::StagingPending {
+                                region_id: staging_result.pending.region_id.to_string(),
+                                region_name: staging_result.pending.region_name,
+                                timeout_seconds: staging_result.pending.timeout_seconds,
+                            };
                             state.connections.send_to_pc(pc_uuid, pending_msg).await;
 
                             None
@@ -262,7 +303,6 @@ pub(super) async fn handle_exit_to_location(
             match result.staging_status {
                 StagingStatus::Pending { previous_staging } => {
                     let ctx = crate::use_cases::staging::StagingApprovalContext {
-                        dm_notifier: state.connections.as_ref(),
                         pending_time_suggestions: &state.pending_time_suggestions,
                         pending_staging_requests: &state.pending_staging_requests,
                     };
@@ -283,18 +323,33 @@ pub(super) async fn handle_exit_to_location(
                         .execute(&ctx, input)
                         .await
                     {
-                        Ok(_) => {
-                            // Note: use case already broadcasts StagingApprovalRequired to DMs
-                            maybe_broadcast_time_suggestion(state, world_id, &result.time_suggestion)
+                        Ok(staging_result) => {
+                            // Convert domain types to protocol and notify DMs
+                            let approval_msg =
+                                staging_approval_to_server_message(&staging_result.approval);
+                            state
+                                .connections
+                                .broadcast_to_dms(world_id, approval_msg)
                                 .await;
 
-                            // Send StagingPending to player (includes timeout for countdown)
-                            let pending = ServerMessage::StagingPending {
-                                region_id: result.region.id.to_string(),
-                                region_name: result.region.name.clone(),
-                                timeout_seconds: crate::use_cases::staging::DEFAULT_STAGING_TIMEOUT_SECONDS,
+                            // Send time suggestion to DMs if present
+                            if let Some(ref time_suggestion) = staging_result.time_suggestion {
+                                let suggestion_msg = ServerMessage::TimeSuggestion {
+                                    data: time_suggestion.to_protocol(),
+                                };
+                                state
+                                    .connections
+                                    .broadcast_to_dms(world_id, suggestion_msg)
+                                    .await;
+                            }
+
+                            // Send StagingPending to player
+                            let pending_msg = ServerMessage::StagingPending {
+                                region_id: staging_result.pending.region_id.to_string(),
+                                region_name: staging_result.pending.region_name,
+                                timeout_seconds: staging_result.pending.timeout_seconds,
                             };
-                            state.connections.send_to_pc(pc_uuid, pending).await;
+                            state.connections.send_to_pc(pc_uuid, pending_msg).await;
 
                             None
                         }

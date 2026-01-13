@@ -15,8 +15,7 @@ use crate::entities::{
     Character, Flag, Location, LocationStateEntity, RegionStateEntity, Staging, World,
 };
 use crate::infrastructure::ports::{
-    ChatMessage, DmNotificationPort, LlmPort, LlmRequest, NpcRegionRelationType, RepoError,
-    SettingsRepo,
+    ChatMessage, LlmPort, LlmRequest, NpcRegionRelationType, RepoError, SettingsRepo,
 };
 use crate::use_cases::time::TimeSuggestion;
 use crate::use_cases::visual_state::{ResolveVisualState, StateResolutionContext};
@@ -24,7 +23,6 @@ use wrldbldr_domain::{
     CharacterId, LocationId, PlayerCharacter, RegionId, Staging as DomainStaging, StagingSource,
     WorldId,
 };
-use wrldbldr_protocol::ServerMessage;
 
 /// Timeout in seconds before a pending staging request auto-approves.
 /// This is the delay shown to players while waiting for DM approval.
@@ -243,9 +241,68 @@ impl PreviousStagingData {
     }
 }
 
+/// Domain type for game time.
+#[derive(Debug, Clone)]
+pub struct GameTimeData {
+    pub day: u32,
+    pub hour: u8,
+    pub minute: u8,
+    pub is_paused: bool,
+}
+
+impl GameTimeData {
+    /// Convert to protocol type for wire transmission.
+    pub fn to_protocol(&self) -> wrldbldr_protocol::types::GameTime {
+        wrldbldr_protocol::types::GameTime {
+            day: self.day,
+            hour: self.hour,
+            minute: self.minute,
+            is_paused: self.is_paused,
+        }
+    }
+}
+
+/// Data for DM staging approval notification.
+#[derive(Debug, Clone)]
+pub struct StagingApprovalData {
+    pub request_id: String,
+    pub region_id: RegionId,
+    pub region_name: String,
+    pub location_id: LocationId,
+    pub location_name: String,
+    pub game_time: GameTimeData,
+    pub previous_staging: Option<PreviousStagingData>,
+    pub rule_based_npcs: Vec<StagedNpc>,
+    pub llm_based_npcs: Vec<StagedNpc>,
+    pub default_ttl_hours: i32,
+    pub waiting_pcs: Vec<WaitingPc>,
+    // Visual state data (kept as protocol types for now)
+    pub resolved_visual_state: Option<wrldbldr_protocol::types::ResolvedVisualStateData>,
+    pub available_location_states: Vec<wrldbldr_protocol::types::StateOptionData>,
+    pub available_region_states: Vec<wrldbldr_protocol::types::StateOptionData>,
+}
+
+/// Result of staging request use case.
+#[derive(Debug, Clone)]
+pub struct StagingRequestResult {
+    /// Data for the player response (StagingPending).
+    pub pending: StagingPendingData,
+    /// Data for DM notification (StagingApprovalRequired).
+    pub approval: StagingApprovalData,
+    /// Optional time suggestion for DM notification.
+    pub time_suggestion: Option<TimeSuggestion>,
+}
+
+/// Data for player staging pending response.
+#[derive(Debug, Clone)]
+pub struct StagingPendingData {
+    pub region_id: RegionId,
+    pub region_name: String,
+    pub timeout_seconds: u64,
+}
+
 /// IO dependencies for staging requests (WS-state owned).
 pub struct StagingApprovalContext<'a> {
-    pub dm_notifier: &'a dyn DmNotificationPort,
     pub pending_time_suggestions: &'a dyn TimeSuggestionStore,
     pub pending_staging_requests: &'a dyn PendingStagingStore,
 }
@@ -299,7 +356,7 @@ impl RequestStagingApproval {
         &self,
         ctx: &StagingApprovalContext<'_>,
         input: StagingApprovalInput,
-    ) -> Result<ServerMessage, StagingError> {
+    ) -> Result<StagingRequestResult, StagingError> {
         let request_id = Uuid::new_v4().to_string();
 
         ctx.pending_staging_requests
@@ -349,75 +406,66 @@ impl RequestStagingApproval {
             .resolve_visual_states(input.world_id, input.region.location_id, input.region.id)
             .await;
 
-        // Convert previous staging to domain type, then to protocol
-        let previous_staging = input.previous_staging.map(|s| {
-            PreviousStagingData {
-                staging_id: s.id.into(),
-                approved_at: s.approved_at,
-                npcs: s
-                    .npcs
-                    .into_iter()
-                    .map(|n| StagedNpc {
-                        character_id: n.character_id,
-                        name: n.name,
-                        sprite_asset: n.sprite_asset,
-                        portrait_asset: n.portrait_asset,
-                        is_present: n.is_present,
-                        reasoning: n.reasoning,
-                        is_hidden_from_players: n.is_hidden_from_players,
-                        mood: Some(n.mood.to_string()),
-                    })
-                    .collect(),
-            }
-            .to_protocol()
+        // Convert previous staging to domain type
+        let previous_staging = input.previous_staging.map(|s| PreviousStagingData {
+            staging_id: s.id.into(),
+            approved_at: s.approved_at,
+            npcs: s
+                .npcs
+                .into_iter()
+                .map(|n| StagedNpc {
+                    character_id: n.character_id,
+                    name: n.name,
+                    sprite_asset: n.sprite_asset,
+                    portrait_asset: n.portrait_asset,
+                    is_present: n.is_present,
+                    reasoning: n.reasoning,
+                    is_hidden_from_players: n.is_hidden_from_players,
+                    mood: Some(n.mood.to_string()),
+                })
+                .collect(),
         });
 
-        // Convert domain types to protocol for the message
-        let approval_msg = ServerMessage::StagingApprovalRequired {
-            request_id: request_id.clone(),
-            region_id: input.region.id.to_string(),
-            region_name: input.region.name.clone(),
-            location_id: input.region.location_id.to_string(),
-            location_name: location_name.clone(),
-            game_time: wrldbldr_protocol::types::GameTime {
-                day: now.ordinal() as u32,
-                hour: now.hour() as u8,
-                minute: now.minute() as u8,
-                is_paused: world.game_time.is_paused(),
-            },
-            previous_staging,
-            rule_based_npcs: rule_based_npcs.iter().map(|n| n.to_protocol()).collect(),
-            llm_based_npcs: llm_based_npcs.iter().map(|n| n.to_protocol()).collect(),
-            default_ttl_hours: settings.default_presence_cache_ttl_hours,
-            waiting_pcs: vec![WaitingPc {
-                pc_id: input.pc.id,
-                pc_name: input.pc.name.clone(),
-                player_id: input.pc.user_id.clone(),
-            }
-            .to_protocol()],
-            resolved_visual_state,
-            available_location_states,
-            available_region_states,
-        };
-
-        ctx.dm_notifier.notify_dms(input.world_id, approval_msg).await;
-
-        if let Some(time_suggestion) = input.time_suggestion {
+        // Store time suggestion if present
+        if let Some(ref time_suggestion) = input.time_suggestion {
             ctx.pending_time_suggestions
                 .insert(time_suggestion.id, time_suggestion.clone())
                 .await;
-            let suggestion_msg = ServerMessage::TimeSuggestion {
-                data: time_suggestion.to_protocol(),
-            };
-            ctx.dm_notifier
-                .notify_dms(input.world_id, suggestion_msg)
-                .await;
         }
 
-        Ok(ServerMessage::StagingPending {
-            region_id: input.region.id.to_string(),
-            region_name: input.region.name,
-            timeout_seconds: DEFAULT_STAGING_TIMEOUT_SECONDS,
+        // Build domain result - API layer will convert to protocol and notify DMs
+        Ok(StagingRequestResult {
+            pending: StagingPendingData {
+                region_id: input.region.id,
+                region_name: input.region.name.clone(),
+                timeout_seconds: DEFAULT_STAGING_TIMEOUT_SECONDS,
+            },
+            approval: StagingApprovalData {
+                request_id,
+                region_id: input.region.id,
+                region_name: input.region.name,
+                location_id: input.region.location_id,
+                location_name,
+                game_time: GameTimeData {
+                    day: now.ordinal() as u32,
+                    hour: now.hour() as u8,
+                    minute: now.minute() as u8,
+                    is_paused: world.game_time.is_paused(),
+                },
+                previous_staging,
+                rule_based_npcs,
+                llm_based_npcs,
+                default_ttl_hours: settings.default_presence_cache_ttl_hours,
+                waiting_pcs: vec![WaitingPc {
+                    pc_id: input.pc.id,
+                    pc_name: input.pc.name.clone(),
+                    player_id: input.pc.user_id.clone(),
+                }],
+                resolved_visual_state,
+                available_location_states,
+                available_region_states,
+            },
+            time_suggestion: input.time_suggestion,
         })
     }
 
