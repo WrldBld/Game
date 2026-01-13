@@ -3,6 +3,12 @@
 //! Records real LLM responses during test development, then replays them
 //! for deterministic, fast test execution without requiring a live LLM.
 //!
+//! # Fingerprint-Based Matching
+//!
+//! Uses content-based fingerprinting to match requests to recordings.
+//! This allows tests to add/remove LLM calls without breaking all
+//! subsequent recordings (unlike sequential playback).
+//!
 //! # Usage
 //!
 //! ```bash
@@ -16,7 +22,7 @@
 //! E2E_LLM_MODE=live cargo test -p wrldbldr-engine --lib e2e_tests -- --ignored
 //! ```
 
-use std::collections::VecDeque;
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -32,6 +38,7 @@ use crate::infrastructure::ports::{
 };
 
 use super::event_log::{ChatMessageLog, E2EEvent, E2EEventLog, TokenUsageLog, ToolCallLog};
+use super::vcr_fingerprint::RequestFingerprint;
 
 /// Recording mode for VCR LLM.
 #[derive(Debug, Clone)]
@@ -47,8 +54,8 @@ pub enum VcrMode {
 /// A single recorded LLM interaction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmRecording {
-    /// Index in the recording sequence.
-    pub index: usize,
+    /// Fingerprint hex for this recording.
+    pub fingerprint: String,
     /// Summary of the request for debugging.
     pub request_summary: String,
     /// The LLM response.
@@ -74,21 +81,25 @@ pub struct RecordedToolCall {
 }
 
 /// Cassette file format containing recorded LLM interactions.
+///
+/// Version 2.0: Fingerprint-indexed recordings for robust matching.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmCassette {
     pub version: String,
     pub recorded_at: String,
     pub llm_model: String,
-    pub recordings: Vec<LlmRecording>,
+    /// Recordings indexed by fingerprint hex.
+    /// Each fingerprint can have multiple recordings (for repeated identical requests).
+    pub recordings: HashMap<String, Vec<LlmRecording>>,
 }
 
 impl Default for LlmCassette {
     fn default() -> Self {
         Self {
-            version: "1.0".to_string(),
+            version: "2.0".to_string(),
             recorded_at: chrono::Utc::now().to_rfc3339(),
             llm_model: "unknown".to_string(),
-            recordings: Vec::new(),
+            recordings: HashMap::new(),
         }
     }
 }
@@ -103,8 +114,6 @@ pub struct VcrLlm {
     mode: VcrMode,
     /// Cassette data (recordings).
     cassette: Mutex<LlmCassette>,
-    /// Playback queue for sequential playback.
-    playback_queue: Mutex<VecDeque<LlmRecording>>,
     /// Model name for recording.
     model_name: String,
     /// Optional event log for comprehensive logging.
@@ -119,12 +128,11 @@ impl VcrLlm {
             cassette_path,
             mode: VcrMode::Record,
             cassette: Mutex::new(LlmCassette {
-                version: "1.0".to_string(),
+                version: "2.0".to_string(),
                 recorded_at: chrono::Utc::now().to_rfc3339(),
                 llm_model: model_name.to_string(),
-                recordings: Vec::new(),
+                recordings: HashMap::new(),
             }),
-            playback_queue: Mutex::new(VecDeque::new()),
             model_name: model_name.to_string(),
             event_log: None,
         }
@@ -136,14 +144,11 @@ impl VcrLlm {
         let cassette: LlmCassette =
             serde_json::from_str(&content).map_err(|e| std::io::Error::other(e.to_string()))?;
 
-        let playback_queue: VecDeque<_> = cassette.recordings.clone().into_iter().collect();
-
         Ok(Self {
             inner: None,
             cassette_path,
             mode: VcrMode::Playback,
             cassette: Mutex::new(cassette),
-            playback_queue: Mutex::new(playback_queue),
             model_name: String::new(),
             event_log: None,
         })
@@ -156,7 +161,6 @@ impl VcrLlm {
             cassette_path: PathBuf::new(),
             mode: VcrMode::Live,
             cassette: Mutex::new(LlmCassette::default()),
-            playback_queue: Mutex::new(VecDeque::new()),
             model_name: String::new(),
             event_log: None,
         }
@@ -230,39 +234,26 @@ impl VcrLlm {
             .map_err(|e| std::io::Error::other(e.to_string()))?;
         fs::write(&self.cassette_path, json)?;
 
+        let total_recordings: usize = cassette.recordings.values().map(|v| v.len()).sum();
         tracing::info!(
             cassette = ?self.cassette_path,
-            recordings = cassette.recordings.len(),
+            fingerprints = cassette.recordings.len(),
+            total_recordings = total_recordings,
             "VcrLlm: Saved cassette"
         );
         Ok(())
     }
 
-    /// Record a request/response pair.
-    fn record(&self, request: &LlmRequest, response: &LlmResponse) {
-        let mut cassette = self.cassette.lock().unwrap();
-        let index = cassette.recordings.len();
+    /// Record a request/response pair indexed by fingerprint.
+    fn record(&self, request: &LlmRequest, tools: Option<&[ToolDefinition]>, response: &LlmResponse) {
+        let fingerprint = RequestFingerprint::from_request_with_tools(request, tools);
+        let fingerprint_hex = fingerprint.to_hex();
 
-        // Build request summary for debugging
-        let request_summary = format!(
-            "System: {}... | User: {}...",
-            request
-                .system_prompt
-                .as_deref()
-                .unwrap_or("")
-                .chars()
-                .take(50)
-                .collect::<String>(),
-            request
-                .messages
-                .last()
-                .map(|m| m.content.chars().take(50).collect::<String>())
-                .unwrap_or_default()
-        );
+        let mut cassette = self.cassette.lock().unwrap();
 
         let recording = LlmRecording {
-            index,
-            request_summary,
+            fingerprint: fingerprint_hex.clone(),
+            request_summary: fingerprint.summary().to_string(),
             response: RecordedResponse {
                 content: response.content.clone(),
                 tool_calls: response
@@ -279,37 +270,67 @@ impl VcrLlm {
             recorded_at: chrono::Utc::now().to_rfc3339(),
         };
 
-        cassette.recordings.push(recording);
+        cassette
+            .recordings
+            .entry(fingerprint_hex)
+            .or_default()
+            .push(recording);
     }
 
-    /// Get next recorded response for playback.
-    fn playback_next(&self) -> Result<LlmResponse, LlmError> {
-        let mut queue = self.playback_queue.lock().unwrap();
-        let recording = queue.pop_front().ok_or_else(|| {
-            LlmError::RequestFailed("VcrLlm: No more recorded responses in cassette".to_string())
-        })?;
+    /// Get recorded response matching the request fingerprint.
+    fn playback_for_request(&self, request: &LlmRequest, tools: Option<&[ToolDefinition]>) -> Result<LlmResponse, LlmError> {
+        let fingerprint = RequestFingerprint::from_request_with_tools(request, tools);
+        let fingerprint_hex = fingerprint.to_hex();
 
-        Ok(LlmResponse {
-            content: recording.response.content,
-            tool_calls: recording
-                .response
-                .tool_calls
-                .into_iter()
-                .map(|tc| ToolCall {
-                    id: tc.id,
-                    name: tc.name,
-                    arguments: tc.arguments,
-                })
-                .collect(),
-            finish_reason: match recording.response.finish_reason.as_str() {
-                "Stop" => FinishReason::Stop,
-                "Length" => FinishReason::Length,
-                "ToolCalls" => FinishReason::ToolCalls,
-                "ContentFilter" => FinishReason::ContentFilter,
-                _ => FinishReason::Stop,
-            },
-            usage: None,
-        })
+        let mut cassette = self.cassette.lock().unwrap();
+
+        // Look up recordings for this fingerprint
+        if let Some(recordings) = cassette.recordings.get_mut(&fingerprint_hex) {
+            if !recordings.is_empty() {
+                // Remove and return the first recording for this fingerprint
+                let recording = recordings.remove(0);
+
+                tracing::debug!(
+                    fingerprint = %fingerprint,
+                    remaining = recordings.len(),
+                    "VcrLlm: Matched recording"
+                );
+
+                return Ok(LlmResponse {
+                    content: recording.response.content,
+                    tool_calls: recording
+                        .response
+                        .tool_calls
+                        .into_iter()
+                        .map(|tc| ToolCall {
+                            id: tc.id,
+                            name: tc.name,
+                            arguments: tc.arguments,
+                        })
+                        .collect(),
+                    finish_reason: match recording.response.finish_reason.as_str() {
+                        "Stop" => FinishReason::Stop,
+                        "Length" => FinishReason::Length,
+                        "ToolCalls" => FinishReason::ToolCalls,
+                        "ContentFilter" => FinishReason::ContentFilter,
+                        _ => FinishReason::Stop,
+                    },
+                    usage: None,
+                });
+            }
+        }
+
+        // No matching recording found
+        tracing::warn!(
+            fingerprint = %fingerprint,
+            "VcrLlm: No matching recording found for request"
+        );
+
+        Err(LlmError::RequestFailed(format!(
+            "VcrLlm: No recording found for fingerprint {} ({})",
+            fingerprint.short_hex(),
+            fingerprint.summary()
+        )))
     }
 
     /// Get the current mode.
@@ -317,14 +338,25 @@ impl VcrLlm {
         &self.mode
     }
 
-    /// Get the number of recordings.
-    pub fn recording_count(&self) -> usize {
+    /// Get the number of unique fingerprints recorded.
+    pub fn fingerprint_count(&self) -> usize {
         self.cassette.lock().unwrap().recordings.len()
     }
 
-    /// Get the number of remaining playback items.
+    /// Get the total number of recordings.
+    pub fn recording_count(&self) -> usize {
+        self.cassette
+            .lock()
+            .unwrap()
+            .recordings
+            .values()
+            .map(|v| v.len())
+            .sum()
+    }
+
+    /// Get the number of remaining playback items (across all fingerprints).
     pub fn playback_remaining(&self) -> usize {
-        self.playback_queue.lock().unwrap().len()
+        self.recording_count()
     }
 
     /// Log prompt sent event to the event log.
@@ -396,10 +428,10 @@ impl LlmPort for VcrLlm {
                     LlmError::RequestFailed("VcrLlm: No inner LLM in record mode".to_string())
                 })?;
                 let response = inner.generate(request.clone()).await?;
-                self.record(&request, &response);
+                self.record(&request, None, &response);
                 response
             }
-            VcrMode::Playback => self.playback_next()?,
+            VcrMode::Playback => self.playback_for_request(&request, None)?,
             VcrMode::Live => {
                 let inner = self.inner.as_ref().ok_or_else(|| {
                     LlmError::RequestFailed("VcrLlm: No inner LLM in live mode".to_string())
@@ -426,11 +458,11 @@ impl LlmPort for VcrLlm {
                 let inner = self.inner.as_ref().ok_or_else(|| {
                     LlmError::RequestFailed("VcrLlm: No inner LLM in record mode".to_string())
                 })?;
-                let response = inner.generate_with_tools(request.clone(), tools).await?;
-                self.record(&request, &response);
+                let response = inner.generate_with_tools(request.clone(), tools.clone()).await?;
+                self.record(&request, Some(&tools), &response);
                 response
             }
-            VcrMode::Playback => self.playback_next()?,
+            VcrMode::Playback => self.playback_for_request(&request, Some(&tools))?,
             VcrMode::Live => {
                 let inner = self.inner.as_ref().ok_or_else(|| {
                     LlmError::RequestFailed("VcrLlm: No inner LLM in live mode".to_string())
@@ -451,13 +483,12 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn test_cassette_serialization() {
-        let cassette = LlmCassette {
-            version: "1.0".to_string(),
-            recorded_at: "2026-01-12T10:00:00Z".to_string(),
-            llm_model: "test-model".to_string(),
-            recordings: vec![LlmRecording {
-                index: 0,
+    fn test_cassette_v2_serialization() {
+        let mut recordings = HashMap::new();
+        recordings.insert(
+            "abc123".to_string(),
+            vec![LlmRecording {
+                fingerprint: "abc123".to_string(),
                 request_summary: "Test request".to_string(),
                 response: RecordedResponse {
                     content: "Test response".to_string(),
@@ -466,48 +497,72 @@ mod tests {
                 },
                 recorded_at: "2026-01-12T10:00:01Z".to_string(),
             }],
+        );
+
+        let cassette = LlmCassette {
+            version: "2.0".to_string(),
+            recorded_at: "2026-01-12T10:00:00Z".to_string(),
+            llm_model: "test-model".to_string(),
+            recordings,
         };
 
         let json = serde_json::to_string_pretty(&cassette).unwrap();
         let parsed: LlmCassette = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(parsed.version, "1.0");
+        assert_eq!(parsed.version, "2.0");
         assert_eq!(parsed.recordings.len(), 1);
-        assert_eq!(parsed.recordings[0].response.content, "Test response");
+        assert!(parsed.recordings.contains_key("abc123"));
+        assert_eq!(
+            parsed.recordings["abc123"][0].response.content,
+            "Test response"
+        );
     }
 
     #[tokio::test]
-    async fn test_playback_mode() {
+    async fn test_fingerprint_playback_mode() {
         let temp_dir = TempDir::new().unwrap();
         let cassette_path = temp_dir.path().join("test.json");
 
-        // Create a cassette file
+        // Create fingerprints for test requests
+        let req1 = LlmRequest::new(vec![ChatMessage::user("Hello")]);
+        let req2 = LlmRequest::new(vec![ChatMessage::user("World")]);
+        let fp1 = super::super::vcr_fingerprint::RequestFingerprint::from_request(&req1);
+        let fp2 = super::super::vcr_fingerprint::RequestFingerprint::from_request(&req2);
+
+        // Create a cassette file with fingerprint-indexed recordings
+        let mut recordings = HashMap::new();
+        recordings.insert(
+            fp1.to_hex(),
+            vec![LlmRecording {
+                fingerprint: fp1.to_hex(),
+                request_summary: "Hello request".to_string(),
+                response: RecordedResponse {
+                    content: "Hello response".to_string(),
+                    tool_calls: vec![],
+                    finish_reason: "Stop".to_string(),
+                },
+                recorded_at: "2026-01-12T10:00:01Z".to_string(),
+            }],
+        );
+        recordings.insert(
+            fp2.to_hex(),
+            vec![LlmRecording {
+                fingerprint: fp2.to_hex(),
+                request_summary: "World request".to_string(),
+                response: RecordedResponse {
+                    content: "World response".to_string(),
+                    tool_calls: vec![],
+                    finish_reason: "Stop".to_string(),
+                },
+                recorded_at: "2026-01-12T10:00:02Z".to_string(),
+            }],
+        );
+
         let cassette = LlmCassette {
-            version: "1.0".to_string(),
+            version: "2.0".to_string(),
             recorded_at: "2026-01-12T10:00:00Z".to_string(),
             llm_model: "test".to_string(),
-            recordings: vec![
-                LlmRecording {
-                    index: 0,
-                    request_summary: "First".to_string(),
-                    response: RecordedResponse {
-                        content: "First response".to_string(),
-                        tool_calls: vec![],
-                        finish_reason: "Stop".to_string(),
-                    },
-                    recorded_at: "2026-01-12T10:00:01Z".to_string(),
-                },
-                LlmRecording {
-                    index: 1,
-                    request_summary: "Second".to_string(),
-                    response: RecordedResponse {
-                        content: "Second response".to_string(),
-                        tool_calls: vec![],
-                        finish_reason: "Stop".to_string(),
-                    },
-                    recorded_at: "2026-01-12T10:00:02Z".to_string(),
-                },
-            ],
+            recordings,
         };
 
         fs::write(&cassette_path, serde_json::to_string(&cassette).unwrap()).unwrap();
@@ -517,21 +572,85 @@ mod tests {
 
         assert_eq!(vcr.playback_remaining(), 2);
 
-        // First request
-        let request = LlmRequest::new(vec![ChatMessage::user("Hello")]);
-        let response = vcr.generate(request).await.unwrap();
-        assert_eq!(response.content, "First response");
-        assert_eq!(vcr.playback_remaining(), 1);
+        // Request in REVERSE order - should still work with fingerprinting
+        let response = vcr.generate(req2.clone()).await.unwrap();
+        assert_eq!(response.content, "World response");
 
-        // Second request
-        let request = LlmRequest::new(vec![ChatMessage::user("World")]);
-        let response = vcr.generate(request).await.unwrap();
-        assert_eq!(response.content, "Second response");
+        let response = vcr.generate(req1.clone()).await.unwrap();
+        assert_eq!(response.content, "Hello response");
+
         assert_eq!(vcr.playback_remaining(), 0);
 
-        // Third request should fail
-        let request = LlmRequest::new(vec![ChatMessage::user("Error")]);
+        // Same request again should fail (no more recordings for that fingerprint)
+        let result = vcr.generate(req1).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_repeated_identical_requests() {
+        let temp_dir = TempDir::new().unwrap();
+        let cassette_path = temp_dir.path().join("test.json");
+
+        // Create fingerprint for test request
+        let request = LlmRequest::new(vec![ChatMessage::user("Repeat me")]);
+        let fp = super::super::vcr_fingerprint::RequestFingerprint::from_request(&request);
+
+        // Create cassette with multiple recordings for same fingerprint
+        let mut recordings = HashMap::new();
+        recordings.insert(
+            fp.to_hex(),
+            vec![
+                LlmRecording {
+                    fingerprint: fp.to_hex(),
+                    request_summary: "First".to_string(),
+                    response: RecordedResponse {
+                        content: "First response".to_string(),
+                        tool_calls: vec![],
+                        finish_reason: "Stop".to_string(),
+                    },
+                    recorded_at: "2026-01-12T10:00:01Z".to_string(),
+                },
+                LlmRecording {
+                    fingerprint: fp.to_hex(),
+                    request_summary: "Second".to_string(),
+                    response: RecordedResponse {
+                        content: "Second response".to_string(),
+                        tool_calls: vec![],
+                        finish_reason: "Stop".to_string(),
+                    },
+                    recorded_at: "2026-01-12T10:00:02Z".to_string(),
+                },
+            ],
+        );
+
+        let cassette = LlmCassette {
+            version: "2.0".to_string(),
+            recorded_at: "2026-01-12T10:00:00Z".to_string(),
+            llm_model: "test".to_string(),
+            recordings,
+        };
+
+        fs::write(&cassette_path, serde_json::to_string(&cassette).unwrap()).unwrap();
+
+        let vcr = VcrLlm::playback(cassette_path).unwrap();
+
+        // First call returns first recording
+        let response = vcr.generate(request.clone()).await.unwrap();
+        assert_eq!(response.content, "First response");
+
+        // Second call returns second recording (same fingerprint)
+        let response = vcr.generate(request.clone()).await.unwrap();
+        assert_eq!(response.content, "Second response");
+
+        // Third call fails (no more recordings)
         let result = vcr.generate(request).await;
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_default_cassette_is_v2() {
+        let cassette = LlmCassette::default();
+        assert_eq!(cassette.version, "2.0");
+        assert!(cassette.recordings.is_empty());
     }
 }

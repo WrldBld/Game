@@ -44,6 +44,7 @@ mod story_event_tests;
 mod time_tests;
 mod tool_call_tests;
 mod trigger_tests;
+mod vcr_fingerprint;
 mod vcr_llm;
 
 pub use e2e_helpers::*;

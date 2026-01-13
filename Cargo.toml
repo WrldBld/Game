@@ -104,6 +104,10 @@ url = "2.5"
 # Regex for dice parsing
 regex-lite = "0.1"
 
+# Hashing for VCR fingerprinting
+sha2 = "0.10"
+hex = "0.4"
+
 # Random number generation (for WASM-compatible player)
 getrandom = { version = "0.2", features = ["js"] }
 
