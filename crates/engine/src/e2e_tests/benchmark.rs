@@ -243,42 +243,32 @@ impl BenchmarkSummary {
 }
 
 // =============================================================================
-// Timed Graph Wrapper
+// Benchmark Graph Wrapper
 // =============================================================================
 
 /// A wrapper around neo4rs::Graph that tracks query execution times.
 ///
-/// This can be used to instrument Neo4j queries for benchmarking.
-/// Currently not integrated into E2ETestContext but available for manual use.
-#[allow(dead_code)]
-pub struct TimedGraph {
+/// This wraps all Graph operations and records timing to the benchmark.
+/// Use this in E2E tests to see where time is spent in Neo4j queries.
+pub struct BenchmarkGraph {
     inner: Graph,
-    /// Accumulated query time in milliseconds
-    total_query_ms: AtomicU64,
-    /// Number of queries executed
-    query_count: AtomicU64,
     /// Optional benchmark to report to
     benchmark: Option<std::sync::Arc<E2EBenchmark>>,
 }
 
-#[allow(dead_code)]
-impl TimedGraph {
-    /// Create a new timed graph wrapper.
+impl BenchmarkGraph {
+    /// Create a new benchmark graph wrapper without timing (passthrough mode).
     pub fn new(graph: Graph) -> Self {
         Self {
             inner: graph,
-            total_query_ms: AtomicU64::new(0),
-            query_count: AtomicU64::new(0),
             benchmark: None,
         }
     }
 
-    /// Create a timed graph that reports to a benchmark.
+    /// Create a benchmark graph that reports to a benchmark.
     pub fn with_benchmark(graph: Graph, benchmark: std::sync::Arc<E2EBenchmark>) -> Self {
         Self {
             inner: graph,
-            total_query_ms: AtomicU64::new(0),
-            query_count: AtomicU64::new(0),
             benchmark: Some(benchmark),
         }
     }
@@ -288,34 +278,33 @@ impl TimedGraph {
         &self.inner
     }
 
-    /// Get total accumulated query time.
-    pub fn total_query_ms(&self) -> u64 {
-        self.total_query_ms.load(Ordering::Relaxed)
+    /// Clone the underlying graph (for passing to repositories).
+    pub fn inner_clone(&self) -> Graph {
+        self.inner.clone()
     }
 
-    /// Get number of queries executed.
-    pub fn query_count(&self) -> u64 {
-        self.query_count.load(Ordering::Relaxed)
+    /// Record a query timing if benchmark is enabled.
+    fn record(&self, operation: &str, elapsed_ms: u64) {
+        if let Some(benchmark) = &self.benchmark {
+            benchmark.record_neo4j_query(operation, elapsed_ms);
+        }
     }
 
     /// Execute a write query (no results) and track timing.
-    pub async fn run(&self, query: Query) -> Result<(), RepoError> {
+    pub async fn run(&self, query: Query) -> Result<(), neo4rs::Error> {
         let start = Instant::now();
-        let result = self
-            .inner
-            .run(query)
-            .await
-            .map_err(|e| RepoError::database("run", e));
-        let elapsed_ms = start.elapsed().as_millis() as u64;
-
-        self.total_query_ms.fetch_add(elapsed_ms, Ordering::Relaxed);
-        self.query_count.fetch_add(1, Ordering::Relaxed);
-
-        if let Some(benchmark) = &self.benchmark {
-            benchmark.record_neo4j_query("run", elapsed_ms);
-        }
-
+        let result = self.inner.run(query).await;
+        self.record("run", start.elapsed().as_millis() as u64);
         result
+    }
+
+}
+
+impl std::ops::Deref for BenchmarkGraph {
+    type Target = Graph;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
 

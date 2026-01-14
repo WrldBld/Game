@@ -28,7 +28,7 @@ use crate::infrastructure::settings::SqliteSettingsRepo;
 use crate::test_fixtures::world_seeder::{load_thornhaven, TestWorld};
 use crate::use_cases::content::ContentServiceConfig;
 
-use super::benchmark::{is_benchmark_enabled, BenchmarkLlmDecorator, E2EBenchmark};
+use super::benchmark::{is_benchmark_enabled, BenchmarkGraph, BenchmarkLlmDecorator, E2EBenchmark};
 use super::event_log::{E2EEventLog, TestOutcome};
 use super::logging_queue::LoggingQueue;
 use super::neo4j_test_harness::SharedNeo4jHarness;
@@ -95,9 +95,9 @@ impl SeededWorld {
 pub struct E2ETestContext {
     /// Shared Neo4j harness (container is reused across tests)
     pub harness: Arc<SharedNeo4jHarness>,
-    /// Graph connection for this test's runtime.
+    /// Graph connection for this test's runtime with optional benchmark timing.
     /// Each test gets its own Graph because neo4rs Graph is tied to the tokio runtime.
-    graph: Graph,
+    benchmark_graph: BenchmarkGraph,
     pub app: App,
     pub world: SeededWorld,
     pub test_world: TestWorld,
@@ -204,11 +204,18 @@ impl E2ETestContext {
 
         // Create a Graph connection for THIS test's runtime
         // Each test needs its own connection because Graph is tied to the tokio runtime
-        let own_graph = harness.create_graph().await?;
+        let raw_graph = harness.create_graph().await?;
+
+        // Wrap with BenchmarkGraph for timing (if benchmarking enabled)
+        let benchmark_graph = if let Some(ref b) = benchmark {
+            BenchmarkGraph::with_benchmark(raw_graph, b.clone())
+        } else {
+            BenchmarkGraph::new(raw_graph)
+        };
 
         // Seed world to Neo4j with FRESH UUIDs for complete test isolation
         // Each test gets its own unique IDs, so tests can run in parallel
-        let seeded = seed_thornhaven_to_neo4j(&own_graph, clock.clone(), &test_world).await?;
+        let seeded = seed_thornhaven_to_neo4j(&benchmark_graph, clock.clone(), &test_world).await?;
 
         if let Some(ref b) = benchmark {
             b.end_phase("seed");
@@ -220,8 +227,8 @@ impl E2ETestContext {
         let queue_db = temp_dir.path().join("queue.db");
         let queue_db_str = queue_db.to_string_lossy().to_string();
 
-        // Create repositories and app using a clone of the graph (Graph is cloneable)
-        let repos = Neo4jRepositories::new(own_graph.clone(), clock.clone());
+        // Create repositories and app using the inner graph (repos don't need timing wrapper)
+        let repos = Neo4jRepositories::new(benchmark_graph.inner_clone(), clock.clone());
         let base_queue = Arc::new(SqliteQueue::new(&queue_db_str, clock.clone()).await?);
 
         // Wrap queue with logging if event_log is provided
@@ -255,7 +262,7 @@ impl E2ETestContext {
 
         Ok(Self {
             harness,
-            graph: own_graph,
+            benchmark_graph,
             app,
             world: seeded,
             test_world,
@@ -266,11 +273,12 @@ impl E2ETestContext {
         })
     }
 
-    /// Get reference to the Neo4j graph connection.
+    /// Get reference to the Neo4j graph connection with benchmark timing.
     ///
     /// This graph is specific to this test's tokio runtime.
-    pub fn graph(&self) -> &Graph {
-        &self.graph
+    /// When `E2E_BENCHMARK=1`, all queries through this graph are timed.
+    pub fn graph(&self) -> &BenchmarkGraph {
+        &self.benchmark_graph
     }
 
     /// Print benchmark summary if benchmarking is enabled.
@@ -372,7 +380,7 @@ impl Drop for E2ETestContext {
 /// - `CharacterId` - Fresh UUID per test
 /// - `ActId`, `SceneId`, `ChallengeId`, `NarrativeEventId` - All fresh per test
 pub async fn seed_thornhaven_to_neo4j(
-    graph: &Graph,
+    graph: &BenchmarkGraph,
     clock: Arc<dyn ClockPort>,
     test_world: &TestWorld,
 ) -> Result<SeededWorld, Box<dyn std::error::Error + Send + Sync>> {
@@ -885,7 +893,7 @@ pub async fn seed_thornhaven_to_neo4j(
 
 /// Create a test player character in the world.
 pub async fn create_test_player(
-    graph: &Graph,
+    graph: &BenchmarkGraph,
     world_id: WorldId,
     starting_region_id: RegionId,
     name: &str,

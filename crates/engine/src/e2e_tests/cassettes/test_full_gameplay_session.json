@@ -1,30 +1,30 @@
 {
   "version": "2.0",
-  "recorded_at": "2026-01-14T17:56:57.576896+00:00",
+  "recorded_at": "2026-01-14T18:47:03.378604+00:00",
   "llm_model": "gpt-oss:20b",
   "recordings": {
-    "51e007808a9ef3de4860516c252966b883a1ff5d42f47fe04c5a9f882e8ae726": [
+    "3bf3b35a09fd39f28ec97a0cb752fbf6c436c477afcce1df8f5cd4513d1b426f": [
       {
-        "fingerprint": "51e007808a9ef3de4860516c252966b883a1ff5d42f47fe04c5a9f882e8ae726",
+        "fingerprint": "3bf3b35a09fd39f28ec97a0cb752fbf6c436c477afcce1df8f5cd4513d1b426f",
         "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 7... | tools:11",
         "response": {
-          "content": "Good mornin’, Aldric! Thornhaven’s a lively port town, always bustling with merchants, sailors, and a fair share of trouble‑makers. The inn’s the safest spot to drop your gear and hear the latest gossip—just keep your wits about you.",
+          "content": "Welcome to Thornhaven, traveler! It’s a quiet fishing town on the coast, known for its bustling market and the old lighthouse that still stands by the cliffs. If you’re looking for supplies or a good tale, the inn’s always the best place to start.",
           "tool_calls": [],
           "finish_reason": "Stop"
         },
-        "recorded_at": "2026-01-14T17:57:11.365749+00:00"
+        "recorded_at": "2026-01-14T18:47:23.607008+00:00"
       }
     ],
-    "9084e1c5e53d4287ed429853745e6131038ad5060a68ea28b2d0c874faf9ab31": [
+    "9c207cbdfa36d1354909189170bce5935141e06a19b952b597e407bbbe44042b": [
       {
-        "fingerprint": "9084e1c5e53d4287ed429853745e6131038ad5060a68ea28b2d0c874faf9ab31",
+        "fingerprint": "9c207cbdfa36d1354909189170bce5935141e06a19b952b597e407bbbe44042b",
         "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 7... | tools:11",
         "response": {
-          "content": "Sure thing, Aldric. If you’re looking for deeper lore, head to the town hall and ask Master Keldric; if it’s a matter of safety, the guard captain at the gate will have the latest patrol reports. Both’ll be keen to hear what a brave traveler like you has to say.",
+          "content": "Absolutely—ask Master Liora at the apothecary for herbs, and if you need a map of the harbor, the town crier near the docks always has the latest gossip.",
           "tool_calls": [],
           "finish_reason": "Stop"
         },
-        "recorded_at": "2026-01-14T17:57:27.189248+00:00"
+        "recorded_at": "2026-01-14T18:47:32.070176+00:00"
       }
     ]
   }

@@ -1,18 +1,18 @@
 {
   "version": "2.0",
-  "recorded_at": "2026-01-14T18:35:23.903982+00:00",
+  "recorded_at": "2026-01-14T18:51:28.557738+00:00",
   "llm_model": "gpt-oss:20b",
   "recordings": {
-    "0e9545a3774ae33139a3d573d5ae7f59f5f07babb03cc3babd022236c8d4f72d": [
+    "95e62fe475f7a1892c534c07f29ecef9afdb4372590c3d9bd08521bacb969f84": [
       {
-        "fingerprint": "0e9545a3774ae33139a3d573d5ae7f59f5f07babb03cc3babd022236c8d4f72d",
-        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to d... | tools:11",
+        "fingerprint": "95e62fe475f7a1892c534c07f29ecef9afdb4372590c3d9bd08521bacb969f84",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to e... | tools:11",
         "response": {
-          "content": "I don't hear anything but the echo of old ale bottles rattling in the darkness, and a faint, almost-quiet whisper that could be a cellar cat or the wind. There's a rickety ladder that drops down into the gloom, but I can't see beyond the cobwebbed corners. If you venture down, be careful—those old barrels are still a bit unstable.",
+          "content": "Marta frowns slightly. \"The cellar's a tight‑knuckled place; the pipes creak and old rats scuttle about. I keep it locked, so I don't know any more than that, but if you insist on checking it, I'll keep an eye on the door.\"",
           "tool_calls": [],
           "finish_reason": "Stop"
         },
-        "recorded_at": "2026-01-14T18:35:45.655978+00:00"
+        "recorded_at": "2026-01-14T18:51:43.800363+00:00"
       }
     ]
   }

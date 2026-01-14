@@ -1,27 +1,27 @@
 {
   "version": "2.0",
-  "recorded_at": "2026-01-14T18:34:20.422461+00:00",
+  "recorded_at": "2026-01-14T18:50:31.104624+00:00",
   "llm_model": "gpt-oss:20b",
   "recordings": {
-    "3ee2c06d81727efcefa2afb8333728087e5f72cc5064b1524f033e737df1b69a": [
+    "718fa8eb7855ed0f6ee94005807edffc8f2067990bd1413392c91223e15f33dd": [
       {
-        "fingerprint": "3ee2c06d81727efcefa2afb8333728087e5f72cc5064b1524f033e737df1b69a",
-        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to b... | tools:11",
+        "fingerprint": "718fa8eb7855ed0f6ee94005807edffc8f2067990bd1413392c91223e15f33dd",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 4... | tools:11",
         "response": {
           "content": "",
           "tool_calls": [
             {
-              "id": "call_hlxu9hog",
+              "id": "call_4tb4ryu3",
               "name": "give_item",
               "arguments": {
-                "description": "A weathered parchment map of the old ruins, ink faded but still legible",
-                "item_name": "Old Map"
+                "description": "An old, weather‑torn map of the northern ruins, ink faded but still legible",
+                "item_name": "Ancient Map"
               }
             }
           ],
           "finish_reason": "ToolCalls"
         },
-        "recorded_at": "2026-01-14T18:34:40.730838+00:00"
+        "recorded_at": "2026-01-14T18:50:44.614419+00:00"
       }
     ]
   }

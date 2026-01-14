@@ -1,27 +1,27 @@
 {
   "version": "2.0",
-  "recorded_at": "2026-01-14T18:35:49.069795+00:00",
+  "recorded_at": "2026-01-14T18:51:38.613678+00:00",
   "llm_model": "gpt-oss:20b",
   "recordings": {
-    "67514251f7b8c051d3cc940362acae4f0c5b155a0ea8e36a2d7a59cce0570872": [
+    "dfe2705e4af540df2972fe8a3c199e8a457c65c240c948b35da686ae462ded4e": [
       {
-        "fingerprint": "67514251f7b8c051d3cc940362acae4f0c5b155a0ea8e36a2d7a59cce0570872",
-        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 2... | tools:11",
+        "fingerprint": "dfe2705e4af540df2972fe8a3c199e8a457c65c240c948b35da686ae462ded4e",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 9... | tools:11",
         "response": {
           "content": "",
           "tool_calls": [
             {
-              "id": "call_0keonbxj",
+              "id": "call_9suajwjv",
               "name": "give_item",
               "arguments": {
-                "description": "A weathered parchment map of the surrounding hills and the local village, inked with landmarks and a few secret paths",
-                "item_name": "Map of the Drowsy Dragon Inn area"
+                "description": "A worn parchment map of the surrounding hills and the nearby ruins, ink faded but still clear.",
+                "item_name": "Map of the Area"
               }
             }
           ],
           "finish_reason": "ToolCalls"
         },
-        "recorded_at": "2026-01-14T18:36:01.478702+00:00"
+        "recorded_at": "2026-01-14T18:51:54.732002+00:00"
       }
     ]
   }

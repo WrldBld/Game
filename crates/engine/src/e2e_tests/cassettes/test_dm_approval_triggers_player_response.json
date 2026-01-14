@@ -1,18 +1,18 @@
 {
   "version": "2.0",
-  "recorded_at": "2026-01-14T18:32:15.801107+00:00",
+  "recorded_at": "2026-01-14T18:48:05.243489+00:00",
   "llm_model": "gpt-oss:20b",
   "recordings": {
-    "0392106b5412499256bd4bef08b2465a87d12635b69894c4228f9dfea6ef384f": [
+    "66f9a6585e5b2d67ba607c5698ded203cee888fb51c78a4db1ca31dbeeb70026": [
       {
-        "fingerprint": "0392106b5412499256bd4bef08b2465a87d12635b69894c4228f9dfea6ef384f",
-        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to b... | tools:11",
+        "fingerprint": "66f9a6585e5b2d67ba607c5698ded203cee888fb51c78a4db1ca31dbeeb70026",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 8... | tools:11",
         "response": {
-          "content": "\"Good day to you too, traveler! The inn's bustling as usual, though the night shift has been a bit rough with a group of ruffians causing a stir. As long as the ale keeps flowing, business stays steady.\"",
+          "content": "\"Oh, it's a busy day as always—good ale flows and a few new faces are trying the stew. We’ve just started a special night ale tonight, so the tavern’s humming nicely. How can I help you today?",
           "tool_calls": [],
           "finish_reason": "Stop"
         },
-        "recorded_at": "2026-01-14T18:32:28.953895+00:00"
+        "recorded_at": "2026-01-14T18:48:18.759955+00:00"
       }
     ]
   }

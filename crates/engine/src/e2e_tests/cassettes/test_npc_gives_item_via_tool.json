@@ -1,27 +1,27 @@
 {
   "version": "2.0",
-  "recorded_at": "2026-01-14T18:35:02.692872+00:00",
+  "recorded_at": "2026-01-14T18:50:59.531201+00:00",
   "llm_model": "gpt-oss:20b",
   "recordings": {
-    "1559e7b0361dbff6c5a2f493de5b4ca914d824f9fe8886a55d459c687897550a": [
+    "c804087434bad4f11329c6f965cc3e2e1a807f16b2a9337c831cd66fdc28c1f7": [
       {
-        "fingerprint": "1559e7b0361dbff6c5a2f493de5b4ca914d824f9fe8886a55d459c687897550a",
-        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to b... | tools:11",
+        "fingerprint": "c804087434bad4f11329c6f965cc3e2e1a807f16b2a9337c831cd66fdc28c1f7",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 7... | tools:11",
         "response": {
           "content": "",
           "tool_calls": [
             {
-              "id": "call_avoxzzuh",
+              "id": "call_up39sjes",
               "name": "give_item",
               "arguments": {
-                "description": "A warm, crusty loaf of bread that should keep you going until you can find more food.",
-                "item_name": "Loaf of Fresh Bread"
+                "description": "a warm loaf of bread, still steaming, perfect for a weary traveler",
+                "item_name": "Warm Loaf of Bread"
               }
             }
           ],
           "finish_reason": "ToolCalls"
         },
-        "recorded_at": "2026-01-14T18:35:33.503913+00:00"
+        "recorded_at": "2026-01-14T18:51:29.348639+00:00"
       }
     ]
   }

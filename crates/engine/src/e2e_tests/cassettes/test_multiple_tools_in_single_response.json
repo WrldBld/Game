@@ -1,28 +1,27 @@
 {
   "version": "2.0",
-  "recorded_at": "2026-01-14T18:35:01.053536+00:00",
+  "recorded_at": "2026-01-14T18:50:54.404151+00:00",
   "llm_model": "gpt-oss:20b",
   "recordings": {
-    "49dad12c2422ba0f117f7d15e3674c3b2db20ac833dd24dc59bb1d60aa097fad": [
+    "3e476718b1398f5ac9928a9e843afffc343683ca2f0529ac945bc0b6c548d626": [
       {
-        "fingerprint": "49dad12c2422ba0f117f7d15e3674c3b2db20ac833dd24dc59bb1d60aa097fad",
-        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to e... | tools:11",
+        "fingerprint": "3e476718b1398f5ac9928a9e843afffc343683ca2f0529ac945bc0b6c548d626",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 0... | tools:11",
         "response": {
           "content": "",
           "tool_calls": [
             {
-              "id": "call_lomjbvvl",
-              "name": "reveal_info",
+              "id": "call_kw1b6udp",
+              "name": "give_item",
               "arguments": {
-                "content": "The old temple sits atop a forgotten ruin; its main chamber contains a sealed vault that can only be opened by uttering the true name of the stone guardian. The name is \"Eldarion the Everstone,\" remembered only by the temple’s original guardians.",
-                "importance": "high",
-                "info_type": "lore"
+                "description": "A small, detailed map of the temple's hidden entrance, carved from oak and marked with the symbols of the Dawn Priests.",
+                "item_name": "Hand-Carved Wooden Map"
               }
             }
           ],
           "finish_reason": "ToolCalls"
         },
-        "recorded_at": "2026-01-14T18:35:23.781728+00:00"
+        "recorded_at": "2026-01-14T18:51:22.660917+00:00"
       }
     ]
   }
