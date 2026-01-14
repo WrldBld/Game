@@ -275,7 +275,7 @@ async fn test_lore_discovered_trigger() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id.to_string() == event_id.to_string()),
+        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
         "Event with LoreDiscovered trigger should exist"
     );
 }

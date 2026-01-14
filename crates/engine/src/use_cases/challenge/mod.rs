@@ -786,7 +786,7 @@ mod tests {
 
     use chrono::Utc;
     use wrldbldr_domain::{
-        Challenge as DomainChallenge, ChallengeId, ChallengeOutcomes, Difficulty, ItemId,
+        Challenge as DomainChallenge, ChallengeId, ChallengeOutcomes, CharacterName, Difficulty, ItemId,
         LocationId, Outcome, OutcomeTrigger, OutcomeType, PlayerCharacter as DomainPc,
         PlayerCharacterId, SceneId, WorldId,
     };
@@ -815,7 +815,7 @@ mod tests {
         let scene_id = SceneId::new();
         let now = Utc::now();
 
-        let pc = DomainPc::new("user-1", world_id, "PC", LocationId::new(), now);
+        let pc = DomainPc::new("user-1", world_id, CharacterName::new("PC").unwrap(), LocationId::new(), now);
 
         let success_outcome = Outcome::new("success")
             .with_trigger(OutcomeTrigger::reveal_persistent("secret"))

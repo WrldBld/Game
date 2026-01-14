@@ -99,31 +99,14 @@ async fn narrative_triggers_fallback_is_bounded_to_500() {
     };
 
     for i in 0..600 {
-        let event = NarrativeEvent {
-            id: NarrativeEventId::new(),
-            world_id,
-            name: format!("Event {i}"),
-            description: "test".to_string(),
-            tags: vec![],
-            trigger_conditions: vec![trigger.clone()],
-            trigger_logic: TriggerLogic::All,
-            scene_direction: "sd".to_string(),
-            suggested_opening: None,
-            outcomes: vec![outcome.clone()],
-            default_outcome: Some("default".to_string()),
-            is_active: true,
-            is_triggered: false,
-            triggered_at: None,
-            selected_outcome: None,
-            is_repeatable: false,
-            trigger_count: 0,
-            delay_turns: 0,
-            expires_after_turns: None,
-            priority: i as i32,
-            is_favorite: false,
-            created_at: now,
-            updated_at: now,
-        };
+        let event = NarrativeEvent::new(world_id, format!("Event {i}"), now)
+            .with_description("test")
+            .with_trigger_conditions(vec![trigger.clone()])
+            .with_trigger_logic(TriggerLogic::All)
+            .with_scene_direction("sd")
+            .with_outcomes(vec![outcome.clone()])
+            .with_default_outcome("default")
+            .with_priority(i as i32);
 
         repo.save_event(&event).await.expect("save event");
     }

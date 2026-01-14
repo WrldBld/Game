@@ -103,7 +103,7 @@ async fn test_staging_npc_in_region() {
             .await
             .expect("World query failed")
             .expect("World not found")
-            .game_time
+            .game_time()
             .current();
 
         let staged = ctx

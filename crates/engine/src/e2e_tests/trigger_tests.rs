@@ -97,7 +97,7 @@ async fn test_flag_set_trigger_evaluation() {
 
     // The event should still be in active list until explicitly triggered
     // This documents the expected flow
-    assert!(events.iter().any(|e| e.id.to_string() == event_id.to_string()));
+    assert!(events.iter().any(|e| e.id().to_string() == event_id.to_string()));
 }
 
 /// Test that ItemAcquired trigger type is recognized.
@@ -166,7 +166,7 @@ async fn test_item_acquired_trigger_type() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id.to_string() == event_id.to_string()),
+        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
         "Event with ItemAcquired trigger should exist"
     );
 }
@@ -241,7 +241,7 @@ async fn test_relationship_threshold_trigger_type() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id.to_string() == event_id.to_string()),
+        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
         "Event with RelationshipThreshold trigger should exist"
     );
 }
@@ -318,7 +318,7 @@ async fn test_challenge_completed_trigger_type() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id.to_string() == event_id.to_string()),
+        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
         "Event with ChallengeCompleted trigger should exist"
     );
 }
@@ -417,7 +417,7 @@ async fn test_multiple_triggers_and_logic() {
         .await
         .expect("Should list events");
     assert!(
-        events.iter().any(|e| e.id.to_string() == event_id.to_string()),
+        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
         "Event should still be active with partial conditions"
     );
 
@@ -487,7 +487,7 @@ async fn test_event_marked_as_triggered() {
     // If list_active filters out triggered non-repeatable events,
     // this event should not be in the list
     // This documents expected behavior
-    let event_in_list = events.iter().any(|e| e.id.to_string() == event_id.to_string());
+    let event_in_list = events.iter().any(|e| e.id().to_string() == event_id.to_string());
 
     // Note: Expected behavior depends on implementation
     // If this fails, it indicates how the system handles triggered events

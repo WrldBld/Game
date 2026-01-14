@@ -121,20 +121,17 @@ pub mod worlds {
     ///
     /// Created programmatically to ensure all nested structures are correct.
     pub fn dnd5e() -> World {
-        use chrono::Utc;
         use wrldbldr_domain::value_objects::RuleSystemConfig;
+        use wrldbldr_domain::{Description, WorldName};
 
-        let mut world = World::new(
-            "The Realm of Shadows",
-            "A classic fantasy world for testing D&D 5e mechanics.",
-            Utc::now(),
-        )
-        .expect("valid world");
-        world.rule_system = RuleSystemConfig::dnd_5e();
-        world.id = wrldbldr_domain::WorldId::from(
-            uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
-        );
-        world
+        let name = WorldName::new("The Realm of Shadows").unwrap();
+        let description = Description::new("A classic fantasy world for testing D&D 5e mechanics.").unwrap();
+        World::new(name)
+            .with_description(description)
+            .with_id(wrldbldr_domain::WorldId::from(
+                uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
+            ))
+            .with_rule_system(RuleSystemConfig::dnd_5e())
     }
 }
 
@@ -429,6 +426,6 @@ mod tests {
     #[test]
     fn test_load_world_fixture() {
         let world = worlds::dnd5e();
-        assert_eq!(world.name, "The Realm of Shadows");
+        assert_eq!(world.name().as_str(), "The Realm of Shadows");
     }
 }

@@ -16,23 +16,26 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let hidden_npc_id = CharacterId::new();
 
     // World (manual time, so movement doesn't generate time suggestions).
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
-    world.id = world_id;
-    world.set_time_mode(TimeMode::Manual, now);
+    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let mut world = wrldbldr_domain::World::new(world_name)
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(world_id);
+    world.set_time_mode(TimeMode::Manual);
 
     // Domain fixtures.
-    let mut location = wrldbldr_domain::Location::new(
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location = wrldbldr_domain::Location::new(
         world_id,
-        "Test Location",
+        location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-    .expect("valid location");
-    location.id = location_id;
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(location_id);
 
     let mut region = wrldbldr_domain::Region::new(location_id, "Unstaged Region");
     region.id = region_id;
 
-    let pc = wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now)
+    let pc = wrldbldr_domain::PlayerCharacter::new("player-1", world_id, wrldbldr_domain::CharacterName::new("PC").unwrap(), location_id, now)
         .with_id(pc_id);
     // initial spawn - PC starts with no current_region_id, skip connection validation
 
@@ -383,18 +386,21 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
     let region_id = RegionId::new();
 
     // World (manual time)
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
-    world.id = world_id;
-    world.set_time_mode(TimeMode::Manual, now);
+    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let mut world = wrldbldr_domain::World::new(world_name)
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(world_id);
+    world.set_time_mode(TimeMode::Manual);
 
     // Domain fixtures
-    let mut location = wrldbldr_domain::Location::new(
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location = wrldbldr_domain::Location::new(
         world_id,
-        "Test Location",
+        location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-    .expect("valid location");
-    location.id = location_id;
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(location_id);
 
     let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");
     region.id = region_id;
@@ -519,18 +525,21 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
     let region_id = RegionId::new();
 
     // World (manual time)
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
-    world.id = world_id;
-    world.set_time_mode(TimeMode::Manual, now);
+    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let mut world = wrldbldr_domain::World::new(world_name)
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(world_id);
+    world.set_time_mode(TimeMode::Manual);
 
     // Domain fixtures
-    let mut location = wrldbldr_domain::Location::new(
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location = wrldbldr_domain::Location::new(
         world_id,
-        "Test Location",
+        location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-    .expect("valid location");
-    location.id = location_id;
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(location_id);
 
     let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");
     region.id = region_id;

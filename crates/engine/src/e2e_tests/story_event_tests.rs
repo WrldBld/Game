@@ -29,7 +29,7 @@ async fn test_list_active_events() {
     println!("World has {} active narrative events", events.len());
 
     for event in &events {
-        println!("  Event: {} - {}", event.name, event.description);
+        println!("  Event: {} - {}", event.name(), event.description());
     }
 }
 
@@ -159,11 +159,11 @@ async fn test_repeatable_events() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.name == "Repeatable Event"),
+        events.iter().any(|e| e.name() == "Repeatable Event"),
         "Repeatable event should be listed"
     );
     assert!(
-        events.iter().any(|e| e.name == "One-Time Event"),
+        events.iter().any(|e| e.name() == "One-Time Event"),
         "One-time event should be listed"
     );
 }
@@ -220,13 +220,13 @@ async fn test_event_priority() {
     // Find our priority test events
     let priority_events: Vec<_> = events
         .iter()
-        .filter(|e| e.description == "Priority test event")
+        .filter(|e| e.description() == "Priority test event")
         .collect();
 
     assert_eq!(priority_events.len(), 3, "Should have 3 priority test events");
     println!("Events ordered by priority:");
     for e in &priority_events {
-        println!("  {} (priority: {})", e.name, e.priority);
+        println!("  {} (priority: {})", e.name(), e.priority());
     }
 }
 
@@ -301,9 +301,9 @@ async fn test_favorite_events() {
         .await
         .expect("Should list events");
 
-    let favorites: Vec<_> = events.iter().filter(|e| e.is_favorite).collect();
+    let favorites: Vec<_> = events.iter().filter(|e| e.is_favorite()).collect();
     assert!(
-        favorites.iter().any(|e| e.name == "Favorite Event"),
+        favorites.iter().any(|e| e.name() == "Favorite Event"),
         "Favorite event should be in filtered favorites list"
     );
 }

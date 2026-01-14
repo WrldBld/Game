@@ -230,7 +230,7 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now)
             .with_id(pc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
@@ -269,7 +269,7 @@ mod tests {
         let npc_id = CharacterId::new();
         let conversation_id = Uuid::new_v4();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "TestPC", location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("TestPC").unwrap(), location_id, now)
             .with_id(pc_id);
 
         let npc = Character::new(world_id, CharacterName::new("TestNPC").unwrap(), CampbellArchetype::Mentor)
@@ -324,7 +324,7 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "TestPC", location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("TestPC").unwrap(), location_id, now)
             .with_id(pc_id);
 
         let npc = Character::new(world_id, CharacterName::new("TestNPC").unwrap(), CampbellArchetype::Mentor)
@@ -375,7 +375,7 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "TestPC", location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("TestPC").unwrap(), location_id, now)
             .with_id(pc_id);
 
         let npc = Character::new(world_id, CharacterName::new("TestNPC").unwrap(), CampbellArchetype::Mentor)

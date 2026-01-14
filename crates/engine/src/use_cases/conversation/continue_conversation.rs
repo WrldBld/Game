@@ -209,8 +209,8 @@ mod tests {
     use uuid::Uuid;
     use wrldbldr_domain::{
         ApprovalRequestData, AssetGenerationData, CampbellArchetype, Character, CharacterId,
-        CharacterName, LlmRequestData, LocationId, MoodState, PlayerActionData, PlayerCharacterId, RegionId,
-        StagedNpc, Staging, StagingSource, WorldId,
+        CharacterName, LlmRequestData, LocationId, MoodState, PlayerActionData,
+        PlayerCharacterId, RegionId, StagedNpc, Staging, StagingSource, WorldId, WorldName,
     };
 
     use crate::repositories;
@@ -425,9 +425,9 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now)
             .with_id(pc_id)
-            .with_current_region(region_id);
+            .with_current_region(Some(region_id));
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -486,7 +486,7 @@ mod tests {
         let npc_id = CharacterId::new();
 
         // PC has no current_region_id
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now)
             .with_id(pc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
@@ -550,9 +550,9 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now)
             .with_id(pc_id)
-            .with_current_region(region_id);
+            .with_current_region(Some(region_id));
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -619,9 +619,9 @@ mod tests {
         let npc_id = CharacterId::new();
         let other_npc_id = CharacterId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now)
             .with_id(pc_id)
-            .with_current_region(region_id);
+            .with_current_region(Some(region_id));
 
         let npc = Character::new(world_id, CharacterName::new("NPC").unwrap(), CampbellArchetype::Mentor)
             .with_id(npc_id);
@@ -641,9 +641,9 @@ mod tests {
             .returning(move |_| Ok(Some(npc_for_get.clone())));
 
         let mut world_repo = MockWorldRepo::new();
-        let mut world = wrldbldr_domain::World::new("W", "D", now).expect("valid world");
-        world.id = world_id;
-        let current_game_time = world.game_time.current();
+        let world_name = WorldName::new("W").unwrap();
+        let world = wrldbldr_domain::World::new(world_name).with_id(world_id);
+        let current_game_time = world.game_time().current();
         let world_for_get = world.clone();
         world_repo
             .expect_get()
@@ -723,9 +723,9 @@ mod tests {
         let npc_id = CharacterId::new();
         let conversation_id = Uuid::new_v4();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now)
             .with_id(pc_id)
-            .with_current_region(region_id);
+            .with_current_region(Some(region_id));
 
         let npc = Character::new(world_id, CharacterName::new("NPC").unwrap(), CampbellArchetype::Mentor)
             .with_id(npc_id);
@@ -745,9 +745,9 @@ mod tests {
             .returning(move |_| Ok(Some(npc_for_get.clone())));
 
         let mut world_repo = MockWorldRepo::new();
-        let mut world = wrldbldr_domain::World::new("W", "D", now).expect("valid world");
-        world.id = world_id;
-        let current_game_time = world.game_time.current();
+        let world_name = WorldName::new("W").unwrap();
+        let world = wrldbldr_domain::World::new(world_name).with_id(world_id);
+        let current_game_time = world.game_time().current();
         let world_for_get = world.clone();
         world_repo
             .expect_get()
@@ -833,9 +833,9 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now)
             .with_id(pc_id)
-            .with_current_region(region_id);
+            .with_current_region(Some(region_id));
 
         let npc = Character::new(world_id, CharacterName::new("NPC").unwrap(), CampbellArchetype::Mentor)
             .with_id(npc_id);
@@ -855,9 +855,9 @@ mod tests {
             .returning(move |_| Ok(Some(npc_for_get.clone())));
 
         let mut world_repo = MockWorldRepo::new();
-        let mut world = wrldbldr_domain::World::new("W", "D", now).expect("valid world");
-        world.id = world_id;
-        let current_game_time = world.game_time.current();
+        let world_name = WorldName::new("W").unwrap();
+        let world = wrldbldr_domain::World::new(world_name).with_id(world_id);
+        let current_game_time = world.game_time().current();
         let world_for_get = world.clone();
         world_repo
             .expect_get()
@@ -946,9 +946,9 @@ mod tests {
         let player_id = "player".to_string();
         let player_message = "Hello again!".to_string();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now)
             .with_id(pc_id)
-            .with_current_region(region_id);
+            .with_current_region(Some(region_id));
 
         let npc = Character::new(world_id, CharacterName::new("NPC").unwrap(), CampbellArchetype::Mentor)
             .with_id(npc_id);
@@ -968,9 +968,9 @@ mod tests {
             .returning(move |_| Ok(Some(npc_for_get.clone())));
 
         let mut world_repo = MockWorldRepo::new();
-        let mut world = wrldbldr_domain::World::new("W", "D", now).expect("valid world");
-        world.id = world_id;
-        let current_game_time = world.game_time.current();
+        let world_name = WorldName::new("W").unwrap();
+        let world = wrldbldr_domain::World::new(world_name).with_id(world_id);
+        let current_game_time = world.game_time().current();
         let world_for_get = world.clone();
         world_repo
             .expect_get()
@@ -1070,9 +1070,9 @@ mod tests {
         let player_id = "player".to_string();
         let player_message = "Continuing...".to_string();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now)
             .with_id(pc_id)
-            .with_current_region(region_id);
+            .with_current_region(Some(region_id));
 
         let npc = Character::new(world_id, CharacterName::new("NPC").unwrap(), CampbellArchetype::Mentor)
             .with_id(npc_id);
@@ -1092,9 +1092,9 @@ mod tests {
             .returning(move |_| Ok(Some(npc_for_get.clone())));
 
         let mut world_repo = MockWorldRepo::new();
-        let mut world = wrldbldr_domain::World::new("W", "D", now).expect("valid world");
-        world.id = world_id;
-        let current_game_time = world.game_time.current();
+        let world_name = WorldName::new("W").unwrap();
+        let world = wrldbldr_domain::World::new(world_name).with_id(world_id);
+        let current_game_time = world.game_time().current();
         let world_for_get = world.clone();
         world_repo
             .expect_get()

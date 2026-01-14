@@ -79,7 +79,7 @@ async fn test_player_enters_location_trigger() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id.to_string() == event_id.to_string()),
+        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
         "Event with PlayerEntersLocation trigger should exist"
     );
 }
@@ -121,7 +121,7 @@ async fn test_location_event_on_movement() {
         result.triggered_events.len()
     );
     for event in &result.triggered_events {
-        println!("  Triggered: {} - {}", event.name, event.description);
+        println!("  Triggered: {} - {}", event.name(), event.description());
     }
 
     ctx.finalize_event_log(TestOutcome::Pass);
@@ -212,7 +212,7 @@ async fn test_one_time_location_event() {
     let first_visit_triggered = result1
         .triggered_events
         .iter()
-        .any(|e| e.name == "First Visit Event");
+        .any(|e| e.name() == "First Visit Event");
 
     // Go back
     let _ = ctx
@@ -236,7 +236,7 @@ async fn test_one_time_location_event() {
     let second_visit_triggered = result2
         .triggered_events
         .iter()
-        .any(|e| e.name == "First Visit Event");
+        .any(|e| e.name() == "First Visit Event");
 
     // Document behavior - one-time event should only trigger once
     println!("First visit triggered: {}", first_visit_triggered);
@@ -312,7 +312,7 @@ async fn test_repeatable_location_event() {
         .await
         .expect("Should list events");
 
-    let event = events.iter().find(|e| e.id.to_string() == event_id.to_string());
+    let event = events.iter().find(|e| e.id().to_string() == event_id.to_string());
     assert!(event.is_some(), "Event should exist");
-    assert!(event.unwrap().is_repeatable, "Event should be repeatable");
+    assert!(event.unwrap().is_repeatable(), "Event should be repeatable");
 }

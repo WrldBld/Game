@@ -291,7 +291,7 @@ async fn test_observation_count_trigger() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id.to_string() == event_id.to_string()),
+        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
         "Event with ObservationCount trigger should exist"
     );
 }

@@ -633,6 +633,7 @@ mod tests {
 
     use chrono::Utc;
     use wrldbldr_domain::{GameTimeConfig, TimeMode, WorldId};
+    use wrldbldr_domain::value_objects::WorldName;
 
     use crate::repositories;
     use crate::infrastructure::ports::{ClockPort, MockWorldRepo};
@@ -653,9 +654,10 @@ mod tests {
         let mut time_config = GameTimeConfig::default();
         time_config.mode = TimeMode::Auto;
 
-        let mut domain_world = wrldbldr_domain::World::new("World", "Desc", now).expect("valid world");
-        domain_world.id = world_id;
-        domain_world.time_config = time_config;
+        let world_name = WorldName::new("World").unwrap();
+        let domain_world = wrldbldr_domain::World::new(world_name)
+            .with_id(world_id)
+            .with_time_config(time_config);
 
         let mut world_repo = MockWorldRepo::new();
         let domain_world_for_get = domain_world.clone();
@@ -687,15 +689,15 @@ mod tests {
         assert_eq!(suggestion.world_id, world_id);
         assert_eq!(suggestion.action_type, "challenge");
         assert_eq!(suggestion.suggested_minutes, 10);
-        assert_eq!(suggestion.current_time, domain_world.game_time);
+        assert_eq!(suggestion.current_time, *domain_world.game_time());
         assert_eq!(
             suggestion.resulting_time.day(),
-            domain_world.game_time.day(),
+            domain_world.game_time().day(),
             "time suggestion should not change day for small increments"
         );
         assert_ne!(
             suggestion.resulting_time.minute(),
-            domain_world.game_time.minute()
+            domain_world.game_time().minute()
         );
     }
 
@@ -707,9 +709,10 @@ mod tests {
         let mut time_config = GameTimeConfig::default();
         time_config.mode = TimeMode::Manual;
 
-        let mut domain_world = wrldbldr_domain::World::new("World", "Desc", now).expect("valid world");
-        domain_world.id = world_id;
-        domain_world.time_config = time_config;
+        let world_name = WorldName::new("World").unwrap();
+        let domain_world = wrldbldr_domain::World::new(world_name)
+            .with_id(world_id)
+            .with_time_config(time_config);
 
         let mut world_repo = MockWorldRepo::new();
         let domain_world_for_get = domain_world.clone();
@@ -743,11 +746,9 @@ mod tests {
         let world_id = WorldId::new();
 
         // Default config cost for unknown action types is 0.
-        let domain_world = {
-            let mut w = wrldbldr_domain::World::new("World", "Desc", now).expect("valid world");
-            w.id = world_id;
-            w
-        };
+        let world_name = WorldName::new("World").unwrap();
+        let domain_world = wrldbldr_domain::World::new(world_name)
+            .with_id(world_id);
 
         let mut world_repo = MockWorldRepo::new();
         let domain_world_for_get = domain_world.clone();

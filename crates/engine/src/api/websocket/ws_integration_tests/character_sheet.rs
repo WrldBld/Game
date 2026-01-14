@@ -4,12 +4,12 @@ use wrldbldr_domain::{value_objects::RuleSystemConfig, WorldId};
 use wrldbldr_protocol::{ClientMessage, ErrorCode, RequestPayload, ResponseResult, ServerMessage, WorldRequest};
 
 /// Create a D&D 5e world for testing.
-fn create_dnd5e_world(world_id: WorldId, now: chrono::DateTime<chrono::Utc>) -> wrldbldr_domain::World {
-    let mut world = wrldbldr_domain::World::new("Test D&D 5e World", "A test world", now)
-        .expect("valid world");
-    world.id = world_id;
-    world.rule_system = RuleSystemConfig::dnd_5e();
-    world
+fn create_dnd5e_world(world_id: WorldId, _now: chrono::DateTime<chrono::Utc>) -> wrldbldr_domain::World {
+    let world_name = wrldbldr_domain::WorldName::new("Test D&D 5e World").unwrap();
+    wrldbldr_domain::World::new(world_name)
+        .with_description(wrldbldr_domain::Description::new("A test world").unwrap())
+        .with_id(world_id)
+        .with_rule_system(RuleSystemConfig::dnd_5e())
 }
 
 #[tokio::test]

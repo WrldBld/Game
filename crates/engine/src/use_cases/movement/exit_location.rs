@@ -263,7 +263,7 @@ mod tests {
     use std::sync::Arc;
 
     use chrono::Utc;
-    use wrldbldr_domain::{LocationId, LocationType, PlayerCharacterId, Region, RegionId, WorldId};
+    use wrldbldr_domain::{Description, LocationId, LocationType, PlayerCharacterId, Region, RegionId, WorldId, value_objects::{CharacterName, LocationName}};
 
     use crate::repositories;
     use crate::infrastructure::ports::{
@@ -381,7 +381,7 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let target_location_id = LocationId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), pc_location_id, now)
             .with_id(pc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
@@ -421,14 +421,14 @@ mod tests {
         let target_location_id = LocationId::new();
         let other_location_id = LocationId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), pc_location_id, now)
             .with_id(pc_id);
 
-        let mut location =
-            wrldbldr_domain::Location::new(world_id, "Target", LocationType::Interior)
-                .expect("valid location")
-                .with_description("Desc");
-        location.id = target_location_id;
+        let location_name = LocationName::new("Target").unwrap();
+        let location =
+            wrldbldr_domain::Location::new(world_id, location_name, LocationType::Interior)
+                .with_description(Description::new("Desc").unwrap())
+                .with_id(target_location_id);
 
         let mut arrival_region = Region::new(other_location_id, "Arrival");
         arrival_region.id = RegionId::new();
@@ -479,15 +479,15 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let target_location_id = LocationId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), pc_location_id, now)
             .with_id(pc_id);
 
-        let mut location =
-            wrldbldr_domain::Location::new(world_id, "Target", LocationType::Interior)
-                .expect("valid location")
-                .with_description("Desc");
-        location.id = target_location_id;
-        location.default_region_id = None;
+        let location_name = LocationName::new("Target").unwrap();
+        // Location has default_region_id = None by default, no need to set it explicitly
+        let location =
+            wrldbldr_domain::Location::new(world_id, location_name, LocationType::Interior)
+                .with_description(Description::new("Desc").unwrap())
+                .with_id(target_location_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -537,17 +537,17 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
 
         let target_location_id = LocationId::new();
-        let mut target_location =
-            wrldbldr_domain::Location::new(world_id, "Target", LocationType::Interior)
-                .expect("valid location")
-                .with_description("Desc");
-        target_location.id = target_location_id;
+        let location_name = LocationName::new("Target").unwrap();
+        let target_location =
+            wrldbldr_domain::Location::new(world_id, location_name, LocationType::Interior)
+                .with_description(Description::new("Desc").unwrap())
+                .with_id(target_location_id);
 
         let mut arrival_region = Region::new(target_location_id, "Arrival");
         arrival_region.id = RegionId::new();
         let arrival_region_id = arrival_region.id;
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now)
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), pc_location_id, now)
             .with_id(pc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();

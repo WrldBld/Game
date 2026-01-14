@@ -493,26 +493,15 @@ fn test_extract_compendium_context_handles_multiclass() {
 
 #[test]
 fn test_extract_compendium_context_handles_empty_sheet() {
-    use wrldbldr_domain::{LocationId, PlayerCharacterId};
+    use wrldbldr_domain::LocationId;
+    use wrldbldr_domain::value_objects::CharacterName;
 
     // Setup: Create character with no sheet data
-    let pc = wrldbldr_domain::PlayerCharacter {
-        id: PlayerCharacterId::new(),
-        user_id: "test".to_string(),
-        world_id: WorldId::new(),
-        name: "Empty".to_string(),
-        description: None,
-        sheet_data: None,
-        current_location_id: LocationId::new(),
-        current_region_id: None,
-        starting_location_id: LocationId::new(),
-        sprite_asset: None,
-        portrait_asset: None,
-        is_alive: true,
-        is_active: true,
-        created_at: chrono::Utc::now(),
-        last_active_at: chrono::Utc::now(),
-    };
+    let now = chrono::Utc::now();
+    let world_id = WorldId::new();
+    let location_id = LocationId::new();
+    let name = CharacterName::new("Empty").unwrap();
+    let pc = wrldbldr_domain::PlayerCharacter::new("test", world_id, name, location_id, now);
     let ctx = trigger_context_from_pc(&pc);
 
     // Assert: All fields should be empty/None
@@ -535,11 +524,7 @@ fn create_test_event_with_triggers(
     trigger_types: Vec<NarrativeTriggerType>,
     logic: TriggerLogic,
 ) -> NarrativeEvent {
-    let mut event = NarrativeEvent::new(WorldId::new(), name.to_string(), chrono::Utc::now());
-
-    event.description = format!("Test event: {}", name);
-    event.trigger_logic = logic;
-    event.trigger_conditions = trigger_types
+    let conditions: Vec<NarrativeTrigger> = trigger_types
         .into_iter()
         .enumerate()
         .map(|(i, t)| NarrativeTrigger {
@@ -550,5 +535,8 @@ fn create_test_event_with_triggers(
         })
         .collect();
 
-    event
+    NarrativeEvent::new(WorldId::new(), name.to_string(), chrono::Utc::now())
+        .with_description(format!("Test event: {}", name))
+        .with_trigger_logic(logic)
+        .with_trigger_conditions(conditions)
 }

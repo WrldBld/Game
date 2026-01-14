@@ -19,7 +19,6 @@ mod location_state;
 mod lore;
 mod narrative_event;
 mod observation;
-mod player_character;
 mod region;
 mod region_state;
 mod scene;
@@ -36,7 +35,9 @@ pub use challenge::{
     ChallengeRegionAvailability, ChallengeType, ChallengeUnlock, Difficulty, DifficultyDescriptor,
     Outcome, OutcomeTrigger, OutcomeType, TriggerCondition, TriggerType,
 };
-pub use character::{Character, StatBlock, StatModifier, StatValue};
+// Note: Character is now exported from aggregates
+// StatBlock, StatModifier, StatValue are now exported from value_objects
+pub use character::{StatBlock, StatModifier, StatValue};
 pub use character_content::{
     AcquiredFeat, ActiveFeature, CharacterFeats, CharacterFeatures, CharacterIdentity,
     CharacterSpells, ClassLevel, KnownSpell, SpellSlotPool,
@@ -55,19 +56,22 @@ pub use interaction::{
     InteractionTemplate, InteractionType,
 };
 pub use item::{AcquisitionMethod, FrequencyLevel, InventoryItem, Item};
-pub use location::{ConnectionType, Location, LocationConnection, LocationType};
+// Note: Location is now exported from aggregates
+pub use location::{ConnectionType, LocationConnection, LocationType};
 pub use location_state::{LocationState, LocationStateSummary};
 pub use lore::{Lore, LoreCategory, LoreChunk, LoreDiscoverySource, LoreKnowledge};
+// Note: NarrativeEvent is now exported from aggregates
 pub use narrative_event::{
-    ChainedEvent, EventChainMembership, EventEffect, EventOutcome, FeaturedNpc, NarrativeEvent,
+    ChainedEvent, EventChainMembership, EventEffect, EventOutcome, FeaturedNpc,
     NarrativeTrigger, NarrativeTriggerType, OutcomeCondition, TriggerContext, TriggerEvaluation,
     TriggerLogic,
 };
 pub use observation::{NpcObservation, ObservationSummary, ObservationType};
-pub use player_character::PlayerCharacter;
+// Note: PlayerCharacter is now exported from aggregates
 pub use region::{MapBounds, Region, RegionConnection, RegionExit};
 pub use region_state::{RegionState, RegionStateSummary};
-pub use scene::{Scene, SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext};
+// Note: Scene is now exported from aggregates
+pub use scene::{SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext};
 pub use skill::{default_skills_for_variant, Skill, SkillCategory};
 pub use spell::{
     CastingTime, CastingTimeUnit, DurationUnit, MaterialComponent, Spell, SpellComponents,
@@ -86,4 +90,5 @@ pub use workflow_config::{
     InputDefault, InputType, PromptMapping, PromptMappingType, WorkflowAnalysis,
     WorkflowConfiguration, WorkflowInput, WorkflowSlot,
 };
-pub use world::{Act, MonomythStage, TimeAdvanceResult, World};
+// Note: World is now exported from aggregates
+pub use world::{Act, MonomythStage, TimeAdvanceResult};

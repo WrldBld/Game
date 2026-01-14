@@ -309,6 +309,7 @@ mod tests {
     use axum::body::Body;
     use chrono::Utc;
     use tower::ServiceExt;
+    use wrldbldr_domain::{Description, WorldName};
 
     use crate::api::websocket::test_support::TestAppRepos;
     use crate::infrastructure::ports::MockWorldRepo;
@@ -441,8 +442,9 @@ mod tests {
         let repos = TestAppRepos::new(world_repo);
         let router = build_router_with_repos(repos);
 
-        let world = wrldbldr_domain::World::new("Test World", "Desc", Utc::now())
-            .expect("valid world");
+        let world_name = WorldName::new("Test World").unwrap();
+        let world = wrldbldr_domain::World::new(world_name)
+            .with_description(Description::new("Desc").unwrap());
         let export = crate::use_cases::world::WorldExport {
             world: world.clone(),
             locations: Vec::new(),
@@ -468,6 +470,6 @@ mod tests {
 
         assert_eq!(response.status(), axum::http::StatusCode::OK);
         let payload: serde_json::Value = read_body_json(response).await;
-        assert_eq!(payload["id"], world.id.to_string());
+        assert_eq!(payload["id"], world.id().to_string());
     }
 }

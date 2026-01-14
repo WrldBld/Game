@@ -30,7 +30,7 @@ async fn test_world_has_game_time() {
     // Verify game time exists
     // The world should have game_time configuration
     // This documents expected behavior
-    println!("World name: {}", world.name);
+    println!("World name: {}", world.name().as_str());
 }
 
 /// Test time suggestion for movement.
@@ -167,7 +167,7 @@ async fn test_time_in_world_context() {
 
     // The world context should include game_time when building LLM prompts
     // This verifies time data is available for context building
-    println!("World time mode configured for: {}", world.name);
+    println!("World time mode configured for: {}", world.name().as_str());
 
     ctx.finalize_event_log(TestOutcome::Pass);
     let _ = ctx.save_event_log(&E2ETestContext::default_log_path("time_context"));
@@ -239,7 +239,7 @@ async fn test_time_reached_trigger() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id.to_string() == event_id.to_string()),
+        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
         "Event with TimeReached trigger should exist"
     );
 }
@@ -313,7 +313,7 @@ async fn test_time_at_location_trigger() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id.to_string() == event_id.to_string()),
+        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
         "Event with TimeAtLocation trigger should exist"
     );
 }

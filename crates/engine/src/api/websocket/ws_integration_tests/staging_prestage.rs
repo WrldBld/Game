@@ -14,22 +14,25 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     let pc_id = PlayerCharacterId::new();
     let npc_id = CharacterId::new();
 
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
-    world.id = world_id;
-    world.set_time_mode(TimeMode::Manual, now);
+    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let mut world = wrldbldr_domain::World::new(world_name)
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(world_id);
+    world.set_time_mode(TimeMode::Manual);
 
-    let mut location = wrldbldr_domain::Location::new(
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location = wrldbldr_domain::Location::new(
         world_id,
-        "Test Location",
+        location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-    .expect("valid location");
-    location.id = location_id;
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(location_id);
 
     let mut region = wrldbldr_domain::Region::new(location_id, "Region");
     region.id = region_id;
 
-    let pc = wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now)
+    let pc = wrldbldr_domain::PlayerCharacter::new("player-1", world_id, wrldbldr_domain::CharacterName::new("PC").unwrap(), location_id, now)
         .with_id(pc_id);
     // initial spawn - PC starts with no current_region_id
 
