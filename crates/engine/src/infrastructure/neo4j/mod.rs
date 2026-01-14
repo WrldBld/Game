@@ -5,11 +5,17 @@ use std::sync::Arc;
 use crate::infrastructure::ports::ClockPort;
 
 mod graph;
+#[cfg(test)]
+mod graph_test;
 mod helpers;
 pub mod query_helpers;
 mod schema;
 
+#[cfg(test)]
+pub use graph_test::Neo4jGraph;
+#[cfg(not(test))]
 pub use graph::Neo4jGraph;
+pub use graph::Neo4jRowStream;
 pub use schema::ensure_schema;
 
 mod act_repo;

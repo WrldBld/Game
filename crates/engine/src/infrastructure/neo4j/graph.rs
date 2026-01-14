@@ -1,25 +1,13 @@
-//! Neo4j graph wrapper with optional test benchmarking.
-
-use std::time::Instant;
+//! Neo4j graph wrapper.
 
 use futures_util::{Stream, TryStreamExt};
 use neo4rs::{Graph, Query, Row};
 use std::pin::Pin;
 
-#[cfg(test)]
-use std::sync::Arc;
-
-#[cfg(test)]
-use crate::e2e_tests::benchmark::E2EBenchmark;
-
 /// Concrete wrapper around `neo4rs::Graph`.
-///
-/// In tests, this can record query timings into `E2EBenchmark`.
 #[derive(Clone)]
 pub struct Neo4jGraph {
     inner: Graph,
-    #[cfg(test)]
-    benchmark: Option<Arc<E2EBenchmark>>,
 }
 
 pub struct Neo4jRowStream {
@@ -47,19 +35,7 @@ impl Neo4jRowStream {
 
 impl Neo4jGraph {
     pub fn new(graph: Graph) -> Self {
-        Self {
-            inner: graph,
-            #[cfg(test)]
-            benchmark: None,
-        }
-    }
-
-    #[cfg(test)]
-    pub fn with_benchmark(graph: Graph, benchmark: Arc<E2EBenchmark>) -> Self {
-        Self {
-            inner: graph,
-            benchmark: Some(benchmark),
-        }
+        Self { inner: graph }
     }
 
     pub fn inner(&self) -> &Graph {
@@ -70,28 +46,15 @@ impl Neo4jGraph {
         self.inner.clone()
     }
 
-    fn record(&self, _operation: &str, _elapsed_ms: u64) {
-        #[cfg(test)]
-        if let Some(benchmark) = &self.benchmark {
-            benchmark.record_neo4j_query(_operation, _elapsed_ms);
-        }
-    }
-
     pub async fn run(&self, query: Query) -> Result<(), neo4rs::Error> {
-        let start = Instant::now();
-        let result = self.inner.run(query).await;
-        self.record("run", start.elapsed().as_millis() as u64);
-        result
+        self.inner.run(query).await
     }
 
     pub async fn execute(
         &self,
         query: Query,
     ) -> Result<Neo4jRowStream, neo4rs::Error> {
-        let start = Instant::now();
-        let result = self.inner.execute(query).await;
-        self.record("execute", start.elapsed().as_millis() as u64);
-        result.map(|stream| {
+        self.inner.execute(query).await.map(|stream| {
             let stream = stream.into_stream();
             let stream = TryStreamExt::into_stream(stream);
             Neo4jRowStream::from_stream(stream)
