@@ -694,7 +694,7 @@ impl<'de> Deserialize<'de> for Character {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
+    use chrono::{DateTime, TimeZone, Utc};
 
     fn fixed_time() -> DateTime<Utc> {
         Utc.timestamp_opt(1_700_000_000, 0).unwrap()

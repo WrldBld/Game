@@ -1118,34 +1118,36 @@ mod tests {
         #[test]
         fn set_description_works() {
             let mut event = create_test_event();
-            event.set_description("New description");
+            event.set_description("New description", fixed_time());
             assert_eq!(event.description(), "New description");
         }
 
         #[test]
         fn set_active_works() {
             let mut event = create_test_event();
-            event.set_active(false);
+            let now = fixed_time();
+            event.set_active(false, now);
             assert!(!event.is_active());
 
-            event.set_active(true);
+            event.set_active(true, now);
             assert!(event.is_active());
         }
 
         #[test]
         fn set_priority_works() {
             let mut event = create_test_event();
-            event.set_priority(5);
+            event.set_priority(5, fixed_time());
             assert_eq!(event.priority(), 5);
         }
 
         #[test]
         fn set_favorite_works() {
             let mut event = create_test_event();
-            event.set_favorite(true);
+            let now = fixed_time();
+            event.set_favorite(true, now);
             assert!(event.is_favorite());
 
-            event.set_favorite(false);
+            event.set_favorite(false, now);
             assert!(!event.is_favorite());
         }
     }
@@ -1219,7 +1221,7 @@ mod tests {
 
             assert_eq!(deserialized.id(), event.id());
             assert_eq!(deserialized.world_id(), world_id);
-            assert_eq!(deserialized.name(), "Test Event");
+            assert_eq!(deserialized.name().as_str(), "Test Event");
             assert_eq!(deserialized.description(), "A test event");
             assert_eq!(deserialized.tags(), &["test", "important"]);
             assert_eq!(deserialized.priority(), 5);

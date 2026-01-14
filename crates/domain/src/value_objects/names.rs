@@ -540,6 +540,82 @@ mod tests {
         }
     }
 
+    mod scene_name {
+        use super::*;
+
+        #[test]
+        fn valid_name() {
+            let name = SceneName::new("The Hidden Grove").unwrap();
+            assert_eq!(name.as_str(), "The Hidden Grove");
+        }
+
+        #[test]
+        fn empty_name_rejected() {
+            let result = SceneName::new("");
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+        }
+
+        #[test]
+        fn name_is_trimmed() {
+            let name = SceneName::new("  The Threshold  ").unwrap();
+            assert_eq!(name.as_str(), "The Threshold");
+        }
+
+        #[test]
+        fn too_long_rejected() {
+            let long_name = "a".repeat(201);
+            let result = SceneName::new(long_name);
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn serde_roundtrip() {
+            let name = SceneName::new("Crossing the Bridge").unwrap();
+            let json = serde_json::to_string(&name).unwrap();
+            let deserialized: SceneName = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized.as_str(), "Crossing the Bridge");
+        }
+    }
+
+    mod narrative_event_name {
+        use super::*;
+
+        #[test]
+        fn valid_name() {
+            let name = NarrativeEventName::new("The Door Unlocks").unwrap();
+            assert_eq!(name.as_str(), "The Door Unlocks");
+        }
+
+        #[test]
+        fn empty_name_rejected() {
+            let result = NarrativeEventName::new("");
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+        }
+
+        #[test]
+        fn name_is_trimmed() {
+            let name = NarrativeEventName::new("  A Sudden Storm  ").unwrap();
+            assert_eq!(name.as_str(), "A Sudden Storm");
+        }
+
+        #[test]
+        fn too_long_rejected() {
+            let long_name = "a".repeat(201);
+            let result = NarrativeEventName::new(long_name);
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn serde_roundtrip() {
+            let name = NarrativeEventName::new("The Oath Broken").unwrap();
+            let json = serde_json::to_string(&name).unwrap();
+            let deserialized: NarrativeEventName = serde_json::from_str(&json).unwrap();
+            assert_eq!(deserialized.as_str(), "The Oath Broken");
+        }
+    }
+
     mod description {
         use super::*;
 

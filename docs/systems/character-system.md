@@ -425,7 +425,7 @@ The key insight is that the same person can be a HELPER in one character's model
 | Domain | `crates/domain/src/entities/item.rs` | Item entity |
 | Domain | `crates/domain/src/value_objects/archetype.rs` | CampbellArchetype |
 | Domain | `crates/domain/src/value_objects/actantial_context.rs` | ActantialContext, WantContext |
-| Domain | `crates/domain/src/value_objects/llm_context.rs` | MotivationsContext for LLM |
+| Engine | `crates/engine/src/llm_context.rs` | MotivationsContext for LLM |
 | Domain | `crates/domain/src/value_objects/relationship.rs` | Relationship types |
 | Entity | `crates/engine/src/entities/character.rs` | Character operations |
 | Entity | `crates/engine/src/entities/player_character.rs` | PC operations |

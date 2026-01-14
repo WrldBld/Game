@@ -40,6 +40,7 @@ Address architecture debt identified in `docs/architecture/review.md` review:
    - For use cases that need non-CRUD functions, extend repository APIs rather than injecting port traits.
 2) Consolidate port traits toward boundary-only set.
    - Evaluate repos like `ActRepo`, `SkillRepo`, `InteractionRepo`, etc. for consolidation (e.g., grouped `ContentRepo`).
+   - `SkillRepo` consolidated into `ContentRepo` (completed).
    - Keep only realistic swap boundaries.
 
 ### Exit criteria
@@ -56,6 +57,21 @@ Address architecture debt identified in `docs/architecture/review.md` review:
 ### Exit criteria
 - Documentation references updated paths.
 - Tests for name validation pass.
+
+## Phase 4: 5e Primitives Coverage (Content + Tests)
+### Work
+- Complete support for all D&D 5e primitives in content persistence and retrieval.
+  - Ensure storage and CRUD for feats, spells, classes, subclasses, races, backgrounds, items, proficiencies, and related metadata.
+  - Wire content access through `ContentRepo` and `ContentService` where applicable.
+- Add tests covering each primitive:
+  - Importer coverage for 5etools data.
+  - Repository CRUD for each primitive (Neo4j integration tests).
+  - Use case/API coverage for listing/getting primitives.
+
+### Exit criteria
+- All 5e primitives are persisted and queryable via `ContentRepo`.
+- Tests exist for each primitive (import + repository + API/use case where applicable).
+- `cargo test --workspace` passes with required test dependencies.
 
 ## Risks / Mitigations
 - API surface changes: mitigate with type aliases or transitional re-exports inside engine.

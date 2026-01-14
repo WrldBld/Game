@@ -307,7 +307,7 @@ pub enum GameTool {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `crates/domain/src/value_objects/llm_context.rs` | Context structures |
+| Engine | `crates/engine/src/llm_context.rs` | Context structures |
 | Domain | `crates/domain/src/value_objects/context_budget.rs` | Budget config |
 | Domain | `crates/domain/src/value_objects/game_tools.rs` | Tool definitions |
 | Domain | `crates/domain/src/value_objects/directorial.rs` | Directorial notes |

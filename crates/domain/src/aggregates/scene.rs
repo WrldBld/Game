@@ -538,7 +538,7 @@ mod tests {
 
             assert_eq!(deserialized.id(), scene.id());
             assert_eq!(deserialized.act_id(), act_id);
-            assert_eq!(deserialized.name(), "Test Scene");
+            assert_eq!(deserialized.name().as_str(), "Test Scene");
             assert_eq!(deserialized.location_id(), location_id);
             assert_eq!(deserialized.featured_characters(), &[char_id]);
             assert_eq!(deserialized.directorial_notes(), "Test notes");
