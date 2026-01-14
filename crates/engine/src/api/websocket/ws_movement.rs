@@ -551,24 +551,24 @@ async fn send_triggered_events(
     for event in events {
         let outcome_description = resolve_event_outcome_description(event);
         let msg = ServerMessage::NarrativeEventTriggered {
-            event_id: event.id.to_string(),
-            event_name: event.name.clone(),
+            event_id: event.id().to_string(),
+            event_name: event.name().to_string(),
             outcome_description,
-            scene_direction: event.scene_direction.clone(),
+            scene_direction: event.scene_direction().to_string(),
         };
         state.connections.send_to_pc(pc_id, msg).await;
     }
 }
 
 fn resolve_event_outcome_description(event: &wrldbldr_domain::NarrativeEvent) -> String {
-    if let Some(ref default_name) = event.default_outcome {
-        if let Some(outcome) = event.outcomes.iter().find(|o| &o.name == default_name) {
+    if let Some(default_name) = event.default_outcome() {
+        if let Some(outcome) = event.outcomes().iter().find(|o| &o.name == default_name) {
             return outcome.description.clone();
         }
     }
 
     event
-        .outcomes
+        .outcomes()
         .first()
         .map(|outcome| outcome.description.clone())
         .unwrap_or_default()

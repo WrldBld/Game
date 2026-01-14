@@ -92,13 +92,13 @@ impl NarrativeEventOps {
         let mut event = NarrativeEvent::new(world_id, &name, now);
 
         if let Some(description) = description {
-            event.description = description;
+            event.set_description(description);
         }
         if let Some(triggers) = trigger_conditions {
-            event.trigger_conditions = triggers;
+            event.set_trigger_conditions(triggers);
         }
         if let Some(outcomes) = outcomes {
-            event.outcomes = outcomes;
+            event.set_outcomes(outcomes);
         }
 
         self.narrative.save_event(&event).await?;
@@ -120,16 +120,16 @@ impl NarrativeEventOps {
             .ok_or(NarrativeEventError::NotFound)?;
 
         if let Some(name) = name {
-            event.name = name;
+            event.set_name(name);
         }
         if let Some(description) = description {
-            event.description = description;
+            event.set_description(description);
         }
         if let Some(triggers) = trigger_conditions {
-            event.trigger_conditions = triggers;
+            event.set_trigger_conditions(triggers);
         }
         if let Some(outcomes) = outcomes {
-            event.outcomes = outcomes;
+            event.set_outcomes(outcomes);
         }
 
         self.narrative.save_event(&event).await?;
@@ -151,7 +151,7 @@ impl NarrativeEventOps {
             .get_event(event_id)
             .await?
             .ok_or(NarrativeEventError::NotFound)?;
-        event.is_active = active;
+        event.set_active(active);
         self.narrative.save_event(&event).await?;
         Ok(())
     }
@@ -166,7 +166,7 @@ impl NarrativeEventOps {
             .get_event(event_id)
             .await?
             .ok_or(NarrativeEventError::NotFound)?;
-        event.is_favorite = favorite;
+        event.set_favorite(favorite);
         self.narrative.save_event(&event).await?;
         Ok(())
     }
@@ -183,22 +183,20 @@ impl NarrativeEventOps {
             .await?
             .ok_or(NarrativeEventError::NotFound)?;
 
-        if event.world_id != world_id {
+        if event.world_id() != world_id {
             return Err(NarrativeEventError::WorldMismatch);
         }
 
         let outcome_name = event
-            .selected_outcome
-            .clone()
-            .or_else(|| event.default_outcome.clone())
-            .or_else(|| event.outcomes.first().map(|o| o.name.clone()))
+            .selected_outcome()
+            .map(|s| s.to_string())
+            .or_else(|| event.default_outcome().map(|s| s.to_string()))
+            .or_else(|| event.outcomes().first().map(|o| o.name.clone()))
             .unwrap_or_default();
 
-        event.is_triggered = true;
-        event.selected_outcome = Some(outcome_name.clone());
-        event.triggered_at = Some(Utc::now());
-        event.trigger_count = event.trigger_count.saturating_add(1);
-        let maybe_outcome = event.outcomes.iter().find(|o| o.name == outcome_name);
+        let now = Utc::now();
+        event.trigger(Some(outcome_name.clone()), now);
+        let maybe_outcome = event.outcomes().iter().find(|o| o.name == outcome_name);
         self.narrative.save_event(&event).await?;
 
         let mut effects_summary = None;
@@ -216,7 +214,7 @@ impl NarrativeEventOps {
 
                 let summary = self
                     .execute_effects
-                    .execute(event.id, outcome.name.clone(), &outcome.effects, &context)
+                    .execute(event.id(), outcome.name.clone(), &outcome.effects, &context)
                     .await;
                 effects_summary = Some(summary);
             }
@@ -227,12 +225,12 @@ impl NarrativeEventOps {
             .unwrap_or_default();
 
         Ok(TriggeredNarrativeEvent {
-            world_id: event.world_id,
-            event_id: event.id,
-            event_name: event.name.clone(),
+            world_id: event.world_id(),
+            event_id: event.id(),
+            event_name: event.name().to_string(),
             outcome_name,
             outcome_description,
-            scene_direction: event.scene_direction.clone(),
+            scene_direction: event.scene_direction().to_string(),
             effects_summary,
             effects_present,
         })
@@ -247,10 +245,8 @@ impl NarrativeEventOps {
             .get_event(event_id)
             .await?
             .ok_or(NarrativeEventError::NotFound)?;
-        event.is_triggered = false;
-        event.selected_outcome = None;
-        event.triggered_at = None;
-        event.trigger_count = 0;
+        let now = Utc::now();
+        event.reset(now);
         self.narrative.save_event(&event).await?;
         Ok(narrative_event_to_summary(&event))
     }
@@ -280,31 +276,31 @@ pub enum NarrativeEventError {
 
 fn narrative_event_to_summary(event: &NarrativeEvent) -> NarrativeEventSummary {
     NarrativeEventSummary {
-        id: event.id.to_string(),
-        world_id: event.world_id.to_string(),
-        name: event.name.clone(),
-        description: event.description.clone(),
-        scene_direction: event.scene_direction.clone(),
-        suggested_opening: event.suggested_opening.clone(),
-        trigger_count: event.trigger_count,
-        is_active: event.is_active,
-        is_triggered: event.is_triggered,
-        triggered_at: event.triggered_at.map(|dt| dt.to_rfc3339()),
-        selected_outcome: event.selected_outcome.clone(),
-        is_repeatable: event.is_repeatable,
-        delay_turns: event.delay_turns,
-        expires_after_turns: event.expires_after_turns,
-        priority: event.priority,
-        is_favorite: event.is_favorite,
-        tags: event.tags.clone(),
+        id: event.id().to_string(),
+        world_id: event.world_id().to_string(),
+        name: event.name().to_string(),
+        description: event.description().to_string(),
+        scene_direction: event.scene_direction().to_string(),
+        suggested_opening: event.suggested_opening().map(|s| s.to_string()),
+        trigger_count: event.trigger_count(),
+        is_active: event.is_active(),
+        is_triggered: event.is_triggered(),
+        triggered_at: event.triggered_at().map(|dt| dt.to_rfc3339()),
+        selected_outcome: event.selected_outcome().map(|s| s.to_string()),
+        is_repeatable: event.is_repeatable(),
+        delay_turns: event.delay_turns(),
+        expires_after_turns: event.expires_after_turns(),
+        priority: event.priority(),
+        is_favorite: event.is_favorite(),
+        tags: event.tags().to_vec(),
         scene_id: None,
         location_id: None,
         act_id: None,
         chain_id: None,
         chain_position: None,
-        outcome_count: event.outcomes.len(),
-        trigger_condition_count: event.trigger_conditions.len(),
-        created_at: event.created_at.to_rfc3339(),
-        updated_at: event.updated_at.to_rfc3339(),
+        outcome_count: event.outcomes().len(),
+        trigger_condition_count: event.trigger_conditions().len(),
+        created_at: event.created_at().to_rfc3339(),
+        updated_at: event.updated_at().to_rfc3339(),
     }
 }

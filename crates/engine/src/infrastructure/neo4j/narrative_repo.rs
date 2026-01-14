@@ -51,14 +51,14 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
 
     async fn save_event(&self, event: &NarrativeEvent) -> Result<(), RepoError> {
         let stored_triggers: Vec<StoredNarrativeTrigger> =
-            event.trigger_conditions.iter().map(|t| t.into()).collect();
+            event.trigger_conditions().iter().map(|t| t.into()).collect();
         let triggers_json = serde_json::to_string(&stored_triggers)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
         let stored_outcomes: Vec<StoredEventOutcome> =
-            event.outcomes.iter().map(|o| o.into()).collect();
+            event.outcomes().iter().map(|o| o.into()).collect();
         let outcomes_json = serde_json::to_string(&stored_outcomes)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let tags_json = serde_json::to_string(&event.tags)
+        let tags_json = serde_json::to_string(&event.tags())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let q = query(
@@ -111,47 +111,47 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             MATCH (w:World {id: $world_id})
             MERGE (w)-[:HAS_NARRATIVE_EVENT]->(e)",
         )
-        .param("id", event.id.to_string())
-        .param("world_id", event.world_id.to_string())
-        .param("name", event.name.clone())
-        .param("description", event.description.clone())
+        .param("id", event.id().to_string())
+        .param("world_id", event.world_id().to_string())
+        .param("name", event.name().to_string())
+        .param("description", event.description().to_string())
         .param("tags_json", tags_json)
         .param("triggers_json", triggers_json)
-        .param("trigger_logic", format!("{:?}", event.trigger_logic))
-        .param("scene_direction", event.scene_direction.clone())
+        .param("trigger_logic", format!("{:?}", event.trigger_logic()))
+        .param("scene_direction", event.scene_direction().to_string())
         .param(
             "suggested_opening",
-            event.suggested_opening.clone().unwrap_or_default(),
+            event.suggested_opening().map(|s| s.to_string()).unwrap_or_default(),
         )
         .param("outcomes_json", outcomes_json)
         .param(
             "default_outcome",
-            event.default_outcome.clone().unwrap_or_default(),
+            event.default_outcome().map(|s| s.to_string()).unwrap_or_default(),
         )
-        .param("is_active", event.is_active)
-        .param("is_triggered", event.is_triggered)
+        .param("is_active", event.is_active())
+        .param("is_triggered", event.is_triggered())
         .param(
             "triggered_at",
             event
-                .triggered_at
+                .triggered_at()
                 .map(|t| t.to_rfc3339())
                 .unwrap_or_default(),
         )
         .param(
             "selected_outcome",
-            event.selected_outcome.clone().unwrap_or_default(),
+            event.selected_outcome().map(|s| s.to_string()).unwrap_or_default(),
         )
-        .param("is_repeatable", event.is_repeatable)
-        .param("trigger_count", event.trigger_count as i64)
-        .param("delay_turns", event.delay_turns as i64)
+        .param("is_repeatable", event.is_repeatable())
+        .param("trigger_count", event.trigger_count() as i64)
+        .param("delay_turns", event.delay_turns() as i64)
         .param(
             "expires_after_turns",
-            event.expires_after_turns.map(|t| t as i64).unwrap_or(-1),
+            event.expires_after_turns().map(|t| t as i64).unwrap_or(-1),
         )
-        .param("priority", event.priority as i64)
-        .param("is_favorite", event.is_favorite)
-        .param("created_at", event.created_at.to_rfc3339())
-        .param("updated_at", event.updated_at.to_rfc3339());
+        .param("priority", event.priority() as i64)
+        .param("is_favorite", event.is_favorite())
+        .param("created_at", event.created_at().to_rfc3339())
+        .param("updated_at", event.updated_at().to_rfc3339());
 
         self.graph
             .run(q)
@@ -533,7 +533,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             // Filter events that have a trigger condition for this region/location
             let has_region_trigger =
                 event
-                    .trigger_conditions
+                    .trigger_conditions()
                     .iter()
                     .any(|t| match &t.trigger_type {
                         NarrativeTriggerType::PlayerEntersLocation { location_id, .. } => {
@@ -1317,31 +1317,33 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
         _ => TriggerLogic::All,
     };
 
-    Ok(NarrativeEvent {
-        id,
-        world_id,
-        name,
-        description,
-        tags,
-        trigger_conditions,
-        trigger_logic,
-        scene_direction,
-        suggested_opening,
-        outcomes,
-        default_outcome,
-        is_active,
-        is_triggered,
-        triggered_at,
-        selected_outcome,
-        is_repeatable,
-        trigger_count,
-        delay_turns,
-        expires_after_turns,
-        priority,
-        is_favorite,
-        created_at,
-        updated_at,
-    })
+    let mut event = NarrativeEvent::new(world_id, name, created_at)
+        .with_id(id)
+        .with_description(description)
+        .with_tags(tags)
+        .with_trigger_conditions(trigger_conditions)
+        .with_trigger_logic(trigger_logic)
+        .with_scene_direction(scene_direction)
+        .with_outcomes(outcomes)
+        .with_active(is_active)
+        .with_repeatable(is_repeatable)
+        .with_delay_turns(delay_turns)
+        .with_priority(priority)
+        .with_favorite(is_favorite)
+        .with_triggered_state(is_triggered, triggered_at, selected_outcome, trigger_count)
+        .with_updated_at(updated_at);
+
+    if let Some(opening) = suggested_opening {
+        event = event.with_suggested_opening(opening);
+    }
+    if let Some(outcome) = default_outcome {
+        event = event.with_default_outcome(outcome);
+    }
+    if let Some(turns) = expires_after_turns {
+        event = event.with_expires_after_turns(turns);
+    }
+
+    Ok(event)
 }
 
 fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, RepoError> {

@@ -74,11 +74,11 @@ impl NarrativeDecisionFlow {
                     .as_ref()
                     .and_then(|s| s.suggested_outcome.clone())
             })
-            .or_else(|| event.default_outcome.clone())
-            .or_else(|| event.outcomes.first().map(|o| o.name.clone()))
+            .or_else(|| event.default_outcome().map(|s| s.to_string()))
+            .or_else(|| event.outcomes().first().map(|o| o.name.clone()))
             .unwrap_or_default();
 
-        let outcome = event.outcomes.iter().find(|o| o.name == outcome_name);
+        let outcome = event.outcomes().iter().find(|o| o.name == outcome_name);
 
         if let Some(outcome) = outcome {
             if !outcome.effects.is_empty() {
@@ -108,11 +108,11 @@ impl NarrativeDecisionFlow {
             world_id: approval_data.world_id,
             triggered: Some(NarrativeTriggeredPayload {
                 event_id: event_id.to_string(),
-                event_name: event.name.clone(),
+                event_name: event.name().to_string(),
                 outcome_description: outcome
                     .map(|o| o.description.clone())
                     .unwrap_or_default(),
-                scene_direction: event.scene_direction.clone(),
+                scene_direction: event.scene_direction().to_string(),
             }),
         })
     }

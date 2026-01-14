@@ -426,7 +426,7 @@ impl NarrativeOps {
 
         let mut triggers = std::collections::HashSet::new();
         for event in events {
-            for trigger in &event.trigger_conditions {
+            for trigger in event.trigger_conditions() {
                 if let NarrativeTriggerType::Custom {
                     description,
                     llm_evaluation: true,
@@ -618,7 +618,7 @@ impl NarrativeOps {
             let mut npc_ids: std::collections::HashSet<CharacterId> =
                 std::collections::HashSet::new();
             for event in &candidates {
-                for trigger in &event.trigger_conditions {
+                for trigger in event.trigger_conditions() {
                     if let NarrativeTriggerType::RelationshipThreshold { character_id, .. } =
                         &trigger.trigger_type
                     {
@@ -667,7 +667,7 @@ impl NarrativeOps {
             let mut char_ids: std::collections::HashSet<CharacterId> =
                 std::collections::HashSet::new();
             for event in &candidates {
-                for trigger in &event.trigger_conditions {
+                for trigger in event.trigger_conditions() {
                     if let NarrativeTriggerType::StatThreshold { character_id, .. } =
                         &trigger.trigger_type
                     {
@@ -752,7 +752,7 @@ impl NarrativeOps {
             .collect();
 
         // Sort by priority (higher priority first)
-        triggered.sort_by(|a, b| b.priority.cmp(&a.priority));
+        triggered.sort_by(|a, b| b.priority().cmp(&a.priority()));
 
         Ok(triggered)
     }

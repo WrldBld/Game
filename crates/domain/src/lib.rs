@@ -32,7 +32,7 @@ pub use entities::{
     InteractionTemplate, InteractionType, InventoryItem, InvolvedCharacter, Item, ItemSource,
     KnownSpell, LocationConnection, ConnectionType, LocationState, LocationStateSummary, LocationType,
     Lore, LoreCategory, LoreChunk, LoreDiscoverySource, LoreKnowledge, MapBounds, MarkerImportance,
-    MaterialComponent, MonomythStage, NarrativeEvent, NarrativeTrigger, NarrativeTriggerType,
+    MaterialComponent, MonomythStage, NarrativeTrigger, NarrativeTriggerType,
     NpcObservation, ObservationSummary, ObservationType, Outcome, OutcomeCondition, OutcomeTrigger,
     OutcomeType, Prerequisite, PromptMapping, PromptMappingType, RacialTrait,
     RechargeType, Region, RegionConnection, RegionExit, RegionState, RegionStateSummary,
@@ -66,6 +66,10 @@ pub use aggregates::Scene;
 // Re-export PlayerCharacter from aggregates (the Rustic DDD version with private fields)
 // This replaces the legacy entities::PlayerCharacter with public fields
 pub use aggregates::PlayerCharacter;
+
+// Re-export NarrativeEvent from aggregates (the Rustic DDD version with private fields)
+// This replaces the legacy entities::NarrativeEvent with public fields
+pub use aggregates::NarrativeEvent;
 
 pub use error::DomainError;
 pub use events::{
