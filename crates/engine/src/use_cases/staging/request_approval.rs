@@ -97,7 +97,7 @@ impl RequestStagingApproval {
             .get(input.world_id)
             .await?
             .ok_or(StagingError::WorldNotFound)?;
-        let now = world.game_time.current();
+        let now = world.game_time().current();
 
         let settings =
             get_settings_with_fallback(self.settings.as_ref(), input.world_id, "staging").await;
@@ -171,7 +171,7 @@ impl RequestStagingApproval {
                     day: now.ordinal() as u32,
                     hour: now.hour() as u8,
                     minute: now.minute() as u8,
-                    is_paused: world.game_time.is_paused(),
+                    is_paused: world.game_time().is_paused(),
                 },
                 previous_staging,
                 rule_based_npcs,
@@ -201,7 +201,7 @@ impl RequestStagingApproval {
         Vec<wrldbldr_protocol::types::StateOptionData>,
     ) {
         let game_time = match self.world.get(world_id).await {
-            Ok(Some(w)) => w.game_time,
+            Ok(Some(w)) => w.game_time().clone(),
             _ => return (None, vec![], vec![]),
         };
 

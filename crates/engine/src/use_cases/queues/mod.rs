@@ -227,7 +227,7 @@ impl ProcessPlayerAction {
             .world
             .get(action_data.world_id)
             .await?
-            .map(|world| world.game_time);
+            .map(|world| world.game_time().clone());
         let game_time_display = game_time.as_ref().map(|gt| gt.display_date());
         let time_context = game_time
             .as_ref()

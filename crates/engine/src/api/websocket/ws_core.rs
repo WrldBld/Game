@@ -21,9 +21,9 @@ pub(super) async fn handle_world_request(
                     .into_iter()
                     .map(|w| {
                         serde_json::json!({
-                            "id": w.id,
-                            "name": w.name,
-                            "description": w.description,
+                            "id": w.id(),
+                            "name": w.name().as_str(),
+                            "description": w.description().as_str(),
                         })
                     })
                     .collect();
@@ -50,9 +50,9 @@ pub(super) async fn handle_world_request(
                 .await
             {
                 Ok(Some(world)) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": world.id,
-                    "name": world.name,
-                    "description": world.description,
+                    "id": world.id(),
+                    "name": world.name().as_str(),
+                    "description": world.description().as_str(),
                 }))),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
@@ -77,9 +77,9 @@ pub(super) async fn handle_world_request(
                 .await
             {
                 Ok(world) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": world.id.to_string(),
-                    "name": world.name,
-                    "description": world.description,
+                    "id": world.id().to_string(),
+                    "name": world.name().as_str(),
+                    "description": world.description().as_str(),
                 }))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
@@ -107,9 +107,9 @@ pub(super) async fn handle_world_request(
                 .await
             {
                 Ok(world) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": world.id.to_string(),
-                    "name": world.name,
-                    "description": world.description,
+                    "id": world.id().to_string(),
+                    "name": world.name().as_str(),
+                    "description": world.description().as_str(),
                 }))),
                 Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "World not found"),
@@ -205,7 +205,7 @@ pub(super) async fn handle_world_request(
             };
             use wrldbldr_domain::{CharacterSheetProvider, RuleSystemVariant};
 
-            let schema = match &world.rule_system.variant {
+            let schema = match &world.rule_system().variant {
                 RuleSystemVariant::Dnd5e => Some(Dnd5eSystem::new().character_sheet_schema()),
                 RuleSystemVariant::Pathfinder2e => Some(Pf2eSystem::new().character_sheet_schema()),
                 RuleSystemVariant::CallOfCthulhu7e => {

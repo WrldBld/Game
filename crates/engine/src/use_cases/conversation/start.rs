@@ -107,7 +107,7 @@ impl StartConversation {
             .get(world_id)
             .await?
             .ok_or(ConversationError::WorldNotFound)?;
-        let current_game_time = world_data.game_time.current();
+        let current_game_time = world_data.game_time().current();
 
         // Check if NPC is staged in this region (with TTL check)
         let staged_npcs = self

@@ -266,7 +266,7 @@ impl SuggestionOps {
             .world
             .get(world_id)
             .await?
-            .map(|world| world.name);
+            .map(|world| world.name().as_str().to_string());
         Ok(world_name)
     }
 

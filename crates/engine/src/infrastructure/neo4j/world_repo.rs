@@ -58,16 +58,19 @@ impl Neo4jWorldRepo {
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
 
-        Ok(World {
-            id,
-            name,
-            description,
-            rule_system,
-            game_time,
-            time_config,
-            created_at,
-            updated_at,
-        })
+        let name = WorldName::new(&name)
+            .map_err(|e| RepoError::database("query", format!("Invalid world name: {}", e)))?;
+        let description = Description::new(&description)
+            .map_err(|e| RepoError::database("query", format!("Invalid description: {}", e)))?;
+
+        Ok(World::new(name)
+            .with_id(id)
+            .with_description(description)
+            .with_rule_system(rule_system)
+            .with_game_time(game_time)
+            .with_time_config(time_config)
+            .with_created_at(created_at)
+            .with_updated_at(updated_at))
     }
 }
 
@@ -94,9 +97,9 @@ impl WorldRepo for Neo4jWorldRepo {
     }
 
     async fn save(&self, world: &World) -> Result<(), RepoError> {
-        let rule_system_json = serde_json::to_string(&world.rule_system)
+        let rule_system_json = serde_json::to_string(world.rule_system())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let time_config_json = serde_json::to_string(&world.time_config)
+        let time_config_json = serde_json::to_string(world.time_config())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         // MERGE to handle both create and update
@@ -112,22 +115,22 @@ impl WorldRepo for Neo4jWorldRepo {
                 w.updated_at = $updated_at
             RETURN w.id as id",
         )
-        .param("id", world.id.to_string())
-        .param("name", world.name.clone())
-        .param("description", world.description.clone())
+        .param("id", world.id().to_string())
+        .param("name", world.name().as_str().to_owned())
+        .param("description", world.description().as_str().to_owned())
         .param("rule_system", rule_system_json)
-        .param("game_time", world.game_time.current().to_rfc3339())
-        .param("game_time_paused", world.game_time.is_paused())
+        .param("game_time", world.game_time().current().to_rfc3339())
+        .param("game_time_paused", world.game_time().is_paused())
         .param("time_config", time_config_json)
-        .param("created_at", world.created_at.to_rfc3339())
-        .param("updated_at", world.updated_at.to_rfc3339());
+        .param("created_at", world.created_at().to_rfc3339())
+        .param("updated_at", world.updated_at().to_rfc3339());
 
         self.graph
             .run(q)
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
-        tracing::debug!("Saved world: {}", world.name);
+        tracing::debug!("Saved world: {}", world.name().as_str());
         Ok(())
     }
 

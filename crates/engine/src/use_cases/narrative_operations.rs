@@ -332,7 +332,7 @@ impl NarrativeOps {
             .world_repo
             .get(world_id)
             .await?
-            .map(|world| world.game_time);
+            .map(|world| world.game_time().clone());
 
         // Build summary from dialogue
         let summary = format!(

@@ -952,7 +952,7 @@ impl ExecuteEffects {
         };
 
         // Map system variant to XP field name
-        let xp_field = match world.rule_system.variant {
+        let xp_field = match world.rule_system().variant {
             RuleSystemVariant::Dnd5e
             | RuleSystemVariant::Pathfinder2e
             | RuleSystemVariant::GenericD20 => "XP_CURRENT",
@@ -1033,7 +1033,7 @@ impl ExecuteEffects {
         };
 
         // Map system variant to currency field name
-        match world.rule_system.variant {
+        match world.rule_system().variant {
             RuleSystemVariant::Dnd5e
             | RuleSystemVariant::Pathfinder2e
             | RuleSystemVariant::GenericD20 => {

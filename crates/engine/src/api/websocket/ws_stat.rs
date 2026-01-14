@@ -85,7 +85,7 @@ pub(super) async fn handle_stat_request(
             let final_value = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(world)) => {
                     // Find stat definition by name or abbreviation
-                    if let Some(stat_def) = world.rule_system.stat_definitions.iter().find(|s| {
+                    if let Some(stat_def) = world.rule_system().stat_definitions.iter().find(|s| {
                         s.name.eq_ignore_ascii_case(&stat_name)
                             || s.abbreviation.eq_ignore_ascii_case(&stat_name)
                     }) {

@@ -153,7 +153,7 @@ impl EnterRegion {
             .get(pc.world_id)
             .await?
             .ok_or(EnterRegionError::WorldNotFound)?;
-        let current_game_time = world_data.game_time.current();
+        let current_game_time = world_data.game_time().current();
 
         // 6. Check for valid staging (with TTL check using game time)
         let (npcs, staging_status) = resolve_staging_for_region(
@@ -182,7 +182,7 @@ impl EnterRegion {
             pc_id,
             pc.world_id,
             region_id,
-            &world_data.game_time,
+            world_data.game_time(),
         )
         .await?;
         if let Some(ref scene) = resolved_scene {

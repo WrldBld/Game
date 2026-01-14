@@ -42,7 +42,7 @@ pub use entities::{
     StoryEventInfoImportance, StoryEventType, TimeAdvanceResult, TimeContext, TriggerCondition,
     TriggerContext, TriggerEvaluation, TriggerLogic, TriggerType, UsesFormula, VisualStateSource,
     Want, WantTargetType, WantVisibility, WorkflowAnalysis, WorkflowConfiguration, WorkflowInput,
-    WorkflowSlot, World,
+    WorkflowSlot,
     // Content types for compendium system
     ContentFilter, ContentItem, ContentSource, ContentType, SourceType,
 };
@@ -54,6 +54,10 @@ pub use aggregates::Character;
 // Re-export Location from aggregates (the Rustic DDD version with private fields)
 // This replaces the legacy entities::Location with public fields
 pub use aggregates::Location;
+
+// Re-export World from aggregates (the Rustic DDD version with private fields)
+// This replaces the legacy entities::World with public fields
+pub use aggregates::World;
 
 pub use error::DomainError;
 pub use events::{

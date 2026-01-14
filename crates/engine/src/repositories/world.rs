@@ -50,7 +50,7 @@ impl World {
     /// Get the current game time for a world.
     pub async fn get_current_time(&self, id: WorldId) -> Result<GameTime, WorldError> {
         let world = self.repo.get(id).await?.ok_or(WorldError::NotFound(id))?;
-        Ok(world.game_time)
+        Ok(world.game_time().clone())
     }
 
     /// Advance game time by a number of minutes.
@@ -64,8 +64,7 @@ impl World {
     ) -> Result<TimeAdvanceResult, WorldError> {
         let mut world = self.repo.get(id).await?.ok_or(WorldError::NotFound(id))?;
 
-        let now = self.clock.now();
-        let result = world.advance_time(minutes, reason, now);
+        let result = world.advance_time(minutes, reason);
 
         self.repo.save(&world).await?;
 
@@ -78,8 +77,7 @@ impl World {
     pub async fn set_time(&self, id: WorldId, game_time: GameTime) -> Result<(), WorldError> {
         let mut world = self.repo.get(id).await?.ok_or(WorldError::NotFound(id))?;
 
-        world.game_time = game_time;
-        world.updated_at = self.clock.now();
+        *world.game_time_mut() = game_time;
 
         self.repo.save(&world).await?;
 
@@ -90,8 +88,7 @@ impl World {
     pub async fn set_time_mode(&self, id: WorldId, mode: TimeMode) -> Result<(), WorldError> {
         let mut world = self.repo.get(id).await?.ok_or(WorldError::NotFound(id))?;
 
-        let now = self.clock.now();
-        world.set_time_mode(mode, now);
+        world.set_time_mode(mode);
 
         self.repo.save(&world).await?;
 
@@ -101,6 +98,6 @@ impl World {
     /// Get the current time mode for a world.
     pub async fn get_time_mode(&self, id: WorldId) -> Result<TimeMode, WorldError> {
         let world = self.repo.get(id).await?.ok_or(WorldError::NotFound(id))?;
-        Ok(world.time_config.mode)
+        Ok(world.time_config().mode)
     }
 }

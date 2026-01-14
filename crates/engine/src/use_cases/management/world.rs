@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use wrldbldr_domain::WorldId;
+use wrldbldr_domain::value_objects::{Description, WorldName};
 
 use crate::repositories::World;
 use crate::infrastructure::ports::ClockPort;
@@ -36,20 +37,19 @@ impl WorldCrud {
         description: Option<String>,
         setting: Option<String>,
     ) -> Result<wrldbldr_domain::World, ManagementError> {
-        if name.trim().is_empty() {
-            return Err(ManagementError::InvalidInput(
-                "World name cannot be empty".to_string(),
-            ));
-        }
+        let world_name = WorldName::new(name).map_err(|e| {
+            ManagementError::InvalidInput(format!("Invalid world name: {}", e))
+        })?;
 
-        let now = self.clock.now();
-        let mut world =
-            wrldbldr_domain::World::new(name, description.clone().unwrap_or_default(), now)?;
+        let mut world = wrldbldr_domain::World::new(world_name);
 
-        if world.description.is_empty() {
-            if let Some(setting) = setting {
-                world.description = setting;
-            }
+        // Set description from either description or setting parameter
+        let desc_str = description.or(setting).unwrap_or_default();
+        if !desc_str.is_empty() {
+            let desc = Description::new(&desc_str).map_err(|e| {
+                ManagementError::InvalidInput(format!("Invalid description: {}", e))
+            })?;
+            world.set_description(desc);
         }
 
         self.world.save(&world).await?;
@@ -69,15 +69,22 @@ impl WorldCrud {
             .await?
             .ok_or(ManagementError::NotFound)?;
 
-        let now = self.clock.now();
-
         if let Some(name) = name {
-            world.update_name(name, now);
+            let world_name = WorldName::new(name).map_err(|e| {
+                ManagementError::InvalidInput(format!("Invalid world name: {}", e))
+            })?;
+            world.set_name(world_name);
         }
         if let Some(description) = description {
-            world.update_description(description, now);
+            let desc = Description::new(&description).map_err(|e| {
+                ManagementError::InvalidInput(format!("Invalid description: {}", e))
+            })?;
+            world.set_description(desc);
         } else if let Some(setting) = setting {
-            world.update_description(setting, now);
+            let desc = Description::new(&setting).map_err(|e| {
+                ManagementError::InvalidInput(format!("Invalid description: {}", e))
+            })?;
+            world.set_description(desc);
         }
 
         self.world.save(&world).await?;

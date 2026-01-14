@@ -84,12 +84,12 @@ impl JoinWorld {
 
         let snapshot = serde_json::json!({
             "world": {
-                "id": world.id.to_string(),
-                "name": world.name,
-                "description": world.description,
-                "rule_system": world.rule_system,
-                "created_at": world.created_at.to_rfc3339(),
-                "updated_at": world.updated_at.to_rfc3339(),
+                "id": world.id().to_string(),
+                "name": world.name().as_str(),
+                "description": world.description().as_str(),
+                "rule_system": world.rule_system(),
+                "created_at": world.created_at().to_rfc3339(),
+                "updated_at": world.updated_at().to_rfc3339(),
             },
             "locations": locations.into_iter().map(|loc| {
                 serde_json::json!({

@@ -114,7 +114,7 @@ impl SuggestTime {
             .await?
             .ok_or(SuggestTimeError::WorldNotFound)?;
 
-        let config = &world.time_config;
+        let config = world.time_config();
         let cost_minutes = config.time_costs.cost_for_action(action_type);
 
         // If no cost, nothing to do
@@ -130,7 +130,7 @@ impl SuggestTime {
             }
             TimeMode::Auto | TimeMode::Suggested => {
                 // Create suggestion for DM approval
-                let mut resulting_time = world.game_time.clone();
+                let mut resulting_time = world.game_time().clone();
                 let previous_period = resulting_time.time_of_day();
                 resulting_time.advance_minutes(cost_minutes);
                 let new_period = resulting_time.time_of_day();
@@ -149,7 +149,7 @@ impl SuggestTime {
                     action_type: action_type.to_string(),
                     action_description,
                     suggested_minutes: cost_minutes,
-                    current_time: world.game_time.clone(),
+                    current_time: world.game_time().clone(),
                     resulting_time,
                     period_change,
                 };
@@ -227,15 +227,15 @@ impl TimeControl {
             .await?
             .ok_or(TimeControlError::WorldNotFound)?;
 
-        let previous_time = world.game_time.clone();
-        world.game_time.advance_hours(hours);
-        world.updated_at = chrono::Utc::now();
+        let previous_time = world.game_time().clone();
+        // Use the aggregate's advance_hours which auto-updates updated_at
+        let _ = world.advance_hours(hours);
 
         self.world.save(&world).await?;
 
         Ok(TimeAdvanceOutcome {
             previous_time,
-            new_time: world.game_time,
+            new_time: world.game_time().clone(),
             minutes_advanced: hours * 60,
         })
     }
@@ -267,15 +267,15 @@ impl TimeControl {
             .await?
             .ok_or(TimeControlError::WorldNotFound)?;
 
-        let previous_time = world.game_time.clone();
-        world.game_time.set_day_and_hour(day, hour as u32);
-        world.updated_at = chrono::Utc::now();
+        let previous_time = world.game_time().clone();
+        // Mutate game time directly - aggregate setters auto-update updated_at
+        world.game_time_mut().set_day_and_hour(day, hour as u32);
 
         self.world.save(&world).await?;
 
         Ok(TimeAdvanceOutcome {
             previous_time,
-            new_time: world.game_time,
+            new_time: world.game_time().clone(),
             minutes_advanced: 0,
         })
     }
@@ -291,16 +291,15 @@ impl TimeControl {
             .await?
             .ok_or(TimeControlError::WorldNotFound)?;
 
-        let previous_time = world.game_time.clone();
-        let minutes_until = world.game_time.minutes_until_period(period);
-        world.game_time.skip_to_period(period);
-        world.updated_at = chrono::Utc::now();
+        let previous_time = world.game_time().clone();
+        let minutes_until = world.game_time().minutes_until_period(period);
+        world.game_time_mut().skip_to_period(period);
 
         self.world.save(&world).await?;
 
         Ok(TimeAdvanceOutcome {
             previous_time,
-            new_time: world.game_time,
+            new_time: world.game_time().clone(),
             minutes_advanced: minutes_until,
         })
     }
@@ -316,12 +315,11 @@ impl TimeControl {
             .await?
             .ok_or(TimeControlError::WorldNotFound)?;
 
-        world.game_time.set_paused(paused);
-        world.updated_at = chrono::Utc::now();
+        world.game_time_mut().set_paused(paused);
 
         self.world.save(&world).await?;
 
-        Ok(world.game_time)
+        Ok(world.game_time().clone())
     }
 
     pub async fn get_time_config(
@@ -334,7 +332,7 @@ impl TimeControl {
             .await?
             .ok_or(TimeControlError::WorldNotFound)?;
 
-        Ok(domain_time_config_to_protocol(&world.time_config))
+        Ok(domain_time_config_to_protocol(world.time_config()))
     }
 
     pub async fn update_time_config(
@@ -351,8 +349,9 @@ impl TimeControl {
         let normalized_config = normalize_protocol_time_config(config);
         let domain_config = protocol_time_config_to_domain(&normalized_config);
 
-        world.time_config = domain_config;
-        world.updated_at = chrono::Utc::now();
+        // Update via the individual setters (which auto-update updated_at)
+        world.set_time_mode(domain_config.mode);
+        world.set_time_costs(domain_config.time_costs);
 
         self.world.save(&world).await?;
 

@@ -164,7 +164,7 @@ impl ImportWorld {
         }
 
         // Create the world
-        let world_id = data.world.id;
+        let world_id = data.world.id();
         self.world.save(&data.world).await?;
 
         // Create locations

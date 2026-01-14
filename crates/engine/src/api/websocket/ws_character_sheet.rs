@@ -281,7 +281,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the system ID from the world's rule system
-            let system_id = variant_to_system_id(&world.rule_system.variant);
+            let system_id = variant_to_system_id(&world.rule_system().variant);
             let provider = get_provider_for_system(&system_id);
 
             // Validate the field if we have a provider
@@ -369,7 +369,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the system ID from the world's rule system
-            let system_id = variant_to_system_id(&world.rule_system.variant);
+            let system_id = variant_to_system_id(&world.rule_system().variant);
             let schema = get_schema_for_system(&system_id);
 
             // Validate required fields
@@ -477,7 +477,7 @@ pub(super) async fn handle_character_sheet_request(
                 }
             };
 
-            let system_id = variant_to_system_id(&world.rule_system.variant);
+            let system_id = variant_to_system_id(&world.rule_system().variant);
 
             // Get schema and calculate derived values
             let schema = get_schema_for_system(&system_id);
@@ -546,7 +546,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the system ID from the world's rule system
-            let system_id = variant_to_system_id(&world.rule_system.variant);
+            let system_id = variant_to_system_id(&world.rule_system().variant);
             let provider = get_provider_for_system(&system_id);
 
             // Validate and update
@@ -632,7 +632,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the system ID from the world's rule system
-            let system_id = variant_to_system_id(&world.rule_system.variant);
+            let system_id = variant_to_system_id(&world.rule_system().variant);
             let provider = get_provider_for_system(&system_id);
 
             // Validate all fields first
@@ -725,7 +725,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the system ID from the world's rule system
-            let system_id = variant_to_system_id(&world.rule_system.variant);
+            let system_id = variant_to_system_id(&world.rule_system().variant);
             let values = get_character_values(&character);
             let calculated = get_provider_for_system(&system_id)
                 .map(|p| p.calculate_derived_values(&values))
@@ -776,7 +776,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the system ID from the world's rule system
-            let system_id = variant_to_system_id(&world.rule_system.variant);
+            let system_id = variant_to_system_id(&world.rule_system().variant);
             let values = get_character_values(&character);
             let calculated = get_provider_for_system(&system_id)
                 .map(|p| p.calculate_derived_values(&values))

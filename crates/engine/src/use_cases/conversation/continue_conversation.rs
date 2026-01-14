@@ -109,7 +109,7 @@ impl ContinueConversation {
             .get(world_id)
             .await?
             .ok_or(ConversationError::WorldNotFound)?;
-        let current_game_time = world_data.game_time.current();
+        let current_game_time = world_data.game_time().current();
 
         let staged_npcs = self
             .staging
