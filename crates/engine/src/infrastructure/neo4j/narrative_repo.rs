@@ -4,7 +4,8 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Timelike, Utc};
-use neo4rs::{query, Graph, Node, Row};
+use neo4rs::{query, Node, Row};
+use crate::infrastructure::neo4j::Neo4jGraph;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use wrldbldr_domain::*;
@@ -13,12 +14,12 @@ use super::helpers::{parse_optional_typed_id, parse_typed_id, NodeExt};
 use crate::infrastructure::ports::{ClockPort, ConversationTurnRecord, NarrativeRepo, RepoError};
 
 pub struct Neo4jNarrativeRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
     clock: std::sync::Arc<dyn ClockPort>,
 }
 
 impl Neo4jNarrativeRepo {
-    pub fn new(graph: Graph, clock: std::sync::Arc<dyn ClockPort>) -> Self {
+    pub fn new(graph: Neo4jGraph, clock: std::sync::Arc<dyn ClockPort>) -> Self {
         Self { graph, clock }
     }
 }

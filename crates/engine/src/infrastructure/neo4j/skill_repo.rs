@@ -4,7 +4,8 @@
 //! - `(World)-[:CONTAINS_SKILL]->(Skill)`
 
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Row};
+use neo4rs::{query, Row};
+use crate::infrastructure::neo4j::Neo4jGraph;
 use wrldbldr_domain::{Skill, SkillCategory, SkillId, WorldId};
 
 use super::helpers::{parse_typed_id, NodeExt};
@@ -12,11 +13,11 @@ use crate::infrastructure::ports::{RepoError, SkillRepo};
 
 /// Repository for Skill operations.
 pub struct Neo4jSkillRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
 }
 
 impl Neo4jSkillRepo {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(graph: Neo4jGraph) -> Self {
         Self { graph }
     }
 

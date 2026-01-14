@@ -11,7 +11,8 @@
 //! Entry conditions remain as JSON (acceptable per ADR - complex nested non-relational)
 
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Row};
+use neo4rs::{query, Row};
+use crate::infrastructure::neo4j::Neo4jGraph;
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_typed_id, NodeExt};
@@ -132,11 +133,11 @@ impl SceneConditionStored {
 
 /// Repository for Scene operations.
 pub struct Neo4jSceneRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
 }
 
 impl Neo4jSceneRepo {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(graph: Neo4jGraph) -> Self {
         Self { graph }
     }
 

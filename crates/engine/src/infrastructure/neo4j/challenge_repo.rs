@@ -9,7 +9,8 @@
 //! Complex fields (outcomes, triggers, difficulty) are stored as JSON.
 
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Row};
+use neo4rs::{query, Row};
+use crate::infrastructure::neo4j::Neo4jGraph;
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_typed_id, NodeExt};
@@ -175,11 +176,11 @@ impl From<TriggerConditionStored> for TriggerCondition {
 
 /// Repository for Challenge operations.
 pub struct Neo4jChallengeRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
 }
 
 impl Neo4jChallengeRepo {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(graph: Neo4jGraph) -> Self {
         Self { graph }
     }
 

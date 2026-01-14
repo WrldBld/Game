@@ -27,7 +27,7 @@ use app::App;
 use infrastructure::{
     clock::SystemClock,
     comfyui::ComfyUIClient,
-    neo4j::Neo4jRepositories,
+    neo4j::{Neo4jGraph, Neo4jRepositories},
     ollama::OllamaClient,
     queue::SqliteQueue,
     resilient_llm::{ResilientLlmClient, RetryConfig},
@@ -75,6 +75,7 @@ async fn main() -> anyhow::Result<()> {
     // Connect to Neo4j
     tracing::info!("Connecting to Neo4j at {}", neo4j_uri);
     let graph = neo4rs::Graph::new(&neo4j_uri, &neo4j_user, &neo4j_pass).await?;
+    let graph = Neo4jGraph::new(graph);
 
     // Ensure database schema (constraints and indexes)
     infrastructure::neo4j::ensure_schema(&graph).await?;

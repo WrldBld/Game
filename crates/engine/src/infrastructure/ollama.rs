@@ -22,7 +22,7 @@ pub struct OllamaClient {
 pub const DEFAULT_OLLAMA_BASE_URL: &str = "http://localhost:11434";
 
 /// Default model for Ollama.
-pub const DEFAULT_OLLAMA_MODEL: &str = "gpt-oss:20b";
+pub const DEFAULT_OLLAMA_MODEL: &str = "mlx-community/gpt-oss-20b-MXFP4-Q8";
 
 impl OllamaClient {
     pub fn new(base_url: &str, model: &str) -> Self {

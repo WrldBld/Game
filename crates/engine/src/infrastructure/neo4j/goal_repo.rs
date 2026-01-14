@@ -3,18 +3,19 @@
 //! Handles Goal persistence and usage counts.
 
 use async_trait::async_trait;
-use neo4rs::{query, Graph};
+use neo4rs::{query};
+use crate::infrastructure::neo4j::Neo4jGraph;
 use wrldbldr_domain::{Goal, GoalId, WorldId};
 
 use super::helpers::{parse_typed_id, NodeExt};
 use crate::infrastructure::ports::{GoalDetails, GoalRepo, RepoError};
 
 pub struct Neo4jGoalRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
 }
 
 impl Neo4jGoalRepo {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(graph: Neo4jGraph) -> Self {
         Self { graph }
     }
 }

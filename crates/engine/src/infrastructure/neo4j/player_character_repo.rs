@@ -5,19 +5,20 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Node, Row};
+use neo4rs::{query, Node, Row};
+use crate::infrastructure::neo4j::Neo4jGraph;
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_optional_typed_id, parse_typed_id, row_to_item, NodeExt};
 use crate::infrastructure::ports::{ClockPort, PlayerCharacterRepo, RepoError};
 
 pub struct Neo4jPlayerCharacterRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
     clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jPlayerCharacterRepo {
-    pub fn new(graph: Graph, clock: Arc<dyn ClockPort>) -> Self {
+    pub fn new(graph: Neo4jGraph, clock: Arc<dyn ClockPort>) -> Self {
         Self { graph, clock }
     }
 }

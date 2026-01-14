@@ -1,11 +1,13 @@
 //! Generic query helpers to reduce Neo4j repository boilerplate.
 
-use crate::infrastructure::ports::RepoError;
 use neo4rs::{Query, Row};
+
+use crate::infrastructure::neo4j::Neo4jGraph;
+use crate::infrastructure::ports::RepoError;
 
 /// Execute a query and collect results using a converter function.
 pub async fn collect_rows<T, F>(
-    graph: &neo4rs::Graph,
+    graph: &Neo4jGraph,
     query: Query,
     converter: F,
 ) -> Result<Vec<T>, RepoError>
@@ -30,7 +32,7 @@ where
 
 /// Execute a query and return first result using a converter function.
 pub async fn get_first_row<T, F>(
-    graph: &neo4rs::Graph,
+    graph: &Neo4jGraph,
     query: Query,
     converter: F,
 ) -> Result<Option<T>, RepoError>
@@ -55,7 +57,7 @@ where
 
 /// Execute a write query with no return value.
 pub async fn run_query(
-    graph: &neo4rs::Graph,
+    graph: &Neo4jGraph,
     query: Query,
     operation: &'static str,
 ) -> Result<(), RepoError> {

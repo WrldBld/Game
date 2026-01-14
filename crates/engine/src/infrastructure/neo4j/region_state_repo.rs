@@ -3,7 +3,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Row};
+use neo4rs::{query, Row};
+use crate::infrastructure::neo4j::Neo4jGraph;
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_typed_id, NodeExt};
@@ -11,12 +12,12 @@ use crate::infrastructure::ports::{ClockPort, RegionStateRepo, RepoError};
 
 /// Repository for RegionState operations.
 pub struct Neo4jRegionStateRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
     clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jRegionStateRepo {
-    pub fn new(graph: Graph, clock: Arc<dyn ClockPort>) -> Self {
+    pub fn new(graph: Neo4jGraph, clock: Arc<dyn ClockPort>) -> Self {
         Self { graph, clock }
     }
 

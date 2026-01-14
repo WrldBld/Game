@@ -1,14 +1,15 @@
 //! Neo4j database implementations.
 
-use neo4rs::Graph;
 use std::sync::Arc;
 
 use crate::infrastructure::ports::ClockPort;
 
+mod graph;
 mod helpers;
 pub mod query_helpers;
 mod schema;
 
+pub use graph::Neo4jGraph;
 pub use schema::ensure_schema;
 
 mod act_repo;
@@ -78,7 +79,7 @@ pub struct Neo4jRepositories {
 }
 
 impl Neo4jRepositories {
-    pub fn new(graph: Graph, clock: Arc<dyn ClockPort>) -> Self {
+    pub fn new(graph: Neo4jGraph, clock: Arc<dyn ClockPort>) -> Self {
         Self {
             character: Arc::new(Neo4jCharacterRepo::new(graph.clone())),
             player_character: Arc::new(Neo4jPlayerCharacterRepo::new(graph.clone(), clock.clone())),

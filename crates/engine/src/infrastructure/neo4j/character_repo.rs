@@ -11,7 +11,8 @@
 //! Archetype history and stats remain as JSON (acceptable per ADR - complex nested non-relational)
 
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Row};
+use neo4rs::{query, Row};
+use crate::infrastructure::neo4j::Neo4jGraph;
 use uuid::Uuid;
 use wrldbldr_domain::*;
 
@@ -181,11 +182,11 @@ impl From<ArchetypeChangeStored> for ArchetypeChange {
 
 /// Repository for Character operations.
 pub struct Neo4jCharacterRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
 }
 
 impl Neo4jCharacterRepo {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(graph: Neo4jGraph) -> Self {
         Self { graph }
     }
 

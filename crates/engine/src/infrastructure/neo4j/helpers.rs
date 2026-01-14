@@ -5,11 +5,12 @@
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use neo4rs::{Graph, Node, Query, Row};
+use neo4rs::{Node, Query, Row};
 use uuid::Uuid;
 use wrldbldr_domain::common::{parse_datetime_or, StringExt};
 
 use crate::infrastructure::ports::RepoError;
+use crate::infrastructure::neo4j::Neo4jGraph;
 
 // =============================================================================
 // Graph Extension Trait (Error Mapping)
@@ -44,7 +45,7 @@ pub trait GraphExt {
 }
 
 #[async_trait::async_trait]
-impl GraphExt for Graph {
+impl GraphExt for Neo4jGraph {
     async fn run_or_err(&self, query: Query) -> Result<(), RepoError> {
         self.run(query)
             .await

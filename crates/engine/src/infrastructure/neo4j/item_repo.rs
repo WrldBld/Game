@@ -3,7 +3,8 @@
 //! Handles item persistence in the game world.
 
 use async_trait::async_trait;
-use neo4rs::{query, Graph};
+use neo4rs::{query};
+use crate::infrastructure::neo4j::Neo4jGraph;
 use wrldbldr_domain::*;
 
 use super::helpers::row_to_item;
@@ -13,11 +14,11 @@ use crate::infrastructure::ports::{ItemRepo, RepoError};
 use wrldbldr_domain::PlayerCharacterId;
 
 pub struct Neo4jItemRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
 }
 
 impl Neo4jItemRepo {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(graph: Neo4jGraph) -> Self {
         Self { graph }
     }
 }

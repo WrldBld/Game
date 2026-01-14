@@ -4,19 +4,20 @@
 //! Observations are stored as edges: `(PlayerCharacter)-[:OBSERVED_NPC {...}]->(Character)`
 
 use async_trait::async_trait;
-use neo4rs::{query, Graph};
+use neo4rs::{query};
+use crate::infrastructure::neo4j::Neo4jGraph;
 use wrldbldr_domain::common::{parse_datetime_or, StringExt};
 use wrldbldr_domain::*;
 
 use crate::infrastructure::ports::{ClockPort, ObservationRepo, RepoError};
 
 pub struct Neo4jObservationRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
     clock: std::sync::Arc<dyn ClockPort>,
 }
 
 impl Neo4jObservationRepo {
-    pub fn new(graph: Graph, clock: std::sync::Arc<dyn ClockPort>) -> Self {
+    pub fn new(graph: Neo4jGraph, clock: std::sync::Arc<dyn ClockPort>) -> Self {
         Self { graph, clock }
     }
 }

@@ -5,7 +5,8 @@
 use std::str::FromStr;
 
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Node, Row};
+use neo4rs::{query, Node, Row};
+use crate::infrastructure::neo4j::Neo4jGraph;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use wrldbldr_domain::*;
@@ -14,11 +15,11 @@ use super::helpers::{parse_typed_id, NodeExt};
 use crate::infrastructure::ports::{AssetRepo, RepoError};
 
 pub struct Neo4jAssetRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
 }
 
 impl Neo4jAssetRepo {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(graph: Neo4jGraph) -> Self {
         Self { graph }
     }
 }

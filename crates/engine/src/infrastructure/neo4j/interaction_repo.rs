@@ -4,7 +4,8 @@
 //! - `(InteractionTemplate)-[:BELONGS_TO_SCENE]->(Scene)`
 
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Row};
+use neo4rs::{query, Row};
+use crate::infrastructure::neo4j::Neo4jGraph;
 use wrldbldr_domain::{
     InteractionCondition, InteractionId, InteractionTarget, InteractionTemplate, InteractionType,
     SceneId,
@@ -15,11 +16,11 @@ use crate::infrastructure::ports::{InteractionRepo, RepoError};
 
 /// Repository for Interaction operations.
 pub struct Neo4jInteractionRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
 }
 
 impl Neo4jInteractionRepo {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(graph: Neo4jGraph) -> Self {
         Self { graph }
     }
 

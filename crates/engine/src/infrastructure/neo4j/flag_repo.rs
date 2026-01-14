@@ -5,7 +5,8 @@
 //! - PC flags: (PlayerCharacter)-[:HAS_FLAG {name: "flag_name"}]->()
 
 use async_trait::async_trait;
-use neo4rs::{query, Graph};
+use neo4rs::{query};
+use crate::infrastructure::neo4j::Neo4jGraph;
 use std::sync::Arc;
 
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
@@ -13,11 +14,11 @@ use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use crate::infrastructure::ports::{FlagRepo, RepoError};
 
 pub struct Neo4jFlagRepo {
-    graph: Arc<Graph>,
+    graph: Arc<Neo4jGraph>,
 }
 
 impl Neo4jFlagRepo {
-    pub fn new(graph: Arc<Graph>) -> Self {
+    pub fn new(graph: Arc<Neo4jGraph>) -> Self {
         Self { graph }
     }
 }

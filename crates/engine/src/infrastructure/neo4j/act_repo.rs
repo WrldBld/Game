@@ -4,7 +4,8 @@
 //! - `(World)-[:CONTAINS_ACT]->(Act)`
 
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Row};
+use neo4rs::{query, Row};
+use crate::infrastructure::neo4j::Neo4jGraph;
 use wrldbldr_domain::{Act, ActId, MonomythStage, WorldId};
 
 use super::helpers::{parse_typed_id, NodeExt};
@@ -12,11 +13,11 @@ use crate::infrastructure::ports::{ActRepo, RepoError};
 
 /// Repository for Act operations.
 pub struct Neo4jActRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
 }
 
 impl Neo4jActRepo {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(graph: Neo4jGraph) -> Self {
         Self { graph }
     }
 

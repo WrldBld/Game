@@ -3,7 +3,8 @@
 //! Handles both Location and Region CRUD operations, plus connections.
 
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Row};
+use neo4rs::{query, Row};
+use crate::infrastructure::neo4j::Neo4jGraph;
 use uuid::Uuid;
 use wrldbldr_domain::*;
 
@@ -12,11 +13,11 @@ use crate::infrastructure::ports::{LocationRepo, RepoError};
 
 /// Repository for Location and Region operations.
 pub struct Neo4jLocationRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
 }
 
 impl Neo4jLocationRepo {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(graph: Neo4jGraph) -> Self {
         Self { graph }
     }
 
