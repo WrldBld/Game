@@ -34,7 +34,7 @@ pub use entities::{
     Lore, LoreCategory, LoreChunk, LoreDiscoverySource, LoreKnowledge, MapBounds, MarkerImportance,
     MaterialComponent, MonomythStage, NarrativeEvent, NarrativeTrigger, NarrativeTriggerType,
     NpcObservation, ObservationSummary, ObservationType, Outcome, OutcomeCondition, OutcomeTrigger,
-    OutcomeType, PlayerCharacter, Prerequisite, PromptMapping, PromptMappingType, RacialTrait,
+    OutcomeType, Prerequisite, PromptMapping, PromptMappingType, RacialTrait,
     RechargeType, Region, RegionConnection, RegionExit, RegionState, RegionStateSummary,
     ResolvedStateInfo, ResolvedVisualState, SceneCharacter, SceneCharacterRole,
     SceneCondition, Skill, SkillCategory, Spell, SpellComponents, SpellDuration, SpellLevel,
@@ -62,6 +62,10 @@ pub use aggregates::World;
 // Re-export Scene from aggregates (the Rustic DDD version with private fields)
 // This replaces the legacy entities::Scene with public fields
 pub use aggregates::Scene;
+
+// Re-export PlayerCharacter from aggregates (the Rustic DDD version with private fields)
+// This replaces the legacy entities::PlayerCharacter with public fields
+pub use aggregates::PlayerCharacter;
 
 pub use error::DomainError;
 pub use events::{

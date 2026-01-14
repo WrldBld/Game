@@ -132,7 +132,7 @@ pub(super) async fn handle_move_to_region(
         .await
     {
         Ok(result) => {
-            let world_id = result.pc.world_id;
+            let world_id = result.pc.world_id();
 
             match result.staging_status {
                 StagingStatus::Pending { previous_staging } => {
@@ -299,7 +299,7 @@ pub(super) async fn handle_exit_to_location(
         .await
     {
         Ok(result) => {
-            let world_id = result.pc.world_id;
+            let world_id = result.pc.world_id();
 
             match result.staging_status {
                 StagingStatus::Pending { previous_staging } => {
@@ -484,10 +484,10 @@ async fn build_scene_update(
 
     let mut characters = Vec::with_capacity(1 + npcs.len());
     characters.push(CharacterData {
-        id: pc.id.to_string(),
-        name: pc.name.clone(),
-        sprite_asset: pc.sprite_asset.clone(),
-        portrait_asset: pc.portrait_asset.clone(),
+        id: pc.id().to_string(),
+        name: pc.name().to_string(),
+        sprite_asset: pc.sprite_asset().map(|s| s.to_string()),
+        portrait_asset: pc.portrait_asset().map(|s| s.to_string()),
         position: CharacterPosition::Center,
         is_speaking: false,
         expression: None,

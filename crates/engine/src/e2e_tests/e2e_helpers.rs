@@ -1113,7 +1113,7 @@ pub async fn create_player_character_via_use_case(
         )
         .await?;
 
-    Ok(pc.id)
+    Ok(pc.id())
 }
 
 /// Run a complete conversation turn through the queue pipeline.

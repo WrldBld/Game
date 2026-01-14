@@ -226,7 +226,7 @@ pub(super) async fn handle_challenge_roll(
         match state.app.repositories.player_character.get(pc_id).await {
             Ok(Some(pc)) => {
                 // Look up the stat value from sheet_data using unified numeric extraction
-                if let Some(ref sheet_data) = pc.sheet_data {
+                if let Some(sheet_data) = pc.sheet_data() {
                     sheet_data.get_numeric_value(stat_name).unwrap_or(0)
                 } else {
                     0

@@ -53,13 +53,13 @@ async fn test_player_creates_character_via_use_case() {
             .expect("Failed to get PC")
             .expect("PC not found");
 
-        assert_eq!(pc.name, "Aldric the Brave");
-        assert_eq!(pc.user_id, "test-user-123");
-        assert_eq!(pc.world_id, ctx.world.world_id);
+        assert_eq!(pc.name().as_str(), "Aldric the Brave");
+        assert_eq!(pc.user_id(), "test-user-123");
+        assert_eq!(pc.world_id(), ctx.world.world_id);
 
         // Verify PC is in spawn region (Common Room)
         let spawn_region = ctx.world.region("Common Room").expect("Spawn region not found");
-        assert_eq!(pc.current_region_id, Some(spawn_region));
+        assert_eq!(pc.current_region_id(), Some(spawn_region));
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }
@@ -336,7 +336,7 @@ async fn test_full_gameplay_session() {
             .expect("PC not found");
 
         let common_room = ctx.world.region("Common Room").expect("Region not found");
-        assert_eq!(pc.current_region_id, Some(common_room), "PC should be in Common Room");
+        assert_eq!(pc.current_region_id(), Some(common_room), "PC should be in Common Room");
 
         // === Phase 2: Stage NPC ===
         let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");

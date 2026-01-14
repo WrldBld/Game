@@ -356,6 +356,11 @@ impl PlayerCharacter {
         self.last_active_at = now;
     }
 
+    /// Set the character's name.
+    pub fn set_name(&mut self, name: CharacterName) {
+        self.name = name;
+    }
+
     /// Set the character's description.
     pub fn set_description(&mut self, description: Option<String>) {
         self.description = description;

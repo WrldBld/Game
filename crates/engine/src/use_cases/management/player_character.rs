@@ -62,11 +62,9 @@ impl PlayerCharacterCrud {
         starting_region_id: Option<RegionId>,
         sheet_data: Option<serde_json::Value>,
     ) -> Result<wrldbldr_domain::PlayerCharacter, ManagementError> {
-        if name.trim().is_empty() {
-            return Err(ManagementError::InvalidInput(
-                "Player character name cannot be empty".to_string(),
-            ));
-        }
+        let character_name: wrldbldr_domain::CharacterName = name.try_into().map_err(|e| {
+            ManagementError::InvalidInput(format!("Invalid character name: {}", e))
+        })?;
 
         let (starting_location_id, resolved_region_id) =
             self.resolve_spawn(world_id, starting_region_id).await?;
@@ -75,7 +73,7 @@ impl PlayerCharacterCrud {
         let mut pc = wrldbldr_domain::PlayerCharacter::new(
             user_id.unwrap_or_else(|| "anonymous".to_string()),
             world_id,
-            name,
+            character_name,
             starting_location_id,
             now,
         );
@@ -108,19 +106,18 @@ impl PlayerCharacterCrud {
             .ok_or(ManagementError::NotFound)?;
 
         if let Some(name) = name {
-            if name.trim().is_empty() {
-                return Err(ManagementError::InvalidInput(
-                    "Player character name cannot be empty".to_string(),
-                ));
-            }
-            pc.name = name;
+            let character_name: wrldbldr_domain::CharacterName =
+                name.try_into().map_err(|e| {
+                    ManagementError::InvalidInput(format!("Invalid character name: {}", e))
+                })?;
+            pc.set_name(character_name);
         }
         if let Some(sheet_data) = sheet_data {
             let data: wrldbldr_domain::CharacterSheetData = serde_json::from_value(sheet_data)
                 .map_err(|e| {
                     ManagementError::InvalidInput(format!("Invalid sheet_data: {}", e.to_string()))
                 })?;
-            pc.sheet_data = Some(data);
+            pc.set_sheet_data(Some(data));
         }
         pc.touch(self.clock.now());
 

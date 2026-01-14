@@ -32,10 +32,9 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let mut region = wrldbldr_domain::Region::new(location_id, "Unstaged Region");
     region.id = region_id;
 
-    let mut pc =
-        wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now);
-    pc.id = pc_id;
-    pc.current_region_id = None; // initial spawn; skip connection validation
+    let pc = wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now)
+        .with_id(pc_id);
+    // initial spawn - PC starts with no current_region_id, skip connection validation
 
     let mut visible_npc =
         wrldbldr_domain::Character::new(world_id, wrldbldr_domain::CharacterName::new("Visible NPC").unwrap(), CampbellArchetype::Hero);

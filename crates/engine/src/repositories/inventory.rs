@@ -176,7 +176,7 @@ impl Inventory {
         }
 
         // Get the PC's current region for placing the dropped item
-        let current_region = pc.current_region_id.ok_or(InventoryError::NotInRegion)?;
+        let current_region = pc.current_region_id().ok_or(InventoryError::NotInRegion)?;
 
         // Remove POSSESSES edge (remove from inventory)
         self.pc_repo.remove_from_inventory(pc_id, item_id).await?;
@@ -213,7 +213,7 @@ impl Inventory {
             .ok_or(InventoryError::CharacterNotFound)?;
 
         // Create a new item in the same world as the PC
-        let mut item = domain::Item::new(pc.world_id, item_name.clone());
+        let mut item = domain::Item::new(pc.world_id(), item_name.clone());
         if let Some(desc) = item_description {
             item = item.with_description(desc);
         }
@@ -260,7 +260,7 @@ impl Inventory {
             .ok_or(InventoryError::ItemNotFound)?;
 
         // Verify the item is in the PC's current region
-        let pc_region = pc.current_region_id.ok_or(InventoryError::NotInRegion)?;
+        let pc_region = pc.current_region_id().ok_or(InventoryError::NotInRegion)?;
         let items_in_region = self.item_repo.list_in_region(pc_region).await?;
         if !items_in_region.iter().any(|i| i.id == item_id) {
             return Err(InventoryError::ItemNotInRegion);

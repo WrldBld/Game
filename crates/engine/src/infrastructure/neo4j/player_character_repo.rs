@@ -48,15 +48,14 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
     /// Save a player character (upsert)
     async fn save(&self, pc: &PlayerCharacter) -> Result<(), RepoError> {
         let sheet_data_json = pc
-            .sheet_data
-            .as_ref()
+            .sheet_data()
             .map(|s| serde_json::to_string(s))
             .transpose()
             .map_err(|e| RepoError::Serialization(e.to_string()))?
             .unwrap_or_else(|| "{}".to_string());
 
         let current_region_id_str = pc
-            .current_region_id
+            .current_region_id()
             .map(|r| r.to_string())
             .unwrap_or_default();
 
@@ -95,24 +94,24 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             MATCH (l:Location {id: $current_location_id})
             MERGE (pc)-[:AT_LOCATION]->(l)",
         )
-        .param("id", pc.id.to_string())
-        .param("user_id", pc.user_id.clone())
-        .param("world_id", pc.world_id.to_string())
-        .param("name", pc.name.clone())
-        .param("description", pc.description.clone().unwrap_or_default())
+        .param("id", pc.id().to_string())
+        .param("user_id", pc.user_id().to_string())
+        .param("world_id", pc.world_id().to_string())
+        .param("name", pc.name().to_string())
+        .param("description", pc.description().unwrap_or_default().to_string())
         .param("sheet_data", sheet_data_json)
-        .param("current_location_id", pc.current_location_id.to_string())
+        .param("current_location_id", pc.current_location_id().to_string())
         .param("current_region_id", current_region_id_str)
-        .param("starting_location_id", pc.starting_location_id.to_string())
-        .param("sprite_asset", pc.sprite_asset.clone().unwrap_or_default())
+        .param("starting_location_id", pc.starting_location_id().to_string())
+        .param("sprite_asset", pc.sprite_asset().unwrap_or_default().to_string())
         .param(
             "portrait_asset",
-            pc.portrait_asset.clone().unwrap_or_default(),
+            pc.portrait_asset().unwrap_or_default().to_string(),
         )
-        .param("is_alive", pc.is_alive)
-        .param("is_active", pc.is_active)
-        .param("created_at", pc.created_at.to_rfc3339())
-        .param("last_active_at", pc.last_active_at.to_rfc3339());
+        .param("is_alive", pc.is_alive())
+        .param("is_active", pc.is_active())
+        .param("created_at", pc.created_at().to_rfc3339())
+        .param("last_active_at", pc.last_active_at().to_rfc3339());
 
         self.graph
             .run(q)
@@ -446,21 +445,21 @@ fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
     let is_alive: bool = node.get("is_alive").unwrap_or(true);
     let is_active: bool = node.get("is_active").unwrap_or(true);
 
-    Ok(PlayerCharacter {
-        id,
+    Ok(PlayerCharacter::new(
         user_id,
         world_id,
-        name,
-        description,
-        sheet_data,
-        current_location_id,
-        current_region_id,
+        wrldbldr_domain::CharacterName::new(&name).map_err(|e| RepoError::database("query", e.to_string()))?,
         starting_location_id,
-        sprite_asset,
-        portrait_asset,
-        is_alive,
-        is_active,
         created_at,
-        last_active_at,
-    })
+    )
+    .with_id(id)
+    .with_current_location(current_location_id)
+    .with_current_region(current_region_id)
+    .with_description(description.unwrap_or_default())
+    .with_sheet_data(sheet_data.unwrap_or_default())
+    .with_sprite(sprite_asset.unwrap_or_default())
+    .with_portrait(portrait_asset.unwrap_or_default())
+    .with_alive(is_alive)
+    .with_active(is_active)
+    .with_last_active_at(last_active_at))
 }

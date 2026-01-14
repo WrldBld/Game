@@ -178,9 +178,9 @@ impl RequestStagingApproval {
                 llm_based_npcs,
                 default_ttl_hours: settings.default_presence_cache_ttl_hours,
                 waiting_pcs: vec![WaitingPc {
-                    pc_id: input.pc.id,
-                    pc_name: input.pc.name.clone(),
-                    player_id: input.pc.user_id.clone(),
+                    pc_id: input.pc.id(),
+                    pc_name: input.pc.name().to_string(),
+                    player_id: input.pc.user_id().to_string(),
                 }],
                 resolved_visual_state,
                 available_location_states,

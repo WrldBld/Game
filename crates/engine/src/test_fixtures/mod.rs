@@ -149,7 +149,7 @@ pub mod worlds {
 pub fn trigger_context_from_pc(pc: &PlayerCharacter) -> TriggerContext {
     let mut ctx = TriggerContext::default();
 
-    let Some(sheet_data) = &pc.sheet_data else {
+    let Some(sheet_data) = pc.sheet_data() else {
         return ctx;
     };
 
@@ -360,22 +360,22 @@ mod tests {
     #[test]
     fn test_load_fighter_fixture() {
         let pc = characters::fighter_5();
-        assert_eq!(pc.name, "Tharion Ironforge");
-        assert!(pc.sheet_data.is_some());
+        assert_eq!(pc.name().as_str(), "Tharion Ironforge");
+        assert!(pc.sheet_data().is_some());
     }
 
     #[test]
     fn test_load_wizard_fixture() {
         let pc = characters::wizard_3();
-        assert_eq!(pc.name, "Elara Moonwhisper");
-        assert!(pc.sheet_data.is_some());
+        assert_eq!(pc.name().as_str(), "Elara Moonwhisper");
+        assert!(pc.sheet_data().is_some());
     }
 
     #[test]
     fn test_load_multiclass_fixture() {
         let pc = characters::multiclass();
-        assert_eq!(pc.name, "Kael Stormborn");
-        assert!(pc.sheet_data.is_some());
+        assert_eq!(pc.name().as_str(), "Kael Stormborn");
+        assert!(pc.sheet_data().is_some());
     }
 
     #[test]

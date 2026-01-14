@@ -44,7 +44,7 @@ async fn test_pc_moves_to_connected_region() {
         .await
         .expect("Should get PC")
         .expect("PC should exist");
-    assert_eq!(pc.current_region_id, Some(common_room));
+    assert_eq!(pc.current_region_id(), Some(common_room));
 
     // Move to connected region using enter_region use case
     let move_result = ctx
@@ -72,7 +72,7 @@ async fn test_pc_moves_to_connected_region() {
         .expect("Should get PC")
         .expect("PC should exist");
     assert_eq!(
-        pc_after.current_region_id,
+        pc_after.current_region_id(),
         Some(tavern_bar),
         "PC should be in Tavern Bar after move"
     );
@@ -302,7 +302,7 @@ async fn test_multiple_sequential_moves() {
         .await
         .expect("Should get PC")
         .expect("PC should exist");
-    assert_eq!(pc.current_region_id, Some(tavern_bar));
+    assert_eq!(pc.current_region_id(), Some(tavern_bar));
 
     // Move back to Common Room
     ctx.app
@@ -322,5 +322,5 @@ async fn test_multiple_sequential_moves() {
         .await
         .expect("Should get PC")
         .expect("PC should exist");
-    assert_eq!(pc.current_region_id, Some(common_room));
+    assert_eq!(pc.current_region_id(), Some(common_room));
 }

@@ -144,13 +144,13 @@ impl JoinWorld {
         let pc_id = pc_id?;
         match self.player_character.get(pc_id).await {
             Ok(Some(pc)) => Some(serde_json::json!({
-                "id": pc.id.to_string(),
-                "name": pc.name,
-                "description": pc.description,
-                "portrait_asset": pc.portrait_asset,
-                "sprite_asset": pc.sprite_asset,
-                "current_location_id": pc.current_location_id.to_string(),
-                "current_region_id": pc.current_region_id.map(|id| id.to_string()),
+                "id": pc.id().to_string(),
+                "name": pc.name().to_string(),
+                "description": pc.description(),
+                "portrait_asset": pc.portrait_asset(),
+                "sprite_asset": pc.sprite_asset(),
+                "current_location_id": pc.current_location_id().to_string(),
+                "current_region_id": pc.current_region_id().map(|id| id.to_string()),
             })),
             Ok(None) => None,
             Err(_) => None,

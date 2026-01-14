@@ -124,13 +124,13 @@ impl EnterRegion {
             .ok_or(EnterRegionError::RegionNotFound)?;
 
         // 3. Verify region is in the same location (for move_to_region)
-        if region.location_id != pc.current_location_id {
+        if region.location_id != pc.current_location_id() {
             return Err(EnterRegionError::RegionNotInCurrentLocation);
         }
 
         // 4. Validate connection exists and is not locked (if PC has a current region)
         // Skip validation for initial spawn when PC has no current region
-        if let Some(current_region_id) = pc.current_region_id {
+        if let Some(current_region_id) = pc.current_region_id() {
             // Don't require path if already in target region
             if current_region_id != region_id {
                 match self.check_connection(current_region_id, region_id).await {
@@ -150,7 +150,7 @@ impl EnterRegion {
         // 5. Get the world to access game time for TTL checks and observations
         let world_data = self
             .world
-            .get(pc.world_id)
+            .get(pc.world_id())
             .await?
             .ok_or(EnterRegionError::WorldNotFound)?;
         let current_game_time = world_data.game_time().current();
@@ -160,7 +160,7 @@ impl EnterRegion {
             &self.staging,
             region_id,
             region.location_id,
-            pc.world_id,
+            pc.world_id(),
             current_game_time,
         )
         .await?;
@@ -180,7 +180,7 @@ impl EnterRegion {
             &self.observation,
             &self.flag,
             pc_id,
-            pc.world_id,
+            pc.world_id(),
             region_id,
             world_data.game_time(),
         )
@@ -200,16 +200,16 @@ impl EnterRegion {
 
         // 10. Update player character position
         self.player_character
-            .update_position(pc_id, pc.current_location_id, region_id)
+            .update_position(pc_id, pc.current_location_id(), region_id)
             .await?;
 
         // 11. Generate time suggestion for movement
         // This is a region-to-region move within the same location (travel_region)
         let time_suggestion = suggest_time_for_movement(
             &self.suggest_time,
-            pc.world_id,
+            pc.world_id(),
             pc_id,
-            pc.name.clone(),
+            pc.name().to_string(),
             "travel_region",
             &region.name,
         )

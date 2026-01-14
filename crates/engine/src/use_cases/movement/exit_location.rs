@@ -124,7 +124,7 @@ impl ExitLocation {
         // 7. Get the world to access game time for TTL checks and observations
         let world_data = self
             .world
-            .get(pc.world_id)
+            .get(pc.world_id())
             .await?
             .ok_or(ExitLocationError::WorldNotFound)?;
         let current_game_time = world_data.game_time().current();
@@ -134,7 +134,7 @@ impl ExitLocation {
             &self.staging,
             region_id,
             region.location_id,
-            pc.world_id,
+            pc.world_id(),
             current_game_time,
         )
         .await?;
@@ -153,9 +153,9 @@ impl ExitLocation {
         // 11. Generate time suggestion for location travel
         let time_suggestion = suggest_time_for_movement(
             &self.suggest_time,
-            pc.world_id,
+            pc.world_id(),
             pc_id,
-            pc.name.clone(),
+            pc.name().to_string(),
             "travel_location",
             location.name().as_str(),
         )
@@ -168,7 +168,7 @@ impl ExitLocation {
             &self.observation,
             &self.flag,
             pc_id,
-            pc.world_id,
+            pc.world_id(),
             region_id,
             world_data.game_time(),
         )
@@ -381,9 +381,8 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let target_location_id = LocationId::new();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now);
-        pc.id = pc_id;
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now)
+            .with_id(pc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -422,9 +421,8 @@ mod tests {
         let target_location_id = LocationId::new();
         let other_location_id = LocationId::new();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now);
-        pc.id = pc_id;
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now)
+            .with_id(pc_id);
 
         let mut location =
             wrldbldr_domain::Location::new(world_id, "Target", LocationType::Interior)
@@ -481,9 +479,8 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let target_location_id = LocationId::new();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now);
-        pc.id = pc_id;
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now)
+            .with_id(pc_id);
 
         let mut location =
             wrldbldr_domain::Location::new(world_id, "Target", LocationType::Interior)
@@ -550,9 +547,8 @@ mod tests {
         arrival_region.id = RegionId::new();
         let arrival_region_id = arrival_region.id;
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now);
-        pc.id = pc_id;
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now)
+            .with_id(pc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get_1 = pc.clone();

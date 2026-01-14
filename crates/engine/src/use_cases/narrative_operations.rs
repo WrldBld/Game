@@ -320,12 +320,12 @@ impl NarrativeOps {
         let pc = self.player_character_repo.get(pc_id).await?;
         let pc_name = pc
             .as_ref()
-            .map(|pc| pc.name.clone())
+            .map(|pc| pc.name().to_string())
             .unwrap_or_else(|| "Player".to_string());
 
         let (pc_location_id, pc_region_id) = pc
             .as_ref()
-            .map(|pc| (Some(pc.current_location_id), pc.current_region_id))
+            .map(|pc| (Some(pc.current_location_id()), pc.current_region_id()))
             .unwrap_or((None, None));
 
         let world_game_time = self
@@ -472,7 +472,7 @@ impl NarrativeOps {
     ) -> Result<Vec<domain::NarrativeEvent>, RepoError> {
         // Resolve world context from PC (required for safe trigger queries)
         let pc = self.player_character_repo.get(pc_id).await?;
-        let world_id = pc.as_ref().map(|pc| pc.world_id);
+        let world_id = pc.as_ref().map(|pc| pc.world_id());
 
         let Some(world_id) = world_id else {
             tracing::warn!(pc_id = %pc_id, "Missing world_id for trigger evaluation");
@@ -788,7 +788,7 @@ fn extract_compendium_context(
         return (None, HashMap::new(), Vec::new(), Vec::new());
     };
 
-    let Some(sheet_data) = &pc.sheet_data else {
+    let Some(sheet_data) = pc.sheet_data() else {
         return (None, HashMap::new(), Vec::new(), Vec::new());
     };
 

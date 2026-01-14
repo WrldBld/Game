@@ -183,12 +183,12 @@ impl ProcessPlayerAction {
 
         let pc_name = pc
             .as_ref()
-            .map(|pc| pc.name.clone())
+            .map(|pc| pc.name().to_string())
             .unwrap_or_else(|| "Unknown Player".to_string());
 
         let (pc_location_id, _pc_region_id) = pc
             .as_ref()
-            .map(|pc| (Some(pc.current_location_id), pc.current_region_id))
+            .map(|pc| (Some(pc.current_location_id()), pc.current_region_id()))
             .unwrap_or((None, None));
 
         let npc_id = action_data

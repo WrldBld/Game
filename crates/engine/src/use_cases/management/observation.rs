@@ -121,7 +121,7 @@ impl ObservationCrud {
 
         let world = self
             .world
-            .get(pc.world_id)
+            .get(pc.world_id())
             .await?
             .ok_or(ManagementError::NotFound)?;
 

@@ -439,18 +439,18 @@ pub(super) async fn handle_observation_request(
 
 fn pc_to_json(pc: wrldbldr_domain::PlayerCharacter) -> serde_json::Value {
     serde_json::json!({
-        "id": pc.id.to_string(),
-        "user_id": pc.user_id,
-        "world_id": pc.world_id.to_string(),
-        "name": pc.name,
-        "description": pc.description,
-        "sheet_data": pc.sheet_data,
-        "current_location_id": pc.current_location_id.to_string(),
-        "starting_location_id": pc.starting_location_id.to_string(),
-        "sprite_asset": pc.sprite_asset,
-        "portrait_asset": pc.portrait_asset,
-        "created_at": pc.created_at.to_rfc3339(),
-        "last_active_at": pc.last_active_at.to_rfc3339(),
+        "id": pc.id().to_string(),
+        "user_id": pc.user_id(),
+        "world_id": pc.world_id().to_string(),
+        "name": pc.name().to_string(),
+        "description": pc.description(),
+        "sheet_data": pc.sheet_data(),
+        "current_location_id": pc.current_location_id().to_string(),
+        "starting_location_id": pc.starting_location_id().to_string(),
+        "sprite_asset": pc.sprite_asset(),
+        "portrait_asset": pc.portrait_asset(),
+        "created_at": pc.created_at().to_rfc3339(),
+        "last_active_at": pc.last_active_at().to_rfc3339(),
     })
 }
 

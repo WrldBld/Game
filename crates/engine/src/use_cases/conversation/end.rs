@@ -126,7 +126,7 @@ impl EndConversation {
 
         tracing::info!(
             pc_id = %pc_id,
-            pc_name = %pc.name,
+            pc_name = %pc.name().as_str(),
             npc_id = %npc_id,
             npc_name = %npc.name(),
             conversation_id = ?ended_conversation_id,
@@ -137,7 +137,7 @@ impl EndConversation {
             npc_id,
             npc_name: npc.name().to_string(),
             pc_id,
-            pc_name: pc.name,
+            pc_name: pc.name().to_string(),
             summary,
             conversation_id: ended_conversation_id,
         })
@@ -230,9 +230,8 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
-        pc.id = pc_id;
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+            .with_id(pc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -270,9 +269,8 @@ mod tests {
         let npc_id = CharacterId::new();
         let conversation_id = Uuid::new_v4();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "TestPC", location_id, now);
-        pc.id = pc_id;
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "TestPC", location_id, now)
+            .with_id(pc_id);
 
         let npc = Character::new(world_id, CharacterName::new("TestNPC").unwrap(), CampbellArchetype::Mentor)
             .with_id(npc_id);
@@ -326,9 +324,8 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "TestPC", location_id, now);
-        pc.id = pc_id;
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "TestPC", location_id, now)
+            .with_id(pc_id);
 
         let npc = Character::new(world_id, CharacterName::new("TestNPC").unwrap(), CampbellArchetype::Mentor)
             .with_id(npc_id);
@@ -378,9 +375,8 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "TestPC", location_id, now);
-        pc.id = pc_id;
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "TestPC", location_id, now)
+            .with_id(pc_id);
 
         let npc = Character::new(world_id, CharacterName::new("TestNPC").unwrap(), CampbellArchetype::Mentor)
             .with_id(npc_id);

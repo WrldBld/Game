@@ -232,7 +232,7 @@ impl RollChallenge {
             challenge_description: challenge.description.clone(),
             skill_name: None, // Would need to fetch from edge
             character_id: wrldbldr_domain::CharacterId::from_uuid(*pc_id.as_uuid()), // Use same UUID
-            character_name: pc.name.clone(),
+            character_name: pc.name().to_string(),
             roll,
             modifier,
             total,
@@ -301,7 +301,7 @@ impl RollChallenge {
             challenge_id,
             challenge_name: challenge.name.clone(),
             character_id: pc_id,
-            character_name: pc.name.clone(),
+            character_name: pc.name().to_string(),
             outcome_triggers: outcome_data.outcome_triggers,
             roll_breakdown: outcome_data.roll_breakdown,
         })

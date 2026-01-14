@@ -29,10 +29,9 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     let mut region = wrldbldr_domain::Region::new(location_id, "Region");
     region.id = region_id;
 
-    let mut pc =
-        wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now);
-    pc.id = pc_id;
-    pc.current_region_id = None;
+    let pc = wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now)
+        .with_id(pc_id);
+    // initial spawn - PC starts with no current_region_id
 
     let mut npc = wrldbldr_domain::Character::new(world_id, wrldbldr_domain::CharacterName::new("NPC").unwrap(), CampbellArchetype::Hero);
     npc = npc.with_id(npc_id);

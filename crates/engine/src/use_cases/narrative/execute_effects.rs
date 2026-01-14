@@ -868,22 +868,19 @@ impl ExecuteEffects {
 
         // Get current value from sheet_data (default to 0 if not present)
         let current_value = pc
-            .sheet_data
-            .as_ref()
+            .sheet_data()
             .and_then(|sd| sd.get_number(stat_name))
             .unwrap_or(0);
 
         let new_value = current_value.saturating_add(amount as i64);
 
         // Create updated sheet_data
-        let mut sheet_data = pc.sheet_data.clone().unwrap_or_default();
+        let mut sheet_data = pc.sheet_data().cloned().unwrap_or_default();
         sheet_data.set(stat_name, json!(new_value));
 
-        // Create updated PC
-        let updated_pc = wrldbldr_domain::PlayerCharacter {
-            sheet_data: Some(sheet_data),
-            ..pc
-        };
+        // Create updated PC with new sheet_data
+        let mut updated_pc = pc;
+        updated_pc.set_sheet_data(Some(sheet_data));
 
         // Save the updated PC
         match self.player_character.save(&updated_pc).await {

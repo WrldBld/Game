@@ -90,7 +90,7 @@ async fn test_pc_skills_from_sheet() {
                 .expect("Should get PC")
                 .expect("PC should exist");
 
-            println!("PC sheet_data: {:?}", pc.sheet_data);
+            println!("PC sheet_data: {:?}", pc.sheet_data());
         }
         Err(e) => {
             println!("Sheet update failed: {:?}", e);

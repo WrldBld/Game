@@ -66,7 +66,7 @@ async fn test_pc_sheet_data() {
         .expect("PC should exist");
 
     // Sheet data should exist (may be empty initially)
-    println!("PC sheet_data: {:?}", pc.sheet_data);
+    println!("PC sheet_data: {:?}", pc.sheet_data());
 }
 
 /// Test updating PC sheet data.
@@ -118,7 +118,7 @@ async fn test_update_pc_sheet_data() {
                 .await
                 .expect("Should get PC")
                 .expect("PC should exist");
-            println!("Updated sheet_data: {:?}", pc.sheet_data);
+            println!("Updated sheet_data: {:?}", pc.sheet_data());
         }
         Err(e) => {
             println!("Sheet update not implemented or failed: {:?}", e);
@@ -184,7 +184,7 @@ async fn test_stat_system() {
         .expect("PC should exist");
 
     // Sheet data contains stats - document what's available
-    if let Some(sheet) = &pc.sheet_data {
+    if let Some(sheet) = &pc.sheet_data() {
         println!("PC has sheet_data with {} fields", sheet.values.len());
     } else {
         println!("PC has no sheet_data (expected for new character)");

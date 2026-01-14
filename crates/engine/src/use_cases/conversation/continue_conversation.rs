@@ -100,7 +100,7 @@ impl ContinueConversation {
 
         // 3. Verify the NPC is still in the same region as the PC
         let pc_region_id = pc
-            .current_region_id
+            .current_region_id()
             .ok_or(ConversationError::PlayerNotInRegion)?;
 
         // Get current game time for staging TTL check
@@ -425,10 +425,9 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
-        pc.id = pc_id;
-        pc.current_region_id = Some(region_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+            .with_id(pc_id)
+            .with_current_region(region_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -487,10 +486,8 @@ mod tests {
         let npc_id = CharacterId::new();
 
         // PC has no current_region_id
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
-        pc.id = pc_id;
-        pc.current_region_id = None;
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+            .with_id(pc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -553,10 +550,9 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
-        pc.id = pc_id;
-        pc.current_region_id = Some(region_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+            .with_id(pc_id)
+            .with_current_region(region_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -623,10 +619,9 @@ mod tests {
         let npc_id = CharacterId::new();
         let other_npc_id = CharacterId::new();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
-        pc.id = pc_id;
-        pc.current_region_id = Some(region_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+            .with_id(pc_id)
+            .with_current_region(region_id);
 
         let npc = Character::new(world_id, CharacterName::new("NPC").unwrap(), CampbellArchetype::Mentor)
             .with_id(npc_id);
@@ -728,10 +723,9 @@ mod tests {
         let npc_id = CharacterId::new();
         let conversation_id = Uuid::new_v4();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
-        pc.id = pc_id;
-        pc.current_region_id = Some(region_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+            .with_id(pc_id)
+            .with_current_region(region_id);
 
         let npc = Character::new(world_id, CharacterName::new("NPC").unwrap(), CampbellArchetype::Mentor)
             .with_id(npc_id);
@@ -839,10 +833,9 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
-        pc.id = pc_id;
-        pc.current_region_id = Some(region_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+            .with_id(pc_id)
+            .with_current_region(region_id);
 
         let npc = Character::new(world_id, CharacterName::new("NPC").unwrap(), CampbellArchetype::Mentor)
             .with_id(npc_id);
@@ -953,10 +946,9 @@ mod tests {
         let player_id = "player".to_string();
         let player_message = "Hello again!".to_string();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
-        pc.id = pc_id;
-        pc.current_region_id = Some(region_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+            .with_id(pc_id)
+            .with_current_region(region_id);
 
         let npc = Character::new(world_id, CharacterName::new("NPC").unwrap(), CampbellArchetype::Mentor)
             .with_id(npc_id);
@@ -1078,10 +1070,9 @@ mod tests {
         let player_id = "player".to_string();
         let player_message = "Continuing...".to_string();
 
-        let mut pc =
-            wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
-        pc.id = pc_id;
-        pc.current_region_id = Some(region_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
+            .with_id(pc_id)
+            .with_current_region(region_id);
 
         let npc = Character::new(world_id, CharacterName::new("NPC").unwrap(), CampbellArchetype::Mentor)
             .with_id(npc_id);
