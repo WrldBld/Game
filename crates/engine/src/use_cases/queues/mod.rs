@@ -239,7 +239,7 @@ impl ProcessPlayerAction {
             self.location
                 .get(location_id)
                 .await?
-                .map(|loc| loc.name)
+                .map(|loc| loc.name().to_string())
                 .unwrap_or_else(|| "Unknown Location".to_string())
         } else {
             "Unknown Location".to_string()

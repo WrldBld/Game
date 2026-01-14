@@ -45,7 +45,7 @@ impl RegenerateStagingSuggestions {
             .await
             .ok()
             .flatten()
-            .map(|l| l.name)
+            .map(|l| l.name().to_string())
             .unwrap_or_else(|| "Unknown Location".to_string());
 
         Ok(generate_llm_based_suggestions(

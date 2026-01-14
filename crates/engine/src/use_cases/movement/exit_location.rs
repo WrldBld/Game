@@ -105,7 +105,7 @@ impl ExitLocation {
             .ok_or(ExitLocationError::RegionNotFound)?;
 
         // Verify region belongs to target location
-        if region.location_id != location.id {
+        if region.location_id != location.id() {
             return Err(ExitLocationError::RegionLocationMismatch);
         }
 
@@ -157,7 +157,7 @@ impl ExitLocation {
             pc_id,
             pc.name.clone(),
             "travel_location",
-            &location.name,
+            location.name().as_str(),
         )
         .await;
 
@@ -223,7 +223,7 @@ impl ExitLocation {
             .await?
             .ok_or(ExitLocationError::LocationNotFound)?;
 
-        if let Some(default_region_id) = location.default_region_id {
+        if let Some(default_region_id) = location.default_region_id() {
             if self.location.get_region(default_region_id).await?.is_some() {
                 return Ok(default_region_id);
             }

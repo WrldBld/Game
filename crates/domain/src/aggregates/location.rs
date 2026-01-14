@@ -269,6 +269,11 @@ impl Location {
     // Mutation Methods
     // =========================================================================
 
+    /// Set the location's name.
+    pub fn set_name(&mut self, name: LocationName) {
+        self.name = name;
+    }
+
     /// Set the location's description.
     pub fn set_description(&mut self, description: Description) {
         self.description = description;

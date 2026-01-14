@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::{LocationId, RegionId, WorldId};
+use wrldbldr_domain::{value_objects, LocationId, RegionId, WorldId};
 
 use crate::repositories::location::Location;
 
@@ -38,10 +38,14 @@ impl LocationCrud {
         description: Option<String>,
         setting: Option<String>,
     ) -> Result<wrldbldr_domain::Location, ManagementError> {
+        let location_name = value_objects::LocationName::new(&name)
+            .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
         let mut location =
-            wrldbldr_domain::Location::new(world_id, name, wrldbldr_domain::LocationType::Unknown)?;
+            wrldbldr_domain::Location::new(world_id, location_name, wrldbldr_domain::LocationType::Unknown);
         if let Some(description) = description {
-            location = location.with_description(description);
+            let desc = value_objects::Description::new(&description)
+                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            location = location.with_description(desc);
         }
         if let Some(setting) = setting {
             location = location.with_atmosphere(setting);
@@ -70,13 +74,17 @@ impl LocationCrud {
                     "Location name cannot be empty".to_string(),
                 ));
             }
-            location.name = name;
+            let location_name = value_objects::LocationName::new(&name)
+                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            location.set_name(location_name);
         }
         if let Some(description) = description {
-            location.description = description;
+            let desc = value_objects::Description::new(&description)
+                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            location.set_description(desc);
         }
         if let Some(setting) = setting {
-            location.atmosphere = Some(setting);
+            location.set_atmosphere(Some(setting));
         }
 
         self.location.save_location(&location).await?;
@@ -171,7 +179,7 @@ impl LocationCrud {
         let mut spawn_points = Vec::new();
         let locations = self.location.list_in_world(world_id).await?;
         for location in locations {
-            let regions = self.location.list_regions_in_location(location.id).await?;
+            let regions = self.location.list_regions_in_location(location.id()).await?;
             spawn_points.extend(regions.into_iter().filter(|r| r.is_spawn_point));
         }
         Ok(spawn_points)
@@ -343,7 +351,7 @@ impl LocationCrud {
         if arrival_region.location_id != location_id {
             return Err(ManagementError::InvalidInput(format!(
                 "Arrival region {} is not in target location {} (it's in {})",
-                arrival_region_id, target_location.name, arrival_region.location_id
+                arrival_region_id, target_location.name().as_str(), arrival_region.location_id
             )));
         }
 
@@ -364,9 +372,9 @@ impl LocationCrud {
 
             tracing::debug!(
                 from_region = %region_id,
-                to_location = %target_location.name,
+                to_location = %target_location.name().as_str(),
                 arrival_region = %arrival_region.name,
-                return_location = %source_location.name,
+                return_location = %source_location.name().as_str(),
                 "Creating bidirectional exit with validated return path"
             );
         }

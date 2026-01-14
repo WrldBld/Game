@@ -71,7 +71,7 @@ impl ObservationCrud {
 
             let location_name = location
                 .as_ref()
-                .map(|l| l.name.clone())
+                .map(|l| l.name().to_string())
                 .unwrap_or_else(|| "Unknown Location".to_string());
             let region_name = region
                 .as_ref()

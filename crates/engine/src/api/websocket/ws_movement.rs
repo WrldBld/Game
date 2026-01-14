@@ -458,7 +458,7 @@ async fn build_scene_update(
     npcs: &[wrldbldr_domain::StagedNpc],
 ) -> Option<ServerMessage> {
     let location_name = match state.app.repositories.location.get(scene.location_id).await {
-        Ok(Some(location)) => location.name,
+        Ok(Some(location)) => location.name().to_string(),
         _ => "Unknown Location".to_string(),
     };
 

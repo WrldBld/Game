@@ -30,7 +30,7 @@ pub use entities::{
     GenerationMetadata, GenerationRequest, Goal, GridMap, InfoType, InputDefault, InputType,
     InteractionCondition, InteractionRequirement, InteractionTarget, InteractionTargetType,
     InteractionTemplate, InteractionType, InventoryItem, InvolvedCharacter, Item, ItemSource,
-    KnownSpell, Location, LocationConnection, ConnectionType, LocationState, LocationStateSummary, LocationType,
+    KnownSpell, LocationConnection, ConnectionType, LocationState, LocationStateSummary, LocationType,
     Lore, LoreCategory, LoreChunk, LoreDiscoverySource, LoreKnowledge, MapBounds, MarkerImportance,
     MaterialComponent, MonomythStage, NarrativeEvent, NarrativeTrigger, NarrativeTriggerType,
     NpcObservation, ObservationSummary, ObservationType, Outcome, OutcomeCondition, OutcomeTrigger,
@@ -50,6 +50,10 @@ pub use entities::{
 // Re-export Character from aggregates (the Rustic DDD version with private fields)
 // This replaces the legacy entities::Character with public fields
 pub use aggregates::Character;
+
+// Re-export Location from aggregates (the Rustic DDD version with private fields)
+// This replaces the legacy entities::Location with public fields
+pub use aggregates::Location;
 
 pub use error::DomainError;
 pub use events::{

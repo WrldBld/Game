@@ -186,7 +186,7 @@ impl Location {
                 if let Some(target_location) = self.repo.get_location(exit.to_location).await? {
                     result.exits.push(RegionExit {
                         location_id: exit.to_location,
-                        location_name: target_location.name,
+                        location_name: target_location.name().to_string(),
                         arrival_region_id: exit.arrival_region_id,
                         description: exit.description,
                     });
@@ -223,7 +223,7 @@ impl Location {
             if let Some(target_location) = self.repo.get_location(exit.to_location).await? {
                 // Determine arrival region
                 let arrival_region_id = if let Some(default_region) =
-                    target_location.default_region_id
+                    target_location.default_region_id()
                 {
                     default_region
                 } else {
@@ -234,12 +234,12 @@ impl Location {
                         None => {
                             let reason = format!(
                                 "Target location '{}' has no default region and no spawn point",
-                                target_location.name
+                                target_location.name().as_str()
                             );
                             tracing::error!(
                                 from_region = %region_id,
                                 to_location = %exit.to_location,
-                                target_location_name = %target_location.name,
+                                target_location_name = %target_location.name().as_str(),
                                 reason = %reason,
                                 "Navigation exit skipped due to data integrity issue"
                             );
@@ -254,7 +254,7 @@ impl Location {
 
                 result.exits.push(RegionExit {
                     location_id: exit.to_location,
-                    location_name: target_location.name,
+                    location_name: target_location.name().to_string(),
                     arrival_region_id,
                     description: exit.description,
                 });

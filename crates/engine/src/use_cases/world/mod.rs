@@ -93,7 +93,7 @@ impl ExportWorld {
         // Get all regions
         let mut regions = Vec::new();
         for loc in &locations {
-            let loc_regions = self.location.list_regions_in_location(loc.id).await?;
+            let loc_regions = self.location.list_regions_in_location(loc.id()).await?;
             regions.extend(loc_regions);
         }
 

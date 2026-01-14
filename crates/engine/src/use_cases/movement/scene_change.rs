@@ -107,7 +107,7 @@ impl SceneChangeBuilder {
             id: region.id.to_string(),
             name: region.name.clone(),
             location_id: region.location_id.to_string(),
-            location_name: location.name,
+            location_name: location.name().to_string(),
             backdrop_asset: region.backdrop_asset.clone(),
             atmosphere: region.atmosphere.clone(),
             map_asset: None,

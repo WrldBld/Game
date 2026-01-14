@@ -30,9 +30,9 @@ pub(super) async fn handle_location_request(
                         .into_iter()
                         .map(|l| {
                             serde_json::json!({
-                                "id": l.id.to_string(),
-                                "name": l.name,
-                                "location_type": format!("{:?}", l.location_type),
+                                "id": l.id().to_string(),
+                                "name": l.name().as_str(),
+                                "location_type": format!("{:?}", l.location_type()),
                             })
                         })
                         .collect();
@@ -60,13 +60,13 @@ pub(super) async fn handle_location_request(
                 .await
             {
                 Ok(Some(location)) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": location.id.to_string(),
-                    "name": location.name,
-                    "description": if location.description.is_empty() { None } else { Some(location.description) },
-                    "location_type": Some(format!("{:?}", location.location_type)),
-                    "atmosphere": location.atmosphere,
-                    "backdrop_asset": location.backdrop_asset,
-                    "presence_cache_ttl_hours": location.presence_cache_ttl_hours,
+                    "id": location.id().to_string(),
+                    "name": location.name().as_str(),
+                    "description": if location.description().is_empty() { None } else { Some(location.description().as_str()) },
+                    "location_type": Some(format!("{:?}", location.location_type())),
+                    "atmosphere": location.atmosphere(),
+                    "backdrop_asset": location.backdrop_asset(),
+                    "presence_cache_ttl_hours": location.presence_cache_ttl_hours(),
                 }))),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
@@ -98,13 +98,13 @@ pub(super) async fn handle_location_request(
                 .await
             {
                 Ok(location) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": location.id.to_string(),
-                    "name": location.name,
-                    "description": if location.description.is_empty() { None } else { Some(location.description) },
-                    "location_type": Some(format!("{:?}", location.location_type)),
-                    "atmosphere": location.atmosphere,
-                    "backdrop_asset": location.backdrop_asset,
-                    "presence_cache_ttl_hours": location.presence_cache_ttl_hours,
+                    "id": location.id().to_string(),
+                    "name": location.name().as_str(),
+                    "description": if location.description().is_empty() { None } else { Some(location.description().as_str()) },
+                    "location_type": Some(format!("{:?}", location.location_type())),
+                    "atmosphere": location.atmosphere(),
+                    "backdrop_asset": location.backdrop_asset(),
+                    "presence_cache_ttl_hours": location.presence_cache_ttl_hours(),
                 }))),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
@@ -135,13 +135,13 @@ pub(super) async fn handle_location_request(
                 .await
             {
                 Ok(location) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": location.id.to_string(),
-                    "name": location.name,
-                    "description": if location.description.is_empty() { None } else { Some(location.description) },
-                    "location_type": Some(format!("{:?}", location.location_type)),
-                    "atmosphere": location.atmosphere,
-                    "backdrop_asset": location.backdrop_asset,
-                    "presence_cache_ttl_hours": location.presence_cache_ttl_hours,
+                    "id": location.id().to_string(),
+                    "name": location.name().as_str(),
+                    "description": if location.description().is_empty() { None } else { Some(location.description().as_str()) },
+                    "location_type": Some(format!("{:?}", location.location_type())),
+                    "atmosphere": location.atmosphere(),
+                    "backdrop_asset": location.backdrop_asset(),
+                    "presence_cache_ttl_hours": location.presence_cache_ttl_hours(),
                 }))),
                 Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Location not found"),

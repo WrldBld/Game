@@ -72,20 +72,35 @@ impl Neo4jLocationRepo {
                 })
             });
 
-        Ok(Location {
-            id,
-            world_id,
-            name,
-            description,
-            location_type,
-            backdrop_asset,
-            map_asset,
-            parent_map_bounds,
-            default_region_id,
-            atmosphere,
-            presence_cache_ttl_hours: presence_cache_ttl_hours as i32,
-            use_llm_presence,
-        })
+        // Build location using aggregate constructor and builder pattern
+        let location_name = value_objects::LocationName::new(&name)
+            .map_err(|e| RepoError::database("parse", e))?;
+        let desc = value_objects::Description::new(&description)
+            .map_err(|e| RepoError::database("parse", e))?;
+
+        let mut location = Location::new(world_id, location_name, location_type)
+            .with_id(id)
+            .with_description(desc)
+            .with_presence_ttl(presence_cache_ttl_hours as i32)
+            .with_llm_presence(use_llm_presence);
+
+        if let Some(asset) = backdrop_asset {
+            location = location.with_backdrop(asset);
+        }
+        if let Some(asset) = map_asset {
+            location = location.with_map(asset);
+        }
+        if let Some(atm) = atmosphere {
+            location = location.with_atmosphere(atm);
+        }
+        if let Some(bounds) = parent_map_bounds {
+            location = location.with_parent_map_bounds(bounds);
+        }
+        if let Some(region_id) = default_region_id {
+            location = location.with_default_region(region_id);
+        }
+
+        Ok(location)
     }
 
     fn row_to_region(&self, row: &Row) -> Result<Region, RepoError> {
@@ -222,8 +237,7 @@ impl LocationRepo for Neo4jLocationRepo {
 
     async fn save_location(&self, location: &Location) -> Result<(), RepoError> {
         let map_bounds_json = location
-            .parent_map_bounds
-            .as_ref()
+            .parent_map_bounds()
             .map(|b| {
                 serde_json::json!({
                     "x": b.x,
@@ -253,40 +267,40 @@ impl LocationRepo for Neo4jLocationRepo {
             MERGE (w)-[:CONTAINS_LOCATION]->(l)
             RETURN l.id as id",
         )
-        .param("id", location.id.to_string())
-        .param("world_id", location.world_id.to_string())
-        .param("name", location.name.clone())
-        .param("description", location.description.clone())
-        .param("location_type", format!("{:?}", location.location_type))
+        .param("id", location.id().to_string())
+        .param("world_id", location.world_id().to_string())
+        .param("name", location.name().as_str().to_string())
+        .param("description", location.description().as_str().to_string())
+        .param("location_type", format!("{:?}", location.location_type()))
         .param(
             "backdrop_asset",
-            location.backdrop_asset.clone().unwrap_or_default(),
+            location.backdrop_asset().unwrap_or_default().to_string(),
         )
-        .param("map_asset", location.map_asset.clone().unwrap_or_default())
+        .param("map_asset", location.map_asset().unwrap_or_default().to_string())
         .param("parent_map_bounds", map_bounds_json)
         .param(
             "default_region_id",
             location
-                .default_region_id
+                .default_region_id()
                 .map(|id| id.to_string())
                 .unwrap_or_default(),
         )
         .param(
             "atmosphere",
-            location.atmosphere.clone().unwrap_or_default(),
+            location.atmosphere().unwrap_or_default().to_string(),
         )
         .param(
             "presence_cache_ttl_hours",
-            location.presence_cache_ttl_hours as i64,
+            location.presence_cache_ttl_hours() as i64,
         )
-        .param("use_llm_presence", location.use_llm_presence);
+        .param("use_llm_presence", location.use_llm_presence());
 
         self.graph
             .run(q)
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
-        tracing::debug!("Saved location: {}", location.name);
+        tracing::debug!("Saved location: {}", location.name().as_str());
         Ok(())
     }
 

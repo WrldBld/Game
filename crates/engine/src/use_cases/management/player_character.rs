@@ -166,9 +166,9 @@ impl PlayerCharacterCrud {
 
         let locations = self.location.list_in_world(world_id).await?;
         for location in &locations {
-            let regions = self.location.list_regions_in_location(location.id).await?;
+            let regions = self.location.list_regions_in_location(location.id()).await?;
             if let Some(spawn) = regions.iter().find(|r| r.is_spawn_point) {
-                return Ok((location.id, Some(spawn.id)));
+                return Ok((location.id(), Some(spawn.id)));
             }
         }
 
@@ -177,12 +177,12 @@ impl PlayerCharacterCrud {
             .ok_or_else(|| ManagementError::InvalidInput("No locations in world".to_string()))?;
         let regions = self
             .location
-            .list_regions_in_location(fallback_location.id)
+            .list_regions_in_location(fallback_location.id())
             .await?;
         let region = regions
             .first()
             .ok_or_else(|| ManagementError::InvalidInput("No regions in world".to_string()))?;
 
-        Ok((fallback_location.id, Some(region.id)))
+        Ok((fallback_location.id(), Some(region.id)))
     }
 }

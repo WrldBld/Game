@@ -93,11 +93,11 @@ impl JoinWorld {
             },
             "locations": locations.into_iter().map(|loc| {
                 serde_json::json!({
-                    "id": loc.id.to_string(),
-                    "name": loc.name,
-                    "description": loc.description,
-                    "location_type": format!("{:?}", loc.location_type),
-                    "backdrop_asset": loc.backdrop_asset,
+                    "id": loc.id().to_string(),
+                    "name": loc.name().as_str(),
+                    "description": loc.description().as_str(),
+                    "location_type": format!("{:?}", loc.location_type()),
+                    "backdrop_asset": loc.backdrop_asset(),
                     "parent_id": null,
                 })
             }).collect::<Vec<_>>(),
