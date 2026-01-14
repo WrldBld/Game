@@ -210,7 +210,7 @@ impl Scene {
 
         let mut conditions = std::collections::HashSet::new();
         for scene in scenes {
-            for condition in &scene.entry_conditions {
+            for condition in scene.entry_conditions() {
                 if let SceneCondition::Custom(desc) = condition {
                     conditions.insert(desc.clone());
                 }
@@ -251,25 +251,25 @@ impl Scene {
 
         for scene in scenes {
             // Check time context match
-            let time_matches = self.check_time_context(&scene.time_context, context.time_of_day);
+            let time_matches = self.check_time_context(scene.time_context(), context.time_of_day);
 
             // Check all entry conditions
             let (conditions_met, unmet) =
-                self.evaluate_conditions(&scene.entry_conditions, context);
+                self.evaluate_conditions(scene.entry_conditions(), context);
 
             let mut unmet_conditions = unmet;
             if !time_matches {
                 unmet_conditions.push(format!(
                     "Time mismatch: scene requires {:?}, current is {:?}",
-                    scene.time_context, context.time_of_day
+                    scene.time_context(), context.time_of_day
                 ));
             }
 
             let all_conditions_met = conditions_met && time_matches;
 
             considered.push(SceneConsideration {
-                scene_id: scene.id,
-                scene_name: scene.name.clone(),
+                scene_id: scene.id(),
+                scene_name: scene.name().to_string(),
                 unmet_conditions: unmet_conditions.clone(),
                 conditions_met: all_conditions_met,
             });
@@ -280,7 +280,7 @@ impl Scene {
         }
 
         // Sort by order (highest first) and take the first match
-        matched_scenes.sort_by(|a, b| b.order.cmp(&a.order));
+        matched_scenes.sort_by(|a, b| b.order().cmp(&a.order()));
         let scene = matched_scenes.into_iter().next();
 
         Ok(SceneResolutionResult {

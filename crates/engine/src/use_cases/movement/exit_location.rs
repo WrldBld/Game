@@ -177,8 +177,8 @@ impl ExitLocation {
             tracing::info!(
                 pc_id = %pc_id,
                 region_id = %region_id,
-                scene_id = %scene.id,
-                scene_name = %scene.name,
+                scene_id = %scene.id(),
+                scene_name = %scene.name(),
                 "Scene resolved for location arrival"
             );
         }

@@ -61,19 +61,19 @@ impl JoinWorld {
 
         let current_scene_json = current_scene.as_ref().map(|scene| {
             let featured = scene
-                .featured_characters
+                .featured_characters()
                 .iter()
                 .map(|id| id.to_string())
                 .collect::<Vec<_>>();
 
             serde_json::json!({
-                "id": scene.id.to_string(),
-                "name": scene.name,
-                "location_id": scene.location_id.to_string(),
-                "time_context": format!("{:?}", scene.time_context),
-                "backdrop_override": scene.backdrop_override,
+                "id": scene.id().to_string(),
+                "name": scene.name(),
+                "location_id": scene.location_id().to_string(),
+                "time_context": format!("{:?}", scene.time_context()),
+                "backdrop_override": scene.backdrop_override(),
                 "featured_characters": featured,
-                "directorial_notes": scene.directorial_notes,
+                "directorial_notes": scene.directorial_notes(),
             })
         });
 

@@ -188,18 +188,19 @@ impl Neo4jSceneRepo {
 
         let backdrop_override = node.get_optional_string("backdrop_override");
 
-        Ok(Scene {
-            id,
-            act_id,
-            name,
-            location_id,
-            time_context,
-            backdrop_override,
-            entry_conditions,
-            featured_characters,
-            directorial_notes,
-            order: order_num as u32,
-        })
+        let mut scene = Scene::new(act_id, name, location_id)
+            .with_id(id)
+            .with_time(time_context)
+            .with_directorial_notes(directorial_notes)
+            .with_order(order_num as u32)
+            .with_entry_conditions(entry_conditions)
+            .with_featured_characters(featured_characters);
+
+        if let Some(backdrop) = backdrop_override {
+            scene = scene.with_backdrop_override(backdrop);
+        }
+
+        Ok(scene)
     }
 }
 
@@ -227,11 +228,11 @@ impl SceneRepo for Neo4jSceneRepo {
 
     async fn save(&self, scene: &Scene) -> Result<(), RepoError> {
         let time_context_json =
-            serde_json::to_string(&TimeContextStored::from(scene.time_context.clone()))
+            serde_json::to_string(&TimeContextStored::from(scene.time_context().clone()))
                 .map_err(|e| RepoError::Serialization(e.to_string()))?;
         let entry_conditions_json = serde_json::to_string(
             &scene
-                .entry_conditions
+                .entry_conditions()
                 .iter()
                 .cloned()
                 .map(SceneConditionStored::from)
@@ -240,7 +241,7 @@ impl SceneRepo for Neo4jSceneRepo {
         .map_err(|e| RepoError::Serialization(e.to_string()))?;
         let featured_characters_json = serde_json::to_string(
             &scene
-                .featured_characters
+                .featured_characters()
                 .iter()
                 .map(|id| id.to_string())
                 .collect::<Vec<_>>(),
@@ -266,19 +267,19 @@ impl SceneRepo for Neo4jSceneRepo {
             MERGE (s)-[:AT_LOCATION]->(l)
             RETURN s.id as id",
         )
-        .param("id", scene.id.to_string())
-        .param("act_id", scene.act_id.to_string())
-        .param("name", scene.name.clone())
-        .param("location_id", scene.location_id.to_string())
+        .param("id", scene.id().to_string())
+        .param("act_id", scene.act_id().to_string())
+        .param("name", scene.name().to_string())
+        .param("location_id", scene.location_id().to_string())
         .param("time_context", time_context_json)
         .param(
             "backdrop_override",
-            scene.backdrop_override.clone().unwrap_or_default(),
+            scene.backdrop_override().map(|s| s.to_string()).unwrap_or_default(),
         )
         .param("entry_conditions", entry_conditions_json)
         .param("featured_characters", featured_characters_json)
-        .param("directorial_notes", scene.directorial_notes.clone())
-        .param("order_num", scene.order as i64);
+        .param("directorial_notes", scene.directorial_notes().to_string())
+        .param("order_num", scene.order() as i64);
 
         self.graph
             .run(q)
@@ -288,7 +289,7 @@ impl SceneRepo for Neo4jSceneRepo {
         // Update FEATURES_CHARACTER edges atomically:
         // Delete existing edges and create new ones in a single query using UNWIND
         let char_ids: Vec<String> = scene
-            .featured_characters
+            .featured_characters()
             .iter()
             .map(|id| id.to_string())
             .collect();
@@ -304,7 +305,7 @@ impl SceneRepo for Neo4jSceneRepo {
             CREATE (s)-[:FEATURES_CHARACTER {role: 'Secondary', entrance_cue: ''}]->(c)
             RETURN count(*) as created",
         )
-        .param("scene_id", scene.id.to_string())
+        .param("scene_id", scene.id().to_string())
         .param("char_ids", char_ids);
 
         self.graph
@@ -312,7 +313,7 @@ impl SceneRepo for Neo4jSceneRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
-        tracing::debug!("Saved scene: {}", scene.name);
+        tracing::debug!("Saved scene: {}", scene.name());
         Ok(())
     }
 

@@ -457,12 +457,12 @@ async fn build_scene_update(
     pc: &wrldbldr_domain::PlayerCharacter,
     npcs: &[wrldbldr_domain::StagedNpc],
 ) -> Option<ServerMessage> {
-    let location_name = match state.app.repositories.location.get(scene.location_id).await {
+    let location_name = match state.app.repositories.location.get(scene.location_id()).await {
         Ok(Some(location)) => location.name().to_string(),
         _ => "Unknown Location".to_string(),
     };
 
-    let time_context = match &scene.time_context {
+    let time_context = match scene.time_context() {
         wrldbldr_domain::TimeContext::Unspecified => "unspecified".to_string(),
         wrldbldr_domain::TimeContext::TimeOfDay(time) => time.to_string(),
         wrldbldr_domain::TimeContext::During(label) => format!("during {}", label),
@@ -470,16 +470,16 @@ async fn build_scene_update(
     };
 
     let scene_data = SceneData {
-        id: scene.id.to_string(),
-        name: scene.name.clone(),
-        location_id: scene.location_id.to_string(),
+        id: scene.id().to_string(),
+        name: scene.name().to_string(),
+        location_id: scene.location_id().to_string(),
         location_name,
         backdrop_asset: scene
-            .backdrop_override
-            .clone()
+            .backdrop_override()
+            .map(|s| s.to_string())
             .or_else(|| region.backdrop_asset.clone()),
         time_context,
-        directorial_notes: scene.directorial_notes.clone(),
+        directorial_notes: scene.directorial_notes().to_string(),
     };
 
     let mut characters = Vec::with_capacity(1 + npcs.len());
@@ -513,10 +513,10 @@ async fn build_scene_update(
         });
     }
 
-    let interactions = match state.app.repositories.interaction.list_for_scene(scene.id).await {
+    let interactions = match state.app.repositories.interaction.list_for_scene(scene.id()).await {
         Ok(list) => list,
         Err(e) => {
-            tracing::warn!(error = %e, scene_id = %scene.id, "Failed to load scene interactions");
+            tracing::warn!(error = %e, scene_id = %scene.id(), "Failed to load scene interactions");
             Vec::new()
         }
     };

@@ -382,7 +382,7 @@ impl NarrativeOps {
             self.scene_repo
                 .get_current(world_id)
                 .await?
-                .map(|scene| scene.id)
+                .map(|scene| scene.id())
         };
 
         let resolved_location_id = location_id.or(pc_location_id);
@@ -581,13 +581,13 @@ impl NarrativeOps {
         let (current_scene, time_context_string): (Option<SceneId>, Option<String>) =
             match self.scene_repo.get_current(world_id).await {
                 Ok(Some(scene)) => {
-                    let time_str = match &scene.time_context {
+                    let time_str = match scene.time_context() {
                         TimeContext::Unspecified => None,
                         TimeContext::TimeOfDay(tod) => Some(tod.display_name().to_string()),
                         TimeContext::During(event) => Some(event.clone()),
                         TimeContext::Custom(desc) => Some(desc.clone()),
                     };
-                    (Some(scene.id), time_str)
+                    (Some(scene.id()), time_str)
                 }
                 Ok(None) => (None, None),
                 Err(e) => {

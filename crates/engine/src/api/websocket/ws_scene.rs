@@ -366,22 +366,22 @@ fn act_to_json(act: &domain::Act) -> serde_json::Value {
 
 fn scene_to_json(scene: &domain::Scene) -> serde_json::Value {
     let entry_conditions = scene
-        .entry_conditions
+        .entry_conditions()
         .iter()
         .map(|condition| format!("{:?}", condition))
         .collect::<Vec<_>>();
 
     json!({
-        "id": scene.id.to_string(),
-        "act_id": scene.act_id.to_string(),
-        "name": scene.name,
-        "location_id": scene.location_id.to_string(),
-        "time_context": format!("{:?}", scene.time_context),
-        "backdrop_override": scene.backdrop_override,
-        "featured_characters": scene.featured_characters.iter().map(|id| id.to_string()).collect::<Vec<_>>(),
-        "directorial_notes": scene.directorial_notes,
+        "id": scene.id().to_string(),
+        "act_id": scene.act_id().to_string(),
+        "name": scene.name(),
+        "location_id": scene.location_id().to_string(),
+        "time_context": format!("{:?}", scene.time_context()),
+        "backdrop_override": scene.backdrop_override(),
+        "featured_characters": scene.featured_characters().iter().map(|id| id.to_string()).collect::<Vec<_>>(),
+        "directorial_notes": scene.directorial_notes(),
         "entry_conditions": entry_conditions,
-        "order": scene.order,
+        "order": scene.order(),
     })
 }
 

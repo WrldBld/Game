@@ -248,7 +248,7 @@ impl ProcessPlayerAction {
         let scene_context = SceneContext {
             scene_name: current_scene
                 .as_ref()
-                .map(|scene| scene.name.clone())
+                .map(|scene| scene.name().to_string())
                 .unwrap_or_else(|| "Current Scene".to_string()),
             location_name,
             time_context,
@@ -445,7 +445,7 @@ impl ProcessPlayerAction {
             active_challenges,
             active_narrative_events: vec![],
             context_budget: None,
-            scene_id: current_scene.as_ref().map(|scene| scene.id.to_string()),
+            scene_id: current_scene.as_ref().map(|scene| scene.id().to_string()),
             location_id: pc_location_id.map(|id| id.to_string()),
             game_time: game_time_display,
         })

@@ -66,7 +66,7 @@ async fn test_scenes_loaded_for_act() {
         println!("Act '{}' has {} scenes", first_act.name, scenes.len());
 
         for scene in &scenes {
-            println!("  Scene: {} at location {:?}", scene.name, scene.location_id);
+            println!("  Scene: {} at location {:?}", scene.name(), scene.location_id());
         }
     }
 }
@@ -102,7 +102,7 @@ async fn test_scene_resolution_for_region() {
 
     // Check if scene was resolved
     if let Some(scene) = result.resolved_scene {
-        println!("Resolved scene: {} - {}", scene.name, scene.directorial_notes);
+        println!("Resolved scene: {} - {}", scene.name(), scene.directorial_notes());
     } else {
         println!("No scene resolved for this region (may be expected)");
     }
@@ -137,9 +137,9 @@ async fn test_scene_directorial_notes() {
         for scene in &scenes {
             // Verify directorial notes exist
             assert!(
-                !scene.directorial_notes.is_empty(),
+                !scene.directorial_notes().is_empty(),
                 "Scene '{}' should have directorial notes",
-                scene.name
+                scene.name()
             );
         }
     }

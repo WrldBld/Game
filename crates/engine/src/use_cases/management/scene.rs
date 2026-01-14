@@ -76,13 +76,13 @@ impl SceneCrud {
                     "Scene name cannot be empty".to_string(),
                 ));
             }
-            scene.name = name;
+            scene.set_name(name);
         }
         if let Some(description) = description {
-            scene.directorial_notes = description;
+            scene.set_directorial_notes(description);
         }
         if let Some(location_id) = location_id {
-            scene.location_id = location_id;
+            scene.set_location(location_id);
         }
 
         self.scene.save(&scene).await?;
