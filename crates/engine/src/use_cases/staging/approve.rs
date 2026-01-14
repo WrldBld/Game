@@ -5,10 +5,10 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{LocationId, RegionId, StagingSource, WorldId};
 
-use crate::repositories::{LocationStateEntity, RegionStateEntity, World};
 use crate::repositories::character::Character;
 use crate::repositories::location::Location;
 use crate::repositories::staging::Staging;
+use crate::repositories::{LocationStateEntity, RegionStateEntity, World};
 
 use super::types::{ApprovedNpc, NpcPresent};
 use super::StagingError;
@@ -194,7 +194,12 @@ impl ApproveStagingRequest {
         let mut staged_npcs = Vec::new();
 
         for npc_info in approved_npcs {
-            let character = self.character.get(npc_info.character_id).await.ok().flatten();
+            let character = self
+                .character
+                .get(npc_info.character_id)
+                .await
+                .ok()
+                .flatten();
             let (name, sprite_asset, portrait_asset, default_mood, has_incomplete_data) =
                 match character {
                     Some(c) => (
@@ -245,29 +250,32 @@ impl ApproveStagingRequest {
         let mut npcs_present = Vec::new();
         for npc_info in approved_npcs {
             if npc_info.is_present && !npc_info.is_hidden_from_players {
-                let (name, sprite_asset, portrait_asset) =
-                    match self.character.get(npc_info.character_id).await {
-                        Ok(Some(character)) => (
-                            character.name().to_string(),
-                            character.sprite_asset().map(|s| s.to_string()),
-                            character.portrait_asset().map(|s| s.to_string()),
-                        ),
-                        Ok(None) => {
-                            tracing::warn!(
-                                character_id = %npc_info.character_id,
-                                "Character not found when building NPCs present, using empty defaults"
-                            );
-                            (String::new(), None, None)
-                        }
-                        Err(e) => {
-                            tracing::warn!(
-                                character_id = %npc_info.character_id,
-                                error = %e,
-                                "Failed to fetch character when building NPCs present, using empty defaults"
-                            );
-                            (String::new(), None, None)
-                        }
-                    };
+                let (name, sprite_asset, portrait_asset) = match self
+                    .character
+                    .get(npc_info.character_id)
+                    .await
+                {
+                    Ok(Some(character)) => (
+                        character.name().to_string(),
+                        character.sprite_asset().map(|s| s.to_string()),
+                        character.portrait_asset().map(|s| s.to_string()),
+                    ),
+                    Ok(None) => {
+                        tracing::warn!(
+                            character_id = %npc_info.character_id,
+                            "Character not found when building NPCs present, using empty defaults"
+                        );
+                        (String::new(), None, None)
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            character_id = %npc_info.character_id,
+                            error = %e,
+                            "Failed to fetch character when building NPCs present, using empty defaults"
+                        );
+                        (String::new(), None, None)
+                    }
+                };
 
                 npcs_present.push(NpcPresent {
                     character_id: npc_info.character_id,

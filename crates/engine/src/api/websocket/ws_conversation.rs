@@ -22,7 +22,12 @@ pub(super) async fn handle_start_conversation(
 
     let pc_id = match conn_info.pc_id {
         Some(id) => id,
-        None => return Some(error_response("NO_PC", "Must have a PC to start conversation")),
+        None => {
+            return Some(error_response(
+                "NO_PC",
+                "Must have a PC to start conversation",
+            ))
+        }
     };
 
     let npc_uuid = match parse_character_id(&npc_id) {
@@ -56,9 +61,17 @@ pub(super) async fn handle_start_conversation(
             return Some(error_response("NOT_FOUND", "World not found"))
         }
         Err(crate::use_cases::conversation::ConversationError::NpcNotInRegion) => {
-            return Some(error_response("INVALID_TARGET", "NPC is not in this region"))
+            return Some(error_response(
+                "INVALID_TARGET",
+                "NPC is not in this region",
+            ))
         }
-        Err(e) => return Some(error_response("CONVERSATION_ERROR", &sanitize_repo_error(&e, "start conversation"))),
+        Err(e) => {
+            return Some(error_response(
+                "CONVERSATION_ERROR",
+                &sanitize_repo_error(&e, "start conversation"),
+            ))
+        }
     };
 
     broadcast_action_queued(
@@ -99,7 +112,12 @@ pub(super) async fn handle_continue_conversation(
 
     let pc_id = match conn_info.pc_id {
         Some(id) => id,
-        None => return Some(error_response("NO_PC", "Must have a PC to continue conversation")),
+        None => {
+            return Some(error_response(
+                "NO_PC",
+                "Must have a PC to continue conversation",
+            ))
+        }
     };
 
     let npc_uuid = match parse_character_id(&npc_id) {
@@ -135,10 +153,7 @@ pub(super) async fn handle_continue_conversation(
     {
         Ok(result) => result,
         Err(crate::use_cases::conversation::ConversationError::NpcLeftRegion) => {
-            return Some(error_response(
-                "CONVERSATION_ENDED",
-                "NPC left the region",
-            ))
+            return Some(error_response("CONVERSATION_ENDED", "NPC left the region"))
         }
         Err(crate::use_cases::conversation::ConversationError::NpcNotFound) => {
             return Some(error_response("NOT_FOUND", "NPC not found"))
@@ -146,7 +161,12 @@ pub(super) async fn handle_continue_conversation(
         Err(crate::use_cases::conversation::ConversationError::WorldNotFound) => {
             return Some(error_response("NOT_FOUND", "World not found"))
         }
-        Err(e) => return Some(error_response("CONVERSATION_ERROR", &sanitize_repo_error(&e, "continue conversation"))),
+        Err(e) => {
+            return Some(error_response(
+                "CONVERSATION_ERROR",
+                &sanitize_repo_error(&e, "continue conversation"),
+            ))
+        }
     };
 
     broadcast_action_queued(
@@ -195,10 +215,21 @@ pub(super) async fn handle_perform_interaction(
         Err(e) => return Some(e),
     };
 
-    let interaction = match state.app.repositories.interaction.get(interaction_uuid).await {
+    let interaction = match state
+        .app
+        .repositories
+        .interaction
+        .get(interaction_uuid)
+        .await
+    {
         Ok(Some(interaction)) => interaction,
         Ok(None) => return Some(error_response("NOT_FOUND", "Interaction not found")),
-        Err(e) => return Some(error_response("REPO_ERROR", &sanitize_repo_error(&e, "fetch interaction"))),
+        Err(e) => {
+            return Some(error_response(
+                "REPO_ERROR",
+                &sanitize_repo_error(&e, "fetch interaction"),
+            ))
+        }
     };
 
     if matches!(interaction.interaction_type, InteractionType::Dialogue) {
@@ -227,7 +258,12 @@ pub(super) async fn handle_perform_interaction(
             .await
         {
             Ok(result) => result,
-            Err(e) => return Some(error_response("CONVERSATION_ERROR", &sanitize_repo_error(&e, "start conversation from interaction"))),
+            Err(e) => {
+                return Some(error_response(
+                    "CONVERSATION_ERROR",
+                    &sanitize_repo_error(&e, "start conversation from interaction"),
+                ))
+            }
         };
 
         broadcast_action_queued(
@@ -264,7 +300,12 @@ pub(super) async fn handle_perform_interaction(
 
     let action_id = match state.app.queue.enqueue_player_action(&action_data).await {
         Ok(id) => id,
-        Err(e) => return Some(error_response("QUEUE_ERROR", &sanitize_repo_error(&e, "enqueue player action"))),
+        Err(e) => {
+            return Some(error_response(
+                "QUEUE_ERROR",
+                &sanitize_repo_error(&e, "enqueue player action"),
+            ))
+        }
     };
 
     let queue_depth = state
@@ -336,5 +377,8 @@ async fn broadcast_action_queued(
         action_type: action_type.to_string(),
         queue_depth,
     };
-    state.connections.broadcast_to_dms(world_id, queue_msg).await;
+    state
+        .connections
+        .broadcast_to_dms(world_id, queue_msg)
+        .await;
 }

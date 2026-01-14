@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{LocationId, Region, RegionId, StagedNpc};
 
+use crate::infrastructure::ports::RepoError;
 use crate::repositories::inventory::Inventory;
 use crate::repositories::location::Location;
-use crate::infrastructure::ports::RepoError;
 
 // =============================================================================
 // Domain Types (for use case output)
@@ -88,7 +88,10 @@ pub struct SceneChangeBuilder {
 
 impl SceneChangeBuilder {
     pub fn new(location: Arc<Location>, inventory: Arc<Inventory>) -> Self {
-        Self { location, inventory }
+        Self {
+            location,
+            inventory,
+        }
     }
 
     pub async fn build_scene_change(

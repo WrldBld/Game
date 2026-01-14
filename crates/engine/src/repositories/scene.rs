@@ -143,7 +143,10 @@ impl Scene {
         self.repo.list_for_region(region_id).await
     }
 
-    pub async fn list_for_act(&self, act_id: domain::ActId) -> Result<Vec<domain::Scene>, RepoError> {
+    pub async fn list_for_act(
+        &self,
+        act_id: domain::ActId,
+    ) -> Result<Vec<domain::Scene>, RepoError> {
         self.repo.list_for_act(act_id).await
     }
 
@@ -261,7 +264,8 @@ impl Scene {
             if !time_matches {
                 unmet_conditions.push(format!(
                     "Time mismatch: scene requires {:?}, current is {:?}",
-                    scene.time_context(), context.time_of_day
+                    scene.time_context(),
+                    context.time_of_day
                 ));
             }
 

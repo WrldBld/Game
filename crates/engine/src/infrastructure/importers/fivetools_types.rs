@@ -235,7 +235,10 @@ pub struct FiveToolsPrerequisite {
 #[serde(untagged)]
 pub enum FiveToolsLevelPrereq {
     Simple(u8),
-    ClassLevel { class: FiveToolsClassEntry, level: u8 },
+    ClassLevel {
+        class: FiveToolsClassEntry,
+        level: u8,
+    },
 }
 
 /// Race prerequisite.

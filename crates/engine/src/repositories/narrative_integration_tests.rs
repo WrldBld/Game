@@ -25,7 +25,10 @@ fn test_has_class_trigger_fires_with_fighter() {
 
     // Assert: Trigger should match (Fighter 5 >= 3)
     let eval = event.evaluate_triggers(&ctx);
-    assert!(eval.is_triggered, "Fighter 5 should match HasClass(fighter, 3)");
+    assert!(
+        eval.is_triggered,
+        "Fighter 5 should match HasClass(fighter, 3)"
+    );
 }
 
 #[test]
@@ -225,7 +228,10 @@ fn test_knows_spell_trigger_fails_with_unknown_spell() {
 
     // Assert: Trigger should NOT match
     let eval = event.evaluate_triggers(&ctx);
-    assert!(!eval.is_triggered, "Wizard should NOT match KnowsSpell(wish)");
+    assert!(
+        !eval.is_triggered,
+        "Wizard should NOT match KnowsSpell(wish)"
+    );
 }
 
 #[test]
@@ -298,7 +304,10 @@ fn test_has_feat_trigger_fails_without_feat() {
 
     // Assert: Trigger should NOT match
     let eval = event.evaluate_triggers(&ctx);
-    assert!(!eval.is_triggered, "Wizard should NOT match HasFeat(sentinel)");
+    assert!(
+        !eval.is_triggered,
+        "Wizard should NOT match HasFeat(sentinel)"
+    );
 }
 
 // =============================================================================
@@ -409,8 +418,8 @@ fn test_multiple_triggers_any_logic() {
     let event = create_test_event_with_triggers(
         "combined_any_test",
         vec![
-            triggers::has_class_wizard(None), // Won't match
-            triggers::has_origin("elf", "Elf"),    // Won't match
+            triggers::has_class_wizard(None),                 // Won't match
+            triggers::has_origin("elf", "Elf"),               // Won't match
             triggers::has_feat("great_weapon_master", "GWM"), // Will match
         ],
         TriggerLogic::Any,
@@ -432,8 +441,8 @@ fn test_multiple_triggers_all_logic_partial_match() {
     let event = create_test_event_with_triggers(
         "combined_partial_test",
         vec![
-            triggers::has_class_fighter(None), // Will match
-            triggers::has_origin("elf", "Elf"),     // Won't match (human)
+            triggers::has_class_fighter(None),  // Will match
+            triggers::has_origin("elf", "Elf"), // Won't match (human)
         ],
         TriggerLogic::All,
     );
@@ -462,7 +471,10 @@ fn test_extract_compendium_context_populates_all_fields() {
     assert!(ctx.origin_id.is_some(), "origin_id should be populated");
     assert_eq!(ctx.origin_id.as_ref().unwrap(), "elf");
 
-    assert!(!ctx.class_levels.is_empty(), "class_levels should be populated");
+    assert!(
+        !ctx.class_levels.is_empty(),
+        "class_levels should be populated"
+    );
     assert_eq!(ctx.class_levels.get("wizard"), Some(&3));
 
     assert!(
@@ -473,7 +485,10 @@ fn test_extract_compendium_context_populates_all_fields() {
     assert!(ctx.known_spells.contains(&"magic_missile".to_string()));
 
     // Wizard doesn't have feats
-    assert!(ctx.character_feats.is_empty(), "Wizard should have no feats");
+    assert!(
+        ctx.character_feats.is_empty(),
+        "Wizard should have no feats"
+    );
 }
 
 #[test]
@@ -493,8 +508,8 @@ fn test_extract_compendium_context_handles_multiclass() {
 
 #[test]
 fn test_extract_compendium_context_handles_empty_sheet() {
-    use wrldbldr_domain::LocationId;
     use wrldbldr_domain::value_objects::CharacterName;
+    use wrldbldr_domain::LocationId;
 
     // Setup: Create character with no sheet data
     let now = chrono::Utc::now();

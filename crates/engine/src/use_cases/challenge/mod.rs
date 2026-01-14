@@ -10,11 +10,12 @@
 use std::sync::Arc;
 
 use uuid::Uuid;
+use wrldbldr_domain::value_objects::DiceParseError;
 use wrldbldr_domain::{
     ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency, ChallengeId, ChallengeOutcomeData,
-    DiceRollInput, OutcomeTrigger, OutcomeType, PlayerCharacterId, ProposedTool, WorldId,
+    ChallengeOutcomeDecision, DiceRollInput, OutcomeTrigger, OutcomeType, PlayerCharacterId,
+    ProposedTool, WorldId,
 };
-use wrldbldr_domain::value_objects::DiceParseError;
 
 mod crud;
 
@@ -25,9 +26,9 @@ pub use crud::{
     ChallengeError as ChallengeCrudError, ChallengeOps, CreateChallengeInput, UpdateChallengeInput,
 };
 
-use crate::repositories::{Challenge, Inventory, Observation, PlayerCharacter};
-use crate::repositories::scene::Scene;
 use crate::infrastructure::ports::{ClockPort, QueuePort, RandomPort, RepoError};
+use crate::repositories::scene::Scene;
+use crate::repositories::{Challenge, Inventory, Observation, PlayerCharacter};
 
 /// Container for challenge use cases.
 pub struct ChallengeUseCases {
@@ -559,7 +560,7 @@ impl OutcomeDecision {
         &self,
         world_id: WorldId,
         resolution_id: String,
-        decision: wrldbldr_protocol::ChallengeOutcomeDecisionData,
+        decision: ChallengeOutcomeDecision,
     ) -> Result<OutcomeDecisionResult, OutcomeDecisionError> {
         let approval_id = Uuid::parse_str(&resolution_id)
             .map_err(|_| OutcomeDecisionError::InvalidResolutionId)?;
@@ -580,8 +581,10 @@ impl OutcomeDecision {
         let outcome_type = parse_outcome_type(&outcome_data.outcome_type);
 
         match decision {
-            wrldbldr_protocol::ChallengeOutcomeDecisionData::Accept => {
-                let pc_id = approval_data.pc_id.ok_or(OutcomeDecisionError::MissingPcId)?;
+            ChallengeOutcomeDecision::Accept => {
+                let pc_id = approval_data
+                    .pc_id
+                    .ok_or(OutcomeDecisionError::MissingPcId)?;
                 self.resolve
                     .execute_for_pc(challenge_id, outcome_type.clone(), pc_id)
                     .await
@@ -611,8 +614,12 @@ impl OutcomeDecision {
                     roll_breakdown: outcome_data.roll_breakdown.clone(),
                 }))
             }
-            wrldbldr_protocol::ChallengeOutcomeDecisionData::Edit { modified_description } => {
-                let pc_id = approval_data.pc_id.ok_or(OutcomeDecisionError::MissingPcId)?;
+            ChallengeOutcomeDecision::Edit {
+                modified_description,
+            } => {
+                let pc_id = approval_data
+                    .pc_id
+                    .ok_or(OutcomeDecisionError::MissingPcId)?;
                 self.resolve
                     .execute_for_pc(challenge_id, outcome_type.clone(), pc_id)
                     .await
@@ -642,7 +649,7 @@ impl OutcomeDecision {
                     roll_breakdown: outcome_data.roll_breakdown.clone(),
                 }))
             }
-            wrldbldr_protocol::ChallengeOutcomeDecisionData::Suggest { guidance } => {
+            ChallengeOutcomeDecision::Suggest { guidance } => {
                 let llm_request = wrldbldr_domain::LlmRequestData {
                     request_type: wrldbldr_domain::LlmRequestType::OutcomeSuggestion {
                         resolution_id: approval_id,
@@ -679,9 +686,6 @@ impl OutcomeDecision {
                     .map_err(|e| OutcomeDecisionError::QueueError(e.to_string()))?;
 
                 Ok(OutcomeDecisionResult::Queued)
-            }
-            wrldbldr_protocol::ChallengeOutcomeDecisionData::Unknown => {
-                Err(OutcomeDecisionError::InvalidDecision)
             }
         }
     }
@@ -725,9 +729,7 @@ pub enum OutcomeDecisionError {
 }
 
 fn parse_challenge_id_str(id_str: &str) -> Option<ChallengeId> {
-    Uuid::parse_str(id_str)
-        .ok()
-        .map(ChallengeId::from_uuid)
+    Uuid::parse_str(id_str).ok().map(ChallengeId::from_uuid)
 }
 
 fn parse_outcome_type(outcome_type: &str) -> OutcomeType {
@@ -786,16 +788,16 @@ mod tests {
 
     use chrono::Utc;
     use wrldbldr_domain::{
-        Challenge as DomainChallenge, ChallengeId, ChallengeOutcomes, CharacterName, Difficulty, ItemId,
-        LocationId, Outcome, OutcomeTrigger, OutcomeType, PlayerCharacter as DomainPc,
+        Challenge as DomainChallenge, ChallengeId, ChallengeOutcomes, CharacterName, Difficulty,
+        ItemId, LocationId, Outcome, OutcomeTrigger, OutcomeType, PlayerCharacter as DomainPc,
         PlayerCharacterId, SceneId, WorldId,
     };
 
-    use crate::repositories;
     use crate::infrastructure::ports::{
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockItemRepo, MockLocationRepo,
         MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
     };
+    use crate::repositories;
     use crate::repositories::Inventory;
     use crate::use_cases::Scene;
 
@@ -815,7 +817,13 @@ mod tests {
         let scene_id = SceneId::new();
         let now = Utc::now();
 
-        let pc = DomainPc::new("user-1", world_id, CharacterName::new("PC").unwrap(), LocationId::new(), now);
+        let pc = DomainPc::new(
+            "user-1",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            LocationId::new(),
+            now,
+        );
 
         let success_outcome = Outcome::new("success")
             .with_trigger(OutcomeTrigger::reveal_persistent("secret"))

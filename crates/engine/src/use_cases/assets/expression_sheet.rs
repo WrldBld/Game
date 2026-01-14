@@ -24,9 +24,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{AssetId, CharacterId};
 
-use crate::repositories::Assets;
-use crate::repositories::character::Character;
 use crate::infrastructure::ports::{ClockPort, QueuePort, RepoError};
+use crate::repositories::character::Character;
+use crate::repositories::Assets;
 
 /// Standard expression order in a 4x4 grid
 pub const STANDARD_EXPRESSION_ORDER: [&str; 16] = [
@@ -166,7 +166,10 @@ impl GenerateExpressionSheet {
         let expressions_list = request.expressions.join(", ");
         let base_prompt = format!(
             "Expression sheet for character '{}'. Grid layout {}x{}. Expressions: {}",
-            character.name(), request.grid_layout.0, request.grid_layout.1, expressions_list
+            character.name(),
+            request.grid_layout.0,
+            request.grid_layout.1,
+            expressions_list
         );
 
         let prompt = match request.style_prompt {

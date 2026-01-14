@@ -5,6 +5,7 @@ use std::sync::Arc;
 use wrldbldr_domain::{SkillCategory, SkillId, WorldId};
 
 use crate::repositories::Skill;
+use crate::use_cases::validation::require_non_empty;
 
 use super::ManagementError;
 
@@ -39,14 +40,12 @@ impl SkillCrud {
         category: Option<String>,
         attribute: Option<String>,
     ) -> Result<wrldbldr_domain::Skill, ManagementError> {
-        if name.trim().is_empty() {
-            return Err(ManagementError::InvalidInput(
-                "Skill name cannot be empty".to_string(),
-            ));
-        }
+        require_non_empty(&name, "Skill name")?;
 
         let category_value = match category {
-            Some(category) => category.parse::<SkillCategory>().map_err(ManagementError::Domain)?,
+            Some(category) => category
+                .parse::<SkillCategory>()
+                .map_err(ManagementError::Domain)?,
             None => SkillCategory::Other,
         };
 
@@ -80,11 +79,7 @@ impl SkillCrud {
             .ok_or(ManagementError::NotFound)?;
 
         if let Some(name) = name {
-            if name.trim().is_empty() {
-                return Err(ManagementError::InvalidInput(
-                    "Skill name cannot be empty".to_string(),
-                ));
-            }
+            require_non_empty(&name, "Skill name")?;
             skill.name = name;
         }
         if let Some(description) = description {

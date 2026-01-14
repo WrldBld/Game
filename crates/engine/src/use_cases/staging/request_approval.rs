@@ -6,19 +6,20 @@ use chrono::{Datelike, Timelike};
 use uuid::Uuid;
 use wrldbldr_domain::{LocationId, PlayerCharacter, RegionId, Staging as DomainStaging, WorldId};
 
-use crate::repositories::{Flag, World};
+use crate::infrastructure::ports::{
+    LlmPort, PendingStagingRequest, PendingStagingStore, SettingsRepo, TimeSuggestion,
+    TimeSuggestionStore,
+};
 use crate::repositories::character::Character;
 use crate::repositories::location::Location;
 use crate::repositories::staging::Staging;
-use crate::infrastructure::ports::{LlmPort, SettingsRepo};
-use crate::use_cases::time::TimeSuggestion;
+use crate::repositories::{Flag, World};
 use crate::use_cases::visual_state::{ResolveVisualState, StateResolutionContext};
 
-use super::ports::{PendingStagingStore, TimeSuggestionStore};
 use super::suggestions::{generate_llm_based_suggestions, generate_rule_based_suggestions};
 use super::types::{
-    GameTimeData, PendingStagingRequest, PreviousStagingData, StagedNpc, StagingApprovalData,
-    StagingPendingData, StagingRequestResult, WaitingPc,
+    GameTimeData, PreviousStagingData, StagedNpc, StagingApprovalData, StagingPendingData,
+    StagingRequestResult, WaitingPc,
 };
 use super::{get_settings_with_fallback, StagingError, DEFAULT_STAGING_TIMEOUT_SECONDS};
 
@@ -111,12 +112,18 @@ impl RequestStagingApproval {
             .map(|l| l.name().to_string())
             .unwrap_or_else(|| "Unknown Location".to_string());
 
+        // Issue 4.1 fix: Fetch NPCs once and pass to both suggestion functions
+        let npcs_for_region = self
+            .character
+            .get_npcs_for_region(input.region.id)
+            .await
+            .unwrap_or_default();
+
         let rule_based_npcs =
-            generate_rule_based_suggestions(&self.character, &self.staging, input.region.id).await;
+            generate_rule_based_suggestions(&npcs_for_region, &self.staging, input.region.id).await;
         let llm_based_npcs = generate_llm_based_suggestions(
-            &self.character,
+            &npcs_for_region,
             self.llm.as_ref(),
-            input.region.id,
             &input.region.name,
             &location_name,
             input.guidance.as_deref(),

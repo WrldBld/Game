@@ -9,14 +9,12 @@ use wrldbldr_domain::{
     Scene as DomainScene, StagedNpc, Staging as DomainStaging,
 };
 
-use crate::repositories::{
-    Flag, Inventory, Observation, PlayerCharacter, World,
-};
+use crate::infrastructure::ports::RepoError;
 use crate::repositories::location::Location;
-use crate::use_cases::narrative_operations::Narrative;
 use crate::repositories::scene::Scene;
 use crate::repositories::staging::Staging;
-use crate::infrastructure::ports::RepoError;
+use crate::repositories::{Flag, Inventory, Observation, PlayerCharacter, World};
+use crate::use_cases::narrative_operations::Narrative;
 use crate::use_cases::time::{SuggestTime, TimeSuggestion};
 
 use super::{resolve_scene_for_region, resolve_staging_for_region, suggest_time_for_movement};
@@ -294,12 +292,12 @@ mod tests {
         CharacterName, LocationId, PlayerCharacterId, Region, RegionConnection, RegionId, WorldId,
     };
 
-    use crate::repositories;
     use crate::infrastructure::ports::{
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockItemRepo,
         MockLocationRepo, MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
         MockSceneRepo, MockStagingRepo, MockWorldRepo,
     };
+    use crate::repositories;
     use crate::repositories::{Inventory, Staging as StagingOp};
     use crate::use_cases::{Location, Narrative, Scene};
 
@@ -354,7 +352,10 @@ mod tests {
         ));
         let flag = Arc::new(repositories::Flag::new(Arc::new(MockFlagRepo::new())));
 
-        let world = Arc::new(repositories::World::new(Arc::new(world_repo), clock.clone()));
+        let world = Arc::new(repositories::World::new(
+            Arc::new(world_repo),
+            clock.clone(),
+        ));
         let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
             world.clone(),
             clock,
@@ -407,7 +408,13 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let region_id = RegionId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            location_id,
+            now,
+        );
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -441,7 +448,13 @@ mod tests {
         let other_location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), pc_location_id, now);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            pc_location_id,
+            now,
+        );
         let region = {
             let mut r = Region::new(other_location_id, "Target");
             r.id = RegionId::new();
@@ -492,8 +505,14 @@ mod tests {
         };
         let to_region_id = to_region.id;
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now)
-            .with_starting_region(from_region_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            location_id,
+            now,
+        )
+        .with_starting_region(from_region_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -539,8 +558,14 @@ mod tests {
         };
         let to_region_id = to_region.id;
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now)
-            .with_starting_region(from_region_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            location_id,
+            now,
+        )
+        .with_starting_region(from_region_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -592,7 +617,13 @@ mod tests {
         };
         let region_id = region.id;
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            location_id,
+            now,
+        );
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();

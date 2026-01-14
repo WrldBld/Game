@@ -262,7 +262,10 @@ impl ImageGenPort for ComfyUIClient {
             .timeout(Duration::from_secs(5))
             .send()
             .await
-            .map_err(|_| ImageGenError::Unavailable)?;
+            .map_err(|e| {
+                tracing::warn!(error = %e, "ComfyUI health check failed");
+                ImageGenError::Unavailable
+            })?;
 
         Ok(response.status().is_success())
     }

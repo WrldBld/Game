@@ -50,8 +50,11 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     }
 
     async fn save_event(&self, event: &NarrativeEvent) -> Result<(), RepoError> {
-        let stored_triggers: Vec<StoredNarrativeTrigger> =
-            event.trigger_conditions().iter().map(|t| t.into()).collect();
+        let stored_triggers: Vec<StoredNarrativeTrigger> = event
+            .trigger_conditions()
+            .iter()
+            .map(|t| t.into())
+            .collect();
         let triggers_json = serde_json::to_string(&stored_triggers)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
         let stored_outcomes: Vec<StoredEventOutcome> =
@@ -121,12 +124,18 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         .param("scene_direction", event.scene_direction().to_string())
         .param(
             "suggested_opening",
-            event.suggested_opening().map(|s| s.to_string()).unwrap_or_default(),
+            event
+                .suggested_opening()
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
         )
         .param("outcomes_json", outcomes_json)
         .param(
             "default_outcome",
-            event.default_outcome().map(|s| s.to_string()).unwrap_or_default(),
+            event
+                .default_outcome()
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
         )
         .param("is_active", event.is_active())
         .param("is_triggered", event.is_triggered())
@@ -139,7 +148,10 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         )
         .param(
             "selected_outcome",
-            event.selected_outcome().map(|s| s.to_string()).unwrap_or_default(),
+            event
+                .selected_outcome()
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
         )
         .param("is_repeatable", event.is_repeatable())
         .param("trigger_count", event.trigger_count() as i64)
@@ -826,8 +838,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 .await
                 .map_err(|e| RepoError::database("query", e))?
             {
-                let id: String =
-                    row.get("id").map_err(|e| RepoError::database("query", e))?;
+                let id: String = row.get("id").map_err(|e| RepoError::database("query", e))?;
                 time_node_id = Some(id);
             }
         }
@@ -1259,9 +1270,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
 // =============================================================================
 
 fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<NarrativeEvent, RepoError> {
-    let node: Node = row
-        .get("e")
-        .map_err(|e| RepoError::database("query", e))?;
+    let node: Node = row.get("e").map_err(|e| RepoError::database("query", e))?;
 
     let id: NarrativeEventId =
         parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
@@ -1347,9 +1356,7 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
 }
 
 fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, RepoError> {
-    let node: Node = row
-        .get("c")
-        .map_err(|e| RepoError::database("query", e))?;
+    let node: Node = row.get("c").map_err(|e| RepoError::database("query", e))?;
 
     let id: EventChainId =
         parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
@@ -1401,9 +1408,7 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
 }
 
 fn row_to_story_event(row: Row, fallback: DateTime<Utc>) -> Result<StoryEvent, RepoError> {
-    let node: Node = row
-        .get("e")
-        .map_err(|e| RepoError::database("query", e))?;
+    let node: Node = row.get("e").map_err(|e| RepoError::database("query", e))?;
 
     let id: StoryEventId =
         parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;

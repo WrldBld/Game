@@ -189,7 +189,10 @@ pub(super) async fn handle_world_request(
             {
                 Ok(Some(w)) => w,
                 Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
+                    return Ok(ResponseResult::error(
+                        ErrorCode::NotFound,
+                        "World not found",
+                    ));
                 }
                 Err(e) => {
                     return Ok(ResponseResult::error(
@@ -211,9 +214,7 @@ pub(super) async fn handle_world_request(
                 RuleSystemVariant::CallOfCthulhu7e => {
                     Some(Coc7eSystem::new().character_sheet_schema())
                 }
-                RuleSystemVariant::FateCore => {
-                    Some(FateCoreSystem::new().character_sheet_schema())
-                }
+                RuleSystemVariant::FateCore => Some(FateCoreSystem::new().character_sheet_schema()),
                 RuleSystemVariant::BladesInTheDark => {
                     Some(BladesSystem::new().character_sheet_schema())
                 }
@@ -227,9 +228,7 @@ pub(super) async fn handle_world_request(
                 RuleSystemVariant::GenericD20 | RuleSystemVariant::Custom(_) => {
                     Some(Dnd5eSystem::new().character_sheet_schema())
                 }
-                RuleSystemVariant::GenericD100 => {
-                    Some(Coc7eSystem::new().character_sheet_schema())
-                }
+                RuleSystemVariant::GenericD100 => Some(Coc7eSystem::new().character_sheet_schema()),
                 RuleSystemVariant::Unknown => Some(Dnd5eSystem::new().character_sheet_schema()),
             };
 
@@ -496,7 +495,10 @@ pub(super) async fn handle_character_request(
                         .await
                         .map_err(|e| ServerMessage::Response {
                             request_id: request_id.to_string(),
-                            result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "retrieve character inventory")),
+                            result: ResponseResult::error(
+                                ErrorCode::InternalError,
+                                sanitize_repo_error(&e, "retrieve character inventory"),
+                            ),
                         })?
                 }
             };
@@ -582,7 +584,10 @@ pub(super) async fn handle_time_request(
                 Err(e) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "advance game time")),
+                        result: ResponseResult::error(
+                            ErrorCode::InternalError,
+                            sanitize_repo_error(&e, "advance game time"),
+                        ),
                     });
                 }
             };
@@ -644,7 +649,10 @@ pub(super) async fn handle_time_request(
                 Err(e) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "advance game minutes")),
+                        result: ResponseResult::error(
+                            ErrorCode::InternalError,
+                            sanitize_repo_error(&e, "advance game minutes"),
+                        ),
                     });
                 }
             };
@@ -708,7 +716,10 @@ pub(super) async fn handle_time_request(
                 Err(e) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "set game time")),
+                        result: ResponseResult::error(
+                            ErrorCode::InternalError,
+                            sanitize_repo_error(&e, "set game time"),
+                        ),
                     });
                 }
             };
@@ -786,7 +797,10 @@ pub(super) async fn handle_time_request(
                 Err(e) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "skip to period")),
+                        result: ResponseResult::error(
+                            ErrorCode::InternalError,
+                            sanitize_repo_error(&e, "skip to period"),
+                        ),
                     });
                 }
             };
@@ -886,7 +900,10 @@ pub(super) async fn handle_time_request(
                 Err(e) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
-                        result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "update time config")),
+                        result: ResponseResult::error(
+                            ErrorCode::InternalError,
+                            sanitize_repo_error(&e, "update time config"),
+                        ),
                     });
                 }
             };
@@ -935,12 +952,15 @@ pub(super) async fn handle_npc_request(
             let pc_id_typed = PlayerCharacterId::from_uuid(pc_uuid);
 
             let disposition_level: wrldbldr_domain::DispositionLevel =
-                disposition.parse().map_err(|_| ServerMessage::Response {
-                    request_id: request_id.to_string(),
-                    result: ResponseResult::error(
-                        ErrorCode::BadRequest,
-                        "Invalid disposition value",
-                    ),
+                disposition.parse().map_err(|e| {
+                    tracing::debug!(input = %disposition, error = ?e, "Disposition parsing failed");
+                    ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            "Invalid disposition value",
+                        ),
+                    }
                 })?;
 
             if disposition_level == wrldbldr_domain::DispositionLevel::Unknown {

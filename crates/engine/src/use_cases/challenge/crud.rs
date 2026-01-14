@@ -4,8 +4,9 @@ use serde_json::Value;
 
 use wrldbldr_domain::{self as domain, ChallengeId, Difficulty, WorldId};
 
-use crate::repositories::Challenge;
 use crate::infrastructure::ports::RepoError;
+use crate::repositories::Challenge;
+use crate::use_cases::validation::{require_non_empty, ValidationError};
 
 /// Input for creating a challenge (domain representation).
 pub struct CreateChallengeInput {
@@ -49,20 +50,12 @@ impl ChallengeOps {
         world_id: WorldId,
         input: CreateChallengeInput,
     ) -> Result<Value, ChallengeError> {
-        // Validate that name is not empty or whitespace-only
-        if input.name.trim().is_empty() {
-            return Err(ChallengeError::ValidationError(
-                "Challenge name cannot be empty".to_string(),
-            ));
-        }
+        require_non_empty(&input.name, "Challenge name")?;
 
         // Note: Difficulty::parse never fails - invalid formats become Difficulty::Custom(string)
         // This is intentional to support freeform difficulty descriptions
-        let mut challenge = domain::Challenge::new(
-            world_id,
-            &input.name,
-            Difficulty::parse(&input.difficulty),
-        );
+        let mut challenge =
+            domain::Challenge::new(world_id, &input.name, Difficulty::parse(&input.difficulty));
         challenge.description = input.description.unwrap_or_default();
         challenge.outcomes.success.description = input.success_outcome.unwrap_or_default();
         challenge.outcomes.failure.description = input.failure_outcome.unwrap_or_default();
@@ -71,9 +64,10 @@ impl ChallengeOps {
         // Validate triggers before saving
         let trigger_errors = challenge.validate_triggers();
         if !trigger_errors.is_empty() {
-            return Err(ChallengeError::ValidationError(
-                format!("Invalid triggers: {}", trigger_errors.join("; ")),
-            ));
+            return Err(ChallengeError::ValidationError(format!(
+                "Invalid triggers: {}",
+                trigger_errors.join("; ")
+            )));
         }
 
         self.challenge.save(&challenge).await?;
@@ -92,11 +86,7 @@ impl ChallengeOps {
             .ok_or(ChallengeError::NotFound)?;
 
         if let Some(name) = input.name {
-            if name.trim().is_empty() {
-                return Err(ChallengeError::ValidationError(
-                    "Challenge name cannot be empty".to_string(),
-                ));
-            }
+            require_non_empty(&name, "Challenge name")?;
             challenge.name = name;
         }
         if let Some(description) = input.description {
@@ -117,9 +107,10 @@ impl ChallengeOps {
         // Validate triggers before saving
         let trigger_errors = challenge.validate_triggers();
         if !trigger_errors.is_empty() {
-            return Err(ChallengeError::ValidationError(
-                format!("Invalid triggers: {}", trigger_errors.join("; ")),
-            ));
+            return Err(ChallengeError::ValidationError(format!(
+                "Invalid triggers: {}",
+                trigger_errors.join("; ")
+            )));
         }
 
         self.challenge.save(&challenge).await?;
@@ -170,6 +161,12 @@ pub enum ChallengeError {
     ValidationError(String),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
+}
+
+impl From<ValidationError> for ChallengeError {
+    fn from(err: ValidationError) -> Self {
+        ChallengeError::ValidationError(err.to_string())
+    }
 }
 
 fn challenge_to_json(challenge: &domain::Challenge) -> Value {

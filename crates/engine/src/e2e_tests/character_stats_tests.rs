@@ -14,9 +14,7 @@ use super::{create_test_player, E2EEventLog, E2ETestContext, TestOutcome};
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_npc_stats_loaded() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     let mira_id = ctx.world.npc("Mira Thornwood").expect("Mira should exist");
 
@@ -31,23 +29,32 @@ async fn test_npc_stats_loaded() {
         .expect("NPC should exist");
 
     // Verify stats exist - HP values are Option<i32>
-    println!("NPC: {} has HP: {:?}/{:?}", npc.name(), npc.stats().current_hp, npc.stats().max_hp);
+    println!(
+        "NPC: {} has HP: {:?}/{:?}",
+        npc.name(),
+        npc.stats().current_hp(),
+        npc.stats().max_hp()
+    );
 
-    assert!(npc.stats().max_hp.is_some(), "NPC should have max HP defined");
+    assert!(
+        npc.stats().max_hp().is_some(),
+        "NPC should have max HP defined"
+    );
 }
 
 /// Test PC sheet data.
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_pc_sheet_data() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Stats Tester",
@@ -73,14 +80,15 @@ async fn test_pc_sheet_data() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_update_pc_sheet_data() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Sheet Updater",
@@ -148,7 +156,11 @@ async fn test_stats_in_character_context() {
         .expect("NPC should exist");
 
     // Stats should be available for context building - HP values are Option<i32>
-    println!("Stats available for context: HP={:?}/{:?}", npc.stats().current_hp, npc.stats().max_hp);
+    println!(
+        "Stats available for context: HP={:?}/{:?}",
+        npc.stats().current_hp(),
+        npc.stats().max_hp()
+    );
 
     ctx.finalize_event_log(TestOutcome::Pass);
     let _ = ctx.save_event_log(&E2ETestContext::default_log_path("stats_context"));
@@ -158,14 +170,15 @@ async fn test_stats_in_character_context() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_stat_system() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Stat Tester",

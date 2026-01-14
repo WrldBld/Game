@@ -369,6 +369,40 @@ pub enum TimeSuggestionDecision {
     Unknown,
 }
 
+impl From<wrldbldr_domain::TimeSuggestionDecision> for TimeSuggestionDecision {
+    fn from(decision: wrldbldr_domain::TimeSuggestionDecision) -> Self {
+        match decision {
+            wrldbldr_domain::TimeSuggestionDecision::Approve => TimeSuggestionDecision::Approve,
+            wrldbldr_domain::TimeSuggestionDecision::Modify { minutes } => {
+                TimeSuggestionDecision::Modify { minutes }
+            }
+            wrldbldr_domain::TimeSuggestionDecision::Skip => TimeSuggestionDecision::Skip,
+        }
+    }
+}
+
+/// Error when converting protocol TimeSuggestionDecision to domain type.
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("Unknown time suggestion decision cannot be converted to domain type")]
+pub struct UnknownTimeSuggestionDecisionError;
+
+impl TryFrom<TimeSuggestionDecision> for wrldbldr_domain::TimeSuggestionDecision {
+    type Error = UnknownTimeSuggestionDecisionError;
+
+    fn try_from(decision: TimeSuggestionDecision) -> Result<Self, Self::Error> {
+        match decision {
+            TimeSuggestionDecision::Approve => {
+                Ok(wrldbldr_domain::TimeSuggestionDecision::Approve)
+            }
+            TimeSuggestionDecision::Modify { minutes } => {
+                Ok(wrldbldr_domain::TimeSuggestionDecision::Modify { minutes })
+            }
+            TimeSuggestionDecision::Skip => Ok(wrldbldr_domain::TimeSuggestionDecision::Skip),
+            TimeSuggestionDecision::Unknown => Err(UnknownTimeSuggestionDecisionError),
+        }
+    }
+}
+
 // =============================================================================
 // Lore Types
 // =============================================================================

@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{CharacterId, WorldId};
 
-use crate::repositories::character::Character;
 use crate::infrastructure::ports::ClockPort;
+use crate::repositories::character::Character;
 
 use super::ManagementError;
 
@@ -52,7 +52,8 @@ impl CharacterCrud {
             .parse::<wrldbldr_domain::CampbellArchetype>()
             .map_err(ManagementError::Domain)?;
 
-        let mut character = wrldbldr_domain::Character::new(world_id, character_name, archetype_value);
+        let mut character =
+            wrldbldr_domain::Character::new(world_id, character_name, archetype_value);
 
         if let Some(description) = description {
             let desc = wrldbldr_domain::Description::new(description)
@@ -136,7 +137,7 @@ impl CharacterCrud {
                 character.resurrect();
             } else if !is_alive && character.is_alive() {
                 // Kill if was alive and should be dead - apply max damage
-                if let Some(max_hp) = character.stats().max_hp {
+                if let Some(max_hp) = character.stats().max_hp() {
                     character.apply_damage(max_hp + 1000);
                 } else {
                     // No HP tracking, manually set state via with_state

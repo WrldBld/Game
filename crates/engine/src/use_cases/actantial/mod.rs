@@ -9,11 +9,12 @@ use wrldbldr_domain::{
     WantTarget, WantVisibility, WorldId,
 };
 
-use crate::repositories::Goal;
-use crate::repositories::character::Character;
 use crate::infrastructure::ports::{
     ActantialViewRecord, ClockPort, GoalDetails, RepoError, WantDetails, WantTargetRef,
 };
+use crate::repositories::character::Character;
+use crate::repositories::Goal;
+use crate::use_cases::validation::{require_non_empty, ValidationError};
 
 /// Shared error type for actantial use cases.
 #[derive(Debug, thiserror::Error)]
@@ -24,6 +25,12 @@ pub enum ActantialError {
     InvalidInput(String),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
+}
+
+impl From<ValidationError> for ActantialError {
+    fn from(err: ValidationError) -> Self {
+        ActantialError::InvalidInput(err.to_string())
+    }
 }
 
 /// Container for actantial use cases.
@@ -70,11 +77,7 @@ impl GoalOps {
         name: String,
         description: Option<String>,
     ) -> Result<GoalDetails, ActantialError> {
-        if name.trim().is_empty() {
-            return Err(ActantialError::InvalidInput(
-                "Goal name cannot be empty".to_string(),
-            ));
-        }
+        require_non_empty(&name, "Goal name")?;
 
         let mut goal = wrldbldr_domain::Goal::new(world_id, name);
         if let Some(description) = description {
@@ -97,14 +100,14 @@ impl GoalOps {
         name: Option<String>,
         description: Option<String>,
     ) -> Result<GoalDetails, ActantialError> {
-        let mut details = self.goal.get(goal_id).await?.ok_or(ActantialError::NotFound)?;
+        let mut details = self
+            .goal
+            .get(goal_id)
+            .await?
+            .ok_or(ActantialError::NotFound)?;
 
         if let Some(name) = name {
-            if name.trim().is_empty() {
-                return Err(ActantialError::InvalidInput(
-                    "Goal name cannot be empty".to_string(),
-                ));
-            }
+            require_non_empty(&name, "Goal name")?;
             details.goal.name = name;
         }
 
@@ -143,7 +146,10 @@ impl WantOps {
         Self { character, clock }
     }
 
-    pub async fn list(&self, character_id: CharacterId) -> Result<Vec<WantDetails>, ActantialError> {
+    pub async fn list(
+        &self,
+        character_id: CharacterId,
+    ) -> Result<Vec<WantDetails>, ActantialError> {
         Ok(self.character.get_wants(character_id).await?)
     }
 
@@ -161,11 +167,7 @@ impl WantOps {
         deflection_behavior: Option<String>,
         tells: Vec<String>,
     ) -> Result<WantDetails, ActantialError> {
-        if description.trim().is_empty() {
-            return Err(ActantialError::InvalidInput(
-                "Want description cannot be empty".to_string(),
-            ));
-        }
+        require_non_empty(&description, "Want description")?;
 
         let now = self.clock.now();
         let mut want = Want::new(description, now)
@@ -202,14 +204,14 @@ impl WantOps {
         deflection_behavior: Option<String>,
         tells: Option<Vec<String>>,
     ) -> Result<WantDetails, ActantialError> {
-        let mut details = self.character.get_want(want_id).await?.ok_or(ActantialError::NotFound)?;
+        let mut details = self
+            .character
+            .get_want(want_id)
+            .await?
+            .ok_or(ActantialError::NotFound)?;
 
         if let Some(description) = description {
-            if description.trim().is_empty() {
-                return Err(ActantialError::InvalidInput(
-                    "Want description cannot be empty".to_string(),
-                ));
-            }
+            require_non_empty(&description, "Want description")?;
             details.want.description = description;
         }
 

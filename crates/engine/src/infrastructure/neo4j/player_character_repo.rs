@@ -98,12 +98,21 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
         .param("user_id", pc.user_id().to_string())
         .param("world_id", pc.world_id().to_string())
         .param("name", pc.name().to_string())
-        .param("description", pc.description().unwrap_or_default().to_string())
+        .param(
+            "description",
+            pc.description().unwrap_or_default().to_string(),
+        )
         .param("sheet_data", sheet_data_json)
         .param("current_location_id", pc.current_location_id().to_string())
         .param("current_region_id", current_region_id_str)
-        .param("starting_location_id", pc.starting_location_id().to_string())
-        .param("sprite_asset", pc.sprite_asset().unwrap_or_default().to_string())
+        .param(
+            "starting_location_id",
+            pc.starting_location_id().to_string(),
+        )
+        .param(
+            "sprite_asset",
+            pc.sprite_asset().unwrap_or_default().to_string(),
+        )
         .param(
             "portrait_asset",
             pc.portrait_asset().unwrap_or_default().to_string(),
@@ -392,9 +401,7 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
 // =============================================================================
 
 fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
-    let node: Node = row
-        .get("pc")
-        .map_err(|e| RepoError::database("query", e))?;
+    let node: Node = row.get("pc").map_err(|e| RepoError::database("query", e))?;
 
     let id: PlayerCharacterId =
         parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
@@ -448,7 +455,8 @@ fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
     Ok(PlayerCharacter::new(
         user_id,
         world_id,
-        wrldbldr_domain::CharacterName::new(&name).map_err(|e| RepoError::database("query", e.to_string()))?,
+        wrldbldr_domain::CharacterName::new(&name)
+            .map_err(|e| RepoError::database("query", e.to_string()))?,
         starting_location_id,
         created_at,
     )
@@ -459,7 +467,6 @@ fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
     .with_sheet_data(sheet_data.unwrap_or_default())
     .with_sprite(sprite_asset.unwrap_or_default())
     .with_portrait(portrait_asset.unwrap_or_default())
-    .with_alive(is_alive)
-    .with_active(is_active)
+    .with_state(CharacterState::from_legacy(is_alive, is_active))
     .with_last_active_at(last_active_at))
 }

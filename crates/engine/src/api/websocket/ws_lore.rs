@@ -150,7 +150,10 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "update lore")),
+                    result: ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "update lore"),
+                    ),
                 }),
             }
         }
@@ -215,7 +218,10 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "add lore chunk")),
+                    result: ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "add lore chunk"),
+                    ),
                 }),
             }
         }
@@ -277,7 +283,10 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "update lore chunk")),
+                    result: ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "update lore chunk"),
+                    ),
                 }),
             }
         }
@@ -323,7 +332,10 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, sanitize_repo_error(&e, "delete lore chunk")),
+                    result: ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "delete lore chunk"),
+                    ),
                 }),
             }
         }

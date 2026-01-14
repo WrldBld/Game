@@ -12,8 +12,8 @@
 
 pub mod api;
 pub mod app;
-pub mod repositories;
 pub mod infrastructure;
+pub mod repositories;
 pub mod use_cases;
 
 /// Test fixtures module for integration testing.

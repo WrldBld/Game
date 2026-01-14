@@ -42,7 +42,10 @@ mod tests {
         let proposed = extract_proposed_tools(tool_calls);
         assert_eq!(proposed.len(), 1);
         assert_eq!(proposed[0].name, "give_item");
-        assert_eq!(proposed[0].description, "Give 'Healing Potion' to the player");
+        assert_eq!(
+            proposed[0].description,
+            "Give 'Healing Potion' to the player"
+        );
         assert_eq!(proposed[0].arguments["item_name"], "Healing Potion");
     }
 

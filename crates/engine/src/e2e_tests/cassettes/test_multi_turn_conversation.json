@@ -1,30 +1,30 @@
 {
   "version": "2.0",
-  "recorded_at": "2026-01-13T15:03:06.380725+00:00",
+  "recorded_at": "2026-01-14T17:57:04.523290+00:00",
   "llm_model": "gpt-oss:20b",
   "recordings": {
-    "0b6842fd7f9aa5cec673eda75f12beda9678203b7f34d895ea005962594277cd": [
+    "421930eb08a060a8cd02e7456e8037a4983cd0b20050cc7b26b2e4013a6bd29e": [
       {
-        "fingerprint": "0b6842fd7f9aa5cec673eda75f12beda9678203b7f34d895ea005962594277cd",
-        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 0... | tools:11",
+        "fingerprint": "421930eb08a060a8cd02e7456e8037a4983cd0b20050cc7b26b2e4013a6bd29e",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to d... | tools:11",
         "response": {
-          "content": "Marta Hearthwood smiles warmly. \"Welcome to the Drowsy Dragon! The village is a quiet place, just a few farms and a blacksmith, but there’s a rumor about a hidden cave near the old mill—some say it holds forgotten treasure.\"",
+          "content": "Marta leans in, lowering her voice. \"Most of the merchants are friendly enough, but the big trader in the market—Gorim the Clothier—has been cutting corners lately. If you need a good deal, avoid the back alleys; he’s been skirting the town’s rules.\"",
           "tool_calls": [],
           "finish_reason": "Stop"
         },
-        "recorded_at": "2026-01-13T15:05:07.697334+00:00"
+        "recorded_at": "2026-01-14T17:57:22.691257+00:00"
       }
     ],
-    "ef696556d079ff69486e0d2c3f3f5a44f284c539ff215b3cf338d5f967cf018f": [
+    "a625875e7d07cd119ee40ad27eec962949b2270a30661dd363e736df29bf223f": [
       {
-        "fingerprint": "ef696556d079ff69486e0d2c3f3f5a44f284c539ff215b3cf338d5f967cf018f",
-        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 0... | tools:11",
+        "fingerprint": "a625875e7d07cd119ee40ad27eec962949b2270a30661dd363e736df29bf223f",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to d... | tools:11",
         "response": {
-          "content": "“Most of the trade in Hereford comes from the merchants who set up shop at the market square—there’s a spice trader named Liora who deals in rare herbs, a stout‑blacksmith called Brann who sells sturdy wares, and a traveling merchant, Joren, who brings goods from the coast. Keep an eye on their stalls; they’re usually honest but always look for a good deal.”",
+          "content": "Marta Hearthwood smiles, wiping a mug with a rag. \"The village lies to the east, past the river—just a day's walk. Care to hear about the troubles the farmers have been facing lately?\"",
           "tool_calls": [],
           "finish_reason": "Stop"
         },
-        "recorded_at": "2026-01-13T15:05:23.167750+00:00"
+        "recorded_at": "2026-01-14T17:57:15.851077+00:00"
       }
     ]
   }

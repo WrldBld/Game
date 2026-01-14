@@ -13,9 +13,7 @@ use super::{E2EEventLog, E2ETestContext, TestOutcome};
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_list_active_events() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // List active narrative events
     let events = ctx
@@ -37,16 +35,14 @@ async fn test_list_active_events() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_trigger_narrative_event() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
 
     // Create a simple event
     let event_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -92,16 +88,14 @@ async fn test_trigger_narrative_event() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_repeatable_events() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
 
     // Create a repeatable event
     let repeatable_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -126,7 +120,7 @@ async fn test_repeatable_events() {
 
     // Create a non-repeatable event
     let non_repeatable_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -172,17 +166,19 @@ async fn test_repeatable_events() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_event_priority() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
 
     // Create events with different priorities
-    for (priority, name) in [(1, "Low Priority"), (5, "Medium Priority"), (10, "High Priority")] {
+    for (priority, name) in [
+        (1, "Low Priority"),
+        (5, "Medium Priority"),
+        (10, "High Priority"),
+    ] {
         let event_id = Uuid::new_v4();
-        ctx.harness
+        ctx
             .graph()
             .run(
                 query(
@@ -223,7 +219,11 @@ async fn test_event_priority() {
         .filter(|e| e.description() == "Priority test event")
         .collect();
 
-    assert_eq!(priority_events.len(), 3, "Should have 3 priority test events");
+    assert_eq!(
+        priority_events.len(),
+        3,
+        "Should have 3 priority test events"
+    );
     println!("Events ordered by priority:");
     for e in &priority_events {
         println!("  {} (priority: {})", e.name(), e.priority());
@@ -259,16 +259,14 @@ async fn test_event_in_context() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_favorite_events() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
 
     // Create a favorite event
     let event_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(

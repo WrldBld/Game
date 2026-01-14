@@ -5,8 +5,8 @@ use super::*;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
-use wrldbldr_domain::{self as domain, CharacterId, RuleSystemConfig, RuleSystemVariant};
 use wrldbldr_domain::entities::StatModifier;
+use wrldbldr_domain::{self as domain, CharacterId, RuleSystemConfig, RuleSystemVariant};
 use wrldbldr_protocol::{ErrorCode, ResponseResult, StatRequest};
 
 /// Helper to fetch a character or return an appropriate error response.
@@ -145,7 +145,9 @@ pub(super) async fn handle_stat_request(
                 StatModifier::inactive(&data.source, data.value)
             };
             let modifier_id = modifier.id;
-            character.stats_mut().add_modifier(&data.stat_name, modifier);
+            character
+                .stats_mut()
+                .add_modifier(&data.stat_name, modifier);
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);
@@ -189,7 +191,10 @@ pub(super) async fn handle_stat_request(
                 Err(resp) => return Ok(resp),
             };
 
-            if !character.stats_mut().remove_modifier(&stat_name, modifier_uuid) {
+            if !character
+                .stats_mut()
+                .remove_modifier(&stat_name, modifier_uuid)
+            {
                 return Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Modifier not found",
@@ -232,7 +237,10 @@ pub(super) async fn handle_stat_request(
                 Err(resp) => return Ok(resp),
             };
 
-            if !character.stats_mut().toggle_modifier(&stat_name, modifier_uuid) {
+            if !character
+                .stats_mut()
+                .toggle_modifier(&stat_name, modifier_uuid)
+            {
                 return Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Modifier not found",
@@ -362,7 +370,9 @@ pub(super) async fn handle_stat_request(
 
             // Initialize stats from the template defaults
             for stat_def in &config.stat_definitions {
-                character.stats_mut().set_stat(&stat_def.name, stat_def.default_value);
+                character
+                    .stats_mut()
+                    .set_stat(&stat_def.name, stat_def.default_value);
             }
 
             if let Err(resp) = save_character_or_error(state, &character).await {

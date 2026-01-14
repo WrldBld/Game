@@ -1,0 +1,19 @@
+{
+  "version": "2.0",
+  "recorded_at": "2026-01-14T17:57:52.168852+00:00",
+  "llm_model": "gpt-oss:20b",
+  "recordings": {
+    "944568d29c24ade049b7dc02fa10bb2f2605508321edcc8c4fe1193bcae19ef0": [
+      {
+        "fingerprint": "944568d29c24ade049b7dc02fa10bb2f2605508321edcc8c4fe1193bcae19ef0",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 4... | tools:11",
+        "response": {
+          "content": "Ah, the usual bustle! A traveling merchant from the north has just arrived with some curious trinkets, and there's a rumor that a shepherd went missing in the hills last night. If you need a drink or a place to lay down, just let me know.",
+          "tool_calls": [],
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-14T17:58:08.740753+00:00"
+      }
+    ]
+  }
+}

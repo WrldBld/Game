@@ -28,6 +28,6 @@ pub mod world;
 pub use character::{Character, StatBlock, StatModifier, StatValue};
 pub use location::Location;
 pub use narrative_event::NarrativeEvent;
-pub use player_character::PlayerCharacter;
+pub use player_character::{PlayerCharacter, PlayerCharacterStateChange};
 pub use scene::Scene;
 pub use world::World;

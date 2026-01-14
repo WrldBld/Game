@@ -3,11 +3,13 @@ use std::sync::Arc;
 use chrono::Utc;
 use serde::Serialize;
 
-use wrldbldr_domain::{self as domain, NarrativeEvent, NarrativeEventId, NarrativeTrigger, WorldId};
+use wrldbldr_domain::{
+    self as domain, NarrativeEvent, NarrativeEventId, NarrativeTrigger, WorldId,
+};
 
-use crate::use_cases::narrative_operations::Narrative;
 use crate::infrastructure::ports::RepoError;
 use crate::use_cases::narrative::{EffectExecutionContext, EffectExecutionSummary, ExecuteEffects};
+use crate::use_cases::narrative_operations::Narrative;
 
 // =============================================================================
 // Domain Result Types
@@ -67,7 +69,10 @@ impl NarrativeEventOps {
         }
     }
 
-    pub async fn list(&self, world_id: WorldId) -> Result<Vec<NarrativeEventSummary>, NarrativeEventError> {
+    pub async fn list(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<NarrativeEventSummary>, NarrativeEventError> {
         let events = self.narrative.list_events(world_id).await?;
         Ok(events.iter().map(narrative_event_to_summary).collect())
     }

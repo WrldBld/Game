@@ -250,7 +250,10 @@ mod tests {
         assert_eq!(result.format, "png");
 
         // Check PNG signature
-        assert_eq!(&result.image_data[0..8], &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+        assert_eq!(
+            &result.image_data[0..8],
+            &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        );
     }
 
     #[tokio::test]

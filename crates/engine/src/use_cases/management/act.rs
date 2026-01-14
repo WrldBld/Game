@@ -5,6 +5,7 @@ use std::sync::Arc;
 use wrldbldr_domain::{ActId, WorldId};
 
 use crate::repositories::Act;
+use crate::use_cases::validation::require_non_empty;
 
 use super::ManagementError;
 
@@ -24,7 +25,10 @@ impl ActCrud {
         Ok(self.act.list_in_world(world_id).await?)
     }
 
-    pub async fn get(&self, act_id: ActId) -> Result<Option<wrldbldr_domain::Act>, ManagementError> {
+    pub async fn get(
+        &self,
+        act_id: ActId,
+    ) -> Result<Option<wrldbldr_domain::Act>, ManagementError> {
         Ok(self.act.get(act_id).await?)
     }
 
@@ -35,11 +39,7 @@ impl ActCrud {
         description: Option<String>,
         order: Option<u32>,
     ) -> Result<wrldbldr_domain::Act, ManagementError> {
-        if name.trim().is_empty() {
-            return Err(ManagementError::InvalidInput(
-                "Act name cannot be empty".to_string(),
-            ));
-        }
+        require_non_empty(&name, "Act name")?;
 
         let mut act = wrldbldr_domain::Act::new(
             world_id,
@@ -70,11 +70,7 @@ impl ActCrud {
             .ok_or(ManagementError::NotFound)?;
 
         if let Some(name) = name {
-            if name.trim().is_empty() {
-                return Err(ManagementError::InvalidInput(
-                    "Act name cannot be empty".to_string(),
-                ));
-            }
+            require_non_empty(&name, "Act name")?;
             act.name = name;
         }
 

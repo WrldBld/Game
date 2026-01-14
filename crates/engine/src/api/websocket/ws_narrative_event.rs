@@ -32,7 +32,14 @@ pub(super) async fn handle_narrative_event_request(
         }
         NarrativeEventRequest::GetNarrativeEvent { event_id } => {
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
-            match state.app.use_cases.narrative.events.get(event_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .narrative
+                .events
+                .get(event_id_typed)
+                .await
+            {
                 Ok(Some(event)) => Ok(ResponseResult::success(json!(event))),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
@@ -47,8 +54,7 @@ pub(super) async fn handle_narrative_event_request(
         NarrativeEventRequest::CreateNarrativeEvent { world_id, data } => {
             require_dm_for_request(conn_info, request_id)?;
             let world_id_typed = parse_world_id_for_request(&world_id, request_id)?;
-            let trigger_conditions =
-                parse_optional_triggers(data.trigger_conditions, request_id)?;
+            let trigger_conditions = parse_optional_triggers(data.trigger_conditions, request_id)?;
             let outcomes = parse_optional_outcomes(data.outcomes, request_id)?;
             match state
                 .app
@@ -74,8 +80,7 @@ pub(super) async fn handle_narrative_event_request(
         NarrativeEventRequest::UpdateNarrativeEvent { event_id, data } => {
             require_dm_for_request(conn_info, request_id)?;
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
-            let trigger_conditions =
-                parse_optional_triggers(data.trigger_conditions, request_id)?;
+            let trigger_conditions = parse_optional_triggers(data.trigger_conditions, request_id)?;
             let outcomes = parse_optional_outcomes(data.outcomes, request_id)?;
             match state
                 .app
@@ -92,9 +97,9 @@ pub(super) async fn handle_narrative_event_request(
                 .await
             {
                 Ok(event) => Ok(ResponseResult::success(json!(event))),
-                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Event not found"))
-                }
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Event not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "update narrative event"),
@@ -104,7 +109,14 @@ pub(super) async fn handle_narrative_event_request(
         NarrativeEventRequest::DeleteNarrativeEvent { event_id } => {
             require_dm_for_request(conn_info, request_id)?;
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
-            match state.app.use_cases.narrative.events.delete(event_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .narrative
+                .events
+                .delete(event_id_typed)
+                .await
+            {
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
@@ -124,9 +136,9 @@ pub(super) async fn handle_narrative_event_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Event not found"))
-                }
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Event not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "set event active"),
@@ -145,9 +157,9 @@ pub(super) async fn handle_narrative_event_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Event not found"))
-                }
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Event not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "set event favorite"),
@@ -206,9 +218,9 @@ pub(super) async fn handle_narrative_event_request(
                         "outcome": result.outcome_name,
                     })))
                 }
-                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Event not found"))
-                }
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Event not found"),
+                ),
                 Err(crate::use_cases::narrative::NarrativeEventError::WorldMismatch) => {
                     Ok(ResponseResult::error(
                         ErrorCode::BadRequest,
@@ -224,11 +236,18 @@ pub(super) async fn handle_narrative_event_request(
         NarrativeEventRequest::ResetNarrativeEvent { event_id } => {
             require_dm_for_request(conn_info, request_id)?;
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
-            match state.app.use_cases.narrative.events.reset(event_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .narrative
+                .events
+                .reset(event_id_typed)
+                .await
+            {
                 Ok(event) => Ok(ResponseResult::success(json!(event))),
-                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Event not found"))
-                }
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Event not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "reset narrative event"),
@@ -274,14 +293,11 @@ pub(super) async fn handle_narrative_event_decision(
         }
     };
 
-    let narrative_event_id = match parse_id(
-        &event_id,
-        NarrativeEventId::from_uuid,
-        "Invalid event ID",
-    ) {
-        Ok(id) => id,
-        Err(e) => return Some(e),
-    };
+    let narrative_event_id =
+        match parse_id(&event_id, NarrativeEventId::from_uuid, "Invalid event ID") {
+            Ok(id) => id,
+            Err(e) => return Some(e),
+        };
 
     match state
         .app
@@ -309,9 +325,10 @@ pub(super) async fn handle_narrative_event_decision(
         Err(NarrativeDecisionError::ApprovalNotFound) => {
             Some(error_response("NOT_FOUND", "Approval request not found"))
         }
-        Err(e) => {
-            Some(error_response("APPROVAL_ERROR", &sanitize_repo_error(&e, "process narrative event decision")))
-        }
+        Err(e) => Some(error_response(
+            "APPROVAL_ERROR",
+            &sanitize_repo_error(&e, "process narrative event decision"),
+        )),
     }
 }
 
@@ -325,7 +342,10 @@ fn parse_optional_triggers(
             Err(e) => {
                 return Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::BadRequest, sanitize_repo_error(&e, "parse narrative triggers")),
+                    result: ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        sanitize_repo_error(&e, "parse narrative triggers"),
+                    ),
                 })
             }
         }
@@ -344,7 +364,10 @@ fn parse_optional_outcomes(
             Err(e) => {
                 return Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::BadRequest, sanitize_repo_error(&e, "parse event outcomes")),
+                    result: ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        sanitize_repo_error(&e, "parse event outcomes"),
+                    ),
                 })
             }
         }

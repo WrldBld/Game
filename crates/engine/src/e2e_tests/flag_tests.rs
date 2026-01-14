@@ -14,9 +14,7 @@ use super::{create_test_player, E2EEventLog, E2ETestContext, TestOutcome};
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_set_and_get_world_flag() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // Set a world flag
     ctx.app
@@ -54,15 +52,16 @@ async fn test_set_and_get_world_flag() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_set_and_get_pc_flag() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
 
     // Create a player character
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Flag Tester",
@@ -106,15 +105,16 @@ async fn test_set_and_get_pc_flag() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_world_vs_pc_flag_scope() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
 
     // Create a player character
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Scope Tester",
@@ -146,7 +146,10 @@ async fn test_world_vs_pc_flag_scope() {
         .is_world_flag_set(ctx.world.world_id, "personal_quest")
         .await
         .expect("Checking should succeed");
-    assert!(!is_world_flag, "PC flag should not be visible as world flag");
+    assert!(
+        !is_world_flag,
+        "PC flag should not be visible as world flag"
+    );
 
     // World flag should NOT be visible at PC scope
     let is_pc_flag = ctx
@@ -180,9 +183,7 @@ async fn test_world_vs_pc_flag_scope() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_unset_flag() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // Set a world flag
     ctx.app
@@ -225,14 +226,15 @@ async fn test_unset_flag() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_same_flag_name_different_scopes() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Dual Scope Tester",
@@ -293,10 +295,13 @@ async fn test_flags_in_character_context() {
         .await
         .expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Context Tester",

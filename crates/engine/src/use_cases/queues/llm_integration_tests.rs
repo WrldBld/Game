@@ -30,10 +30,7 @@ async fn test_llm_generates_narrative_response() {
     .expect("LLM request failed");
 
     // Verify we got a non-empty narrative response
-    assert!(
-        !response.content.is_empty(),
-        "Response should not be empty"
-    );
+    assert!(!response.content.is_empty(), "Response should not be empty");
     assert!(
         response.content.len() > 20,
         "Response should be descriptive (got {} chars)",
@@ -42,7 +39,10 @@ async fn test_llm_generates_narrative_response() {
 
     // The response should be parseable text (not binary or corrupted)
     assert!(
-        response.content.chars().all(|c| !c.is_control() || c.is_whitespace()),
+        response
+            .content
+            .chars()
+            .all(|c| !c.is_control() || c.is_whitespace()),
         "Response should be readable text"
     );
 }
@@ -55,14 +55,9 @@ async fn test_llm_responds_to_simple_action() {
     let task = "I approach the bartender and wave.";
     let request = build_request_with_system(DM_SYSTEM_PROMPT, task);
 
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_llm_responds_to_simple_action",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_llm_responds_to_simple_action", None)
+        .await
+        .expect("LLM request failed");
 
     assert!(!response.content.is_empty());
 
@@ -110,7 +105,8 @@ async fn test_llm_suggests_skill_check_for_lockpicking() {
 async fn test_llm_suggests_skill_check_for_persuasion() {
     let client = create_test_ollama_client();
 
-    let task = "The player says: 'I try to convince the guard to let us through.' What skill check?";
+    let task =
+        "The player says: 'I try to convince the guard to let us through.' What skill check?";
     let request = build_request_with_system(MECHANICS_SYSTEM_PROMPT, task);
 
     let response = generate_and_log(
@@ -288,13 +284,7 @@ async fn test_llm_handles_empty_prompt() {
         .with_max_tokens(Some(500));
 
     // Should handle empty prompt gracefully (either error or empty response)
-    let result = generate_and_log(
-        &client,
-        request,
-        "test_llm_handles_empty_prompt",
-        None,
-    )
-    .await;
+    let result = generate_and_log(&client, request, "test_llm_handles_empty_prompt", None).await;
 
     // Either succeeds with some response or fails with an error
     // Both are acceptable behaviors
@@ -360,17 +350,13 @@ async fn test_llm_generates_success_outcome() {
     let client = create_test_ollama_client();
 
     let system = "You are a TTRPG game master. Generate a brief narrative description of a successful skill check outcome.";
-    let user = "Stealth check succeeded. The rogue rolled 18 vs DC 15. Describe sneaking past guards.";
+    let user =
+        "Stealth check succeeded. The rogue rolled 18 vs DC 15. Describe sneaking past guards.";
 
     let request = build_request_with_system(system, user);
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_llm_generates_success_outcome",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_llm_generates_success_outcome", None)
+        .await
+        .expect("LLM request failed");
 
     let content_lower = response.content.to_lowercase();
 
@@ -392,17 +378,13 @@ async fn test_llm_generates_failure_outcome() {
     let client = create_test_ollama_client();
 
     let system = "You are a TTRPG game master. Generate a brief narrative description of a failed skill check outcome.";
-    let user = "Stealth check failed. The rogue rolled 8 vs DC 15. Describe getting caught by guards.";
+    let user =
+        "Stealth check failed. The rogue rolled 8 vs DC 15. Describe getting caught by guards.";
 
     let request = build_request_with_system(system, user);
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_llm_generates_failure_outcome",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_llm_generates_failure_outcome", None)
+        .await
+        .expect("LLM request failed");
 
     let content_lower = response.content.to_lowercase();
 

@@ -13,9 +13,7 @@ use super::{create_test_player, E2EEventLog, E2ETestContext, TestOutcome};
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_list_world_skills() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // List skills defined for this world using the skill entity
     // Note: get_skills doesn't exist on character entity, use skill.list_in_world
@@ -43,14 +41,15 @@ async fn test_list_world_skills() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_pc_skills_from_sheet() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Skilled Tester",
@@ -107,10 +106,13 @@ async fn test_skills_in_challenge_context() {
         .await
         .expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Challenge Tester",
@@ -130,10 +132,7 @@ async fn test_skills_in_challenge_context() {
             .expect("Should get challenge");
 
         if let Some(ch) = challenge {
-            println!(
-                "Challenge '{}' uses stat: {:?}",
-                ch.name, ch.check_stat
-            );
+            println!("Challenge '{}' uses stat: {:?}", ch.name, ch.check_stat);
         }
     }
 
@@ -145,9 +144,7 @@ async fn test_skills_in_challenge_context() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_skill_proficiency_levels() {
-    let _ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let _ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // Test proficiency level enum/values
     // ProficiencyLevel variants are: None, Half, Proficient, Expert
@@ -172,9 +169,7 @@ async fn test_skill_proficiency_levels() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_skill_categories() {
-    let _ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let _ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // Test skill category enum/values
     use wrldbldr_domain::SkillCategory;

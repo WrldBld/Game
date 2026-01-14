@@ -7,13 +7,61 @@
 //! - **Newtypes**: `CharacterName` for validated name
 //! - **Valid by construction**: `new()` takes pre-validated types
 //! - **Builder pattern**: Fluent API for optional fields
+//! - **State enum**: `CharacterState` instead of boolean blindness
+//! - **Domain events**: Mutations return `PlayerCharacterStateChange` enum
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::character_sheet::CharacterSheetData;
-use crate::value_objects::CharacterName;
+use crate::value_objects::{CharacterName, CharacterState};
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
+
+// ============================================================================
+// Domain Events
+// ============================================================================
+
+/// Domain event returned from state-changing mutations.
+///
+/// Following Rustic DDD principles, mutations return domain events instead of `()`.
+/// This allows the caller to know exactly what happened and react accordingly.
+///
+/// # Examples
+///
+/// ```
+/// use wrldbldr_domain::aggregates::player_character::{PlayerCharacter, PlayerCharacterStateChange};
+/// use wrldbldr_domain::value_objects::CharacterName;
+/// use wrldbldr_domain::{WorldId, LocationId};
+/// use chrono::Utc;
+///
+/// let name = CharacterName::new("Hero").unwrap();
+/// let mut pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), Utc::now());
+///
+/// // First kill returns Killed
+/// assert_eq!(pc.kill(), PlayerCharacterStateChange::Killed);
+///
+/// // Second kill returns AlreadyDead
+/// assert_eq!(pc.kill(), PlayerCharacterStateChange::AlreadyDead);
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlayerCharacterStateChange {
+    /// Character was killed (transitioned to Dead state)
+    Killed,
+    /// Kill attempted but character was already dead
+    AlreadyDead,
+    /// Character was deactivated (transitioned to Inactive state)
+    Deactivated,
+    /// Deactivation attempted but character was already inactive (or dead)
+    AlreadyInactive,
+    /// Character was activated (transitioned to Active state)
+    Activated,
+    /// Activation attempted but character was already active (or dead)
+    AlreadyActive,
+    /// Character was resurrected (transitioned from Dead to Active)
+    Resurrected,
+    /// Resurrection attempted but character was already alive
+    AlreadyAlive,
+}
 
 /// A player character (PC) - distinct from NPCs
 ///
@@ -61,11 +109,9 @@ pub struct PlayerCharacter {
     sprite_asset: Option<String>,
     portrait_asset: Option<String>,
 
-    // Status flags
-    /// Whether the character is alive (false if killed/removed from play)
-    is_alive: bool,
-    /// Whether the character is currently active in the world
-    is_active: bool,
+    // Lifecycle state (replaces is_alive/is_active boolean blindness)
+    /// The character's lifecycle state (Active, Inactive, or Dead)
+    state: CharacterState,
 
     // Metadata
     created_at: DateTime<Utc>,
@@ -119,8 +165,7 @@ impl PlayerCharacter {
             starting_location_id,
             sprite_asset: None,
             portrait_asset: None,
-            is_alive: true,
-            is_active: true,
+            state: CharacterState::Active,
             created_at: now,
             last_active_at: now,
         }
@@ -218,16 +263,42 @@ impl PlayerCharacter {
     // Status Accessors
     // =========================================================================
 
-    /// Returns true if the character is alive.
+    /// Returns the character's current lifecycle state.
+    #[inline]
+    pub fn state(&self) -> CharacterState {
+        self.state
+    }
+
+    /// Returns true if the character is alive (Active or Inactive state).
+    ///
+    /// Delegates to `CharacterState::is_alive()`.
     #[inline]
     pub fn is_alive(&self) -> bool {
-        self.is_alive
+        self.state.is_alive()
     }
 
     /// Returns true if the character is active in the world.
+    ///
+    /// Delegates to `CharacterState::is_active()`.
     #[inline]
     pub fn is_active(&self) -> bool {
-        self.is_active
+        self.state.is_active()
+    }
+
+    /// Returns true if the character is dead.
+    ///
+    /// Delegates to `CharacterState::is_dead()`.
+    #[inline]
+    pub fn is_dead(&self) -> bool {
+        self.state.is_dead()
+    }
+
+    /// Returns true if the character is inactive (alive but not actively playing).
+    ///
+    /// Delegates to `CharacterState::is_inactive()`.
+    #[inline]
+    pub fn is_inactive(&self) -> bool {
+        self.state.is_inactive()
     }
 
     // =========================================================================
@@ -286,15 +357,26 @@ impl PlayerCharacter {
         self
     }
 
-    /// Set the alive status (used when loading from storage).
-    pub fn with_alive(mut self, is_alive: bool) -> Self {
-        self.is_alive = is_alive;
-        self
-    }
-
-    /// Set the active status (used when loading from storage).
-    pub fn with_active(mut self, is_active: bool) -> Self {
-        self.is_active = is_active;
+    /// Set the character's lifecycle state (used when loading from storage).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wrldbldr_domain::aggregates::player_character::PlayerCharacter;
+    /// use wrldbldr_domain::value_objects::{CharacterName, CharacterState};
+    /// use wrldbldr_domain::{WorldId, LocationId};
+    /// use chrono::Utc;
+    ///
+    /// let name = CharacterName::new("Gandalf").unwrap();
+    /// let pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), Utc::now())
+    ///     .with_state(CharacterState::Inactive);
+    ///
+    /// assert!(pc.is_inactive());
+    /// assert!(pc.is_alive());
+    /// assert!(!pc.is_active());
+    /// ```
+    pub fn with_state(mut self, state: CharacterState) -> Self {
+        self.state = state;
         self
     }
 
@@ -382,27 +464,149 @@ impl PlayerCharacter {
     }
 
     /// Kill the character.
-    pub fn kill(&mut self) {
-        self.is_alive = false;
-        self.is_active = false;
+    ///
+    /// Transitions the character to `Dead` state and returns a domain event
+    /// indicating what happened.
+    ///
+    /// # Returns
+    ///
+    /// - `PlayerCharacterStateChange::Killed` if the character was alive and is now dead
+    /// - `PlayerCharacterStateChange::AlreadyDead` if the character was already dead
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wrldbldr_domain::aggregates::player_character::{PlayerCharacter, PlayerCharacterStateChange};
+    /// use wrldbldr_domain::value_objects::CharacterName;
+    /// use wrldbldr_domain::{WorldId, LocationId};
+    /// use chrono::Utc;
+    ///
+    /// let name = CharacterName::new("Hero").unwrap();
+    /// let mut pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), Utc::now());
+    ///
+    /// assert_eq!(pc.kill(), PlayerCharacterStateChange::Killed);
+    /// assert!(pc.is_dead());
+    ///
+    /// // Killing again returns AlreadyDead
+    /// assert_eq!(pc.kill(), PlayerCharacterStateChange::AlreadyDead);
+    /// ```
+    pub fn kill(&mut self) -> PlayerCharacterStateChange {
+        if self.state.is_dead() {
+            PlayerCharacterStateChange::AlreadyDead
+        } else {
+            self.state = CharacterState::Dead;
+            PlayerCharacterStateChange::Killed
+        }
     }
 
     /// Deactivate the character (still alive but not actively playing).
-    pub fn deactivate(&mut self) {
-        self.is_active = false;
+    ///
+    /// Transitions the character from `Active` to `Inactive` state.
+    /// Dead characters cannot be deactivated.
+    ///
+    /// # Returns
+    ///
+    /// - `PlayerCharacterStateChange::Deactivated` if the character was active and is now inactive
+    /// - `PlayerCharacterStateChange::AlreadyInactive` if the character was already inactive or dead
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wrldbldr_domain::aggregates::player_character::{PlayerCharacter, PlayerCharacterStateChange};
+    /// use wrldbldr_domain::value_objects::CharacterName;
+    /// use wrldbldr_domain::{WorldId, LocationId};
+    /// use chrono::Utc;
+    ///
+    /// let name = CharacterName::new("Hero").unwrap();
+    /// let mut pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), Utc::now());
+    ///
+    /// assert_eq!(pc.deactivate(), PlayerCharacterStateChange::Deactivated);
+    /// assert!(pc.is_inactive());
+    ///
+    /// // Deactivating again returns AlreadyInactive
+    /// assert_eq!(pc.deactivate(), PlayerCharacterStateChange::AlreadyInactive);
+    /// ```
+    pub fn deactivate(&mut self) -> PlayerCharacterStateChange {
+        if self.state.is_active() {
+            self.state = CharacterState::Inactive;
+            PlayerCharacterStateChange::Deactivated
+        } else {
+            PlayerCharacterStateChange::AlreadyInactive
+        }
     }
 
     /// Activate the character.
-    pub fn activate(&mut self) {
-        if self.is_alive {
-            self.is_active = true;
+    ///
+    /// Transitions the character from `Inactive` to `Active` state.
+    /// Dead characters cannot be activated (use `resurrect()` instead).
+    ///
+    /// # Returns
+    ///
+    /// - `PlayerCharacterStateChange::Activated` if the character was inactive and is now active
+    /// - `PlayerCharacterStateChange::AlreadyActive` if the character was already active or dead
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wrldbldr_domain::aggregates::player_character::{PlayerCharacter, PlayerCharacterStateChange};
+    /// use wrldbldr_domain::value_objects::CharacterName;
+    /// use wrldbldr_domain::{WorldId, LocationId};
+    /// use chrono::Utc;
+    ///
+    /// let name = CharacterName::new("Hero").unwrap();
+    /// let mut pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), Utc::now());
+    ///
+    /// pc.deactivate();
+    /// assert_eq!(pc.activate(), PlayerCharacterStateChange::Activated);
+    /// assert!(pc.is_active());
+    ///
+    /// // Activating again returns AlreadyActive
+    /// assert_eq!(pc.activate(), PlayerCharacterStateChange::AlreadyActive);
+    /// ```
+    pub fn activate(&mut self) -> PlayerCharacterStateChange {
+        if self.state.is_inactive() {
+            self.state = CharacterState::Active;
+            PlayerCharacterStateChange::Activated
+        } else {
+            PlayerCharacterStateChange::AlreadyActive
         }
     }
 
     /// Resurrect the character.
-    pub fn resurrect(&mut self) {
-        self.is_alive = true;
-        self.is_active = true;
+    ///
+    /// Transitions the character from `Dead` to `Active` state.
+    ///
+    /// # Returns
+    ///
+    /// - `PlayerCharacterStateChange::Resurrected` if the character was dead and is now active
+    /// - `PlayerCharacterStateChange::AlreadyAlive` if the character was already alive
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wrldbldr_domain::aggregates::player_character::{PlayerCharacter, PlayerCharacterStateChange};
+    /// use wrldbldr_domain::value_objects::CharacterName;
+    /// use wrldbldr_domain::{WorldId, LocationId};
+    /// use chrono::Utc;
+    ///
+    /// let name = CharacterName::new("Hero").unwrap();
+    /// let mut pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), Utc::now());
+    ///
+    /// pc.kill();
+    /// assert_eq!(pc.resurrect(), PlayerCharacterStateChange::Resurrected);
+    /// assert!(pc.is_alive());
+    /// assert!(pc.is_active());
+    ///
+    /// // Resurrecting again returns AlreadyAlive
+    /// assert_eq!(pc.resurrect(), PlayerCharacterStateChange::AlreadyAlive);
+    /// ```
+    pub fn resurrect(&mut self) -> PlayerCharacterStateChange {
+        if self.state.is_dead() {
+            self.state = CharacterState::Active;
+            PlayerCharacterStateChange::Resurrected
+        } else {
+            PlayerCharacterStateChange::AlreadyAlive
+        }
     }
 
     // =========================================================================
@@ -421,7 +625,12 @@ impl PlayerCharacter {
 // Serde Implementation
 // ============================================================================
 
-/// Intermediate format for serialization that matches the wire format
+/// Intermediate format for serialization that matches the wire format.
+///
+/// This maintains backward compatibility with existing JSON data that uses
+/// `is_alive` and `is_active` boolean fields. During serialization, we convert
+/// the internal `CharacterState` enum to these legacy fields. During
+/// deserialization, we convert back using `CharacterState::from_legacy()`.
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PlayerCharacterWireFormat {
@@ -436,8 +645,10 @@ struct PlayerCharacterWireFormat {
     starting_location_id: LocationId,
     sprite_asset: Option<String>,
     portrait_asset: Option<String>,
+    /// Legacy field for backward compatibility (serialized from CharacterState)
     #[serde(default = "default_true")]
     is_alive: bool,
+    /// Legacy field for backward compatibility (serialized from CharacterState)
     #[serde(default = "default_true")]
     is_active: bool,
     created_at: DateTime<Utc>,
@@ -453,6 +664,7 @@ impl Serialize for PlayerCharacter {
     where
         S: Serializer,
     {
+        // Convert CharacterState to legacy boolean fields for wire format
         let wire = PlayerCharacterWireFormat {
             id: self.id,
             user_id: self.user_id.clone(),
@@ -465,8 +677,8 @@ impl Serialize for PlayerCharacter {
             starting_location_id: self.starting_location_id,
             sprite_asset: self.sprite_asset.clone(),
             portrait_asset: self.portrait_asset.clone(),
-            is_alive: self.is_alive,
-            is_active: self.is_active,
+            is_alive: self.state.is_alive(),
+            is_active: self.state.is_active(),
             created_at: self.created_at,
             last_active_at: self.last_active_at,
         };
@@ -481,6 +693,9 @@ impl<'de> Deserialize<'de> for PlayerCharacter {
     {
         let wire = PlayerCharacterWireFormat::deserialize(deserializer)?;
 
+        // Convert legacy boolean fields to CharacterState
+        let state = CharacterState::from_legacy(wire.is_alive, wire.is_active);
+
         Ok(PlayerCharacter {
             id: wire.id,
             user_id: wire.user_id,
@@ -493,8 +708,7 @@ impl<'de> Deserialize<'de> for PlayerCharacter {
             starting_location_id: wire.starting_location_id,
             sprite_asset: wire.sprite_asset,
             portrait_asset: wire.portrait_asset,
-            is_alive: wire.is_alive,
-            is_active: wire.is_active,
+            state,
             created_at: wire.created_at,
             last_active_at: wire.last_active_at,
         })
@@ -606,43 +820,102 @@ mod tests {
         }
 
         #[test]
-        fn kill_sets_both_flags() {
+        fn kill_sets_state_to_dead_and_returns_event() {
             let mut pc = create_test_pc();
-            pc.kill();
+            assert_eq!(pc.kill(), PlayerCharacterStateChange::Killed);
+            assert!(pc.is_dead());
             assert!(!pc.is_alive());
             assert!(!pc.is_active());
+
+            // Killing again returns AlreadyDead
+            assert_eq!(pc.kill(), PlayerCharacterStateChange::AlreadyDead);
         }
 
         #[test]
-        fn deactivate_only_sets_active() {
+        fn deactivate_sets_state_to_inactive_and_returns_event() {
             let mut pc = create_test_pc();
-            pc.deactivate();
+            assert_eq!(pc.deactivate(), PlayerCharacterStateChange::Deactivated);
+            assert!(pc.is_inactive());
             assert!(pc.is_alive());
             assert!(!pc.is_active());
+
+            // Deactivating again returns AlreadyInactive
+            assert_eq!(pc.deactivate(), PlayerCharacterStateChange::AlreadyInactive);
         }
 
         #[test]
-        fn activate_works_only_if_alive() {
+        fn activate_works_only_if_inactive_and_returns_event() {
             let mut pc = create_test_pc();
+
+            // Already active
+            assert_eq!(pc.activate(), PlayerCharacterStateChange::AlreadyActive);
 
             // Deactivate then reactivate
             pc.deactivate();
-            pc.activate();
+            assert_eq!(pc.activate(), PlayerCharacterStateChange::Activated);
             assert!(pc.is_active());
 
-            // Kill then try to activate - should not work
+            // Kill then try to activate - should return AlreadyActive (dead chars can't activate)
             pc.kill();
-            pc.activate();
+            assert_eq!(pc.activate(), PlayerCharacterStateChange::AlreadyActive);
             assert!(!pc.is_active());
         }
 
         #[test]
-        fn resurrect_sets_both_flags() {
+        fn resurrect_sets_state_to_active_and_returns_event() {
             let mut pc = create_test_pc();
             pc.kill();
-            pc.resurrect();
+            assert_eq!(pc.resurrect(), PlayerCharacterStateChange::Resurrected);
             assert!(pc.is_alive());
             assert!(pc.is_active());
+            assert_eq!(pc.state(), CharacterState::Active);
+
+            // Resurrecting again returns AlreadyAlive
+            assert_eq!(pc.resurrect(), PlayerCharacterStateChange::AlreadyAlive);
+        }
+
+        #[test]
+        fn state_accessor_returns_correct_values() {
+            let mut pc = create_test_pc();
+            assert_eq!(pc.state(), CharacterState::Active);
+
+            pc.deactivate();
+            assert_eq!(pc.state(), CharacterState::Inactive);
+
+            pc.kill();
+            assert_eq!(pc.state(), CharacterState::Dead);
+
+            pc.resurrect();
+            assert_eq!(pc.state(), CharacterState::Active);
+        }
+
+        #[test]
+        fn with_state_builder_works() {
+            let world_id = WorldId::new();
+            let location_id = LocationId::new();
+            let name = CharacterName::new("Gimli").unwrap();
+            let now = Utc::now();
+
+            let pc = PlayerCharacter::new("user789", world_id, name, location_id, now)
+                .with_state(CharacterState::Inactive);
+
+            assert_eq!(pc.state(), CharacterState::Inactive);
+            assert!(pc.is_inactive());
+            assert!(pc.is_alive());
+            assert!(!pc.is_active());
+
+            let dead_pc = PlayerCharacter::new(
+                "user789",
+                world_id,
+                CharacterName::new("Ghost").unwrap(),
+                location_id,
+                now,
+            )
+            .with_state(CharacterState::Dead);
+
+            assert_eq!(dead_pc.state(), CharacterState::Dead);
+            assert!(dead_pc.is_dead());
+            assert!(!dead_pc.is_alive());
         }
     }
 

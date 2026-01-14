@@ -21,9 +21,7 @@ impl Neo4jWorldRepo {
     }
 
     fn row_to_world(&self, row: Row) -> Result<World, RepoError> {
-        let node: neo4rs::Node = row
-            .get("w")
-            .map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row.get("w").map_err(|e| RepoError::database("query", e))?;
         let fallback = self.clock.now();
 
         let id: WorldId =

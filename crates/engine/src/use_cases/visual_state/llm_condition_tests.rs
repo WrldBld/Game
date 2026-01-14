@@ -35,14 +35,9 @@ async fn test_evaluates_weather_condition() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.3);
 
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_evaluates_weather_condition",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_evaluates_weather_condition", None)
+        .await
+        .expect("LLM request failed");
 
     // With rain mentioned, condition should be met
     let content_lower = response.content.to_lowercase();
@@ -76,14 +71,9 @@ async fn test_evaluates_crowd_condition() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.3);
 
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_evaluates_crowd_condition",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_evaluates_crowd_condition", None)
+        .await
+        .expect("LLM request failed");
 
     // Market day with merchants present should be busy
     let content_lower = response.content.to_lowercase();
@@ -162,14 +152,9 @@ async fn test_item_possession_condition() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.3);
 
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_item_possession_condition",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_item_possession_condition", None)
+        .await
+        .expect("LLM request failed");
 
     // Player has the locket, condition should be met
     let content_lower = response.content.to_lowercase();
@@ -203,14 +188,9 @@ async fn test_relationship_condition() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.3);
 
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_relationship_condition",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_relationship_condition", None)
+        .await
+        .expect("LLM request failed");
 
     // Friend relationship should meet condition
     let content_lower = response.content.to_lowercase();
@@ -244,14 +224,9 @@ async fn test_narrative_progress_condition() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.3);
 
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_narrative_progress_condition",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_narrative_progress_condition", None)
+        .await
+        .expect("LLM request failed");
 
     // With shadow_threat_public flag and worried villagers, condition should be met
     let content_lower = response.content.to_lowercase();

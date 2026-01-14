@@ -13,9 +13,7 @@ use super::{create_test_player, E2EEventLog, E2ETestContext, TestOutcome};
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_world_has_game_time() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // Get the world
     let world = ctx
@@ -37,15 +35,19 @@ async fn test_world_has_game_time() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_time_suggestion_for_movement() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
-    let tavern_bar = ctx.world.region("Tavern Bar").expect("Tavern Bar should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
+    let tavern_bar = ctx
+        .world
+        .region("Tavern Bar")
+        .expect("Tavern Bar should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Time Traveler",
@@ -76,9 +78,7 @@ async fn test_time_suggestion_for_movement() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_advance_time() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // Get initial world time
     let world = ctx
@@ -102,7 +102,8 @@ async fn test_advance_time() {
 
     match advance_result {
         Ok(result) => {
-            println!("Time advanced successfully: previous={:?}, new={:?}",
+            println!(
+                "Time advanced successfully: previous={:?}, new={:?}",
                 result.previous_time.current(),
                 result.new_time.current()
             );
@@ -177,16 +178,14 @@ async fn test_time_in_world_context() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_time_reached_trigger() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
     let event_id = Uuid::new_v4();
 
     // Create event with TimeReached trigger
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -211,7 +210,7 @@ async fn test_time_reached_trigger() {
 
     // Create TimeReached trigger
     let trigger_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -239,7 +238,9 @@ async fn test_time_reached_trigger() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
+        events
+            .iter()
+            .any(|e| e.id().to_string() == event_id.to_string()),
         "Event with TimeReached trigger should exist"
     );
 }
@@ -248,17 +249,18 @@ async fn test_time_reached_trigger() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_time_at_location_trigger() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
     let event_id = Uuid::new_v4();
-    let location_id = ctx.world.location("The Rusty Anchor").expect("Location should exist");
+    let location_id = ctx
+        .world
+        .location("The Rusty Anchor")
+        .expect("Location should exist");
 
     // Create event with TimeAtLocation trigger
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -283,7 +285,7 @@ async fn test_time_at_location_trigger() {
 
     // Create TimeAtLocation trigger
     let trigger_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -313,7 +315,9 @@ async fn test_time_at_location_trigger() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
+        events
+            .iter()
+            .any(|e| e.id().to_string() == event_id.to_string()),
         "Event with TimeAtLocation trigger should exist"
     );
 }

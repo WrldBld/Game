@@ -28,6 +28,9 @@ pub struct JoinWorldInput {
 
 impl JoinWorldInput {
     /// Create input from protocol types (API layer conversion helper).
+    ///
+    /// Uses the From impl defined in protocol crate to convert WorldRole.
+    /// Unknown protocol roles map to Spectator as the safe default.
     pub fn from_protocol(
         connection_id: Uuid,
         world_id: WorldId,
@@ -35,17 +38,10 @@ impl JoinWorldInput {
         user_id: String,
         pc_id: Option<PlayerCharacterId>,
     ) -> Self {
-        let internal_role = match role {
-            wrldbldr_protocol::WorldRole::Dm => WorldRole::Dm,
-            wrldbldr_protocol::WorldRole::Player => WorldRole::Player,
-            wrldbldr_protocol::WorldRole::Spectator | wrldbldr_protocol::WorldRole::Unknown => {
-                WorldRole::Spectator
-            }
-        };
         Self {
             connection_id,
             world_id,
-            role: internal_role,
+            role: role.into(), // Uses From<protocol::WorldRole> for domain::WorldRole
             user_id,
             pc_id,
         }

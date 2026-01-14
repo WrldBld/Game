@@ -350,12 +350,7 @@ pub(super) async fn handle_respond_to_time_suggestion(
 
     let suggestion_uuid = match Uuid::parse_str(&suggestion_id) {
         Ok(id) => id,
-        Err(_) => {
-            return Some(error_response(
-                "INVALID_ID",
-                "Invalid time suggestion ID",
-            ))
-        }
+        Err(_) => return Some(error_response("INVALID_ID", "Invalid time suggestion ID")),
     };
 
     let world_id = match conn_info.world_id {
@@ -363,31 +358,46 @@ pub(super) async fn handle_respond_to_time_suggestion(
         None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
     };
 
+    // Convert protocol decision to domain decision at the API boundary
+    let domain_decision: wrldbldr_domain::TimeSuggestionDecision = match decision.try_into() {
+        Ok(d) => d,
+        Err(_) => {
+            return Some(error_response(
+                "INVALID_DECISION",
+                "Unknown time suggestion decision type",
+            ))
+        }
+    };
+
     match state
         .app
         .use_cases
         .time
         .suggestions
-        .resolve(&state.pending_time_suggestions, world_id, suggestion_uuid, decision)
+        .resolve(
+            &state.pending_time_suggestions,
+            world_id,
+            suggestion_uuid,
+            domain_decision,
+        )
         .await
     {
         Ok(Some(resolution)) => {
             let msg = ServerMessage::GameTimeAdvanced {
                 data: resolution.advance_data,
             };
-            state
-                .connections
-                .broadcast_to_world(world_id, msg)
-                .await;
+            state.connections.broadcast_to_world(world_id, msg).await;
             None
         }
         Ok(None) => None,
-        Err(crate::use_cases::time::TimeSuggestionError::NotFound) => {
-            Some(error_response("TIME_SUGGESTION_NOT_FOUND", "Time suggestion not found"))
-        }
-        Err(crate::use_cases::time::TimeSuggestionError::WorldMismatch) => {
-            Some(error_response("TIME_SUGGESTION_INVALID", "Time suggestion world mismatch"))
-        }
+        Err(crate::use_cases::time::TimeSuggestionError::NotFound) => Some(error_response(
+            "TIME_SUGGESTION_NOT_FOUND",
+            "Time suggestion not found",
+        )),
+        Err(crate::use_cases::time::TimeSuggestionError::WorldMismatch) => Some(error_response(
+            "TIME_SUGGESTION_INVALID",
+            "Time suggestion world mismatch",
+        )),
         Err(e) => Some(error_response(
             "TIME_ERROR",
             &sanitize_repo_error(&e, "responding to time suggestion"),

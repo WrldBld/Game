@@ -58,16 +58,24 @@ async fn test_player_creates_character_via_use_case() {
         assert_eq!(pc.world_id(), ctx.world.world_id);
 
         // Verify PC is in spawn region (Common Room)
-        let spawn_region = ctx.world.region("Common Room").expect("Spawn region not found");
+        let spawn_region = ctx
+            .world
+            .region("Common Room")
+            .expect("Spawn region not found");
         assert_eq!(pc.current_region_id(), Some(spawn_region));
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }
     .await;
 
-    let outcome = if test_result.is_ok() { TestOutcome::Pass } else { TestOutcome::Fail };
+    let outcome = if test_result.is_ok() {
+        TestOutcome::Pass
+    } else {
+        TestOutcome::Fail
+    };
     ctx.finalize_event_log(outcome);
-    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME)).expect("save log");
+    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME))
+        .expect("save log");
     test_result.expect("Test failed");
 }
 
@@ -124,9 +132,14 @@ async fn test_staging_npc_in_region() {
     }
     .await;
 
-    let outcome = if test_result.is_ok() { TestOutcome::Pass } else { TestOutcome::Fail };
+    let outcome = if test_result.is_ok() {
+        TestOutcome::Pass
+    } else {
+        TestOutcome::Fail
+    };
     ctx.finalize_event_log(outcome);
-    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME)).expect("save log");
+    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME))
+        .expect("save log");
     test_result.expect("Test failed");
 }
 
@@ -155,7 +168,7 @@ async fn test_start_conversation_with_staged_npc() {
         // Create player character
         let common_room = ctx.world.region("Common Room").expect("Region not found");
         let (player_id, pc_id) = create_test_player(
-            ctx.harness.graph(),
+            ctx.graph(),
             ctx.world.world_id,
             common_room,
             "Test Hero",
@@ -181,16 +194,24 @@ async fn test_start_conversation_with_staged_npc() {
         .expect("Failed to start conversation");
 
         // Verify we got a response
-        assert!(!conversation_id.is_nil(), "Conversation ID should not be nil");
+        assert!(
+            !conversation_id.is_nil(),
+            "Conversation ID should not be nil"
+        );
         assert!(!response.is_empty(), "Response should not be empty");
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }
     .await;
 
-    let outcome = if test_result.is_ok() { TestOutcome::Pass } else { TestOutcome::Fail };
+    let outcome = if test_result.is_ok() {
+        TestOutcome::Pass
+    } else {
+        TestOutcome::Fail
+    };
     ctx.finalize_event_log(outcome);
-    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME)).expect("save log");
+    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME))
+        .expect("save log");
 
     // Save cassette if recording
     vcr.save_cassette().expect("Failed to save cassette");
@@ -220,7 +241,7 @@ async fn test_multi_turn_conversation() {
         // Create player character
         let common_room = ctx.world.region("Common Room").expect("Region not found");
         let (player_id, pc_id) = create_test_player(
-            ctx.harness.graph(),
+            ctx.graph(),
             ctx.world.world_id,
             common_room,
             "Test Hero",
@@ -250,7 +271,6 @@ async fn test_multi_turn_conversation() {
         // DEBUG: Verify conversation was created after turn 1
         use neo4rs::query;
         let mut conv_result = ctx
-            .harness
             .graph()
             .execute(
                 query(
@@ -285,9 +305,14 @@ async fn test_multi_turn_conversation() {
     }
     .await;
 
-    let outcome = if test_result.is_ok() { TestOutcome::Pass } else { TestOutcome::Fail };
+    let outcome = if test_result.is_ok() {
+        TestOutcome::Pass
+    } else {
+        TestOutcome::Fail
+    };
     ctx.finalize_event_log(outcome);
-    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME)).expect("save log");
+    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME))
+        .expect("save log");
 
     // Save cassette if recording
     vcr.save_cassette().expect("Failed to save cassette");
@@ -379,7 +404,6 @@ async fn test_full_gameplay_session() {
         use neo4rs::query;
 
         let mut result = ctx
-            .harness
             .graph()
             .execute(query(
                 "MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation)<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
@@ -407,7 +431,8 @@ async fn test_full_gameplay_session() {
 
     // Save event log
     let log_path = E2ETestContext::default_log_path(TEST_NAME);
-    ctx.save_event_log(&log_path).expect("Failed to save event log");
+    ctx.save_event_log(&log_path)
+        .expect("Failed to save event log");
 
     // Print summary
     if let Some(ref log) = ctx.event_log {
@@ -445,7 +470,7 @@ async fn test_queue_processes_player_action_to_llm_request() {
         // Create player and stage NPC
         let common_room = ctx.world.region("Common Room").expect("Region not found");
         let (player_id, pc_id) = create_test_player(
-            ctx.harness.graph(),
+            ctx.graph(),
             ctx.world.world_id,
             common_room,
             "Queue Test Hero",
@@ -502,8 +527,13 @@ async fn test_queue_processes_player_action_to_llm_request() {
     }
     .await;
 
-    let outcome = if test_result.is_ok() { TestOutcome::Pass } else { TestOutcome::Fail };
+    let outcome = if test_result.is_ok() {
+        TestOutcome::Pass
+    } else {
+        TestOutcome::Fail
+    };
     ctx.finalize_event_log(outcome);
-    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME)).expect("save log");
+    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME))
+        .expect("save log");
     test_result.expect("Test failed");
 }

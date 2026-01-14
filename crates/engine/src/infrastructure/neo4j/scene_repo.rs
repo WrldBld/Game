@@ -142,9 +142,7 @@ impl Neo4jSceneRepo {
 
     /// Convert a Neo4j row to a Scene entity.
     fn row_to_scene(&self, row: Row) -> Result<Scene, RepoError> {
-        let node: neo4rs::Node = row
-            .get("s")
-            .map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row.get("s").map_err(|e| RepoError::database("query", e))?;
 
         let id: SceneId =
             parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
@@ -274,7 +272,10 @@ impl SceneRepo for Neo4jSceneRepo {
         .param("time_context", time_context_json)
         .param(
             "backdrop_override",
-            scene.backdrop_override().map(|s| s.to_string()).unwrap_or_default(),
+            scene
+                .backdrop_override()
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
         )
         .param("entry_conditions", entry_conditions_json)
         .param("featured_characters", featured_characters_json)
@@ -475,8 +476,7 @@ impl SceneRepo for Neo4jSceneRepo {
                 .get("character_id")
                 .map_err(|e| RepoError::database("query", e))?;
             let char_id = CharacterId::from(
-                uuid::Uuid::parse_str(&char_id_str)
-                    .map_err(|e| RepoError::database("query", e))?,
+                uuid::Uuid::parse_str(&char_id_str).map_err(|e| RepoError::database("query", e))?,
             );
 
             // Parse role from string, defaulting to Secondary if parsing fails
@@ -486,13 +486,15 @@ impl SceneRepo for Neo4jSceneRepo {
                 .unwrap_or(SceneCharacterRole::Secondary);
 
             // Parse entrance_cue, treating empty string as None
-            let entrance_cue: Option<String> = row.get("entrance_cue").ok().and_then(|s: String| {
-                if s.is_empty() {
-                    None
-                } else {
-                    Some(s)
-                }
-            });
+            let entrance_cue: Option<String> = row.get("entrance_cue").ok().and_then(
+                |s: String| {
+                    if s.is_empty() {
+                        None
+                    } else {
+                        Some(s)
+                    }
+                },
+            );
 
             characters.push(SceneCharacter {
                 character_id: char_id,
@@ -633,7 +635,10 @@ impl SceneRepo for Neo4jSceneRepo {
                 .map_err(|e| RepoError::database("query", e))?;
 
             if !pc_exists {
-                tracing::warn!("mark_scene_completed failed: PlayerCharacter {} not found", pc_id);
+                tracing::warn!(
+                    "mark_scene_completed failed: PlayerCharacter {} not found",
+                    pc_id
+                );
                 return Err(RepoError::not_found("Entity", "unknown"));
             }
             if !scene_exists {
@@ -669,7 +674,10 @@ impl SceneRepo for Neo4jSceneRepo {
                 let scene_exists: bool = check_row.get("scene_exists").unwrap_or(false);
 
                 if !pc_exists {
-                    tracing::warn!("mark_scene_completed failed: PlayerCharacter {} not found", pc_id);
+                    tracing::warn!(
+                        "mark_scene_completed failed: PlayerCharacter {} not found",
+                        pc_id
+                    );
                 } else if !scene_exists {
                     tracing::warn!("mark_scene_completed failed: Scene {} not found", scene_id);
                 }

@@ -15,30 +15,30 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+mod ws_actantial;
+mod ws_approval;
 mod ws_challenge;
 mod ws_character_sheet;
 mod ws_content;
+mod ws_conversation;
 mod ws_core;
 mod ws_creator;
-mod ws_conversation;
 mod ws_dm;
 mod ws_event_chain;
-mod ws_actantial;
 mod ws_inventory;
 mod ws_location;
 mod ws_lore;
 mod ws_movement;
 mod ws_narrative_event;
-mod ws_player_action;
 mod ws_player;
-mod ws_session;
+mod ws_player_action;
 mod ws_scene;
+mod ws_session;
 mod ws_skill;
+mod ws_staging;
 mod ws_stat;
 mod ws_story_events;
-mod ws_staging;
 mod ws_time;
-mod ws_approval;
 
 pub mod error_sanitizer;
 
@@ -55,7 +55,9 @@ use wrldbldr_protocol::{
 use super::connections::ConnectionManager;
 use crate::app::App;
 use crate::infrastructure::cache::TtlCache;
-use crate::use_cases::staging::PendingStagingRequest;
+use crate::infrastructure::ports::{
+    PendingStagingRequest, PendingStagingStore, TimeSuggestion, TimeSuggestionStore,
+};
 
 /// Buffer size for per-connection message channel.
 const CONNECTION_CHANNEL_BUFFER: usize = 256;
@@ -143,7 +145,7 @@ impl Default for PendingStagingStoreImpl {
 }
 
 #[async_trait::async_trait]
-impl crate::use_cases::staging::PendingStagingStore for PendingStagingStoreImpl {
+impl PendingStagingStore for PendingStagingStoreImpl {
     async fn insert(&self, key: String, request: PendingStagingRequest) {
         self.inner.insert(key, request).await;
     }
@@ -159,7 +161,7 @@ impl crate::use_cases::staging::PendingStagingStore for PendingStagingStoreImpl 
 
 /// TTL-based implementation of TimeSuggestionStore (30 minute TTL).
 pub struct TimeSuggestionStoreImpl {
-    inner: TtlCache<Uuid, crate::use_cases::time::TimeSuggestion>,
+    inner: TtlCache<Uuid, TimeSuggestion>,
 }
 
 impl TimeSuggestionStoreImpl {
@@ -170,17 +172,17 @@ impl TimeSuggestionStoreImpl {
     }
 
     /// Insert a time suggestion.
-    pub async fn insert(&self, key: Uuid, suggestion: crate::use_cases::time::TimeSuggestion) {
+    pub async fn insert(&self, key: Uuid, suggestion: TimeSuggestion) {
         self.inner.insert(key, suggestion).await;
     }
 
     /// Get a time suggestion by key.
-    pub async fn get(&self, key: &Uuid) -> Option<crate::use_cases::time::TimeSuggestion> {
+    pub async fn get(&self, key: &Uuid) -> Option<TimeSuggestion> {
         self.inner.get(key).await
     }
 
     /// Remove and return a time suggestion.
-    pub async fn remove(&self, key: &Uuid) -> Option<crate::use_cases::time::TimeSuggestion> {
+    pub async fn remove(&self, key: &Uuid) -> Option<TimeSuggestion> {
         self.inner.remove(key).await
     }
 
@@ -209,12 +211,12 @@ impl Default for TimeSuggestionStoreImpl {
 }
 
 #[async_trait::async_trait]
-impl crate::use_cases::staging::TimeSuggestionStore for TimeSuggestionStoreImpl {
-    async fn insert(&self, key: Uuid, suggestion: crate::use_cases::time::TimeSuggestion) {
+impl TimeSuggestionStore for TimeSuggestionStoreImpl {
+    async fn insert(&self, key: Uuid, suggestion: TimeSuggestion) {
         self.inner.insert(key, suggestion).await;
     }
 
-    async fn remove(&self, key: Uuid) -> Option<crate::use_cases::time::TimeSuggestion> {
+    async fn remove(&self, key: Uuid) -> Option<TimeSuggestion> {
         self.inner.remove(&key).await
     }
 }
@@ -365,13 +367,19 @@ async fn handle_message(
                 %user_id,
                 "JoinWorld message received"
             );
-            ws_session::handle_join_world(state, connection_id, world_id, role, user_id, pc_id, spectate_pc_id)
-                .await
+            ws_session::handle_join_world(
+                state,
+                connection_id,
+                world_id,
+                role,
+                user_id,
+                pc_id,
+                spectate_pc_id,
+            )
+            .await
         }
 
-        ClientMessage::LeaveWorld => {
-            ws_session::handle_leave_world(state, connection_id).await
-        }
+        ClientMessage::LeaveWorld => ws_session::handle_leave_world(state, connection_id).await,
 
         // Movement
         ClientMessage::MoveToRegion { pc_id, region_id } => {
@@ -458,8 +466,13 @@ async fn handle_message(
             challenge_id,
             input_type,
         } => {
-            ws_challenge::handle_challenge_roll_input(state, connection_id, challenge_id, input_type)
-                .await
+            ws_challenge::handle_challenge_roll_input(
+                state,
+                connection_id,
+                challenge_id,
+                input_type,
+            )
+            .await
         }
 
         ClientMessage::TriggerChallenge {
@@ -527,7 +540,9 @@ async fn handle_message(
         ClientMessage::ApprovalDecision {
             request_id,
             decision,
-        } => ws_approval::handle_approval_decision(state, connection_id, request_id, decision).await,
+        } => {
+            ws_approval::handle_approval_decision(state, connection_id, request_id, decision).await
+        }
 
         ClientMessage::ChallengeSuggestionDecision {
             request_id,
@@ -599,7 +614,9 @@ async fn handle_message(
         ClientMessage::TriggerLocationEvent {
             region_id,
             description,
-        } => ws_dm::handle_trigger_location_event(state, connection_id, region_id, description).await,
+        } => {
+            ws_dm::handle_trigger_location_event(state, connection_id, region_id, description).await
+        }
 
         ClientMessage::ShareNpcLocation {
             pc_id,
@@ -627,15 +644,8 @@ async fn handle_message(
             hour,
             notify_players,
         } => {
-            ws_time::handle_set_game_time(
-                state,
-                connection_id,
-                world_id,
-                day,
-                hour,
-                notify_players,
-            )
-            .await
+            ws_time::handle_set_game_time(state, connection_id, world_id, day, hour, notify_players)
+                .await
         }
 
         ClientMessage::SkipToPeriod { world_id, period } => {
@@ -1332,15 +1342,21 @@ mod ws_integration_tests_inline {
         let region_state_repo = Arc::new(repos.region_state_repo);
 
         // Entities
-        let character = Arc::new(crate::repositories::character::Character::new(character_repo.clone()));
+        let character = Arc::new(crate::repositories::character::Character::new(
+            character_repo.clone(),
+        ));
         let player_character = Arc::new(crate::repositories::PlayerCharacter::new(
             player_character_repo.clone(),
         ));
-        let location = Arc::new(crate::repositories::location::Location::new(location_repo.clone()));
+        let location = Arc::new(crate::repositories::location::Location::new(
+            location_repo.clone(),
+        ));
         let scene = Arc::new(crate::repositories::scene::Scene::new(scene_repo.clone()));
         let act = Arc::new(crate::repositories::Act::new(act_repo.clone()));
         let skill = Arc::new(crate::repositories::Skill::new(skill_repo.clone()));
-        let interaction = Arc::new(crate::repositories::Interaction::new(interaction_repo.clone()));
+        let interaction = Arc::new(crate::repositories::Interaction::new(
+            interaction_repo.clone(),
+        ));
         let challenge = Arc::new(crate::repositories::Challenge::new(challenge_repo.clone()));
         let narrative = Arc::new(crate::use_cases::narrative_operations::Narrative::new(
             narrative_repo.clone(),
@@ -1354,7 +1370,9 @@ mod ws_integration_tests_inline {
             scene_repo.clone(),
             clock.clone(),
         ));
-        let staging = Arc::new(crate::repositories::staging::Staging::new(staging_repo.clone()));
+        let staging = Arc::new(crate::repositories::staging::Staging::new(
+            staging_repo.clone(),
+        ));
         let observation = Arc::new(crate::repositories::Observation::new(
             observation_repo.clone(),
             location_repo.clone(),
@@ -1365,7 +1383,10 @@ mod ws_integration_tests_inline {
             character_repo.clone(),
             player_character_repo.clone(),
         ));
-        let assets = Arc::new(crate::repositories::Assets::new(asset_repo.clone(), image_gen));
+        let assets = Arc::new(crate::repositories::Assets::new(
+            asset_repo.clone(),
+            image_gen,
+        ));
         let world = Arc::new(crate::repositories::World::new(world_repo, clock.clone()));
         let flag = Arc::new(crate::repositories::Flag::new(flag_repo.clone()));
         let goal = Arc::new(crate::repositories::Goal::new(goal_repo.clone()));
@@ -1373,7 +1394,9 @@ mod ws_integration_tests_inline {
         let location_state = Arc::new(crate::repositories::LocationStateEntity::new(
             location_state_repo.clone(),
         ));
-        let region_state = Arc::new(crate::repositories::RegionStateEntity::new(region_state_repo));
+        let region_state = Arc::new(crate::repositories::RegionStateEntity::new(
+            region_state_repo,
+        ));
 
         let repositories_container = Repositories {
             character: character.clone(),
@@ -1477,13 +1500,12 @@ mod ws_integration_tests_inline {
             crate::use_cases::actantial::ActantialContextOps::new(character.clone()),
         );
 
-        let ai = crate::use_cases::AiUseCases::new(Arc::new(
-            crate::use_cases::ai::SuggestionOps::new(
+        let ai =
+            crate::use_cases::AiUseCases::new(Arc::new(crate::use_cases::ai::SuggestionOps::new(
                 queue.clone(),
                 world.clone(),
                 character.clone(),
-            ),
-        ));
+            )));
 
         let resolve_outcome = Arc::new(crate::use_cases::challenge::ResolveOutcome::new(
             challenge.clone(),
@@ -1515,8 +1537,9 @@ mod ws_integration_tests_inline {
             )),
         );
 
-        let approve_suggestion =
-            Arc::new(crate::use_cases::approval::ApproveSuggestion::new(queue.clone()));
+        let approve_suggestion = Arc::new(crate::use_cases::approval::ApproveSuggestion::new(
+            queue.clone(),
+        ));
         let approval = crate::use_cases::ApprovalUseCases::new(
             Arc::new(crate::use_cases::approval::ApproveStaging::new(
                 staging.clone(),
@@ -1594,8 +1617,9 @@ mod ws_integration_tests_inline {
             narrative.clone(),
             execute_effects.clone(),
         ));
-        let narrative_chains =
-            Arc::new(crate::use_cases::narrative::EventChainOps::new(narrative.clone()));
+        let narrative_chains = Arc::new(crate::use_cases::narrative::EventChainOps::new(
+            narrative.clone(),
+        ));
         let narrative_decision = Arc::new(crate::use_cases::narrative::NarrativeDecisionFlow::new(
             approve_suggestion.clone(),
             queue.clone(),
@@ -1610,13 +1634,11 @@ mod ws_integration_tests_inline {
         );
 
         let time_control = Arc::new(crate::use_cases::time::TimeControl::new(world.clone()));
-        let time_suggestions =
-            Arc::new(crate::use_cases::time::TimeSuggestions::new(time_control.clone()));
-        let time_uc = crate::use_cases::TimeUseCases::new(
-            suggest_time,
-            time_control,
-            time_suggestions,
-        );
+        let time_suggestions = Arc::new(crate::use_cases::time::TimeSuggestions::new(
+            time_control.clone(),
+        ));
+        let time_uc =
+            crate::use_cases::TimeUseCases::new(suggest_time, time_control, time_suggestions);
 
         let visual_state_uc = crate::use_cases::VisualStateUseCases::new(Arc::new(
             crate::use_cases::visual_state::ResolveVisualState::new(
@@ -1734,14 +1756,12 @@ mod ws_integration_tests_inline {
             scene.clone(),
             player_character.clone(),
         ));
-        let join_world_flow =
-            Arc::new(crate::use_cases::session::JoinWorldFlow::new(join_world.clone()));
+        let join_world_flow = Arc::new(crate::use_cases::session::JoinWorldFlow::new(
+            join_world.clone(),
+        ));
         let directorial_update = Arc::new(crate::use_cases::session::DirectorialUpdate::new());
-        let session = crate::use_cases::SessionUseCases::new(
-            join_world,
-            join_world_flow,
-            directorial_update,
-        );
+        let session =
+            crate::use_cases::SessionUseCases::new(join_world, join_world_flow, directorial_update);
 
         let use_cases = UseCases {
             movement,
@@ -1773,7 +1793,9 @@ mod ws_integration_tests_inline {
             use_cases,
             queue,
             llm,
-            content: Arc::new(crate::use_cases::content::ContentService::new(Default::default())),
+            content: Arc::new(crate::use_cases::content::ContentService::new(
+                Default::default(),
+            )),
         })
     }
 
@@ -1885,7 +1907,8 @@ mod ws_integration_tests_inline {
         let now = chrono::Utc::now();
 
         let world_id = WorldId::new();
-        let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
+        let mut world =
+            wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
         world.id = world_id;
 
         // World repo mock: always returns the same world and accepts saves.
@@ -2030,7 +2053,8 @@ mod ws_integration_tests_inline {
         let hidden_npc_id = CharacterId::new();
 
         // World (manual time, so movement doesn't generate time suggestions).
-        let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
+        let mut world =
+            wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
         world.id = world_id;
         world.set_time_mode(TimeMode::Manual, now);
 
@@ -2384,7 +2408,8 @@ mod ws_integration_tests_inline {
         let now = chrono::Utc::now();
 
         let world_id = WorldId::new();
-        let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
+        let mut world =
+            wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
         world.id = world_id;
 
         let mut world_repo = MockWorldRepo::new();
@@ -2537,7 +2562,8 @@ mod ws_integration_tests_inline {
         let now = chrono::Utc::now();
 
         let world_id = WorldId::new();
-        let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
+        let mut world =
+            wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
         world.id = world_id;
 
         let mut world_repo = MockWorldRepo::new();
@@ -2664,7 +2690,8 @@ mod ws_integration_tests_inline {
         let now = chrono::Utc::now();
 
         let world_id = WorldId::new();
-        let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
+        let mut world =
+            wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
         world.id = world_id;
 
         let mut world_repo = MockWorldRepo::new();
@@ -2825,7 +2852,8 @@ mod ws_integration_tests_inline {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
+        let mut world =
+            wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
         world.id = world_id;
         world.set_time_mode(TimeMode::Manual, now);
 
@@ -3133,7 +3161,8 @@ mod ws_integration_tests_inline {
         let region_id = RegionId::new();
         let npc_id = CharacterId::new();
 
-        let mut world = wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
+        let mut world =
+            wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
         world.id = world_id;
 
         let mut location = wrldbldr_domain::Location::new(
@@ -3379,9 +3408,12 @@ fn parse_uuid_for_request(
     request_id: &str,
     error_msg: &str,
 ) -> Result<Uuid, ServerMessage> {
-    Uuid::parse_str(id_str).map_err(|_| ServerMessage::Response {
-        request_id: request_id.to_string(),
-        result: ResponseResult::error(ErrorCode::BadRequest, error_msg),
+    Uuid::parse_str(id_str).map_err(|e| {
+        tracing::debug!(input = %id_str, error = %e, "UUID parsing failed");
+        ServerMessage::Response {
+            request_id: request_id.to_string(),
+            result: ResponseResult::error(ErrorCode::BadRequest, error_msg),
+        }
     })
 }
 

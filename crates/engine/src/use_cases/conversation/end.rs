@@ -8,10 +8,10 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 
-use crate::repositories::PlayerCharacter;
-use crate::repositories::character::Character;
-use crate::use_cases::narrative_operations::Narrative;
 use crate::infrastructure::ports::RepoError;
+use crate::repositories::character::Character;
+use crate::repositories::PlayerCharacter;
+use crate::use_cases::narrative_operations::Narrative;
 
 /// Result of ending a conversation.
 #[derive(Debug, Clone)]
@@ -89,40 +89,37 @@ impl EndConversation {
 
         // 3. End the active conversation tracking (clear active conversation state)
         // This atomically finds and ends the active conversation between PC and NPC
-        let ended_conversation_id = match self
-            .narrative
-            .end_active_conversation(pc_id, npc_id)
-            .await
-        {
-            Ok(id) => {
-                if let Some(conv_id) = &id {
-                    tracing::info!(
-                        conversation_id = %conv_id,
-                        pc_id = %pc_id,
-                        npc_id = %npc_id,
-                        "Marked conversation as ended"
-                    );
-                } else {
-                    tracing::debug!(
-                        pc_id = %pc_id,
-                        npc_id = %npc_id,
-                        "No active conversation found to end"
-                    );
+        let ended_conversation_id =
+            match self.narrative.end_active_conversation(pc_id, npc_id).await {
+                Ok(id) => {
+                    if let Some(conv_id) = &id {
+                        tracing::info!(
+                            conversation_id = %conv_id,
+                            pc_id = %pc_id,
+                            npc_id = %npc_id,
+                            "Marked conversation as ended"
+                        );
+                    } else {
+                        tracing::debug!(
+                            pc_id = %pc_id,
+                            npc_id = %npc_id,
+                            "No active conversation found to end"
+                        );
+                    }
+                    id
                 }
-                id
-            }
-            Err(e) => {
-                // Log but don't fail - the conversation end should still succeed
-                // even if we can't update the tracking state
-                tracing::warn!(
-                    error = %e,
-                    pc_id = %pc_id,
-                    npc_id = %npc_id,
-                    "Failed to end active conversation tracking, proceeding anyway"
-                );
-                None
-            }
-        };
+                Err(e) => {
+                    // Log but don't fail - the conversation end should still succeed
+                    // even if we can't update the tracking state
+                    tracing::warn!(
+                        error = %e,
+                        pc_id = %pc_id,
+                        npc_id = %npc_id,
+                        "Failed to end active conversation tracking, proceeding anyway"
+                    );
+                    None
+                }
+            };
 
         tracing::info!(
             pc_id = %pc_id,
@@ -160,14 +157,17 @@ mod tests {
 
     use chrono::Utc;
     use uuid::Uuid;
-    use wrldbldr_domain::{CampbellArchetype, Character, CharacterId, CharacterName, LocationId, PlayerCharacterId, WorldId};
+    use wrldbldr_domain::{
+        CampbellArchetype, Character, CharacterId, CharacterName, LocationId, PlayerCharacterId,
+        WorldId,
+    };
 
-    use crate::repositories;
     use crate::infrastructure::ports::{
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockLocationRepo,
         MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
         MockWorldRepo,
     };
+    use crate::repositories;
     use crate::repositories::Character as CharacterOp;
     use crate::use_cases::Narrative;
 
@@ -214,12 +214,12 @@ mod tests {
             create_narrative_entity(MockNarrativeRepo::new()),
         );
 
-        let err = use_case
-            .execute(pc_id, npc_id, None)
-            .await
-            .unwrap_err();
+        let err = use_case.execute(pc_id, npc_id, None).await.unwrap_err();
 
-        assert!(matches!(err, super::EndConversationError::PlayerCharacterNotFound));
+        assert!(matches!(
+            err,
+            super::EndConversationError::PlayerCharacterNotFound
+        ));
     }
 
     #[tokio::test]
@@ -230,8 +230,14 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now)
-            .with_id(pc_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            location_id,
+            now,
+        )
+        .with_id(pc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -252,10 +258,7 @@ mod tests {
             create_narrative_entity(MockNarrativeRepo::new()),
         );
 
-        let err = use_case
-            .execute(pc_id, npc_id, None)
-            .await
-            .unwrap_err();
+        let err = use_case.execute(pc_id, npc_id, None).await.unwrap_err();
 
         assert!(matches!(err, super::EndConversationError::NpcNotFound));
     }
@@ -269,11 +272,21 @@ mod tests {
         let npc_id = CharacterId::new();
         let conversation_id = Uuid::new_v4();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("TestPC").unwrap(), location_id, now)
-            .with_id(pc_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("TestPC").unwrap(),
+            location_id,
+            now,
+        )
+        .with_id(pc_id);
 
-        let npc = Character::new(world_id, CharacterName::new("TestNPC").unwrap(), CampbellArchetype::Mentor)
-            .with_id(npc_id);
+        let npc = Character::new(
+            world_id,
+            CharacterName::new("TestNPC").unwrap(),
+            CampbellArchetype::Mentor,
+        )
+        .with_id(npc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -324,11 +337,21 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("TestPC").unwrap(), location_id, now)
-            .with_id(pc_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("TestPC").unwrap(),
+            location_id,
+            now,
+        )
+        .with_id(pc_id);
 
-        let npc = Character::new(world_id, CharacterName::new("TestNPC").unwrap(), CampbellArchetype::Mentor)
-            .with_id(npc_id);
+        let npc = Character::new(
+            world_id,
+            CharacterName::new("TestNPC").unwrap(),
+            CampbellArchetype::Mentor,
+        )
+        .with_id(npc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -375,11 +398,21 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("TestPC").unwrap(), location_id, now)
-            .with_id(pc_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("TestPC").unwrap(),
+            location_id,
+            now,
+        )
+        .with_id(pc_id);
 
-        let npc = Character::new(world_id, CharacterName::new("TestNPC").unwrap(), CampbellArchetype::Mentor)
-            .with_id(npc_id);
+        let npc = Character::new(
+            world_id,
+            CharacterName::new("TestNPC").unwrap(),
+            CampbellArchetype::Mentor,
+        )
+        .with_id(npc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();

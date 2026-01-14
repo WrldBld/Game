@@ -24,6 +24,7 @@ pub use scene::SceneCrud;
 pub use skill::SkillCrud;
 pub use world::WorldCrud;
 
+use super::validation::ValidationError;
 use crate::infrastructure::ports::RepoError;
 use wrldbldr_domain::DomainError;
 
@@ -49,6 +50,12 @@ impl From<DomainError> for ManagementError {
             }
             other => ManagementError::Domain(other.to_string()),
         }
+    }
+}
+
+impl From<ValidationError> for ManagementError {
+    fn from(err: ValidationError) -> Self {
+        ManagementError::InvalidInput(err.to_string())
     }
 }
 

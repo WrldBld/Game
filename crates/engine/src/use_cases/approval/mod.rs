@@ -9,8 +9,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, DmApprovalDecision, RegionId, WorldId};
 
-use crate::repositories::staging::Staging;
 use crate::infrastructure::ports::{QueuePort, RepoError};
+use crate::repositories::staging::Staging;
 
 /// Container for approval use cases.
 pub struct ApprovalUseCases {
@@ -242,8 +242,7 @@ impl ApprovalDecisionFlow {
             let dialogue = result.final_dialogue.clone().unwrap_or_default();
             if !dialogue.is_empty() {
                 if let (Some(pc_id), Some(npc_id)) = (approval_data.pc_id, approval_data.npc_id) {
-                    let player_dialogue =
-                        approval_data.player_dialogue.clone().unwrap_or_default();
+                    let player_dialogue = approval_data.player_dialogue.clone().unwrap_or_default();
                     if let Err(e) = self
                         .narrative
                         .record_dialogue_exchange(

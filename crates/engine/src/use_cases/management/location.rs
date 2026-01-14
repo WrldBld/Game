@@ -5,6 +5,7 @@ use std::sync::Arc;
 use wrldbldr_domain::{value_objects, LocationId, RegionId, WorldId};
 
 use crate::repositories::location::Location;
+use crate::use_cases::validation::require_non_empty;
 
 use super::ManagementError;
 
@@ -40,8 +41,11 @@ impl LocationCrud {
     ) -> Result<wrldbldr_domain::Location, ManagementError> {
         let location_name = value_objects::LocationName::new(&name)
             .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
-        let mut location =
-            wrldbldr_domain::Location::new(world_id, location_name, wrldbldr_domain::LocationType::Unknown);
+        let mut location = wrldbldr_domain::Location::new(
+            world_id,
+            location_name,
+            wrldbldr_domain::LocationType::Unknown,
+        );
         if let Some(description) = description {
             let desc = value_objects::Description::new(&description)
                 .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
@@ -69,11 +73,7 @@ impl LocationCrud {
             .ok_or(ManagementError::NotFound)?;
 
         if let Some(name) = name {
-            if name.trim().is_empty() {
-                return Err(ManagementError::InvalidInput(
-                    "Location name cannot be empty".to_string(),
-                ));
-            }
+            require_non_empty(&name, "Location name")?;
             let location_name = value_objects::LocationName::new(&name)
                 .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
             location.set_name(location_name);
@@ -117,11 +117,7 @@ impl LocationCrud {
         description: Option<String>,
         is_spawn_point: Option<bool>,
     ) -> Result<wrldbldr_domain::Region, ManagementError> {
-        if name.trim().is_empty() {
-            return Err(ManagementError::InvalidInput(
-                "Region name cannot be empty".to_string(),
-            ));
-        }
+        require_non_empty(&name, "Region name")?;
 
         let mut region = wrldbldr_domain::Region::new(location_id, name);
         if let Some(description) = description {
@@ -149,11 +145,7 @@ impl LocationCrud {
             .ok_or(ManagementError::NotFound)?;
 
         if let Some(name) = name {
-            if name.trim().is_empty() {
-                return Err(ManagementError::InvalidInput(
-                    "Region name cannot be empty".to_string(),
-                ));
-            }
+            require_non_empty(&name, "Region name")?;
             region.name = name;
         }
         if let Some(description) = description {
@@ -179,7 +171,10 @@ impl LocationCrud {
         let mut spawn_points = Vec::new();
         let locations = self.location.list_in_world(world_id).await?;
         for location in locations {
-            let regions = self.location.list_regions_in_location(location.id()).await?;
+            let regions = self
+                .location
+                .list_regions_in_location(location.id())
+                .await?;
             spawn_points.extend(regions.into_iter().filter(|r| r.is_spawn_point));
         }
         Ok(spawn_points)
@@ -313,28 +308,14 @@ impl LocationCrud {
         let is_bidirectional = bidirectional.unwrap_or(true);
 
         // Validate source region exists
-        let source_region = self
-            .location
-            .get_region(region_id)
-            .await?
-            .ok_or_else(|| {
-                ManagementError::InvalidInput(format!(
-                    "Source region {} does not exist",
-                    region_id
-                ))
-            })?;
+        let source_region = self.location.get_region(region_id).await?.ok_or_else(|| {
+            ManagementError::InvalidInput(format!("Source region {} does not exist", region_id))
+        })?;
 
         // Validate target location exists
-        let target_location = self
-            .location
-            .get(location_id)
-            .await?
-            .ok_or_else(|| {
-                ManagementError::InvalidInput(format!(
-                    "Target location {} does not exist",
-                    location_id
-                ))
-            })?;
+        let target_location = self.location.get(location_id).await?.ok_or_else(|| {
+            ManagementError::InvalidInput(format!("Target location {} does not exist", location_id))
+        })?;
 
         // Validate arrival region exists and is in the target location
         let arrival_region = self
@@ -351,7 +332,9 @@ impl LocationCrud {
         if arrival_region.location_id != location_id {
             return Err(ManagementError::InvalidInput(format!(
                 "Arrival region {} is not in target location {} (it's in {})",
-                arrival_region_id, target_location.name().as_str(), arrival_region.location_id
+                arrival_region_id,
+                target_location.name().as_str(),
+                arrival_region.location_id
             )));
         }
 

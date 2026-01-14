@@ -7,7 +7,9 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use uuid::Uuid;
-use wrldbldr_domain::{ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData, WorldId};
+use wrldbldr_domain::{
+    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData, WorldId,
+};
 
 use crate::infrastructure::ports::{QueueError, QueueItem, QueuePort};
 
@@ -155,7 +157,9 @@ impl QueuePort for LoggingQueue {
         user_id: &str,
         world_id: WorldId,
     ) -> Result<Option<(Vec<String>, Vec<String>)>, QueueError> {
-        self.inner.get_generation_read_state(user_id, world_id).await
+        self.inner
+            .get_generation_read_state(user_id, world_id)
+            .await
     }
 
     async fn upsert_generation_read_state(

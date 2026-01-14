@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::use_cases::narrative_operations::Narrative;
 use crate::infrastructure::ports::{QueuePort, RepoError};
-use crate::use_cases::approval::{ApproveSuggestion, ApprovalError};
+use crate::use_cases::approval::{ApprovalError, ApproveSuggestion};
 use crate::use_cases::narrative::{EffectExecutionContext, ExecuteEffects};
+use crate::use_cases::narrative_operations::Narrative;
 use wrldbldr_domain::{DmApprovalDecision, NarrativeEventId, WorldId};
 
 /// Narrative event suggestion approval flow.
@@ -82,7 +82,9 @@ impl NarrativeDecisionFlow {
 
         if let Some(outcome) = outcome {
             if !outcome.effects.is_empty() {
-                let pc_id = approval_data.pc_id.ok_or(NarrativeDecisionError::PcContextRequired)?;
+                let pc_id = approval_data
+                    .pc_id
+                    .ok_or(NarrativeDecisionError::PcContextRequired)?;
                 let context = EffectExecutionContext {
                     pc_id,
                     world_id: approval_data.world_id,
@@ -109,9 +111,7 @@ impl NarrativeDecisionFlow {
             triggered: Some(NarrativeTriggeredPayload {
                 event_id: event_id.to_string(),
                 event_name: event.name().to_string(),
-                outcome_description: outcome
-                    .map(|o| o.description.clone())
-                    .unwrap_or_default(),
+                outcome_description: outcome.map(|o| o.description.clone()).unwrap_or_default(),
                 scene_direction: event.scene_direction().to_string(),
             }),
         })

@@ -8,16 +8,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use wrldbldr_domain::{
-    self as domain, CharacterId, LocationId, NarrativeTriggerType,
-    PlayerCharacterId, RegionId, SceneId, StoryEvent, StoryEventId, StoryEventType, TimeContext,
-    TriggerContext, WorldId,
+    self as domain, CharacterId, LocationId, NarrativeTriggerType, PlayerCharacterId, RegionId,
+    SceneId, StoryEvent, StoryEventId, StoryEventType, TimeContext, TriggerContext, WorldId,
 };
 
-use crate::repositories::narrative::Narrative as NarrativeEntity;
 use crate::infrastructure::ports::{
     ChallengeRepo, CharacterRepo, ClockPort, FlagRepo, LocationRepo, NarrativeRepo,
     ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo, WorldRepo,
 };
+use crate::repositories::narrative::Narrative as NarrativeEntity;
 
 /// Backward-compatible alias for `NarrativeOps`.
 ///
@@ -169,7 +168,10 @@ impl NarrativeOps {
         self.entity.list_events(world_id).await
     }
 
-    pub async fn delete_event(&self, id: wrldbldr_domain::NarrativeEventId) -> Result<(), RepoError> {
+    pub async fn delete_event(
+        &self,
+        id: wrldbldr_domain::NarrativeEventId,
+    ) -> Result<(), RepoError> {
         self.entity.delete_event(id).await
     }
 
@@ -206,7 +208,10 @@ impl NarrativeOps {
         self.entity.save_story_event(event).await
     }
 
-    pub async fn delete_story_event(&self, id: wrldbldr_domain::StoryEventId) -> Result<(), RepoError> {
+    pub async fn delete_story_event(
+        &self,
+        id: wrldbldr_domain::StoryEventId,
+    ) -> Result<(), RepoError> {
         self.entity.delete_story_event(id).await
     }
 
@@ -224,7 +229,9 @@ impl NarrativeOps {
         npc_id: CharacterId,
         limit: usize,
     ) -> Result<Vec<domain::StoryEvent>, RepoError> {
-        self.entity.get_dialogues_with_npc(pc_id, npc_id, limit).await
+        self.entity
+            .get_dialogues_with_npc(pc_id, npc_id, limit)
+            .await
     }
 
     pub async fn get_conversation_turns(
@@ -233,7 +240,9 @@ impl NarrativeOps {
         npc_id: CharacterId,
         limit: usize,
     ) -> Result<Vec<domain::ConversationTurn>, RepoError> {
-        self.entity.get_conversation_turns(pc_id, npc_id, limit).await
+        self.entity
+            .get_conversation_turns(pc_id, npc_id, limit)
+            .await
     }
 
     pub async fn get_active_conversation_id(
@@ -268,7 +277,9 @@ impl NarrativeOps {
         world_id: WorldId,
         region_id: RegionId,
     ) -> Result<Vec<domain::NarrativeEvent>, RepoError> {
-        self.entity.get_triggers_for_region(world_id, region_id).await
+        self.entity
+            .get_triggers_for_region(world_id, region_id)
+            .await
     }
 
     pub async fn set_event_active(
@@ -637,7 +648,7 @@ impl NarrativeOps {
                         relationships
                             .entry(npc_id)
                             .or_default()
-                            .insert(pc_as_char_id, disposition.sentiment);
+                            .insert(pc_as_char_id, disposition.sentiment());
                     }
                     Ok(None) => {
                         // Default to neutral (0.0) for NPCs who haven't interacted with this PC.
@@ -739,7 +750,7 @@ impl NarrativeOps {
             character_feats,
             class_levels,
             origin_id,
-            known_creatures: Vec::new(),    // TODO: Populate from LoreKnowledge when implemented
+            known_creatures: Vec::new(), // TODO: Populate from LoreKnowledge when implemented
         };
 
         // Evaluate each candidate and collect triggered events

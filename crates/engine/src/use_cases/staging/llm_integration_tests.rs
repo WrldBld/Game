@@ -82,14 +82,9 @@ async fn test_llm_staging_respects_guidance() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.7);
 
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_llm_staging_respects_guidance",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_llm_staging_respects_guidance", None)
+        .await
+        .expect("LLM request failed");
 
     // With "staff only" guidance, should prefer Marcus and Sera
     let content_lower = response.content.to_lowercase();
@@ -120,7 +115,8 @@ async fn test_llm_staging_respects_guidance() {
 async fn test_llm_regeneration_produces_different_results() {
     let client = create_test_ollama_client();
 
-    let system_prompt = "You are a creative TTRPG assistant. Generate evocative scene descriptions.";
+    let system_prompt =
+        "You are a creative TTRPG assistant. Generate evocative scene descriptions.";
     let user_prompt = "Describe the atmosphere in a busy medieval tavern at evening time.";
 
     let request1 = LlmRequest::new(vec![ChatMessage::user(user_prompt)])
@@ -256,7 +252,8 @@ async fn test_llm_staging_respects_fantasy_setting() {
 async fn test_llm_staging_maintains_time_context() {
     let client = create_test_ollama_client();
 
-    let system_prompt = "You are a TTRPG game master. Consider the time of day when describing scenes.";
+    let system_prompt =
+        "You are a TTRPG game master. Consider the time of day when describing scenes.";
     let user_prompt = "It is midnight. Describe the town square.";
 
     let request = LlmRequest::new(vec![ChatMessage::user(user_prompt)])
@@ -556,14 +553,9 @@ async fn test_avoiding_npc_not_suggested() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.3);
 
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_avoiding_npc_not_suggested",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_avoiding_npc_not_suggested", None)
+        .await
+        .expect("LLM request failed");
 
     // Old Tom should NOT be suggested
     if let (Some(start), Some(end)) = (response.content.find('['), response.content.rfind(']')) {
@@ -606,14 +598,9 @@ async fn test_home_region_npc_prioritized() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.3);
 
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_home_region_npc_prioritized",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_home_region_npc_prioritized", None)
+        .await
+        .expect("LLM request failed");
 
     // Brother Aldric should be present (home region)
     let content_lower = response.content.to_lowercase();

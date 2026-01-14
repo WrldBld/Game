@@ -6,14 +6,12 @@
 use std::sync::Arc;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId};
 
-use crate::repositories::{
-    Flag, Inventory, Observation, PlayerCharacter, World,
-};
+use crate::infrastructure::ports::RepoError;
 use crate::repositories::location::Location;
-use crate::use_cases::narrative_operations::Narrative;
 use crate::repositories::scene::Scene;
 use crate::repositories::staging::Staging;
-use crate::infrastructure::ports::RepoError;
+use crate::repositories::{Flag, Inventory, Observation, PlayerCharacter, World};
+use crate::use_cases::narrative_operations::Narrative;
 use crate::use_cases::time::SuggestTime;
 
 use super::enter_region::EnterRegionResult;
@@ -263,14 +261,17 @@ mod tests {
     use std::sync::Arc;
 
     use chrono::Utc;
-    use wrldbldr_domain::{Description, LocationId, LocationType, PlayerCharacterId, Region, RegionId, WorldId, value_objects::{CharacterName, LocationName}};
+    use wrldbldr_domain::{
+        value_objects::{CharacterName, LocationName},
+        Description, LocationId, LocationType, PlayerCharacterId, Region, RegionId, WorldId,
+    };
 
-    use crate::repositories;
     use crate::infrastructure::ports::{
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockItemRepo,
         MockLocationRepo, MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
         MockSceneRepo, MockStagingRepo, MockWorldRepo,
     };
+    use crate::repositories;
     use crate::repositories::{Inventory, Staging as StagingOp};
     use crate::use_cases::{Location, Narrative, Scene};
 
@@ -325,7 +326,10 @@ mod tests {
         ));
         let flag = Arc::new(repositories::Flag::new(Arc::new(MockFlagRepo::new())));
 
-        let world = Arc::new(repositories::World::new(Arc::new(world_repo), clock.clone()));
+        let world = Arc::new(repositories::World::new(
+            Arc::new(world_repo),
+            clock.clone(),
+        ));
         let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
             world.clone(),
             clock,
@@ -381,8 +385,14 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let target_location_id = LocationId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), pc_location_id, now)
-            .with_id(pc_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            pc_location_id,
+            now,
+        )
+        .with_id(pc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -421,8 +431,14 @@ mod tests {
         let target_location_id = LocationId::new();
         let other_location_id = LocationId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), pc_location_id, now)
-            .with_id(pc_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            pc_location_id,
+            now,
+        )
+        .with_id(pc_id);
 
         let location_name = LocationName::new("Target").unwrap();
         let location =
@@ -479,8 +495,14 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let target_location_id = LocationId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), pc_location_id, now)
-            .with_id(pc_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            pc_location_id,
+            now,
+        )
+        .with_id(pc_id);
 
         let location_name = LocationName::new("Target").unwrap();
         // Location has default_region_id = None by default, no need to set it explicitly
@@ -547,8 +569,14 @@ mod tests {
         arrival_region.id = RegionId::new();
         let arrival_region_id = arrival_region.id;
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), pc_location_id, now)
-            .with_id(pc_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            pc_location_id,
+            now,
+        )
+        .with_id(pc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get_1 = pc.clone();

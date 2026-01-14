@@ -12,24 +12,13 @@ use uuid::Uuid;
 /// Timeout for critical message sends (5 seconds)
 const CRITICAL_SEND_TIMEOUT: Duration = Duration::from_secs(5);
 
-use wrldbldr_domain::{PlayerCharacterId, WorldId};
+use wrldbldr_domain::{PlayerCharacterId, WorldId, WorldRole};
 use wrldbldr_protocol::ServerMessage;
 
 use crate::infrastructure::ports::{
     ConnectionInfo as PortConnectionInfo, DirectorialContext, DirectorialContextPort,
-    DmNotificationPort, SessionError, WorldRole as PortWorldRole, WorldSessionPort,
+    DmNotificationPort, SessionError, WorldSessionPort,
 };
-
-/// Represents a connected client's role in a world.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WorldRole {
-    /// Dungeon Master - can approve suggestions, control NPCs
-    Dm,
-    /// Player - controls a player character
-    Player,
-    /// Spectator - can view but not interact
-    Spectator,
-}
 
 /// Information about a connected client.
 #[derive(Debug, Clone)]
@@ -458,33 +447,13 @@ pub enum CriticalSendError {
 // Port Implementations
 // =============================================================================
 
-impl From<WorldRole> for PortWorldRole {
-    fn from(role: WorldRole) -> Self {
-        match role {
-            WorldRole::Dm => PortWorldRole::Dm,
-            WorldRole::Player => PortWorldRole::Player,
-            WorldRole::Spectator => PortWorldRole::Spectator,
-        }
-    }
-}
-
-impl From<PortWorldRole> for WorldRole {
-    fn from(role: PortWorldRole) -> Self {
-        match role {
-            PortWorldRole::Dm => WorldRole::Dm,
-            PortWorldRole::Player => WorldRole::Player,
-            PortWorldRole::Spectator => WorldRole::Spectator,
-        }
-    }
-}
-
 impl From<&ConnectionInfo> for PortConnectionInfo {
     fn from(info: &ConnectionInfo) -> Self {
         PortConnectionInfo {
             connection_id: info.connection_id,
             user_id: info.user_id.clone(),
             world_id: info.world_id,
-            role: info.role.into(),
+            role: info.role,
             pc_id: info.pc_id,
         }
     }
@@ -518,10 +487,10 @@ impl WorldSessionPort for ConnectionManager {
         &self,
         connection_id: Uuid,
         world_id: WorldId,
-        role: PortWorldRole,
+        role: WorldRole,
         pc_id: Option<PlayerCharacterId>,
     ) -> Result<(), SessionError> {
-        ConnectionManager::join_world(self, connection_id, world_id, role.into(), pc_id)
+        ConnectionManager::join_world(self, connection_id, world_id, role, pc_id)
             .await
             .map_err(SessionError::from)
     }

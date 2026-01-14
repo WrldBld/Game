@@ -5,8 +5,8 @@ use std::sync::Arc;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::use_cases::narrative_operations::Narrative;
 use crate::infrastructure::ports::RepoError;
+use crate::use_cases::narrative_operations::Narrative;
 use wrldbldr_domain::{StoryEventId, StoryEventType, WorldId};
 
 // =============================================================================
@@ -66,7 +66,10 @@ impl StoryEventOps {
         Ok(events.into_iter().map(story_event_to_summary).collect())
     }
 
-    pub async fn get(&self, event_id: StoryEventId) -> Result<Option<StoryEventSummary>, StoryEventError> {
+    pub async fn get(
+        &self,
+        event_id: StoryEventId,
+    ) -> Result<Option<StoryEventSummary>, StoryEventError> {
         let event = self.narrative.get_story_event(event_id).await?;
         Ok(event.map(story_event_to_summary))
     }

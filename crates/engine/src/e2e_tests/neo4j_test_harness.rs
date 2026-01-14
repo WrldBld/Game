@@ -1,7 +1,19 @@
 //! Neo4j test harness for E2E testing.
 //!
 //! Provides testcontainer-based Neo4j instance management for integration tests.
+//!
+//! # Shared Container
+//!
+//! For E2E tests, use `SharedNeo4jHarness::shared()` to get a shared container that is
+//! reused across all tests. Each test should use fresh UUIDs for its entities to
+//! ensure isolation without needing cleanup between tests.
+//!
+//! # Thread Safety
+//!
+//! The shared container uses `std::sync::OnceLock` which works correctly across
+//! multiple tokio runtimes (each `#[tokio::test]` creates its own runtime).
 
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use neo4rs::{query, Graph};
@@ -11,7 +23,116 @@ use tokio::time::sleep;
 /// Password used for Neo4j test containers.
 pub const TEST_NEO4J_PASSWORD: &str = "testpassword";
 
+/// Shared Neo4j harness for all E2E tests.
+///
+/// This container is started once and reused across all tests.
+/// Tests are isolated by using fresh UUIDs for all entities.
+///
+/// Uses `OnceLock` instead of `tokio::sync::OnceCell` to work correctly
+/// across multiple tokio runtimes (each test gets its own runtime).
+static SHARED_HARNESS: OnceLock<Arc<SharedNeo4jHarness>> = OnceLock::new();
+
+/// Mutex to serialize initialization attempts.
+/// Prevents race condition where multiple threads start containers simultaneously.
+static INIT_LOCK: Mutex<bool> = Mutex::new(false);
+
+/// Shared Neo4j harness that keeps the container alive.
+///
+/// **Important**: This only holds the container and connection info.
+/// Each test should call `create_graph()` to get its own Graph connection,
+/// because Graph connections are tied to tokio runtimes.
+pub struct SharedNeo4jHarness {
+    _container: ContainerAsync<GenericImage>,
+    /// The bolt URI for connecting to the container.
+    bolt_uri: String,
+}
+
+impl SharedNeo4jHarness {
+    /// Get or create the shared Neo4j container.
+    ///
+    /// The first call starts the container; subsequent calls return the same instance.
+    /// This dramatically speeds up E2E tests by avoiding container startup overhead
+    /// for each test.
+    ///
+    /// # Thread Safety
+    ///
+    /// Uses double-checked locking with `OnceLock` + `Mutex` to ensure only one
+    /// thread initializes the container while others wait.
+    pub async fn shared() -> Result<Arc<Self>, Box<dyn std::error::Error + Send + Sync>> {
+        // Fast path: already initialized
+        if let Some(harness) = SHARED_HARNESS.get() {
+            return Ok(Arc::clone(harness));
+        }
+
+        // Slow path: serialize initialization attempts
+        // Use a mutex to ensure only ONE thread starts the container
+        let should_init = {
+            let mut claimed = INIT_LOCK.lock().unwrap();
+            if *claimed {
+                // Another thread is already initializing or has initialized
+                false
+            } else {
+                // We claim the right to initialize
+                *claimed = true;
+                true
+            }
+        };
+
+        if should_init {
+            // We're the initializer - start the container
+            let harness = Self::start_shared().await?;
+            // Store it (ignore error - shouldn't happen since we claimed)
+            let _ = SHARED_HARNESS.set(harness.clone());
+            Ok(harness)
+        } else {
+            // Another thread is initializing - wait for it to complete
+            loop {
+                if let Some(harness) = SHARED_HARNESS.get() {
+                    return Ok(Arc::clone(harness));
+                }
+                // Brief sleep to avoid busy-waiting
+                sleep(Duration::from_millis(100)).await;
+            }
+        }
+    }
+
+    /// Start a new shared container (internal).
+    async fn start_shared() -> Result<Arc<Self>, Box<dyn std::error::Error + Send + Sync>> {
+        tracing::info!("Starting shared Neo4j container for E2E tests...");
+        let container: ContainerAsync<GenericImage> =
+            neo4j_image(TEST_NEO4J_PASSWORD).start().await;
+        let bolt_port = container.get_host_port_ipv4(7687).await;
+        let bolt_uri = format!("bolt://127.0.0.1:{bolt_port}");
+
+        // Verify the container is actually ready by creating a test connection
+        let _test_graph = connect_with_retry(&bolt_uri, "neo4j", TEST_NEO4J_PASSWORD).await?;
+        tracing::info!("Shared Neo4j container ready at {}", bolt_uri);
+
+        Ok(Arc::new(Self {
+            _container: container,
+            bolt_uri,
+        }))
+    }
+
+    /// Create a new Graph connection for the current tokio runtime.
+    ///
+    /// Each test should call this to get its own Graph connection,
+    /// as Graph connections are tied to their creating runtime.
+    pub async fn create_graph(&self) -> Result<Graph, Box<dyn std::error::Error + Send + Sync>> {
+        connect_with_retry(&self.bolt_uri, "neo4j", TEST_NEO4J_PASSWORD).await
+    }
+
+    /// Get the bolt URI for manual connection.
+    pub fn bolt_uri(&self) -> &str {
+        &self.bolt_uri
+    }
+}
+
 /// Neo4j test harness managing container lifecycle.
+///
+/// For E2E tests, prefer using `SharedNeo4jHarness::shared()` instead.
+/// This struct is kept for backwards compatibility with tests that need
+/// isolated containers.
 pub struct Neo4jTestHarness {
     _container: ContainerAsync<GenericImage>,
     graph: Graph,
@@ -20,11 +141,17 @@ pub struct Neo4jTestHarness {
 impl Neo4jTestHarness {
     /// Start a new Neo4j container and establish a connection.
     ///
+    /// # Note
+    ///
+    /// For E2E tests, prefer `SharedNeo4jHarness::shared()` to avoid
+    /// container startup overhead for each test.
+    ///
     /// # Errors
     ///
     /// Returns an error if the container fails to start or connection cannot be established.
     pub async fn start() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let container: ContainerAsync<GenericImage> = neo4j_image(TEST_NEO4J_PASSWORD).start().await;
+        let container: ContainerAsync<GenericImage> =
+            neo4j_image(TEST_NEO4J_PASSWORD).start().await;
         let bolt_port = container.get_host_port_ipv4(7687).await;
         let uri = format!("bolt://127.0.0.1:{bolt_port}");
 
@@ -59,6 +186,13 @@ impl Neo4jTestHarness {
 /// - Memory limits to prevent JVM crashes
 /// - No stdout wait (avoids race conditions with log streaming)
 /// - Connection readiness is verified by connect_with_retry with exponential backoff
+///
+/// # Startup Timeout
+///
+/// To increase container startup timeout, set environment variable:
+/// ```bash
+/// TESTCONTAINERS_STARTUP_TIMEOUT=120 cargo test ...
+/// ```
 pub fn neo4j_image(password: &str) -> GenericImage {
     GenericImage::new("neo4j", "5.26.0-community")
         .with_env_var("NEO4J_AUTH", format!("neo4j/{password}"))

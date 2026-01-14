@@ -19,7 +19,15 @@ use wrldbldr_domain::game_systems::{
 fn has_schema_for_system(system_id: &str) -> bool {
     matches!(
         system_id,
-        "dnd5e" | "pf2e" | "coc7e" | "fate_core" | "blades" | "pbta" | "pbta_aw" | "pbta_dw" | "pbta_motw"
+        "dnd5e"
+            | "pf2e"
+            | "coc7e"
+            | "fate_core"
+            | "blades"
+            | "pbta"
+            | "pbta_aw"
+            | "pbta_dw"
+            | "pbta_motw"
     )
 }
 
@@ -106,20 +114,18 @@ pub(super) async fn handle_character_sheet_request(
                     );
 
                     Ok(ResponseResult::success(
-                        serde_json::to_value(&schema).unwrap_or_else(|e| {
-                            json!({"error": format!("Failed to serialize schema: {}", e)})
-                        }),
-                    ))
-                }
-                None => {
-                    Ok(ResponseResult::error(
-                        ErrorCode::BadRequest,
-                        format!(
-                            "Character sheet schema not available for system: {}",
-                            system_id
+                        serde_json::to_value(&schema).unwrap_or_else(
+                            |e| json!({"error": format!("Failed to serialize schema: {}", e)}),
                         ),
                     ))
                 }
+                None => Ok(ResponseResult::error(
+                    ErrorCode::BadRequest,
+                    format!(
+                        "Character sheet schema not available for system: {}",
+                        system_id
+                    ),
+                )),
             }
         }
 
@@ -179,7 +185,10 @@ pub(super) async fn handle_character_sheet_request(
             match state.app.repositories.world.get(world_id_typed).await {
                 Ok(Some(_)) => {}
                 Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
+                    return Ok(ResponseResult::error(
+                        ErrorCode::NotFound,
+                        "World not found",
+                    ));
                 }
                 Err(e) => {
                     return Ok(ResponseResult::error(
@@ -270,7 +279,10 @@ pub(super) async fn handle_character_sheet_request(
             let world = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
+                    return Ok(ResponseResult::error(
+                        ErrorCode::NotFound,
+                        "World not found",
+                    ));
                 }
                 Err(e) => {
                     return Ok(ResponseResult::error(
@@ -358,7 +370,10 @@ pub(super) async fn handle_character_sheet_request(
             let world = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
+                    return Ok(ResponseResult::error(
+                        ErrorCode::NotFound,
+                        "World not found",
+                    ));
                 }
                 Err(e) => {
                     return Ok(ResponseResult::error(
@@ -467,7 +482,10 @@ pub(super) async fn handle_character_sheet_request(
             let world = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
+                    return Ok(ResponseResult::error(
+                        ErrorCode::NotFound,
+                        "World not found",
+                    ));
                 }
                 Err(e) => {
                     return Ok(ResponseResult::error(
@@ -535,7 +553,10 @@ pub(super) async fn handle_character_sheet_request(
             let world = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
+                    return Ok(ResponseResult::error(
+                        ErrorCode::NotFound,
+                        "World not found",
+                    ));
                 }
                 Err(e) => {
                     return Ok(ResponseResult::error(
@@ -621,7 +642,10 @@ pub(super) async fn handle_character_sheet_request(
             let world = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
+                    return Ok(ResponseResult::error(
+                        ErrorCode::NotFound,
+                        "World not found",
+                    ));
                 }
                 Err(e) => {
                     return Ok(ResponseResult::error(
@@ -714,7 +738,10 @@ pub(super) async fn handle_character_sheet_request(
             let world = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
+                    return Ok(ResponseResult::error(
+                        ErrorCode::NotFound,
+                        "World not found",
+                    ));
                 }
                 Err(e) => {
                     return Ok(ResponseResult::error(
@@ -765,7 +792,10 @@ pub(super) async fn handle_character_sheet_request(
             let world = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
+                    return Ok(ResponseResult::error(
+                        ErrorCode::NotFound,
+                        "World not found",
+                    ));
                 }
                 Err(e) => {
                     return Ok(ResponseResult::error(
@@ -867,7 +897,9 @@ fn update_character_field(
         // Saving throw proficiencies
         field if field.ends_with("_SAVE_PROF") => {
             if let Some(val) = value.as_bool() {
-                character.stats_mut().set_stat(field_id, if val { 1 } else { 0 });
+                character
+                    .stats_mut()
+                    .set_stat(field_id, if val { 1 } else { 0 });
             }
         }
         // Saving throw modifiers (calculated)

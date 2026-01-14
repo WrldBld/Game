@@ -21,9 +21,7 @@ impl Neo4jLocationRepo {
     }
 
     fn row_to_location(&self, row: Row) -> Result<Location, RepoError> {
-        let node: neo4rs::Node = row
-            .get("l")
-            .map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row.get("l").map_err(|e| RepoError::database("query", e))?;
 
         let id: LocationId =
             parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
@@ -73,8 +71,8 @@ impl Neo4jLocationRepo {
             });
 
         // Build location using aggregate constructor and builder pattern
-        let location_name = value_objects::LocationName::new(&name)
-            .map_err(|e| RepoError::database("parse", e))?;
+        let location_name =
+            value_objects::LocationName::new(&name).map_err(|e| RepoError::database("parse", e))?;
         let desc = value_objects::Description::new(&description)
             .map_err(|e| RepoError::database("parse", e))?;
 
@@ -104,9 +102,7 @@ impl Neo4jLocationRepo {
     }
 
     fn row_to_region(&self, row: &Row) -> Result<Region, RepoError> {
-        let node: neo4rs::Node = row
-            .get("r")
-            .map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row.get("r").map_err(|e| RepoError::database("query", e))?;
 
         let id: RegionId =
             parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
@@ -276,7 +272,10 @@ impl LocationRepo for Neo4jLocationRepo {
             "backdrop_asset",
             location.backdrop_asset().unwrap_or_default().to_string(),
         )
-        .param("map_asset", location.map_asset().unwrap_or_default().to_string())
+        .param(
+            "map_asset",
+            location.map_asset().unwrap_or_default().to_string(),
+        )
         .param("parent_map_bounds", map_bounds_json)
         .param(
             "default_region_id",
@@ -780,12 +779,10 @@ impl LocationRepo for Neo4jLocationRepo {
 
             exits.push(RegionExit {
                 from_region: RegionId::from(
-                    Uuid::parse_str(&from_region)
-                        .map_err(|e| RepoError::database("query", e))?,
+                    Uuid::parse_str(&from_region).map_err(|e| RepoError::database("query", e))?,
                 ),
                 to_location: LocationId::from(
-                    Uuid::parse_str(&to_location)
-                        .map_err(|e| RepoError::database("query", e))?,
+                    Uuid::parse_str(&to_location).map_err(|e| RepoError::database("query", e))?,
                 ),
                 arrival_region_id: RegionId::from(
                     Uuid::parse_str(&arrival_region)

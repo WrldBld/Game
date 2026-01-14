@@ -2,12 +2,12 @@
 
 use std::sync::Arc;
 
-use crate::repositories;
 use crate::infrastructure::{
     clock::{SystemClock, SystemRandom},
     neo4j::Neo4jRepositories,
     ports::{ClockPort, ImageGenPort, LlmPort, QueuePort, RandomPort, SettingsRepo},
 };
+use crate::repositories;
 use crate::use_cases;
 use crate::use_cases::content::{ContentService, ContentServiceConfig};
 
@@ -130,7 +130,9 @@ impl App {
         let location_state = Arc::new(repositories::LocationStateEntity::new(
             repos.location_state.clone(),
         ));
-        let region_state = Arc::new(repositories::RegionStateEntity::new(repos.region_state.clone()));
+        let region_state = Arc::new(repositories::RegionStateEntity::new(
+            repos.region_state.clone(),
+        ));
 
         let repositories_container = Repositories {
             character: character.clone(),
@@ -264,13 +266,12 @@ impl App {
                 challenge.clone(),
             )),
             outcome_decision,
-            Arc::new(use_cases::challenge::ChallengeOps::new(
-                challenge.clone(),
-            )),
+            Arc::new(use_cases::challenge::ChallengeOps::new(challenge.clone())),
         );
 
-        let approve_suggestion =
-            Arc::new(use_cases::approval::ApproveSuggestion::new(queue_port.clone()));
+        let approve_suggestion = Arc::new(use_cases::approval::ApproveSuggestion::new(
+            queue_port.clone(),
+        ));
         let approval = use_cases::ApprovalUseCases::new(
             Arc::new(use_cases::approval::ApproveStaging::new(staging.clone())),
             approve_suggestion.clone(),
@@ -345,7 +346,8 @@ impl App {
             narrative.clone(),
             execute_effects.clone(),
         ));
-        let narrative_chains = Arc::new(use_cases::narrative::EventChainOps::new(narrative.clone()));
+        let narrative_chains =
+            Arc::new(use_cases::narrative::EventChainOps::new(narrative.clone()));
         let narrative_decision = Arc::new(use_cases::narrative::NarrativeDecisionFlow::new(
             approve_suggestion.clone(),
             queue_port.clone(),
@@ -360,7 +362,8 @@ impl App {
         );
 
         let time_control = Arc::new(use_cases::time::TimeControl::new(world.clone()));
-        let time_suggestions = Arc::new(use_cases::time::TimeSuggestions::new(time_control.clone()));
+        let time_suggestions =
+            Arc::new(use_cases::time::TimeSuggestions::new(time_control.clone()));
         let time_uc = use_cases::TimeUseCases::new(suggest_time, time_control, time_suggestions);
 
         let visual_state_uc = use_cases::VisualStateUseCases::new(Arc::new(
@@ -477,8 +480,7 @@ impl App {
             scene.clone(),
             player_character.clone(),
         ));
-        let join_world_flow =
-            Arc::new(use_cases::session::JoinWorldFlow::new(join_world.clone()));
+        let join_world_flow = Arc::new(use_cases::session::JoinWorldFlow::new(join_world.clone()));
         let directorial_update = Arc::new(use_cases::session::DirectorialUpdate::new());
         let session =
             use_cases::SessionUseCases::new(join_world, join_world_flow, directorial_update);

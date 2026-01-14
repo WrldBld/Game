@@ -10,12 +10,13 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use wrldbldr_domain::{
-    GameTime, PlayerCharacterId, TimeAdvanceReason, TimeMode, TimeOfDay, WorldId,
+    GameTime, PlayerCharacterId, TimeAdvanceReason, TimeMode, TimeOfDay, TimeSuggestionDecision,
+    WorldId,
 };
 
-use crate::repositories::{World, WorldError};
 use crate::infrastructure::ports::QueueError;
-use crate::infrastructure::ports::{ClockPort, RepoError};
+use crate::infrastructure::ports::{ClockPort, RepoError, TimeSuggestionStore};
+use crate::repositories::{World, WorldError};
 
 /// Container for time use cases.
 pub struct TimeUseCases {
@@ -42,20 +43,8 @@ impl TimeUseCases {
 // Time Suggestion
 // =============================================================================
 
-/// Data for a pending time suggestion.
-#[derive(Debug, Clone)]
-pub struct TimeSuggestion {
-    pub id: Uuid,
-    pub world_id: WorldId,
-    pub pc_id: PlayerCharacterId,
-    pub pc_name: String,
-    pub action_type: String,
-    pub action_description: String,
-    pub suggested_minutes: u32,
-    pub current_time: GameTime,
-    pub resulting_time: GameTime,
-    pub period_change: Option<(TimeOfDay, TimeOfDay)>,
-}
+// Re-export TimeSuggestion from ports for backwards compatibility
+pub use crate::infrastructure::ports::TimeSuggestion;
 
 /// Result of suggesting time passage.
 #[derive(Debug)]
@@ -401,10 +390,10 @@ impl TimeSuggestions {
 
     pub async fn resolve(
         &self,
-        store: &dyn crate::use_cases::staging::TimeSuggestionStore,
+        store: &dyn TimeSuggestionStore,
         world_id: WorldId,
         suggestion_id: Uuid,
-        decision: wrldbldr_protocol::types::TimeSuggestionDecision,
+        decision: TimeSuggestionDecision,
     ) -> Result<Option<TimeSuggestionResolution>, TimeSuggestionError> {
         let suggestion = match store.remove(suggestion_id).await {
             Some(s) => s,
@@ -415,12 +404,7 @@ impl TimeSuggestions {
             return Err(TimeSuggestionError::WorldMismatch);
         }
 
-        let minutes_to_advance: u32 = match decision {
-            wrldbldr_protocol::types::TimeSuggestionDecision::Skip
-            | wrldbldr_protocol::types::TimeSuggestionDecision::Unknown => 0,
-            wrldbldr_protocol::types::TimeSuggestionDecision::Approve => suggestion.suggested_minutes,
-            wrldbldr_protocol::types::TimeSuggestionDecision::Modify { minutes } => minutes,
-        };
+        let minutes_to_advance = decision.resolved_minutes(suggestion.suggested_minutes);
 
         if minutes_to_advance == 0 {
             return Ok(None);
@@ -632,11 +616,11 @@ mod tests {
     use std::sync::Arc;
 
     use chrono::Utc;
-    use wrldbldr_domain::{GameTimeConfig, TimeMode, WorldId};
     use wrldbldr_domain::value_objects::WorldName;
+    use wrldbldr_domain::{GameTimeConfig, TimeMode, WorldId};
 
-    use crate::repositories;
     use crate::infrastructure::ports::{ClockPort, MockWorldRepo};
+    use crate::repositories;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -668,7 +652,10 @@ mod tests {
         world_repo.expect_save().times(0);
 
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let world_entity = Arc::new(repositories::World::new(Arc::new(world_repo), clock.clone()));
+        let world_entity = Arc::new(repositories::World::new(
+            Arc::new(world_repo),
+            clock.clone(),
+        ));
         let suggest_time = super::SuggestTime::new(world_entity, clock);
 
         let result = suggest_time
@@ -723,7 +710,10 @@ mod tests {
         world_repo.expect_save().times(0);
 
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let world_entity = Arc::new(repositories::World::new(Arc::new(world_repo), clock.clone()));
+        let world_entity = Arc::new(repositories::World::new(
+            Arc::new(world_repo),
+            clock.clone(),
+        ));
         let suggest_time = super::SuggestTime::new(world_entity, clock);
 
         let result = suggest_time
@@ -747,8 +737,7 @@ mod tests {
 
         // Default config cost for unknown action types is 0.
         let world_name = WorldName::new("World").unwrap();
-        let domain_world = wrldbldr_domain::World::new(world_name)
-            .with_id(world_id);
+        let domain_world = wrldbldr_domain::World::new(world_name).with_id(world_id);
 
         let mut world_repo = MockWorldRepo::new();
         let domain_world_for_get = domain_world.clone();
@@ -759,7 +748,10 @@ mod tests {
         world_repo.expect_save().times(0);
 
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let world_entity = Arc::new(repositories::World::new(Arc::new(world_repo), clock.clone()));
+        let world_entity = Arc::new(repositories::World::new(
+            Arc::new(world_repo),
+            clock.clone(),
+        ));
         let suggest_time = super::SuggestTime::new(world_entity, clock);
 
         let result = suggest_time

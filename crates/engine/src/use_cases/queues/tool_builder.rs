@@ -341,7 +341,10 @@ mod tests {
         assert_eq!(params["type"], "object");
         assert!(params["properties"]["item_name"].is_object());
         assert!(params["properties"]["description"].is_object());
-        assert!(params["required"].as_array().unwrap().contains(&json!("item_name")));
+        assert!(params["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("item_name")));
     }
 
     #[test]

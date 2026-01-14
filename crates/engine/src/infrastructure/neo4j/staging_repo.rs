@@ -210,11 +210,8 @@ impl StagingRepo for Neo4jStagingRepo {
             .collect();
         let npc_reasoning: Vec<String> = staging.npcs.iter().map(|n| n.reasoning.clone()).collect();
         let npc_mood: Vec<String> = staging.npcs.iter().map(|n| n.mood.to_string()).collect();
-        let npc_has_incomplete_data: Vec<bool> = staging
-            .npcs
-            .iter()
-            .map(|n| n.has_incomplete_data)
-            .collect();
+        let npc_has_incomplete_data: Vec<bool> =
+            staging.npcs.iter().map(|n| n.has_incomplete_data).collect();
 
         // Create staging and all NPC relationships in one query (no APOC)
         let q = query(
@@ -603,12 +600,9 @@ fn row_to_staged_npc(row: Row) -> Result<StagedNpc, RepoError> {
 
 /// Parse a staging row that includes collected NPCs
 fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoError> {
-    let node: Node = row
-        .get("s")
-        .map_err(|e| RepoError::database("query", e))?;
+    let node: Node = row.get("s").map_err(|e| RepoError::database("query", e))?;
 
-    let id: StagingId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
+    let id: StagingId = parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
     let region_id: RegionId =
         parse_typed_id(&node, "region_id").map_err(|e| RepoError::database("query", e))?;
     let location_id: LocationId =
@@ -711,12 +705,9 @@ fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
 
 #[allow(dead_code)]
 fn row_to_staging(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoError> {
-    let node: Node = row
-        .get("s")
-        .map_err(|e| RepoError::database("query", e))?;
+    let node: Node = row.get("s").map_err(|e| RepoError::database("query", e))?;
 
-    let id: StagingId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
+    let id: StagingId = parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
     let region_id: RegionId =
         parse_typed_id(&node, "region_id").map_err(|e| RepoError::database("query", e))?;
     let location_id: LocationId =

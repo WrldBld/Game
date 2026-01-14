@@ -50,10 +50,10 @@ pub struct StatBlock {
     /// Map of stat name to modifiers affecting that stat
     #[serde(default)]
     modifiers: HashMap<String, Vec<StatModifier>>,
-    /// Current hit points
-    pub current_hp: Option<i32>,
-    /// Maximum hit points
-    pub max_hp: Option<i32>,
+    /// Current hit points (private - use accessors)
+    current_hp: Option<i32>,
+    /// Maximum hit points (private - use accessors)
+    max_hp: Option<i32>,
 }
 
 impl StatBlock {
@@ -204,6 +204,75 @@ impl StatBlock {
     /// Get base max HP (without modifiers).
     pub fn get_base_max_hp(&self) -> Option<i32> {
         self.max_hp
+    }
+
+    /// Get raw current HP value (alias for get_base_current_hp).
+    ///
+    /// Returns the stored current HP without applying any modifiers.
+    /// For HP with modifiers applied, use `get_current_hp()`.
+    #[inline]
+    pub fn current_hp(&self) -> Option<i32> {
+        self.current_hp
+    }
+
+    /// Get raw max HP value (alias for get_base_max_hp).
+    ///
+    /// Returns the stored max HP without applying any modifiers.
+    /// For HP with modifiers applied, use `get_max_hp()`.
+    #[inline]
+    pub fn max_hp(&self) -> Option<i32> {
+        self.max_hp
+    }
+
+    /// Set current HP directly.
+    ///
+    /// This sets the base HP value. Modifiers are applied on top when
+    /// reading via `get_current_hp()`.
+    pub fn set_current_hp(&mut self, hp: Option<i32>) {
+        self.current_hp = hp;
+    }
+
+    /// Set max HP directly.
+    ///
+    /// This sets the base max HP value. Modifiers are applied on top when
+    /// reading via `get_max_hp()`.
+    pub fn set_max_hp(&mut self, hp: Option<i32>) {
+        self.max_hp = hp;
+    }
+
+    /// Set both current and max HP with validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Either value is negative
+    /// - Current HP exceeds max HP
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use wrldbldr_domain::value_objects::StatBlock;
+    ///
+    /// let mut stats = StatBlock::new();
+    /// stats.set_hp(50, 100).expect("valid HP values");
+    /// assert_eq!(stats.current_hp(), Some(50));
+    /// assert_eq!(stats.max_hp(), Some(100));
+    /// ```
+    pub fn set_hp(&mut self, current: i32, max: i32) -> Result<(), crate::DomainError> {
+        if current < 0 {
+            return Err(crate::DomainError::validation("HP cannot be negative"));
+        }
+        if max < 0 {
+            return Err(crate::DomainError::validation("Max HP cannot be negative"));
+        }
+        if current > max {
+            return Err(crate::DomainError::validation(
+                "Current HP cannot exceed max HP",
+            ));
+        }
+        self.current_hp = Some(current);
+        self.max_hp = Some(max);
+        Ok(())
     }
 
     /// Add a temporary HP modifier (e.g., from "Aid" spell, "Inspiring Leader" feat).
@@ -431,8 +500,8 @@ mod tests {
     #[test]
     fn stat_block_hp_tracking() {
         let stats = StatBlock::new().with_hp(45, 50);
-        assert_eq!(stats.current_hp, Some(45));
-        assert_eq!(stats.max_hp, Some(50));
+        assert_eq!(stats.current_hp(), Some(45));
+        assert_eq!(stats.max_hp(), Some(50));
     }
 
     #[test]

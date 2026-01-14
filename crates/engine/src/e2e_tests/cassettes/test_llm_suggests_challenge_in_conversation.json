@@ -1,0 +1,19 @@
+{
+  "version": "2.0",
+  "recorded_at": "2026-01-14T18:01:58.305001+00:00",
+  "llm_model": "gpt-oss:20b",
+  "recordings": {
+    "a27c6381e2d087dba12a1d9bc2fbaf8d4b8d538dc42ff440abce8cea6e5aa000": [
+      {
+        "fingerprint": "a27c6381e2d087dba12a1d9bc2fbaf8d4b8d538dc42ff440abce8cea6e5aa000",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to e... | tools:11",
+        "response": {
+          "content": "Sure, but Grom's past is a guarded secret. A genuine favor or a heartfelt conversation might coax the gruff dwarf to open up. I'll see what I can do to smooth the way.",
+          "tool_calls": [],
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-14T18:02:18.943731+00:00"
+      }
+    ]
+  }
+}

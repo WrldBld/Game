@@ -132,7 +132,10 @@ impl LlmCassette {
     /// * `fingerprint` - The hex-encoded SHA-256 fingerprint of the request
     /// * `recording` - The recorded LLM interaction to store
     pub fn add_recording(&mut self, fingerprint: String, recording: LlmRecording) {
-        self.recordings.entry(fingerprint).or_default().push(recording);
+        self.recordings
+            .entry(fingerprint)
+            .or_default()
+            .push(recording);
     }
 
     /// Retrieves and removes the next recording for a fingerprint (FIFO order).
@@ -144,7 +147,11 @@ impl LlmCassette {
     /// Returns `None` if no recordings remain for the given fingerprint.
     pub fn get_recording(&mut self, fingerprint: &str) -> Option<LlmRecording> {
         self.recordings.get_mut(fingerprint).and_then(|v| {
-            if v.is_empty() { None } else { Some(v.remove(0)) }
+            if v.is_empty() {
+                None
+            } else {
+                Some(v.remove(0))
+            }
         })
     }
 
@@ -191,7 +198,12 @@ impl LoggingLlmDecorator {
     }
 
     /// Log prompt sent event to the event log.
-    fn log_prompt_sent(&self, request_id: Uuid, request: &LlmRequest, tools: Option<&[ToolDefinition]>) {
+    fn log_prompt_sent(
+        &self,
+        request_id: Uuid,
+        request: &LlmRequest,
+        tools: Option<&[ToolDefinition]>,
+    ) {
         let messages: Vec<ChatMessageLog> = request
             .messages
             .iter()
@@ -317,8 +329,11 @@ impl VcrLlm {
         if cassette.version() != CASSETTE_VERSION {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                format!("Unsupported cassette version: {} (expected {})",
-                        cassette.version(), CASSETTE_VERSION)
+                format!(
+                    "Unsupported cassette version: {} (expected {})",
+                    cassette.version(),
+                    CASSETTE_VERSION
+                ),
             ));
         }
 
@@ -364,9 +379,10 @@ impl VcrLlm {
     /// * `OLLAMA_BASE_URL`: Override the Ollama server URL (default: http://localhost:11434)
     /// * `OLLAMA_MODEL`: Override the model name (default: llama3.2)
     pub fn from_env(cassette_path: PathBuf) -> Self {
-        let ollama_url =
-            std::env::var("OLLAMA_BASE_URL").unwrap_or_else(|_| DEFAULT_OLLAMA_BASE_URL.to_string());
-        let model = std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| DEFAULT_OLLAMA_MODEL.to_string());
+        let ollama_url = std::env::var("OLLAMA_BASE_URL")
+            .unwrap_or_else(|_| DEFAULT_OLLAMA_BASE_URL.to_string());
+        let model =
+            std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| DEFAULT_OLLAMA_MODEL.to_string());
 
         let mode_str = std::env::var("E2E_LLM_MODE").unwrap_or_default();
 
@@ -454,7 +470,12 @@ impl VcrLlm {
     }
 
     /// Record a request/response pair indexed by fingerprint.
-    fn record(&self, request: &LlmRequest, tools: Option<&[ToolDefinition]>, response: &LlmResponse) {
+    fn record(
+        &self,
+        request: &LlmRequest,
+        tools: Option<&[ToolDefinition]>,
+        response: &LlmResponse,
+    ) {
         let fingerprint = RequestFingerprint::from_request_with_tools(request, tools);
         let fingerprint_hex = fingerprint.to_hex();
 
@@ -482,7 +503,11 @@ impl VcrLlm {
     }
 
     /// Get recorded response matching the request fingerprint.
-    fn playback_for_request(&self, request: &LlmRequest, tools: Option<&[ToolDefinition]>) -> Result<LlmResponse, LlmError> {
+    fn playback_for_request(
+        &self,
+        request: &LlmRequest,
+        tools: Option<&[ToolDefinition]>,
+    ) -> Result<LlmResponse, LlmError> {
         let fingerprint = RequestFingerprint::from_request_with_tools(request, tools);
         let fingerprint_hex = fingerprint.to_hex();
 
@@ -532,12 +557,18 @@ impl VcrLlm {
 
     /// Get the number of unique fingerprints recorded.
     pub fn fingerprint_count(&self) -> usize {
-        self.cassette.lock().expect("cassette mutex poisoned").fingerprint_count()
+        self.cassette
+            .lock()
+            .expect("cassette mutex poisoned")
+            .fingerprint_count()
     }
 
     /// Get the total number of recordings.
     pub fn recording_count(&self) -> usize {
-        self.cassette.lock().expect("cassette mutex poisoned").recording_count()
+        self.cassette
+            .lock()
+            .expect("cassette mutex poisoned")
+            .recording_count()
     }
 
     /// Get the number of remaining playback items (across all fingerprints).
@@ -561,7 +592,9 @@ impl VcrLlm {
                 })?;
 
                 let response = if let Some(ref tools) = tools {
-                    inner.generate_with_tools(request.clone(), tools.clone()).await?
+                    inner
+                        .generate_with_tools(request.clone(), tools.clone())
+                        .await?
                 } else {
                     inner.generate(request.clone()).await?
                 };
@@ -569,9 +602,7 @@ impl VcrLlm {
                 self.record(&request, tools.as_deref(), &response);
                 Ok(response)
             }
-            VcrMode::Playback => {
-                self.playback_for_request(&request, tools.as_deref())
-            }
+            VcrMode::Playback => self.playback_for_request(&request, tools.as_deref()),
             VcrMode::Live => {
                 let inner = self.inner.as_ref().ok_or_else(|| {
                     LlmError::RequestFailed("VcrLlm: No inner LLM in live mode".to_string())
@@ -630,7 +661,8 @@ mod tests {
     #[async_trait]
     impl LlmPort for MockLlm {
         async fn generate(&self, _request: LlmRequest) -> Result<LlmResponse, LlmError> {
-            self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.call_count
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Ok(self.response.clone())
         }
 
@@ -639,7 +671,8 @@ mod tests {
             _request: LlmRequest,
             _tools: Vec<ToolDefinition>,
         ) -> Result<LlmResponse, LlmError> {
-            self.call_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.call_count
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Ok(self.response.clone())
         }
     }
@@ -666,7 +699,9 @@ mod tests {
         assert_eq!(parsed.version(), "2.0");
         assert_eq!(parsed.fingerprint_count(), 1);
         // Retrieve and verify the recording
-        let retrieved = parsed.get_recording("abc123").expect("recording should exist");
+        let retrieved = parsed
+            .get_recording("abc123")
+            .expect("recording should exist");
         assert_eq!(retrieved.response.content, "Test response");
     }
 

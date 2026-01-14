@@ -20,10 +20,7 @@ fn validate_ttl_hours(ttl_hours: i32) -> Result<(), ServerMessage> {
     if ttl_hours > MAX_TTL_HOURS {
         return Err(error_response(
             "INVALID_TTL",
-            &format!(
-                "TTL hours cannot exceed {} (1 year)",
-                MAX_TTL_HOURS
-            ),
+            &format!("TTL hours cannot exceed {} (1 year)", MAX_TTL_HOURS),
         ));
     }
     Ok(())
@@ -133,8 +130,11 @@ pub(super) async fn handle_staging_approval(
     };
 
     // Convert domain types to protocol types for the response
-    let npcs_present_proto: Vec<wrldbldr_protocol::NpcPresentInfo> =
-        payload.npcs_present.iter().map(|n| n.to_protocol()).collect();
+    let npcs_present_proto: Vec<wrldbldr_protocol::NpcPresentInfo> = payload
+        .npcs_present
+        .iter()
+        .map(|n| n.to_protocol())
+        .collect();
 
     state
         .connections

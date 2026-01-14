@@ -4,10 +4,10 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 
-use crate::repositories::{Observation, PlayerCharacter, World};
+use crate::infrastructure::ports::ClockPort;
 use crate::repositories::character::Character;
 use crate::repositories::location::Location;
-use crate::infrastructure::ports::ClockPort;
+use crate::repositories::{Observation, PlayerCharacter, World};
 
 use super::ManagementError;
 
@@ -63,7 +63,8 @@ impl ObservationCrud {
                     npc.as_ref()
                         .map(|n| n.name().to_string())
                         .unwrap_or_else(|| "Unknown NPC".to_string()),
-                    npc.as_ref().and_then(|n| n.portrait_asset().map(|s| s.to_string())),
+                    npc.as_ref()
+                        .and_then(|n| n.portrait_asset().map(|s| s.to_string())),
                 )
             } else {
                 ("Unknown Figure".to_string(), None)

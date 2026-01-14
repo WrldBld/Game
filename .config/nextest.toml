@@ -1,0 +1,38 @@
+# Nextest configuration for WrldBldr
+# https://nexte.st/book/configuration.html
+
+[profile.default]
+# Show output from passing tests (needed for benchmark output)
+success-output = "immediate"
+# Show output from failing tests
+failure-output = "immediate"
+# Fail fast on first failure
+fail-fast = false
+# Number of retries for flaky tests
+retries = 0
+
+[profile.default.junit]
+# Generate JUnit XML reports
+path = "target/nextest/junit.xml"
+
+# E2E test profile with longer timeouts
+# IMPORTANT: E2E tests need to run serially (test-threads=1) because:
+# - Nextest runs each test in a separate process
+# - The shared container OnceLock is per-process
+# - Running in parallel causes multiple containers to start simultaneously
+[profile.e2e]
+# E2E tests can take longer due to container startup + LLM calls
+slow-timeout = { period = "180s", terminate-after = 2 }
+# Show benchmark output immediately
+success-output = "immediate"
+failure-output = "immediate"
+# MUST be 1 for e2e tests - each process starts its own container
+# Use regular cargo test for parallel e2e execution (single process, shared container)
+test-threads = 1
+
+# CI profile - quieter output, faster failure
+[profile.ci]
+success-output = "never"
+failure-output = "final"
+fail-fast = true
+test-threads = 1

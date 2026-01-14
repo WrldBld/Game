@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
-use crate::repositories::{PlayerCharacter, World};
+use crate::infrastructure::ports::RepoError;
 use crate::repositories::character::Character;
 use crate::repositories::location::Location;
 use crate::repositories::scene::Scene;
-use crate::infrastructure::ports::{RepoError, WorldRole};
-use wrldbldr_domain::{PlayerCharacterId, WorldId};
+use crate::repositories::{PlayerCharacter, World};
+use wrldbldr_domain::{PlayerCharacterId, WorldId, WorldRole};
 
 /// Use case for joining a world and building the session snapshot.
 pub struct JoinWorld {

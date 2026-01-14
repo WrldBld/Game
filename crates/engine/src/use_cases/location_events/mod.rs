@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
-use crate::repositories::location::Location;
 use crate::infrastructure::ports::RepoError;
+use crate::repositories::location::Location;
 use wrldbldr_domain::RegionId;
 
 /// Container for location event use cases.

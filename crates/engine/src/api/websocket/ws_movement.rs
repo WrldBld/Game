@@ -85,10 +85,22 @@ fn staging_approval_to_server_message(
         location_name: approval.location_name.clone(),
         game_time: approval.game_time.to_protocol(),
         previous_staging: approval.previous_staging.as_ref().map(|s| s.to_protocol()),
-        rule_based_npcs: approval.rule_based_npcs.iter().map(|n| n.to_protocol()).collect(),
-        llm_based_npcs: approval.llm_based_npcs.iter().map(|n| n.to_protocol()).collect(),
+        rule_based_npcs: approval
+            .rule_based_npcs
+            .iter()
+            .map(|n| n.to_protocol())
+            .collect(),
+        llm_based_npcs: approval
+            .llm_based_npcs
+            .iter()
+            .map(|n| n.to_protocol())
+            .collect(),
         default_ttl_hours: approval.default_ttl_hours,
-        waiting_pcs: approval.waiting_pcs.iter().map(|pc| pc.to_protocol()).collect(),
+        waiting_pcs: approval
+            .waiting_pcs
+            .iter()
+            .map(|pc| pc.to_protocol())
+            .collect(),
         resolved_visual_state: approval.resolved_visual_state.clone(),
         available_location_states: approval.available_location_states.clone(),
         available_region_states: approval.available_region_states.clone(),
@@ -187,7 +199,10 @@ pub(super) async fn handle_move_to_region(
 
                             None
                         }
-                        Err(e) => Some(error_response("STAGING_ERROR", &sanitize_repo_error(&e, "process staging"))),
+                        Err(e) => Some(error_response(
+                            "STAGING_ERROR",
+                            &sanitize_repo_error(&e, "process staging"),
+                        )),
                     }
                 }
                 StagingStatus::Ready => {
@@ -203,7 +218,10 @@ pub(super) async fn handle_move_to_region(
                     {
                         Ok(sc) => sc,
                         Err(e) => {
-                            return Some(error_response("SCENE_BUILD_ERROR", &sanitize_repo_error(&e, "build scene")));
+                            return Some(error_response(
+                                "SCENE_BUILD_ERROR",
+                                &sanitize_repo_error(&e, "build scene"),
+                            ));
                         }
                     };
 
@@ -236,14 +254,19 @@ pub(super) async fn handle_move_to_region(
                 }
             }
         }
-        Err(EnterRegionError::RegionNotFound) => Some(error_response("NOT_FOUND", "Region not found")),
+        Err(EnterRegionError::RegionNotFound) => {
+            Some(error_response("NOT_FOUND", "Region not found"))
+        }
         Err(EnterRegionError::PlayerCharacterNotFound) => {
             Some(error_response("NOT_FOUND", "Player character not found"))
         }
-        Err(EnterRegionError::WorldNotFound) => Some(error_response("NOT_FOUND", "World not found")),
-        Err(EnterRegionError::RegionNotInCurrentLocation) => {
-            Some(error_response("INVALID_MOVE", "Region not in current location"))
+        Err(EnterRegionError::WorldNotFound) => {
+            Some(error_response("NOT_FOUND", "World not found"))
         }
+        Err(EnterRegionError::RegionNotInCurrentLocation) => Some(error_response(
+            "INVALID_MOVE",
+            "Region not in current location",
+        )),
         Err(EnterRegionError::NoPathToRegion) => Some(ServerMessage::MovementBlocked {
             pc_id,
             reason: "No path to region".to_string(),
@@ -251,7 +274,10 @@ pub(super) async fn handle_move_to_region(
         Err(EnterRegionError::MovementBlocked(reason)) => {
             Some(ServerMessage::MovementBlocked { pc_id, reason })
         }
-        Err(e) => Some(error_response("MOVE_ERROR", &sanitize_repo_error(&e, "move to region"))),
+        Err(e) => Some(error_response(
+            "MOVE_ERROR",
+            &sanitize_repo_error(&e, "move to region"),
+        )),
     }
 }
 
@@ -354,7 +380,10 @@ pub(super) async fn handle_exit_to_location(
 
                             None
                         }
-                        Err(e) => Some(error_response("STAGING_ERROR", &sanitize_repo_error(&e, "process staging"))),
+                        Err(e) => Some(error_response(
+                            "STAGING_ERROR",
+                            &sanitize_repo_error(&e, "process staging"),
+                        )),
                     }
                 }
                 StagingStatus::Ready => {
@@ -370,7 +399,10 @@ pub(super) async fn handle_exit_to_location(
                     {
                         Ok(sc) => sc,
                         Err(e) => {
-                            return Some(error_response("SCENE_BUILD_ERROR", &sanitize_repo_error(&e, "build scene")));
+                            return Some(error_response(
+                                "SCENE_BUILD_ERROR",
+                                &sanitize_repo_error(&e, "build scene"),
+                            ));
                         }
                     };
 
@@ -412,13 +444,16 @@ pub(super) async fn handle_exit_to_location(
         Err(crate::use_cases::movement::ExitLocationError::PlayerCharacterNotFound) => {
             Some(error_response("NOT_FOUND", "Player character not found"))
         }
-        Err(crate::use_cases::movement::ExitLocationError::RegionLocationMismatch) => {
-            Some(error_response("INVALID_MOVE", "Region is not in target location"))
-        }
+        Err(crate::use_cases::movement::ExitLocationError::RegionLocationMismatch) => Some(
+            error_response("INVALID_MOVE", "Region is not in target location"),
+        ),
         Err(crate::use_cases::movement::ExitLocationError::WorldNotFound) => {
             Some(error_response("NOT_FOUND", "World not found"))
         }
-        Err(e) => Some(error_response("MOVE_ERROR", &sanitize_repo_error(&e, "exit to location"))),
+        Err(e) => Some(error_response(
+            "MOVE_ERROR",
+            &sanitize_repo_error(&e, "exit to location"),
+        )),
     }
 }
 
@@ -457,7 +492,13 @@ async fn build_scene_update(
     pc: &wrldbldr_domain::PlayerCharacter,
     npcs: &[wrldbldr_domain::StagedNpc],
 ) -> Option<ServerMessage> {
-    let location_name = match state.app.repositories.location.get(scene.location_id()).await {
+    let location_name = match state
+        .app
+        .repositories
+        .location
+        .get(scene.location_id())
+        .await
+    {
         Ok(Some(location)) => location.name().to_string(),
         _ => "Unknown Location".to_string(),
     };
@@ -513,7 +554,13 @@ async fn build_scene_update(
         });
     }
 
-    let interactions = match state.app.repositories.interaction.list_for_scene(scene.id()).await {
+    let interactions = match state
+        .app
+        .repositories
+        .interaction
+        .list_for_scene(scene.id())
+        .await
+    {
         Ok(list) => list,
         Err(e) => {
             tracing::warn!(error = %e, scene_id = %scene.id(), "Failed to load scene interactions");
@@ -616,11 +663,9 @@ async fn resolve_interaction_target(
                 .map(|item| item.name);
             (Some(id.to_string()), Some("item".to_string()), name)
         }
-        wrldbldr_domain::InteractionTarget::Environment(label) => (
-            None,
-            Some("environment".to_string()),
-            Some(label.clone()),
-        ),
+        wrldbldr_domain::InteractionTarget::Environment(label) => {
+            (None, Some("environment".to_string()), Some(label.clone()))
+        }
         wrldbldr_domain::InteractionTarget::None => (None, None, None),
     }
 }

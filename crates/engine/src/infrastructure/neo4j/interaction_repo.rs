@@ -24,9 +24,7 @@ impl Neo4jInteractionRepo {
     }
 
     fn row_to_interaction(&self, row: Row) -> Result<InteractionTemplate, RepoError> {
-        let node: neo4rs::Node = row
-            .get("i")
-            .map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row.get("i").map_err(|e| RepoError::database("query", e))?;
 
         let id: InteractionId =
             parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
@@ -77,8 +75,8 @@ impl Neo4jInteractionRepo {
 #[async_trait]
 impl InteractionRepo for Neo4jInteractionRepo {
     async fn get(&self, id: InteractionId) -> Result<Option<InteractionTemplate>, RepoError> {
-        let q = query("MATCH (i:InteractionTemplate {id: $id}) RETURN i")
-            .param("id", id.to_string());
+        let q =
+            query("MATCH (i:InteractionTemplate {id: $id}) RETURN i").param("id", id.to_string());
 
         let mut result = self
             .graph
@@ -153,7 +151,10 @@ impl InteractionRepo for Neo4jInteractionRepo {
         Ok(())
     }
 
-    async fn list_for_scene(&self, scene_id: SceneId) -> Result<Vec<InteractionTemplate>, RepoError> {
+    async fn list_for_scene(
+        &self,
+        scene_id: SceneId,
+    ) -> Result<Vec<InteractionTemplate>, RepoError> {
         let q = query(
             "MATCH (s:Scene {id: $scene_id})<-[:BELONGS_TO_SCENE]-(i:InteractionTemplate)
             RETURN i

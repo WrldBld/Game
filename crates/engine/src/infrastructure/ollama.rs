@@ -58,8 +58,8 @@ impl OllamaClient {
     /// Uses `OLLAMA_BASE_URL` and `OLLAMA_MODEL` environment variables,
     /// falling back to defaults if not set.
     pub fn from_env() -> Self {
-        let base_url =
-            std::env::var("OLLAMA_BASE_URL").unwrap_or_else(|_| DEFAULT_OLLAMA_BASE_URL.to_string());
+        let base_url = std::env::var("OLLAMA_BASE_URL")
+            .unwrap_or_else(|_| DEFAULT_OLLAMA_BASE_URL.to_string());
         let model =
             std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| DEFAULT_OLLAMA_MODEL.to_string());
         Self::new(&base_url, &model)

@@ -185,9 +185,7 @@ impl Neo4jChallengeRepo {
 
     /// Convert a Neo4j row to a Challenge entity.
     fn row_to_challenge(&self, row: Row) -> Result<Challenge, RepoError> {
-        let node: neo4rs::Node = row
-            .get("c")
-            .map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row.get("c").map_err(|e| RepoError::database("query", e))?;
 
         let id: ChallengeId =
             parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
@@ -487,9 +485,7 @@ impl ChallengeRepo for Neo4jChallengeRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
-            let id_str: String = row
-                .get("id")
-                .map_err(|e| RepoError::database("query", e))?;
+            let id_str: String = row.get("id").map_err(|e| RepoError::database("query", e))?;
             if let Ok(id) = id_str.parse::<uuid::Uuid>() {
                 challenge_ids.push(ChallengeId::from(id));
             }

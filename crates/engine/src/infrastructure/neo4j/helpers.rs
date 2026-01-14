@@ -269,9 +269,7 @@ use wrldbldr_domain::{Item, ItemId, WorldId};
 ///
 /// This helper reduces duplication across character_repo, player_character_repo, and item_repo.
 pub fn row_to_item(row: Row) -> Result<Item, RepoError> {
-    let node: Node = row
-        .get("i")
-        .map_err(|e| RepoError::database("query", e))?;
+    let node: Node = row.get("i").map_err(|e| RepoError::database("query", e))?;
 
     let id: ItemId = parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
     let world_id: WorldId =

@@ -35,14 +35,9 @@ async fn test_friendly_npc_may_give_item() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.3);
 
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_friendly_npc_may_give_item",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_friendly_npc_may_give_item", None)
+        .await
+        .expect("LLM request failed");
 
     // Friendly NPC with positive relationship should be willing to help
     let content_lower = response.content.to_lowercase();
@@ -77,14 +72,9 @@ async fn test_hostile_npc_withholds_items() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.3);
 
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_hostile_npc_withholds_items",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_hostile_npc_withholds_items", None)
+        .await
+        .expect("LLM request failed");
 
     // Hostile NPC should withhold
     let content_lower = response.content.to_lowercase();
@@ -166,14 +156,9 @@ async fn test_secret_information_protected() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.3);
 
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_secret_information_protected",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_secret_information_protected", None)
+        .await
+        .expect("LLM request failed");
 
     // Secret should be protected
     let content_lower = response.content.to_lowercase();

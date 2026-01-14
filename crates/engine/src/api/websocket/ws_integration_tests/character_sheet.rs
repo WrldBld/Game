@@ -1,10 +1,15 @@
 use super::*;
 
 use wrldbldr_domain::{value_objects::RuleSystemConfig, WorldId};
-use wrldbldr_protocol::{ClientMessage, ErrorCode, RequestPayload, ResponseResult, ServerMessage, WorldRequest};
+use wrldbldr_protocol::{
+    ClientMessage, ErrorCode, RequestPayload, ResponseResult, ServerMessage, WorldRequest,
+};
 
 /// Create a D&D 5e world for testing.
-fn create_dnd5e_world(world_id: WorldId, _now: chrono::DateTime<chrono::Utc>) -> wrldbldr_domain::World {
+fn create_dnd5e_world(
+    world_id: WorldId,
+    _now: chrono::DateTime<chrono::Utc>,
+) -> wrldbldr_domain::World {
     let world_name = wrldbldr_domain::WorldName::new("Test D&D 5e World").unwrap();
     wrldbldr_domain::World::new(world_name)
         .with_description(wrldbldr_domain::Description::new("A test world").unwrap())
@@ -74,7 +79,10 @@ async fn get_sheet_template_returns_dnd5e_schema_for_dnd5e_world() {
 
     // Expect response with schema
     let response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        if let ServerMessage::Response { request_id: rid, .. } = m {
+        if let ServerMessage::Response {
+            request_id: rid, ..
+        } = m
+        {
             rid == &request_id
         } else {
             false
@@ -87,11 +95,15 @@ async fn get_sheet_template_returns_dnd5e_schema_for_dnd5e_world() {
             ResponseResult::Success { data } => {
                 let data = data.expect("Should have data");
 
-                let system_id = data.get("systemId").and_then(|v: &serde_json::Value| v.as_str());
+                let system_id = data
+                    .get("systemId")
+                    .and_then(|v: &serde_json::Value| v.as_str());
                 assert_eq!(system_id, Some("dnd5e"), "Should return D&D 5e schema");
 
                 // Verify sections exist
-                let sections = data.get("sections").and_then(|v: &serde_json::Value| v.as_array());
+                let sections = data
+                    .get("sections")
+                    .and_then(|v: &serde_json::Value| v.as_array());
                 assert!(sections.is_some(), "Schema should have sections");
                 let sections = sections.unwrap();
 
@@ -100,13 +112,27 @@ async fn get_sheet_template_returns_dnd5e_schema_for_dnd5e_world() {
                     .iter()
                     .filter_map(|s| s.get("id").and_then(|v: &serde_json::Value| v.as_str()))
                     .collect();
-                assert!(section_ids.contains(&"identity"), "Should have identity section");
-                assert!(section_ids.contains(&"ability_scores"), "Should have ability_scores section");
-                assert!(section_ids.contains(&"skills"), "Should have skills section");
+                assert!(
+                    section_ids.contains(&"identity"),
+                    "Should have identity section"
+                );
+                assert!(
+                    section_ids.contains(&"ability_scores"),
+                    "Should have ability_scores section"
+                );
+                assert!(
+                    section_ids.contains(&"skills"),
+                    "Should have skills section"
+                );
 
                 // Verify creation steps exist
-                let creation_steps = data.get("creationSteps").and_then(|v: &serde_json::Value| v.as_array());
-                assert!(creation_steps.is_some(), "Schema should have creation steps");
+                let creation_steps = data
+                    .get("creationSteps")
+                    .and_then(|v: &serde_json::Value| v.as_array());
+                assert!(
+                    creation_steps.is_some(),
+                    "Schema should have creation steps"
+                );
             }
             ResponseResult::Error { code, message, .. } => {
                 panic!("Expected success, got error: {:?} - {}", code, message);
@@ -159,7 +185,10 @@ async fn get_sheet_template_returns_error_for_nonexistent_world() {
 
     // Expect error response
     let response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        if let ServerMessage::Response { request_id: rid, .. } = m {
+        if let ServerMessage::Response {
+            request_id: rid, ..
+        } = m
+        {
             rid == &request_id
         } else {
             false
@@ -245,7 +274,10 @@ async fn get_sheet_template_schema_has_ability_score_validation() {
     .await;
 
     let response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        if let ServerMessage::Response { request_id: rid, .. } = m {
+        if let ServerMessage::Response {
+            request_id: rid, ..
+        } = m
+        {
             rid == &request_id
         } else {
             false
@@ -259,17 +291,28 @@ async fn get_sheet_template_schema_has_ability_score_validation() {
                 let data = data.expect("Should have data");
 
                 // Find ability_scores section
-                let sections = data.get("sections").and_then(|v: &serde_json::Value| v.as_array()).unwrap();
+                let sections = data
+                    .get("sections")
+                    .and_then(|v: &serde_json::Value| v.as_array())
+                    .unwrap();
                 let ability_section = sections
                     .iter()
-                    .find(|s| s.get("id").and_then(|v: &serde_json::Value| v.as_str()) == Some("ability_scores"))
+                    .find(|s| {
+                        s.get("id").and_then(|v: &serde_json::Value| v.as_str())
+                            == Some("ability_scores")
+                    })
                     .expect("Should have ability_scores section");
 
                 // Check fields have validation
-                let fields = ability_section.get("fields").and_then(|v: &serde_json::Value| v.as_array()).unwrap();
+                let fields = ability_section
+                    .get("fields")
+                    .and_then(|v: &serde_json::Value| v.as_array())
+                    .unwrap();
                 let str_field = fields
                     .iter()
-                    .find(|f| f.get("id").and_then(|v: &serde_json::Value| v.as_str()) == Some("STR"))
+                    .find(|f| {
+                        f.get("id").and_then(|v: &serde_json::Value| v.as_str()) == Some("STR")
+                    })
                     .expect("Should have STR field");
 
                 // Verify STR has validation rules
@@ -277,8 +320,12 @@ async fn get_sheet_template_schema_has_ability_score_validation() {
                 assert!(validation.is_some(), "STR should have validation rules");
 
                 let validation = validation.unwrap();
-                let min = validation.get("min").and_then(|v: &serde_json::Value| v.as_i64());
-                let max = validation.get("max").and_then(|v: &serde_json::Value| v.as_i64());
+                let min = validation
+                    .get("min")
+                    .and_then(|v: &serde_json::Value| v.as_i64());
+                let max = validation
+                    .get("max")
+                    .and_then(|v: &serde_json::Value| v.as_i64());
 
                 assert_eq!(min, Some(1), "Min should be 1");
                 assert_eq!(max, Some(30), "Max should be 30");
@@ -356,7 +403,10 @@ async fn get_sheet_template_schema_includes_creation_steps() {
     .await;
 
     let response = ws_expect_message(&mut ws, Duration::from_secs(2), |m| {
-        if let ServerMessage::Response { request_id: rid, .. } = m {
+        if let ServerMessage::Response {
+            request_id: rid, ..
+        } = m
+        {
             rid == &request_id
         } else {
             false
@@ -375,17 +425,24 @@ async fn get_sheet_template_schema_includes_creation_steps() {
                     .and_then(|v: &serde_json::Value| v.as_array())
                     .expect("Should have creation steps");
 
-                assert!(!creation_steps.is_empty(), "Should have at least one creation step");
+                assert!(
+                    !creation_steps.is_empty(),
+                    "Should have at least one creation step"
+                );
 
                 // Check first step is identity
                 let first_step = &creation_steps[0];
                 assert_eq!(
-                    first_step.get("id").and_then(|v: &serde_json::Value| v.as_str()),
+                    first_step
+                        .get("id")
+                        .and_then(|v: &serde_json::Value| v.as_str()),
                     Some("identity"),
                     "First step should be identity"
                 );
                 assert_eq!(
-                    first_step.get("order").and_then(|v: &serde_json::Value| v.as_i64()),
+                    first_step
+                        .get("order")
+                        .and_then(|v: &serde_json::Value| v.as_i64()),
                     Some(1),
                     "Identity should be order 1"
                 );
@@ -393,12 +450,16 @@ async fn get_sheet_template_schema_includes_creation_steps() {
                 // Check second step is abilities
                 let second_step = &creation_steps[1];
                 assert_eq!(
-                    second_step.get("id").and_then(|v: &serde_json::Value| v.as_str()),
+                    second_step
+                        .get("id")
+                        .and_then(|v: &serde_json::Value| v.as_str()),
                     Some("abilities"),
                     "Second step should be abilities"
                 );
                 assert_eq!(
-                    second_step.get("order").and_then(|v: &serde_json::Value| v.as_i64()),
+                    second_step
+                        .get("order")
+                        .and_then(|v: &serde_json::Value| v.as_i64()),
                     Some(2),
                     "Abilities should be order 2"
                 );
@@ -406,7 +467,10 @@ async fn get_sheet_template_schema_includes_creation_steps() {
                 // Verify steps are in order
                 let mut prev_order = 0i64;
                 for step in creation_steps {
-                    let order = step.get("order").and_then(|v: &serde_json::Value| v.as_i64()).unwrap_or(0);
+                    let order = step
+                        .get("order")
+                        .and_then(|v: &serde_json::Value| v.as_i64())
+                        .unwrap_or(0);
                     assert!(order > prev_order, "Steps should be in order");
                     prev_order = order;
                 }

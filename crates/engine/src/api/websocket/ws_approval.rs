@@ -95,11 +95,9 @@ pub(super) async fn handle_approval_decision(
         Err(crate::use_cases::approval::ApprovalDecisionError::ApprovalNotFound) => {
             Some(error_response("NOT_FOUND", "Approval request not found"))
         }
-        Err(e) => {
-            Some(error_response(
-                "APPROVAL_ERROR",
-                &sanitize_repo_error(&e, "process approval decision"),
-            ))
-        }
+        Err(e) => Some(error_response(
+            "APPROVAL_ERROR",
+            &sanitize_repo_error(&e, "process approval decision"),
+        )),
     }
 }

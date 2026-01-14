@@ -22,12 +22,18 @@ async fn test_pc_moves_to_connected_region() {
         .expect("Setup should succeed");
 
     // Get region IDs - Common Room should connect to other regions
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
-    let tavern_bar = ctx.world.region("Tavern Bar").expect("Tavern Bar should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
+    let tavern_bar = ctx
+        .world
+        .region("Tavern Bar")
+        .expect("Tavern Bar should exist");
 
     // Create a player character in Common Room
     let (_user_id, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Test Explorer",
@@ -85,16 +91,17 @@ async fn test_pc_moves_to_connected_region() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_pc_cannot_move_to_unconnected_region() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // Get regions - we need two that aren't connected
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
 
     // Create a player character
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Test Wanderer",
@@ -126,18 +133,25 @@ async fn test_pc_cannot_move_to_unconnected_region() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_movement_changes_npc_context() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
-    let tavern_bar = ctx.world.region("Tavern Bar").expect("Tavern Bar should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
+    let tavern_bar = ctx
+        .world
+        .region("Tavern Bar")
+        .expect("Tavern Bar should exist");
     let mira_id = ctx.world.npc("Mira Thornwood").expect("Mira should exist");
-    let marcus_id = ctx.world.npc("Marcus Steelhelm").expect("Marcus should exist");
+    let marcus_id = ctx
+        .world
+        .npc("Marcus Steelhelm")
+        .expect("Marcus should exist");
 
     // Create player
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Test Traveler",
@@ -200,12 +214,18 @@ async fn test_movement_triggers_location_event() {
         .await
         .expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
-    let tavern_bar = ctx.world.region("Tavern Bar").expect("Tavern Bar should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
+    let tavern_bar = ctx
+        .world
+        .region("Tavern Bar")
+        .expect("Tavern Bar should exist");
 
     // Create player
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Event Tester",
@@ -218,9 +238,12 @@ async fn test_movement_triggers_location_event() {
     use neo4rs::query;
     use uuid::Uuid;
     let event_id = Uuid::new_v4();
-    let _location_id = ctx.world.location("The Rusty Anchor").expect("Location should exist");
+    let _location_id = ctx
+        .world
+        .location("The Rusty Anchor")
+        .expect("Location should exist");
 
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -267,16 +290,20 @@ async fn test_movement_triggers_location_event() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_multiple_sequential_moves() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
-    let tavern_bar = ctx.world.region("Tavern Bar").expect("Tavern Bar should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
+    let tavern_bar = ctx
+        .world
+        .region("Tavern Bar")
+        .expect("Tavern Bar should exist");
 
     // Create player
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Sequential Mover",

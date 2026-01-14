@@ -34,6 +34,8 @@ pub use messages::{
     // Staging types
     ApprovedNpcInfo,
     ChallengeOutcomeDecisionData,
+    // Conversion error types
+    UnknownChallengeOutcomeDecisionError,
     // Scene types
     CharacterData,
     CharacterPosition,
@@ -154,6 +156,8 @@ pub use types::{
     TimeOfDayData,
     TimeSuggestionData,
     TimeSuggestionDecision,
+    // Conversion error types
+    UnknownTimeSuggestionDecisionError,
     // Trigger schema types (for Visual Trigger Builder)
     TriggerCategory,
     TriggerFieldSchema,

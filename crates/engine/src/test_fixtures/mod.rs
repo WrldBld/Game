@@ -39,13 +39,8 @@ pub fn load_fixture<T: serde::de::DeserializeOwned>(path: &str) -> T {
     let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("test_data")
         .join(path);
-    let content = std::fs::read_to_string(&fixture_path).unwrap_or_else(|e| {
-        panic!(
-            "Failed to read fixture '{}': {}",
-            fixture_path.display(),
-            e
-        )
-    });
+    let content = std::fs::read_to_string(&fixture_path)
+        .unwrap_or_else(|e| panic!("Failed to read fixture '{}': {}", fixture_path.display(), e));
     serde_json::from_str(&content).unwrap_or_else(|e| {
         panic!(
             "Failed to parse fixture '{}': {}",
@@ -125,7 +120,8 @@ pub mod worlds {
         use wrldbldr_domain::{Description, WorldName};
 
         let name = WorldName::new("The Realm of Shadows").unwrap();
-        let description = Description::new("A classic fantasy world for testing D&D 5e mechanics.").unwrap();
+        let description =
+            Description::new("A classic fantasy world for testing D&D 5e mechanics.").unwrap();
         World::new(name)
             .with_description(description)
             .with_id(wrldbldr_domain::WorldId::from(
@@ -336,7 +332,9 @@ impl SheetDataBuilder {
     }
 
     pub fn build(self) -> CharacterSheetData {
-        CharacterSheetData { values: self.values }
+        CharacterSheetData {
+            values: self.values,
+        }
     }
 }
 
@@ -383,7 +381,9 @@ mod tests {
         assert_eq!(ctx.origin_id, Some("human".to_string()));
         assert_eq!(ctx.class_levels.get("fighter"), Some(&5));
         assert!(ctx.known_spells.is_empty());
-        assert!(ctx.character_feats.contains(&"great_weapon_master".to_string()));
+        assert!(ctx
+            .character_feats
+            .contains(&"great_weapon_master".to_string()));
     }
 
     #[test]

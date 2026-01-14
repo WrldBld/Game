@@ -3,10 +3,9 @@
 //! Each module contains use cases for a specific domain area.
 //! Use cases orchestrate across entity modules to fulfill user stories.
 
-pub mod approval;
 pub mod actantial;
 pub mod ai;
-pub mod narrative_operations;
+pub mod approval;
 pub mod assets;
 pub mod challenge;
 pub mod content;
@@ -17,11 +16,12 @@ pub mod lore;
 pub mod management;
 pub mod movement;
 pub mod narrative;
+pub mod narrative_operations;
 pub mod npc;
 pub mod player_action;
 pub mod queues;
-pub mod settings;
 pub mod session;
+pub mod settings;
 pub mod staging;
 pub mod story_events;
 pub mod time;
@@ -30,12 +30,11 @@ pub mod visual_state;
 pub mod world;
 
 // Re-export main types
-pub use approval::ApprovalUseCases;
+pub use crate::repositories::location::Location;
 pub use actantial::ActantialUseCases;
 pub use ai::AiUseCases;
-pub use crate::repositories::location::Location;
+pub use approval::ApprovalUseCases;
 // Re-export NarrativeOps (for complex trigger evaluation) - also exports type alias Narrative
-pub use narrative_operations::{Narrative, NarrativeOps};
 pub use crate::repositories::scene::{Scene, SceneResolutionContext, SceneResolutionResult};
 pub use assets::AssetUseCases;
 pub use challenge::ChallengeUseCases;
@@ -47,11 +46,12 @@ pub use management::ManagementUseCases;
 pub use movement::MovementUseCases;
 pub use movement::SceneChangeBuilder;
 pub use narrative::NarrativeUseCases;
+pub use narrative_operations::{Narrative, NarrativeOps};
 pub use npc::NpcUseCases;
 pub use player_action::PlayerActionUseCases;
 pub use queues::QueueUseCases;
-pub use settings::SettingsError;
 pub use session::SessionUseCases;
+pub use settings::SettingsError;
 pub use staging::StagingUseCases;
 pub use story_events::StoryEventUseCases;
 pub use time::TimeUseCases;

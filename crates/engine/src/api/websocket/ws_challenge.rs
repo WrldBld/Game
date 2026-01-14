@@ -25,7 +25,14 @@ pub(super) async fn handle_challenge_request(
         }
         ChallengeRequest::GetChallenge { challenge_id } => {
             let challenge_id_typed = parse_challenge_id_for_request(&challenge_id, request_id)?;
-            match state.app.use_cases.challenge.ops.get(challenge_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .challenge
+                .ops
+                .get(challenge_id_typed)
+                .await
+            {
                 Ok(Some(challenge)) => Ok(ResponseResult::success(json!(challenge))),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
@@ -81,9 +88,9 @@ pub(super) async fn handle_challenge_request(
                 .await
             {
                 Ok(challenge) => Ok(ResponseResult::success(json!(challenge))),
-                Err(crate::use_cases::challenge::ChallengeCrudError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Challenge not found"))
-                }
+                Err(crate::use_cases::challenge::ChallengeCrudError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Challenge not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "update challenge"),
@@ -123,9 +130,9 @@ pub(super) async fn handle_challenge_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::challenge::ChallengeCrudError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Challenge not found"))
-                }
+                Err(crate::use_cases::challenge::ChallengeCrudError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Challenge not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "set challenge active"),
@@ -147,9 +154,9 @@ pub(super) async fn handle_challenge_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::challenge::ChallengeCrudError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Challenge not found"))
-                }
+                Err(crate::use_cases::challenge::ChallengeCrudError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Challenge not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "set challenge favorite"),
@@ -367,7 +374,10 @@ pub(super) async fn handle_challenge_roll_input(
         wrldbldr_protocol::DiceInputType::Formula(formula) => DiceRollInput::Formula(formula),
         wrldbldr_protocol::DiceInputType::Manual(value) => DiceRollInput::ManualResult(value),
         wrldbldr_protocol::DiceInputType::Unknown => {
-            return Some(error_response("INVALID_DICE_INPUT", "Unknown dice input type"))
+            return Some(error_response(
+                "INVALID_DICE_INPUT",
+                "Unknown dice input type",
+            ))
         }
     };
 
@@ -564,12 +574,10 @@ pub(super) async fn handle_challenge_suggestion_decision(
                 None
             }
         }
-        Err(e) => {
-            Some(error_response(
-                "APPROVAL_ERROR",
-                &sanitize_repo_error(&e, "process challenge suggestion decision"),
-            ))
-        }
+        Err(e) => Some(error_response(
+            "APPROVAL_ERROR",
+            &sanitize_repo_error(&e, "process challenge suggestion decision"),
+        )),
     }
 }
 
@@ -594,12 +602,23 @@ pub(super) async fn handle_challenge_outcome_decision(
         None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
     };
 
+    // Convert protocol decision to domain decision at the API boundary
+    let domain_decision: wrldbldr_domain::ChallengeOutcomeDecision = match decision.try_into() {
+        Ok(d) => d,
+        Err(_) => {
+            return Some(error_response(
+                "INVALID_DECISION",
+                "Unknown challenge outcome decision type",
+            ))
+        }
+    };
+
     match state
         .app
         .use_cases
         .challenge
         .outcome_decision
-        .execute(world_id, resolution_id.clone(), decision)
+        .execute(world_id, resolution_id.clone(), domain_decision)
         .await
     {
         Ok(crate::use_cases::challenge::OutcomeDecisionResult::Resolved(payload)) => {
@@ -637,12 +656,10 @@ pub(super) async fn handle_challenge_outcome_decision(
         Err(crate::use_cases::challenge::OutcomeDecisionError::InvalidResolutionId) => {
             Some(error_response("INVALID_ID", "Invalid resolution ID format"))
         }
-        Err(e) => {
-            Some(error_response(
-                "RESOLVE_ERROR",
-                &sanitize_repo_error(&e, "process challenge outcome decision"),
-            ))
-        }
+        Err(e) => Some(error_response(
+            "RESOLVE_ERROR",
+            &sanitize_repo_error(&e, "process challenge outcome decision"),
+        )),
     }
 }
 

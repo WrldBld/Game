@@ -95,7 +95,10 @@ pub fn log_llm_interaction(
         .map(|l| format!("_{}", l.replace(" ", "_")))
         .unwrap_or_default();
 
-    let filename = format!("{}_{:04}_{}{}.md", timestamp, counter, sanitized_name, label_suffix);
+    let filename = format!(
+        "{}_{:04}_{}{}.md",
+        timestamp, counter, sanitized_name, label_suffix
+    );
     let filepath = log_dir.join(&filename);
 
     let mut content = String::new();
@@ -103,7 +106,10 @@ pub fn log_llm_interaction(
     if let Some(l) = label {
         content.push_str(&format!("**Label:** {}\n\n", l));
     }
-    content.push_str(&format!("**Timestamp:** {}\n\n", chrono::Utc::now().to_rfc3339()));
+    content.push_str(&format!(
+        "**Timestamp:** {}\n\n",
+        chrono::Utc::now().to_rfc3339()
+    ));
     content.push_str(&format!("**Sequence:** #{}\n\n", counter));
 
     // Request details
@@ -154,7 +160,10 @@ pub fn log_llm_interaction(
     if let Some(ref usage) = response.usage {
         content.push_str("### Usage\n\n");
         content.push_str(&format!("- Prompt Tokens: {}\n", usage.prompt_tokens));
-        content.push_str(&format!("- Completion Tokens: {}\n", usage.completion_tokens));
+        content.push_str(&format!(
+            "- Completion Tokens: {}\n",
+            usage.completion_tokens
+        ));
         content.push_str(&format!("- Total Tokens: {}\n", usage.total_tokens));
     }
 
@@ -200,8 +209,7 @@ pub fn create_test_ollama_client() -> OllamaClient {
 pub fn create_test_ollama_client_with_timeout(timeout_secs: u64) -> OllamaClient {
     let base_url =
         std::env::var("OLLAMA_BASE_URL").unwrap_or_else(|_| DEFAULT_OLLAMA_BASE_URL.to_string());
-    let model =
-        std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| DEFAULT_OLLAMA_MODEL.to_string());
+    let model = std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| DEFAULT_OLLAMA_MODEL.to_string());
     OllamaClient::with_timeout(&base_url, &model, timeout_secs)
 }
 
@@ -350,7 +358,12 @@ The response is about cooking, not about the tavern as requested."#;
     match client.generate(request.clone()).await {
         Ok(validation_response) => {
             // Log the validation interaction
-            log_llm_interaction("validation", Some("semantic_check"), &request, &validation_response);
+            log_llm_interaction(
+                "validation",
+                Some("semantic_check"),
+                &request,
+                &validation_response,
+            );
 
             let content = validation_response.content.trim();
             let passed = content.to_uppercase().starts_with("PASS");
@@ -381,20 +394,12 @@ The response is about cooking, not about the tavern as requested."#;
 ///     "Should describe a tavern with atmospheric details like lighting, sounds, or smells"
 /// ).await;
 /// ```
-pub async fn assert_llm_valid(
-    client: &dyn LlmPort,
-    task: &str,
-    response: &str,
-    criteria: &str,
-) {
+pub async fn assert_llm_valid(client: &dyn LlmPort, task: &str, response: &str, criteria: &str) {
     let validation = validate_response(client, task, response, criteria).await;
     assert!(
         validation.passed,
         "LLM validation failed.\n\nTask: {}\n\nResponse: {}\n\nCriteria: {}\n\nValidator said: {}",
-        task,
-        response,
-        criteria,
-        validation.explanation
+        task, response, criteria, validation.explanation
     );
 }
 
@@ -560,7 +565,12 @@ impl SceneContextBuilder {
         self
     }
 
-    pub fn with_item(mut self, name: &str, description: Option<&str>, item_type: Option<&str>) -> Self {
+    pub fn with_item(
+        mut self,
+        name: &str,
+        description: Option<&str>,
+        item_type: Option<&str>,
+    ) -> Self {
         self.region_items.push(RegionItemContext {
             name: name.to_string(),
             description: description.map(String::from),
@@ -735,7 +745,9 @@ impl CharacterContextBuilder {
                     sender: None,
                     receiver: None,
                     deflection_behavior: "Redirects conversation to merchandise".to_string(),
-                    tells: vec!["Eyes flick toward the mill when artifacts are mentioned".to_string()],
+                    tells: vec![
+                        "Eyes flick toward the mill when artifacts are mentioned".to_string()
+                    ],
                 }],
             }),
             social_stance: None,
@@ -909,7 +921,12 @@ impl CharacterContextBuilder {
         self
     }
 
-    pub fn with_known_motivation(mut self, description: &str, priority: u32, intensity: &str) -> Self {
+    pub fn with_known_motivation(
+        mut self,
+        description: &str,
+        priority: u32,
+        intensity: &str,
+    ) -> Self {
         let entry = MotivationEntry {
             description: description.to_string(),
             priority,

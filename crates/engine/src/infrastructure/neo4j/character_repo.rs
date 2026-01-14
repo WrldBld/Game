@@ -55,6 +55,17 @@ impl From<entities::StatModifier> for StatModifierStored {
     }
 }
 
+impl From<&entities::StatModifier> for StatModifierStored {
+    fn from(value: &entities::StatModifier) -> Self {
+        Self {
+            id: value.id.to_string(),
+            source: value.source.clone(),
+            value: value.value,
+            active: value.active,
+        }
+    }
+}
+
 impl From<StatModifierStored> for entities::StatModifier {
     fn from(value: StatModifierStored) -> Self {
         let id = Uuid::parse_str(&value.id).unwrap_or_else(|e| {
@@ -83,10 +94,31 @@ impl From<StatBlock> for StatBlockStored {
             modifiers: value
                 .modifiers()
                 .iter()
-                .map(|(k, v)| (k.clone(), v.iter().cloned().map(StatModifierStored::from).collect()))
+                .map(|(k, v)| {
+                    (
+                        k.clone(),
+                        v.iter().cloned().map(StatModifierStored::from).collect(),
+                    )
+                })
                 .collect(),
-            current_hp: value.current_hp,
-            max_hp: value.max_hp,
+            current_hp: value.current_hp(),
+            max_hp: value.max_hp(),
+        }
+    }
+}
+
+// Issue 4.6 fix: Implement From<&StatBlock> to avoid cloning the entire StatBlock
+impl From<&StatBlock> for StatBlockStored {
+    fn from(value: &StatBlock) -> Self {
+        Self {
+            stats: value.stats().clone(),
+            modifiers: value
+                .modifiers()
+                .iter()
+                .map(|(k, v)| (k.clone(), v.iter().map(StatModifierStored::from).collect()))
+                .collect(),
+            current_hp: value.current_hp(),
+            max_hp: value.max_hp(),
         }
     }
 }
@@ -94,18 +126,15 @@ impl From<StatBlock> for StatBlockStored {
 impl From<StatBlockStored> for StatBlock {
     fn from(value: StatBlockStored) -> Self {
         let mut stat_block = StatBlock::new();
-        stat_block.current_hp = value.current_hp;
-        stat_block.max_hp = value.max_hp;
+        stat_block.set_current_hp(value.current_hp);
+        stat_block.set_max_hp(value.max_hp);
         for (k, v) in value.stats {
             stat_block.stats_mut().insert(k, v);
         }
         for (k, v) in value.modifiers {
-            stat_block.modifiers_mut().insert(
-                k,
-                v.into_iter()
-                    .map(entities::StatModifier::from)
-                    .collect(),
-            );
+            stat_block
+                .modifiers_mut()
+                .insert(k, v.into_iter().map(entities::StatModifier::from).collect());
         }
         stat_block
     }
@@ -162,9 +191,7 @@ impl Neo4jCharacterRepo {
 
     /// Convert a Neo4j row to a Character entity.
     fn row_to_character(&self, row: Row) -> Result<Character, RepoError> {
-        let node: neo4rs::Node = row
-            .get("c")
-            .map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row.get("c").map_err(|e| RepoError::database("query", e))?;
 
         let id: CharacterId =
             parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
@@ -229,12 +256,12 @@ impl Neo4jCharacterRepo {
         let state = CharacterState::from_legacy(is_alive, is_active);
 
         // Create validated name (fallback to "Unknown" if stored name is invalid)
-        let character_name = CharacterName::new(&name)
-            .unwrap_or_else(|_| CharacterName::new("Unknown").unwrap());
+        let character_name =
+            CharacterName::new(&name).unwrap_or_else(|_| CharacterName::new("Unknown").unwrap());
 
         // Create validated description (fallback to empty if stored description is invalid)
-        let character_description = Description::new(&description)
-            .unwrap_or_else(|_| Description::empty());
+        let character_description =
+            Description::new(&description).unwrap_or_else(|_| Description::empty());
 
         // Build character using aggregate's constructor and builder pattern
         let mut character = Character::new(world_id, character_name, base_archetype)
@@ -291,7 +318,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
     }
 
     async fn save(&self, character: &Character) -> Result<(), RepoError> {
-        let stats_json = serde_json::to_string(&StatBlockStored::from(character.stats().clone()))
+        // Issue 4.6 fix: Use reference instead of cloning the entire StatBlock
+        let stats_json = serde_json::to_string(&StatBlockStored::from(character.stats()))
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
         let archetype_history_json = serde_json::to_string(
             &character
@@ -338,7 +366,10 @@ impl CharacterRepo for Neo4jCharacterRepo {
             "portrait_asset",
             character.portrait_asset().unwrap_or_default().to_string(),
         )
-        .param("base_archetype", format!("{:?}", character.base_archetype()))
+        .param(
+            "base_archetype",
+            format!("{:?}", character.base_archetype()),
+        )
         .param(
             "current_archetype",
             format!("{:?}", character.current_archetype()),
@@ -714,9 +745,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
-            let node: neo4rs::Node = row
-                .get("w")
-                .map_err(|e| RepoError::database("query", e))?;
+            let node: neo4rs::Node = row.get("w").map_err(|e| RepoError::database("query", e))?;
             let want = node_to_want(&node)?;
 
             let priority: i64 = row.get("priority").unwrap_or(1);
@@ -752,9 +781,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
-            let node: neo4rs::Node = row
-                .get("w")
-                .map_err(|e| RepoError::database("query", e))?;
+            let node: neo4rs::Node = row.get("w").map_err(|e| RepoError::database("query", e))?;
             let want = node_to_want(&node)?;
             let character_id: CharacterId = parse_typed_id_from_row(&row, "character_id")
                 .map_err(|e| RepoError::database("query", e))?;
@@ -953,16 +980,16 @@ impl CharacterRepo for Neo4jCharacterRepo {
             let disposition_reason: Option<String> = row.get("disposition_reason").ok();
             let relationship_points: i64 = row.get("relationship_points").unwrap_or(0);
 
-            Ok(Some(NpcDispositionState {
+            Ok(Some(NpcDispositionState::from_storage(
                 npc_id,
                 pc_id,
                 disposition,
                 relationship,
-                sentiment: sentiment as f32,
+                sentiment as f32,
                 updated_at,
                 disposition_reason,
-                relationship_points: relationship_points as i32,
-            }))
+                relationship_points as i32,
+            )))
         } else {
             Ok(None)
         }
@@ -980,19 +1007,22 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 d.disposition_reason = $disposition_reason,
                 d.relationship_points = $relationship_points",
         )
-        .param("npc_id", disposition.npc_id.to_string())
-        .param("pc_id", disposition.pc_id.to_string())
-        .param("disposition", disposition.disposition.to_string())
-        .param("relationship", format!("{:?}", disposition.relationship))
-        .param("sentiment", disposition.sentiment as f64)
-        .param("updated_at", disposition.updated_at.to_rfc3339())
+        .param("npc_id", disposition.npc_id().to_string())
+        .param("pc_id", disposition.pc_id().to_string())
+        .param("disposition", disposition.disposition().to_string())
+        .param("relationship", format!("{:?}", disposition.relationship()))
+        .param("sentiment", disposition.sentiment() as f64)
+        .param("updated_at", disposition.updated_at().to_rfc3339())
         .param(
             "disposition_reason",
-            disposition.disposition_reason.clone().unwrap_or_default(),
+            disposition
+                .disposition_reason()
+                .unwrap_or_default()
+                .to_string(),
         )
         .param(
             "relationship_points",
-            disposition.relationship_points as i64,
+            disposition.relationship_points() as i64,
         );
 
         self.graph
@@ -1002,8 +1032,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
         tracing::debug!(
             "Saved disposition from NPC {} toward PC {}",
-            disposition.npc_id,
-            disposition.pc_id
+            disposition.npc_id(),
+            disposition.pc_id()
         );
         Ok(())
     }
@@ -1060,16 +1090,16 @@ impl CharacterRepo for Neo4jCharacterRepo {
             let disposition_reason: Option<String> = row.get("disposition_reason").ok();
             let relationship_points: i64 = row.get("relationship_points").unwrap_or(0);
 
-            dispositions.push(NpcDispositionState {
+            dispositions.push(NpcDispositionState::from_storage(
                 npc_id,
                 pc_id,
                 disposition,
                 relationship,
-                sentiment: sentiment as f32,
+                sentiment as f32,
                 updated_at,
                 disposition_reason,
-                relationship_points: relationship_points as i32,
-            });
+                relationship_points as i32,
+            ));
         }
 
         Ok(dispositions)
@@ -1141,19 +1171,15 @@ impl CharacterRepo for Neo4jCharacterRepo {
             match view.role {
                 ActantialRole::Helper => {
                     context.wants[idx].helpers.push(actor);
-                    context.social_views.add_ally(
-                        view.target,
-                        view.target_name,
-                        view.reason,
-                    );
+                    context
+                        .social_views
+                        .add_ally(view.target, view.target_name, view.reason);
                 }
                 ActantialRole::Opponent => {
                     context.wants[idx].opponents.push(actor);
-                    context.social_views.add_enemy(
-                        view.target,
-                        view.target_name,
-                        view.reason,
-                    );
+                    context
+                        .social_views
+                        .add_enemy(view.target, view.target_name, view.reason);
                 }
                 ActantialRole::Sender => {
                     if context.wants[idx].sender.is_none() {
@@ -1219,13 +1245,13 @@ impl CharacterRepo for Neo4jCharacterRepo {
             };
 
             let want_id_str: String = row.get("want_id").unwrap_or_default();
-            let want_uuid = Uuid::parse_str(&want_id_str)
-                .map_err(|e| RepoError::database("query", e))?;
+            let want_uuid =
+                Uuid::parse_str(&want_id_str).map_err(|e| RepoError::database("query", e))?;
             let want_id = WantId::from_uuid(want_uuid);
 
             let target_id_str: String = row.get("target_id").unwrap_or_default();
-            let target_uuid = Uuid::parse_str(&target_id_str)
-                .map_err(|e| RepoError::database("query", e))?;
+            let target_uuid =
+                Uuid::parse_str(&target_id_str).map_err(|e| RepoError::database("query", e))?;
             let target_labels: Vec<String> = row.get("target_labels").unwrap_or_default();
             let target = if target_labels.iter().any(|l| l == "PlayerCharacter") {
                 ActantialTarget::pc(target_uuid)
@@ -1660,8 +1686,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 .get("character_id")
                 .map_err(|e| RepoError::database("query", e))?;
             let character_id = CharacterId::from_uuid(
-                Uuid::parse_str(&character_id_str)
-                    .map_err(|e| RepoError::database("query", e))?,
+                Uuid::parse_str(&character_id_str).map_err(|e| RepoError::database("query", e))?,
             );
             let name: String = row
                 .get("name")

@@ -222,35 +222,34 @@ impl Location {
             // Get the target location details
             if let Some(target_location) = self.repo.get_location(exit.to_location).await? {
                 // Determine arrival region
-                let arrival_region_id = if let Some(default_region) =
-                    target_location.default_region_id()
-                {
-                    default_region
-                } else {
-                    // Try to find a spawn point in the target location
-                    let regions = self.repo.list_regions_in_location(exit.to_location).await?;
-                    match regions.into_iter().find(|r| r.is_spawn_point) {
-                        Some(r) => r.id,
-                        None => {
-                            let reason = format!(
-                                "Target location '{}' has no default region and no spawn point",
-                                target_location.name().as_str()
-                            );
-                            tracing::error!(
-                                from_region = %region_id,
-                                to_location = %exit.to_location,
-                                target_location_name = %target_location.name().as_str(),
-                                reason = %reason,
-                                "Navigation exit skipped due to data integrity issue"
-                            );
-                            result.skipped.push(SkippedExit {
-                                to_location: exit.to_location,
-                                reason,
-                            });
-                            continue;
+                let arrival_region_id =
+                    if let Some(default_region) = target_location.default_region_id() {
+                        default_region
+                    } else {
+                        // Try to find a spawn point in the target location
+                        let regions = self.repo.list_regions_in_location(exit.to_location).await?;
+                        match regions.into_iter().find(|r| r.is_spawn_point) {
+                            Some(r) => r.id,
+                            None => {
+                                let reason = format!(
+                                    "Target location '{}' has no default region and no spawn point",
+                                    target_location.name().as_str()
+                                );
+                                tracing::error!(
+                                    from_region = %region_id,
+                                    to_location = %exit.to_location,
+                                    target_location_name = %target_location.name().as_str(),
+                                    reason = %reason,
+                                    "Navigation exit skipped due to data integrity issue"
+                                );
+                                result.skipped.push(SkippedExit {
+                                    to_location: exit.to_location,
+                                    reason,
+                                });
+                                continue;
+                            }
                         }
-                    }
-                };
+                    };
 
                 result.exits.push(RegionExit {
                     location_id: exit.to_location,

@@ -21,12 +21,9 @@ impl Neo4jActRepo {
     }
 
     fn row_to_act(&self, row: Row) -> Result<Act, RepoError> {
-        let node: neo4rs::Node = row
-            .get("a")
-            .map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row.get("a").map_err(|e| RepoError::database("query", e))?;
 
-        let id: ActId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
+        let id: ActId = parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
         let world_id: WorldId =
             parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
         let name: String = node
@@ -102,8 +99,7 @@ impl ActRepo for Neo4jActRepo {
     }
 
     async fn delete(&self, id: ActId) -> Result<(), RepoError> {
-        let q = query("MATCH (a:Act {id: $id}) DETACH DELETE a")
-            .param("id", id.to_string());
+        let q = query("MATCH (a:Act {id: $id}) DETACH DELETE a").param("id", id.to_string());
 
         self.graph
             .run(q)

@@ -8,17 +8,15 @@ mod llm_tool_tests;
 
 pub mod chains;
 pub mod decision;
-pub mod execute_effects;
 pub mod events;
+pub mod execute_effects;
 
-pub use chains::{
-    CreateEventChainInput, EventChainError, EventChainOps, UpdateEventChainInput,
-};
+pub use chains::{CreateEventChainInput, EventChainError, EventChainOps, UpdateEventChainInput};
 pub use decision::{NarrativeDecisionFlow, NarrativeDecisionOutcome, NarrativeTriggeredPayload};
+pub use events::{NarrativeEventError, NarrativeEventOps, TriggeredNarrativeEvent};
 pub use execute_effects::{
     EffectExecutionContext, EffectExecutionResult, EffectExecutionSummary, ExecuteEffects,
 };
-pub use events::{NarrativeEventError, NarrativeEventOps, TriggeredNarrativeEvent};
 
 use std::sync::Arc;
 

@@ -385,7 +385,11 @@ impl WsE2EClient {
     }
 
     /// Assert that no message matching the predicate is received within the wait duration.
-    pub async fn expect_no_message<F>(&mut self, mut matcher: F, wait: Duration) -> Result<(), E2EError>
+    pub async fn expect_no_message<F>(
+        &mut self,
+        mut matcher: F,
+        wait: Duration,
+    ) -> Result<(), E2EError>
     where
         F: FnMut(&ServerMessage) -> bool,
     {
@@ -440,7 +444,7 @@ impl WsE2EClient {
                 your_role,
                 your_pc,
             }),
-            _ => unreachable!(),
+            _ => unreachable!("expect_message filter guarantees WorldJoined variant"),
         }
     }
 
@@ -461,7 +465,7 @@ impl WsE2EClient {
                 npc_name,
                 npc_disposition,
             }),
-            _ => unreachable!(),
+            _ => unreachable!("expect_message filter guarantees ConversationStarted variant"),
         }
     }
 
@@ -483,7 +487,7 @@ impl WsE2EClient {
                 text,
                 conversation_id,
             }),
-            _ => unreachable!(),
+            _ => unreachable!("expect_message filter guarantees DialogueResponse variant"),
         }
     }
 
@@ -499,7 +503,10 @@ impl WsE2EClient {
             .map_err(|e| E2EError::SendFailed(e.to_string()))
     }
 
-    async fn recv_with_timeout(&mut self, timeout_duration: Duration) -> Result<ServerMessage, E2EError> {
+    async fn recv_with_timeout(
+        &mut self,
+        timeout_duration: Duration,
+    ) -> Result<ServerMessage, E2EError> {
         match timeout(timeout_duration, self.recv_server_message()).await {
             Ok(result) => result,
             Err(_) => Err(E2EError::Timeout("receive")),
@@ -517,14 +524,12 @@ impl WsE2EClient {
 
             match msg {
                 WsMessage::Text(text) => {
-                    return serde_json::from_str::<ServerMessage>(&text)
-                        .map_err(E2EError::from);
+                    return serde_json::from_str::<ServerMessage>(&text).map_err(E2EError::from);
                 }
                 WsMessage::Binary(bin) => {
                     let text = String::from_utf8(bin)
                         .map_err(|e| E2EError::ReceiveFailed(e.to_string()))?;
-                    return serde_json::from_str::<ServerMessage>(&text)
-                        .map_err(E2EError::from);
+                    return serde_json::from_str::<ServerMessage>(&text).map_err(E2EError::from);
                 }
                 WsMessage::Ping(_) | WsMessage::Pong(_) | WsMessage::Close(_) => {
                     // Skip control frames

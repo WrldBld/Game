@@ -22,7 +22,8 @@ async fn test_suggests_stealth_for_sneaking() {
     let system_prompt = "You are a TTRPG game master assistant. When a player describes an action, \
         suggest the most appropriate skill check. Respond with JSON: {\"skill\": \"SkillName\", \"reason\": \"why\"}";
 
-    let user_prompt = "The player says: 'I want to quietly sneak past the guards at the mill entrance.'\n\
+    let user_prompt =
+        "The player says: 'I want to quietly sneak past the guards at the mill entrance.'\n\
         Scene: The Old Mill at night, guards are patrolling.\n\n\
         What skill check should be called for?";
 
@@ -30,14 +31,9 @@ async fn test_suggests_stealth_for_sneaking() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.3);
 
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_suggests_stealth_for_sneaking",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_suggests_stealth_for_sneaking", None)
+        .await
+        .expect("LLM request failed");
 
     let content_lower = response.content.to_lowercase();
     assert!(
@@ -57,7 +53,8 @@ async fn test_suggests_persuasion_for_negotiation() {
     let system_prompt = "You are a TTRPG game master assistant. When a player describes an action, \
         suggest the most appropriate skill check. Respond with JSON: {\"skill\": \"SkillName\", \"reason\": \"why\"}";
 
-    let user_prompt = "The player says: 'I want to convince Grom the blacksmith to share what he knows \
+    let user_prompt =
+        "The player says: 'I want to convince Grom the blacksmith to share what he knows \
         about his adventuring past.'\n\
         Scene: Ironforge Smithy, afternoon. Grom is working at his forge.\n\n\
         What skill check should be called for?";
@@ -94,7 +91,8 @@ async fn test_suggests_investigation_for_searching() {
     let system_prompt = "You are a TTRPG game master assistant. When a player describes an action, \
         suggest the most appropriate skill check. Respond with JSON: {\"skill\": \"SkillName\", \"reason\": \"why\"}";
 
-    let user_prompt = "The player says: 'I carefully search the mill basement for any hidden compartments \
+    let user_prompt =
+        "The player says: 'I carefully search the mill basement for any hidden compartments \
         or clues about the ritual that was performed here.'\n\
         Scene: The Old Mill basement, dark and dusty with old symbols on the floor.\n\n\
         What skill check should be called for?";
@@ -137,7 +135,8 @@ async fn test_scene_affects_dc_suggestion() {
         hard are DC 16-18, very hard are DC 19-22. Respond with JSON: {\"dc\": number, \"reason\": \"why\"}";
 
     // Easy context - calm NPC, friendly relationship
-    let easy_prompt = "The player wants to ask Marta the innkeeper (friendly, talkative) for general \
+    let easy_prompt =
+        "The player wants to ask Marta the innkeeper (friendly, talkative) for general \
         information about the village. She's been welcoming to the party.\n\
         Scene: The Drowsy Dragon Inn, evening, relaxed atmosphere.\n\n\
         What DC would you suggest for this Persuasion check?";
@@ -207,7 +206,8 @@ async fn test_scene_affects_dc_suggestion() {
 async fn test_success_narrative_references_location() {
     let client = create_test_ollama_client();
 
-    let system_prompt = "You are a TTRPG game master. Generate a brief, evocative success narrative \
+    let system_prompt =
+        "You are a TTRPG game master. Generate a brief, evocative success narrative \
         for the challenge outcome. Reference specific elements of the scene and location.";
 
     let user_prompt = "Challenge: 'Investigate the Mill Basement'\n\
@@ -395,14 +395,9 @@ async fn test_calming_tom_uses_wisdom_check() {
         .with_system_prompt(system_prompt)
         .with_temperature(0.3);
 
-    let response = generate_and_log(
-        &client,
-        request,
-        "test_calming_tom_uses_wisdom_check",
-        None,
-    )
-    .await
-    .expect("LLM request failed");
+    let response = generate_and_log(&client, request, "test_calming_tom_uses_wisdom_check", None)
+        .await
+        .expect("LLM request failed");
 
     let content_lower = response.content.to_lowercase();
     // Should suggest wisdom-based check (Insight, Medicine, or general Wisdom)
@@ -448,7 +443,10 @@ fn extract_dc_from_response(response: &str) -> Option<i32> {
             }
         }
         if word.starts_with(|c: char| c.is_ascii_digit()) {
-            if let Ok(dc) = word.trim_matches(|c: char| !c.is_ascii_digit()).parse::<i32>() {
+            if let Ok(dc) = word
+                .trim_matches(|c: char| !c.is_ascii_digit())
+                .parse::<i32>()
+            {
                 if (5..=30).contains(&dc) {
                     return Some(dc);
                 }

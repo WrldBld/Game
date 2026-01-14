@@ -5,8 +5,8 @@ use std::sync::Arc;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::repositories::Lore;
 use crate::infrastructure::ports::RepoError;
+use crate::repositories::Lore;
 use wrldbldr_domain::{
     CharacterId, LoreCategory, LoreChunkId, LoreDiscoverySource, LoreId, LoreKnowledge, WorldId,
 };
@@ -303,7 +303,11 @@ impl LoreOps {
         })
     }
 
-    pub async fn update(&self, lore_id: LoreId, input: UpdateLoreInput) -> Result<UpdateLoreResult, LoreError> {
+    pub async fn update(
+        &self,
+        lore_id: LoreId,
+        input: UpdateLoreInput,
+    ) -> Result<UpdateLoreResult, LoreError> {
         let mut lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
         if let Some(title) = input.title.as_ref() {
@@ -364,7 +368,11 @@ impl LoreOps {
             }
             None => {
                 // Auto-assign next sequential order
-                lore.chunks.iter().map(|c| c.order).max().map_or(0, |max| max + 1)
+                lore.chunks
+                    .iter()
+                    .map(|c| c.order)
+                    .max()
+                    .map_or(0, |max| max + 1)
             }
         };
 
@@ -573,28 +581,23 @@ impl LoreOps {
             .map(|k| CharacterLoreInfo {
                 lore_id: k.lore_id.to_string(),
                 character_id: k.character_id.to_string(),
-                known_chunk_ids: k
-                    .known_chunk_ids
-                    .iter()
-                    .map(|id| id.to_string())
-                    .collect(),
+                known_chunk_ids: k.known_chunk_ids.iter().map(|id| id.to_string()).collect(),
                 discovered_at: k.discovered_at.to_rfc3339(),
                 notes: k.notes,
             })
             .collect())
     }
 
-    pub async fn get_lore_knowers(&self, lore_id: LoreId) -> Result<Vec<LoreKnowerInfo>, LoreError> {
+    pub async fn get_lore_knowers(
+        &self,
+        lore_id: LoreId,
+    ) -> Result<Vec<LoreKnowerInfo>, LoreError> {
         let knowledge_list = self.lore.get_knowledge_for_lore(lore_id).await?;
         Ok(knowledge_list
             .into_iter()
             .map(|k| LoreKnowerInfo {
                 character_id: k.character_id.to_string(),
-                known_chunk_ids: k
-                    .known_chunk_ids
-                    .iter()
-                    .map(|id| id.to_string())
-                    .collect(),
+                known_chunk_ids: k.known_chunk_ids.iter().map(|id| id.to_string()).collect(),
                 discovered_at: k.discovered_at.to_rfc3339(),
             })
             .collect())
@@ -621,7 +624,9 @@ pub enum LoreError {
     Repo(#[from] RepoError),
 }
 
-fn lore_discovery_source(input: LoreDiscoverySourceInput) -> Result<LoreDiscoverySource, LoreError> {
+fn lore_discovery_source(
+    input: LoreDiscoverySourceInput,
+) -> Result<LoreDiscoverySource, LoreError> {
     match input {
         LoreDiscoverySourceInput::ReadBook { book_name } => {
             Ok(LoreDiscoverySource::ReadBook { book_name })
@@ -629,7 +634,10 @@ fn lore_discovery_source(input: LoreDiscoverySourceInput) -> Result<LoreDiscover
         LoreDiscoverySourceInput::Conversation { npc_id, npc_name } => {
             let npc_uuid = Uuid::parse_str(&npc_id)
                 .map(CharacterId::from_uuid)
-                .map_err(|_| LoreError::InvalidNpcId(npc_id))?;
+                .map_err(|e| {
+                    tracing::debug!(input = %npc_id, error = %e, "NPC ID parsing failed");
+                    LoreError::InvalidNpcId(npc_id)
+                })?;
             Ok(LoreDiscoverySource::Conversation {
                 npc_id: npc_uuid,
                 npc_name,
@@ -694,8 +702,8 @@ fn lore_to_detail(lore: wrldbldr_domain::Lore) -> LoreDetail {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repositories::Lore as LoreEntity;
     use crate::infrastructure::ports::MockLoreRepo;
+    use crate::repositories::Lore as LoreEntity;
     use std::sync::Arc;
 
     fn create_test_lore(world_id: WorldId) -> wrldbldr_domain::Lore {

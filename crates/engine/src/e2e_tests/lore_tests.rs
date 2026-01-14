@@ -13,9 +13,7 @@ use super::{create_test_player, E2EEventLog, E2ETestContext, TestOutcome};
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_list_world_lore() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // List all lore for the world
     let lore = ctx
@@ -37,16 +35,14 @@ async fn test_list_world_lore() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_create_lore_entry() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
 
     // Create a lore entry directly
     let lore_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -85,14 +81,15 @@ async fn test_create_lore_entry() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_discover_lore() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Lore Seeker",
@@ -105,7 +102,7 @@ async fn test_discover_lore() {
 
     // Create a lore entry
     let lore_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -126,7 +123,7 @@ async fn test_discover_lore() {
         .expect("Lore creation should succeed");
 
     // Mark lore as discovered by PC
-    let discover_result = ctx.harness
+    let discover_result = ctx
         .graph()
         .run(
             query(
@@ -150,10 +147,13 @@ async fn test_lore_in_context() {
         .await
         .expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Context Seeker",
@@ -188,9 +188,7 @@ async fn test_lore_in_context() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_lore_discovered_trigger() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
@@ -200,7 +198,7 @@ async fn test_lore_discovered_trigger() {
     let lore_id = Uuid::new_v4();
 
     // First create the lore
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -221,7 +219,7 @@ async fn test_lore_discovered_trigger() {
         .expect("Lore creation should succeed");
 
     // Create event
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -246,7 +244,7 @@ async fn test_lore_discovered_trigger() {
 
     // Create LoreDiscovered trigger
     let trigger_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -275,7 +273,9 @@ async fn test_lore_discovered_trigger() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
+        events
+            .iter()
+            .any(|e| e.id().to_string() == event_id.to_string()),
         "Event with LoreDiscovered trigger should exist"
     );
 }

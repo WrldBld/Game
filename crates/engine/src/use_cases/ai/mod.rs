@@ -4,9 +4,9 @@ use uuid::Uuid;
 
 use wrldbldr_domain::{CharacterId, LlmRequestData, LlmRequestType, SuggestionContext, WorldId};
 
-use crate::repositories::World;
-use crate::repositories::character::Character;
 use crate::infrastructure::ports::{QueueError, QueuePort, RepoError};
+use crate::repositories::character::Character;
+use crate::repositories::World;
 
 /// Actantial role for NPC want relationships (domain representation).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,11 +59,7 @@ pub struct SuggestionOps {
 }
 
 impl SuggestionOps {
-    pub fn new(
-        queue: Arc<dyn QueuePort>,
-        world: Arc<World>,
-        character: Arc<Character>,
-    ) -> Self {
+    pub fn new(queue: Arc<dyn QueuePort>, world: Arc<World>, character: Arc<Character>) -> Self {
         Self {
             queue,
             world,
@@ -90,13 +86,8 @@ impl SuggestionOps {
             world_id: context.world_id.map(WorldId::from_uuid),
         };
 
-        self.queue_suggestion(
-            world_id,
-            suggestion_type,
-            None,
-            Some(suggestion_context),
-        )
-        .await
+        self.queue_suggestion(world_id, suggestion_type, None, Some(suggestion_context))
+            .await
     }
 
     pub async fn cancel_content_suggestion(
@@ -200,7 +191,10 @@ impl SuggestionOps {
         let world_setting = self.enrich_world_setting(world_id, None).await?;
         let extra = format!(
             "npc_id={}; want_id={}; target_id={}; role={}",
-            npc_id, want_id, target_id, role.as_json_str()
+            npc_id,
+            want_id,
+            target_id,
+            role.as_json_str()
         );
         let suggestion_context = SuggestionContext {
             entity_type: Some("npc".to_string()),
@@ -270,10 +264,7 @@ impl SuggestionOps {
         Ok(world_name)
     }
 
-    async fn load_npc_name(
-        &self,
-        npc_id: CharacterId,
-    ) -> Result<Option<String>, SuggestionError> {
+    async fn load_npc_name(&self, npc_id: CharacterId) -> Result<Option<String>, SuggestionError> {
         let name = self
             .character
             .get(npc_id)

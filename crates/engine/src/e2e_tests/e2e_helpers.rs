@@ -12,25 +12,26 @@ use neo4rs::Graph;
 use tempfile::TempDir;
 use uuid::Uuid;
 use wrldbldr_domain::{
-    ActId, ChallengeId, CharacterId, LocationId, NarrativeEventId,
-    RegionId, RuleSystemConfig, SceneId, WorldId,
+    ActId, ChallengeId, CharacterId, LocationId, NarrativeEventId, RegionId, RuleSystemConfig,
+    SceneId, WorldId,
 };
 
 use crate::app::App;
 use crate::infrastructure::clock::FixedClock;
 use crate::infrastructure::neo4j::Neo4jRepositories;
 use crate::infrastructure::ports::{
-    ClockPort, FinishReason, ImageGenError, ImageGenPort, ImageRequest, ImageResult, LlmError, LlmPort,
-    LlmRequest, LlmResponse, QueueError, QueueItem, QueuePort, ToolDefinition,
+    ClockPort, FinishReason, ImageGenError, ImageGenPort, ImageRequest, ImageResult, LlmError,
+    LlmPort, LlmRequest, LlmResponse, QueueError, QueueItem, QueuePort, ToolDefinition,
 };
 use crate::infrastructure::queue::SqliteQueue;
 use crate::infrastructure::settings::SqliteSettingsRepo;
 use crate::test_fixtures::world_seeder::{load_thornhaven, TestWorld};
 use crate::use_cases::content::ContentServiceConfig;
 
+use super::benchmark::{is_benchmark_enabled, BenchmarkLlmDecorator, E2EBenchmark};
 use super::event_log::{E2EEventLog, TestOutcome};
 use super::logging_queue::LoggingQueue;
-use super::Neo4jTestHarness;
+use super::neo4j_test_harness::SharedNeo4jHarness;
 
 // =============================================================================
 // Seeded World Result
@@ -88,14 +89,24 @@ impl SeededWorld {
 // =============================================================================
 
 /// Full E2E test context with application stack and seeded world.
+///
+/// Uses a shared Neo4j container across all tests for faster execution.
+/// Each test gets fresh UUIDs for all entities, ensuring complete isolation.
 pub struct E2ETestContext {
-    pub harness: Neo4jTestHarness,
+    /// Shared Neo4j harness (container is reused across tests)
+    pub harness: Arc<SharedNeo4jHarness>,
+    /// Graph connection for this test's runtime.
+    /// Each test gets its own Graph because neo4rs Graph is tied to the tokio runtime.
+    graph: Graph,
     pub app: App,
     pub world: SeededWorld,
     pub test_world: TestWorld,
     pub clock: Arc<FixedClock>,
     /// Optional event log for comprehensive test analysis.
     pub event_log: Option<Arc<E2EEventLog>>,
+    /// Optional benchmark for timing analysis.
+    /// Enable via `E2E_BENCHMARK=1` environment variable.
+    pub benchmark: Option<Arc<E2EBenchmark>>,
     _temp_dir: TempDir,
 }
 
@@ -106,15 +117,27 @@ impl E2ETestContext {
     /// 1. Starts a Neo4j container
     /// 2. Seeds the Thornhaven test world
     /// 3. Constructs the full App with all use cases
+    ///
+    /// If `E2E_BENCHMARK=1` is set, timing is tracked automatically.
     pub async fn setup() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        Self::setup_with_llm(Arc::new(NoopLlm)).await
+        Self::setup_named("unnamed_test", Arc::new(NoopLlm)).await
+    }
+
+    /// Create a new E2E test context with a test name for benchmarking.
+    ///
+    /// Use this when you want benchmark output to identify the test.
+    pub async fn setup_named(
+        test_name: &str,
+        llm: Arc<dyn LlmPort>,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        Self::setup_internal(test_name, llm, None).await
     }
 
     /// Create a new E2E test context with custom LLM implementation.
     pub async fn setup_with_llm(
         llm: Arc<dyn LlmPort>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        Self::setup_internal(llm, None).await
+        Self::setup_internal("unnamed_test", llm, None).await
     }
 
     /// Create a new E2E test context with event logging (no custom LLM).
@@ -123,7 +146,7 @@ impl E2ETestContext {
     pub async fn setup_with_logging(
         event_log: Arc<E2EEventLog>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        Self::setup_internal(Arc::new(NoopLlm), Some(event_log)).await
+        Self::setup_internal("unnamed_test", Arc::new(NoopLlm), Some(event_log)).await
     }
 
     /// Create a new E2E test context with custom LLM and event logging.
@@ -134,16 +157,43 @@ impl E2ETestContext {
         llm: Arc<dyn LlmPort>,
         event_log: Arc<E2EEventLog>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        Self::setup_internal(llm, Some(event_log)).await
+        Self::setup_internal("unnamed_test", llm, Some(event_log)).await
     }
 
-    /// Internal setup method with optional event logging.
+    /// Internal setup method with optional event logging and benchmarking.
+    ///
+    /// Uses a shared Neo4j container for all tests, with fresh UUIDs per test
+    /// to ensure complete isolation without container startup overhead.
+    ///
+    /// If `E2E_BENCHMARK=1` is set, timing is tracked for:
+    /// - Container connection
+    /// - World seeding
+    /// - App construction
+    /// - LLM calls (via decorator)
     async fn setup_internal(
+        test_name: &str,
         llm: Arc<dyn LlmPort>,
         event_log: Option<Arc<E2EEventLog>>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        // Start Neo4j container
-        let harness = Neo4jTestHarness::start().await?;
+        // Create benchmark if enabled
+        let benchmark = if is_benchmark_enabled() {
+            Some(Arc::new(E2EBenchmark::new(test_name)))
+        } else {
+            None
+        };
+
+        // Start timing container connection
+        if let Some(ref b) = benchmark {
+            b.start_phase("container");
+        }
+
+        // Get shared Neo4j container (started once, reused across all tests)
+        let harness = SharedNeo4jHarness::shared().await?;
+
+        if let Some(ref b) = benchmark {
+            b.end_phase("container");
+            b.start_phase("seed");
+        }
 
         // Load test world from JSON fixtures
         let test_world = load_thornhaven();
@@ -152,16 +202,26 @@ impl E2ETestContext {
         let now = Utc.with_ymd_and_hms(2026, 1, 12, 9, 0, 0).unwrap(); // Morning
         let clock = Arc::new(FixedClock(now));
 
-        // Seed world to Neo4j
-        let seeded = seed_thornhaven_to_neo4j(harness.graph(), clock.clone(), &test_world).await?;
+        // Create a Graph connection for THIS test's runtime
+        // Each test needs its own connection because Graph is tied to the tokio runtime
+        let own_graph = harness.create_graph().await?;
+
+        // Seed world to Neo4j with FRESH UUIDs for complete test isolation
+        // Each test gets its own unique IDs, so tests can run in parallel
+        let seeded = seed_thornhaven_to_neo4j(&own_graph, clock.clone(), &test_world).await?;
+
+        if let Some(ref b) = benchmark {
+            b.end_phase("seed");
+            b.start_phase("app_init");
+        }
 
         // Create temporary directory for SQLite databases
         let temp_dir = TempDir::new()?;
         let queue_db = temp_dir.path().join("queue.db");
         let queue_db_str = queue_db.to_string_lossy().to_string();
 
-        // Create repositories and app
-        let repos = Neo4jRepositories::new(harness.graph_clone(), clock.clone());
+        // Create repositories and app using a clone of the graph (Graph is cloneable)
+        let repos = Neo4jRepositories::new(own_graph.clone(), clock.clone());
         let base_queue = Arc::new(SqliteQueue::new(&queue_db_str, clock.clone()).await?);
 
         // Wrap queue with logging if event_log is provided
@@ -171,11 +231,22 @@ impl E2ETestContext {
             base_queue
         };
 
+        // Wrap LLM with benchmark decorator if benchmarking is enabled
+        let llm: Arc<dyn LlmPort> = if let Some(ref b) = benchmark {
+            Arc::new(BenchmarkLlmDecorator::new(llm, b.clone()))
+        } else {
+            llm
+        };
+
         let settings_repo = Arc::new(SqliteSettingsRepo::new(&queue_db_str, clock.clone()).await?);
         let image_gen: Arc<dyn ImageGenPort> = Arc::new(NoopImageGen);
         let content_config = ContentServiceConfig::default();
 
         let app = App::new(repos, llm, image_gen, queue, settings_repo, content_config);
+
+        if let Some(ref b) = benchmark {
+            b.end_phase("app_init");
+        }
 
         // Set world ID in event log if logging is enabled
         if let Some(ref log) = event_log {
@@ -184,20 +255,45 @@ impl E2ETestContext {
 
         Ok(Self {
             harness,
+            graph: own_graph,
             app,
             world: seeded,
             test_world,
             clock,
             event_log,
+            benchmark,
             _temp_dir: temp_dir,
         })
     }
 
+    /// Get reference to the Neo4j graph connection.
+    ///
+    /// This graph is specific to this test's tokio runtime.
+    pub fn graph(&self) -> &Graph {
+        &self.graph
+    }
+
+    /// Print benchmark summary if benchmarking is enabled.
+    ///
+    /// Call this at the end of a test to see timing breakdown.
+    pub fn print_benchmark(&self) {
+        if let Some(ref b) = self.benchmark {
+            b.print_summary();
+        }
+    }
+
+    /// Register benchmark results for aggregation across tests.
+    ///
+    /// Call this at the end of each test when running multiple tests.
+    pub fn register_benchmark(&self) {
+        if let Some(ref b) = self.benchmark {
+            super::benchmark::register_benchmark(b.summary());
+        }
+    }
+
     /// Set the clock to a specific time.
     pub fn set_time(&self, hour: u32, minute: u32) {
-        let new_time = Utc
-            .with_ymd_and_hms(2026, 1, 12, hour, minute, 0)
-            .unwrap();
+        let new_time = Utc.with_ymd_and_hms(2026, 1, 12, hour, minute, 0).unwrap();
         // Note: FixedClock is immutable, so tests should create new context
         // or we'd need interior mutability. For now, tests should create
         // context at the desired time.
@@ -242,6 +338,19 @@ impl E2ETestContext {
     }
 }
 
+/// Automatically print benchmark summary when test context is dropped.
+///
+/// With nextest's `success-output = "immediate"`, this will display
+/// timing info right after each test completes.
+impl Drop for E2ETestContext {
+    fn drop(&mut self) {
+        if let Some(ref b) = self.benchmark {
+            // Print compact benchmark line to stderr (captured by nextest)
+            eprintln!("{}", b.summary().format_compact());
+        }
+    }
+}
+
 // =============================================================================
 // World Seeding
 // =============================================================================
@@ -249,6 +358,19 @@ impl E2ETestContext {
 /// Seed the Thornhaven test world to Neo4j.
 ///
 /// Creates all entities from the JSON fixtures in the database with proper relationships.
+///
+/// # Fresh UUIDs
+///
+/// This function generates **fresh UUIDs** for all entities instead of using the fixture IDs.
+/// This allows multiple tests to run against the same shared Neo4j container without conflicts.
+/// Tests are completely isolated by their unique IDs.
+///
+/// The fixture data provides structure and names, but IDs are generated per-test:
+/// - `WorldId` - Fresh UUID per test
+/// - `LocationId` - Fresh UUID per test
+/// - `RegionId` - Fresh UUID per test
+/// - `CharacterId` - Fresh UUID per test
+/// - `ActId`, `SceneId`, `ChallengeId`, `NarrativeEventId` - All fresh per test
 pub async fn seed_thornhaven_to_neo4j(
     graph: &Graph,
     clock: Arc<dyn ClockPort>,
@@ -256,8 +378,16 @@ pub async fn seed_thornhaven_to_neo4j(
 ) -> Result<SeededWorld, Box<dyn std::error::Error + Send + Sync>> {
     use neo4rs::query;
 
-    let world_id = test_world.world_id;
+    // Generate fresh world ID for this test (NOT from fixtures)
+    let world_id = WorldId::from(Uuid::new_v4());
     let now = clock.now();
+
+    // Build ID mappings: fixture_id -> fresh_id
+    // This allows relationships to be created correctly while using fresh IDs
+    let mut location_id_map: HashMap<LocationId, LocationId> = HashMap::new();
+    let mut region_id_map: HashMap<RegionId, RegionId> = HashMap::new();
+    let mut npc_id_map: HashMap<CharacterId, CharacterId> = HashMap::new();
+    let mut act_id_map: HashMap<ActId, ActId> = HashMap::new();
 
     // Serialize rule_system as JSON (matches WorldRepo::save format)
     let rule_system_json = serde_json::to_string(&RuleSystemConfig::dnd_5e())
@@ -285,9 +415,13 @@ pub async fn seed_thornhaven_to_neo4j(
         )
         .await?;
 
-    // 2. Create Locations
+    // 2. Create Locations with FRESH IDs
     let mut location_ids = HashMap::new();
     for loc in &test_world.locations {
+        // Generate fresh ID for this test
+        let new_id = LocationId::from(Uuid::new_v4());
+        location_id_map.insert(loc.id, new_id);
+
         graph
             .run(
                 query(
@@ -302,7 +436,7 @@ pub async fn seed_thornhaven_to_neo4j(
                         use_llm_presence: $use_llm
                     })",
                 )
-                .param("id", loc.id.to_string())
+                .param("id", new_id.to_string())
                 .param("world_id", world_id.to_string())
                 .param("name", loc.name.clone())
                 .param("description", loc.description.clone())
@@ -320,17 +454,25 @@ pub async fn seed_thornhaven_to_neo4j(
                     "MATCH (l:Location {id: $loc_id}), (w:World {id: $world_id})
                      CREATE (l)-[:LOCATED_IN]->(w)",
                 )
-                .param("loc_id", loc.id.to_string())
+                .param("loc_id", new_id.to_string())
                 .param("world_id", world_id.to_string()),
             )
             .await?;
 
-        location_ids.insert(loc.name.clone(), loc.id);
+        location_ids.insert(loc.name.clone(), new_id);
     }
 
-    // 3. Create Regions
+    // 3. Create Regions with FRESH IDs
     let mut region_ids = HashMap::new();
     for region in &test_world.regions {
+        // Generate fresh ID and map the fixture's location_id to the new location ID
+        let new_id = RegionId::from(Uuid::new_v4());
+        region_id_map.insert(region.id, new_id);
+        let new_location_id = location_id_map
+            .get(&region.location_id)
+            .copied()
+            .unwrap_or_else(|| panic!("Location ID not found for region: {}", region.name));
+
         graph
             .run(
                 query(
@@ -344,8 +486,8 @@ pub async fn seed_thornhaven_to_neo4j(
                         ordering: $ordering
                     })",
                 )
-                .param("id", region.id.to_string())
-                .param("location_id", region.location_id.to_string())
+                .param("id", new_id.to_string())
+                .param("location_id", new_location_id.to_string())
                 .param("name", region.name.clone())
                 .param("description", region.description.clone())
                 .param("atmosphere", region.atmosphere.clone())
@@ -361,16 +503,21 @@ pub async fn seed_thornhaven_to_neo4j(
                     "MATCH (r:Region {id: $region_id}), (l:Location {id: $loc_id})
                      CREATE (r)-[:LOCATED_IN]->(l)",
                 )
-                .param("region_id", region.id.to_string())
-                .param("loc_id", region.location_id.to_string()),
+                .param("region_id", new_id.to_string())
+                .param("loc_id", new_location_id.to_string()),
             )
             .await?;
 
-        region_ids.insert(region.name.clone(), region.id);
+        region_ids.insert(region.name.clone(), new_id);
     }
 
-    // 4. Create Region Connections
+    // 4. Create Region Connections (using mapped IDs)
     for conn in &test_world.region_connections {
+        let from_id = region_id_map.get(&conn.from_region_id).copied()
+            .unwrap_or_else(|| panic!("From region ID not found for connection"));
+        let to_id = region_id_map.get(&conn.to_region_id).copied()
+            .unwrap_or_else(|| panic!("To region ID not found for connection"));
+
         graph
             .run(
                 query(
@@ -380,8 +527,8 @@ pub async fn seed_thornhaven_to_neo4j(
                          is_locked: $is_locked
                      }]->(to)",
                 )
-                .param("from_id", conn.from_region_id.to_string())
-                .param("to_id", conn.to_region_id.to_string())
+                .param("from_id", from_id.to_string())
+                .param("to_id", to_id.to_string())
                 .param("description", conn.description.clone())
                 .param("is_locked", conn.is_locked),
             )
@@ -398,8 +545,8 @@ pub async fn seed_thornhaven_to_neo4j(
                              is_locked: $is_locked
                          }]->(from)",
                     )
-                    .param("from_id", conn.from_region_id.to_string())
-                    .param("to_id", conn.to_region_id.to_string())
+                    .param("from_id", from_id.to_string())
+                    .param("to_id", to_id.to_string())
                     .param("description", conn.description.clone())
                     .param("is_locked", conn.is_locked),
                 )
@@ -407,14 +554,17 @@ pub async fn seed_thornhaven_to_neo4j(
         }
     }
 
-    // 5. Create NPCs
+    // 5. Create NPCs with FRESH IDs
     let mut npc_ids = HashMap::new();
     for npc in &test_world.npcs {
+        // Generate fresh ID for this test
+        let new_id = CharacterId::from(Uuid::new_v4());
+        npc_id_map.insert(npc.id, new_id);
+
         // Serialize archetype_history and stats as JSON strings
         let archetype_history_json = serde_json::to_string(&Vec::<serde_json::Value>::new())
             .unwrap_or_else(|_| "[]".to_string());
-        let stats_json = serde_json::to_string(&npc.stats)
-            .unwrap_or_else(|_| "{}".to_string());
+        let stats_json = serde_json::to_string(&npc.stats).unwrap_or_else(|_| "{}".to_string());
 
         graph
             .run(
@@ -436,17 +586,26 @@ pub async fn seed_thornhaven_to_neo4j(
                         max_hp: $max_hp
                     })",
                 )
-                .param("id", npc.id.to_string())
+                .param("id", new_id.to_string())
                 .param("world_id", world_id.to_string())
                 .param("name", npc.name.clone())
                 .param("description", npc.description.clone())
-                .param("base_archetype", format!("{:?}", npc.base_archetype).to_lowercase())
-                .param("current_archetype", format!("{:?}", npc.current_archetype).to_lowercase())
+                .param(
+                    "base_archetype",
+                    format!("{:?}", npc.base_archetype).to_lowercase(),
+                )
+                .param(
+                    "current_archetype",
+                    format!("{:?}", npc.current_archetype).to_lowercase(),
+                )
                 .param("archetype_history", archetype_history_json)
                 .param("stats", stats_json)
                 .param("is_alive", npc.is_alive)
                 .param("is_active", npc.is_active)
-                .param("disposition", format!("{:?}", npc.default_disposition).to_lowercase())
+                .param(
+                    "disposition",
+                    format!("{:?}", npc.default_disposition).to_lowercase(),
+                )
                 .param("mood", format!("{:?}", npc.default_mood).to_lowercase())
                 .param("hp", npc.stats.current_hp as i64)
                 .param("max_hp", npc.stats.max_hp as i64),
@@ -460,19 +619,28 @@ pub async fn seed_thornhaven_to_neo4j(
                     "MATCH (c:Character {id: $char_id}), (w:World {id: $world_id})
                      CREATE (c)-[:BELONGS_TO]->(w)",
                 )
-                .param("char_id", npc.id.to_string())
+                .param("char_id", new_id.to_string())
                 .param("world_id", world_id.to_string()),
             )
             .await?;
 
-        npc_ids.insert(npc.name.clone(), npc.id);
+        npc_ids.insert(npc.name.clone(), new_id);
     }
 
-    // 6. Create NPC-Region relationships (WORKS_AT)
+    // 6. Create NPC-Region relationships (WORKS_AT) using mapped IDs
     for works_at in &test_world.works_at {
-        // Find the region for this location
-        if let Some(loc_data) = test_world.locations.iter().find(|l| l.id == works_at.location_id) {
+        // Find the region for this location and map to fresh IDs
+        if let Some(loc_data) = test_world
+            .locations
+            .iter()
+            .find(|l| l.id == works_at.location_id)
+        {
             if let Some(default_region) = loc_data.regions.first() {
+                let char_id = npc_id_map.get(&works_at.character_id).copied()
+                    .unwrap_or_else(|| panic!("Character ID not found for works_at"));
+                let region_id = region_id_map.get(&default_region.id).copied()
+                    .unwrap_or_else(|| panic!("Region ID not found for works_at"));
+
                 graph
                     .run(
                         query(
@@ -482,8 +650,8 @@ pub async fn seed_thornhaven_to_neo4j(
                                  shift: $schedule
                              }]->(r)",
                         )
-                        .param("char_id", works_at.character_id.to_string())
-                        .param("region_id", default_region.id.to_string())
+                        .param("char_id", char_id.to_string())
+                        .param("region_id", region_id.to_string())
                         .param("role", works_at.role.clone())
                         .param("schedule", works_at.schedule.clone()),
                     )
@@ -492,10 +660,19 @@ pub async fn seed_thornhaven_to_neo4j(
         }
     }
 
-    // 7. Create FREQUENTS relationships
+    // 7. Create FREQUENTS relationships using mapped IDs
     for freq in &test_world.frequents {
-        if let Some(loc_data) = test_world.locations.iter().find(|l| l.id == freq.location_id) {
+        if let Some(loc_data) = test_world
+            .locations
+            .iter()
+            .find(|l| l.id == freq.location_id)
+        {
             if let Some(default_region) = loc_data.regions.first() {
+                let char_id = npc_id_map.get(&freq.character_id).copied()
+                    .unwrap_or_else(|| panic!("Character ID not found for frequents"));
+                let region_id = region_id_map.get(&default_region.id).copied()
+                    .unwrap_or_else(|| panic!("Region ID not found for frequents"));
+
                 graph
                     .run(
                         query(
@@ -505,8 +682,8 @@ pub async fn seed_thornhaven_to_neo4j(
                                  time_of_day: $time_of_day
                              }]->(r)",
                         )
-                        .param("char_id", freq.character_id.to_string())
-                        .param("region_id", default_region.id.to_string())
+                        .param("char_id", char_id.to_string())
+                        .param("region_id", region_id.to_string())
                         .param("frequency", freq.frequency.clone())
                         .param("time_of_day", freq.time_of_day.clone()),
                     )
@@ -515,9 +692,12 @@ pub async fn seed_thornhaven_to_neo4j(
         }
     }
 
-    // 8. Create Acts
+    // 8. Create Acts with FRESH IDs
     let mut act_ids = HashMap::new();
     for act in &test_world.acts {
+        let new_id = ActId::from(Uuid::new_v4());
+        act_id_map.insert(act.id, new_id);
+
         graph
             .run(
                 query(
@@ -530,7 +710,7 @@ pub async fn seed_thornhaven_to_neo4j(
                         ordering: $ordering
                     })",
                 )
-                .param("id", act.id.to_string())
+                .param("id", new_id.to_string())
                 .param("world_id", world_id.to_string())
                 .param("name", act.name.clone())
                 .param("description", act.description.clone())
@@ -546,17 +726,23 @@ pub async fn seed_thornhaven_to_neo4j(
                     "MATCH (a:Act {id: $act_id}), (w:World {id: $world_id})
                      CREATE (a)-[:PART_OF]->(w)",
                 )
-                .param("act_id", act.id.to_string())
+                .param("act_id", new_id.to_string())
                 .param("world_id", world_id.to_string()),
             )
             .await?;
 
-        act_ids.insert(act.name.clone(), act.id);
+        act_ids.insert(act.name.clone(), new_id);
     }
 
-    // 9. Create Scenes
+    // 9. Create Scenes with FRESH IDs
     let mut scene_ids = HashMap::new();
     for scene in &test_world.scenes {
+        let new_id = SceneId::from(Uuid::new_v4());
+        let new_act_id = act_id_map.get(&scene.act_id).copied()
+            .unwrap_or_else(|| panic!("Act ID not found for scene: {}", scene.name));
+        let new_location_id = location_id_map.get(&scene.location_id).copied()
+            .unwrap_or_else(|| panic!("Location ID not found for scene: {}", scene.name));
+
         graph
             .run(
                 query(
@@ -569,10 +755,10 @@ pub async fn seed_thornhaven_to_neo4j(
                         ordering: $ordering
                     })",
                 )
-                .param("id", scene.id.to_string())
-                .param("act_id", scene.act_id.to_string())
+                .param("id", new_id.to_string())
+                .param("act_id", new_act_id.to_string())
                 .param("name", scene.name.clone())
-                .param("location_id", scene.location_id.to_string())
+                .param("location_id", new_location_id.to_string())
                 .param("notes", scene.directorial_notes.clone())
                 .param("ordering", scene.order as i64),
             )
@@ -585,17 +771,19 @@ pub async fn seed_thornhaven_to_neo4j(
                     "MATCH (s:Scene {id: $scene_id}), (a:Act {id: $act_id})
                      CREATE (s)-[:PART_OF]->(a)",
                 )
-                .param("scene_id", scene.id.to_string())
-                .param("act_id", scene.act_id.to_string()),
+                .param("scene_id", new_id.to_string())
+                .param("act_id", new_act_id.to_string()),
             )
             .await?;
 
-        scene_ids.insert(scene.name.clone(), scene.id);
+        scene_ids.insert(scene.name.clone(), new_id);
     }
 
-    // 10. Create Challenges
+    // 10. Create Challenges with FRESH IDs
     let mut challenge_ids = HashMap::new();
     for challenge in &test_world.challenges {
+        let new_id = ChallengeId::from(Uuid::new_v4());
+
         // Serialize difficulty, outcomes, and trigger_conditions as JSON
         let difficulty_json = serde_json::to_string(&challenge.difficulty)
             .unwrap_or_else(|_| r#"{"DC":15}"#.to_string());
@@ -603,8 +791,7 @@ pub async fn seed_thornhaven_to_neo4j(
             .unwrap_or_else(|_| r#"{"success":{"description":"Success","triggers":[]},"failure":{"description":"Failure","triggers":[]}}"#.to_string());
         let triggers_json = serde_json::to_string(&challenge.trigger_conditions)
             .unwrap_or_else(|_| "[]".to_string());
-        let tags_json = serde_json::to_string(&challenge.tags)
-            .unwrap_or_else(|_| "[]".to_string());
+        let tags_json = serde_json::to_string(&challenge.tags).unwrap_or_else(|_| "[]".to_string());
 
         graph
             .run(
@@ -625,7 +812,7 @@ pub async fn seed_thornhaven_to_neo4j(
                         tags_json: $tags_json
                     })",
                 )
-                .param("id", challenge.id.to_string())
+                .param("id", new_id.to_string())
                 .param("world_id", world_id.to_string())
                 .param("name", challenge.name.clone())
                 .param("description", challenge.description.clone())
@@ -633,7 +820,10 @@ pub async fn seed_thornhaven_to_neo4j(
                 .param("difficulty_json", difficulty_json)
                 .param("outcomes_json", outcomes_json)
                 .param("triggers_json", triggers_json)
-                .param("check_stat", challenge.check_stat.clone().unwrap_or_default())
+                .param(
+                    "check_stat",
+                    challenge.check_stat.clone().unwrap_or_default(),
+                )
                 .param("active", challenge.active)
                 .param("ordering", challenge.order as i64)
                 .param("favorite", challenge.is_favorite)
@@ -641,12 +831,14 @@ pub async fn seed_thornhaven_to_neo4j(
             )
             .await?;
 
-        challenge_ids.insert(challenge.name.clone(), challenge.id);
+        challenge_ids.insert(challenge.name.clone(), new_id);
     }
 
-    // 11. Create Narrative Events
+    // 11. Create Narrative Events with FRESH IDs
     let mut event_ids = HashMap::new();
     for event in &test_world.narrative_events {
+        let new_id = NarrativeEventId::from(Uuid::new_v4());
+
         graph
             .run(
                 query(
@@ -663,7 +855,7 @@ pub async fn seed_thornhaven_to_neo4j(
                         is_favorite: $is_favorite
                     })",
                 )
-                .param("id", event.id.to_string())
+                .param("id", new_id.to_string())
                 .param("world_id", world_id.to_string())
                 .param("name", event.name.clone())
                 .param("description", event.description.clone())
@@ -676,7 +868,7 @@ pub async fn seed_thornhaven_to_neo4j(
             )
             .await?;
 
-        event_ids.insert(event.name.clone(), event.id);
+        event_ids.insert(event.name.clone(), new_id);
     }
 
     Ok(SeededWorld {
@@ -1005,7 +1197,7 @@ pub fn create_e2e_llm(test_name: &str) -> Arc<VcrLlm> {
 
 use wrldbldr_domain::{DmApprovalDecision, PlayerCharacterId, StagingSource};
 
-use crate::use_cases::staging::{ApprovedNpc, ApproveStagingInput};
+use crate::use_cases::staging::{ApproveStagingInput, ApprovedNpc};
 
 /// Stage an NPC in a region (simulating DM approval).
 pub async fn approve_staging_with_npc(

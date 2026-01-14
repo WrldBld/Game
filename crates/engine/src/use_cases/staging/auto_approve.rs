@@ -4,15 +4,15 @@ use std::sync::Arc;
 
 use wrldbldr_domain::StagingSource;
 
-use crate::repositories::{LocationStateEntity, RegionStateEntity, World};
+use crate::infrastructure::ports::{PendingStagingRequest, SettingsRepo};
 use crate::repositories::character::Character;
 use crate::repositories::location::Location;
 use crate::repositories::staging::Staging;
-use crate::infrastructure::ports::SettingsRepo;
+use crate::repositories::{LocationStateEntity, RegionStateEntity, World};
 
 use super::approve::{ApproveStagingInput, ApproveStagingRequest, StagingReadyPayload};
 use super::suggestions::generate_rule_based_suggestions;
-use super::types::{ApprovedNpc, PendingStagingRequest};
+use super::types::ApprovedNpc;
 use super::{get_settings_with_fallback, StagingError};
 
 /// Use case for auto-approving expired staging requests.
@@ -57,9 +57,16 @@ impl AutoApproveStagingTimeout {
             get_settings_with_fallback(self.settings.as_ref(), pending.world_id, "auto-approval")
                 .await;
 
+        // Fetch NPCs for region once
+        let npcs_for_region = self
+            .character
+            .get_npcs_for_region(pending.region_id)
+            .await
+            .unwrap_or_default();
+
         // Generate rule-based NPC suggestions
         let rule_based_npcs =
-            generate_rule_based_suggestions(&self.character, &self.staging, pending.region_id)
+            generate_rule_based_suggestions(&npcs_for_region, &self.staging, pending.region_id)
                 .await;
 
         // Convert to ApprovedNpc domain type

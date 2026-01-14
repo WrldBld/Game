@@ -146,7 +146,10 @@ impl Narrative {
         npc_id: CharacterId,
         limit: usize,
     ) -> Result<Vec<domain::ConversationTurn>, RepoError> {
-        let records = self.repo.get_conversation_turns(pc_id, npc_id, limit).await?;
+        let records = self
+            .repo
+            .get_conversation_turns(pc_id, npc_id, limit)
+            .await?;
 
         // Convert ConversationTurnRecord to ConversationTurn
         let turns = records

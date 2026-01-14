@@ -13,18 +13,19 @@ use super::{create_test_player, E2EEventLog, E2ETestContext, TestOutcome};
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_player_enters_location_trigger() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
 
-    let location_id = ctx.world.location("The Rusty Anchor").expect("Location should exist");
+    let location_id = ctx
+        .world
+        .location("The Rusty Anchor")
+        .expect("Location should exist");
 
     // Create event with PlayerEntersLocation trigger
     let event_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -49,7 +50,7 @@ async fn test_player_enters_location_trigger() {
 
     // Create PlayerEntersLocation trigger
     let trigger_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -79,7 +80,9 @@ async fn test_player_enters_location_trigger() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
+        events
+            .iter()
+            .any(|e| e.id().to_string() == event_id.to_string()),
         "Event with PlayerEntersLocation trigger should exist"
     );
 }
@@ -93,11 +96,17 @@ async fn test_location_event_on_movement() {
         .await
         .expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
-    let tavern_bar = ctx.world.region("Tavern Bar").expect("Tavern Bar should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
+    let tavern_bar = ctx
+        .world
+        .region("Tavern Bar")
+        .expect("Tavern Bar should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Location Tester",
@@ -132,19 +141,26 @@ async fn test_location_event_on_movement() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_one_time_location_event() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
-    let tavern_bar = ctx.world.region("Tavern Bar").expect("Tavern Bar should exist");
-    let location_id = ctx.world.location("The Rusty Anchor").expect("Location should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
+    let tavern_bar = ctx
+        .world
+        .region("Tavern Bar")
+        .expect("Tavern Bar should exist");
+    let location_id = ctx
+        .world
+        .location("The Rusty Anchor")
+        .expect("Location should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "One-Time Tester",
@@ -154,7 +170,7 @@ async fn test_one_time_location_event() {
 
     // Create a one-time location event
     let event_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -179,7 +195,7 @@ async fn test_one_time_location_event() {
 
     // Create trigger
     let trigger_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -247,18 +263,19 @@ async fn test_one_time_location_event() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_repeatable_location_event() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
 
-    let location_id = ctx.world.location("The Rusty Anchor").expect("Location should exist");
+    let location_id = ctx
+        .world
+        .location("The Rusty Anchor")
+        .expect("Location should exist");
 
     // Create a repeatable location event
     let event_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -283,7 +300,7 @@ async fn test_repeatable_location_event() {
 
     // Create trigger
     let trigger_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -312,7 +329,9 @@ async fn test_repeatable_location_event() {
         .await
         .expect("Should list events");
 
-    let event = events.iter().find(|e| e.id().to_string() == event_id.to_string());
+    let event = events
+        .iter()
+        .find(|e| e.id().to_string() == event_id.to_string());
     assert!(event.is_some(), "Event should exist");
     assert!(event.unwrap().is_repeatable(), "Event should be repeatable");
 }

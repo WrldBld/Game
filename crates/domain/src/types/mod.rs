@@ -60,6 +60,17 @@ pub use rule_system::{
     SuccessComparison,
 };
 
+// Session types
+mod session;
+pub use session::WorldRole;
+
+// Decision types (for DM approval workflows)
+mod time_decisions;
+pub use time_decisions::TimeSuggestionDecision;
+
+mod challenge_decisions;
+pub use challenge_decisions::ChallengeOutcomeDecision;
+
 // Workflow types
 mod workflow;
 pub use workflow::{

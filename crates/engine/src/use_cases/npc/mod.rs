@@ -4,11 +4,11 @@
 
 use std::sync::Arc;
 
-use crate::repositories::Observation;
+use crate::infrastructure::ports::{ClockPort, NpcDispositionInfo, RepoError};
 use crate::repositories::character::Character;
 use crate::repositories::location::Location;
 use crate::repositories::staging::Staging;
-use crate::infrastructure::ports::{ClockPort, NpcDispositionInfo, RepoError};
+use crate::repositories::Observation;
 use wrldbldr_domain::{
     CharacterId, DispositionLevel, LocationId, MoodState, NpcDispositionState, PlayerCharacterId,
     RegionId, RelationshipLevel,
@@ -81,8 +81,8 @@ impl NpcDisposition {
             npc_id,
             npc_name,
             pc_id,
-            disposition: state.disposition,
-            relationship: state.relationship,
+            disposition: state.disposition(),
+            relationship: state.relationship(),
             reason,
         })
     }
@@ -99,8 +99,7 @@ impl NpcDisposition {
             None => NpcDispositionState::new(npc_id, pc_id, now),
         };
 
-        state.relationship = relationship;
-        state.updated_at = now;
+        state.set_relationship(relationship, now);
         self.character.save_disposition(&state).await?;
 
         let npc_name = self
@@ -116,8 +115,8 @@ impl NpcDisposition {
             npc_id,
             npc_name,
             pc_id,
-            disposition: state.disposition,
-            relationship: state.relationship,
+            disposition: state.disposition(),
+            relationship: state.relationship(),
             reason: None,
         })
     }
@@ -132,7 +131,7 @@ impl NpcDisposition {
         for disposition in dispositions {
             let npc_name = self
                 .character
-                .get(disposition.npc_id)
+                .get(disposition.npc_id())
                 .await
                 .ok()
                 .flatten()
@@ -140,12 +139,12 @@ impl NpcDisposition {
                 .unwrap_or_else(|| "Unknown NPC".to_string());
 
             response.push(NpcDispositionInfo {
-                npc_id: disposition.npc_id.to_string(),
+                npc_id: disposition.npc_id().to_string(),
                 npc_name,
-                disposition: disposition.disposition.to_string(),
-                relationship: disposition.relationship.to_string(),
-                sentiment: disposition.sentiment,
-                last_reason: disposition.disposition_reason,
+                disposition: disposition.disposition().to_string(),
+                relationship: disposition.relationship().to_string(),
+                sentiment: disposition.sentiment(),
+                last_reason: disposition.disposition_reason().map(|s| s.to_string()),
             });
         }
 

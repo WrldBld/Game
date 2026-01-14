@@ -17,7 +17,9 @@ use std::net::SocketAddr;
 
 use wrldbldr_domain::{CharacterId, PlayerCharacterId, RegionId, WorldId};
 
-use super::e2e_client::{ConversationStarted, DialogueResponse, E2EError, JoinedWorld, WsE2EClient};
+use super::e2e_client::{
+    ConversationStarted, DialogueResponse, E2EError, JoinedWorld, WsE2EClient,
+};
 
 // =============================================================================
 // Conversation Scenario
@@ -79,9 +81,10 @@ impl ConversationScenario {
             .as_ref()
             .ok_or_else(|| E2EError::RequestFailed("No active conversation".to_string()))?;
 
-        let npc_uuid: uuid::Uuid = conversation.npc_id.parse().map_err(|_| {
-            E2EError::RequestFailed("Invalid NPC ID in conversation".to_string())
-        })?;
+        let npc_uuid: uuid::Uuid = conversation
+            .npc_id
+            .parse()
+            .map_err(|_| E2EError::RequestFailed("Invalid NPC ID in conversation".to_string()))?;
 
         let response = self
             .client
@@ -105,9 +108,10 @@ impl ConversationScenario {
             .as_ref()
             .ok_or_else(|| E2EError::RequestFailed("No active conversation".to_string()))?;
 
-        let npc_uuid: uuid::Uuid = conversation.npc_id.parse().map_err(|_| {
-            E2EError::RequestFailed("Invalid NPC ID in conversation".to_string())
-        })?;
+        let npc_uuid: uuid::Uuid = conversation
+            .npc_id
+            .parse()
+            .map_err(|_| E2EError::RequestFailed("Invalid NPC ID in conversation".to_string()))?;
 
         self.client
             .continue_conversation(

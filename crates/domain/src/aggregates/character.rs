@@ -370,7 +370,7 @@ impl Character {
         }
 
         // Check if HP tracking is enabled
-        let (current_hp, max_hp): (i32, i32) = match (self.stats.current_hp, self.stats.max_hp) {
+        let (current_hp, max_hp): (i32, i32) = match (self.stats.current_hp(), self.stats.max_hp()) {
             (Some(current), Some(max)) => (current, max),
             _ => return DamageOutcome::NoHpTracking,
         };
@@ -378,7 +378,7 @@ impl Character {
 
         // Apply damage
         let new_hp = current_hp.saturating_sub(amount);
-        self.stats.current_hp = Some(new_hp);
+        self.stats.set_current_hp(Some(new_hp));
 
         if new_hp <= 0 {
             self.state = CharacterState::Dead;
@@ -426,7 +426,7 @@ impl Character {
         }
 
         // Check if HP tracking is enabled
-        let (current_hp, max_hp): (i32, i32) = match (self.stats.current_hp, self.stats.max_hp) {
+        let (current_hp, max_hp): (i32, i32) = match (self.stats.current_hp(), self.stats.max_hp()) {
             (Some(current), Some(max)) => (current, max),
             _ => return HealOutcome::NoHpTracking,
         };
@@ -439,7 +439,7 @@ impl Character {
         // Apply healing, capped at max HP
         let new_hp: i32 = (current_hp + amount).min(max_hp);
         let actual_healed = new_hp - current_hp;
-        self.stats.current_hp = Some(new_hp);
+        self.stats.set_current_hp(Some(new_hp));
 
         HealOutcome::Healed {
             amount_healed: actual_healed,
@@ -488,12 +488,12 @@ impl Character {
         }
 
         // Calculate HP to restore to
-        let hp_restored_to: i32 = match self.stats.max_hp {
+        let hp_restored_to: i32 = match self.stats.max_hp() {
             Some(max) => (max / 2).max(1),
             None => 1,
         };
 
-        self.stats.current_hp = Some(hp_restored_to);
+        self.stats.set_current_hp(Some(hp_restored_to));
         self.state = CharacterState::Active;
 
         ResurrectOutcome::Resurrected { hp_restored_to }
@@ -764,7 +764,7 @@ mod tests {
                 }
             );
             assert!(character.is_alive());
-            assert_eq!(character.stats().current_hp, Some(30));
+            assert_eq!(character.stats().current_hp(), Some(30));
         }
 
         #[test]
@@ -812,7 +812,7 @@ mod tests {
                     new_hp: 35
                 }
             );
-            assert_eq!(character.stats().current_hp, Some(35));
+            assert_eq!(character.stats().current_hp(), Some(35));
         }
 
         #[test]
@@ -873,7 +873,7 @@ mod tests {
             assert_eq!(outcome, ResurrectOutcome::Resurrected { hp_restored_to: 50 });
             assert!(character.is_alive());
             assert!(character.is_active());
-            assert_eq!(character.stats().current_hp, Some(50));
+            assert_eq!(character.stats().current_hp(), Some(50));
         }
 
         #[test]
@@ -883,7 +883,7 @@ mod tests {
 
             let outcome = character.resurrect();
             assert_eq!(outcome, ResurrectOutcome::Resurrected { hp_restored_to: 1 });
-            assert_eq!(character.stats().current_hp, Some(1));
+            assert_eq!(character.stats().current_hp(), Some(1));
         }
     }
 

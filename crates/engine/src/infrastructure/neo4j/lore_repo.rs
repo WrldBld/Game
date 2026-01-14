@@ -51,9 +51,7 @@ impl Neo4jLoreRepo {
     }
 
     fn row_to_chunk(&self, row: Row) -> Result<LoreChunk, RepoError> {
-        let node: neo4rs::Node = row
-            .get("c")
-            .map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row.get("c").map_err(|e| RepoError::database("query", e))?;
 
         let id: LoreChunkId =
             parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
@@ -76,9 +74,7 @@ impl Neo4jLoreRepo {
     }
 
     fn row_to_lore_without_chunks(&self, row: Row) -> Result<Lore, RepoError> {
-        let node: neo4rs::Node = row
-            .get("l")
-            .map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row.get("l").map_err(|e| RepoError::database("query", e))?;
         let fallback = self.clock.now();
 
         let id: LoreId =
@@ -290,7 +286,11 @@ impl LoreRepo for Neo4jLoreRepo {
             })?;
         }
 
-        tracing::debug!("Saved lore: {} with {} chunks", lore.title, lore.chunks.len());
+        tracing::debug!(
+            "Saved lore: {} with {} chunks",
+            lore.title,
+            lore.chunks.len()
+        );
         Ok(())
     }
 

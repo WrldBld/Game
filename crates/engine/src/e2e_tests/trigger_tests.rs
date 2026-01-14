@@ -13,14 +13,15 @@ use super::{create_test_player, E2EEventLog, E2ETestContext, TestOutcome};
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_flag_set_trigger_evaluation() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Trigger Tester",
@@ -33,7 +34,7 @@ async fn test_flag_set_trigger_evaluation() {
     use uuid::Uuid;
     let event_id = Uuid::new_v4();
 
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -58,7 +59,7 @@ async fn test_flag_set_trigger_evaluation() {
 
     // Create trigger for the event
     let trigger_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -97,23 +98,23 @@ async fn test_flag_set_trigger_evaluation() {
 
     // The event should still be in active list until explicitly triggered
     // This documents the expected flow
-    assert!(events.iter().any(|e| e.id().to_string() == event_id.to_string()));
+    assert!(events
+        .iter()
+        .any(|e| e.id().to_string() == event_id.to_string()));
 }
 
 /// Test that ItemAcquired trigger type is recognized.
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_item_acquired_trigger_type() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // Create a narrative event with ItemAcquired trigger
     use neo4rs::query;
     use uuid::Uuid;
     let event_id = Uuid::new_v4();
 
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -138,7 +139,7 @@ async fn test_item_acquired_trigger_type() {
 
     // Create ItemAcquired trigger
     let trigger_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -166,7 +167,9 @@ async fn test_item_acquired_trigger_type() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
+        events
+            .iter()
+            .any(|e| e.id().to_string() == event_id.to_string()),
         "Event with ItemAcquired trigger should exist"
     );
 }
@@ -175,15 +178,13 @@ async fn test_item_acquired_trigger_type() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_relationship_threshold_trigger_type() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
     let event_id = Uuid::new_v4();
 
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -210,7 +211,7 @@ async fn test_relationship_threshold_trigger_type() {
     let trigger_id = Uuid::new_v4();
     let mira_id = ctx.world.npc("Mira Thornwood").expect("Mira should exist");
 
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -241,7 +242,9 @@ async fn test_relationship_threshold_trigger_type() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
+        events
+            .iter()
+            .any(|e| e.id().to_string() == event_id.to_string()),
         "Event with RelationshipThreshold trigger should exist"
     );
 }
@@ -250,15 +253,13 @@ async fn test_relationship_threshold_trigger_type() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_challenge_completed_trigger_type() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
     let event_id = Uuid::new_v4();
 
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -288,7 +289,7 @@ async fn test_challenge_completed_trigger_type() {
         wrldbldr_domain::ChallengeId::from(Uuid::new_v4())
     });
 
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -318,7 +319,9 @@ async fn test_challenge_completed_trigger_type() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
+        events
+            .iter()
+            .any(|e| e.id().to_string() == event_id.to_string()),
         "Event with ChallengeCompleted trigger should exist"
     );
 }
@@ -337,7 +340,7 @@ async fn test_multiple_triggers_and_logic() {
     let event_id = Uuid::new_v4();
 
     // Create event with multiple trigger conditions
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -362,7 +365,7 @@ async fn test_multiple_triggers_and_logic() {
 
     // Create first trigger (FlagSet)
     let trigger1_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -382,7 +385,7 @@ async fn test_multiple_triggers_and_logic() {
 
     // Create second trigger (another FlagSet)
     let trigger2_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -417,7 +420,9 @@ async fn test_multiple_triggers_and_logic() {
         .await
         .expect("Should list events");
     assert!(
-        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
+        events
+            .iter()
+            .any(|e| e.id().to_string() == event_id.to_string()),
         "Event should still be active with partial conditions"
     );
 
@@ -429,16 +434,14 @@ async fn test_multiple_triggers_and_logic() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_event_marked_as_triggered() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
     let event_id = Uuid::new_v4();
 
     // Create a simple event
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -462,7 +465,7 @@ async fn test_event_marked_as_triggered() {
         .expect("Event creation should succeed");
 
     // Mark event as triggered directly
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -487,7 +490,9 @@ async fn test_event_marked_as_triggered() {
     // If list_active filters out triggered non-repeatable events,
     // this event should not be in the list
     // This documents expected behavior
-    let event_in_list = events.iter().any(|e| e.id().to_string() == event_id.to_string());
+    let event_in_list = events
+        .iter()
+        .any(|e| e.id().to_string() == event_id.to_string());
 
     // Note: Expected behavior depends on implementation
     // If this fails, it indicates how the system handles triggered events

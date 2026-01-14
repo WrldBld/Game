@@ -42,8 +42,14 @@ pub struct RaceOption {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AbilityBonusOption {
-    Fixed { bonuses: HashMap<String, i32> },
-    Choice { from: Vec<String>, count: u8, amount: i32 },
+    Fixed {
+        bonuses: HashMap<String, i32>,
+    },
+    Choice {
+        from: Vec<String>,
+        count: u8,
+        amount: i32,
+    },
 }
 
 /// A racial trait.
@@ -355,9 +361,7 @@ impl FiveToolsImporter {
         let components = self.convert_components(&raw.components);
         let duration = self.convert_duration(&raw.duration);
         let description = self.entries_to_string(&raw.entries);
-        let higher_levels = raw
-            .entries_higher_level
-            .map(|e| self.entries_to_string(&e));
+        let higher_levels = raw.entries_higher_level.map(|e| self.entries_to_string(&e));
 
         let classes = raw
             .classes
@@ -736,15 +740,17 @@ impl FiveToolsImporter {
         let mut result = text.to_string();
 
         // Pattern: {@tag content} or {@tag content|display}
-        let re = FIVETOOLS_TAG_REGEX
-            .get_or_init(|| regex_lite::Regex::new(r"\{@\w+\s+([^|}]+)(?:\|[^}]*)?\}")
-                .expect("FIVETOOLS_TAG_REGEX pattern is invalid"));
+        let re = FIVETOOLS_TAG_REGEX.get_or_init(|| {
+            regex_lite::Regex::new(r"\{@\w+\s+([^|}]+)(?:\|[^}]*)?\}")
+                .expect("FIVETOOLS_TAG_REGEX pattern is invalid")
+        });
         result = re.replace_all(&result, "$1").to_string();
 
         // Pattern: {@tag content|display} - use display
-        let re2 = FIVETOOLS_DISPLAY_REGEX
-            .get_or_init(|| regex_lite::Regex::new(r"\{@\w+\s+[^|]+\|([^}]+)\}")
-                .expect("FIVETOOLS_DISPLAY_REGEX pattern is invalid"));
+        let re2 = FIVETOOLS_DISPLAY_REGEX.get_or_init(|| {
+            regex_lite::Regex::new(r"\{@\w+\s+[^|]+\|([^}]+)\}")
+                .expect("FIVETOOLS_DISPLAY_REGEX pattern is invalid")
+        });
         result = re2.replace_all(&result, "$1").to_string();
 
         result
@@ -1213,10 +1219,15 @@ impl Dnd5eContentProvider {
             .collect::<Vec<_>>()
             .join("\n\n");
 
-        ContentItem::new(&race.id, ContentType::CharacterOrigin, &race.name, &race.source)
-            .with_description(description)
-            .with_data(data)
-            .with_tags(vec!["race".to_string(), race.source.clone()])
+        ContentItem::new(
+            &race.id,
+            ContentType::CharacterOrigin,
+            &race.name,
+            &race.source,
+        )
+        .with_description(description)
+        .with_data(data)
+        .with_tags(vec!["race".to_string(), race.source.clone()])
     }
 
     fn class_to_content_item(class: &ClassOption) -> ContentItem {
@@ -1238,10 +1249,15 @@ impl Dnd5eContentProvider {
             tags.push("spellcaster".to_string());
         }
 
-        ContentItem::new(&class.id, ContentType::CharacterClass, &class.name, &class.source)
-            .with_description(format!("Hit Die: d{}", class.hit_die))
-            .with_data(data)
-            .with_tags(tags)
+        ContentItem::new(
+            &class.id,
+            ContentType::CharacterClass,
+            &class.name,
+            &class.source,
+        )
+        .with_description(format!("Hit Die: d{}", class.hit_die))
+        .with_data(data)
+        .with_tags(tags)
     }
 
     fn background_to_content_item(bg: &BackgroundOption) -> ContentItem {
@@ -1363,38 +1379,43 @@ impl CompendiumProvider for Dnd5eContentProvider {
         let rt = tokio::runtime::Handle::try_current()
             .map_err(|_| ContentError::LoadError("No tokio runtime available".to_string()))?;
 
-        tokio::task::block_in_place(|| rt.block_on(async {
-            let items: Vec<ContentItem> = match content_type {
-                ContentType::CharacterOrigin => {
-                    let races = self.load_races_cached().await?;
-                    races.iter().map(Self::race_to_content_item).collect()
-                }
-                ContentType::CharacterClass => {
-                    let classes = self.load_classes_cached().await?;
-                    classes.iter().map(Self::class_to_content_item).collect()
-                }
-                ContentType::CharacterBackground => {
-                    let backgrounds = self.load_backgrounds_cached().await?;
-                    backgrounds.iter().map(Self::background_to_content_item).collect()
-                }
-                ContentType::Spell => {
-                    let spells = self.load_spells_cached().await?;
-                    spells.iter().map(Self::spell_to_content_item).collect()
-                }
-                ContentType::Feat => {
-                    let feats = self.load_feats_cached().await?;
-                    feats.iter().map(Self::feat_to_content_item).collect()
-                }
-                _ => {
-                    return Err(ContentError::UnsupportedContentType(
-                        content_type.to_string(),
-                    ))
-                }
-            };
+        tokio::task::block_in_place(|| {
+            rt.block_on(async {
+                let items: Vec<ContentItem> = match content_type {
+                    ContentType::CharacterOrigin => {
+                        let races = self.load_races_cached().await?;
+                        races.iter().map(Self::race_to_content_item).collect()
+                    }
+                    ContentType::CharacterClass => {
+                        let classes = self.load_classes_cached().await?;
+                        classes.iter().map(Self::class_to_content_item).collect()
+                    }
+                    ContentType::CharacterBackground => {
+                        let backgrounds = self.load_backgrounds_cached().await?;
+                        backgrounds
+                            .iter()
+                            .map(Self::background_to_content_item)
+                            .collect()
+                    }
+                    ContentType::Spell => {
+                        let spells = self.load_spells_cached().await?;
+                        spells.iter().map(Self::spell_to_content_item).collect()
+                    }
+                    ContentType::Feat => {
+                        let feats = self.load_feats_cached().await?;
+                        feats.iter().map(Self::feat_to_content_item).collect()
+                    }
+                    _ => {
+                        return Err(ContentError::UnsupportedContentType(
+                            content_type.to_string(),
+                        ))
+                    }
+                };
 
-            // Apply filter
-            Ok(filter.apply(items.iter()).into_iter().cloned().collect())
-        }))
+                // Apply filter
+                Ok(filter.apply(items.iter()).into_iter().cloned().collect())
+            })
+        })
     }
 
     fn filter_schema(&self, content_type: &ContentType) -> Option<FilterSchema> {
@@ -1430,15 +1451,8 @@ impl CompendiumProvider for Dnd5eContentProvider {
                 custom_fields: vec![],
             }),
             ContentType::Spell => Some(FilterSchema {
-                sources: vec![
-                    "PHB".to_string(),
-                    "XGE".to_string(),
-                    "TCE".to_string(),
-                ],
-                tags: vec![
-                    "ritual".to_string(),
-                    "concentration".to_string(),
-                ],
+                sources: vec!["PHB".to_string(), "XGE".to_string(), "TCE".to_string()],
+                tags: vec!["ritual".to_string(), "concentration".to_string()],
                 supports_search: true,
                 custom_fields: vec![
                     FilterField {
@@ -1660,7 +1674,10 @@ mod tests {
             }
 
             let importer = FiveToolsImporter::new(FIVETOOLS_PATH);
-            let spells = importer.import_spells().await.expect("Failed to import spells");
+            let spells = importer
+                .import_spells()
+                .await
+                .expect("Failed to import spells");
 
             assert!(!spells.is_empty(), "Should import at least some spells");
             println!("Imported {} spells", spells.len());
@@ -1679,7 +1696,11 @@ mod tests {
             let fire_bolt = spells.iter().find(|s| s.name == "Fire Bolt");
             assert!(fire_bolt.is_some(), "Fire Bolt cantrip should exist");
             if let Some(fire_bolt) = fire_bolt {
-                assert_eq!(fire_bolt.level, SpellLevel::Cantrip, "Fire Bolt is a cantrip");
+                assert_eq!(
+                    fire_bolt.level,
+                    SpellLevel::Cantrip,
+                    "Fire Bolt is a cantrip"
+                );
             }
         }
 
@@ -1750,7 +1771,10 @@ mod tests {
                 .load_content(&ContentType::CharacterBackground, &filter)
                 .expect("Failed to load backgrounds");
 
-            assert!(!backgrounds.is_empty(), "Should load backgrounds as ContentItems");
+            assert!(
+                !backgrounds.is_empty(),
+                "Should load backgrounds as ContentItems"
+            );
             println!("Loaded {} backgrounds as ContentItems", backgrounds.len());
 
             // Verify ContentItem structure
@@ -1821,7 +1845,11 @@ mod tests {
                 "Should have many spells"
             );
             assert!(
-                stats.get(&ContentType::CharacterBackground).copied().unwrap_or(0) > 10,
+                stats
+                    .get(&ContentType::CharacterBackground)
+                    .copied()
+                    .unwrap_or(0)
+                    > 10,
                 "Should have backgrounds"
             );
         }
@@ -1884,7 +1912,9 @@ mod tests {
                 importer.import_spells_from_file("../etc/passwd").await,
                 importer.import_spells_from_file("spells-phb.json/..").await,
                 importer.import_spells_from_file("foo/bar.json").await,
-                importer.import_spells_from_file("..\\windows\\system32").await,
+                importer
+                    .import_spells_from_file("..\\windows\\system32")
+                    .await,
             ];
 
             for result in results {
@@ -1897,7 +1927,8 @@ mod tests {
             // Valid filename should work (if it exists)
             let valid_result = importer.import_spells_from_file("spells-phb.json").await;
             assert!(
-                valid_result.is_ok() || matches!(valid_result, Err(ImportError::DataFileNotFound(_))),
+                valid_result.is_ok()
+                    || matches!(valid_result, Err(ImportError::DataFileNotFound(_))),
                 "Valid filename should not be rejected as invalid"
             );
         }

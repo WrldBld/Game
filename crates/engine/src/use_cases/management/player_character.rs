@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
 
-use crate::repositories::PlayerCharacter;
-use crate::repositories::location::Location;
 use crate::infrastructure::ports::ClockPort;
+use crate::repositories::location::Location;
+use crate::repositories::PlayerCharacter;
 
 use super::ManagementError;
 
@@ -62,9 +62,9 @@ impl PlayerCharacterCrud {
         starting_region_id: Option<RegionId>,
         sheet_data: Option<serde_json::Value>,
     ) -> Result<wrldbldr_domain::PlayerCharacter, ManagementError> {
-        let character_name: wrldbldr_domain::CharacterName = name.try_into().map_err(|e| {
-            ManagementError::InvalidInput(format!("Invalid character name: {}", e))
-        })?;
+        let character_name: wrldbldr_domain::CharacterName = name
+            .try_into()
+            .map_err(|e| ManagementError::InvalidInput(format!("Invalid character name: {}", e)))?;
 
         let (starting_location_id, resolved_region_id) =
             self.resolve_spawn(world_id, starting_region_id).await?;
@@ -106,10 +106,9 @@ impl PlayerCharacterCrud {
             .ok_or(ManagementError::NotFound)?;
 
         if let Some(name) = name {
-            let character_name: wrldbldr_domain::CharacterName =
-                name.try_into().map_err(|e| {
-                    ManagementError::InvalidInput(format!("Invalid character name: {}", e))
-                })?;
+            let character_name: wrldbldr_domain::CharacterName = name.try_into().map_err(|e| {
+                ManagementError::InvalidInput(format!("Invalid character name: {}", e))
+            })?;
             pc.set_name(character_name);
         }
         if let Some(sheet_data) = sheet_data {
@@ -163,7 +162,10 @@ impl PlayerCharacterCrud {
 
         let locations = self.location.list_in_world(world_id).await?;
         for location in &locations {
-            let regions = self.location.list_regions_in_location(location.id()).await?;
+            let regions = self
+                .location
+                .list_regions_in_location(location.id())
+                .await?;
             if let Some(spawn) = regions.iter().find(|r| r.is_spawn_point) {
                 return Ok((location.id(), Some(spawn.id)));
             }

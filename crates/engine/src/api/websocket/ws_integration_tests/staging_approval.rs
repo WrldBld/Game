@@ -29,21 +29,33 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
-        .with_id(location_id);
+    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_id(location_id);
 
     let mut region = wrldbldr_domain::Region::new(location_id, "Unstaged Region");
     region.id = region_id;
 
-    let pc = wrldbldr_domain::PlayerCharacter::new("player-1", world_id, wrldbldr_domain::CharacterName::new("PC").unwrap(), location_id, now)
-        .with_id(pc_id);
+    let pc = wrldbldr_domain::PlayerCharacter::new(
+        "player-1",
+        world_id,
+        wrldbldr_domain::CharacterName::new("PC").unwrap(),
+        location_id,
+        now,
+    )
+    .with_id(pc_id);
     // initial spawn - PC starts with no current_region_id, skip connection validation
 
-    let mut visible_npc =
-        wrldbldr_domain::Character::new(world_id, wrldbldr_domain::CharacterName::new("Visible NPC").unwrap(), CampbellArchetype::Hero);
+    let mut visible_npc = wrldbldr_domain::Character::new(
+        world_id,
+        wrldbldr_domain::CharacterName::new("Visible NPC").unwrap(),
+        CampbellArchetype::Hero,
+    );
     visible_npc = visible_npc.with_id(visible_npc_id);
-    let mut hidden_npc =
-        wrldbldr_domain::Character::new(world_id, wrldbldr_domain::CharacterName::new("Hidden NPC").unwrap(), CampbellArchetype::Herald);
+    let mut hidden_npc = wrldbldr_domain::Character::new(
+        world_id,
+        wrldbldr_domain::CharacterName::new("Hidden NPC").unwrap(),
+        CampbellArchetype::Herald,
+    );
     hidden_npc = hidden_npc.with_id(hidden_npc_id);
 
     // World repo: serve the world for both time + visual state resolution.
@@ -399,8 +411,8 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
         location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
-        .with_id(location_id);
+    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_id(location_id);
 
     let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");
     region.id = region_id;
@@ -538,8 +550,8 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
         location_name,
         wrldbldr_domain::LocationType::Exterior,
     )
-        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
-        .with_id(location_id);
+    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_id(location_id);
 
     let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");
     region.id = region_id;
@@ -568,10 +580,11 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
         .returning(move |_| Ok(Some(location_for_get.clone())));
 
     // Settings repo: simulate error (settings unavailable)
-    repos
-        .settings_repo
-        .expect_get_for_world()
-        .returning(|_| Err(crate::infrastructure::ports::RepoError::not_found("Entity", "unknown")));
+    repos.settings_repo.expect_get_for_world().returning(|_| {
+        Err(crate::infrastructure::ports::RepoError::not_found(
+            "Entity", "unknown",
+        ))
+    });
 
     // Staging repo
     repos

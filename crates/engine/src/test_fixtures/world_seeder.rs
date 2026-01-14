@@ -16,8 +16,8 @@
 //! }
 //! ```
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use wrldbldr_domain::{
     ActId, CampbellArchetype, ChallengeId, CharacterId, DispositionLevel, LocationId,
     LocationStateId, MonomythStage, MoodState, NarrativeEventId, RegionId, SceneId, TimeOfDay,
@@ -669,8 +669,7 @@ pub fn load_thornhaven() -> TestWorld {
     let wants_file: WantsFile = load_fixture("dnd5e/thornhaven/wants.json");
     let scenes_file: ScenesFile = load_fixture("dnd5e/thornhaven/scenes.json");
     let challenges_file: ChallengesFile = load_fixture("dnd5e/thornhaven/challenges.json");
-    let events_file: NarrativeEventsFile =
-        load_fixture("dnd5e/thornhaven/narrative_events.json");
+    let events_file: NarrativeEventsFile = load_fixture("dnd5e/thornhaven/narrative_events.json");
     let states_file: LocationStatesFile = load_fixture("dnd5e/thornhaven/visual_states.json");
 
     // Extract regions from locations
@@ -711,9 +710,8 @@ pub fn load_thornhaven() -> TestWorld {
     }
 
     // Fixed world ID for Thornhaven
-    let world_id = WorldId::from(
-        uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
-    );
+    let world_id =
+        WorldId::from(uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap());
 
     TestWorld {
         world_id,

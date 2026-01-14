@@ -68,10 +68,7 @@ fn validate_filter(
         }
         for tag in tags {
             if tag.len() > MAX_TAG_LENGTH {
-                return Err(format!(
-                    "Tag too long (max {} characters)",
-                    MAX_TAG_LENGTH
-                ));
+                return Err(format!("Tag too long (max {} characters)", MAX_TAG_LENGTH));
             }
         }
     }

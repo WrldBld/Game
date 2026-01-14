@@ -1,17 +1,6 @@
 use super::*;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
-use crate::infrastructure::ports::{
-    JoinWorldError as PortJoinWorldError, WorldRole as PortWorldRole,
-};
-
-/// Convert domain WorldRole to protocol WorldRole.
-fn to_proto_role(role: PortWorldRole) -> ProtoWorldRole {
-    match role {
-        PortWorldRole::Dm => ProtoWorldRole::Dm,
-        PortWorldRole::Player => ProtoWorldRole::Player,
-        PortWorldRole::Spectator => ProtoWorldRole::Spectator,
-    }
-}
+use crate::infrastructure::ports::JoinWorldError as PortJoinWorldError;
 
 /// Convert domain JoinWorldError to protocol JoinError.
 fn to_proto_join_error(err: PortJoinWorldError) -> wrldbldr_protocol::JoinError {
@@ -19,7 +8,10 @@ fn to_proto_join_error(err: PortJoinWorldError) -> wrldbldr_protocol::JoinError 
         PortJoinWorldError::DmAlreadyConnected { existing_user_id } => {
             wrldbldr_protocol::JoinError::DmAlreadyConnected { existing_user_id }
         }
-        PortJoinWorldError::PcNotFound => wrldbldr_protocol::JoinError::Unknown,
+        PortJoinWorldError::PcNotFound { world_id, pc_id } => {
+            tracing::warn!(world_id = %world_id, pc_id = %pc_id, "Player character not found");
+            wrldbldr_protocol::JoinError::Unknown
+        }
         PortJoinWorldError::Unknown => wrldbldr_protocol::JoinError::Unknown,
     }
 }
@@ -83,7 +75,7 @@ pub(super) async fn handle_join_world(
         let user_joined_msg = ServerMessage::UserJoined {
             user_id: joined.user_id,
             username: None,
-            role: to_proto_role(joined.role),
+            role: joined.role.into(), // Uses From<domain::WorldRole> for protocol::WorldRole
             pc: joined.pc,
         };
         state
@@ -99,7 +91,7 @@ pub(super) async fn handle_join_world(
         .map(|u| wrldbldr_protocol::ConnectedUser {
             user_id: u.user_id,
             username: u.username,
-            role: to_proto_role(u.role),
+            role: u.role.into(), // Uses From<domain::WorldRole> for protocol::WorldRole
             pc_id: u.pc_id.map(|id| id.to_string()),
             connection_count: u.connection_count,
         })

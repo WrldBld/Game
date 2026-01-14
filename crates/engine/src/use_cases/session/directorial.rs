@@ -48,14 +48,12 @@ pub struct DirectorialUpdate {
 
 impl DirectorialUpdate {
     pub fn new() -> Self {
-        Self { _marker: Arc::new(()) }
+        Self {
+            _marker: Arc::new(()),
+        }
     }
 
-    pub async fn execute(
-        &self,
-        ctx: &DirectorialUpdateContext<'_>,
-        input: DirectorialUpdateInput,
-    ) {
+    pub async fn execute(&self, ctx: &DirectorialUpdateContext<'_>, input: DirectorialUpdateInput) {
         let context = input.context;
         tracing::info!(
             world_id = %input.world_id,

@@ -1,11 +1,14 @@
 //! Helper functions for generating staging suggestions.
 
+use std::collections::{HashMap, HashSet};
+
 use serde::Deserialize;
 
-use crate::repositories::character::Character;
+use crate::infrastructure::ports::{
+    ChatMessage, LlmPort, LlmRequest, NpcRegionRelationType, NpcWithRegionInfo,
+};
 use crate::repositories::staging::Staging;
-use crate::infrastructure::ports::{ChatMessage, LlmPort, LlmRequest, NpcRegionRelationType};
-use wrldbldr_domain::RegionId;
+use wrldbldr_domain::{CharacterId, RegionId};
 
 use super::types::StagedNpc;
 
@@ -16,18 +19,12 @@ struct LlmSuggestion {
 }
 
 pub async fn generate_rule_based_suggestions(
-    character: &Character,
+    npcs_with_relationships: &[NpcWithRegionInfo],
     staging: &Staging,
     region_id: RegionId,
 ) -> Vec<StagedNpc> {
-    let npcs_with_relationships = character
-        .get_npcs_for_region(region_id)
-        .await
-        .ok()
-        .unwrap_or_default();
-
     let mut suggestions: Vec<StagedNpc> = npcs_with_relationships
-        .into_iter()
+        .iter()
         .filter(|n| n.relationship_type != NpcRegionRelationType::Avoids)
         .map(|npc| {
             let reasoning = match npc.relationship_type {
@@ -50,9 +47,9 @@ pub async fn generate_rule_based_suggestions(
 
             StagedNpc {
                 character_id: npc.character_id,
-                name: npc.name,
-                sprite_asset: npc.sprite_asset,
-                portrait_asset: npc.portrait_asset,
+                name: npc.name.clone(),
+                sprite_asset: npc.sprite_asset.clone(),
+                portrait_asset: npc.portrait_asset.clone(),
                 is_present: true,
                 reasoning,
                 is_hidden_from_players: false,
@@ -61,12 +58,12 @@ pub async fn generate_rule_based_suggestions(
         })
         .collect();
 
+    // Issue 4.3 fix: Use HashSet for O(1) lookup instead of O(n) iter().any()
+    let existing_ids: HashSet<CharacterId> = suggestions.iter().map(|s| s.character_id).collect();
+
     if let Ok(staged_npcs) = staging.get_staged_npcs(region_id).await {
         for staged in staged_npcs {
-            if !suggestions
-                .iter()
-                .any(|s| s.character_id == staged.character_id)
-            {
+            if !existing_ids.contains(&staged.character_id) {
                 suggestions.push(StagedNpc {
                     character_id: staged.character_id,
                     name: staged.name,
@@ -85,23 +82,14 @@ pub async fn generate_rule_based_suggestions(
 }
 
 pub async fn generate_llm_based_suggestions(
-    character: &Character,
+    npcs_with_relationships: &[NpcWithRegionInfo],
     llm: &dyn LlmPort,
-    region_id: RegionId,
     region_name: &str,
     location_name: &str,
     guidance: Option<&str>,
 ) -> Vec<StagedNpc> {
-    let npcs_with_relationships = match character.get_npcs_for_region(region_id).await {
-        Ok(npcs) => npcs,
-        Err(e) => {
-            tracing::warn!(error = %e, "Failed to get NPCs for LLM staging");
-            return vec![];
-        }
-    };
-
     let candidates: Vec<_> = npcs_with_relationships
-        .into_iter()
+        .iter()
         .filter(|n| n.relationship_type != NpcRegionRelationType::Avoids)
         .collect();
 
@@ -170,10 +158,7 @@ fn normalize_name(name: &str) -> String {
         .to_lowercase()
 }
 
-fn parse_llm_staging_response(
-    content: &str,
-    candidates: &[crate::infrastructure::ports::NpcWithRegionInfo],
-) -> Vec<StagedNpc> {
+fn parse_llm_staging_response(content: &str, candidates: &[&NpcWithRegionInfo]) -> Vec<StagedNpc> {
     let json_start = content.find('[');
     let json_end = content.rfind(']');
 
@@ -200,12 +185,18 @@ fn parse_llm_staging_response(
         }
     };
 
+    // Issue 4.4 fix: Pre-build HashMap of normalized name -> NPC for O(1) lookup
+    // instead of calling normalize_name O(n*m) times in the filter_map loop
+    let normalized_name_map: HashMap<String, &NpcWithRegionInfo> = candidates
+        .iter()
+        .map(|&npc| (normalize_name(&npc.name), npc))
+        .collect();
+
     parsed
         .into_iter()
         .filter_map(|suggestion| {
-            let npc = candidates
-                .iter()
-                .find(|c| normalize_name(&c.name) == normalize_name(&suggestion.name))?;
+            let normalized_suggestion_name = normalize_name(&suggestion.name);
+            let npc = normalized_name_map.get(&normalized_suggestion_name)?;
 
             Some(StagedNpc {
                 character_id: npc.character_id,

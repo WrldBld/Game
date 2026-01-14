@@ -40,9 +40,7 @@ impl GoalRepo for Neo4jGoalRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
-            let node: neo4rs::Node = row
-                .get("g")
-                .map_err(|e| RepoError::database("query", e))?;
+            let node: neo4rs::Node = row.get("g").map_err(|e| RepoError::database("query", e))?;
 
             let goal_id: GoalId =
                 parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
@@ -126,9 +124,7 @@ impl GoalRepo for Neo4jGoalRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
-            let node: neo4rs::Node = row
-                .get("g")
-                .map_err(|e| RepoError::database("query", e))?;
+            let node: neo4rs::Node = row.get("g").map_err(|e| RepoError::database("query", e))?;
 
             let goal_id: GoalId =
                 parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;

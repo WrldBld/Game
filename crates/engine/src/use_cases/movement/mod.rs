@@ -11,12 +11,10 @@ pub use scene_change::{
     RegionItemInfo, SceneChangeBuilder, SceneChangeData, SceneChangeError,
 };
 
-use crate::repositories::{
-    Flag, Inventory, Observation,
-};
+use crate::infrastructure::ports::RepoError;
 use crate::repositories::scene::{Scene, SceneResolutionContext};
 use crate::repositories::staging::Staging as StagingEntity;
-use crate::infrastructure::ports::RepoError;
+use crate::repositories::{Flag, Inventory, Observation};
 use crate::use_cases::custom_condition::{CustomConditionEvaluator, EvaluationContext};
 use crate::use_cases::time::{SuggestTime, SuggestTimeResult, TimeSuggestion};
 use chrono::{DateTime, Utc};
@@ -237,7 +235,8 @@ pub async fn resolve_scene_for_region_with_evaluator(
     // character. This is acceptable for now as the LLM can still match conditions like
     // "has met the blacksmith" if the ID is consistent. Future improvement: batch fetch
     // character names via a dedicated method on the Character entity.
-    let known_character_ids: Vec<String> = observations.iter().map(|o| o.npc_id.to_string()).collect();
+    let known_character_ids: Vec<String> =
+        observations.iter().map(|o| o.npc_id.to_string()).collect();
     let flag_names: Vec<String> = flags.clone();
 
     let mut context = SceneResolutionContext::new(time_of_day)

@@ -2,11 +2,11 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::WorldId;
 use wrldbldr_domain::value_objects::{Description, WorldName};
+use wrldbldr_domain::WorldId;
 
-use crate::repositories::World;
 use crate::infrastructure::ports::ClockPort;
+use crate::repositories::World;
 
 use super::ManagementError;
 
@@ -37,9 +37,8 @@ impl WorldCrud {
         description: Option<String>,
         setting: Option<String>,
     ) -> Result<wrldbldr_domain::World, ManagementError> {
-        let world_name = WorldName::new(name).map_err(|e| {
-            ManagementError::InvalidInput(format!("Invalid world name: {}", e))
-        })?;
+        let world_name = WorldName::new(name)
+            .map_err(|e| ManagementError::InvalidInput(format!("Invalid world name: {}", e)))?;
 
         let mut world = wrldbldr_domain::World::new(world_name);
 
@@ -70,9 +69,8 @@ impl WorldCrud {
             .ok_or(ManagementError::NotFound)?;
 
         if let Some(name) = name {
-            let world_name = WorldName::new(name).map_err(|e| {
-                ManagementError::InvalidInput(format!("Invalid world name: {}", e))
-            })?;
+            let world_name = WorldName::new(name)
+                .map_err(|e| ManagementError::InvalidInput(format!("Invalid world name: {}", e)))?;
             world.set_name(world_name);
         }
         if let Some(description) = description {

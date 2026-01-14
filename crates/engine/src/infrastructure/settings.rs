@@ -128,14 +128,12 @@ impl SettingsRepo for SqliteSettingsRepo {
     }
 
     async fn delete_for_world(&self, world_id: WorldId) -> Result<(), RepoError> {
-        sqlx::query(
-            "DELETE FROM app_settings WHERE scope = ? AND world_id = ?",
-        )
-        .bind("world")
-        .bind(world_id.to_string())
-        .execute(&self.pool)
-        .await
-        .map_err(|e| RepoError::database("settings", e))?;
+        sqlx::query("DELETE FROM app_settings WHERE scope = ? AND world_id = ?")
+            .bind("world")
+            .bind(world_id.to_string())
+            .execute(&self.pool)
+            .await
+            .map_err(|e| RepoError::database("settings", e))?;
         Ok(())
     }
 }

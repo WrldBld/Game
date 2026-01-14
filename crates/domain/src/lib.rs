@@ -65,7 +65,7 @@ pub use aggregates::Scene;
 
 // Re-export PlayerCharacter from aggregates (the Rustic DDD version with private fields)
 // This replaces the legacy entities::PlayerCharacter with public fields
-pub use aggregates::PlayerCharacter;
+pub use aggregates::{PlayerCharacter, PlayerCharacterStateChange};
 
 // Re-export NarrativeEvent from aggregates (the Rustic DDD version with private fields)
 // This replaces the legacy entities::NarrativeEvent with public fields
@@ -249,3 +249,9 @@ pub use value_objects::{
     WantTarget,
     WorldName,
 };
+
+// Re-export session types from types module
+pub use types::WorldRole;
+
+// Re-export decision types from types module (for DM approval workflows)
+pub use types::{ChallengeOutcomeDecision, TimeSuggestionDecision};

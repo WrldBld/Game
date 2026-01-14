@@ -1256,6 +1256,48 @@ pub enum ChallengeOutcomeDecisionData {
     Unknown,
 }
 
+impl From<wrldbldr_domain::ChallengeOutcomeDecision> for ChallengeOutcomeDecisionData {
+    fn from(decision: wrldbldr_domain::ChallengeOutcomeDecision) -> Self {
+        match decision {
+            wrldbldr_domain::ChallengeOutcomeDecision::Accept => ChallengeOutcomeDecisionData::Accept,
+            wrldbldr_domain::ChallengeOutcomeDecision::Edit {
+                modified_description,
+            } => ChallengeOutcomeDecisionData::Edit {
+                modified_description,
+            },
+            wrldbldr_domain::ChallengeOutcomeDecision::Suggest { guidance } => {
+                ChallengeOutcomeDecisionData::Suggest { guidance }
+            }
+        }
+    }
+}
+
+/// Error when converting protocol ChallengeOutcomeDecisionData to domain type.
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("Unknown challenge outcome decision cannot be converted to domain type")]
+pub struct UnknownChallengeOutcomeDecisionError;
+
+impl TryFrom<ChallengeOutcomeDecisionData> for wrldbldr_domain::ChallengeOutcomeDecision {
+    type Error = UnknownChallengeOutcomeDecisionError;
+
+    fn try_from(decision: ChallengeOutcomeDecisionData) -> Result<Self, Self::Error> {
+        match decision {
+            ChallengeOutcomeDecisionData::Accept => {
+                Ok(wrldbldr_domain::ChallengeOutcomeDecision::Accept)
+            }
+            ChallengeOutcomeDecisionData::Edit {
+                modified_description,
+            } => Ok(wrldbldr_domain::ChallengeOutcomeDecision::Edit {
+                modified_description,
+            }),
+            ChallengeOutcomeDecisionData::Suggest { guidance } => {
+                Ok(wrldbldr_domain::ChallengeOutcomeDecision::Suggest { guidance })
+            }
+            ChallengeOutcomeDecisionData::Unknown => Err(UnknownChallengeOutcomeDecisionError),
+        }
+    }
+}
+
 /// Outcome branch data for DM selection
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OutcomeBranchData {

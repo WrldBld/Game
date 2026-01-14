@@ -132,16 +132,9 @@ pub enum SessionError {
 // Session/Connection Types
 // =============================================================================
 
-/// Role of a connected client in a world.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WorldRole {
-    /// Dungeon Master - can approve suggestions, control NPCs
-    Dm,
-    /// Player - controls a player character
-    Player,
-    /// Spectator - can view but not interact
-    Spectator,
-}
+// WorldRole is re-exported from wrldbldr_domain (imported via `use wrldbldr_domain::*`)
+// This ensures the domain owns the canonical definition of this concept.
+pub use wrldbldr_domain::WorldRole;
 
 /// Information about a connected client (for use case queries).
 #[derive(Debug, Clone)]
@@ -215,8 +208,8 @@ pub struct UserJoinedInfo {
 pub enum JoinWorldError {
     #[error("DM already connected: {existing_user_id}")]
     DmAlreadyConnected { existing_user_id: String },
-    #[error("Player character not found")]
-    PcNotFound,
+    #[error("Player character not found: pc_id={pc_id} in world_id={world_id}")]
+    PcNotFound { world_id: String, pc_id: String },
     #[error("Unknown error")]
     Unknown,
 }
@@ -1449,4 +1442,67 @@ pub trait DirectorialContextPort: Send + Sync {
 
     /// Clear the directorial context for a world.
     fn clear_context(&self, world_id: WorldId);
+}
+
+// =============================================================================
+// Staging Storage Ports
+// =============================================================================
+
+/// Pending staging request tracking (request_id -> region/location).
+///
+/// Used to track staging approval requests while waiting for DM response.
+#[derive(Debug, Clone)]
+pub struct PendingStagingRequest {
+    pub region_id: RegionId,
+    pub location_id: LocationId,
+    pub world_id: WorldId,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Port for storing pending staging requests.
+///
+/// Abstracts the storage mechanism so use cases don't depend on tokio::sync::RwLock.
+#[async_trait]
+pub trait PendingStagingStore: Send + Sync {
+    /// Insert a pending staging request.
+    async fn insert(&self, key: String, request: PendingStagingRequest);
+
+    /// Get a pending staging request by key.
+    async fn get(&self, key: &str) -> Option<PendingStagingRequest>;
+
+    /// Remove a pending staging request by key.
+    async fn remove(&self, key: &str) -> Option<PendingStagingRequest>;
+}
+
+// =============================================================================
+// Time Suggestion Storage Ports
+// =============================================================================
+
+/// A time suggestion generated for DM approval.
+///
+/// Contains the suggested time advancement and context about the action.
+#[derive(Debug, Clone)]
+pub struct TimeSuggestion {
+    pub id: Uuid,
+    pub world_id: WorldId,
+    pub pc_id: PlayerCharacterId,
+    pub pc_name: String,
+    pub action_type: String,
+    pub action_description: String,
+    pub suggested_minutes: u32,
+    pub current_time: GameTime,
+    pub resulting_time: GameTime,
+    pub period_change: Option<(TimeOfDay, TimeOfDay)>,
+}
+
+/// Port for storing time suggestions.
+///
+/// Abstracts the storage mechanism so use cases don't depend on tokio::sync::RwLock.
+#[async_trait]
+pub trait TimeSuggestionStore: Send + Sync {
+    /// Insert a time suggestion.
+    async fn insert(&self, key: Uuid, suggestion: TimeSuggestion);
+
+    /// Remove a time suggestion by key.
+    async fn remove(&self, key: Uuid) -> Option<TimeSuggestion>;
 }

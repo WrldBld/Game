@@ -126,7 +126,10 @@ impl EvaluationContext {
         }
 
         if !self.recent_events.is_empty() {
-            parts.push(format!("Recent Events:\n- {}", self.recent_events.join("\n- ")));
+            parts.push(format!(
+                "Recent Events:\n- {}",
+                self.recent_events.join("\n- ")
+            ));
         }
 
         if let Some(ref additional) = self.additional_context {
@@ -242,7 +245,11 @@ Do not include any text outside the JSON block."#,
         )
     }
 
-    fn build_user_message(&self, condition_description: &str, context: &EvaluationContext) -> String {
+    fn build_user_message(
+        &self,
+        condition_description: &str,
+        context: &EvaluationContext,
+    ) -> String {
         format!(
             r#"## Condition to Evaluate
 {}
@@ -346,8 +353,8 @@ Please evaluate whether this condition is currently met and respond with the JSO
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_trait::async_trait;
     use crate::infrastructure::ports::{FinishReason, LlmResponse, ToolDefinition};
+    use async_trait::async_trait;
 
     /// Mock LLM that returns a configurable response
     struct MockLlm {
@@ -400,7 +407,10 @@ mod tests {
             .with_known_characters(["Guard Captain"]);
 
         let result = evaluator
-            .evaluate("The player has found the ancient key and befriended the guard", &context)
+            .evaluate(
+                "The player has found the ancient key and befriended the guard",
+                &context,
+            )
             .await
             .unwrap();
 
@@ -435,7 +445,10 @@ mod tests {
 
         let evaluator = CustomConditionEvaluator::new(mock);
         let result = evaluator
-            .evaluate("The player is trusted by the guild", &EvaluationContext::new())
+            .evaluate(
+                "The player is trusted by the guild",
+                &EvaluationContext::new(),
+            )
             .await
             .unwrap();
 

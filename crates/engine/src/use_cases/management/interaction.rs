@@ -5,6 +5,7 @@ use std::sync::Arc;
 use wrldbldr_domain::{InteractionId, SceneId};
 
 use crate::repositories::Interaction;
+use crate::use_cases::validation::require_non_empty;
 
 use super::ManagementError;
 
@@ -39,11 +40,7 @@ impl InteractionCrud {
         trigger: Option<String>,
         available: Option<bool>,
     ) -> Result<wrldbldr_domain::InteractionTemplate, ManagementError> {
-        if name.trim().is_empty() {
-            return Err(ManagementError::InvalidInput(
-                "Interaction name cannot be empty".to_string(),
-            ));
-        }
+        require_non_empty(&name, "Interaction name")?;
 
         let mut interaction = wrldbldr_domain::InteractionTemplate::new(
             scene_id,
@@ -57,10 +54,8 @@ impl InteractionCrud {
         }
         if let Some(trigger) = trigger {
             if !trigger.trim().is_empty() {
-                interaction =
-                    interaction.with_condition(wrldbldr_domain::InteractionCondition::Custom(
-                        trigger,
-                    ));
+                interaction = interaction
+                    .with_condition(wrldbldr_domain::InteractionCondition::Custom(trigger));
             }
         }
         if available == Some(false) {
@@ -86,11 +81,7 @@ impl InteractionCrud {
             .ok_or(ManagementError::NotFound)?;
 
         if let Some(name) = name {
-            if name.trim().is_empty() {
-                return Err(ManagementError::InvalidInput(
-                    "Interaction name cannot be empty".to_string(),
-                ));
-            }
+            require_non_empty(&name, "Interaction name")?;
             interaction.name = name;
         }
         if let Some(description) = description {

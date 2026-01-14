@@ -13,12 +13,14 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
 mod app;
-mod repositories;
 mod infrastructure;
+mod repositories;
 mod use_cases;
 
 use api::{
-    websocket::{GenerationStateStoreImpl, PendingStagingStoreImpl, TimeSuggestionStoreImpl, WsState},
+    websocket::{
+        GenerationStateStoreImpl, PendingStagingStoreImpl, TimeSuggestionStoreImpl, WsState,
+    },
     ConnectionManager,
 };
 use app::App;
@@ -238,11 +240,7 @@ async fn main() -> anyhow::Result<()> {
             }
 
             // Process DM approval requests - send to DMs for review
-            match queue_app
-                .queue
-                .dequeue_dm_approval()
-                .await
-            {
+            match queue_app.queue.dequeue_dm_approval().await {
                 Ok(Some(item)) => {
                     if let infrastructure::ports::QueueItemData::DmApproval(data) = item.data {
                         // Convert domain types to protocol types
@@ -277,18 +275,19 @@ async fn main() -> anyhow::Result<()> {
                             }
                         });
 
-                        let narrative_event_suggestion = data.narrative_event_suggestion.map(|nes| {
-                            wrldbldr_protocol::NarrativeEventSuggestionInfo {
-                                event_id: nes.event_id,
-                                event_name: nes.event_name,
-                                description: nes.description,
-                                scene_direction: nes.scene_direction,
-                                confidence: nes.confidence,
-                                reasoning: nes.reasoning,
-                                matched_triggers: nes.matched_triggers,
-                                suggested_outcome: nes.suggested_outcome,
-                            }
-                        });
+                        let narrative_event_suggestion =
+                            data.narrative_event_suggestion.map(|nes| {
+                                wrldbldr_protocol::NarrativeEventSuggestionInfo {
+                                    event_id: nes.event_id,
+                                    event_name: nes.event_name,
+                                    description: nes.description,
+                                    scene_direction: nes.scene_direction,
+                                    confidence: nes.confidence,
+                                    reasoning: nes.reasoning,
+                                    matched_triggers: nes.matched_triggers,
+                                    suggested_outcome: nes.suggested_outcome,
+                                }
+                            });
 
                         // Build and broadcast ApprovalRequired message to DMs
                         let msg = wrldbldr_protocol::ServerMessage::ApprovalRequired {
@@ -416,8 +415,11 @@ async fn main() -> anyhow::Result<()> {
                 {
                     Ok(payload) => {
                         // Convert domain types to protocol types
-                        let npcs_present_proto: Vec<wrldbldr_protocol::NpcPresentInfo> =
-                            payload.npcs_present.iter().map(|n| n.to_protocol()).collect();
+                        let npcs_present_proto: Vec<wrldbldr_protocol::NpcPresentInfo> = payload
+                            .npcs_present
+                            .iter()
+                            .map(|n| n.to_protocol())
+                            .collect();
 
                         // Broadcast StagingReady to all players in world
                         staging_ws_state

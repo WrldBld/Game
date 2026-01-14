@@ -76,7 +76,10 @@ async fn test_predefined_challenge_success_flow() {
             .await
             .expect("Failed to execute roll");
 
-        assert!(!roll_result.approval_queue_id.expect("Should have approval queue ID").is_nil());
+        assert!(!roll_result
+            .approval_queue_id
+            .expect("Should have approval queue ID")
+            .is_nil());
         assert_eq!(roll_result.total, 23); // 18 + 5
 
         // Approve the outcome
@@ -85,7 +88,12 @@ async fn test_predefined_challenge_success_flow() {
             .use_cases
             .approval
             .decision_flow
-            .execute(roll_result.approval_queue_id.expect("Should have approval queue ID"), DmApprovalDecision::Accept)
+            .execute(
+                roll_result
+                    .approval_queue_id
+                    .expect("Should have approval queue ID"),
+                DmApprovalDecision::Accept,
+            )
             .await
             .expect("Failed to approve outcome");
 
@@ -152,7 +160,10 @@ async fn test_predefined_challenge_failure_flow() {
             .await
             .expect("Failed to execute roll");
 
-        assert!(!roll_result.approval_queue_id.expect("Should have approval queue ID").is_nil());
+        assert!(!roll_result
+            .approval_queue_id
+            .expect("Should have approval queue ID")
+            .is_nil());
         assert_eq!(roll_result.total, 3);
 
         // Approve the failure outcome
@@ -161,7 +172,12 @@ async fn test_predefined_challenge_failure_flow() {
             .use_cases
             .approval
             .decision_flow
-            .execute(roll_result.approval_queue_id.expect("Should have approval queue ID"), DmApprovalDecision::Accept)
+            .execute(
+                roll_result
+                    .approval_queue_id
+                    .expect("Should have approval queue ID"),
+                DmApprovalDecision::Accept,
+            )
             .await
             .expect("Failed to approve outcome");
 
@@ -233,7 +249,12 @@ async fn test_challenge_critical_success_gives_item() {
             .use_cases
             .approval
             .decision_flow
-            .execute(roll_result.approval_queue_id.expect("Should have approval queue ID"), DmApprovalDecision::Accept)
+            .execute(
+                roll_result
+                    .approval_queue_id
+                    .expect("Should have approval queue ID"),
+                DmApprovalDecision::Accept,
+            )
             .await
             .expect("Failed to approve outcome");
 
@@ -302,7 +323,12 @@ async fn test_challenge_critical_failure_modifies_stat() {
             .use_cases
             .approval
             .decision_flow
-            .execute(roll_result.approval_queue_id.expect("Should have approval queue ID"), DmApprovalDecision::Accept)
+            .execute(
+                roll_result
+                    .approval_queue_id
+                    .expect("Should have approval queue ID"),
+                DmApprovalDecision::Accept,
+            )
             .await
             .expect("Failed to approve outcome");
 
@@ -365,7 +391,14 @@ async fn test_dm_rejects_challenge_outcome() {
             .use_cases
             .approval
             .decision_flow
-            .execute(roll_result.approval_queue_id.expect("Should have approval queue ID"), DmApprovalDecision::Reject { feedback: "Test rejection".to_string() })
+            .execute(
+                roll_result
+                    .approval_queue_id
+                    .expect("Should have approval queue ID"),
+                DmApprovalDecision::Reject {
+                    feedback: "Test rejection".to_string(),
+                },
+            )
             .await;
 
         // Rejection should be handled gracefully
@@ -429,7 +462,9 @@ async fn test_dm_modifies_challenge_outcome() {
             .approval
             .decision_flow
             .execute(
-                roll_result.approval_queue_id.expect("Should have approval queue ID"),
+                roll_result
+                    .approval_queue_id
+                    .expect("Should have approval queue ID"),
                 DmApprovalDecision::AcceptWithModification {
                     modified_dialogue: modified_text.to_string(),
                     approved_tools: vec![],
@@ -485,7 +520,7 @@ async fn test_llm_suggests_challenge_in_conversation() {
         // Create player and stage NPC
         let common_room = ctx.world.region("Common Room").expect("Region not found");
         let (player_id, pc_id) = create_test_player(
-            ctx.harness.graph(),
+            ctx.graph(),
             ctx.world.world_id,
             common_room,
             "Challenge Seeker",
@@ -537,10 +572,7 @@ async fn test_llm_suggests_challenge_in_conversation() {
         // context being populated and the LLM deciding to use the tool.
         // This test verifies the infrastructure works.
 
-        assert!(
-            llm_result.is_some(),
-            "Should have processed an LLM request"
-        );
+        assert!(llm_result.is_some(), "Should have processed an LLM request");
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }
@@ -602,14 +634,25 @@ async fn test_challenge_roll_with_different_difficulties() {
                 .expect(&format!("Failed to execute roll for {}", desc));
 
             // Verify the roll was recorded correctly
-            assert_eq!(roll_result.total, roll, "Roll total should match for {}", desc);
+            assert_eq!(
+                roll_result.total, roll,
+                "Roll total should match for {}",
+                desc
+            );
 
             // Clean up by rejecting (so we can roll again)
             ctx.app
                 .use_cases
                 .approval
                 .decision_flow
-                .execute(roll_result.approval_queue_id.expect("Should have approval queue ID"), DmApprovalDecision::Reject { feedback: "Test rejection".to_string() })
+                .execute(
+                    roll_result
+                        .approval_queue_id
+                        .expect("Should have approval queue ID"),
+                    DmApprovalDecision::Reject {
+                        feedback: "Test rejection".to_string(),
+                    },
+                )
                 .await
                 .ok();
         }
@@ -645,7 +688,10 @@ async fn test_active_challenges_in_prompt_context() {
 
     let test_result = async {
         // Verify challenges exist in the seeded world
-        let challenges = ctx.app.repositories.challenge
+        let challenges = ctx
+            .app
+            .repositories
+            .challenge
             .list_for_world(ctx.world.world_id)
             .await
             .expect("Failed to list challenges");
@@ -659,7 +705,10 @@ async fn test_active_challenges_in_prompt_context() {
         // Verify challenge has required fields populated
         for challenge in &challenges {
             assert!(!challenge.name.is_empty(), "Challenge should have name");
-            assert!(!challenge.description.is_empty(), "Challenge should have description");
+            assert!(
+                !challenge.description.is_empty(),
+                "Challenge should have description"
+            );
         }
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
@@ -712,11 +761,20 @@ async fn test_challenge_with_pc_stat_modifier() {
             .use_cases
             .challenge
             .roll
-            .execute(ctx.world.world_id, challenge_id, pc_id, Some(roll), modifier)
+            .execute(
+                ctx.world.world_id,
+                challenge_id,
+                pc_id,
+                Some(roll),
+                modifier,
+            )
             .await
             .expect("Failed to execute roll");
 
-        assert_eq!(roll_result.total, expected_total, "Total should include modifier");
+        assert_eq!(
+            roll_result.total, expected_total,
+            "Total should include modifier"
+        );
 
         // Verify the breakdown shows the modifier
         // The breakdown format is "d20(X) + modifier(Y) = Z"

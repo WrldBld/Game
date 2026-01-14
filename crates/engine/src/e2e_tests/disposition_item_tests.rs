@@ -64,7 +64,7 @@ async fn test_grateful_disposition_in_prompt() {
             .expect("Failed to stage NPC");
 
         let (player_id, pc_id) = create_test_player(
-            ctx.harness.graph(),
+            ctx.graph(),
             ctx.world.world_id,
             common_room,
             "Friendly Visitor",
@@ -146,7 +146,7 @@ async fn test_hostile_disposition_in_prompt() {
             .expect("Failed to stage NPC");
 
         let (player_id, pc_id) = create_test_player(
-            ctx.harness.graph(),
+            ctx.graph(),
             ctx.world.world_id,
             forge,
             "Cautious Visitor",
@@ -409,7 +409,7 @@ async fn test_grateful_npc_offers_item() {
             .expect("Failed to stage NPC");
 
         let (player_id, pc_id) = create_test_player(
-            ctx.harness.graph(),
+            ctx.graph(),
             ctx.world.world_id,
             common_room,
             "Needy Hero",
@@ -429,7 +429,10 @@ async fn test_grateful_npc_offers_item() {
         .expect("Failed to start conversation");
 
         // Verify we got a response
-        assert!(!response.is_empty(), "Should get a response from friendly NPC");
+        assert!(
+            !response.is_empty(),
+            "Should get a response from friendly NPC"
+        );
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }
@@ -479,7 +482,7 @@ async fn test_hostile_npc_refuses_help() {
             .expect("Failed to stage NPC");
 
         let (player_id, pc_id) = create_test_player(
-            ctx.harness.graph(),
+            ctx.graph(),
             ctx.world.world_id,
             forge,
             "Unwelcome Visitor",
@@ -718,7 +721,10 @@ async fn test_tool_definitions_in_llm_request() {
         for tool in &tools {
             assert!(!tool.name.is_empty(), "Tool should have name");
             assert!(!tool.description.is_empty(), "Tool should have description");
-            assert!(tool.parameters.is_object(), "Tool should have parameters schema");
+            assert!(
+                tool.parameters.is_object(),
+                "Tool should have parameters schema"
+            );
         }
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
@@ -768,7 +774,7 @@ async fn test_secret_motivation_deflection() {
             .expect("Failed to stage NPC");
 
         let (player_id, pc_id) = create_test_player(
-            ctx.harness.graph(),
+            ctx.graph(),
             ctx.world.world_id,
             common_room,
             "Nosy Visitor",

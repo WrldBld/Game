@@ -8,11 +8,11 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerActionData, PlayerCharacterId, WorldId};
 
-use crate::repositories::{PlayerCharacter, World};
+use crate::infrastructure::ports::{ClockPort, QueuePort, RepoError};
 use crate::repositories::character::Character;
 use crate::repositories::scene::Scene;
 use crate::repositories::staging::Staging;
-use crate::infrastructure::ports::{ClockPort, QueuePort, RepoError};
+use crate::repositories::{PlayerCharacter, World};
 
 /// Result of starting a conversation.
 #[derive(Debug)]
@@ -126,12 +126,8 @@ impl StartConversation {
         let conversation_id = Uuid::new_v4();
 
         // 5. Get NPC's current disposition toward the PC if available
-        let npc_disposition = match self
-            .character
-            .get_disposition(npc_id, pc_id)
-            .await
-        {
-            Ok(disposition) => disposition.map(|d| d.disposition.to_string()),
+        let npc_disposition = match self.character.get_disposition(npc_id, pc_id).await {
+            Ok(disposition) => disposition.map(|d| d.disposition().to_string()),
             Err(e) => {
                 tracing::warn!(
                     npc_id = %npc_id,
@@ -208,11 +204,11 @@ mod tests {
         RegionId, StagedNpc, Staging, StagingSource, WorldId, WorldName,
     };
 
-    use crate::repositories;
     use crate::infrastructure::ports::{
         ClockPort, MockCharacterRepo, MockPlayerCharacterRepo, MockSceneRepo, MockStagingRepo,
         MockWorldRepo, QueueError, QueueItem, QueuePort,
     };
+    use crate::repositories;
     use crate::repositories::{Character as CharacterOp, Scene as SceneOp, Staging as StagingOp};
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -353,12 +349,22 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now)
-            .with_id(pc_id)
-            .with_current_region(Some(region_id));
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            location_id,
+            now,
+        )
+        .with_id(pc_id)
+        .with_current_region(Some(region_id));
 
-        let npc = Character::new(world_id, CharacterName::new("NPC").unwrap(), CampbellArchetype::Mentor)
-            .with_id(npc_id);
+        let npc = Character::new(
+            world_id,
+            CharacterName::new("NPC").unwrap(),
+            CampbellArchetype::Mentor,
+        )
+        .with_id(npc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -401,7 +407,10 @@ mod tests {
             Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
             Arc::new(StagingOp::new(Arc::new(staging_repo))),
             Arc::new(SceneOp::new(Arc::new(MockSceneRepo::new()))),
-            Arc::new(repositories::World::new(Arc::new(world_repo), clock.clone())),
+            Arc::new(repositories::World::new(
+                Arc::new(world_repo),
+                clock.clone(),
+            )),
             queue.clone(),
             clock.clone(),
         );
@@ -433,12 +442,22 @@ mod tests {
         let player_id = "player".to_string();
         let initial_dialogue = "Hello".to_string();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, CharacterName::new("PC").unwrap(), location_id, now)
-            .with_id(pc_id)
-            .with_current_region(Some(region_id));
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            location_id,
+            now,
+        )
+        .with_id(pc_id)
+        .with_current_region(Some(region_id));
 
-        let npc = Character::new(world_id, CharacterName::new("NPC").unwrap(), CampbellArchetype::Mentor)
-            .with_id(npc_id);
+        let npc = Character::new(
+            world_id,
+            CharacterName::new("NPC").unwrap(),
+            CampbellArchetype::Mentor,
+        )
+        .with_id(npc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -506,7 +525,10 @@ mod tests {
             Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
             Arc::new(StagingOp::new(Arc::new(staging_repo))),
             Arc::new(SceneOp::new(Arc::new(MockSceneRepo::new()))),
-            Arc::new(repositories::World::new(Arc::new(world_repo), clock.clone())),
+            Arc::new(repositories::World::new(
+                Arc::new(world_repo),
+                clock.clone(),
+            )),
             queue.clone(),
             clock.clone(),
         );

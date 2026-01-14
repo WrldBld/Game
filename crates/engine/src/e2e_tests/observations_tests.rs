@@ -13,15 +13,16 @@ use super::{create_test_player, E2EEventLog, E2ETestContext, TestOutcome};
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_create_observation() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
     let mira_id = ctx.world.npc("Mira Thornwood").expect("Mira should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Observer",
@@ -60,16 +61,20 @@ async fn test_create_observation() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_list_pc_observations() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
     let mira_id = ctx.world.npc("Mira Thornwood").expect("Mira should exist");
-    let marcus_id = ctx.world.npc("Marcus Steelhelm").expect("Marcus should exist");
+    let marcus_id = ctx
+        .world
+        .npc("Marcus Steelhelm")
+        .expect("Marcus should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "List Observer",
@@ -106,7 +111,10 @@ async fn test_list_pc_observations() {
         .expect("Should list observations");
 
     println!("PC has {} observations", observations.len());
-    assert!(observations.len() >= 2, "Should have at least 2 observations");
+    assert!(
+        observations.len() >= 2,
+        "Should have at least 2 observations"
+    );
 }
 
 /// Test observations in LLM context.
@@ -118,11 +126,14 @@ async fn test_observations_in_context() {
         .await
         .expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
     let mira_id = ctx.world.npc("Mira Thornwood").expect("Mira should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Context Observer",
@@ -156,7 +167,10 @@ async fn test_observations_in_context() {
         .expect("Should list observations");
 
     // Observations should be available for LLM context building
-    assert!(!observations.is_empty(), "Should have observations for context");
+    assert!(
+        !observations.is_empty(),
+        "Should have observations for context"
+    );
 
     ctx.finalize_event_log(TestOutcome::Pass);
     let _ = ctx.save_event_log(&E2ETestContext::default_log_path("observations_context"));
@@ -166,15 +180,16 @@ async fn test_observations_in_context() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_observation_types() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
     let mira_id = ctx.world.npc("Mira Thornwood").expect("Mira should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Type Tester",
@@ -229,16 +244,14 @@ async fn test_observation_types() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_observation_count_trigger() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
 
     // Create event with ObservationCount trigger
     let event_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -263,7 +276,7 @@ async fn test_observation_count_trigger() {
 
     // Create ObservationCount trigger
     let trigger_id = Uuid::new_v4();
-    ctx.harness
+    ctx
         .graph()
         .run(
             query(
@@ -291,7 +304,9 @@ async fn test_observation_count_trigger() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.id().to_string() == event_id.to_string()),
+        events
+            .iter()
+            .any(|e| e.id().to_string() == event_id.to_string()),
         "Event with ObservationCount trigger should exist"
     );
 }

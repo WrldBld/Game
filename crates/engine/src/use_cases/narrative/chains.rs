@@ -5,8 +5,8 @@ use serde::Serialize;
 
 use wrldbldr_domain::{self as domain, ActId, EventChain, EventChainId, NarrativeEventId, WorldId};
 
-use crate::use_cases::narrative_operations::Narrative;
 use crate::infrastructure::ports::RepoError;
+use crate::use_cases::narrative_operations::Narrative;
 
 // =============================================================================
 // Domain Result Types
@@ -267,7 +267,10 @@ impl EventChainOps {
         Ok(())
     }
 
-    pub async fn reset(&self, chain_id: EventChainId) -> Result<EventChainSummary, EventChainError> {
+    pub async fn reset(
+        &self,
+        chain_id: EventChainId,
+    ) -> Result<EventChainSummary, EventChainError> {
         let mut chain = self
             .narrative
             .get_chain(chain_id)
@@ -278,7 +281,10 @@ impl EventChainOps {
         Ok(event_chain_to_summary(&chain))
     }
 
-    pub async fn status(&self, chain_id: EventChainId) -> Result<ChainStatusSummary, EventChainError> {
+    pub async fn status(
+        &self,
+        chain_id: EventChainId,
+    ) -> Result<ChainStatusSummary, EventChainError> {
         let chain = self
             .narrative
             .get_chain(chain_id)
@@ -306,7 +312,11 @@ fn event_chain_to_summary(chain: &EventChain) -> EventChainSummary {
         events: chain.events.iter().map(|id| id.to_string()).collect(),
         is_active: chain.is_active,
         current_position: chain.current_position,
-        completed_events: chain.completed_events.iter().map(|id| id.to_string()).collect(),
+        completed_events: chain
+            .completed_events
+            .iter()
+            .map(|id| id.to_string())
+            .collect(),
         act_id: chain.act_id.map(|id| id.to_string()),
         tags: chain.tags.clone(),
         color: chain.color.clone(),

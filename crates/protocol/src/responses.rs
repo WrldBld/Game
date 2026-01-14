@@ -273,6 +273,29 @@ impl WorldRole {
     }
 }
 
+/// Convert from domain WorldRole to protocol WorldRole
+impl From<wrldbldr_domain::WorldRole> for WorldRole {
+    fn from(role: wrldbldr_domain::WorldRole) -> Self {
+        match role {
+            wrldbldr_domain::WorldRole::Dm => WorldRole::Dm,
+            wrldbldr_domain::WorldRole::Player => WorldRole::Player,
+            wrldbldr_domain::WorldRole::Spectator => WorldRole::Spectator,
+        }
+    }
+}
+
+/// Convert from protocol WorldRole to domain WorldRole
+/// Note: Unknown maps to Spectator as the safe default
+impl From<WorldRole> for wrldbldr_domain::WorldRole {
+    fn from(role: WorldRole) -> Self {
+        match role {
+            WorldRole::Dm => wrldbldr_domain::WorldRole::Dm,
+            WorldRole::Player => wrldbldr_domain::WorldRole::Player,
+            WorldRole::Spectator | WorldRole::Unknown => wrldbldr_domain::WorldRole::Spectator,
+        }
+    }
+}
+
 // =============================================================================
 // Connected User
 // =============================================================================

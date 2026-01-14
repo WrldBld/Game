@@ -253,9 +253,7 @@ mod tests {
             let mut results = self.items.clone();
 
             if let Some(ref search) = filter.search {
-                results.retain(|item| {
-                    item.name.to_lowercase().contains(&search.to_lowercase())
-                });
+                results.retain(|item| item.name.to_lowercase().contains(&search.to_lowercase()));
             }
 
             if let Some(limit) = filter.limit {
@@ -508,7 +506,10 @@ mod tests {
                 .expect("Failed to search");
 
             println!("Found {} items matching 'fireball'", results.len());
-            assert!(!results.is_empty(), "Should find content matching 'fireball'");
+            assert!(
+                !results.is_empty(),
+                "Should find content matching 'fireball'"
+            );
 
             // Should include Fireball spell
             let has_fireball = results.iter().any(|r| r.name == "Fireball");

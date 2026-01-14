@@ -17,10 +17,15 @@ use crate::infrastructure::ollama::OllamaClient;
 use crate::infrastructure::ports::LlmPort;
 
 /// Create a D&D 5e world for testing.
-fn create_test_world(world_id: WorldId, _now: chrono::DateTime<chrono::Utc>) -> wrldbldr_domain::World {
+fn create_test_world(
+    world_id: WorldId,
+    _now: chrono::DateTime<chrono::Utc>,
+) -> wrldbldr_domain::World {
     let world_name = wrldbldr_domain::WorldName::new("Integration Test World").unwrap();
     wrldbldr_domain::World::new(world_name)
-        .with_description(wrldbldr_domain::Description::new("A test world for LLM integration").unwrap())
+        .with_description(
+            wrldbldr_domain::Description::new("A test world for LLM integration").unwrap(),
+        )
         .with_id(world_id)
         .with_rule_system(RuleSystemConfig::dnd_5e())
 }
@@ -91,7 +96,11 @@ async fn test_e2e_join_world_and_get_template() {
     })
     .await;
 
-    if let ServerMessage::WorldJoined { world_id: joined_id, .. } = joined {
+    if let ServerMessage::WorldJoined {
+        world_id: joined_id,
+        ..
+    } = joined
+    {
         assert_eq!(joined_id, *world_id.as_uuid());
     } else {
         panic!("Expected WorldJoined");
@@ -112,7 +121,10 @@ async fn test_e2e_join_world_and_get_template() {
 
     // Should receive schema response
     let response = ws_expect_message(&mut ws, Duration::from_secs(5), |m| {
-        if let ServerMessage::Response { request_id: rid, .. } = m {
+        if let ServerMessage::Response {
+            request_id: rid, ..
+        } = m
+        {
             rid == &request_id
         } else {
             false
@@ -222,10 +234,12 @@ async fn test_e2e_narrative_generation_quality() {
 Generate immersive, atmospheric narrative descriptions.
 Be descriptive but concise. Focus on what the character sees, hears, and feels."#;
 
-    let request = LlmRequest::new(vec![ChatMessage::user("The party enters a dimly lit tavern on a stormy night. Describe the scene.")])
-        .with_system_prompt(system_prompt)
-        .with_temperature(0.7)
-        .with_max_tokens(Some(800));
+    let request = LlmRequest::new(vec![ChatMessage::user(
+        "The party enters a dimly lit tavern on a stormy night. Describe the scene.",
+    )])
+    .with_system_prompt(system_prompt)
+    .with_temperature(0.7)
+    .with_max_tokens(Some(800));
 
     let response = client.generate(request).await.expect("LLM request failed");
 
@@ -246,7 +260,11 @@ Be descriptive but concise. Focus on what the character sees, hears, and feels."
         || content_lower.contains("candle")
         || content_lower.contains("torch");
 
-    assert!(has_atmosphere, "Should describe the tavern atmosphere: {}", response.content);
+    assert!(
+        has_atmosphere,
+        "Should describe the tavern atmosphere: {}",
+        response.content
+    );
 
     // Should reference the storm or weather
     let has_weather = content_lower.contains("storm")
@@ -255,7 +273,11 @@ Be descriptive but concise. Focus on what the character sees, hears, and feels."
         || content_lower.contains("wind")
         || content_lower.contains("wet");
 
-    assert!(has_weather, "Should reference the stormy weather: {}", response.content);
+    assert!(
+        has_weather,
+        "Should reference the stormy weather: {}",
+        response.content
+    );
 }
 
 #[tokio::test]
@@ -269,17 +291,24 @@ async fn test_e2e_conversation_context_maintained() {
     let system_prompt = "You are a helpful NPC tavern keeper named Gareth.";
 
     // First message establishes context
-    let request1 = LlmRequest::new(vec![ChatMessage::user("What's your name and what do you do here?")])
-        .with_system_prompt(system_prompt)
-        .with_temperature(0.7)
-        .with_max_tokens(Some(500));
+    let request1 = LlmRequest::new(vec![ChatMessage::user(
+        "What's your name and what do you do here?",
+    )])
+    .with_system_prompt(system_prompt)
+    .with_temperature(0.7)
+    .with_max_tokens(Some(500));
 
-    let response1 = client.generate(request1).await.expect("First LLM request failed");
+    let response1 = client
+        .generate(request1)
+        .await
+        .expect("First LLM request failed");
 
     // Verify first response mentions name
     let content1_lower = response1.content.to_lowercase();
     assert!(
-        content1_lower.contains("gareth") || content1_lower.contains("tavern") || content1_lower.contains("keeper"),
+        content1_lower.contains("gareth")
+            || content1_lower.contains("tavern")
+            || content1_lower.contains("keeper"),
         "First response should establish identity: {}",
         response1.content
     );
@@ -290,11 +319,14 @@ async fn test_e2e_conversation_context_maintained() {
         ChatMessage::assistant(&response1.content),
         ChatMessage::user("I'd like to rent a room for the night."),
     ])
-        .with_system_prompt(system_prompt)
-        .with_temperature(0.7)
-        .with_max_tokens(Some(500));
+    .with_system_prompt(system_prompt)
+    .with_temperature(0.7)
+    .with_max_tokens(Some(500));
 
-    let response2 = client.generate(request2).await.expect("Second LLM request failed");
+    let response2 = client
+        .generate(request2)
+        .await
+        .expect("Second LLM request failed");
 
     // Verify second response is about rooms/lodging
     let content2_lower = response2.content.to_lowercase();

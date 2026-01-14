@@ -11,13 +11,11 @@ use wrldbldr_domain::{
     RelationshipType, SceneId, WorldId,
 };
 
-use crate::repositories::{
-    Challenge, Flag, Inventory, Observation, PlayerCharacter, World,
-};
-use crate::repositories::character::Character;
-use crate::use_cases::narrative_operations::Narrative;
-use crate::repositories::scene::Scene;
 use crate::infrastructure::ports::ClockPort;
+use crate::repositories::character::Character;
+use crate::repositories::scene::Scene;
+use crate::repositories::{Challenge, Flag, Inventory, Observation, PlayerCharacter, World};
+use crate::use_cases::narrative_operations::Narrative;
 
 /// Result of executing a single effect.
 #[derive(Debug, Clone)]
@@ -342,7 +340,10 @@ impl ExecuteEffects {
                     return EffectExecutionResult {
                         description: "Add reward effect has empty reward type".to_string(),
                         success: false,
-                        error: Some("Reward effect requires a reward type (e.g., 'gold', 'xp', 'item')".to_string()),
+                        error: Some(
+                            "Reward effect requires a reward type (e.g., 'gold', 'xp', 'item')"
+                                .to_string(),
+                        ),
                         requires_dm_action: false,
                     };
                 }
@@ -356,7 +357,10 @@ impl ExecuteEffects {
                 }
                 if description.trim().is_empty() {
                     return EffectExecutionResult {
-                        description: format!("Add {} x{} reward with empty description", reward_type, amount),
+                        description: format!(
+                            "Add {} x{} reward with empty description",
+                            reward_type, amount
+                        ),
                         success: false,
                         error: Some("Reward effect requires a description".to_string()),
                         requires_dm_action: false,
@@ -667,7 +671,12 @@ impl ExecuteEffects {
                         EffectExecutionResult {
                             description: format!(
                                 "{}: {} -> {} (sentiment {:.2} -> {:.2}, reason: {})",
-                                action, from_name, to_name, old_sentiment, relationship.sentiment, reason
+                                action,
+                                from_name,
+                                to_name,
+                                old_sentiment,
+                                relationship.sentiment,
+                                reason
                             ),
                             success: true,
                             error: None,
@@ -858,7 +867,10 @@ impl ExecuteEffects {
             }
             Err(e) => {
                 return EffectExecutionResult {
-                    description: format!("Failed to add {} {}: error loading PC", amount, stat_name),
+                    description: format!(
+                        "Failed to add {} {}: error loading PC",
+                        amount, stat_name
+                    ),
                     success: false,
                     error: Some(e.to_string()),
                     requires_dm_action: false,

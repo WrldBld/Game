@@ -41,30 +41,38 @@ pub(super) async fn handle_inventory_action(
 
     // Execute the inventory action via the entity
     let result = match action {
-        InventoryAction::Equip => state
-            .app
-            .repositories
-            .inventory
-            .equip_item(pc_uuid, item_uuid)
-            .await,
-        InventoryAction::Unequip => state
-            .app
-            .repositories
-            .inventory
-            .unequip_item(pc_uuid, item_uuid)
-            .await,
-        InventoryAction::Drop => state
-            .app
-            .repositories
-            .inventory
-            .drop_item(pc_uuid, item_uuid, quantity)
-            .await,
-        InventoryAction::Pickup => state
-            .app
-            .repositories
-            .inventory
-            .pickup_item(pc_uuid, item_uuid)
-            .await,
+        InventoryAction::Equip => {
+            state
+                .app
+                .repositories
+                .inventory
+                .equip_item(pc_uuid, item_uuid)
+                .await
+        }
+        InventoryAction::Unequip => {
+            state
+                .app
+                .repositories
+                .inventory
+                .unequip_item(pc_uuid, item_uuid)
+                .await
+        }
+        InventoryAction::Drop => {
+            state
+                .app
+                .repositories
+                .inventory
+                .drop_item(pc_uuid, item_uuid, quantity)
+                .await
+        }
+        InventoryAction::Pickup => {
+            state
+                .app
+                .repositories
+                .inventory
+                .pickup_item(pc_uuid, item_uuid)
+                .await
+        }
     };
 
     match result {
@@ -98,7 +106,10 @@ pub(super) async fn handle_inventory_action(
                 InventoryAction::Drop => "drop item",
                 InventoryAction::Pickup => "pickup item",
             };
-            Some(error_response("INVENTORY_ERROR", &sanitize_repo_error(&e, action_desc)))
+            Some(error_response(
+                "INVENTORY_ERROR",
+                &sanitize_repo_error(&e, action_desc),
+            ))
         }
     }
 }

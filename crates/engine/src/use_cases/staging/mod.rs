@@ -4,7 +4,6 @@
 
 mod approve;
 mod auto_approve;
-mod ports;
 mod regenerate;
 mod request_approval;
 mod suggestions;
@@ -20,16 +19,16 @@ use wrldbldr_domain::WorldId;
 use crate::infrastructure::ports::{RepoError, SettingsRepo};
 
 // Re-export types
+pub use crate::infrastructure::ports::{
+    PendingStagingRequest, PendingStagingStore, TimeSuggestion, TimeSuggestionStore,
+};
 pub use approve::{ApproveStagingInput, ApproveStagingRequest, StagingReadyPayload};
 pub use auto_approve::AutoApproveStagingTimeout;
-pub use ports::{PendingStagingStore, TimeSuggestionStore};
 pub use regenerate::RegenerateStagingSuggestions;
-pub use request_approval::{
-    RequestStagingApproval, StagingApprovalContext, StagingApprovalInput,
-};
+pub use request_approval::{RequestStagingApproval, StagingApprovalContext, StagingApprovalInput};
 pub use types::{
-    ApprovedNpc, GameTimeData, NpcPresent, PendingStagingRequest, PreviousStagingData,
-    StagedNpc, StagingApprovalData, StagingPendingData, StagingRequestResult, WaitingPc,
+    ApprovedNpc, GameTimeData, NpcPresent, PreviousStagingData, StagedNpc, StagingApprovalData,
+    StagingPendingData, StagingRequestResult, WaitingPc,
 };
 
 /// Timeout in seconds before a pending staging request auto-approves.

@@ -11,8 +11,8 @@ use wrldbldr_domain::{
     LocationState, NarrativeEventId, RegionId, RegionState, WorldId,
 };
 
-use crate::repositories::{Flag, LocationStateEntity, RegionStateEntity};
 use crate::infrastructure::ports::RepoError;
+use crate::repositories::{Flag, LocationStateEntity, RegionStateEntity};
 
 /// Context for evaluating activation rules
 #[derive(Debug, Clone)]
@@ -494,7 +494,7 @@ impl ResolveVisualState {
         let max_days = match month {
             1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
             4 | 6 | 9 | 11 => 30,
-            2 => 29, // Allow 29 for leap years
+            2 => 29,           // Allow 29 for leap years
             _ => return false, // Should never reach here due to check above
         };
 

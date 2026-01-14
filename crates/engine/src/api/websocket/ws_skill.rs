@@ -24,8 +24,7 @@ pub(super) async fn handle_skill_request(
                 .await
             {
                 Ok(skills) => {
-                    let data: Vec<serde_json::Value> =
-                        skills.iter().map(skill_to_json).collect();
+                    let data: Vec<serde_json::Value> = skills.iter().map(skill_to_json).collect();
                     Ok(ResponseResult::success(json!(data)))
                 }
                 Err(e) => Ok(ResponseResult::error(

@@ -79,14 +79,15 @@ impl RequestFingerprint {
         // Hash tool definitions completely (name + description + parameters schema)
         // Use canonical JSON serialization for deterministic output
         if let Some(tools) = tools {
-            let mut tool_data: Vec<String> = tools.iter()
+            let mut tool_data: Vec<String> = tools
+                .iter()
                 .map(|t| {
                     // Use serde_json::to_string for deterministic JSON
                     let params_json = serde_json::to_string(&t.parameters).unwrap_or_default();
                     format!("{}|{}|{}", t.name, t.description, params_json)
                 })
                 .collect();
-            tool_data.sort();  // Order-independent
+            tool_data.sort(); // Order-independent
             hasher.update(b"tools:");
             for data in tool_data {
                 hasher.update(data.as_bytes());
@@ -148,7 +149,10 @@ impl RequestFingerprint {
                 system_prefix, last_msg_prefix, tool_count
             )
         } else {
-            format!("sys:{:.30}... | msg:{:.30}...", system_prefix, last_msg_prefix)
+            format!(
+                "sys:{:.30}... | msg:{:.30}...",
+                system_prefix, last_msg_prefix
+            )
         }
     }
 }
@@ -296,8 +300,7 @@ mod tests {
     #[test]
     fn test_none_vs_empty_system_prompt_same_fingerprint() {
         let req1 = LlmRequest::new(vec![ChatMessage::user("Hello")]);
-        let req2 = LlmRequest::new(vec![ChatMessage::user("Hello")])
-            .with_system_prompt("");
+        let req2 = LlmRequest::new(vec![ChatMessage::user("Hello")]).with_system_prompt("");
 
         let fp1 = RequestFingerprint::from_request(&req1);
         let fp2 = RequestFingerprint::from_request(&req2);

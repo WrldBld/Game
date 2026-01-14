@@ -1,0 +1,19 @@
+{
+  "version": "2.0",
+  "recorded_at": "2026-01-14T18:34:16.617565+00:00",
+  "llm_model": "gpt-oss:20b",
+  "recordings": {
+    "b662314521c92096bbbe32ca7d217af800af6aa207b8098d6b114aab118f6dc5": [
+      {
+        "fingerprint": "b662314521c92096bbbe32ca7d217af800af6aa207b8098d6b114aab118f6dc5",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 4... | tools:11",
+        "response": {
+          "content": "Grom’s ears are open only to stories that tug at something he holds dear—try to learn what he cares about, then weave a tale that mirrors that, and he’ll be more willing to open up.",
+          "tool_calls": [],
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-14T18:34:35.191174+00:00"
+      }
+    ]
+  }
+}

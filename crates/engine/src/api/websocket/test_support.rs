@@ -466,15 +466,21 @@ pub(crate) fn build_test_app_with_ports(
     let region_state_repo = Arc::new(repos.region_state_repo);
 
     // Entities
-    let character = Arc::new(crate::repositories::character::Character::new(character_repo.clone()));
+    let character = Arc::new(crate::repositories::character::Character::new(
+        character_repo.clone(),
+    ));
     let player_character = Arc::new(crate::repositories::PlayerCharacter::new(
         player_character_repo.clone(),
     ));
-    let location = Arc::new(crate::repositories::location::Location::new(location_repo.clone()));
+    let location = Arc::new(crate::repositories::location::Location::new(
+        location_repo.clone(),
+    ));
     let scene = Arc::new(crate::repositories::scene::Scene::new(scene_repo.clone()));
     let act = Arc::new(crate::repositories::Act::new(act_repo.clone()));
     let skill = Arc::new(crate::repositories::Skill::new(skill_repo.clone()));
-    let interaction = Arc::new(crate::repositories::Interaction::new(interaction_repo.clone()));
+    let interaction = Arc::new(crate::repositories::Interaction::new(
+        interaction_repo.clone(),
+    ));
     let challenge = Arc::new(crate::repositories::Challenge::new(challenge_repo.clone()));
     let narrative = Arc::new(crate::use_cases::narrative_operations::Narrative::new(
         narrative_repo.clone(),
@@ -488,7 +494,9 @@ pub(crate) fn build_test_app_with_ports(
         scene_repo.clone(),
         clock.clone(),
     ));
-    let staging = Arc::new(crate::repositories::staging::Staging::new(staging_repo.clone()));
+    let staging = Arc::new(crate::repositories::staging::Staging::new(
+        staging_repo.clone(),
+    ));
     let observation = Arc::new(crate::repositories::Observation::new(
         observation_repo.clone(),
         location_repo.clone(),
@@ -499,7 +507,10 @@ pub(crate) fn build_test_app_with_ports(
         character_repo.clone(),
         player_character_repo.clone(),
     ));
-    let assets = Arc::new(crate::repositories::Assets::new(asset_repo.clone(), image_gen));
+    let assets = Arc::new(crate::repositories::Assets::new(
+        asset_repo.clone(),
+        image_gen,
+    ));
     let world = Arc::new(crate::repositories::World::new(world_repo, clock.clone()));
     let flag = Arc::new(crate::repositories::Flag::new(flag_repo.clone()));
     let goal = Arc::new(crate::repositories::Goal::new(goal_repo.clone()));
@@ -507,7 +518,9 @@ pub(crate) fn build_test_app_with_ports(
     let location_state = Arc::new(crate::repositories::LocationStateEntity::new(
         location_state_repo.clone(),
     ));
-    let region_state = Arc::new(crate::repositories::RegionStateEntity::new(region_state_repo));
+    let region_state = Arc::new(crate::repositories::RegionStateEntity::new(
+        region_state_repo,
+    ));
 
     let repositories_container = Repositories {
         character: character.clone(),
@@ -564,10 +577,8 @@ pub(crate) fn build_test_app_with_ports(
         )),
     );
 
-    let scene_change = crate::use_cases::SceneChangeBuilder::new(
-        location.clone(),
-        inventory.clone(),
-    );
+    let scene_change =
+        crate::use_cases::SceneChangeBuilder::new(location.clone(), inventory.clone());
 
     let conversation_start = Arc::new(crate::use_cases::conversation::StartConversation::new(
         character.clone(),
@@ -578,15 +589,16 @@ pub(crate) fn build_test_app_with_ports(
         queue.clone(),
         clock.clone(),
     ));
-    let conversation_continue = Arc::new(crate::use_cases::conversation::ContinueConversation::new(
-        character.clone(),
-        player_character.clone(),
-        staging.clone(),
-        world.clone(),
-        narrative.clone(),
-        queue.clone(),
-        clock.clone(),
-    ));
+    let conversation_continue =
+        Arc::new(crate::use_cases::conversation::ContinueConversation::new(
+            character.clone(),
+            player_character.clone(),
+            staging.clone(),
+            world.clone(),
+            narrative.clone(),
+            queue.clone(),
+            clock.clone(),
+        ));
     let conversation_end = Arc::new(crate::use_cases::conversation::EndConversation::new(
         character.clone(),
         player_character.clone(),
@@ -612,9 +624,11 @@ pub(crate) fn build_test_app_with_ports(
         crate::use_cases::actantial::ActantialContextOps::new(character.clone()),
     );
 
-    let ai = crate::use_cases::AiUseCases::new(Arc::new(
-        crate::use_cases::ai::SuggestionOps::new(queue.clone(), world.clone(), character.clone()),
-    ));
+    let ai = crate::use_cases::AiUseCases::new(Arc::new(crate::use_cases::ai::SuggestionOps::new(
+        queue.clone(),
+        world.clone(),
+        character.clone(),
+    )));
 
     let resolve_outcome = Arc::new(crate::use_cases::challenge::ResolveOutcome::new(
         challenge.clone(),
@@ -646,8 +660,9 @@ pub(crate) fn build_test_app_with_ports(
         )),
     );
 
-    let approve_suggestion =
-        Arc::new(crate::use_cases::approval::ApproveSuggestion::new(queue.clone()));
+    let approve_suggestion = Arc::new(crate::use_cases::approval::ApproveSuggestion::new(
+        queue.clone(),
+    ));
     let approval = crate::use_cases::ApprovalUseCases::new(
         Arc::new(crate::use_cases::approval::ApproveStaging::new(
             staging.clone(),
@@ -725,8 +740,9 @@ pub(crate) fn build_test_app_with_ports(
         narrative.clone(),
         execute_effects.clone(),
     ));
-    let narrative_chains =
-        Arc::new(crate::use_cases::narrative::EventChainOps::new(narrative.clone()));
+    let narrative_chains = Arc::new(crate::use_cases::narrative::EventChainOps::new(
+        narrative.clone(),
+    ));
     let narrative_decision = Arc::new(crate::use_cases::narrative::NarrativeDecisionFlow::new(
         approve_suggestion.clone(),
         queue.clone(),
@@ -741,10 +757,10 @@ pub(crate) fn build_test_app_with_ports(
     );
 
     let time_control = Arc::new(crate::use_cases::time::TimeControl::new(world.clone()));
-    let time_suggestions =
-        Arc::new(crate::use_cases::time::TimeSuggestions::new(time_control.clone()));
-    let time_uc =
-        crate::use_cases::TimeUseCases::new(suggest_time, time_control, time_suggestions);
+    let time_suggestions = Arc::new(crate::use_cases::time::TimeSuggestions::new(
+        time_control.clone(),
+    ));
+    let time_uc = crate::use_cases::TimeUseCases::new(suggest_time, time_control, time_suggestions);
 
     let visual_state_uc = crate::use_cases::VisualStateUseCases::new(Arc::new(
         crate::use_cases::visual_state::ResolveVisualState::new(
@@ -862,14 +878,12 @@ pub(crate) fn build_test_app_with_ports(
         scene.clone(),
         player_character.clone(),
     ));
-    let join_world_flow =
-        Arc::new(crate::use_cases::session::JoinWorldFlow::new(join_world.clone()));
+    let join_world_flow = Arc::new(crate::use_cases::session::JoinWorldFlow::new(
+        join_world.clone(),
+    ));
     let directorial_update = Arc::new(crate::use_cases::session::DirectorialUpdate::new());
-    let session = crate::use_cases::SessionUseCases::new(
-        join_world,
-        join_world_flow,
-        directorial_update,
-    );
+    let session =
+        crate::use_cases::SessionUseCases::new(join_world, join_world_flow, directorial_update);
 
     // Create custom condition evaluator
     let custom_condition = Arc::new(crate::use_cases::CustomConditionEvaluator::new(llm.clone()));

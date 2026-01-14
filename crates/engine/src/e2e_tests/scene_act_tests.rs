@@ -14,9 +14,7 @@ use super::{create_test_player, E2EEventLog, E2ETestContext, TestOutcome};
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_acts_loaded_from_world() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // Get acts for the world
     let acts = ctx
@@ -40,9 +38,7 @@ async fn test_acts_loaded_from_world() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_scenes_loaded_for_act() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // Get first act
     let acts = ctx
@@ -66,7 +62,11 @@ async fn test_scenes_loaded_for_act() {
         println!("Act '{}' has {} scenes", first_act.name, scenes.len());
 
         for scene in &scenes {
-            println!("  Scene: {} at location {:?}", scene.name(), scene.location_id());
+            println!(
+                "  Scene: {} at location {:?}",
+                scene.name(),
+                scene.location_id()
+            );
         }
     }
 }
@@ -75,14 +75,15 @@ async fn test_scenes_loaded_for_act() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_scene_resolution_for_region() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Scene Tester",
@@ -102,7 +103,11 @@ async fn test_scene_resolution_for_region() {
 
     // Check if scene was resolved
     if let Some(scene) = result.resolved_scene {
-        println!("Resolved scene: {} - {}", scene.name(), scene.directorial_notes());
+        println!(
+            "Resolved scene: {} - {}",
+            scene.name(),
+            scene.directorial_notes()
+        );
     } else {
         println!("No scene resolved for this region (may be expected)");
     }
@@ -112,9 +117,7 @@ async fn test_scene_resolution_for_region() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_scene_directorial_notes() {
-    let ctx = E2ETestContext::setup()
-        .await
-        .expect("Setup should succeed");
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // Get all scenes
     let acts = ctx
@@ -154,10 +157,13 @@ async fn test_scene_in_llm_context() {
         .await
         .expect("Setup should succeed");
 
-    let common_room = ctx.world.region("Common Room").expect("Common Room should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
 
     let (_, pc_id) = create_test_player(
-        ctx.harness.graph(),
+        ctx.graph(),
         ctx.world.world_id,
         common_room,
         "Context Tester",

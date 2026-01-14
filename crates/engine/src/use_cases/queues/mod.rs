@@ -344,11 +344,11 @@ impl ProcessPlayerAction {
                 current_mood: Some(npc.default_mood().to_string()),
                 disposition_toward_player: disposition
                     .as_ref()
-                    .map(|d| d.disposition.to_string())
+                    .map(|d| d.disposition().to_string())
                     .or_else(|| Some(npc.default_disposition().to_string())),
                 motivations,
                 social_stance: None, // Could be populated from actantial context
-                relationship_to_player: disposition.as_ref().map(|d| d.relationship.to_string()),
+                relationship_to_player: disposition.as_ref().map(|d| d.relationship().to_string()),
                 available_expressions: Some(npc.expression_config().expressions.clone()),
                 available_actions: Some(npc.expression_config().actions.clone()),
             }
@@ -379,18 +379,17 @@ impl ProcessPlayerAction {
         // Fetch conversation history if we have both PC and NPC IDs
         // Default limit is 20 turns (can be made configurable via settings)
         let conversation_history = match (action_data.pc_id, npc_id) {
-            (Some(pc_id), Some(npc_id)) => {
-                self.narrative
-                    .get_conversation_turns(pc_id, npc_id, 20)
-                    .await
-                    .unwrap_or_else(|e| {
-                        tracing::warn!(
-                            error = %e,
-                            "Failed to fetch conversation history, using empty"
-                        );
-                        vec![]
-                    })
-            }
+            (Some(pc_id), Some(npc_id)) => self
+                .narrative
+                .get_conversation_turns(pc_id, npc_id, 20)
+                .await
+                .unwrap_or_else(|e| {
+                    tracing::warn!(
+                        error = %e,
+                        "Failed to fetch conversation history, using empty"
+                    );
+                    vec![]
+                }),
             _ => vec![],
         };
 
@@ -740,7 +739,8 @@ impl ProcessLlmRequest {
                         prompt.scene_context.present_characters.join(", ")
                     );
 
-                    let current_message = if let Some(ref dialogue) = prompt.player_action.dialogue {
+                    let current_message = if let Some(ref dialogue) = prompt.player_action.dialogue
+                    {
                         format!(
                             "The player character says to {}: \"{}\"",
                             prompt.player_action.target.as_deref().unwrap_or("you"),
@@ -777,7 +777,9 @@ impl ProcessLlmRequest {
                         .collect();
 
                     // Add the current message
-                    messages.push(crate::infrastructure::ports::ChatMessage::user(&current_message));
+                    messages.push(crate::infrastructure::ports::ChatMessage::user(
+                        &current_message,
+                    ));
 
                     crate::infrastructure::ports::LlmRequest::new(messages)
                         .with_system_prompt(system_prompt)
@@ -805,7 +807,8 @@ impl ProcessLlmRequest {
                     .map_err(|e| QueueError::LlmError(e.to_string()))?;
 
                 // Extract proposed tools from LLM response
-                let proposed_tools = tool_extractor::extract_proposed_tools(llm_response.tool_calls.clone());
+                let proposed_tools =
+                    tool_extractor::extract_proposed_tools(llm_response.tool_calls.clone());
 
                 let (npc_id, npc_name, player_dialogue, scene_id, location_id, game_time) =
                     if let Some(ref prompt) = request_data.prompt {
@@ -826,7 +829,14 @@ impl ProcessLlmRequest {
                             .and_then(parse_typed_id::<wrldbldr_domain::LocationId>);
                         let game_time = prompt.game_time.clone();
 
-                        (npc_id, npc_name, player_dialogue, scene_id, location_id, game_time)
+                        (
+                            npc_id,
+                            npc_name,
+                            player_dialogue,
+                            scene_id,
+                            location_id,
+                            game_time,
+                        )
                     } else {
                         (None, String::new(), None, None, None, None)
                     };

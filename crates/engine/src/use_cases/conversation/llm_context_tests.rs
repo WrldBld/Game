@@ -55,9 +55,7 @@ async fn test_npc_responds_with_time_of_day_awareness() {
 
     // Morning scene - should be quiet
     let morning_request = GamePromptBuilder::new()
-        .with_scene_builder(
-            SceneContextBuilder::tavern_morning().with_present_character("Player"),
-        )
+        .with_scene_builder(SceneContextBuilder::tavern_morning().with_present_character("Player"))
         .with_character_builder(CharacterContextBuilder::friendly_innkeeper())
         .with_player_dialogue("Marta", "How is business today?")
         .build_llm_request();
@@ -189,9 +187,7 @@ async fn test_friendly_disposition_produces_helpful_response() {
     let client = create_test_ollama_client();
 
     let request = GamePromptBuilder::new()
-        .with_scene_builder(
-            SceneContextBuilder::tavern_evening().with_present_character("Player"),
-        )
+        .with_scene_builder(SceneContextBuilder::tavern_evening().with_present_character("Player"))
         .with_character_builder(CharacterContextBuilder::friendly_innkeeper())
         .with_player_dialogue("Marta", "I'm looking for information about the old mill.")
         .build_llm_request();
@@ -265,9 +261,7 @@ async fn test_calm_vs_angry_mood_comparison() {
                 .with_location_name("Ironforge Smithy")
                 .with_time_context("Afternoon"),
         )
-        .with_character_builder(
-            CharacterContextBuilder::gruff_blacksmith().with_mood("Calm"),
-        )
+        .with_character_builder(CharacterContextBuilder::gruff_blacksmith().with_mood("Calm"))
         .with_player_dialogue("Grom", "I need a sword repaired.")
         .build_llm_request();
 
@@ -288,9 +282,7 @@ async fn test_calm_vs_angry_mood_comparison() {
                 .with_location_name("Ironforge Smithy")
                 .with_time_context("Afternoon"),
         )
-        .with_character_builder(
-            CharacterContextBuilder::gruff_blacksmith().with_mood("Angry"),
-        )
+        .with_character_builder(CharacterContextBuilder::gruff_blacksmith().with_mood("Angry"))
         .with_player_dialogue("Grom", "I need a sword repaired.")
         .build_llm_request();
 

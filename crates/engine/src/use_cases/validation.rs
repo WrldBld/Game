@@ -7,10 +7,16 @@ pub enum ValidationError {
     Empty { field_name: &'static str },
 
     #[error("{field_name} exceeds maximum length of {max}")]
-    TooLong { field_name: &'static str, max: usize },
+    TooLong {
+        field_name: &'static str,
+        max: usize,
+    },
 
     #[error("{field_name} is invalid: {reason}")]
-    Invalid { field_name: &'static str, reason: String },
+    Invalid {
+        field_name: &'static str,
+        reason: String,
+    },
 }
 
 /// Validate a string is non-empty after trimming.
@@ -22,7 +28,11 @@ pub fn require_non_empty(value: &str, field_name: &'static str) -> Result<(), Va
 }
 
 /// Validate a string doesn't exceed max length.
-pub fn require_max_length(value: &str, max: usize, field_name: &'static str) -> Result<(), ValidationError> {
+pub fn require_max_length(
+    value: &str,
+    max: usize,
+    field_name: &'static str,
+) -> Result<(), ValidationError> {
     if value.len() > max {
         return Err(ValidationError::TooLong { field_name, max });
     }

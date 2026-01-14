@@ -1,0 +1,28 @@
+{
+  "version": "2.0",
+  "recorded_at": "2026-01-14T18:35:02.692872+00:00",
+  "llm_model": "gpt-oss:20b",
+  "recordings": {
+    "1559e7b0361dbff6c5a2f493de5b4ca914d824f9fe8886a55d459c687897550a": [
+      {
+        "fingerprint": "1559e7b0361dbff6c5a2f493de5b4ca914d824f9fe8886a55d459c687897550a",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to b... | tools:11",
+        "response": {
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "call_avoxzzuh",
+              "name": "give_item",
+              "arguments": {
+                "description": "A warm, crusty loaf of bread that should keep you going until you can find more food.",
+                "item_name": "Loaf of Fresh Bread"
+              }
+            }
+          ],
+          "finish_reason": "ToolCalls"
+        },
+        "recorded_at": "2026-01-14T18:35:33.503913+00:00"
+      }
+    ]
+  }
+}

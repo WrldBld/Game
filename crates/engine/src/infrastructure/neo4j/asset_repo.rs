@@ -181,10 +181,9 @@ impl AssetRepo for Neo4jAssetRepo {
         asset_id: AssetId,
     ) -> Result<(), RepoError> {
         // First, get the asset to determine its asset_type
-        let asset = self
-            .get(asset_id)
-            .await?
-            .ok_or_else(|| RepoError::database("query", format!("Asset not found: {}", asset_id)))?;
+        let asset = self.get(asset_id).await?.ok_or_else(|| {
+            RepoError::database("query", format!("Asset not found: {}", asset_id))
+        })?;
 
         // Deactivate all assets of the same type for this entity
         let deactivate_q = query(
@@ -222,12 +221,9 @@ impl AssetRepo for Neo4jAssetRepo {
 // =============================================================================
 
 fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset, RepoError> {
-    let node: Node = row
-        .get("a")
-        .map_err(|e| RepoError::database("query", e))?;
+    let node: Node = row.get("a").map_err(|e| RepoError::database("query", e))?;
 
-    let id: AssetId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
+    let id: AssetId = parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
     let entity_type_str: String = node
         .get("entity_type")
         .map_err(|e| RepoError::database("query", e))?;

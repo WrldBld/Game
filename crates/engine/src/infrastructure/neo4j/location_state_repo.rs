@@ -21,9 +21,7 @@ impl Neo4jLocationStateRepo {
     }
 
     fn row_to_state(&self, row: Row) -> Result<LocationState, RepoError> {
-        let node: neo4rs::Node = row
-            .get("s")
-            .map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row.get("s").map_err(|e| RepoError::database("query", e))?;
         let fallback = self.clock.now();
 
         let id: LocationStateId =

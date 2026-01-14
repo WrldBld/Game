@@ -15,7 +15,14 @@ pub(super) async fn handle_event_chain_request(
     match request {
         EventChainRequest::ListEventChains { world_id } => {
             let world_id_typed = parse_world_id_for_request(&world_id, request_id)?;
-            match state.app.use_cases.narrative.chains.list(world_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .list(world_id_typed)
+                .await
+            {
                 Ok(chains) => Ok(ResponseResult::success(json!(chains))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
@@ -25,7 +32,14 @@ pub(super) async fn handle_event_chain_request(
         }
         EventChainRequest::GetEventChain { chain_id } => {
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
-            match state.app.use_cases.narrative.chains.get(chain_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .get(chain_id_typed)
+                .await
+            {
                 Ok(Some(chain)) => Ok(ResponseResult::success(json!(chain))),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
@@ -87,9 +101,9 @@ pub(super) async fn handle_event_chain_request(
                 .await
             {
                 Ok(chain) => Ok(ResponseResult::success(json!(chain))),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "update event chain"),
@@ -99,7 +113,14 @@ pub(super) async fn handle_event_chain_request(
         EventChainRequest::DeleteEventChain { chain_id } => {
             require_dm_for_request(conn_info, request_id)?;
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
-            match state.app.use_cases.narrative.chains.delete(chain_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .delete(chain_id_typed)
+                .await
+            {
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
@@ -119,9 +140,9 @@ pub(super) async fn handle_event_chain_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "set event chain active"),
@@ -140,9 +161,9 @@ pub(super) async fn handle_event_chain_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "set event chain favorite"),
@@ -167,9 +188,9 @@ pub(super) async fn handle_event_chain_request(
                 .await
             {
                 Ok(chain) => Ok(ResponseResult::success(json!(chain))),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "add event to chain"),
@@ -189,9 +210,9 @@ pub(super) async fn handle_event_chain_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "remove event from chain"),
@@ -211,9 +232,9 @@ pub(super) async fn handle_event_chain_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "complete chain event"),
@@ -223,11 +244,18 @@ pub(super) async fn handle_event_chain_request(
         EventChainRequest::ResetEventChain { chain_id } => {
             require_dm_for_request(conn_info, request_id)?;
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
-            match state.app.use_cases.narrative.chains.reset(chain_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .reset(chain_id_typed)
+                .await
+            {
                 Ok(chain) => Ok(ResponseResult::success(json!(chain))),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "reset event chain"),
@@ -236,11 +264,18 @@ pub(super) async fn handle_event_chain_request(
         }
         EventChainRequest::GetEventChainStatus { chain_id } => {
             let chain_id_typed = parse_event_chain_id_for_request(&chain_id, request_id)?;
-            match state.app.use_cases.narrative.chains.status(chain_id_typed).await {
+            match state
+                .app
+                .use_cases
+                .narrative
+                .chains
+                .status(chain_id_typed)
+                .await
+            {
                 Ok(status) => Ok(ResponseResult::success(json!(status))),
-                Err(crate::use_cases::narrative::EventChainError::NotFound) => {
-                    Ok(ResponseResult::error(ErrorCode::NotFound, "Chain not found"))
-                }
+                Err(crate::use_cases::narrative::EventChainError::NotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Chain not found"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "get event chain status"),

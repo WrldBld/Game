@@ -21,9 +21,7 @@ impl Neo4jSkillRepo {
     }
 
     fn row_to_skill(&self, row: Row) -> Result<Skill, RepoError> {
-        let node: neo4rs::Node = row
-            .get("s")
-            .map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row.get("s").map_err(|e| RepoError::database("query", e))?;
 
         let id: SkillId =
             parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
@@ -117,8 +115,7 @@ impl SkillRepo for Neo4jSkillRepo {
     }
 
     async fn delete(&self, id: SkillId) -> Result<(), RepoError> {
-        let q = query("MATCH (s:Skill {id: $id}) DETACH DELETE s")
-            .param("id", id.to_string());
+        let q = query("MATCH (s:Skill {id: $id}) DETACH DELETE s").param("id", id.to_string());
 
         self.graph
             .run(q)

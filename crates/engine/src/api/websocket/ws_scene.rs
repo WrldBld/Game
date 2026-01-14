@@ -24,8 +24,7 @@ pub(super) async fn handle_act_request(
                 .await
             {
                 Ok(acts) => {
-                    let data: Vec<serde_json::Value> =
-                        acts.iter().map(act_to_json).collect();
+                    let data: Vec<serde_json::Value> = acts.iter().map(act_to_json).collect();
                     Ok(ResponseResult::success(json!(data)))
                 }
                 Err(e) => Ok(ResponseResult::error(
@@ -76,8 +75,7 @@ pub(super) async fn handle_scene_request(
                 .await
             {
                 Ok(scenes) => {
-                    let data: Vec<serde_json::Value> =
-                        scenes.iter().map(scene_to_json).collect();
+                    let data: Vec<serde_json::Value> = scenes.iter().map(scene_to_json).collect();
                     Ok(ResponseResult::success(json!(data)))
                 }
                 Err(e) => Ok(ResponseResult::error(
@@ -223,9 +221,9 @@ pub(super) async fn handle_interaction_request(
                 .get(interaction_id_typed)
                 .await
             {
-                Ok(Some(interaction)) => Ok(ResponseResult::success(interaction_to_json(
-                    &interaction,
-                ))),
+                Ok(Some(interaction)) => {
+                    Ok(ResponseResult::success(interaction_to_json(&interaction)))
+                }
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Interaction not found",
@@ -253,9 +251,7 @@ pub(super) async fn handle_interaction_request(
                 )
                 .await
             {
-                Ok(interaction) => Ok(ResponseResult::success(interaction_to_json(
-                    &interaction,
-                ))),
+                Ok(interaction) => Ok(ResponseResult::success(interaction_to_json(&interaction))),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
@@ -286,9 +282,7 @@ pub(super) async fn handle_interaction_request(
                 )
                 .await
             {
-                Ok(interaction) => Ok(ResponseResult::success(interaction_to_json(
-                    &interaction,
-                ))),
+                Ok(interaction) => Ok(ResponseResult::success(interaction_to_json(&interaction))),
                 Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Interaction not found"),
                 ),
@@ -338,9 +332,7 @@ pub(super) async fn handle_interaction_request(
                 .update(interaction_id_typed, None, None, None, Some(available))
                 .await
             {
-                Ok(interaction) => Ok(ResponseResult::success(interaction_to_json(
-                    &interaction,
-                ))),
+                Ok(interaction) => Ok(ResponseResult::success(interaction_to_json(&interaction))),
                 Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Interaction not found"),
                 ),

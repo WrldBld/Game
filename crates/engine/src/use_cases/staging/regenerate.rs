@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 use wrldbldr_domain::RegionId;
 
+use crate::infrastructure::ports::LlmPort;
 use crate::repositories::character::Character;
 use crate::repositories::location::Location;
-use crate::infrastructure::ports::LlmPort;
 
 use super::suggestions::generate_llm_based_suggestions;
 use super::types::StagedNpc;
@@ -48,10 +48,16 @@ impl RegenerateStagingSuggestions {
             .map(|l| l.name().to_string())
             .unwrap_or_else(|| "Unknown Location".to_string());
 
+        // Fetch NPCs for region once
+        let npcs_for_region = self
+            .character
+            .get_npcs_for_region(region_id)
+            .await
+            .unwrap_or_default();
+
         Ok(generate_llm_based_suggestions(
-            &self.character,
+            &npcs_for_region,
             self.llm.as_ref(),
-            region_id,
             &region.name,
             &location_name,
             guidance,

@@ -1,27 +1,31 @@
 {
-  "version": "1.0",
-  "recorded_at": "2026-01-12T10:00:00Z",
-  "llm_model": "llama3.2",
-  "recordings": [
-    {
-      "index": 0,
-      "request_summary": "System: You are Marta Hearthwood... | User: Good morning! I've just arrived in Thornhaven...",
-      "response": {
-        "content": "Good morning, friend! Welcome to the Drowsy Dragon. I'm Marta Hearthwood, been running this inn for nigh on twenty years now. Thornhaven's a peaceful place, mostly - good folk, honest work. The temple bells wake us at dawn, and we're usually settling in by the time the stars come out. If you're looking for a room, we've got space. Looking for adventure? Well, that might be harder to find around here... though I've heard some strange talk lately about goings-on at the old mill.",
-        "tool_calls": [],
-        "finish_reason": "Stop"
-      },
-      "recorded_at": "2026-01-12T10:00:01Z"
-    },
-    {
-      "index": 1,
-      "request_summary": "System: You are Marta Hearthwood... | User: That's very helpful. Is there anyone else I should talk to?",
-      "response": {
-        "content": "Well now, depends on what you're after! If you need supplies, Thaddeus at the general store is your man - he's got a bit of everything. For matters of the spirit, Brother Aldric at the temple is as kind a soul as you'll meet. And if you're handy with a sword or need repairs, seek out Grom the blacksmith. Fair warning - he's not much for conversation, but his work is unmatched. Oh, and you might want to avoid the old mill on the outskirts... folk have been hearing strange sounds from there at night.",
-        "tool_calls": [],
-        "finish_reason": "Stop"
-      },
-      "recorded_at": "2026-01-12T10:00:02Z"
-    }
-  ]
+  "version": "2.0",
+  "recorded_at": "2026-01-14T17:56:57.576896+00:00",
+  "llm_model": "gpt-oss:20b",
+  "recordings": {
+    "51e007808a9ef3de4860516c252966b883a1ff5d42f47fe04c5a9f882e8ae726": [
+      {
+        "fingerprint": "51e007808a9ef3de4860516c252966b883a1ff5d42f47fe04c5a9f882e8ae726",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 7... | tools:11",
+        "response": {
+          "content": "Good mornin’, Aldric! Thornhaven’s a lively port town, always bustling with merchants, sailors, and a fair share of trouble‑makers. The inn’s the safest spot to drop your gear and hear the latest gossip—just keep your wits about you.",
+          "tool_calls": [],
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-14T17:57:11.365749+00:00"
+      }
+    ],
+    "9084e1c5e53d4287ed429853745e6131038ad5060a68ea28b2d0c874faf9ab31": [
+      {
+        "fingerprint": "9084e1c5e53d4287ed429853745e6131038ad5060a68ea28b2d0c874faf9ab31",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 7... | tools:11",
+        "response": {
+          "content": "Sure thing, Aldric. If you’re looking for deeper lore, head to the town hall and ask Master Keldric; if it’s a matter of safety, the guard captain at the gate will have the latest patrol reports. Both’ll be keen to hear what a brave traveler like you has to say.",
+          "tool_calls": [],
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-14T17:57:27.189248+00:00"
+      }
+    ]
+  }
 }

@@ -1,18 +1,9 @@
 //! Domain types for staging use cases.
 
 use uuid::Uuid;
-use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId, WorldId};
+use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 
 use super::StagingError;
-
-/// Pending staging request tracking (request_id -> region/location).
-#[derive(Debug, Clone)]
-pub struct PendingStagingRequest {
-    pub region_id: RegionId,
-    pub location_id: LocationId,
-    pub world_id: WorldId,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
 
 /// Domain type for a staged NPC (for approval UI).
 #[derive(Debug, Clone)]
@@ -183,7 +174,7 @@ pub struct StagingRequestResult {
     /// Data for DM notification (StagingApprovalRequired).
     pub approval: StagingApprovalData,
     /// Optional time suggestion for DM notification.
-    pub time_suggestion: Option<crate::use_cases::time::TimeSuggestion>,
+    pub time_suggestion: Option<crate::infrastructure::ports::TimeSuggestion>,
 }
 
 /// Data for player staging pending response.
