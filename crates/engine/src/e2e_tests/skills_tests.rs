@@ -16,12 +16,12 @@ async fn test_list_world_skills() {
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // List skills defined for this world using the skill entity
-    // Note: get_skills doesn't exist on character entity, use skill.list_in_world
+    // Note: get_skills doesn't exist on character entity, use content.list_skills_in_world
     let skills = ctx
         .app
         .repositories
-        .skill
-        .list_in_world(ctx.world.world_id)
+        .content
+        .list_skills_in_world(ctx.world.world_id)
         .await;
 
     match skills {

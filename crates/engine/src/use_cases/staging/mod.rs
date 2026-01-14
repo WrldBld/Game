@@ -16,7 +16,8 @@ use std::sync::Arc;
 
 use wrldbldr_domain::WorldId;
 
-use crate::infrastructure::ports::{RepoError, SettingsRepo};
+use crate::infrastructure::ports::RepoError;
+use crate::repositories::Settings;
 
 // Re-export types
 pub use crate::infrastructure::ports::{
@@ -45,13 +46,12 @@ pub const DEFAULT_STAGING_TIMEOUT_SECONDS: u64 = 30;
 ///
 /// This ensures staging operations never fail due to settings unavailability.
 async fn get_settings_with_fallback(
-    settings: &dyn SettingsRepo,
+    settings: &Settings,
     world_id: WorldId,
     operation: &str,
 ) -> wrldbldr_domain::AppSettings {
     match settings.get_for_world(world_id).await {
-        Ok(Some(s)) => s,
-        Ok(None) => wrldbldr_domain::AppSettings::default(),
+        Ok(settings) => settings,
         Err(e) => {
             tracing::warn!(
                 error = %e,

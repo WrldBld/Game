@@ -182,16 +182,29 @@ mod tests {
     fn create_narrative_entity(narrative_repo: MockNarrativeRepo) -> Arc<Narrative> {
         let now = Utc::now();
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let location_repo = Arc::new(MockLocationRepo::new());
+        let world_repo = Arc::new(MockWorldRepo::new());
+        let player_character_repo = Arc::new(MockPlayerCharacterRepo::new());
+        let character_repo = Arc::new(MockCharacterRepo::new());
+        let observation_repo = Arc::new(MockObservationRepo::new());
+        let challenge_repo = Arc::new(MockChallengeRepo::new());
+        let flag_repo = Arc::new(MockFlagRepo::new());
+        let scene_repo = Arc::new(MockSceneRepo::new());
+
         Arc::new(Narrative::new(
-            Arc::new(narrative_repo),
-            Arc::new(MockLocationRepo::new()),
-            Arc::new(MockWorldRepo::new()),
-            Arc::new(MockPlayerCharacterRepo::new()),
-            Arc::new(MockCharacterRepo::new()),
-            Arc::new(MockObservationRepo::new()),
-            Arc::new(MockChallengeRepo::new()),
-            Arc::new(MockFlagRepo::new()),
-            Arc::new(MockSceneRepo::new()),
+            Arc::new(repositories::Narrative::new(Arc::new(narrative_repo))),
+            Arc::new(repositories::Location::new(location_repo.clone())),
+            Arc::new(repositories::World::new(world_repo.clone(), clock.clone())),
+            Arc::new(repositories::PlayerCharacter::new(player_character_repo)),
+            Arc::new(repositories::Character::new(character_repo)),
+            Arc::new(repositories::Observation::new(
+                observation_repo,
+                location_repo,
+                clock.clone(),
+            )),
+            Arc::new(repositories::Challenge::new(challenge_repo)),
+            Arc::new(repositories::Flag::new(flag_repo)),
+            Arc::new(repositories::Scene::new(scene_repo)),
             clock,
         ))
     }

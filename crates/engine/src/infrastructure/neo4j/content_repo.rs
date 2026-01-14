@@ -1,4 +1,4 @@
-//! Neo4j skill repository implementation.
+//! Neo4j content repository implementation.
 //!
 //! Skills are stored as nodes and linked to worlds:
 //! - `(World)-[:CONTAINS_SKILL]->(Skill)`
@@ -9,14 +9,14 @@ use crate::infrastructure::neo4j::Neo4jGraph;
 use wrldbldr_domain::{Skill, SkillCategory, SkillId, WorldId};
 
 use super::helpers::{parse_typed_id, NodeExt};
-use crate::infrastructure::ports::{RepoError, SkillRepo};
+use crate::infrastructure::ports::{ContentRepo, RepoError};
 
-/// Repository for Skill operations.
-pub struct Neo4jSkillRepo {
+/// Repository for content operations.
+pub struct Neo4jContentRepo {
     graph: Neo4jGraph,
 }
 
-impl Neo4jSkillRepo {
+impl Neo4jContentRepo {
     pub fn new(graph: Neo4jGraph) -> Self {
         Self { graph }
     }
@@ -56,8 +56,8 @@ impl Neo4jSkillRepo {
 }
 
 #[async_trait]
-impl SkillRepo for Neo4jSkillRepo {
-    async fn get(&self, id: SkillId) -> Result<Option<Skill>, RepoError> {
+impl ContentRepo for Neo4jContentRepo {
+    async fn get_skill(&self, id: SkillId) -> Result<Option<Skill>, RepoError> {
         let q = query("MATCH (s:Skill {id: $id}) RETURN s").param("id", id.to_string());
 
         let mut result = self
@@ -77,7 +77,7 @@ impl SkillRepo for Neo4jSkillRepo {
         }
     }
 
-    async fn save(&self, skill: &Skill) -> Result<(), RepoError> {
+    async fn save_skill(&self, skill: &Skill) -> Result<(), RepoError> {
         let q = query(
             "MERGE (s:Skill {id: $id})
             SET s.world_id = $world_id,
@@ -115,7 +115,7 @@ impl SkillRepo for Neo4jSkillRepo {
         Ok(())
     }
 
-    async fn delete(&self, id: SkillId) -> Result<(), RepoError> {
+    async fn delete_skill(&self, id: SkillId) -> Result<(), RepoError> {
         let q = query("MATCH (s:Skill {id: $id}) DETACH DELETE s").param("id", id.to_string());
 
         self.graph
@@ -125,7 +125,7 @@ impl SkillRepo for Neo4jSkillRepo {
         Ok(())
     }
 
-    async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<Skill>, RepoError> {
+    async fn list_skills_in_world(&self, world_id: WorldId) -> Result<Vec<Skill>, RepoError> {
         let q = query(
             "MATCH (w:World {id: $world_id})-[:CONTAINS_SKILL]->(s:Skill)
             RETURN s

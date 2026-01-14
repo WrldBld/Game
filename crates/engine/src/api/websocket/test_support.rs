@@ -19,9 +19,9 @@ use crate::infrastructure::ports::{
 };
 use crate::infrastructure::ports::{
     MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockGoalRepo,
-    MockInteractionRepo, MockItemRepo, MockLocationRepo, MockLocationStateRepo, MockLoreRepo,
-    MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockRegionStateRepo,
-    MockSceneRepo, MockSettingsRepo, MockSkillRepo, MockStagingRepo,
+    MockContentRepo, MockInteractionRepo, MockItemRepo, MockLocationRepo, MockLocationStateRepo,
+    MockLoreRepo, MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
+    MockRegionStateRepo, MockSceneRepo, MockSettingsRepo, MockStagingRepo,
 };
 use crate::queue_types::{ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData};
 
@@ -34,7 +34,7 @@ pub(crate) struct TestAppRepos {
     pub(crate) location_repo: MockLocationRepo,
     pub(crate) scene_repo: MockSceneRepo,
     pub(crate) act_repo: MockActRepo,
-    pub(crate) skill_repo: MockSkillRepo,
+    pub(crate) content_repo: MockContentRepo,
     pub(crate) interaction_repo: MockInteractionRepo,
     pub(crate) settings_repo: MockSettingsRepo,
     pub(crate) challenge_repo: MockChallengeRepo,
@@ -81,7 +81,7 @@ impl TestAppRepos {
             location_repo,
             scene_repo,
             act_repo: MockActRepo::new(),
-            skill_repo: MockSkillRepo::new(),
+            content_repo: MockContentRepo::new(),
             interaction_repo: MockInteractionRepo::new(),
             settings_repo: MockSettingsRepo::new(),
             challenge_repo: MockChallengeRepo::new(),
@@ -451,11 +451,11 @@ pub(crate) fn build_test_app_with_ports(
     let location_repo = Arc::new(repos.location_repo);
     let scene_repo = Arc::new(repos.scene_repo);
     let act_repo = Arc::new(repos.act_repo);
-    let skill_repo = Arc::new(repos.skill_repo);
+    let content_repo = Arc::new(repos.content_repo);
     let interaction_repo = Arc::new(repos.interaction_repo);
     let settings_repo = Arc::new(repos.settings_repo);
     let challenge_repo = Arc::new(repos.challenge_repo);
-    let narrative_repo = Arc::new(repos.narrative_repo);
+    let narrative_port = Arc::new(repos.narrative_repo);
     let staging_repo = Arc::new(repos.staging_repo);
     let observation_repo = Arc::new(repos.observation_repo);
     let item_repo = Arc::new(repos.item_repo);
@@ -478,30 +478,33 @@ pub(crate) fn build_test_app_with_ports(
     ));
     let scene = Arc::new(crate::repositories::scene::Scene::new(scene_repo.clone()));
     let act = Arc::new(crate::repositories::Act::new(act_repo.clone()));
-    let skill = Arc::new(crate::repositories::Skill::new(skill_repo.clone()));
+    let content = Arc::new(crate::repositories::Content::new(content_repo.clone()));
     let interaction = Arc::new(crate::repositories::Interaction::new(
         interaction_repo.clone(),
     ));
     let challenge = Arc::new(crate::repositories::Challenge::new(challenge_repo.clone()));
-    let narrative = Arc::new(crate::use_cases::narrative_operations::Narrative::new(
-        narrative_repo.clone(),
-        location_repo.clone(),
-        world_repo.clone(),
-        player_character_repo.clone(),
-        character_repo.clone(),
-        observation_repo.clone(),
-        challenge_repo.clone(),
-        flag_repo.clone(),
-        scene_repo.clone(),
-        clock.clone(),
-    ));
-    let staging = Arc::new(crate::repositories::staging::Staging::new(
-        staging_repo.clone(),
-    ));
     let observation = Arc::new(crate::repositories::Observation::new(
         observation_repo.clone(),
         location_repo.clone(),
         clock.clone(),
+    ));
+    let flag = Arc::new(crate::repositories::Flag::new(flag_repo.clone()));
+    let world = Arc::new(crate::repositories::World::new(world_repo.clone(), clock.clone()));
+    let narrative_repo = Arc::new(crate::repositories::Narrative::new(narrative_port));
+    let narrative = Arc::new(crate::use_cases::narrative_operations::Narrative::new(
+        narrative_repo,
+        location.clone(),
+        world.clone(),
+        player_character.clone(),
+        character.clone(),
+        observation.clone(),
+        challenge.clone(),
+        flag.clone(),
+        scene.clone(),
+        clock.clone(),
+    ));
+    let staging = Arc::new(crate::repositories::staging::Staging::new(
+        staging_repo.clone(),
     ));
     let inventory = Arc::new(crate::repositories::inventory::Inventory::new(
         item_repo.clone(),
@@ -512,8 +515,6 @@ pub(crate) fn build_test_app_with_ports(
         asset_repo.clone(),
         image_gen,
     ));
-    let world = Arc::new(crate::repositories::World::new(world_repo, clock.clone()));
-    let flag = Arc::new(crate::repositories::Flag::new(flag_repo.clone()));
     let goal = Arc::new(crate::repositories::Goal::new(goal_repo.clone()));
     let lore = Arc::new(crate::repositories::Lore::new(lore_repo.clone()));
     let location_state = Arc::new(crate::repositories::LocationStateEntity::new(
@@ -529,7 +530,7 @@ pub(crate) fn build_test_app_with_ports(
         location: location.clone(),
         scene: scene.clone(),
         act: act.clone(),
-        skill: skill.clone(),
+        content: content.clone(),
         interaction: interaction.clone(),
         challenge: challenge.clone(),
         narrative: narrative.clone(),
@@ -772,6 +773,8 @@ pub(crate) fn build_test_app_with_ports(
         ),
     ));
 
+    let settings_entity = Arc::new(crate::repositories::Settings::new(settings_repo.clone()));
+
     let staging_uc = crate::use_cases::StagingUseCases::new(
         Arc::new(crate::use_cases::staging::RequestStagingApproval::new(
             character.clone(),
@@ -780,7 +783,7 @@ pub(crate) fn build_test_app_with_ports(
             world.clone(),
             flag.clone(),
             visual_state_uc.resolve.clone(),
-            settings_repo.clone(),
+            settings_entity.clone(),
             llm.clone(),
         )),
         Arc::new(
@@ -805,12 +808,9 @@ pub(crate) fn build_test_app_with_ports(
             location.clone(),
             location_state.clone(),
             region_state.clone(),
-            settings_repo.clone(),
+            settings_entity.clone(),
         )),
     );
-
-    // Create settings entity
-    let settings_entity = Arc::new(crate::repositories::Settings::new(settings_repo.clone()));
 
     let npc_uc = crate::use_cases::NpcUseCases::new(
         Arc::new(crate::use_cases::npc::NpcDisposition::new(
@@ -868,7 +868,7 @@ pub(crate) fn build_test_app_with_ports(
         crate::use_cases::management::ActCrud::new(act.clone()),
         crate::use_cases::management::SceneCrud::new(scene.clone()),
         crate::use_cases::management::InteractionCrud::new(interaction.clone()),
-        crate::use_cases::management::SkillCrud::new(skill.clone()),
+        crate::use_cases::management::SkillCrud::new(content.clone()),
     );
 
     let settings = settings_entity;

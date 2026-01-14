@@ -7,13 +7,12 @@ use uuid::Uuid;
 use wrldbldr_domain::{LocationId, PlayerCharacter, RegionId, Staging as DomainStaging, WorldId};
 
 use crate::infrastructure::ports::{
-    LlmPort, PendingStagingRequest, PendingStagingStore, SettingsRepo, TimeSuggestion,
-    TimeSuggestionStore,
+    LlmPort, PendingStagingRequest, PendingStagingStore, TimeSuggestion, TimeSuggestionStore,
 };
 use crate::repositories::character::Character;
 use crate::repositories::location::Location;
 use crate::repositories::staging::Staging;
-use crate::repositories::{Flag, World};
+use crate::repositories::{Flag, Settings, World};
 use crate::use_cases::visual_state::{ResolveVisualState, StateResolutionContext};
 
 use super::suggestions::{generate_llm_based_suggestions, generate_rule_based_suggestions};
@@ -47,7 +46,7 @@ pub struct RequestStagingApproval {
     world: Arc<World>,
     flag: Arc<Flag>,
     visual_state: Arc<ResolveVisualState>,
-    settings: Arc<dyn SettingsRepo>,
+    settings: Arc<Settings>,
     llm: Arc<dyn LlmPort>,
 }
 
@@ -59,7 +58,7 @@ impl RequestStagingApproval {
         world: Arc<World>,
         flag: Arc<Flag>,
         visual_state: Arc<ResolveVisualState>,
-        settings: Arc<dyn SettingsRepo>,
+        settings: Arc<Settings>,
         llm: Arc<dyn LlmPort>,
     ) -> Self {
         Self {

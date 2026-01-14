@@ -4,11 +4,11 @@ use std::sync::Arc;
 
 use wrldbldr_domain::StagingSource;
 
-use crate::infrastructure::ports::{PendingStagingRequest, SettingsRepo};
+use crate::infrastructure::ports::PendingStagingRequest;
 use crate::repositories::character::Character;
 use crate::repositories::location::Location;
 use crate::repositories::staging::Staging;
-use crate::repositories::{LocationStateEntity, RegionStateEntity, World};
+use crate::repositories::{LocationStateEntity, RegionStateEntity, Settings, World};
 
 use super::approve::{ApproveStagingInput, ApproveStagingRequest, StagingReadyPayload};
 use super::suggestions::generate_rule_based_suggestions;
@@ -23,7 +23,7 @@ pub struct AutoApproveStagingTimeout {
     location: Arc<Location>,
     location_state: Arc<LocationStateEntity>,
     region_state: Arc<RegionStateEntity>,
-    settings: Arc<dyn SettingsRepo>,
+    settings: Arc<Settings>,
 }
 
 impl AutoApproveStagingTimeout {
@@ -34,7 +34,7 @@ impl AutoApproveStagingTimeout {
         location: Arc<Location>,
         location_state: Arc<LocationStateEntity>,
         region_state: Arc<RegionStateEntity>,
-        settings: Arc<dyn SettingsRepo>,
+        settings: Arc<Settings>,
     ) -> Self {
         Self {
             character,

@@ -30,7 +30,7 @@ pub struct Repositories {
     pub location: Arc<use_cases::Location>,
     pub scene: Arc<use_cases::Scene>,
     pub act: Arc<repositories::Act>,
-    pub skill: Arc<repositories::Skill>,
+    pub content: Arc<repositories::Content>,
     pub interaction: Arc<repositories::Interaction>,
     pub challenge: Arc<repositories::Challenge>,
     pub narrative: Arc<use_cases::Narrative>,
@@ -96,35 +96,36 @@ impl App {
         let location = Arc::new(use_cases::Location::new(repos.location.clone()));
         let scene = Arc::new(use_cases::Scene::new(repos.scene.clone()));
         let act = Arc::new(repositories::Act::new(repos.act.clone()));
-        let skill = Arc::new(repositories::Skill::new(repos.skill.clone()));
+        let content = Arc::new(repositories::Content::new(repos.content.clone()));
         let interaction = Arc::new(repositories::Interaction::new(repos.interaction.clone()));
         let challenge = Arc::new(repositories::Challenge::new(repos.challenge.clone()));
-        let narrative = Arc::new(use_cases::Narrative::new(
-            repos.narrative.clone(),
-            repos.location.clone(),
-            repos.world.clone(),
-            repos.player_character.clone(),
-            repos.character.clone(),
-            repos.observation.clone(),
-            repos.challenge.clone(),
-            repos.flag.clone(),
-            repos.scene.clone(),
-            clock.clone(),
-        ));
-        let staging = Arc::new(repositories::Staging::new(repos.staging.clone()));
+        let world = Arc::new(repositories::World::new(repos.world.clone(), clock.clone()));
         let observation = Arc::new(repositories::Observation::new(
             repos.observation.clone(),
             repos.location.clone(),
             clock.clone(),
         ));
+        let flag = Arc::new(repositories::Flag::new(repos.flag.clone()));
+        let narrative_repo = Arc::new(repositories::Narrative::new(repos.narrative.clone()));
+        let narrative = Arc::new(use_cases::Narrative::new(
+            narrative_repo,
+            location.clone(),
+            world.clone(),
+            player_character.clone(),
+            character.clone(),
+            observation.clone(),
+            challenge.clone(),
+            flag.clone(),
+            scene.clone(),
+            clock.clone(),
+        ));
+        let staging = Arc::new(repositories::Staging::new(repos.staging.clone()));
         let inventory = Arc::new(repositories::Inventory::new(
             repos.item.clone(),
             repos.character.clone(),
             repos.player_character.clone(),
         ));
         let assets = Arc::new(repositories::Assets::new(repos.asset.clone(), image_gen));
-        let world = Arc::new(repositories::World::new(repos.world.clone(), clock.clone()));
-        let flag = Arc::new(repositories::Flag::new(repos.flag.clone()));
         let goal = Arc::new(repositories::Goal::new(repos.goal.clone()));
         let lore = Arc::new(repositories::Lore::new(repos.lore.clone()));
         let location_state = Arc::new(repositories::LocationStateEntity::new(
@@ -140,7 +141,7 @@ impl App {
             location: location.clone(),
             scene: scene.clone(),
             act: act.clone(),
-            skill: skill.clone(),
+            content: content.clone(),
             interaction: interaction.clone(),
             challenge: challenge.clone(),
             narrative: narrative.clone(),
@@ -376,6 +377,8 @@ impl App {
             ),
         ));
 
+        let settings_entity = Arc::new(repositories::Settings::new(settings_repo.clone()));
+
         let staging_uc = use_cases::StagingUseCases::new(
             Arc::new(use_cases::staging::RequestStagingApproval::new(
                 character.clone(),
@@ -384,7 +387,7 @@ impl App {
                 world.clone(),
                 flag.clone(),
                 visual_state_uc.resolve.clone(),
-                settings_repo.clone(),
+                settings_entity.clone(),
                 llm.clone(),
             )),
             Arc::new(use_cases::staging::RegenerateStagingSuggestions::new(
@@ -407,12 +410,9 @@ impl App {
                 location.clone(),
                 location_state.clone(),
                 region_state.clone(),
-                settings_repo.clone(),
+                settings_entity.clone(),
             )),
         );
-
-        // Create settings repository
-        let settings_entity = Arc::new(repositories::Settings::new(settings_repo.clone()));
 
         let npc_uc = use_cases::NpcUseCases::new(
             Arc::new(use_cases::npc::NpcDisposition::new(
@@ -470,7 +470,7 @@ impl App {
             use_cases::management::ActCrud::new(act.clone()),
             use_cases::management::SceneCrud::new(scene.clone()),
             use_cases::management::InteractionCrud::new(interaction.clone()),
-            use_cases::management::SkillCrud::new(skill.clone()),
+            use_cases::management::SkillCrud::new(content.clone()),
         );
 
         let settings = settings_entity;

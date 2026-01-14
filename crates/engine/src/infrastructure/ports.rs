@@ -625,11 +625,12 @@ pub trait ActRepo: Send + Sync {
 
 #[cfg_attr(test, mockall::automock)]
 #[async_trait]
-pub trait SkillRepo: Send + Sync {
-    async fn get(&self, id: SkillId) -> Result<Option<Skill>, RepoError>;
-    async fn save(&self, skill: &Skill) -> Result<(), RepoError>;
-    async fn delete(&self, id: SkillId) -> Result<(), RepoError>;
-    async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<Skill>, RepoError>;
+pub trait ContentRepo: Send + Sync {
+    // Skills
+    async fn get_skill(&self, id: SkillId) -> Result<Option<Skill>, RepoError>;
+    async fn save_skill(&self, skill: &Skill) -> Result<(), RepoError>;
+    async fn delete_skill(&self, id: SkillId) -> Result<(), RepoError>;
+    async fn list_skills_in_world(&self, world_id: WorldId) -> Result<Vec<Skill>, RepoError>;
 }
 
 #[cfg_attr(test, mockall::automock)]

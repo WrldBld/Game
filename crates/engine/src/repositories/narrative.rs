@@ -131,6 +131,54 @@ impl Narrative {
         self.repo.get_dialogues_with_npc(pc_id, npc_id, limit).await
     }
 
+    /// Update or create SPOKE_TO relationship between PC and NPC.
+    pub async fn update_spoke_to(
+        &self,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        timestamp: chrono::DateTime<chrono::Utc>,
+        last_topic: Option<String>,
+    ) -> Result<(), RepoError> {
+        self.repo
+            .update_spoke_to(pc_id, npc_id, timestamp, last_topic)
+            .await
+    }
+
+    /// Record dialogue context for LLM history tracking.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn record_dialogue_context(
+        &self,
+        world_id: WorldId,
+        story_event_id: StoryEventId,
+        pc_id: PlayerCharacterId,
+        npc_id: CharacterId,
+        player_dialogue: String,
+        npc_dialogue: String,
+        topics: Vec<String>,
+        scene_id: Option<domain::SceneId>,
+        location_id: Option<domain::LocationId>,
+        region_id: Option<domain::RegionId>,
+        game_time: Option<domain::GameTime>,
+        timestamp: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), RepoError> {
+        self.repo
+            .record_dialogue_context(
+                world_id,
+                story_event_id,
+                pc_id,
+                npc_id,
+                player_dialogue,
+                npc_dialogue,
+                topics,
+                scene_id,
+                location_id,
+                region_id,
+                game_time,
+                timestamp,
+            )
+            .await
+    }
+
     /// Get conversation turns for LLM context.
     ///
     /// Returns ConversationTurn records from the active conversation between
@@ -215,6 +263,14 @@ impl Narrative {
         region_id: RegionId,
     ) -> Result<Vec<domain::NarrativeEvent>, RepoError> {
         self.repo.get_triggers_for_region(world_id, region_id).await
+    }
+
+    /// Get all completed event IDs from all event chains in a world.
+    pub async fn get_completed_events(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<NarrativeEventId>, RepoError> {
+        self.repo.get_completed_events(world_id).await
     }
 
     /// Set a narrative event's active status.

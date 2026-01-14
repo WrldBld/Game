@@ -34,7 +34,7 @@ mod observation_repo;
 mod player_character_repo;
 mod region_state_repo;
 mod scene_repo;
-mod skill_repo;
+mod content_repo;
 mod staging_repo;
 mod world_repo;
 
@@ -54,7 +54,7 @@ pub use observation_repo::Neo4jObservationRepo;
 pub use player_character_repo::Neo4jPlayerCharacterRepo;
 pub use region_state_repo::Neo4jRegionStateRepo;
 pub use scene_repo::Neo4jSceneRepo;
-pub use skill_repo::Neo4jSkillRepo;
+pub use content_repo::Neo4jContentRepo;
 pub use staging_repo::Neo4jStagingRepo;
 pub use world_repo::Neo4jWorldRepo;
 
@@ -68,7 +68,7 @@ pub struct Neo4jRepositories {
     pub location: Arc<Neo4jLocationRepo>,
     pub scene: Arc<Neo4jSceneRepo>,
     pub act: Arc<Neo4jActRepo>,
-    pub skill: Arc<Neo4jSkillRepo>,
+    pub content: Arc<Neo4jContentRepo>,
     pub interaction: Arc<Neo4jInteractionRepo>,
     pub challenge: Arc<Neo4jChallengeRepo>,
     pub narrative: Arc<Neo4jNarrativeRepo>,
@@ -92,7 +92,7 @@ impl Neo4jRepositories {
             location: Arc::new(Neo4jLocationRepo::new(graph.clone())),
             scene: Arc::new(Neo4jSceneRepo::new(graph.clone())),
             act: Arc::new(Neo4jActRepo::new(graph.clone())),
-            skill: Arc::new(Neo4jSkillRepo::new(graph.clone())),
+            content: Arc::new(Neo4jContentRepo::new(graph.clone())),
             interaction: Arc::new(Neo4jInteractionRepo::new(graph.clone())),
             challenge: Arc::new(Neo4jChallengeRepo::new(graph.clone())),
             narrative: Arc::new(Neo4jNarrativeRepo::new(graph.clone(), clock.clone())),

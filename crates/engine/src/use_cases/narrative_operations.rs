@@ -12,11 +12,11 @@ use wrldbldr_domain::{
     SceneId, StoryEvent, StoryEventId, StoryEventType, TimeContext, TriggerContext, WorldId,
 };
 
-use crate::infrastructure::ports::{
-    ChallengeRepo, CharacterRepo, ClockPort, FlagRepo, LocationRepo, NarrativeRepo,
-    ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo, WorldRepo,
+use crate::infrastructure::ports::{ClockPort, RepoError};
+use crate::repositories::{
+    Challenge, Character, Flag, Location, Narrative as NarrativeRepository, Observation,
+    PlayerCharacter, Scene, World,
 };
-use crate::repositories::narrative::Narrative as NarrativeEntity;
 use crate::llm_context::ConversationTurn;
 
 /// Backward-compatible alias for `NarrativeOps`.
@@ -31,18 +31,16 @@ pub type Narrative = NarrativeOps;
 /// that need access to multiple data sources. Uses `entities::Narrative` for
 /// simple CRUD operations.
 pub struct NarrativeOps {
-    /// Entity for CRUD operations
-    entity: Arc<NarrativeEntity>,
-    /// Repo for complex operations that need direct access
-    repo: Arc<dyn NarrativeRepo>,
-    location_repo: Arc<dyn LocationRepo>,
-    world_repo: Arc<dyn WorldRepo>,
-    player_character_repo: Arc<dyn PlayerCharacterRepo>,
-    character_repo: Arc<dyn CharacterRepo>,
-    observation_repo: Arc<dyn ObservationRepo>,
-    challenge_repo: Arc<dyn ChallengeRepo>,
-    flag_repo: Arc<dyn FlagRepo>,
-    scene_repo: Arc<dyn SceneRepo>,
+    /// Narrative repository wrapper
+    narrative: Arc<NarrativeRepository>,
+    location_repo: Arc<Location>,
+    world_repo: Arc<World>,
+    player_character_repo: Arc<PlayerCharacter>,
+    character_repo: Arc<Character>,
+    observation_repo: Arc<Observation>,
+    challenge_repo: Arc<Challenge>,
+    flag_repo: Arc<Flag>,
+    scene_repo: Arc<Scene>,
     clock: Arc<dyn ClockPort>,
 }
 
@@ -57,6 +55,9 @@ mod trigger_tests {
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockLocationRepo,
         MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
         MockWorldRepo,
+    };
+    use crate::repositories::{
+        Challenge, Character, Flag, Location, Narrative, Observation, PlayerCharacter, Scene, World,
     };
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -79,27 +80,31 @@ mod trigger_tests {
             .withf(move |w, r| *w == world_id && *r == region_id)
             .returning(|_, _| Ok(vec![]));
 
-        let location_repo = MockLocationRepo::new();
-        let world_repo = MockWorldRepo::new();
-        let player_character_repo = MockPlayerCharacterRepo::new();
-        let character_repo = MockCharacterRepo::new();
-        let observation_repo = MockObservationRepo::new();
-        let challenge_repo = MockChallengeRepo::new();
-        let flag_repo = MockFlagRepo::new();
-        let scene_repo = MockSceneRepo::new();
+        let location_repo = Arc::new(MockLocationRepo::new());
+        let world_repo = Arc::new(MockWorldRepo::new());
+        let player_character_repo = Arc::new(MockPlayerCharacterRepo::new());
+        let character_repo = Arc::new(MockCharacterRepo::new());
+        let observation_repo = Arc::new(MockObservationRepo::new());
+        let challenge_repo = Arc::new(MockChallengeRepo::new());
+        let flag_repo = Arc::new(MockFlagRepo::new());
+        let scene_repo = Arc::new(MockSceneRepo::new());
 
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
 
         let narrative_ops = super::NarrativeOps::new(
-            Arc::new(narrative_repo),
-            Arc::new(location_repo),
-            Arc::new(world_repo),
-            Arc::new(player_character_repo),
-            Arc::new(character_repo),
-            Arc::new(observation_repo),
-            Arc::new(challenge_repo),
-            Arc::new(flag_repo),
-            Arc::new(scene_repo),
+            Arc::new(Narrative::new(Arc::new(narrative_repo))),
+            Arc::new(Location::new(location_repo.clone())),
+            Arc::new(World::new(world_repo.clone(), clock.clone())),
+            Arc::new(PlayerCharacter::new(player_character_repo)),
+            Arc::new(Character::new(character_repo)),
+            Arc::new(Observation::new(
+                observation_repo,
+                location_repo,
+                clock.clone(),
+            )),
+            Arc::new(Challenge::new(challenge_repo)),
+            Arc::new(Flag::new(flag_repo)),
+            Arc::new(Scene::new(scene_repo)),
             clock,
         );
 
@@ -113,23 +118,19 @@ mod trigger_tests {
 impl NarrativeOps {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        repo: Arc<dyn NarrativeRepo>,
-        location_repo: Arc<dyn LocationRepo>,
-        world_repo: Arc<dyn WorldRepo>,
-        player_character_repo: Arc<dyn PlayerCharacterRepo>,
-        character_repo: Arc<dyn CharacterRepo>,
-        observation_repo: Arc<dyn ObservationRepo>,
-        challenge_repo: Arc<dyn ChallengeRepo>,
-        flag_repo: Arc<dyn FlagRepo>,
-        scene_repo: Arc<dyn SceneRepo>,
+        narrative: Arc<NarrativeRepository>,
+        location_repo: Arc<Location>,
+        world_repo: Arc<World>,
+        player_character_repo: Arc<PlayerCharacter>,
+        character_repo: Arc<Character>,
+        observation_repo: Arc<Observation>,
+        challenge_repo: Arc<Challenge>,
+        flag_repo: Arc<Flag>,
+        scene_repo: Arc<Scene>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
-        // Create the entity for CRUD operations
-        let entity = Arc::new(NarrativeEntity::new(repo.clone()));
-
         Self {
-            entity,
-            repo,
+            narrative,
             location_repo,
             world_repo,
             player_character_repo,
@@ -143,8 +144,8 @@ impl NarrativeOps {
     }
 
     /// Get the underlying Narrative entity for CRUD operations.
-    pub fn entity(&self) -> &Arc<NarrativeEntity> {
-        &self.entity
+    pub fn entity(&self) -> &Arc<NarrativeRepository> {
+        &self.narrative
     }
 
     // =========================================================================
@@ -155,65 +156,65 @@ impl NarrativeOps {
         &self,
         id: wrldbldr_domain::NarrativeEventId,
     ) -> Result<Option<domain::NarrativeEvent>, RepoError> {
-        self.entity.get_event(id).await
+        self.narrative.get_event(id).await
     }
 
     pub async fn save_event(&self, event: &domain::NarrativeEvent) -> Result<(), RepoError> {
-        self.entity.save_event(event).await
+        self.narrative.save_event(event).await
     }
 
     pub async fn list_events(
         &self,
         world_id: WorldId,
     ) -> Result<Vec<domain::NarrativeEvent>, RepoError> {
-        self.entity.list_events(world_id).await
+        self.narrative.list_events(world_id).await
     }
 
     pub async fn delete_event(
         &self,
         id: wrldbldr_domain::NarrativeEventId,
     ) -> Result<(), RepoError> {
-        self.entity.delete_event(id).await
+        self.narrative.delete_event(id).await
     }
 
     pub async fn get_chain(
         &self,
         id: wrldbldr_domain::EventChainId,
     ) -> Result<Option<domain::EventChain>, RepoError> {
-        self.entity.get_chain(id).await
+        self.narrative.get_chain(id).await
     }
 
     pub async fn save_chain(&self, chain: &domain::EventChain) -> Result<(), RepoError> {
-        self.entity.save_chain(chain).await
+        self.narrative.save_chain(chain).await
     }
 
     pub async fn delete_chain(&self, id: wrldbldr_domain::EventChainId) -> Result<(), RepoError> {
-        self.entity.delete_chain(id).await
+        self.narrative.delete_chain(id).await
     }
 
     pub async fn list_chains_for_world(
         &self,
         world_id: WorldId,
     ) -> Result<Vec<domain::EventChain>, RepoError> {
-        self.entity.list_chains_for_world(world_id).await
+        self.narrative.list_chains_for_world(world_id).await
     }
 
     pub async fn get_story_event(
         &self,
         id: wrldbldr_domain::StoryEventId,
     ) -> Result<Option<domain::StoryEvent>, RepoError> {
-        self.entity.get_story_event(id).await
+        self.narrative.get_story_event(id).await
     }
 
     pub async fn save_story_event(&self, event: &domain::StoryEvent) -> Result<(), RepoError> {
-        self.entity.save_story_event(event).await
+        self.narrative.save_story_event(event).await
     }
 
     pub async fn delete_story_event(
         &self,
         id: wrldbldr_domain::StoryEventId,
     ) -> Result<(), RepoError> {
-        self.entity.delete_story_event(id).await
+        self.narrative.delete_story_event(id).await
     }
 
     pub async fn list_story_events(
@@ -221,7 +222,7 @@ impl NarrativeOps {
         world_id: WorldId,
         limit: usize,
     ) -> Result<Vec<domain::StoryEvent>, RepoError> {
-        self.entity.list_story_events(world_id, limit).await
+        self.narrative.list_story_events(world_id, limit).await
     }
 
     pub async fn get_dialogues_with_npc(
@@ -230,7 +231,7 @@ impl NarrativeOps {
         npc_id: CharacterId,
         limit: usize,
     ) -> Result<Vec<domain::StoryEvent>, RepoError> {
-        self.entity
+        self.narrative
             .get_dialogues_with_npc(pc_id, npc_id, limit)
             .await
     }
@@ -241,7 +242,7 @@ impl NarrativeOps {
         npc_id: CharacterId,
         limit: usize,
     ) -> Result<Vec<ConversationTurn>, RepoError> {
-        self.entity
+        self.narrative
             .get_conversation_turns(pc_id, npc_id, limit)
             .await
     }
@@ -251,18 +252,18 @@ impl NarrativeOps {
         pc_id: PlayerCharacterId,
         npc_id: CharacterId,
     ) -> Result<Option<uuid::Uuid>, RepoError> {
-        self.entity.get_active_conversation_id(pc_id, npc_id).await
+        self.narrative.get_active_conversation_id(pc_id, npc_id).await
     }
 
     pub async fn is_conversation_active(
         &self,
         conversation_id: uuid::Uuid,
     ) -> Result<bool, RepoError> {
-        self.entity.is_conversation_active(conversation_id).await
+        self.narrative.is_conversation_active(conversation_id).await
     }
 
     pub async fn end_conversation(&self, conversation_id: uuid::Uuid) -> Result<bool, RepoError> {
-        self.entity.end_conversation(conversation_id).await
+        self.narrative.end_conversation(conversation_id).await
     }
 
     pub async fn end_active_conversation(
@@ -270,7 +271,7 @@ impl NarrativeOps {
         pc_id: PlayerCharacterId,
         npc_id: CharacterId,
     ) -> Result<Option<uuid::Uuid>, RepoError> {
-        self.entity.end_active_conversation(pc_id, npc_id).await
+        self.narrative.end_active_conversation(pc_id, npc_id).await
     }
 
     pub async fn get_triggers_for_region(
@@ -278,7 +279,7 @@ impl NarrativeOps {
         world_id: WorldId,
         region_id: RegionId,
     ) -> Result<Vec<domain::NarrativeEvent>, RepoError> {
-        self.entity
+        self.narrative
             .get_triggers_for_region(world_id, region_id)
             .await
     }
@@ -288,7 +289,7 @@ impl NarrativeOps {
         id: wrldbldr_domain::NarrativeEventId,
         active: bool,
     ) -> Result<(), RepoError> {
-        self.entity.set_event_active(id, active).await
+        self.narrative.set_event_active(id, active).await
     }
 
     // =========================================================================
@@ -380,11 +381,11 @@ impl NarrativeOps {
         };
 
         // Save the story event
-        self.repo.save_story_event(&event).await?;
+        self.narrative.save_story_event(&event).await?;
 
         // Update SPOKE_TO relationship for dialogue history tracking
         let last_topic = topics.first().cloned();
-        self.repo
+        self.narrative
             .update_spoke_to(pc_id, npc_id, timestamp, last_topic)
             .await?;
 
@@ -401,7 +402,7 @@ impl NarrativeOps {
         let resolved_region_id = pc_region_id;
 
         if let Err(e) = self
-            .repo
+            .narrative
             .record_dialogue_context(
                 world_id,
                 event_id,
@@ -540,7 +541,7 @@ impl NarrativeOps {
         // Note: This is world-wide rather than PC-specific. A future enhancement
         // would be to track per-PC event completion via PC->Event edges.
         let (completed_events, completed_challenges) = {
-            let events = match self.repo.get_completed_events(world_id).await {
+            let events = match self.narrative.get_completed_events(world_id).await {
                 Ok(e) => e,
                 Err(e) => {
                     tracing::warn!(
@@ -551,7 +552,7 @@ impl NarrativeOps {
                     Vec::new()
                 }
             };
-            let challenges = match self.challenge_repo.get_resolved_challenges(world_id).await {
+            let challenges = match self.challenge_repo.get_resolved(world_id).await {
                 Ok(c) => c,
                 Err(e) => {
                     tracing::warn!(

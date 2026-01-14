@@ -4,32 +4,32 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{SkillCategory, SkillId, WorldId};
 
-use crate::repositories::Skill;
+use crate::repositories::Content;
 use crate::use_cases::validation::require_non_empty;
 
 use super::ManagementError;
 
 pub struct SkillCrud {
-    skill: Arc<Skill>,
+    content: Arc<Content>,
 }
 
 impl SkillCrud {
-    pub fn new(skill: Arc<Skill>) -> Self {
-        Self { skill }
+    pub fn new(content: Arc<Content>) -> Self {
+        Self { content }
     }
 
     pub async fn list_in_world(
         &self,
         world_id: WorldId,
     ) -> Result<Vec<wrldbldr_domain::Skill>, ManagementError> {
-        Ok(self.skill.list_in_world(world_id).await?)
+        Ok(self.content.list_skills_in_world(world_id).await?)
     }
 
     pub async fn get(
         &self,
         skill_id: SkillId,
     ) -> Result<Option<wrldbldr_domain::Skill>, ManagementError> {
-        Ok(self.skill.get(skill_id).await?)
+        Ok(self.content.get_skill(skill_id).await?)
     }
 
     pub async fn create(
@@ -59,7 +59,7 @@ impl SkillCrud {
             }
         }
 
-        self.skill.save(&skill).await?;
+        self.content.save_skill(&skill).await?;
         Ok(skill)
     }
 
@@ -72,10 +72,7 @@ impl SkillCrud {
         attribute: Option<String>,
         is_hidden: Option<bool>,
     ) -> Result<wrldbldr_domain::Skill, ManagementError> {
-        let mut skill = self
-            .skill
-            .get(skill_id)
-            .await?
+        let mut skill = self.content.get_skill(skill_id).await?
             .ok_or(ManagementError::NotFound)?;
 
         if let Some(name) = name {
@@ -101,12 +98,12 @@ impl SkillCrud {
             skill.is_hidden = is_hidden;
         }
 
-        self.skill.save(&skill).await?;
+        self.content.save_skill(&skill).await?;
         Ok(skill)
     }
 
     pub async fn delete(&self, skill_id: SkillId) -> Result<(), ManagementError> {
-        self.skill.delete(skill_id).await?;
+        self.content.delete_skill(skill_id).await?;
         Ok(())
     }
 }

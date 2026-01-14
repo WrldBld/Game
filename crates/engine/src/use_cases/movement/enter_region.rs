@@ -319,8 +319,7 @@ mod tests {
             player_character_repo,
         )));
 
-        let location_repo: Arc<dyn crate::infrastructure::ports::LocationRepo> =
-            Arc::new(location_repo);
+        let location_repo = Arc::new(location_repo);
         let location = Arc::new(Location::new(location_repo.clone()));
 
         let staging = Arc::new(StagingOp::new(Arc::new(MockStagingRepo::new())));
@@ -328,19 +327,6 @@ mod tests {
         let observation = Arc::new(repositories::Observation::new(
             Arc::new(MockObservationRepo::new()),
             location_repo.clone(),
-            clock.clone(),
-        ));
-
-        let narrative = Arc::new(Narrative::new(
-            Arc::new(MockNarrativeRepo::new()),
-            location_repo.clone(),
-            Arc::new(MockWorldRepo::new()),
-            Arc::new(MockPlayerCharacterRepo::new()),
-            Arc::new(MockCharacterRepo::new()),
-            Arc::new(MockObservationRepo::new()),
-            Arc::new(MockChallengeRepo::new()),
-            Arc::new(MockFlagRepo::new()),
-            Arc::new(MockSceneRepo::new()),
             clock.clone(),
         ));
 
@@ -354,6 +340,18 @@ mod tests {
 
         let world = Arc::new(repositories::World::new(
             Arc::new(world_repo),
+            clock.clone(),
+        ));
+        let narrative = Arc::new(Narrative::new(
+            Arc::new(repositories::Narrative::new(Arc::new(MockNarrativeRepo::new()))),
+            location.clone(),
+            world.clone(),
+            player_character.clone(),
+            Arc::new(repositories::Character::new(Arc::new(MockCharacterRepo::new()))),
+            observation.clone(),
+            Arc::new(repositories::Challenge::new(Arc::new(MockChallengeRepo::new()))),
+            flag.clone(),
+            scene.clone(),
             clock.clone(),
         ));
         let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
