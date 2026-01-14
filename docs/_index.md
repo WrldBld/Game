@@ -33,13 +33,27 @@ Core gameplay mechanics, each with user stories, UI mockups, and implementation 
 
 Technical reference for developers.
 
-| Document                                                         | Description                            |
-| ---------------------------------------------------------------- | -------------------------------------- |
-| [Neo4j Schema](architecture/neo4j-schema.md)                     | Complete graph database schema         |
-| [Hexagonal Architecture](architecture/hexagonal-architecture.md) | Ports/adapters patterns, layer rules   |
-| [WebSocket Protocol](architecture/websocket-protocol.md)         | All client/server message types        |
-| [Queue System](architecture/queue-system.md)                     | Action and approval queue architecture |
-| [E2E Testing](architecture/e2e-testing.md)                       | VCR LLM, event logging, testcontainers |
+| Document                                                         | Description                              |
+| ---------------------------------------------------------------- | ---------------------------------------- |
+| [Code Review Guidelines](architecture/review.md)                 | Full Rustic DDD spec, review criteria    |
+| [Review Checklist](REVIEW_CHECKLIST.md)                          | Quick reference for code reviewers       |
+| [Neo4j Schema](architecture/neo4j-schema.md)                     | Complete graph database schema           |
+| [Hexagonal Architecture](architecture/hexagonal-architecture.md) | Ports/adapters patterns, layer rules     |
+| [WebSocket Protocol](architecture/websocket-protocol.md)         | All client/server message types          |
+| [Queue System](architecture/queue-system.md)                     | Action and approval queue architecture   |
+| [E2E Testing](architecture/e2e-testing.md)                       | VCR LLM, event logging, testcontainers   |
+
+### Architecture Decision Records (ADRs)
+
+| ADR | Decision |
+| --- | -------- |
+| [ADR-001](architecture/ADR-001-uuid-generation-in-domain.md) | UUID generation allowed in domain |
+| [ADR-002](architecture/ADR-002-hexagonal-pragmatism.md) | Pragmatic hexagonal (~10 port traits) |
+| [ADR-003](architecture/ADR-003-neo4j-graph-model.md) | Neo4j as primary storage |
+| [ADR-004](architecture/ADR-004-vcr-llm-testing.md) | VCR-based LLM testing |
+| [ADR-005](architecture/ADR-005-websocket-protocol.md) | WebSocket protocol design |
+| [ADR-006](architecture/ADR-006-llm-port-design.md) | LLM port trait design |
+| [ADR-007](architecture/ADR-007-ttl-cache-ephemeral-state.md) | TtlCache for ephemeral state |
 
 ---
 

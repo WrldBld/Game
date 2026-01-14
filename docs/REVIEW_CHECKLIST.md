@@ -2,13 +2,25 @@
 
 Quick reference for code reviewers. Check applicable items before approving.
 
+> **Full Guidelines**: For comprehensive code review guidelines including Rustic DDD pattern specification, architecture details, and anti-pattern detection, see [architecture/review.md](architecture/review.md).
+
+## Rustic DDD
+
+- [ ] All aggregate fields are private (no `pub` on struct fields)
+- [ ] Newtypes used for validated strings (`CharacterName`, not `String`)
+- [ ] Enums used for state machines (`CharacterState`, not `is_alive: bool`)
+- [ ] Mutations return domain events (`fn apply_damage(&mut self) -> DamageOutcome`)
+- [ ] Value object constructors return `Result<Self, DomainError>`
+- [ ] Builder pattern for optional fields (`.with_*()` methods)
+
 ## Architecture
 
 - [ ] No `use_cases` importing from `api` layer
 - [ ] No `domain` importing from `engine`
-- [ ] Protocol types only in API layer (not in use cases or entities)
+- [ ] No `domain` importing tokio, axum, or async code
+- [ ] Protocol types only in API layer (not in use cases or domain)
 - [ ] New port traits added to `infrastructure/ports.rs` (not scattered)
-- [ ] Entities call entities directly (no unnecessary abstraction)
+- [ ] Repositories call port traits directly (no unnecessary abstraction)
 
 ## Error Handling
 

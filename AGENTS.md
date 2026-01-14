@@ -578,6 +578,11 @@ dx serve --platform web
 - Use testcontainers for Neo4j
 - Test full flows with real database
 
+### E2E Tests with VCR
+- LLM calls are recorded and replayed via VCR cassettes
+- Run in `record` mode to capture new LLM responses
+- Run in `playback` mode for CI (deterministic, fast)
+
 ```rust
 #[tokio::test]
 async fn enter_region_updates_position() {
@@ -592,3 +597,17 @@ async fn enter_region_updates_position() {
     assert!(result.is_ok());
 }
 ```
+
+---
+
+## Code Review
+
+For comprehensive code review guidelines, including:
+- Full Rustic DDD pattern specification
+- Architecture violation detection
+- Anti-pattern identification
+- PR and full codebase review checklists
+
+See **[docs/architecture/review.md](docs/architecture/review.md)**
+
+Quick reference: **[docs/REVIEW_CHECKLIST.md](docs/REVIEW_CHECKLIST.md)**
