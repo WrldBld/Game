@@ -180,7 +180,7 @@ impl GenerateExpressionSheet {
         // Queue the generation
         let batch_id = self
             .queue
-            .enqueue_asset_generation(&wrldbldr_domain::AssetGenerationData {
+            .enqueue_asset_generation(&crate::queue_types::AssetGenerationData {
                 world_id: Some(character.world_id()),
                 entity_type: "character".to_string(),
                 entity_id: request.character_id.to_string(),

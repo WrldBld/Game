@@ -98,7 +98,9 @@ impl Want {
     ///
     /// # Example
     /// ```ignore
-    /// let want = Want::new_with_intensity("Avenge my father", 0.9, Utc::now());
+    /// use chrono::TimeZone;
+    /// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    /// let want = Want::new_with_intensity("Avenge my father", 0.9, now);
     /// ```
     pub fn new_with_intensity(
         description: impl Into<String>,
@@ -124,7 +126,9 @@ impl Want {
     ///
     /// # Example
     /// ```ignore
-    /// let want = Want::new("Find the ancient artifact", Utc::now());
+    /// use chrono::TimeZone;
+    /// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    /// let want = Want::new("Find the ancient artifact", now);
     /// ```
     pub fn new(description: impl Into<String>, now: DateTime<Utc>) -> Self {
         Self::new_with_intensity(description, 0.5, now)

@@ -19,7 +19,7 @@ impl ConversationEntry {
     /// Create a new conversation entry with the specified timestamp.
     ///
     /// # Hexagonal Architecture Note
-    /// Timestamp is injected rather than using `Utc::now()` to keep domain pure.
+    /// Timestamp is injected rather than using direct time sources to keep domain pure.
     /// Call sites should use `clock_port.now()` to get the current time.
     pub fn new(speaker: Speaker, message: String, now: DateTime<Utc>) -> Self {
         Self {
@@ -92,7 +92,7 @@ impl PendingApprovalItem {
     /// Create a new pending approval item with the specified timestamp.
     ///
     /// # Hexagonal Architecture Note
-    /// Timestamp is injected rather than using `Utc::now()` to keep domain pure.
+    /// Timestamp is injected rather than using direct time sources to keep domain pure.
     /// Call sites should use `clock_port.now()` to get the current time.
     pub fn new(
         approval_id: String,
@@ -126,10 +126,15 @@ pub enum ApprovalType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+
+    fn fixed_time() -> DateTime<Utc> {
+        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
 
     #[test]
     fn test_conversation_entry_constructors() {
-        let now = Utc::now();
+        let now = fixed_time();
 
         let player = ConversationEntry::player("pc1".into(), "Hero".into(), "Hello!".into(), now);
         assert!(matches!(player.speaker, Speaker::Player { .. }));

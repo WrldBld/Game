@@ -62,7 +62,7 @@ impl Neo4jWorldRepo {
         let description = Description::new(&description)
             .map_err(|e| RepoError::database("query", format!("Invalid description: {}", e)))?;
 
-        Ok(World::new(name)
+        Ok(World::new(name, created_at)
             .with_id(id)
             .with_description(description)
             .with_rule_system(rule_system)

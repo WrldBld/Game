@@ -122,7 +122,8 @@ pub mod worlds {
         let name = WorldName::new("The Realm of Shadows").unwrap();
         let description =
             Description::new("A classic fantasy world for testing D&D 5e mechanics.").unwrap();
-        World::new(name)
+        let now = chrono::Utc::now();
+        World::new(name, now)
             .with_description(description)
             .with_id(wrldbldr_domain::WorldId::from(
                 uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),

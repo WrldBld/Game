@@ -430,7 +430,7 @@ pub async fn validate_all_criteria(
 // Scene Context Builder
 // =============================================================================
 
-use wrldbldr_domain::{
+use crate::llm_context::{
     CharacterContext, ConversationTurn, GamePromptRequest, MotivationEntry, MotivationsContext,
     PlayerActionContext, RegionItemContext, SceneContext, SecretMotivationEntry,
     SocialStanceContext,

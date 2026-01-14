@@ -63,8 +63,9 @@ impl World {
         reason: TimeAdvanceReason,
     ) -> Result<TimeAdvanceResult, WorldError> {
         let mut world = self.repo.get(id).await?.ok_or(WorldError::NotFound(id))?;
+        let now = self.clock.now();
 
-        let result = world.advance_time(minutes, reason);
+        let result = world.advance_time(minutes, reason, now);
 
         self.repo.save(&world).await?;
 
@@ -88,7 +89,7 @@ impl World {
     pub async fn set_time_mode(&self, id: WorldId, mode: TimeMode) -> Result<(), WorldError> {
         let mut world = self.repo.get(id).await?.ok_or(WorldError::NotFound(id))?;
 
-        world.set_time_mode(mode);
+        world.set_time_mode(mode, self.clock.now());
 
         self.repo.save(&world).await?;
 

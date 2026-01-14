@@ -1,7 +1,6 @@
-//! Queue data value objects - pure domain representations of queue items
+//! Queue payload types used by QueuePort implementations.
 //!
-//! These types represent the business data for queue operations.
-//! Note: Serde derives are included to support queue storage backends.
+//! These DTOs are engine-owned to keep the domain pure.
 
 use std::collections::HashMap;
 
@@ -9,9 +8,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{CharacterId, LocationId, PlayerCharacterId, SceneId, WorldId};
+use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, SceneId, WorldId};
 
-use super::GamePromptRequest;
+use crate::llm_context::GamePromptRequest;
 
 // =============================================================================
 // Player Action Data
@@ -21,7 +20,7 @@ use super::GamePromptRequest;
 ///
 /// Represents an action submitted by a player that needs to be processed
 /// by the game engine (e.g., dialogue, item usage, movement).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerActionData {
     /// World this action belongs to
     pub world_id: WorldId,
@@ -140,7 +139,7 @@ pub enum DmApprovalDecision {
 ///
 /// The engine makes different types of requests to LLMs depending
 /// on what content needs to be generated.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum LlmRequestType {
     /// Generate an NPC's response to player action
@@ -174,7 +173,7 @@ pub enum LlmRequestType {
 ///
 /// Contains all information needed to make an LLM request,
 /// including the prompt context and callback information.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmRequestData {
     /// Type of request being made
     pub request_type: LlmRequestType,
@@ -197,7 +196,7 @@ pub struct LlmRequestData {
 ///
 /// Provides contextual information to help the LLM generate
 /// appropriate suggestions for entity fields.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SuggestionContext {
     /// Type of entity being edited
     pub entity_type: Option<String>,
@@ -218,87 +217,69 @@ pub struct SuggestionContext {
 // =============================================================================
 
 /// Information about a proposed tool call.
-///
-/// When an NPC proposes to use a game tool (give item, trigger challenge, etc.),
-/// this captures the tool details for DM review.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProposedTool {
-    /// Unique identifier for this tool call
+    /// Tool name
     pub id: String,
-    /// Name of the tool being called
+    /// Tool name for display
     pub name: String,
-    /// Human-readable description of what the tool does
+    /// Tool description
     pub description: String,
-    /// Arguments for the tool call (dynamic JSON structure)
+    /// Tool arguments as raw JSON
     pub arguments: serde_json::Value,
 }
 
-/// Challenge suggestion from LLM analysis.
-///
-/// When the LLM detects a player action that might trigger a challenge,
-/// it provides this suggestion for DM review.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct ChallengeSuggestion {
-    /// ID of the challenge being suggested
-    pub challenge_id: String,
-    /// Display name of the challenge
-    pub challenge_name: String,
-    /// Skill being tested
-    pub skill_name: String,
-    /// Human-readable difficulty (e.g., "DC 15", "Hard")
-    pub difficulty_display: String,
-    /// LLM's confidence in this suggestion
-    pub confidence: String,
-    /// LLM's reasoning for suggesting this challenge
-    pub reasoning: String,
-    /// Target PC for the challenge (if specific)
-    pub target_pc_id: Option<PlayerCharacterId>,
-    /// Suggested narrative outcomes
-    pub outcomes: Option<ChallengeSuggestionOutcomes>,
-}
-
-/// Suggested narrative outcomes for a challenge.
-///
-/// Provides optional narrative text for each outcome type
-/// that the DM can use or modify.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+/// Proposed challenge outcomes from the LLM.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChallengeSuggestionOutcomes {
-    /// Narrative for success
     pub success: Option<String>,
-    /// Narrative for failure
     pub failure: Option<String>,
-    /// Narrative for critical success
     pub critical_success: Option<String>,
-    /// Narrative for critical failure
     pub critical_failure: Option<String>,
 }
 
-/// Narrative event suggestion from LLM analysis.
-///
-/// When the LLM detects conditions that might trigger a narrative event,
-/// it provides this suggestion for DM review.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct NarrativeEventSuggestion {
-    /// ID of the event being suggested
-    pub event_id: String,
-    /// Display name of the event
-    pub event_name: String,
-    /// Description of the event
-    pub description: String,
-    /// Scene direction for the DM
-    pub scene_direction: String,
-    /// LLM's confidence in this suggestion
+/// LLM-suggested challenge data for the DM.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChallengeSuggestion {
+    pub challenge_id: String,
+    pub challenge_name: String,
+    pub skill_name: String,
+    pub difficulty_display: String,
     pub confidence: String,
-    /// LLM's reasoning for suggesting this event
     pub reasoning: String,
-    /// Trigger conditions that matched
+    pub target_pc_id: Option<PlayerCharacterId>,
+    pub outcomes: Option<ChallengeSuggestionOutcomes>,
+}
+
+/// LLM-suggested narrative event data.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NarrativeEventSuggestion {
+    pub event_id: String,
+    pub event_name: String,
+    pub description: String,
+    pub scene_direction: String,
+    pub confidence: String,
+    pub reasoning: String,
     pub matched_triggers: Vec<String>,
-    /// Suggested outcome if event is triggered
     pub suggested_outcome: Option<String>,
 }
 
+/// Urgency level for approval requests.
+///
+/// Higher urgency items should be prioritized by the DM
+/// to avoid blocking game flow.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum ApprovalUrgency {
+    /// Normal priority - can wait
+    Normal,
+    /// Player is waiting for a response
+    AwaitingPlayer,
+    /// Critical scene moment - immediate attention needed
+    SceneCritical,
+}
+
 /// Type of decision being requested from the DM.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ApprovalDecisionType {
     /// Approval of an NPC's proposed response
     NpcResponse,
@@ -312,139 +293,71 @@ pub enum ApprovalDecisionType {
     ChallengeOutcome,
 }
 
-/// Urgency level for approval requests.
-///
-/// Higher urgency items should be prioritized by the DM
-/// to avoid blocking game flow.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
-)]
-pub enum ApprovalUrgency {
-    /// Normal priority - can wait
-    Normal,
-    /// Player is waiting for a response
-    AwaitingPlayer,
-    /// Critical scene moment - immediate attention needed
-    SceneCritical,
+/// LLM-proposed outcomes for a resolved challenge.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChallengeOutcomeData {
+    pub resolution_id: String,
+    pub world_id: WorldId,
+    pub challenge_id: String,
+    pub challenge_name: String,
+    pub challenge_description: String,
+    pub skill_name: Option<String>,
+    pub character_id: CharacterId,
+    pub character_name: String,
+    pub roll: i32,
+    pub modifier: i32,
+    pub total: i32,
+    pub outcome_type: String,
+    pub outcome_description: String,
+    pub outcome_triggers: Vec<ProposedTool>,
+    pub roll_breakdown: Option<String>,
+    pub timestamp: DateTime<Utc>,
+    pub suggestions: Option<Vec<String>>,
+    pub is_generating_suggestions: bool,
 }
 
-/// Approval request data.
-///
-/// Comprehensive data for an item awaiting DM approval,
-/// including all context needed for the DM to make a decision.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+/// DM approval request data.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApprovalRequestData {
-    /// World this request belongs to
     pub world_id: WorldId,
-    /// ID of the source action that triggered this request
     pub source_action_id: Uuid,
-    /// Type of decision being requested
     pub decision_type: ApprovalDecisionType,
-    /// How urgent is this decision
     pub urgency: ApprovalUrgency,
-    /// Player character involved (if applicable)
     pub pc_id: Option<PlayerCharacterId>,
-    /// NPC involved in the request
     pub npc_id: Option<CharacterId>,
-    /// Name of the NPC (for display)
     pub npc_name: String,
-    /// The proposed dialogue from the NPC
     pub proposed_dialogue: String,
-    /// LLM's internal reasoning (for DM context)
     pub internal_reasoning: String,
-    /// Tools the NPC proposes to use
     pub proposed_tools: Vec<ProposedTool>,
-    /// Number of times this has been regenerated
     pub retry_count: u32,
-    /// Challenge suggestion if applicable
     pub challenge_suggestion: Option<ChallengeSuggestion>,
-    /// Narrative event suggestion if applicable
     pub narrative_event_suggestion: Option<NarrativeEventSuggestion>,
-    /// Challenge outcome data (for ChallengeOutcome decisions)
     pub challenge_outcome: Option<ChallengeOutcomeData>,
-    /// Player dialogue that triggered this (for recording)
     pub player_dialogue: Option<String>,
-    /// Current scene ID (for recording)
     pub scene_id: Option<SceneId>,
-    /// Current location ID (for recording)
     pub location_id: Option<LocationId>,
-    /// Current game time as display string (for recording)
     pub game_time: Option<String>,
-    /// Conversation topics discussed
     pub topics: Vec<String>,
-    /// Conversation ID (links to Conversation node in Neo4j)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conversation_id: Option<Uuid>,
 }
 
 // =============================================================================
-// Challenge Outcome Data
-// =============================================================================
-
-/// Challenge outcome data for DM approval.
-///
-/// When a challenge is resolved (dice rolled, outcome determined),
-/// this captures all the details for DM review before finalizing.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct ChallengeOutcomeData {
-    /// Unique ID for this resolution attempt
-    pub resolution_id: String,
-    /// World this occurred in
-    pub world_id: WorldId,
-    /// Challenge that was attempted
-    pub challenge_id: String,
-    /// Display name of the challenge
-    pub challenge_name: String,
-    /// Description of the challenge
-    pub challenge_description: String,
-    /// Skill used (if skill-based)
-    pub skill_name: Option<String>,
-    /// Character who attempted the challenge
-    pub character_id: CharacterId,
-    /// Name of the character (for display)
-    pub character_name: String,
-    /// Base roll value
-    pub roll: i32,
-    /// Modifier applied to roll
-    pub modifier: i32,
-    /// Final total (roll + modifier)
-    pub total: i32,
-    /// Type of outcome: "success", "failure", "critical_success", "critical_failure"
-    pub outcome_type: String,
-    /// Narrative description of the outcome
-    pub outcome_description: String,
-    /// Triggers that fire as a result
-    pub outcome_triggers: Vec<ProposedTool>,
-    /// Detailed breakdown of the roll calculation
-    pub roll_breakdown: Option<String>,
-    /// When the challenge was resolved
-    pub timestamp: DateTime<Utc>,
-    /// AI-generated narrative suggestions
-    pub suggestions: Option<Vec<String>>,
-    /// Whether AI is currently generating suggestions
-    pub is_generating_suggestions: bool,
-}
-
-// =============================================================================
-// Asset Generation Data
+// Asset Generation Queue Data
 // =============================================================================
 
 /// Asset generation request data.
-///
-/// Request to generate visual assets (images, portraits, etc.)
-/// for game entities using ComfyUI workflows.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssetGenerationData {
-    /// World context (if world-specific)
+    /// World context for the generation
     pub world_id: Option<WorldId>,
-    /// Type of entity: "character", "location", "item", etc.
+    /// Entity type for the asset
     pub entity_type: String,
-    /// ID of the entity to generate assets for
+    /// Entity ID for the asset
     pub entity_id: String,
-    /// ComfyUI workflow to use
+    /// Workflow configuration ID
     pub workflow_id: String,
-    /// Prompt for image generation
+    /// Prompt to send to ComfyUI
     pub prompt: String,
-    /// Number of images to generate
+    /// Number of assets to generate
     pub count: u32,
 }

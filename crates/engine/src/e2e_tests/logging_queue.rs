@@ -7,8 +7,10 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use uuid::Uuid;
-use wrldbldr_domain::{
-    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData, WorldId,
+use wrldbldr_domain::WorldId;
+
+use crate::queue_types::{
+    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
 };
 
 use crate::infrastructure::ports::{QueueError, QueueItem, QueuePort};

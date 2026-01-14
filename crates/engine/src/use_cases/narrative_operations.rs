@@ -17,6 +17,7 @@ use crate::infrastructure::ports::{
     ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo, WorldRepo,
 };
 use crate::repositories::narrative::Narrative as NarrativeEntity;
+use crate::llm_context::ConversationTurn;
 
 /// Backward-compatible alias for `NarrativeOps`.
 ///
@@ -239,7 +240,7 @@ impl NarrativeOps {
         pc_id: PlayerCharacterId,
         npc_id: CharacterId,
         limit: usize,
-    ) -> Result<Vec<domain::ConversationTurn>, RepoError> {
+    ) -> Result<Vec<ConversationTurn>, RepoError> {
         self.entity
             .get_conversation_turns(pc_id, npc_id, limit)
             .await

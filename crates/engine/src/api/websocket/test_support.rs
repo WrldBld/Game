@@ -23,6 +23,7 @@ use crate::infrastructure::ports::{
     MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockRegionStateRepo,
     MockSceneRepo, MockSettingsRepo, MockSkillRepo, MockStagingRepo,
 };
+use crate::queue_types::{ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData};
 
 pub(crate) use crate::infrastructure::ports::{MockWorldRepo, QueuePort};
 
@@ -104,7 +105,7 @@ pub(crate) struct NoopQueue;
 impl QueuePort for NoopQueue {
     async fn enqueue_player_action(
         &self,
-        _data: &wrldbldr_domain::PlayerActionData,
+        _data: &PlayerActionData,
     ) -> Result<Uuid, QueueError> {
         Err(QueueError::Error("noop".to_string()))
     }
@@ -115,7 +116,7 @@ impl QueuePort for NoopQueue {
 
     async fn enqueue_llm_request(
         &self,
-        _data: &wrldbldr_domain::LlmRequestData,
+        _data: &LlmRequestData,
     ) -> Result<Uuid, QueueError> {
         Err(QueueError::Error("noop".to_string()))
     }
@@ -126,7 +127,7 @@ impl QueuePort for NoopQueue {
 
     async fn enqueue_dm_approval(
         &self,
-        _data: &wrldbldr_domain::ApprovalRequestData,
+        _data: &ApprovalRequestData,
     ) -> Result<Uuid, QueueError> {
         Err(QueueError::Error("noop".to_string()))
     }
@@ -137,7 +138,7 @@ impl QueuePort for NoopQueue {
 
     async fn enqueue_asset_generation(
         &self,
-        _data: &wrldbldr_domain::AssetGenerationData,
+        _data: &AssetGenerationData,
     ) -> Result<Uuid, QueueError> {
         Err(QueueError::Error("noop".to_string()))
     }
@@ -180,7 +181,7 @@ impl QueuePort for NoopQueue {
     async fn get_approval_request(
         &self,
         _id: Uuid,
-    ) -> Result<Option<wrldbldr_domain::ApprovalRequestData>, QueueError> {
+    ) -> Result<Option<ApprovalRequestData>, QueueError> {
         Ok(None)
     }
 
@@ -267,7 +268,7 @@ impl RandomPort for FixedRandom {
 
 #[derive(Default)]
 pub(crate) struct RecordingApprovalQueueState {
-    pub(crate) approvals: StdHashMap<Uuid, wrldbldr_domain::ApprovalRequestData>,
+    pub(crate) approvals: StdHashMap<Uuid, ApprovalRequestData>,
     pub(crate) completed: Vec<Uuid>,
     pub(crate) failed: Vec<(Uuid, String)>,
 }
@@ -278,7 +279,7 @@ pub(crate) struct RecordingApprovalQueue {
 }
 
 impl RecordingApprovalQueue {
-    pub(crate) fn insert_approval(&self, id: Uuid, data: wrldbldr_domain::ApprovalRequestData) {
+    pub(crate) fn insert_approval(&self, id: Uuid, data: ApprovalRequestData) {
         let mut guard = self.state.lock().unwrap();
         guard.approvals.insert(id, data);
     }
@@ -298,7 +299,7 @@ impl RecordingApprovalQueue {
 impl QueuePort for RecordingApprovalQueue {
     async fn enqueue_player_action(
         &self,
-        _data: &wrldbldr_domain::PlayerActionData,
+        _data: &PlayerActionData,
     ) -> Result<Uuid, QueueError> {
         Err(QueueError::Error("not implemented".to_string()))
     }
@@ -309,7 +310,7 @@ impl QueuePort for RecordingApprovalQueue {
 
     async fn enqueue_llm_request(
         &self,
-        _data: &wrldbldr_domain::LlmRequestData,
+        _data: &LlmRequestData,
     ) -> Result<Uuid, QueueError> {
         Err(QueueError::Error("not implemented".to_string()))
     }
@@ -320,7 +321,7 @@ impl QueuePort for RecordingApprovalQueue {
 
     async fn enqueue_dm_approval(
         &self,
-        _data: &wrldbldr_domain::ApprovalRequestData,
+        _data: &ApprovalRequestData,
     ) -> Result<Uuid, QueueError> {
         Err(QueueError::Error("not implemented".to_string()))
     }
@@ -331,7 +332,7 @@ impl QueuePort for RecordingApprovalQueue {
 
     async fn enqueue_asset_generation(
         &self,
-        _data: &wrldbldr_domain::AssetGenerationData,
+        _data: &AssetGenerationData,
     ) -> Result<Uuid, QueueError> {
         Err(QueueError::Error("not implemented".to_string()))
     }
@@ -378,7 +379,7 @@ impl QueuePort for RecordingApprovalQueue {
     async fn get_approval_request(
         &self,
         id: Uuid,
-    ) -> Result<Option<wrldbldr_domain::ApprovalRequestData>, QueueError> {
+    ) -> Result<Option<ApprovalRequestData>, QueueError> {
         let guard = self.state.lock().unwrap();
         Ok(guard.approvals.get(&id).cloned())
     }
@@ -756,7 +757,8 @@ pub(crate) fn build_test_app_with_ports(
         narrative_decision,
     );
 
-    let time_control = Arc::new(crate::use_cases::time::TimeControl::new(world.clone()));
+    let time_control =
+        Arc::new(crate::use_cases::time::TimeControl::new(world.clone(), clock.clone()));
     let time_suggestions = Arc::new(crate::use_cases::time::TimeSuggestions::new(
         time_control.clone(),
     ));

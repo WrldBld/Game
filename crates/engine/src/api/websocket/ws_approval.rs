@@ -26,26 +26,26 @@ pub(super) async fn handle_approval_decision(
 
     // Convert protocol decision to domain decision
     let domain_decision = match decision {
-        wrldbldr_protocol::ApprovalDecision::Accept => wrldbldr_domain::DmApprovalDecision::Accept,
+        wrldbldr_protocol::ApprovalDecision::Accept => crate::queue_types::DmApprovalDecision::Accept,
         wrldbldr_protocol::ApprovalDecision::AcceptWithRecipients { item_recipients } => {
-            wrldbldr_domain::DmApprovalDecision::AcceptWithRecipients { item_recipients }
+            crate::queue_types::DmApprovalDecision::AcceptWithRecipients { item_recipients }
         }
         wrldbldr_protocol::ApprovalDecision::Reject { feedback } => {
-            wrldbldr_domain::DmApprovalDecision::Reject { feedback }
+            crate::queue_types::DmApprovalDecision::Reject { feedback }
         }
         wrldbldr_protocol::ApprovalDecision::AcceptWithModification {
             modified_dialogue,
             approved_tools,
             rejected_tools,
             item_recipients,
-        } => wrldbldr_domain::DmApprovalDecision::AcceptWithModification {
+        } => crate::queue_types::DmApprovalDecision::AcceptWithModification {
             modified_dialogue,
             approved_tools,
             rejected_tools,
             item_recipients,
         },
         wrldbldr_protocol::ApprovalDecision::TakeOver { dm_response } => {
-            wrldbldr_domain::DmApprovalDecision::TakeOver { dm_response }
+            crate::queue_types::DmApprovalDecision::TakeOver { dm_response }
         }
         wrldbldr_protocol::ApprovalDecision::Unknown => {
             return Some(error_response(

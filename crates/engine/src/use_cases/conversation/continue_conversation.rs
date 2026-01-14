@@ -6,7 +6,9 @@
 
 use std::sync::Arc;
 use uuid::Uuid;
-use wrldbldr_domain::{CharacterId, PlayerActionData, PlayerCharacterId, WorldId};
+use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
+
+use crate::queue_types::PlayerActionData;
 
 use crate::infrastructure::ports::{ClockPort, QueuePort};
 use crate::repositories::character::Character;
@@ -208,9 +210,12 @@ mod tests {
     use chrono::Utc;
     use uuid::Uuid;
     use wrldbldr_domain::{
-        ApprovalRequestData, AssetGenerationData, CampbellArchetype, Character, CharacterId,
-        CharacterName, LlmRequestData, LocationId, MoodState, PlayerActionData, PlayerCharacterId,
-        RegionId, StagedNpc, Staging, StagingSource, WorldId, WorldName,
+        CampbellArchetype, Character, CharacterId, CharacterName, LocationId, MoodState,
+        PlayerCharacterId, RegionId, StagedNpc, Staging, StagingSource, WorldId, WorldName,
+    };
+
+    use crate::queue_types::{
+        ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
     };
 
     use crate::infrastructure::ports::{
@@ -681,7 +686,7 @@ mod tests {
 
         let mut world_repo = MockWorldRepo::new();
         let world_name = WorldName::new("W").unwrap();
-        let world = wrldbldr_domain::World::new(world_name).with_id(world_id);
+        let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
         let current_game_time = world.game_time().current();
         let world_for_get = world.clone();
         world_repo
@@ -798,7 +803,7 @@ mod tests {
 
         let mut world_repo = MockWorldRepo::new();
         let world_name = WorldName::new("W").unwrap();
-        let world = wrldbldr_domain::World::new(world_name).with_id(world_id);
+        let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
         let current_game_time = world.game_time().current();
         let world_for_get = world.clone();
         world_repo
@@ -921,7 +926,7 @@ mod tests {
 
         let mut world_repo = MockWorldRepo::new();
         let world_name = WorldName::new("W").unwrap();
-        let world = wrldbldr_domain::World::new(world_name).with_id(world_id);
+        let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
         let current_game_time = world.game_time().current();
         let world_for_get = world.clone();
         world_repo
@@ -1047,7 +1052,7 @@ mod tests {
 
         let mut world_repo = MockWorldRepo::new();
         let world_name = WorldName::new("W").unwrap();
-        let world = wrldbldr_domain::World::new(world_name).with_id(world_id);
+        let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
         let current_game_time = world.game_time().current();
         let world_for_get = world.clone();
         world_repo
@@ -1184,7 +1189,7 @@ mod tests {
 
         let mut world_repo = MockWorldRepo::new();
         let world_name = WorldName::new("W").unwrap();
-        let world = wrldbldr_domain::World::new(world_name).with_id(world_id);
+        let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
         let current_game_time = world.game_time().current();
         let world_for_get = world.clone();
         world_repo

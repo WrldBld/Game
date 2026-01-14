@@ -191,6 +191,122 @@ impl From<WorldName> for String {
 }
 
 // ============================================================================
+// SceneName
+// ============================================================================
+
+/// A validated scene name (non-empty, <=200 chars, trimmed)
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct SceneName(String);
+
+impl SceneName {
+    /// Create a new validated scene name.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DomainError::Validation` if:
+    /// - The name is empty after trimming
+    /// - The name exceeds 200 characters after trimming
+    pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
+        let name = name.into();
+        let trimmed = name.trim();
+        if trimmed.is_empty() {
+            return Err(DomainError::validation("Scene name cannot be empty"));
+        }
+        if trimmed.len() > MAX_NAME_LENGTH {
+            return Err(DomainError::validation(format!(
+                "Scene name cannot exceed {} characters",
+                MAX_NAME_LENGTH
+            )));
+        }
+        Ok(Self(trimmed.to_string()))
+    }
+
+    /// Returns the name as a string slice.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for SceneName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl TryFrom<String> for SceneName {
+    type Error = DomainError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Self::new(s)
+    }
+}
+
+impl From<SceneName> for String {
+    fn from(name: SceneName) -> String {
+        name.0
+    }
+}
+
+// ============================================================================
+// NarrativeEventName
+// ============================================================================
+
+/// A validated narrative event name (non-empty, <=200 chars, trimmed)
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct NarrativeEventName(String);
+
+impl NarrativeEventName {
+    /// Create a new validated narrative event name.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DomainError::Validation` if:
+    /// - The name is empty after trimming
+    /// - The name exceeds 200 characters after trimming
+    pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
+        let name = name.into();
+        let trimmed = name.trim();
+        if trimmed.is_empty() {
+            return Err(DomainError::validation("Narrative event name cannot be empty"));
+        }
+        if trimmed.len() > MAX_NAME_LENGTH {
+            return Err(DomainError::validation(format!(
+                "Narrative event name cannot exceed {} characters",
+                MAX_NAME_LENGTH
+            )));
+        }
+        Ok(Self(trimmed.to_string()))
+    }
+
+    /// Returns the name as a string slice.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for NarrativeEventName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl TryFrom<String> for NarrativeEventName {
+    type Error = DomainError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Self::new(s)
+    }
+}
+
+impl From<NarrativeEventName> for String {
+    fn from(name: NarrativeEventName) -> String {
+        name.0
+    }
+}
+
+// ============================================================================
 // Description
 // ============================================================================
 

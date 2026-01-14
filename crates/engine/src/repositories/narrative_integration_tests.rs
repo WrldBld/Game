@@ -4,7 +4,8 @@
 //! KnowsSpell, HasFeat, etc.) correctly match against character sheet data.
 
 use wrldbldr_domain::{
-    NarrativeEvent, NarrativeTrigger, NarrativeTriggerType, TriggerLogic, WorldId,
+    NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType, TriggerLogic,
+    WorldId,
 };
 
 use crate::test_fixtures::{characters, trigger_context_from_pc, triggers};
@@ -550,7 +551,11 @@ fn create_test_event_with_triggers(
         })
         .collect();
 
-    NarrativeEvent::new(WorldId::new(), name.to_string(), chrono::Utc::now())
+    NarrativeEvent::new(
+        WorldId::new(),
+        NarrativeEventName::new(name).unwrap(),
+        chrono::Utc::now(),
+    )
         .with_description(format!("Test event: {}", name))
         .with_trigger_logic(logic)
         .with_trigger_conditions(conditions)

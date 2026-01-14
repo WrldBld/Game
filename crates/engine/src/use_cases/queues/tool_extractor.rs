@@ -4,7 +4,9 @@
 //! Each proposed tool gets a human-readable description for the DM to understand.
 
 use crate::infrastructure::ports::ToolCall;
-use wrldbldr_domain::{GameTool, ProposedTool};
+use wrldbldr_domain::GameTool;
+
+use crate::queue_types::ProposedTool;
 
 /// Extract proposed tools from LLM tool calls.
 ///

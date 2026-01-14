@@ -152,6 +152,8 @@ impl Neo4jSceneRepo {
         let name: String = node
             .get("name")
             .map_err(|e| RepoError::database("query", e))?;
+        let name =
+            SceneName::new(name).map_err(|e| RepoError::database("query", e.to_string()))?;
         let directorial_notes: String = node.get_string_or("directorial_notes", "");
         let order_num: i64 = node.get_i64_or("order_num", 0);
 

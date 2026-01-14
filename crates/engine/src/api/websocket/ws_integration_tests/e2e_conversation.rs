@@ -22,7 +22,7 @@ fn create_test_world(
     _now: chrono::DateTime<chrono::Utc>,
 ) -> wrldbldr_domain::World {
     let world_name = wrldbldr_domain::WorldName::new("Integration Test World").unwrap();
-    wrldbldr_domain::World::new(world_name)
+    wrldbldr_domain::World::new(world_name, now)
         .with_description(
             wrldbldr_domain::Description::new("A test world for LLM integration").unwrap(),
         )

@@ -32,10 +32,11 @@ use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
 /// use wrldbldr_domain::aggregates::player_character::{PlayerCharacter, PlayerCharacterStateChange};
 /// use wrldbldr_domain::value_objects::CharacterName;
 /// use wrldbldr_domain::{WorldId, LocationId};
-/// use chrono::Utc;
+/// use chrono::TimeZone;
 ///
 /// let name = CharacterName::new("Hero").unwrap();
-/// let mut pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), Utc::now());
+/// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+/// let mut pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), now);
 ///
 /// // First kill returns Killed
 /// assert_eq!(pc.kill(), PlayerCharacterStateChange::Killed);
@@ -72,7 +73,7 @@ pub enum PlayerCharacterStateChange {
 /// # Example
 ///
 /// ```
-/// use chrono::Utc;
+/// use chrono::TimeZone;
 /// use wrldbldr_domain::{WorldId, LocationId, PlayerCharacterId};
 /// use wrldbldr_domain::aggregates::player_character::PlayerCharacter;
 /// use wrldbldr_domain::value_objects::CharacterName;
@@ -80,7 +81,7 @@ pub enum PlayerCharacterStateChange {
 /// let world_id = WorldId::new();
 /// let location_id = LocationId::new();
 /// let name = CharacterName::new("Aragorn").unwrap();
-/// let now = Utc::now();
+/// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
 /// let pc = PlayerCharacter::new("user123", world_id, name, location_id, now);
 ///
 /// assert_eq!(pc.name().as_str(), "Aragorn");
@@ -131,7 +132,7 @@ impl PlayerCharacter {
     /// # Example
     ///
     /// ```
-    /// use chrono::Utc;
+    /// use chrono::TimeZone;
     /// use wrldbldr_domain::{WorldId, LocationId};
     /// use wrldbldr_domain::aggregates::player_character::PlayerCharacter;
     /// use wrldbldr_domain::value_objects::CharacterName;
@@ -139,7 +140,7 @@ impl PlayerCharacter {
     /// let world_id = WorldId::new();
     /// let location_id = LocationId::new();
     /// let name = CharacterName::new("Legolas").unwrap();
-    /// let now = Utc::now();
+    /// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
     /// let pc = PlayerCharacter::new("user456", world_id, name, location_id, now);
     ///
     /// assert_eq!(pc.name().as_str(), "Legolas");
@@ -365,10 +366,11 @@ impl PlayerCharacter {
     /// use wrldbldr_domain::aggregates::player_character::PlayerCharacter;
     /// use wrldbldr_domain::value_objects::{CharacterName, CharacterState};
     /// use wrldbldr_domain::{WorldId, LocationId};
-    /// use chrono::Utc;
+    /// use chrono::TimeZone;
     ///
     /// let name = CharacterName::new("Gandalf").unwrap();
-    /// let pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), Utc::now())
+    /// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    /// let pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), now)
     ///     .with_state(CharacterState::Inactive);
     ///
     /// assert!(pc.is_inactive());
@@ -479,10 +481,11 @@ impl PlayerCharacter {
     /// use wrldbldr_domain::aggregates::player_character::{PlayerCharacter, PlayerCharacterStateChange};
     /// use wrldbldr_domain::value_objects::CharacterName;
     /// use wrldbldr_domain::{WorldId, LocationId};
-    /// use chrono::Utc;
+    /// use chrono::TimeZone;
     ///
     /// let name = CharacterName::new("Hero").unwrap();
-    /// let mut pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), Utc::now());
+    /// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    /// let mut pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), now);
     ///
     /// assert_eq!(pc.kill(), PlayerCharacterStateChange::Killed);
     /// assert!(pc.is_dead());
@@ -515,10 +518,11 @@ impl PlayerCharacter {
     /// use wrldbldr_domain::aggregates::player_character::{PlayerCharacter, PlayerCharacterStateChange};
     /// use wrldbldr_domain::value_objects::CharacterName;
     /// use wrldbldr_domain::{WorldId, LocationId};
-    /// use chrono::Utc;
+    /// use chrono::TimeZone;
     ///
     /// let name = CharacterName::new("Hero").unwrap();
-    /// let mut pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), Utc::now());
+    /// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    /// let mut pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), now);
     ///
     /// assert_eq!(pc.deactivate(), PlayerCharacterStateChange::Deactivated);
     /// assert!(pc.is_inactive());
@@ -551,10 +555,11 @@ impl PlayerCharacter {
     /// use wrldbldr_domain::aggregates::player_character::{PlayerCharacter, PlayerCharacterStateChange};
     /// use wrldbldr_domain::value_objects::CharacterName;
     /// use wrldbldr_domain::{WorldId, LocationId};
-    /// use chrono::Utc;
+    /// use chrono::TimeZone;
     ///
     /// let name = CharacterName::new("Hero").unwrap();
-    /// let mut pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), Utc::now());
+    /// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    /// let mut pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), now);
     ///
     /// pc.deactivate();
     /// assert_eq!(pc.activate(), PlayerCharacterStateChange::Activated);
@@ -587,10 +592,11 @@ impl PlayerCharacter {
     /// use wrldbldr_domain::aggregates::player_character::{PlayerCharacter, PlayerCharacterStateChange};
     /// use wrldbldr_domain::value_objects::CharacterName;
     /// use wrldbldr_domain::{WorldId, LocationId};
-    /// use chrono::Utc;
+    /// use chrono::TimeZone;
     ///
     /// let name = CharacterName::new("Hero").unwrap();
-    /// let mut pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), Utc::now());
+    /// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    /// let mut pc = PlayerCharacter::new("user1", WorldId::new(), name, LocationId::new(), now);
     ///
     /// pc.kill();
     /// assert_eq!(pc.resurrect(), PlayerCharacterStateChange::Resurrected);
@@ -722,12 +728,17 @@ impl<'de> Deserialize<'de> for PlayerCharacter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+
+    fn fixed_time() -> DateTime<Utc> {
+        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
 
     fn create_test_pc() -> PlayerCharacter {
         let world_id = WorldId::new();
         let location_id = LocationId::new();
         let name = CharacterName::new("Test Hero").unwrap();
-        let now = Utc::now();
+        let now = fixed_time();
         PlayerCharacter::new("user123", world_id, name, location_id, now)
     }
 
@@ -739,7 +750,7 @@ mod tests {
             let world_id = WorldId::new();
             let location_id = LocationId::new();
             let name = CharacterName::new("Frodo").unwrap();
-            let now = Utc::now();
+            let now = fixed_time();
             let pc = PlayerCharacter::new("user123", world_id, name, location_id, now);
 
             assert_eq!(pc.name().as_str(), "Frodo");
@@ -762,7 +773,7 @@ mod tests {
             let location_id = LocationId::new();
             let region_id = RegionId::new();
             let name = CharacterName::new("Samwise").unwrap();
-            let now = Utc::now();
+            let now = fixed_time();
 
             let pc = PlayerCharacter::new("user456", world_id, name, location_id, now)
                 .with_description("A loyal gardener")
@@ -785,7 +796,7 @@ mod tests {
             let mut pc = create_test_pc();
             let region_id = RegionId::new();
             let new_location = LocationId::new();
-            let now = Utc::now();
+            let now = fixed_time();
 
             // Set a region first
             pc.update_region(region_id, now);
@@ -801,7 +812,7 @@ mod tests {
         fn update_region_works() {
             let mut pc = create_test_pc();
             let region_id = RegionId::new();
-            let now = Utc::now();
+            let now = fixed_time();
 
             pc.update_region(region_id, now);
             assert_eq!(pc.current_region_id(), Some(region_id));
@@ -812,7 +823,7 @@ mod tests {
             let mut pc = create_test_pc();
             let new_location = LocationId::new();
             let region_id = RegionId::new();
-            let now = Utc::now();
+            let now = fixed_time();
 
             pc.update_position(new_location, Some(region_id), now);
             assert_eq!(pc.current_location_id(), new_location);
@@ -894,7 +905,7 @@ mod tests {
             let world_id = WorldId::new();
             let location_id = LocationId::new();
             let name = CharacterName::new("Gimli").unwrap();
-            let now = Utc::now();
+            let now = fixed_time();
 
             let pc = PlayerCharacter::new("user789", world_id, name, location_id, now)
                 .with_state(CharacterState::Inactive);
@@ -937,7 +948,7 @@ mod tests {
             let world_id = WorldId::new();
             let location_id = LocationId::new();
             let name = CharacterName::new("Bilbo").unwrap();
-            let now = Utc::now();
+            let now = fixed_time();
 
             let pc = PlayerCharacter::new("user789", world_id, name, location_id, now)
                 .with_description("A hobbit adventurer")

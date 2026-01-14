@@ -357,10 +357,15 @@ impl std::str::FromStr for LoreCategory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+
+    fn fixed_time() -> DateTime<Utc> {
+        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
 
     #[test]
     fn test_lore_creation() {
-        let now = Utc::now();
+        let now = fixed_time();
         let lore = Lore::new(WorldId::new(), "Test Lore", LoreCategory::Historical, now)
             .with_summary("A test lore entry")
             .with_chunk("First chunk of content")
@@ -377,7 +382,7 @@ mod tests {
 
     #[test]
     fn test_lore_full_text() {
-        let now = Utc::now();
+        let now = fixed_time();
         let lore = Lore::new(WorldId::new(), "Test", LoreCategory::Historical, now)
             .with_chunk("First part")
             .with_chunk("Second part");
@@ -387,7 +392,7 @@ mod tests {
 
     #[test]
     fn test_lore_knowledge_full() {
-        let now = Utc::now();
+        let now = fixed_time();
         let knowledge = LoreKnowledge::full(
             LoreId::new(),
             CharacterId::new(),
@@ -400,7 +405,7 @@ mod tests {
 
     #[test]
     fn test_lore_knowledge_partial() {
-        let now = Utc::now();
+        let now = fixed_time();
         let chunk_id = LoreChunkId::new();
         let knowledge = LoreKnowledge::partial(
             LoreId::new(),

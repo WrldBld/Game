@@ -980,7 +980,7 @@ mod ws_integration_tests_inline {
     impl QueuePort for NoopQueue {
         async fn enqueue_player_action(
             &self,
-            _data: &wrldbldr_domain::PlayerActionData,
+            _data: &PlayerActionData,
         ) -> Result<Uuid, QueueError> {
             Err(QueueError::Error("noop".to_string()))
         }
@@ -991,7 +991,7 @@ mod ws_integration_tests_inline {
 
         async fn enqueue_llm_request(
             &self,
-            _data: &wrldbldr_domain::LlmRequestData,
+            _data: &LlmRequestData,
         ) -> Result<Uuid, QueueError> {
             Err(QueueError::Error("noop".to_string()))
         }
@@ -1002,7 +1002,7 @@ mod ws_integration_tests_inline {
 
         async fn enqueue_dm_approval(
             &self,
-            _data: &wrldbldr_domain::ApprovalRequestData,
+            _data: &ApprovalRequestData,
         ) -> Result<Uuid, QueueError> {
             Err(QueueError::Error("noop".to_string()))
         }
@@ -1013,7 +1013,7 @@ mod ws_integration_tests_inline {
 
         async fn enqueue_asset_generation(
             &self,
-            _data: &wrldbldr_domain::AssetGenerationData,
+            _data: &AssetGenerationData,
         ) -> Result<Uuid, QueueError> {
             Err(QueueError::Error("noop".to_string()))
         }
@@ -1056,7 +1056,7 @@ mod ws_integration_tests_inline {
         async fn get_approval_request(
             &self,
             _id: Uuid,
-        ) -> Result<Option<wrldbldr_domain::ApprovalRequestData>, QueueError> {
+        ) -> Result<Option<ApprovalRequestData>, QueueError> {
             Ok(None)
         }
 
@@ -1143,7 +1143,7 @@ mod ws_integration_tests_inline {
 
     #[derive(Default)]
     struct RecordingApprovalQueueState {
-        approvals: StdHashMap<Uuid, wrldbldr_domain::ApprovalRequestData>,
+        approvals: StdHashMap<Uuid, ApprovalRequestData>,
         completed: Vec<Uuid>,
         failed: Vec<(Uuid, String)>,
     }
@@ -1154,7 +1154,7 @@ mod ws_integration_tests_inline {
     }
 
     impl RecordingApprovalQueue {
-        fn insert_approval(&self, id: Uuid, data: wrldbldr_domain::ApprovalRequestData) {
+        fn insert_approval(&self, id: Uuid, data: ApprovalRequestData) {
             let mut guard = self.state.lock().unwrap();
             guard.approvals.insert(id, data);
         }
@@ -1174,7 +1174,7 @@ mod ws_integration_tests_inline {
     impl QueuePort for RecordingApprovalQueue {
         async fn enqueue_player_action(
             &self,
-            _data: &wrldbldr_domain::PlayerActionData,
+            _data: &PlayerActionData,
         ) -> Result<Uuid, QueueError> {
             Err(QueueError::Error("not implemented".to_string()))
         }
@@ -1185,7 +1185,7 @@ mod ws_integration_tests_inline {
 
         async fn enqueue_llm_request(
             &self,
-            _data: &wrldbldr_domain::LlmRequestData,
+            _data: &LlmRequestData,
         ) -> Result<Uuid, QueueError> {
             Err(QueueError::Error("not implemented".to_string()))
         }
@@ -1196,7 +1196,7 @@ mod ws_integration_tests_inline {
 
         async fn enqueue_dm_approval(
             &self,
-            _data: &wrldbldr_domain::ApprovalRequestData,
+            _data: &ApprovalRequestData,
         ) -> Result<Uuid, QueueError> {
             Err(QueueError::Error("not implemented".to_string()))
         }
@@ -1207,7 +1207,7 @@ mod ws_integration_tests_inline {
 
         async fn enqueue_asset_generation(
             &self,
-            _data: &wrldbldr_domain::AssetGenerationData,
+            _data: &AssetGenerationData,
         ) -> Result<Uuid, QueueError> {
             Err(QueueError::Error("not implemented".to_string()))
         }
@@ -1254,7 +1254,7 @@ mod ws_integration_tests_inline {
         async fn get_approval_request(
             &self,
             id: Uuid,
-        ) -> Result<Option<wrldbldr_domain::ApprovalRequestData>, QueueError> {
+        ) -> Result<Option<ApprovalRequestData>, QueueError> {
             let guard = self.state.lock().unwrap();
             Ok(guard.approvals.get(&id).cloned())
         }
@@ -1633,7 +1633,8 @@ mod ws_integration_tests_inline {
             narrative_decision,
         );
 
-        let time_control = Arc::new(crate::use_cases::time::TimeControl::new(world.clone()));
+        let time_control =
+            Arc::new(crate::use_cases::time::TimeControl::new(world.clone(), clock.clone()));
         let time_suggestions = Arc::new(crate::use_cases::time::TimeSuggestions::new(
             time_control.clone(),
         ));
@@ -1907,9 +1908,10 @@ mod ws_integration_tests_inline {
         let now = chrono::Utc::now();
 
         let world_id = WorldId::new();
-        let mut world =
-            wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
-        world.id = world_id;
+        let world_name = WorldName::new("Test World").unwrap();
+        let world = wrldbldr_domain::World::new(world_name, now)
+            .with_description(Description::new("desc").unwrap())
+            .with_id(world_id);
 
         // World repo mock: always returns the same world and accepts saves.
         let mut world_repo = MockWorldRepo::new();
@@ -2053,9 +2055,10 @@ mod ws_integration_tests_inline {
         let hidden_npc_id = CharacterId::new();
 
         // World (manual time, so movement doesn't generate time suggestions).
-        let mut world =
-            wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
-        world.id = world_id;
+        let world_name = WorldName::new("Test World").unwrap();
+        let mut world = wrldbldr_domain::World::new(world_name, now)
+            .with_description(Description::new("desc").unwrap())
+            .with_id(world_id);
         world.set_time_mode(TimeMode::Manual, now);
 
         // Domain fixtures.
@@ -2408,9 +2411,10 @@ mod ws_integration_tests_inline {
         let now = chrono::Utc::now();
 
         let world_id = WorldId::new();
-        let mut world =
-            wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
-        world.id = world_id;
+        let world_name = WorldName::new("Test World").unwrap();
+        let world = wrldbldr_domain::World::new(world_name, now)
+            .with_description(Description::new("desc").unwrap())
+            .with_id(world_id);
 
         let mut world_repo = MockWorldRepo::new();
         let world_for_get = world.clone();
@@ -2485,11 +2489,11 @@ mod ws_integration_tests_inline {
 
         queue.insert_approval(
             approval_id,
-            wrldbldr_domain::ApprovalRequestData {
+            ApprovalRequestData {
                 world_id,
                 source_action_id: Uuid::new_v4(),
-                decision_type: wrldbldr_domain::ApprovalDecisionType::NpcResponse,
-                urgency: wrldbldr_domain::ApprovalUrgency::Normal,
+                decision_type: ApprovalDecisionType::NpcResponse,
+                urgency: ApprovalUrgency::Normal,
                 pc_id: None,
                 npc_id: Some(npc_id),
                 npc_name: "NPC".to_string(),
@@ -2562,9 +2566,10 @@ mod ws_integration_tests_inline {
         let now = chrono::Utc::now();
 
         let world_id = WorldId::new();
-        let mut world =
-            wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
-        world.id = world_id;
+        let world_name = WorldName::new("Test World").unwrap();
+        let world = wrldbldr_domain::World::new(world_name, now)
+            .with_description(Description::new("desc").unwrap())
+            .with_id(world_id);
 
         let mut world_repo = MockWorldRepo::new();
         let world_for_get = world.clone();
@@ -2636,11 +2641,11 @@ mod ws_integration_tests_inline {
         let npc_id = CharacterId::new();
         queue.insert_approval(
             approval_id,
-            wrldbldr_domain::ApprovalRequestData {
+            ApprovalRequestData {
                 world_id,
                 source_action_id: Uuid::new_v4(),
-                decision_type: wrldbldr_domain::ApprovalDecisionType::NpcResponse,
-                urgency: wrldbldr_domain::ApprovalUrgency::Normal,
+                decision_type: ApprovalDecisionType::NpcResponse,
+                urgency: ApprovalUrgency::Normal,
                 pc_id: None,
                 npc_id: Some(npc_id),
                 npc_name: "NPC".to_string(),
@@ -2690,9 +2695,10 @@ mod ws_integration_tests_inline {
         let now = chrono::Utc::now();
 
         let world_id = WorldId::new();
-        let mut world =
-            wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
-        world.id = world_id;
+        let world_name = WorldName::new("Test World").unwrap();
+        let world = wrldbldr_domain::World::new(world_name, now)
+            .with_description(Description::new("desc").unwrap())
+            .with_id(world_id);
 
         let mut world_repo = MockWorldRepo::new();
         let world_for_get = world.clone();
@@ -2764,11 +2770,11 @@ mod ws_integration_tests_inline {
         let npc_id = CharacterId::new();
         queue.insert_approval(
             approval_id,
-            wrldbldr_domain::ApprovalRequestData {
+            ApprovalRequestData {
                 world_id,
                 source_action_id: Uuid::new_v4(),
-                decision_type: wrldbldr_domain::ApprovalDecisionType::NpcResponse,
-                urgency: wrldbldr_domain::ApprovalUrgency::Normal,
+                decision_type: ApprovalDecisionType::NpcResponse,
+                urgency: ApprovalUrgency::Normal,
                 pc_id: None,
                 npc_id: Some(npc_id),
                 npc_name: "NPC".to_string(),
@@ -2852,9 +2858,10 @@ mod ws_integration_tests_inline {
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
 
-        let mut world =
-            wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
-        world.id = world_id;
+        let world_name = WorldName::new("Test World").unwrap();
+        let mut world = wrldbldr_domain::World::new(world_name, now)
+            .with_description(Description::new("desc").unwrap())
+            .with_id(world_id);
         world.set_time_mode(TimeMode::Manual, now);
 
         let mut location = wrldbldr_domain::Location::new(
@@ -3161,9 +3168,10 @@ mod ws_integration_tests_inline {
         let region_id = RegionId::new();
         let npc_id = CharacterId::new();
 
-        let mut world =
-            wrldbldr_domain::World::new("Test World", "desc", now).expect("valid world");
-        world.id = world_id;
+        let world_name = WorldName::new("Test World").unwrap();
+        let world = wrldbldr_domain::World::new(world_name, now)
+            .with_description(Description::new("desc").unwrap())
+            .with_id(world_id);
 
         let mut location = wrldbldr_domain::Location::new(
             world_id,

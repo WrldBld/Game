@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use wrldbldr_domain::{CharacterId, LlmRequestData, LlmRequestType, SuggestionContext, WorldId};
+use wrldbldr_domain::{CharacterId, WorldId};
+
+use crate::queue_types::{LlmRequestData, LlmRequestType, SuggestionContext};
 
 use crate::infrastructure::ports::{QueueError, QueuePort, RepoError};
 use crate::repositories::character::Character;

@@ -11,6 +11,7 @@ use wrldbldr_domain::{
 };
 
 use crate::infrastructure::ports::{NarrativeRepo, RepoError};
+use crate::llm_context::ConversationTurn;
 
 /// Narrative entity CRUD operations.
 ///
@@ -145,7 +146,7 @@ impl Narrative {
         pc_id: PlayerCharacterId,
         npc_id: CharacterId,
         limit: usize,
-    ) -> Result<Vec<domain::ConversationTurn>, RepoError> {
+    ) -> Result<Vec<ConversationTurn>, RepoError> {
         let records = self
             .repo
             .get_conversation_turns(pc_id, npc_id, limit)
@@ -154,7 +155,7 @@ impl Narrative {
         // Convert ConversationTurnRecord to ConversationTurn
         let turns = records
             .into_iter()
-            .map(|r| domain::ConversationTurn {
+            .map(|r| ConversationTurn {
                 speaker: r.speaker,
                 text: r.text,
             })

@@ -7,9 +7,10 @@ pub mod expression_sheet;
 use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{
-    AssetGenerationData, AssetId, AssetType, BatchId, EntityType, GalleryAsset, GenerationMetadata,
-    WorldId,
+    AssetId, AssetType, BatchId, EntityType, GalleryAsset, GenerationMetadata, WorldId,
 };
+
+use crate::queue_types::AssetGenerationData;
 
 use crate::infrastructure::ports::{ClockPort, ImageGenError, ImageRequest, QueuePort, RepoError};
 use crate::repositories::Assets;

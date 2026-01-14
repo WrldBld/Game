@@ -552,9 +552,9 @@ pub(super) async fn handle_challenge_suggestion_decision(
     };
 
     let decision = if approved {
-        wrldbldr_domain::DmApprovalDecision::Accept
+        crate::queue_types::DmApprovalDecision::Accept
     } else {
-        wrldbldr_domain::DmApprovalDecision::Reject {
+        crate::queue_types::DmApprovalDecision::Reject {
             feedback: "Challenge rejected by DM".to_string(),
         }
     };

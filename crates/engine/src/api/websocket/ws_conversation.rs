@@ -1,6 +1,8 @@
 use super::*;
 use chrono::Utc;
-use wrldbldr_domain::{InteractionTarget, InteractionType, PlayerActionData};
+use wrldbldr_domain::{InteractionTarget, InteractionType};
+
+use crate::queue_types::PlayerActionData;
 
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 

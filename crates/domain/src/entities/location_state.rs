@@ -185,10 +185,15 @@ pub struct LocationStateSummary {
 mod tests {
     use super::*;
     use crate::game_time::TimeOfDay;
+    use chrono::TimeZone;
+
+    fn fixed_time() -> DateTime<Utc> {
+        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
 
     #[test]
     fn test_location_state_creation() {
-        let now = Utc::now();
+        let now = fixed_time();
         let state = LocationState::new(LocationId::new(), WorldId::new(), "Festival Day", now)
             .with_description("City-wide festival celebration")
             .with_backdrop("/assets/city_festival.png")
@@ -203,7 +208,7 @@ mod tests {
 
     #[test]
     fn test_default_state() {
-        let now = Utc::now();
+        let now = fixed_time();
         let state = LocationState::default_state(LocationId::new(), WorldId::new(), "Normal", now);
 
         assert!(state.is_default);
@@ -213,7 +218,7 @@ mod tests {
 
     #[test]
     fn test_soft_rules_detection() {
-        let now = Utc::now();
+        let now = fixed_time();
         let mut state = LocationState::new(LocationId::new(), WorldId::new(), "Test", now);
 
         // No rules - no soft rules

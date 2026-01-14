@@ -1327,6 +1327,8 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
         _ => TriggerLogic::All,
     };
 
+    let name =
+        NarrativeEventName::new(name).map_err(|e| RepoError::database("query", e.to_string()))?;
     let mut event = NarrativeEvent::new(world_id, name, created_at)
         .with_id(id)
         .with_description(description)

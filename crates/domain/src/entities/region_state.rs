@@ -182,10 +182,15 @@ pub struct RegionStateSummary {
 mod tests {
     use super::*;
     use crate::game_time::TimeOfDay;
+    use chrono::TimeZone;
+
+    fn fixed_time() -> DateTime<Utc> {
+        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
 
     #[test]
     fn test_region_state_creation() {
-        let now = Utc::now();
+        let now = fixed_time();
         let state = RegionState::new(
             RegionId::new(),
             LocationId::new(),
@@ -210,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_default_state() {
-        let now = Utc::now();
+        let now = fixed_time();
         let state = RegionState::default_state(
             RegionId::new(),
             LocationId::new(),
@@ -226,7 +231,7 @@ mod tests {
 
     #[test]
     fn test_soft_rules_detection() {
-        let now = Utc::now();
+        let now = fixed_time();
         let mut state = RegionState::new(
             RegionId::new(),
             LocationId::new(),
@@ -256,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let now = Utc::now();
+        let now = fixed_time();
         let state = RegionState::new(
             RegionId::new(),
             LocationId::new(),

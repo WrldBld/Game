@@ -5,7 +5,9 @@ use std::collections::{HashMap, HashSet};
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::use_cases::ai::{ActantialRole, SuggestionContextInput};
-use wrldbldr_domain::{LlmRequestType, WorldId};
+use wrldbldr_domain::WorldId;
+
+use crate::queue_types::LlmRequestType;
 
 use wrldbldr_protocol::{ActantialRoleData, AiRequest, ExpressionRequest, GenerationRequest};
 

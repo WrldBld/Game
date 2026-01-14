@@ -694,6 +694,11 @@ impl<'de> Deserialize<'de> for Character {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+
+    fn fixed_time() -> DateTime<Utc> {
+        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
 
     fn create_test_character() -> Character {
         let world_id = WorldId::new();
@@ -956,7 +961,7 @@ mod tests {
         #[test]
         fn change_archetype_records_history() {
             let mut character = create_test_character();
-            let now = chrono::Utc::now();
+            let now = fixed_time();
 
             character.change_archetype(CampbellArchetype::Mentor, "Character growth", now);
 

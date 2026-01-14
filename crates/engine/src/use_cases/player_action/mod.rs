@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use wrldbldr_domain::{CharacterId, PlayerActionData, PlayerCharacterId, WorldId};
+use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
+
+use crate::queue_types::PlayerActionData;
 
 use crate::infrastructure::ports::{ClockPort, QueuePort};
 use crate::use_cases::conversation::{ConversationError, StartConversation};

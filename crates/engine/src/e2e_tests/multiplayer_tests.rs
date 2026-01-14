@@ -524,7 +524,7 @@ async fn test_conversation_does_not_block_other_players() {
 
         // If we got a result, approve it to complete the conversation
         if let Some(result) = llm_result {
-            use wrldbldr_domain::DmApprovalDecision;
+            use crate::queue_types::DmApprovalDecision;
             let _ = ctx
                 .app
                 .use_cases
@@ -857,7 +857,7 @@ async fn test_dm_approval_triggers_player_response() {
         );
 
         // DM approves the response
-        use wrldbldr_domain::DmApprovalDecision;
+        use crate::queue_types::DmApprovalDecision;
         let approval_result = ctx
             .app
             .use_cases

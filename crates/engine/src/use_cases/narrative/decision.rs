@@ -6,7 +6,9 @@ use crate::infrastructure::ports::{QueuePort, RepoError};
 use crate::use_cases::approval::{ApprovalError, ApproveSuggestion};
 use crate::use_cases::narrative::{EffectExecutionContext, ExecuteEffects};
 use crate::use_cases::narrative_operations::Narrative;
-use wrldbldr_domain::{DmApprovalDecision, NarrativeEventId, WorldId};
+use wrldbldr_domain::{NarrativeEventId, WorldId};
+
+use crate::queue_types::DmApprovalDecision;
 
 /// Narrative event suggestion approval flow.
 pub struct NarrativeDecisionFlow {

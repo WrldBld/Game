@@ -1,19 +1,13 @@
-//! LLM context types - Types for building LLM prompts from game state
+//! LLM context types - Types for building LLM prompts from game state.
 //!
-//! # Architectural Note
-//!
-//! These types intentionally include `serde::Serialize` and `serde::Deserialize`.
-//! They are designed specifically for JSON serialization to LLM services.
-//! Serialization is intrinsic to their purpose, not an infrastructure concern.
-//!
-//! See: plans/snazzy-zooming-hamming.md, Batch 7 Architectural Decision Record
+//! These DTOs are serialized to JSON for outbound LLM requests and are
+//! intentionally owned by the engine (not the domain) to keep domain pure.
 
 use serde::{Deserialize, Serialize};
 
-use super::actantial_context::ActorType;
-use super::context_budget::ContextBudgetConfig;
+use wrldbldr_domain::{ActorType, ContextBudgetConfig};
 
-/// Request for generating an NPC response
+/// Request for generating an NPC response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GamePromptRequest {
     /// World ID for per-world prompt template resolution (UUID string)
@@ -54,7 +48,7 @@ pub struct GamePromptRequest {
     pub game_time: Option<String>,
 }
 
-/// Context about the player's action
+/// Context about the player's action.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerActionContext {
     /// Type of action: "speak", "examine", "use_item", etc.
@@ -65,7 +59,7 @@ pub struct PlayerActionContext {
     pub dialogue: Option<String>,
 }
 
-/// Context about the current scene
+/// Context about the current scene.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneContext {
     /// Name of the current scene
@@ -81,7 +75,7 @@ pub struct SceneContext {
     pub region_items: Vec<RegionItemContext>,
 }
 
-/// Context about an item visible in the current region
+/// Context about an item visible in the current region.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegionItemContext {
     /// Item's display name
@@ -92,7 +86,7 @@ pub struct RegionItemContext {
     pub item_type: Option<String>,
 }
 
-/// Context about the responding character
+/// Context about the responding character.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CharacterContext {
     /// Character's unique identifier (for story event recording)
@@ -135,7 +129,7 @@ pub struct CharacterContext {
 // Motivation Context (Actantial Model for LLM)
 // =============================================================================
 
-/// Complete motivations context for LLM prompt
+/// Complete motivations context for LLM prompt.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MotivationsContext {
     /// Known motivations (player knows about these)
@@ -149,7 +143,7 @@ pub struct MotivationsContext {
     pub secret: Vec<SecretMotivationEntry>,
 }
 
-/// A known or suspected motivation
+/// A known or suspected motivation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MotivationEntry {
     /// Description of the motivation
@@ -168,7 +162,7 @@ pub struct MotivationEntry {
     pub opponents: Vec<ActantialActorEntry>,
 }
 
-/// A secret motivation with behavioral guidance
+/// A secret motivation with behavioral guidance.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecretMotivationEntry {
     /// Description of the secret motivation
@@ -196,7 +190,7 @@ pub struct SecretMotivationEntry {
     pub tells: Vec<String>,
 }
 
-/// An actor in the actantial model (helper, opponent, etc.)
+/// An actor in the actantial model (helper, opponent, etc.).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActantialActorEntry {
     /// Name of the actor
@@ -207,7 +201,7 @@ pub struct ActantialActorEntry {
     pub reason: String,
 }
 
-/// Social stance summary for LLM
+/// Social stance summary for LLM.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SocialStanceContext {
     /// Characters the NPC considers allies
@@ -218,7 +212,7 @@ pub struct SocialStanceContext {
     pub enemies: Vec<SocialRelationEntry>,
 }
 
-/// A social relation entry
+/// A social relation entry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SocialRelationEntry {
     /// Name of the character
@@ -229,7 +223,7 @@ pub struct SocialRelationEntry {
     pub reasons: Vec<String>,
 }
 
-/// A single turn in a conversation
+/// A single turn in a conversation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConversationTurn {
     /// Name of the speaker
@@ -238,7 +232,7 @@ pub struct ConversationTurn {
     pub text: String,
 }
 
-/// Context about an active challenge that may be triggered
+/// Context about an active challenge that may be triggered.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveChallengeContext {
     /// Unique identifier for the challenge
@@ -255,7 +249,7 @@ pub struct ActiveChallengeContext {
     pub trigger_hints: Vec<String>,
 }
 
-/// Context about an active narrative event that may be triggered
+/// Context about an active narrative event that may be triggered.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveNarrativeEventContext {
     /// Unique identifier for the narrative event

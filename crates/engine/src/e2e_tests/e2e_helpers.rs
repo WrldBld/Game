@@ -24,6 +24,9 @@ use crate::infrastructure::ports::{
 };
 use crate::infrastructure::queue::SqliteQueue;
 use crate::infrastructure::settings::SqliteSettingsRepo;
+use crate::queue_types::{
+    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
+};
 use crate::test_fixtures::world_seeder::{load_thornhaven, TestWorld};
 use crate::use_cases::content::ContentServiceConfig;
 
@@ -1042,9 +1045,9 @@ impl ImageGenPort for NoopImageGen {
 /// Recording queue that captures enqueued items for assertions.
 #[derive(Default)]
 pub struct RecordingQueue {
-    player_actions: std::sync::Mutex<Vec<wrldbldr_domain::PlayerActionData>>,
-    llm_requests: std::sync::Mutex<Vec<wrldbldr_domain::LlmRequestData>>,
-    approvals: std::sync::Mutex<Vec<wrldbldr_domain::ApprovalRequestData>>,
+    player_actions: std::sync::Mutex<Vec<PlayerActionData>>,
+    llm_requests: std::sync::Mutex<Vec<LlmRequestData>>,
+    approvals: std::sync::Mutex<Vec<ApprovalRequestData>>,
 }
 
 impl RecordingQueue {
@@ -1052,15 +1055,15 @@ impl RecordingQueue {
         Self::default()
     }
 
-    pub fn player_actions(&self) -> Vec<wrldbldr_domain::PlayerActionData> {
+    pub fn player_actions(&self) -> Vec<PlayerActionData> {
         self.player_actions.lock().unwrap().clone()
     }
 
-    pub fn llm_requests(&self) -> Vec<wrldbldr_domain::LlmRequestData> {
+    pub fn llm_requests(&self) -> Vec<LlmRequestData> {
         self.llm_requests.lock().unwrap().clone()
     }
 
-    pub fn approvals(&self) -> Vec<wrldbldr_domain::ApprovalRequestData> {
+    pub fn approvals(&self) -> Vec<ApprovalRequestData> {
         self.approvals.lock().unwrap().clone()
     }
 }
@@ -1069,7 +1072,7 @@ impl RecordingQueue {
 impl QueuePort for RecordingQueue {
     async fn enqueue_player_action(
         &self,
-        data: &wrldbldr_domain::PlayerActionData,
+        data: &PlayerActionData,
     ) -> Result<Uuid, QueueError> {
         self.player_actions.lock().unwrap().push(data.clone());
         Ok(Uuid::new_v4())
@@ -1081,7 +1084,7 @@ impl QueuePort for RecordingQueue {
 
     async fn enqueue_llm_request(
         &self,
-        data: &wrldbldr_domain::LlmRequestData,
+        data: &LlmRequestData,
     ) -> Result<Uuid, QueueError> {
         self.llm_requests.lock().unwrap().push(data.clone());
         Ok(Uuid::new_v4())
@@ -1093,7 +1096,7 @@ impl QueuePort for RecordingQueue {
 
     async fn enqueue_dm_approval(
         &self,
-        data: &wrldbldr_domain::ApprovalRequestData,
+        data: &ApprovalRequestData,
     ) -> Result<Uuid, QueueError> {
         self.approvals.lock().unwrap().push(data.clone());
         Ok(Uuid::new_v4())
@@ -1105,7 +1108,7 @@ impl QueuePort for RecordingQueue {
 
     async fn enqueue_asset_generation(
         &self,
-        _data: &wrldbldr_domain::AssetGenerationData,
+        _data: &AssetGenerationData,
     ) -> Result<Uuid, QueueError> {
         Ok(Uuid::new_v4())
     }
@@ -1148,7 +1151,7 @@ impl QueuePort for RecordingQueue {
     async fn get_approval_request(
         &self,
         _id: Uuid,
-    ) -> Result<Option<wrldbldr_domain::ApprovalRequestData>, QueueError> {
+    ) -> Result<Option<ApprovalRequestData>, QueueError> {
         Ok(None)
     }
 

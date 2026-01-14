@@ -16,10 +16,8 @@ mod context_budget_enforcement;
 mod dialogue_markers;
 mod disposition;
 mod expression_config;
-mod llm_context;
 mod prompt_templates;
 mod quantity;
-mod queue_data;
 mod region;
 mod relationship;
 mod rule_system;
@@ -64,12 +62,6 @@ pub use disposition::{
 };
 pub use expression_config::ExpressionConfig;
 pub use game_tools::{ChangeAmount, GameTool, InfoImportance, RelationshipChange};
-pub use llm_context::{
-    ActantialActorEntry, ActiveChallengeContext, ActiveNarrativeEventContext, CharacterContext,
-    ConversationTurn, GamePromptRequest, MotivationEntry, MotivationsContext, PlayerActionContext,
-    RegionItemContext, SceneContext, SecretMotivationEntry, SocialRelationEntry,
-    SocialStanceContext,
-};
 pub use prompt_templates::{
     all_keys as prompt_template_keys, defaults as prompt_defaults,
     get_default as get_prompt_default, key_to_env_var, keys as prompt_keys,
@@ -109,16 +101,9 @@ pub use staging_context::{
 };
 pub use world_state::{ApprovalType, ConversationEntry, PendingApprovalItem, Speaker};
 
-// Queue data value objects (pure domain representations)
-pub use queue_data::{
-    ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency, AssetGenerationData,
-    ChallengeOutcomeData, ChallengeSuggestion, ChallengeSuggestionOutcomes, DmActionData,
-    DmActionType, DmApprovalDecision, LlmRequestData, LlmRequestType, NarrativeEventSuggestion,
-    PlayerActionData, ProposedTool, SuggestionContext,
-};
 
 // Validated name newtypes
-pub use names::{CharacterName, Description, LocationName, WorldName};
+pub use names::{CharacterName, Description, LocationName, NarrativeEventName, SceneName, WorldName};
 
 // Character lifecycle state enum
 pub use character_state::CharacterState;

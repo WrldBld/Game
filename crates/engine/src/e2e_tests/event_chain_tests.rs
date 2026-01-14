@@ -18,7 +18,9 @@
 use chrono::Utc;
 use neo4rs::query;
 use uuid::Uuid;
-use wrldbldr_domain::{NarrativeEvent, NarrativeTrigger, NarrativeTriggerType};
+use wrldbldr_domain::{
+    NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
+};
 
 use super::*;
 
@@ -84,7 +86,7 @@ async fn test_first_event_triggers_on_location_entry() {
         trigger_id: "enter-tavern".to_string(),
     };
 
-    let event = NarrativeEvent::new(ctx.world.world_id, "Chain Event A - Tavern Entry", now)
+    let event = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Chain Event A - Tavern Entry").unwrap(), now)
         .with_id(wrldbldr_domain::NarrativeEventId::from(event_id))
         .with_description("First event in chain - triggers on location entry")
         .with_scene_direction("The tavern buzzes with activity as you enter")
@@ -197,7 +199,7 @@ async fn test_subsequent_event_unlocks_after_completion() {
 
     // Create Event A (first in chain) - already triggered/completed
     let event_a_id = wrldbldr_domain::NarrativeEventId::new();
-    let event_a = NarrativeEvent::new(ctx.world.world_id, "Chain Event A - Introduction", now)
+    let event_a = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Chain Event A - Introduction").unwrap(), now)
         .with_id(event_a_id)
         .with_description("First event in chain")
         .with_scene_direction("The stranger nods at you")
@@ -235,7 +237,7 @@ async fn test_subsequent_event_unlocks_after_completion() {
         trigger_id: "after-event-a".to_string(),
     };
 
-    let event_b = NarrativeEvent::new(ctx.world.world_id, "Chain Event B - Follow Up", now)
+    let event_b = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Chain Event B - Follow Up").unwrap(), now)
         .with_id(event_b_id)
         .with_description("Second event in chain - triggers after Event A")
         .with_scene_direction("The stranger approaches with more to say")
@@ -357,7 +359,7 @@ async fn test_event_condition_checks_player_flags() {
         trigger_id: "has-stranger-flag".to_string(),
     };
 
-    let event = NarrativeEvent::new(ctx.world.world_id, "Secret Meeting", now)
+    let event = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Secret Meeting").unwrap(), now)
         .with_id(event_id)
         .with_description("Secret event only for those who met the stranger")
         .with_scene_direction("A hooded figure beckons you to a corner booth")
@@ -519,7 +521,7 @@ async fn test_event_condition_checks_inventory() {
         trigger_id: "has-key".to_string(),
     };
 
-    let event = NarrativeEvent::new(ctx.world.world_id, "The Locked Door Opens", now)
+    let event = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("The Locked Door Opens").unwrap(), now)
         .with_id(event_id)
         .with_description("A secret passage reveals itself when you hold the key")
         .with_scene_direction("The innkeeper notices the key in your possession and nods knowingly")
@@ -699,7 +701,7 @@ async fn test_event_condition_checks_stats() {
         trigger_id: "old-tom-cha-check".to_string(),
     };
 
-    let event_low_cha = NarrativeEvent::new(ctx.world.world_id, "Charismatic Old Tom", now)
+    let event_low_cha = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Charismatic Old Tom").unwrap(), now)
         .with_id(event_low_cha_id)
         .with_description("Event requiring Old Tom to have high charisma")
         .with_scene_direction("Old Tom captivates the room with his presence")
@@ -751,7 +753,7 @@ async fn test_event_condition_checks_stats() {
         trigger_id: "vera-cha-check".to_string(),
     };
 
-    let event_high_cha = NarrativeEvent::new(ctx.world.world_id, "Charismatic Vera", now)
+    let event_high_cha = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Charismatic Vera").unwrap(), now)
         .with_id(event_high_cha_id)
         .with_description("Event requiring Vera to have high charisma")
         .with_scene_direction("Vera's magnetic presence draws everyone's attention")
@@ -887,7 +889,7 @@ async fn test_chain_completes_in_order() {
         trigger_id: "enter-tavern-a".to_string(),
     };
 
-    let event_a = NarrativeEvent::new(ctx.world.world_id, "Chain Event A - The Introduction", now)
+    let event_a = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Chain Event A - The Introduction").unwrap(), now)
         .with_id(event_a_id)
         .with_description("First event in chain")
         .with_scene_direction("A mysterious stranger catches your eye")
@@ -937,7 +939,7 @@ async fn test_chain_completes_in_order() {
         trigger_id: "after-event-a".to_string(),
     };
 
-    let event_b = NarrativeEvent::new(ctx.world.world_id, "Chain Event B - The Revelation", now)
+    let event_b = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Chain Event B - The Revelation").unwrap(), now)
         .with_id(event_b_id)
         .with_description("Second event in chain")
         .with_scene_direction("The stranger reveals a dark secret")
@@ -988,7 +990,7 @@ async fn test_chain_completes_in_order() {
         trigger_id: "after-event-b".to_string(),
     };
 
-    let event_c = NarrativeEvent::new(ctx.world.world_id, "Chain Event C - The Decision", now)
+    let event_c = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Chain Event C - The Decision").unwrap(), now)
         .with_id(event_c_id)
         .with_description("Third event in chain")
         .with_scene_direction("You must now make a fateful choice")
@@ -1219,7 +1221,7 @@ async fn test_chain_completion_triggers_final_effects() {
         trigger_id: "enter-tavern-a".to_string(),
     };
 
-    let event_a = NarrativeEvent::new(ctx.world.world_id, "Quest Start - The Call", now)
+    let event_a = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Quest Start - The Call").unwrap(), now)
         .with_id(event_a_id)
         .with_description("First event in quest chain")
         .with_scene_direction("A desperate villager approaches you")
@@ -1270,7 +1272,7 @@ async fn test_chain_completion_triggers_final_effects() {
     };
 
     let event_final =
-        NarrativeEvent::new(ctx.world.world_id, "Quest Complete - The Reward", now)
+        NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Quest Complete - The Reward").unwrap(), now)
             .with_id(event_final_id)
             .with_description("Final event granting completion reward")
             .with_scene_direction("The villager returns with a reward for your heroism")
@@ -1475,7 +1477,7 @@ async fn test_partial_chain_persists_across_sessions() {
     let event_c_id = wrldbldr_domain::NarrativeEventId::new();
 
     // Event A: First in chain
-    let event_a = NarrativeEvent::new(ctx.world.world_id, "Persistent Chain A", now)
+    let event_a = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Persistent Chain A").unwrap(), now)
         .with_id(event_a_id)
         .with_description("First event in persistent chain")
         .with_scene_direction("The adventure begins")
@@ -1511,7 +1513,7 @@ async fn test_partial_chain_persists_across_sessions() {
         .expect("Failed to tie Event A to location");
 
     // Event B: Requires Event A completion
-    let event_b = NarrativeEvent::new(ctx.world.world_id, "Persistent Chain B", now)
+    let event_b = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Persistent Chain B").unwrap(), now)
         .with_id(event_b_id)
         .with_description("Second event in persistent chain")
         .with_scene_direction("The plot thickens")
@@ -1557,7 +1559,7 @@ async fn test_partial_chain_persists_across_sessions() {
         .expect("Failed to tie Event B to location");
 
     // Event C: Requires Event B completion
-    let event_c = NarrativeEvent::new(ctx.world.world_id, "Persistent Chain C", now)
+    let event_c = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Persistent Chain C").unwrap(), now)
         .with_id(event_c_id)
         .with_description("Third event in persistent chain")
         .with_scene_direction("The conclusion")
@@ -1813,7 +1815,7 @@ async fn test_chain_branch_based_on_outcome() {
     let event_c_id = wrldbldr_domain::NarrativeEventId::new();
 
     // Event A: Initial event with branching outcomes
-    let event_a = NarrativeEvent::new(ctx.world.world_id, "Branching Event A - The Offer", now)
+    let event_a = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Branching Event A - The Offer").unwrap(), now)
         .with_id(event_a_id)
         .with_description("Event with branching outcomes")
         .with_scene_direction("A mysterious figure makes you an offer")
@@ -1849,7 +1851,7 @@ async fn test_chain_branch_based_on_outcome() {
         .expect("Failed to tie Event A to location");
 
     // Event B: Accept path - requires Event A completed with "accept" outcome
-    let event_b = NarrativeEvent::new(ctx.world.world_id, "Branch B - Accepted Quest", now)
+    let event_b = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Branch B - Accepted Quest").unwrap(), now)
         .with_id(event_b_id)
         .with_description("Quest accepted path")
         .with_scene_direction("Having accepted the offer, you learn more details")
@@ -1895,7 +1897,7 @@ async fn test_chain_branch_based_on_outcome() {
         .expect("Failed to tie Event B to location");
 
     // Event C: Refuse path - requires Event A completed with "refuse" outcome
-    let event_c = NarrativeEvent::new(ctx.world.world_id, "Branch C - Refused Quest", now)
+    let event_c = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Branch C - Refused Quest").unwrap(), now)
         .with_id(event_c_id)
         .with_description("Quest refused path")
         .with_scene_direction("Having refused, the stranger becomes hostile")
@@ -2067,7 +2069,7 @@ async fn test_alternate_branch_path() {
     let event_c_id = wrldbldr_domain::NarrativeEventId::new();
 
     // Event A: Initial event
-    let event_a = NarrativeEvent::new(ctx.world.world_id, "Alt Branch A - The Proposal", now)
+    let event_a = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Alt Branch A - The Proposal").unwrap(), now)
         .with_id(event_a_id)
         .with_description("Event with branching outcomes")
         .with_scene_direction("A shady character proposes a scheme")
@@ -2103,7 +2105,7 @@ async fn test_alternate_branch_path() {
         .expect("Failed to tie Event A to location");
 
     // Event B: Accept path (should NOT trigger in this test)
-    let event_b = NarrativeEvent::new(ctx.world.world_id, "Alt Branch B - Joined Scheme", now)
+    let event_b = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Alt Branch B - Joined Scheme").unwrap(), now)
         .with_id(event_b_id)
         .with_description("Joined the scheme path")
         .with_scene_direction("You've thrown in your lot with the schemer")
@@ -2149,7 +2151,7 @@ async fn test_alternate_branch_path() {
         .expect("Failed to tie Event B to location");
 
     // Event C: Refuse path (should trigger in this test)
-    let event_c = NarrativeEvent::new(ctx.world.world_id, "Alt Branch C - Rejected Scheme", now)
+    let event_c = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Alt Branch C - Rejected Scheme").unwrap(), now)
         .with_id(event_c_id)
         .with_description("Rejected the scheme path")
         .with_scene_direction("You've made an enemy of the schemer")
@@ -2325,7 +2327,7 @@ async fn test_repeatable_chain_can_restart() {
     // Create a repeatable event (marked with is_repeatable)
     let event_id = wrldbldr_domain::NarrativeEventId::new();
 
-    let event = NarrativeEvent::new(ctx.world.world_id, "Repeatable Daily Quest", now)
+    let event = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Repeatable Daily Quest").unwrap(), now)
         .with_id(event_id)
         .with_description("A daily quest that can be repeated")
         .with_scene_direction("The innkeeper has another task for you")
@@ -2562,7 +2564,7 @@ async fn test_one_time_chain_cannot_repeat() {
     // Create a one-time event (NOT repeatable - default behavior)
     let event_id = wrldbldr_domain::NarrativeEventId::new();
 
-    let event = NarrativeEvent::new(ctx.world.world_id, "One-Time Main Quest", now)
+    let event = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("One-Time Main Quest").unwrap(), now)
         .with_id(event_id)
         .with_description("A main quest that can only happen once")
         .with_scene_direction("The ancient prophecy is revealed")

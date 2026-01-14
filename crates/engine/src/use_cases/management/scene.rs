@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::{ActId, LocationId, SceneId};
+use wrldbldr_domain::{ActId, LocationId, SceneId, SceneName};
 
 use crate::repositories::scene::Scene;
 
@@ -38,11 +38,8 @@ impl SceneCrud {
         description: Option<String>,
         location_id: Option<LocationId>,
     ) -> Result<wrldbldr_domain::Scene, ManagementError> {
-        if name.trim().is_empty() {
-            return Err(ManagementError::InvalidInput(
-                "Scene name cannot be empty".to_string(),
-            ));
-        }
+        let name =
+            SceneName::new(name).map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
 
         let location_id = location_id.ok_or_else(|| {
             ManagementError::InvalidInput("Scene location_id is required".to_string())
@@ -71,11 +68,8 @@ impl SceneCrud {
             .ok_or(ManagementError::NotFound)?;
 
         if let Some(name) = name {
-            if name.trim().is_empty() {
-                return Err(ManagementError::InvalidInput(
-                    "Scene name cannot be empty".to_string(),
-                ));
-            }
+            let name =
+                SceneName::new(name).map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
             scene.set_name(name);
         }
         if let Some(description) = description {

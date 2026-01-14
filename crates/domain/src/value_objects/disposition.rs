@@ -290,6 +290,11 @@ impl ChallengeSignificance {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+
+    fn fixed_time() -> DateTime<Utc> {
+        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
 
     #[test]
     fn test_disposition_from_sentiment() {
@@ -317,7 +322,7 @@ mod tests {
 
     #[test]
     fn test_relationship_points() {
-        let now = Utc::now();
+        let now = fixed_time();
         let mut state = NpcDispositionState::new(CharacterId::new(), PlayerCharacterId::new(), now);
 
         // Starts as Stranger (0 points)

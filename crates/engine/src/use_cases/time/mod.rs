@@ -191,11 +191,12 @@ pub enum SuggestTimeError {
 /// Consolidated use case for time control operations (get/advance/set/config).
 pub struct TimeControl {
     world: Arc<World>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl TimeControl {
-    pub fn new(world: Arc<World>) -> Self {
-        Self { world }
+    pub fn new(world: Arc<World>, clock: Arc<dyn ClockPort>) -> Self {
+        Self { world, clock }
     }
 
     pub async fn get_game_time(&self, world_id: WorldId) -> Result<GameTime, TimeControlError> {
@@ -218,7 +219,7 @@ impl TimeControl {
 
         let previous_time = world.game_time().clone();
         // Use the aggregate's advance_hours which auto-updates updated_at
-        let _ = world.advance_hours(hours);
+        let _ = world.advance_hours(hours, self.clock.now());
 
         self.world.save(&world).await?;
 
@@ -339,8 +340,9 @@ impl TimeControl {
         let domain_config = protocol_time_config_to_domain(&normalized_config);
 
         // Update via the individual setters (which auto-update updated_at)
-        world.set_time_mode(domain_config.mode);
-        world.set_time_costs(domain_config.time_costs);
+        let now = self.clock.now();
+        world.set_time_mode(domain_config.mode, now);
+        world.set_time_costs(domain_config.time_costs, now);
 
         self.world.save(&world).await?;
 
@@ -639,7 +641,7 @@ mod tests {
         time_config.mode = TimeMode::Auto;
 
         let world_name = WorldName::new("World").unwrap();
-        let domain_world = wrldbldr_domain::World::new(world_name)
+        let domain_world = wrldbldr_domain::World::new(world_name, now)
             .with_id(world_id)
             .with_time_config(time_config);
 
@@ -697,7 +699,7 @@ mod tests {
         time_config.mode = TimeMode::Manual;
 
         let world_name = WorldName::new("World").unwrap();
-        let domain_world = wrldbldr_domain::World::new(world_name)
+        let domain_world = wrldbldr_domain::World::new(world_name, now)
             .with_id(world_id)
             .with_time_config(time_config);
 
@@ -737,7 +739,7 @@ mod tests {
 
         // Default config cost for unknown action types is 0.
         let world_name = WorldName::new("World").unwrap();
-        let domain_world = wrldbldr_domain::World::new(world_name).with_id(world_id);
+        let domain_world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
 
         let mut world_repo = MockWorldRepo::new();
         let domain_world_for_get = domain_world.clone();

@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use chrono::Utc;
 use serde::Serialize;
 
 use wrldbldr_domain::{
-    self as domain, NarrativeEvent, NarrativeEventId, NarrativeTrigger, WorldId,
+    self as domain, NarrativeEvent, NarrativeEventId, NarrativeEventName, NarrativeTrigger,
+    WorldId,
 };
 
-use crate::infrastructure::ports::RepoError;
+use crate::infrastructure::ports::{ClockPort, RepoError};
 use crate::use_cases::narrative::{EffectExecutionContext, EffectExecutionSummary, ExecuteEffects};
 use crate::use_cases::narrative_operations::Narrative;
 
@@ -59,13 +59,19 @@ pub struct NarrativeEventSummary {
 pub struct NarrativeEventOps {
     narrative: Arc<Narrative>,
     execute_effects: Arc<ExecuteEffects>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl NarrativeEventOps {
-    pub fn new(narrative: Arc<Narrative>, execute_effects: Arc<ExecuteEffects>) -> Self {
+    pub fn new(
+        narrative: Arc<Narrative>,
+        execute_effects: Arc<ExecuteEffects>,
+        clock: Arc<dyn ClockPort>,
+    ) -> Self {
         Self {
             narrative,
             execute_effects,
+            clock,
         }
     }
 
@@ -93,17 +99,19 @@ impl NarrativeEventOps {
         trigger_conditions: Option<Vec<NarrativeTrigger>>,
         outcomes: Option<Vec<domain::EventOutcome>>,
     ) -> Result<NarrativeEventSummary, NarrativeEventError> {
-        let now = Utc::now();
-        let mut event = NarrativeEvent::new(world_id, &name, now);
+        let now = self.clock.now();
+        let name =
+            NarrativeEventName::new(name).map_err(|e| NarrativeEventError::InvalidInput(e.to_string()))?;
+        let mut event = NarrativeEvent::new(world_id, name, now);
 
         if let Some(description) = description {
-            event.set_description(description);
+            event.set_description(description, now);
         }
         if let Some(triggers) = trigger_conditions {
-            event.set_trigger_conditions(triggers);
+            event.set_trigger_conditions(triggers, now);
         }
         if let Some(outcomes) = outcomes {
-            event.set_outcomes(outcomes);
+            event.set_outcomes(outcomes, now);
         }
 
         self.narrative.save_event(&event).await?;
@@ -118,6 +126,7 @@ impl NarrativeEventOps {
         trigger_conditions: Option<Vec<NarrativeTrigger>>,
         outcomes: Option<Vec<domain::EventOutcome>>,
     ) -> Result<NarrativeEventSummary, NarrativeEventError> {
+        let now = self.clock.now();
         let mut event = self
             .narrative
             .get_event(event_id)
@@ -125,16 +134,18 @@ impl NarrativeEventOps {
             .ok_or(NarrativeEventError::NotFound)?;
 
         if let Some(name) = name {
-            event.set_name(name);
+            let name = NarrativeEventName::new(name)
+                .map_err(|e| NarrativeEventError::InvalidInput(e.to_string()))?;
+            event.set_name(name, now);
         }
         if let Some(description) = description {
-            event.set_description(description);
+            event.set_description(description, now);
         }
         if let Some(triggers) = trigger_conditions {
-            event.set_trigger_conditions(triggers);
+            event.set_trigger_conditions(triggers, now);
         }
         if let Some(outcomes) = outcomes {
-            event.set_outcomes(outcomes);
+            event.set_outcomes(outcomes, now);
         }
 
         self.narrative.save_event(&event).await?;
@@ -156,7 +167,7 @@ impl NarrativeEventOps {
             .get_event(event_id)
             .await?
             .ok_or(NarrativeEventError::NotFound)?;
-        event.set_active(active);
+        event.set_active(active, self.clock.now());
         self.narrative.save_event(&event).await?;
         Ok(())
     }
@@ -171,7 +182,7 @@ impl NarrativeEventOps {
             .get_event(event_id)
             .await?
             .ok_or(NarrativeEventError::NotFound)?;
-        event.set_favorite(favorite);
+        event.set_favorite(favorite, self.clock.now());
         self.narrative.save_event(&event).await?;
         Ok(())
     }
@@ -199,7 +210,7 @@ impl NarrativeEventOps {
             .or_else(|| event.outcomes().first().map(|o| o.name.clone()))
             .unwrap_or_default();
 
-        let now = Utc::now();
+        let now = self.clock.now();
         event.trigger(Some(outcome_name.clone()), now);
         let maybe_outcome = event.outcomes().iter().find(|o| o.name == outcome_name);
         self.narrative.save_event(&event).await?;
@@ -250,7 +261,7 @@ impl NarrativeEventOps {
             .get_event(event_id)
             .await?
             .ok_or(NarrativeEventError::NotFound)?;
-        let now = Utc::now();
+        let now = self.clock.now();
         event.reset(now);
         self.narrative.save_event(&event).await?;
         Ok(narrative_event_to_summary(&event))
@@ -275,6 +286,8 @@ pub enum NarrativeEventError {
     NotFound,
     #[error("Event does not belong to the requested world")]
     WorldMismatch,
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }

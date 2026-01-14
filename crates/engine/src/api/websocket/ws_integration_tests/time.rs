@@ -6,7 +6,7 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
 
     let world_id = WorldId::new();
     let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
-    let world = wrldbldr_domain::World::new(world_name)
+    let world = wrldbldr_domain::World::new(world_name, now)
         .with_description(wrldbldr_domain::Description::new("desc").unwrap())
         .with_id(world_id);
 

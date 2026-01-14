@@ -15,10 +15,10 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     let npc_id = CharacterId::new();
 
     let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
-    let mut world = wrldbldr_domain::World::new(world_name)
+    let mut world = wrldbldr_domain::World::new(world_name, now)
         .with_description(wrldbldr_domain::Description::new("desc").unwrap())
         .with_id(world_id);
-    world.set_time_mode(TimeMode::Manual);
+    world.set_time_mode(TimeMode::Manual, now);
 
     let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
     let location = wrldbldr_domain::Location::new(

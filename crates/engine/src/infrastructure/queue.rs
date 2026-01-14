@@ -8,7 +8,9 @@ use chrono::{DateTime, Utc};
 use sqlx::{Row, SqlitePool};
 use std::sync::Arc;
 use uuid::Uuid;
-use wrldbldr_domain::{ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData};
+use crate::queue_types::{
+    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
+};
 
 use crate::infrastructure::ports::{
     ClockPort, QueueError, QueueItem, QueueItemData, QueueItemStatus, QueuePort,

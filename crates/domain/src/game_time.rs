@@ -267,7 +267,7 @@ pub struct GameTime {
 }
 
 // NOTE: Default impl removed for hexagonal architecture purity.
-// Domain layer should not call Utc::now(). Callers should use GameTime::new(clock.now()).
+// Domain layer should not call time sources directly. Callers should use GameTime::new(clock.now()).
 
 impl GameTime {
     pub fn new(now: DateTime<Utc>) -> Self {
@@ -451,10 +451,15 @@ impl GameTime {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+
+    fn fixed_time() -> DateTime<Utc> {
+        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
 
     #[test]
     fn new_game_time_is_paused() {
-        let gt = GameTime::new(Utc::now());
+        let gt = GameTime::new(fixed_time());
         assert!(gt.is_paused());
     }
 

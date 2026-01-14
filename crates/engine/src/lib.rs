@@ -13,6 +13,8 @@
 pub mod api;
 pub mod app;
 pub mod infrastructure;
+pub mod llm_context;
+pub mod queue_types;
 pub mod repositories;
 pub mod use_cases;
 

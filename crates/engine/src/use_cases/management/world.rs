@@ -40,7 +40,8 @@ impl WorldCrud {
         let world_name = WorldName::new(name)
             .map_err(|e| ManagementError::InvalidInput(format!("Invalid world name: {}", e)))?;
 
-        let mut world = wrldbldr_domain::World::new(world_name);
+        let now = self.clock.now();
+        let mut world = wrldbldr_domain::World::new(world_name, now);
 
         // Set description from either description or setting parameter
         let desc_str = description.or(setting).unwrap_or_default();
@@ -48,7 +49,7 @@ impl WorldCrud {
             let desc = Description::new(&desc_str).map_err(|e| {
                 ManagementError::InvalidInput(format!("Invalid description: {}", e))
             })?;
-            world.set_description(desc);
+            world.set_description(desc, now);
         }
 
         self.world.save(&world).await?;
@@ -68,21 +69,23 @@ impl WorldCrud {
             .await?
             .ok_or(ManagementError::NotFound)?;
 
+        let now = self.clock.now();
+
         if let Some(name) = name {
             let world_name = WorldName::new(name)
                 .map_err(|e| ManagementError::InvalidInput(format!("Invalid world name: {}", e)))?;
-            world.set_name(world_name);
+            world.set_name(world_name, now);
         }
         if let Some(description) = description {
             let desc = Description::new(&description).map_err(|e| {
                 ManagementError::InvalidInput(format!("Invalid description: {}", e))
             })?;
-            world.set_description(desc);
+            world.set_description(desc, now);
         } else if let Some(setting) = setting {
             let desc = Description::new(&setting).map_err(|e| {
                 ManagementError::InvalidInput(format!("Invalid description: {}", e))
             })?;
-            world.set_description(desc);
+            world.set_description(desc, now);
         }
 
         self.world.save(&world).await?;

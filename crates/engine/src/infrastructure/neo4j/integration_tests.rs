@@ -6,8 +6,9 @@ use testcontainers::{core::WaitFor, runners::AsyncRunner, GenericImage};
 use tokio::time::sleep;
 use uuid::Uuid;
 use wrldbldr_domain::{
-    EventOutcome, LocationId, MoodState, NarrativeEvent, NarrativeEventId, NarrativeTrigger,
-    NarrativeTriggerType, RegionId, StagedNpc, Staging, StagingSource, TriggerLogic, WorldId,
+    EventOutcome, LocationId, MoodState, NarrativeEvent, NarrativeEventId, NarrativeEventName,
+    NarrativeTrigger, NarrativeTriggerType, RegionId, StagedNpc, Staging, StagingSource,
+    TriggerLogic, WorldId,
 };
 
 use crate::infrastructure::{
@@ -99,7 +100,11 @@ async fn narrative_triggers_fallback_is_bounded_to_500() {
     };
 
     for i in 0..600 {
-        let event = NarrativeEvent::new(world_id, format!("Event {i}"), now)
+        let event = NarrativeEvent::new(
+            world_id,
+            NarrativeEventName::new(format!("Event {i}")).unwrap(),
+            now,
+        )
             .with_description("test")
             .with_trigger_conditions(vec![trigger.clone()])
             .with_trigger_logic(TriggerLogic::All)

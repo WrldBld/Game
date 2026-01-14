@@ -440,8 +440,9 @@ mod tests {
         let repos = TestAppRepos::new(world_repo);
         let router = build_router_with_repos(repos);
 
+        let now = Utc::now();
         let world_name = WorldName::new("Test World").unwrap();
-        let world = wrldbldr_domain::World::new(world_name)
+        let world = wrldbldr_domain::World::new(world_name, now)
             .with_description(Description::new("Desc").unwrap());
         let export = crate::use_cases::world::WorldExport {
             world: world.clone(),

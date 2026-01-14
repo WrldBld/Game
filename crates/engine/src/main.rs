@@ -14,6 +14,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod api;
 mod app;
 mod infrastructure;
+mod llm_context;
+mod queue_types;
 mod repositories;
 mod use_cases;
 

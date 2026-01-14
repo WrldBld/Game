@@ -15,11 +15,13 @@ mod llm_integration_tests;
 
 use std::sync::Arc;
 use uuid::Uuid;
-use wrldbldr_domain::{
-    ActiveChallengeContext, CharacterContext, GamePromptRequest, LlmRequestData, LlmRequestType,
-    MotivationEntry, MotivationsContext, PlayerActionContext, PlayerActionData, SceneContext,
-    SecretMotivationEntry, WantVisibility, WorldId,
+use wrldbldr_domain::{WantVisibility, WorldId};
+
+use crate::llm_context::{
+    ActiveChallengeContext, CharacterContext, GamePromptRequest, MotivationEntry,
+    MotivationsContext, PlayerActionContext, SceneContext, SecretMotivationEntry,
 };
+use crate::queue_types::{LlmRequestData, LlmRequestType, PlayerActionData};
 
 use crate::infrastructure::ports::{LlmPort, QueuePort, RepoError};
 
@@ -842,11 +844,11 @@ impl ProcessLlmRequest {
                     };
 
                 // Create approval request
-                let approval_data = wrldbldr_domain::ApprovalRequestData {
+                let approval_data = crate::queue_types::ApprovalRequestData {
                     world_id: request_data.world_id,
                     source_action_id: item.id,
-                    decision_type: wrldbldr_domain::ApprovalDecisionType::NpcResponse,
-                    urgency: wrldbldr_domain::ApprovalUrgency::AwaitingPlayer,
+                    decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
+                    urgency: crate::queue_types::ApprovalUrgency::AwaitingPlayer,
                     pc_id: request_data.pc_id,
                     npc_id,
                     npc_name,
@@ -884,7 +886,7 @@ impl ProcessLlmRequest {
 
 fn build_suggestion_prompt(
     field_type: &str,
-    context: &wrldbldr_domain::SuggestionContext,
+    context: &crate::queue_types::SuggestionContext,
 ) -> String {
     let entity_type = context.entity_type.as_deref().unwrap_or("entity");
     let entity_name = context.entity_name.as_deref().unwrap_or("(unnamed)");

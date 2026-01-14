@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::DmApprovalDecision;
+use crate::queue_types::DmApprovalDecision;
 
 use super::{
     approve_staging_with_npc, create_player_character_via_use_case, create_shared_log,

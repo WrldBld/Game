@@ -16,7 +16,10 @@
 //! - **Builder pattern**: Fluent API for optional fields
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::Error as DeError;
 use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId};
+
+use crate::value_objects::SceneName;
 
 // Re-export from entities for now (TimeContext, SceneCondition, SceneCharacter, SceneCharacterRole)
 pub use crate::entities::{SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext};
@@ -39,14 +42,14 @@ pub use crate::entities::{SceneCharacter, SceneCharacterRole, SceneCondition, Ti
 /// # Example
 ///
 /// ```
-/// use wrldbldr_domain::{ActId, LocationId, SceneId};
+/// use wrldbldr_domain::{ActId, LocationId, SceneId, SceneName};
 /// use wrldbldr_domain::aggregates::scene::Scene;
 ///
 /// let act_id = ActId::new();
 /// let location_id = LocationId::new();
-/// let scene = Scene::new(act_id, "The Tavern Meeting", location_id);
+/// let scene = Scene::new(act_id, SceneName::new("The Tavern Meeting").unwrap(), location_id);
 ///
-/// assert_eq!(scene.name(), "The Tavern Meeting");
+/// assert_eq!(scene.name().as_str(), "The Tavern Meeting");
 /// ```
 #[derive(Debug, Clone)]
 pub struct Scene {
@@ -55,7 +58,7 @@ pub struct Scene {
     act_id: ActId,
 
     // Core attributes
-    name: String,
+    name: SceneName,
     /// DEPRECATED: Use AT_LOCATION edge via repository
     location_id: LocationId,
 
@@ -96,16 +99,20 @@ impl Scene {
     ///
     /// let act_id = ActId::new();
     /// let location_id = LocationId::new();
-    /// let scene = Scene::new(act_id, "The Final Confrontation", location_id);
+    /// let scene = Scene::new(
+    ///     act_id,
+    ///     SceneName::new("The Final Confrontation").unwrap(),
+    ///     location_id,
+    /// );
     ///
-    /// assert_eq!(scene.name(), "The Final Confrontation");
+    /// assert_eq!(scene.name().as_str(), "The Final Confrontation");
     /// assert_eq!(scene.order(), 0);
     /// ```
-    pub fn new(act_id: ActId, name: impl Into<String>, location_id: LocationId) -> Self {
+    pub fn new(act_id: ActId, name: SceneName, location_id: LocationId) -> Self {
         Self {
             id: SceneId::new(),
             act_id,
-            name: name.into(),
+            name,
             location_id,
             time_context: TimeContext::Unspecified,
             backdrop_override: None,
@@ -134,7 +141,7 @@ impl Scene {
 
     /// Returns the scene's name.
     #[inline]
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &SceneName {
         &self.name
     }
 
@@ -267,8 +274,8 @@ impl Scene {
     // =========================================================================
 
     /// Set the scene's name.
-    pub fn set_name(&mut self, name: impl Into<String>) {
-        self.name = name.into();
+    pub fn set_name(&mut self, name: SceneName) {
+        self.name = name;
     }
 
     /// Set the scene's location ID.
@@ -350,7 +357,7 @@ impl Serialize for Scene {
         let wire = SceneWireFormat {
             id: self.id,
             act_id: self.act_id,
-            name: self.name.clone(),
+            name: self.name.to_string(),
             location_id: self.location_id,
             time_context: self.time_context.clone(),
             backdrop_override: self.backdrop_override.clone(),
@@ -370,10 +377,12 @@ impl<'de> Deserialize<'de> for Scene {
     {
         let wire = SceneWireFormat::deserialize(deserializer)?;
 
+        let name = SceneName::new(wire.name).map_err(DeError::custom)?;
+
         Ok(Scene {
             id: wire.id,
             act_id: wire.act_id,
-            name: wire.name,
+            name,
             location_id: wire.location_id,
             time_context: wire.time_context,
             backdrop_override: wire.backdrop_override,
@@ -396,7 +405,11 @@ mod tests {
     fn create_test_scene() -> Scene {
         let act_id = ActId::new();
         let location_id = LocationId::new();
-        Scene::new(act_id, "Test Scene", location_id)
+        Scene::new(
+            act_id,
+            SceneName::new("Test Scene").unwrap(),
+            location_id,
+        )
     }
 
     mod constructor {
@@ -406,9 +419,13 @@ mod tests {
         fn new_creates_scene_with_correct_defaults() {
             let act_id = ActId::new();
             let location_id = LocationId::new();
-            let scene = Scene::new(act_id, "The Opening", location_id);
+            let scene = Scene::new(
+                act_id,
+                SceneName::new("The Opening").unwrap(),
+                location_id,
+            );
 
-            assert_eq!(scene.name(), "The Opening");
+            assert_eq!(scene.name().as_str(), "The Opening");
             assert_eq!(scene.act_id(), act_id);
             assert_eq!(scene.location_id(), location_id);
             assert!(matches!(scene.time_context(), TimeContext::Unspecified));
@@ -425,14 +442,18 @@ mod tests {
             let location_id = LocationId::new();
             let char_id = CharacterId::new();
 
-            let scene = Scene::new(act_id, "The Climax", location_id)
+            let scene = Scene::new(
+                act_id,
+                SceneName::new("The Climax").unwrap(),
+                location_id,
+            )
                 .with_character(char_id)
                 .with_time(TimeContext::Custom("Midnight".to_string()))
                 .with_directorial_notes("Dramatic tension!")
                 .with_order(5)
                 .with_backdrop_override("dark_throne_room.png");
 
-            assert_eq!(scene.name(), "The Climax");
+            assert_eq!(scene.name().as_str(), "The Climax");
             assert_eq!(scene.featured_characters(), &[char_id]);
             assert!(matches!(scene.time_context(), TimeContext::Custom(s) if s == "Midnight"));
             assert_eq!(scene.directorial_notes(), "Dramatic tension!");
@@ -447,8 +468,8 @@ mod tests {
         #[test]
         fn set_name_works() {
             let mut scene = create_test_scene();
-            scene.set_name("New Name");
-            assert_eq!(scene.name(), "New Name");
+            scene.set_name(SceneName::new("New Name").unwrap());
+            assert_eq!(scene.name().as_str(), "New Name");
         }
 
         #[test]
@@ -503,7 +524,11 @@ mod tests {
             let location_id = LocationId::new();
             let char_id = CharacterId::new();
 
-            let scene = Scene::new(act_id, "Test Scene", location_id)
+            let scene = Scene::new(
+                act_id,
+                SceneName::new("Test Scene").unwrap(),
+                location_id,
+            )
                 .with_character(char_id)
                 .with_directorial_notes("Test notes")
                 .with_order(3);

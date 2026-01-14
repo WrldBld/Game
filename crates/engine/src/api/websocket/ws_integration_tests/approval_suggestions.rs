@@ -6,7 +6,7 @@ async fn when_dm_accepts_approval_suggestion_then_marks_complete_and_broadcasts_
 
     let world_id = WorldId::new();
     let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
-    let world = wrldbldr_domain::World::new(world_name)
+    let world = wrldbldr_domain::World::new(world_name, now)
         .with_description(wrldbldr_domain::Description::new("desc").unwrap())
         .with_id(world_id);
 
@@ -85,11 +85,11 @@ async fn when_dm_accepts_approval_suggestion_then_marks_complete_and_broadcasts_
 
     queue.insert_approval(
         approval_id,
-        wrldbldr_domain::ApprovalRequestData {
+        crate::queue_types::ApprovalRequestData {
             world_id,
             source_action_id: Uuid::new_v4(),
-            decision_type: wrldbldr_domain::ApprovalDecisionType::NpcResponse,
-            urgency: wrldbldr_domain::ApprovalUrgency::Normal,
+            decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
+            urgency: crate::queue_types::ApprovalUrgency::Normal,
             pc_id: None,
             npc_id: Some(npc_id),
             npc_name: "NPC".to_string(),
@@ -162,7 +162,7 @@ async fn when_dm_rejects_approval_suggestion_then_marks_failed_and_does_not_broa
 
     let world_id = WorldId::new();
     let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
-    let world = wrldbldr_domain::World::new(world_name)
+    let world = wrldbldr_domain::World::new(world_name, now)
         .with_description(wrldbldr_domain::Description::new("desc").unwrap())
         .with_id(world_id);
 
@@ -238,11 +238,11 @@ async fn when_dm_rejects_approval_suggestion_then_marks_failed_and_does_not_broa
     let npc_id = CharacterId::new();
     queue.insert_approval(
         approval_id,
-        wrldbldr_domain::ApprovalRequestData {
+        crate::queue_types::ApprovalRequestData {
             world_id,
             source_action_id: Uuid::new_v4(),
-            decision_type: wrldbldr_domain::ApprovalDecisionType::NpcResponse,
-            urgency: wrldbldr_domain::ApprovalUrgency::Normal,
+            decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
+            urgency: crate::queue_types::ApprovalUrgency::Normal,
             pc_id: None,
             npc_id: Some(npc_id),
             npc_name: "NPC".to_string(),
@@ -293,7 +293,7 @@ async fn when_dm_modifies_approval_suggestion_then_marks_complete_and_broadcasts
 
     let world_id = WorldId::new();
     let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
-    let world = wrldbldr_domain::World::new(world_name)
+    let world = wrldbldr_domain::World::new(world_name, now)
         .with_description(wrldbldr_domain::Description::new("desc").unwrap())
         .with_id(world_id);
 
@@ -369,11 +369,11 @@ async fn when_dm_modifies_approval_suggestion_then_marks_complete_and_broadcasts
     let npc_id = CharacterId::new();
     queue.insert_approval(
         approval_id,
-        wrldbldr_domain::ApprovalRequestData {
+        crate::queue_types::ApprovalRequestData {
             world_id,
             source_action_id: Uuid::new_v4(),
-            decision_type: wrldbldr_domain::ApprovalDecisionType::NpcResponse,
-            urgency: wrldbldr_domain::ApprovalUrgency::Normal,
+            decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
+            urgency: crate::queue_types::ApprovalUrgency::Normal,
             pc_id: None,
             npc_id: Some(npc_id),
             npc_name: "NPC".to_string(),

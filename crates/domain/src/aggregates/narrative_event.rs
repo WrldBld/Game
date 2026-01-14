@@ -23,8 +23,11 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::Error as DeError;
 
 use wrldbldr_domain::{NarrativeEventId, WorldId};
+
+use crate::value_objects::NarrativeEventName;
 
 // Re-export complex types from entities that are used within the aggregate
 pub use crate::entities::{
@@ -53,14 +56,19 @@ pub use crate::entities::{
 ///
 /// ```
 /// use chrono::Utc;
-/// use wrldbldr_domain::{WorldId, NarrativeEventId};
+/// use wrldbldr_domain::{NarrativeEventName, WorldId, NarrativeEventId};
 /// use wrldbldr_domain::aggregates::narrative_event::NarrativeEvent;
 ///
 /// let world_id = WorldId::new();
-/// let now = Utc::now();
-/// let event = NarrativeEvent::new(world_id, "The Betrayal", now);
+/// use chrono::TimeZone;
+/// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+/// let event = NarrativeEvent::new(
+///     world_id,
+///     NarrativeEventName::new("The Betrayal").unwrap(),
+///     now,
+/// );
 ///
-/// assert_eq!(event.name(), "The Betrayal");
+/// assert_eq!(event.name().as_str(), "The Betrayal");
 /// assert!(event.is_active());
 /// assert!(!event.is_triggered());
 /// ```
@@ -72,7 +80,7 @@ pub struct NarrativeEvent {
 
     // Basic Info
     /// Name of the event (for DM reference)
-    name: String,
+    name: NarrativeEventName,
     /// Detailed description of what this event represents
     description: String,
     /// Tags for organization and filtering
@@ -149,17 +157,22 @@ impl NarrativeEvent {
     /// use wrldbldr_domain::aggregates::narrative_event::NarrativeEvent;
     ///
     /// let world_id = WorldId::new();
-    /// let now = Utc::now();
-    /// let event = NarrativeEvent::new(world_id, "Secret Meeting", now);
+    /// use chrono::TimeZone;
+    /// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    /// let event = NarrativeEvent::new(
+    ///     world_id,
+    ///     NarrativeEventName::new("Secret Meeting").unwrap(),
+    ///     now,
+    /// );
     ///
-    /// assert_eq!(event.name(), "Secret Meeting");
+    /// assert_eq!(event.name().as_str(), "Secret Meeting");
     /// assert!(event.is_active());
     /// ```
-    pub fn new(world_id: WorldId, name: impl Into<String>, now: DateTime<Utc>) -> Self {
+    pub fn new(world_id: WorldId, name: NarrativeEventName, now: DateTime<Utc>) -> Self {
         Self {
             id: NarrativeEventId::new(),
             world_id,
-            name: name.into(),
+            name,
             description: String::new(),
             tags: Vec::new(),
             trigger_conditions: Vec::new(),
@@ -205,7 +218,7 @@ impl NarrativeEvent {
 
     /// Returns the event's name.
     #[inline]
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &NarrativeEventName {
         &self.name
     }
 
@@ -501,51 +514,55 @@ impl NarrativeEvent {
     // =========================================================================
 
     /// Set the event's name.
-    pub fn set_name(&mut self, name: impl Into<String>) {
-        self.name = name.into();
-        self.updated_at = Utc::now();
+    pub fn set_name(&mut self, name: NarrativeEventName, now: DateTime<Utc>) {
+        self.name = name;
+        self.updated_at = now;
     }
 
     /// Set the event's description.
-    pub fn set_description(&mut self, description: impl Into<String>) {
+    pub fn set_description(&mut self, description: impl Into<String>, now: DateTime<Utc>) {
         self.description = description.into();
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Set the event's scene direction.
-    pub fn set_scene_direction(&mut self, direction: impl Into<String>) {
+    pub fn set_scene_direction(&mut self, direction: impl Into<String>, now: DateTime<Utc>) {
         self.scene_direction = direction.into();
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Set the event's trigger conditions.
-    pub fn set_trigger_conditions(&mut self, conditions: Vec<NarrativeTrigger>) {
+    pub fn set_trigger_conditions(
+        &mut self,
+        conditions: Vec<NarrativeTrigger>,
+        now: DateTime<Utc>,
+    ) {
         self.trigger_conditions = conditions;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Set the event's outcomes.
-    pub fn set_outcomes(&mut self, outcomes: Vec<EventOutcome>) {
+    pub fn set_outcomes(&mut self, outcomes: Vec<EventOutcome>, now: DateTime<Utc>) {
         self.outcomes = outcomes;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Set the event's active state.
-    pub fn set_active(&mut self, active: bool) {
+    pub fn set_active(&mut self, active: bool, now: DateTime<Utc>) {
         self.is_active = active;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Set the event's priority.
-    pub fn set_priority(&mut self, priority: i32) {
+    pub fn set_priority(&mut self, priority: i32, now: DateTime<Utc>) {
         self.priority = priority;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Set the event's favorite state.
-    pub fn set_favorite(&mut self, favorite: bool) {
+    pub fn set_favorite(&mut self, favorite: bool, now: DateTime<Utc>) {
         self.is_favorite = favorite;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     // =========================================================================
@@ -877,7 +894,7 @@ impl Serialize for NarrativeEvent {
         let wire = NarrativeEventWireFormat {
             id: self.id,
             world_id: self.world_id,
-            name: self.name.clone(),
+            name: self.name.to_string(),
             description: self.description.clone(),
             tags: self.tags.clone(),
             trigger_conditions: self.trigger_conditions.clone(),
@@ -910,10 +927,12 @@ impl<'de> Deserialize<'de> for NarrativeEvent {
     {
         let wire = NarrativeEventWireFormat::deserialize(deserializer)?;
 
+        let name = NarrativeEventName::new(wire.name).map_err(DeError::custom)?;
+
         Ok(NarrativeEvent {
             id: wire.id,
             world_id: wire.world_id,
-            name: wire.name,
+            name,
             description: wire.description,
             tags: wire.tags,
             trigger_conditions: wire.trigger_conditions,
@@ -945,11 +964,20 @@ impl<'de> Deserialize<'de> for NarrativeEvent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+
+    fn fixed_time() -> DateTime<Utc> {
+        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
 
     fn create_test_event() -> NarrativeEvent {
         let world_id = WorldId::new();
-        let now = Utc::now();
-        NarrativeEvent::new(world_id, "Test Event", now)
+        let now = fixed_time();
+        NarrativeEvent::new(
+            world_id,
+            NarrativeEventName::new("Test Event").unwrap(),
+            now,
+        )
     }
 
     mod constructor {
@@ -958,10 +986,14 @@ mod tests {
         #[test]
         fn new_creates_event_with_correct_defaults() {
             let world_id = WorldId::new();
-            let now = Utc::now();
-            let event = NarrativeEvent::new(world_id, "The Revelation", now);
+            let now = fixed_time();
+            let event = NarrativeEvent::new(
+                world_id,
+                NarrativeEventName::new("The Revelation").unwrap(),
+                now,
+            );
 
-            assert_eq!(event.name(), "The Revelation");
+            assert_eq!(event.name().as_str(), "The Revelation");
             assert_eq!(event.world_id(), world_id);
             assert!(event.description().is_empty());
             assert!(event.tags().is_empty());
@@ -986,9 +1018,13 @@ mod tests {
         #[test]
         fn builder_methods_work() {
             let world_id = WorldId::new();
-            let now = Utc::now();
+            let now = fixed_time();
 
-            let event = NarrativeEvent::new(world_id, "Epic Event", now)
+            let event = NarrativeEvent::new(
+                world_id,
+                NarrativeEventName::new("Epic Event").unwrap(),
+                now,
+            )
                 .with_description("A dramatic event")
                 .with_tag("drama")
                 .with_tag("important")
@@ -998,7 +1034,7 @@ mod tests {
                 .with_priority(10)
                 .with_favorite(true);
 
-            assert_eq!(event.name(), "Epic Event");
+            assert_eq!(event.name().as_str(), "Epic Event");
             assert_eq!(event.description(), "A dramatic event");
             assert_eq!(event.tags(), &["drama", "important"]);
             assert_eq!(event.scene_direction(), "Build tension slowly");
@@ -1015,7 +1051,7 @@ mod tests {
         #[test]
         fn trigger_sets_state_correctly() {
             let mut event = create_test_event();
-            let now = Utc::now();
+            let now = fixed_time();
 
             event.trigger(Some("success".to_string()), now);
 
@@ -1030,7 +1066,7 @@ mod tests {
         fn trigger_repeatable_stays_active() {
             let mut event = create_test_event();
             event = event.with_repeatable(true);
-            let now = Utc::now();
+            let now = fixed_time();
 
             event.trigger(Some("success".to_string()), now);
 
@@ -1042,7 +1078,7 @@ mod tests {
         fn reset_clears_triggered_state() {
             let mut event = create_test_event();
             event = event.with_repeatable(true);
-            let now = Utc::now();
+            let now = fixed_time();
 
             event.trigger(Some("success".to_string()), now);
             event.reset(now);
@@ -1057,7 +1093,7 @@ mod tests {
         fn multiple_triggers_increment_count() {
             let mut event = create_test_event();
             event = event.with_repeatable(true);
-            let now = Utc::now();
+            let now = fixed_time();
 
             event.trigger(None, now);
             event.reset(now);
@@ -1075,8 +1111,8 @@ mod tests {
         #[test]
         fn set_name_works() {
             let mut event = create_test_event();
-            event.set_name("New Name");
-            assert_eq!(event.name(), "New Name");
+            event.set_name(NarrativeEventName::new("New Name").unwrap(), fixed_time());
+            assert_eq!(event.name().as_str(), "New Name");
         }
 
         #[test]
@@ -1130,7 +1166,7 @@ mod tests {
         #[test]
         fn flag_set_trigger_works() {
             let world_id = WorldId::new();
-            let now = Utc::now();
+            let now = fixed_time();
 
             let trigger = NarrativeTrigger {
                 trigger_type: NarrativeTriggerType::FlagSet {
@@ -1141,7 +1177,11 @@ mod tests {
                 trigger_id: "flag-1".to_string(),
             };
 
-            let event = NarrativeEvent::new(world_id, "Test", now)
+            let event = NarrativeEvent::new(
+                world_id,
+                NarrativeEventName::new("Test").unwrap(),
+                now,
+            )
                 .with_trigger_condition(trigger);
 
             // Without flag set
@@ -1163,9 +1203,13 @@ mod tests {
         #[test]
         fn serialize_deserialize_roundtrip() {
             let world_id = WorldId::new();
-            let now = Utc::now();
+            let now = fixed_time();
 
-            let event = NarrativeEvent::new(world_id, "Test Event", now)
+            let event = NarrativeEvent::new(
+                world_id,
+                NarrativeEventName::new("Test Event").unwrap(),
+                now,
+            )
                 .with_description("A test event")
                 .with_tags(vec!["test".to_string(), "important".to_string()])
                 .with_priority(5);

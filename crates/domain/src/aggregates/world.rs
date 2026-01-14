@@ -27,12 +27,14 @@ pub use crate::entities::TimeAdvanceResult;
 /// # Example
 ///
 /// ```
+/// use chrono::TimeZone;
 /// use wrldbldr_domain::WorldId;
 /// use wrldbldr_domain::aggregates::world::World;
 /// use wrldbldr_domain::value_objects::{WorldName, Description};
 ///
 /// let name = WorldName::new("Middle-earth").unwrap();
-/// let world = World::new(name);
+/// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+/// let world = World::new(name, now);
 ///
 /// assert_eq!(world.name().as_str(), "Middle-earth");
 /// ```
@@ -72,17 +74,18 @@ impl World {
     /// # Example
     ///
     /// ```
+    /// use chrono::TimeZone;
     /// use wrldbldr_domain::WorldId;
     /// use wrldbldr_domain::aggregates::world::World;
     /// use wrldbldr_domain::value_objects::WorldName;
     ///
     /// let name = WorldName::new("Narnia").unwrap();
-    /// let world = World::new(name);
+    /// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+    /// let world = World::new(name, now);
     ///
     /// assert_eq!(world.name().as_str(), "Narnia");
     /// ```
-    pub fn new(name: WorldName) -> Self {
-        let now = Utc::now();
+    pub fn new(name: WorldName, now: DateTime<Utc>) -> Self {
         Self {
             id: WorldId::new(),
             name,
@@ -216,27 +219,27 @@ impl World {
     // =========================================================================
 
     /// Update the world's name.
-    pub fn set_name(&mut self, name: WorldName) {
+    pub fn set_name(&mut self, name: WorldName, now: DateTime<Utc>) {
         self.name = name;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Update the world's description.
-    pub fn set_description(&mut self, description: Description) {
+    pub fn set_description(&mut self, description: Description, now: DateTime<Utc>) {
         self.description = description;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Set the time mode (manual, suggested, auto).
-    pub fn set_time_mode(&mut self, mode: TimeMode) {
+    pub fn set_time_mode(&mut self, mode: TimeMode, now: DateTime<Utc>) {
         self.time_config.mode = mode;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Set the time cost configuration.
-    pub fn set_time_costs(&mut self, costs: TimeCostConfig) {
+    pub fn set_time_costs(&mut self, costs: TimeCostConfig, now: DateTime<Utc>) {
         self.time_config.time_costs = costs;
-        self.updated_at = Utc::now();
+        self.updated_at = now;
     }
 
     /// Get the time cost for a given action type.
@@ -250,12 +253,17 @@ impl World {
 
     /// Advance game time by a number of minutes.
     /// Returns information about the time change for broadcasting.
-    pub fn advance_time(&mut self, minutes: u32, _reason: TimeAdvanceReason) -> TimeAdvanceResult {
+    pub fn advance_time(
+        &mut self,
+        minutes: u32,
+        _reason: TimeAdvanceReason,
+        now: DateTime<Utc>,
+    ) -> TimeAdvanceResult {
         let previous_time = self.game_time.clone();
         let previous_period = self.game_time.time_of_day();
 
         self.game_time.advance_minutes(minutes);
-        self.updated_at = Utc::now();
+        self.updated_at = now;
 
         let new_period = self.game_time.time_of_day();
 
@@ -268,8 +276,8 @@ impl World {
     }
 
     /// Advance game time by a number of hours.
-    pub fn advance_hours(&mut self, hours: u32) -> TimeAdvanceResult {
-        self.advance_time(hours * 60, TimeAdvanceReason::DmManual { hours })
+    pub fn advance_hours(&mut self, hours: u32, now: DateTime<Utc>) -> TimeAdvanceResult {
+        self.advance_time(hours * 60, TimeAdvanceReason::DmManual { hours }, now)
     }
 }
 
@@ -355,10 +363,15 @@ impl<'de> Deserialize<'de> for World {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+
+    fn fixed_time() -> DateTime<Utc> {
+        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
 
     fn create_test_world() -> World {
         let name = WorldName::new("Test World").unwrap();
-        World::new(name)
+        World::new(name, fixed_time())
     }
 
     mod constructor {
@@ -367,7 +380,7 @@ mod tests {
         #[test]
         fn new_creates_world_with_correct_defaults() {
             let name = WorldName::new("Middle-earth").unwrap();
-            let world = World::new(name);
+            let world = World::new(name, fixed_time());
 
             assert_eq!(world.name().as_str(), "Middle-earth");
             assert!(world.description().is_empty());
@@ -383,8 +396,7 @@ mod tests {
             let name = WorldName::new("Narnia").unwrap();
             let desc = Description::new("A magical land beyond the wardrobe").unwrap();
 
-            let world = World::new(name)
-                .with_description(desc);
+            let world = World::new(name, fixed_time()).with_description(desc);
 
             assert_eq!(world.name().as_str(), "Narnia");
             assert_eq!(
@@ -402,11 +414,8 @@ mod tests {
             let mut world = create_test_world();
             let original_updated = world.updated_at();
 
-            // Small delay to ensure timestamp changes
-            std::thread::sleep(std::time::Duration::from_millis(10));
-
             let new_name = WorldName::new("Updated World").unwrap();
-            world.set_name(new_name);
+            world.set_name(new_name, original_updated + chrono::Duration::seconds(1));
 
             assert_eq!(world.name().as_str(), "Updated World");
             assert!(world.updated_at() > original_updated);
@@ -417,11 +426,8 @@ mod tests {
             let mut world = create_test_world();
             let original_updated = world.updated_at();
 
-            // Small delay to ensure timestamp changes
-            std::thread::sleep(std::time::Duration::from_millis(10));
-
             let desc = Description::new("A new description").unwrap();
-            world.set_description(desc);
+            world.set_description(desc, original_updated + chrono::Duration::seconds(1));
 
             assert_eq!(world.description().as_str(), "A new description");
             assert!(world.updated_at() > original_updated);
@@ -430,7 +436,10 @@ mod tests {
         #[test]
         fn set_time_mode_works() {
             let mut world = create_test_world();
-            world.set_time_mode(TimeMode::Manual);
+            world.set_time_mode(
+                TimeMode::Manual,
+                world.updated_at() + chrono::Duration::seconds(1),
+            );
             assert!(matches!(world.time_config().mode, TimeMode::Manual));
         }
     }
@@ -441,7 +450,11 @@ mod tests {
         #[test]
         fn advance_time_returns_result() {
             let mut world = create_test_world();
-            let result = world.advance_time(60, TimeAdvanceReason::DmManual { hours: 1 });
+            let result = world.advance_time(
+                60,
+                TimeAdvanceReason::DmManual { hours: 1 },
+                world.updated_at() + chrono::Duration::seconds(1),
+            );
 
             assert_eq!(result.minutes_advanced, 60);
         }
@@ -449,7 +462,8 @@ mod tests {
         #[test]
         fn advance_hours_works() {
             let mut world = create_test_world();
-            let result = world.advance_hours(2);
+            let result =
+                world.advance_hours(2, world.updated_at() + chrono::Duration::seconds(1));
 
             assert_eq!(result.minutes_advanced, 120);
         }
@@ -463,7 +477,7 @@ mod tests {
             let name = WorldName::new("Westeros").unwrap();
             let desc = Description::new("A land of ice and fire").unwrap();
 
-            let world = World::new(name).with_description(desc);
+            let world = World::new(name, fixed_time()).with_description(desc);
 
             let json = serde_json::to_string(&world).unwrap();
             let deserialized: World = serde_json::from_str(&json).unwrap();

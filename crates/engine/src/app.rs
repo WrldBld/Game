@@ -345,6 +345,7 @@ impl App {
         let narrative_events = Arc::new(use_cases::narrative::NarrativeEventOps::new(
             narrative.clone(),
             execute_effects.clone(),
+            clock.clone(),
         ));
         let narrative_chains =
             Arc::new(use_cases::narrative::EventChainOps::new(narrative.clone()));
@@ -361,7 +362,8 @@ impl App {
             narrative_decision,
         );
 
-        let time_control = Arc::new(use_cases::time::TimeControl::new(world.clone()));
+        let time_control =
+            Arc::new(use_cases::time::TimeControl::new(world.clone(), clock.clone()));
         let time_suggestions =
             Arc::new(use_cases::time::TimeSuggestions::new(time_control.clone()));
         let time_uc = use_cases::TimeUseCases::new(suggest_time, time_control, time_suggestions);

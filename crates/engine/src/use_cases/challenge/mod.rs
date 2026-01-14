@@ -12,9 +12,13 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::value_objects::DiceParseError;
 use wrldbldr_domain::{
-    ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency, ChallengeId, ChallengeOutcomeData,
-    ChallengeOutcomeDecision, DiceRollInput, OutcomeTrigger, OutcomeType, PlayerCharacterId,
-    ProposedTool, WorldId,
+    ChallengeId, ChallengeOutcomeDecision, DiceRollInput, OutcomeTrigger, OutcomeType,
+    PlayerCharacterId, WorldId,
+};
+
+use crate::queue_types::{
+    ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency, ChallengeOutcomeData, LlmRequestData,
+    LlmRequestType, ProposedTool, SuggestionContext,
 };
 
 mod crud;
@@ -650,8 +654,8 @@ impl OutcomeDecision {
                 }))
             }
             ChallengeOutcomeDecision::Suggest { guidance } => {
-                let llm_request = wrldbldr_domain::LlmRequestData {
-                    request_type: wrldbldr_domain::LlmRequestType::OutcomeSuggestion {
+                let llm_request = LlmRequestData {
+                    request_type: LlmRequestType::OutcomeSuggestion {
                         resolution_id: approval_id,
                         world_id,
                         challenge_name: outcome_data.challenge_name.clone(),
@@ -661,7 +665,7 @@ impl OutcomeDecision {
                     world_id,
                     pc_id: approval_data.pc_id,
                     prompt: None,
-                    suggestion_context: Some(wrldbldr_domain::SuggestionContext {
+                    suggestion_context: Some(SuggestionContext {
                         entity_type: Some("challenge_outcome".to_string()),
                         entity_name: Some(outcome_data.challenge_name.clone()),
                         world_setting: None,

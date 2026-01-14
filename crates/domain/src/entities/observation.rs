@@ -219,6 +219,11 @@ pub struct ObservationSummary {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+
+    fn fixed_time() -> DateTime<Utc> {
+        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
 
     #[test]
     fn test_observation_type_from_str() {
@@ -242,8 +247,8 @@ mod tests {
         let npc_id = CharacterId::new();
         let location_id = LocationId::new();
         let region_id = RegionId::new();
-        let game_time = Utc::now();
-        let now = Utc::now();
+        let game_time = fixed_time();
+        let now = fixed_time();
 
         let obs = NpcObservation::direct(pc_id, npc_id, location_id, region_id, game_time, now);
 
@@ -258,8 +263,8 @@ mod tests {
         let npc_id = CharacterId::new();
         let location_id = LocationId::new();
         let region_id = RegionId::new();
-        let game_time = Utc::now();
-        let now = Utc::now();
+        let game_time = fixed_time();
+        let now = fixed_time();
 
         let obs = NpcObservation::direct_unrevealed(
             pc_id,
@@ -280,8 +285,8 @@ mod tests {
         let npc_id = CharacterId::new();
         let location_id = LocationId::new();
         let region_id = RegionId::new();
-        let game_time = Utc::now();
-        let now = Utc::now();
+        let game_time = fixed_time();
+        let now = fixed_time();
 
         let obs = NpcObservation::heard_about(
             pc_id,
