@@ -190,13 +190,9 @@ pub(super) async fn handle_character_sheet_request(
             }
 
             // Create a draft character
-            let character_name = name.unwrap_or_else(|| "New Character".to_string());
-            let character = match wrldbldr_domain::Character::new(
-                world_id_typed,
-                character_name,
-                wrldbldr_domain::CampbellArchetype::Hero,
-            ) {
-                Ok(c) => c,
+            let character_name_str = name.unwrap_or_else(|| "New Character".to_string());
+            let character_name = match wrldbldr_domain::CharacterName::new(character_name_str) {
+                Ok(n) => n,
                 Err(e) => {
                     return Ok(ResponseResult::error(
                         ErrorCode::ValidationError,
@@ -204,7 +200,12 @@ pub(super) async fn handle_character_sheet_request(
                     ));
                 }
             };
-            let character_id = character.id;
+            let character = wrldbldr_domain::Character::new(
+                world_id_typed,
+                character_name,
+                wrldbldr_domain::CampbellArchetype::Hero,
+            );
+            let character_id = character.id();
 
             // Save the draft character
             if let Err(e) = state.app.repositories.character.save(&character).await {
@@ -266,7 +267,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the world to determine the system
-            let world = match state.app.repositories.world.get(character.world_id).await {
+            let world = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
@@ -354,7 +355,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the world to determine the system
-            let world = match state.app.repositories.world.get(character.world_id).await {
+            let world = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
@@ -398,13 +399,13 @@ pub(super) async fn handle_character_sheet_request(
 
             tracing::info!(
                 character_id = %character_id,
-                name = %character.name,
+                name = %character.name(),
                 "Completed character creation"
             );
 
             Ok(ResponseResult::success(json!({
                 "character_id": character_id,
-                "name": character.name,
+                "name": character.name().to_string(),
                 "status": "created",
             })))
         }
@@ -463,7 +464,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the world to determine the system
-            let world = match state.app.repositories.world.get(character.world_id).await {
+            let world = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
@@ -493,7 +494,7 @@ pub(super) async fn handle_character_sheet_request(
 
             Ok(ResponseResult::success(json!({
                 "character_id": character_id,
-                "name": character.name,
+                "name": character.name().to_string(),
                 "schema": schema,
                 "values": values,
                 "calculated": calculated,
@@ -531,7 +532,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the world to determine the system
-            let world = match state.app.repositories.world.get(character.world_id).await {
+            let world = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
@@ -617,7 +618,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the world to determine the system
-            let world = match state.app.repositories.world.get(character.world_id).await {
+            let world = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
@@ -710,7 +711,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the world to determine the system
-            let world = match state.app.repositories.world.get(character.world_id).await {
+            let world = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
@@ -761,7 +762,7 @@ pub(super) async fn handle_character_sheet_request(
             };
 
             // Get the world to determine the system
-            let world = match state.app.repositories.world.get(character.world_id).await {
+            let world = match state.app.repositories.world.get(character.world_id()).await {
                 Ok(Some(w)) => w,
                 Ok(None) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
@@ -813,11 +814,11 @@ fn get_character_values(
     let mut values = std::collections::HashMap::new();
 
     // Add character name
-    values.insert("NAME".to_string(), json!(character.name));
+    values.insert("NAME".to_string(), json!(character.name().to_string()));
 
     // Add stats
-    for (name, stat) in character.stats.get_all_stats() {
-        values.insert(name.clone(), json!(stat.effective));
+    for (name, stat) in character.stats().get_all_stats() {
+        values.insert(name.to_string(), json!(stat.effective));
     }
 
     values
@@ -832,20 +833,22 @@ fn update_character_field(
     match field_id {
         "NAME" => {
             if let Some(name) = value.as_str() {
-                character.name = name.to_string();
+                if let Ok(char_name) = wrldbldr_domain::CharacterName::new(name) {
+                    character.set_name(char_name);
+                }
             }
         }
         // Stats
         "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA" | "LEVEL" | "CURRENT_HP" | "MAX_HP"
         | "TEMP_HP" | "AC" | "SPEED" => {
             if let Some(val) = value.as_i64() {
-                character.stats.set_stat(field_id, val as i32);
+                character.stats_mut().set_stat(field_id, val as i32);
             }
         }
         // Derived/calculated stats
         "PROF_BONUS" | "INITIATIVE" | "PASSIVE_PERCEPTION" => {
             if let Some(val) = value.as_i64() {
-                character.stats.set_stat(field_id, val as i32);
+                character.stats_mut().set_stat(field_id, val as i32);
             }
         }
         // Skill proficiencies
@@ -858,25 +861,25 @@ fn update_character_field(
                     "half" => -1, // Use negative as flag for half
                     _ => 0,
                 };
-                character.stats.set_stat(field_id, prof_value);
+                character.stats_mut().set_stat(field_id, prof_value);
             }
         }
         // Saving throw proficiencies
         field if field.ends_with("_SAVE_PROF") => {
             if let Some(val) = value.as_bool() {
-                character.stats.set_stat(field_id, if val { 1 } else { 0 });
+                character.stats_mut().set_stat(field_id, if val { 1 } else { 0 });
             }
         }
         // Saving throw modifiers (calculated)
         field if field.ends_with("_SAVE") => {
             if let Some(val) = value.as_i64() {
-                character.stats.set_stat(field_id, val as i32);
+                character.stats_mut().set_stat(field_id, val as i32);
             }
         }
         // Skill modifiers (calculated)
         field if field.ends_with("_MOD") => {
             if let Some(val) = value.as_i64() {
-                character.stats.set_stat(field_id, val as i32);
+                character.stats_mut().set_stat(field_id, val as i32);
             }
         }
         // Identity fields (CLASS, RACE, BACKGROUND)
@@ -893,16 +896,20 @@ fn update_character_field(
         "FEATURES" => {
             if let Some(text) = value.as_str() {
                 // Append to description for now until we have a proper features field
-                if !character.description.is_empty() {
-                    character.description.push_str("\n\nFeatures:\n");
+                let mut desc = character.description().to_string();
+                if !desc.is_empty() {
+                    desc.push_str("\n\nFeatures:\n");
                 }
-                character.description.push_str(text);
+                desc.push_str(text);
+                if let Ok(new_desc) = wrldbldr_domain::Description::new(&desc) {
+                    character.set_description(new_desc);
+                }
             }
         }
         _ => {
             tracing::debug!(field_id = %field_id, "Unknown field, storing as stat if numeric");
             if let Some(val) = value.as_i64() {
-                character.stats.set_stat(field_id, val as i32);
+                character.stats_mut().set_stat(field_id, val as i32);
             }
         }
     }

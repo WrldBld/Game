@@ -223,23 +223,44 @@ impl Neo4jCharacterRepo {
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
 
-        Ok(Character {
-            id,
-            world_id,
-            name,
-            description,
-            sprite_asset: node.get_optional_string("sprite_asset"),
-            portrait_asset: node.get_optional_string("portrait_asset"),
-            base_archetype,
-            current_archetype,
-            archetype_history,
-            stats,
-            is_alive: node.get_bool_or("is_alive", true),
-            is_active: node.get_bool_or("is_active", true),
-            default_disposition,
-            default_mood,
-            expression_config,
-        })
+        // Determine state from legacy is_alive/is_active booleans
+        let is_alive = node.get_bool_or("is_alive", true);
+        let is_active = node.get_bool_or("is_active", true);
+        let state = CharacterState::from_legacy(is_alive, is_active);
+
+        // Create validated name (fallback to "Unknown" if stored name is invalid)
+        let character_name = CharacterName::new(&name)
+            .unwrap_or_else(|_| CharacterName::new("Unknown").unwrap());
+
+        // Create validated description (fallback to empty if stored description is invalid)
+        let character_description = Description::new(&description)
+            .unwrap_or_else(|_| Description::empty());
+
+        // Build character using aggregate's constructor and builder pattern
+        let mut character = Character::new(world_id, character_name, base_archetype)
+            .with_id(id)
+            .with_description(character_description)
+            .with_stats(stats)
+            .with_state(state)
+            .with_current_archetype(current_archetype)
+            .with_archetype_history(archetype_history)
+            .with_default_disposition(default_disposition)
+            .with_default_mood(default_mood)
+            .with_expression_config(expression_config);
+
+        // Set optional assets
+        if let Some(sprite) = node.get_optional_string("sprite_asset") {
+            if !sprite.is_empty() {
+                character = character.with_sprite(sprite);
+            }
+        }
+        if let Some(portrait) = node.get_optional_string("portrait_asset") {
+            if !portrait.is_empty() {
+                character = character.with_portrait(portrait);
+            }
+        }
+
+        Ok(character)
     }
 }
 
@@ -270,18 +291,18 @@ impl CharacterRepo for Neo4jCharacterRepo {
     }
 
     async fn save(&self, character: &Character) -> Result<(), RepoError> {
-        let stats_json = serde_json::to_string(&StatBlockStored::from(character.stats.clone()))
+        let stats_json = serde_json::to_string(&StatBlockStored::from(character.stats().clone()))
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
         let archetype_history_json = serde_json::to_string(
             &character
-                .archetype_history
+                .archetype_history()
                 .iter()
                 .cloned()
                 .map(ArchetypeChangeStored::from)
                 .collect::<Vec<_>>(),
         )
         .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let expression_config_json = serde_json::to_string(&character.expression_config)
+        let expression_config_json = serde_json::to_string(character.expression_config())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         // MERGE to handle both create and update, with CONTAINS_CHARACTER edge
@@ -305,32 +326,32 @@ impl CharacterRepo for Neo4jCharacterRepo {
             MERGE (w)-[:CONTAINS_CHARACTER]->(c)
             RETURN c.id as id",
         )
-        .param("id", character.id.to_string())
-        .param("world_id", character.world_id.to_string())
-        .param("name", character.name.clone())
-        .param("description", character.description.clone())
+        .param("id", character.id().to_string())
+        .param("world_id", character.world_id().to_string())
+        .param("name", character.name().to_string())
+        .param("description", character.description().to_string())
         .param(
             "sprite_asset",
-            character.sprite_asset.clone().unwrap_or_default(),
+            character.sprite_asset().unwrap_or_default().to_string(),
         )
         .param(
             "portrait_asset",
-            character.portrait_asset.clone().unwrap_or_default(),
+            character.portrait_asset().unwrap_or_default().to_string(),
         )
-        .param("base_archetype", format!("{:?}", character.base_archetype))
+        .param("base_archetype", format!("{:?}", character.base_archetype()))
         .param(
             "current_archetype",
-            format!("{:?}", character.current_archetype),
+            format!("{:?}", character.current_archetype()),
         )
         .param("archetype_history", archetype_history_json)
         .param("stats", stats_json)
-        .param("is_alive", character.is_alive)
-        .param("is_active", character.is_active)
+        .param("is_alive", character.is_alive())
+        .param("is_active", character.is_active())
         .param(
             "default_disposition",
-            character.default_disposition.to_string(),
+            character.default_disposition().to_string(),
         )
-        .param("default_mood", character.default_mood.to_string())
+        .param("default_mood", character.default_mood().to_string())
         .param("expression_config", expression_config_json);
 
         let mut result = self
@@ -348,13 +369,13 @@ impl CharacterRepo for Neo4jCharacterRepo {
         {
             tracing::warn!(
                 "save failed: World {} not found for character {}",
-                character.world_id,
-                character.id
+                character.world_id(),
+                character.id()
             );
             return Err(RepoError::not_found("Entity", "unknown"));
         }
 
-        tracing::debug!("Saved character: {}", character.name);
+        tracing::debug!("Saved character: {}", character.name());
         Ok(())
     }
 

@@ -212,7 +212,7 @@ async fn test_skills_in_llm_context() {
         .expect("NPC should exist");
 
     // Skills should be part of character context for LLM
-    println!("Character {} available for LLM context", npc.name);
+    println!("Character {} available for LLM context", npc.name());
 
     ctx.finalize_event_log(TestOutcome::Pass);
     let _ = ctx.save_event_log(&E2ETestContext::default_log_path("skills_context"));

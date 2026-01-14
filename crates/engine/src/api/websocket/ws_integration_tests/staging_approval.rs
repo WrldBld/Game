@@ -38,13 +38,11 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     pc.current_region_id = None; // initial spawn; skip connection validation
 
     let mut visible_npc =
-        wrldbldr_domain::Character::new(world_id, "Visible NPC", CampbellArchetype::Hero)
-            .expect("valid character");
-    visible_npc.id = visible_npc_id;
+        wrldbldr_domain::Character::new(world_id, wrldbldr_domain::CharacterName::new("Visible NPC").unwrap(), CampbellArchetype::Hero);
+    visible_npc = visible_npc.with_id(visible_npc_id);
     let mut hidden_npc =
-        wrldbldr_domain::Character::new(world_id, "Hidden NPC", CampbellArchetype::Herald)
-            .expect("valid character");
-    hidden_npc.id = hidden_npc_id;
+        wrldbldr_domain::Character::new(world_id, wrldbldr_domain::CharacterName::new("Hidden NPC").unwrap(), CampbellArchetype::Herald);
+    hidden_npc = hidden_npc.with_id(hidden_npc_id);
 
     // World repo: serve the world for both time + visual state resolution.
     let mut world_repo = MockWorldRepo::new();
@@ -222,9 +220,9 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let visible_npc_for_get = visible_npc.clone();
     let hidden_npc_for_get = hidden_npc.clone();
     repos.character_repo.expect_get().returning(move |id| {
-        if id == visible_npc_for_get.id {
+        if id == visible_npc_for_get.id() {
             Ok(Some(visible_npc_for_get.clone()))
-        } else if id == hidden_npc_for_get.id {
+        } else if id == hidden_npc_for_get.id() {
             Ok(Some(hidden_npc_for_get.clone()))
         } else {
             Ok(None)

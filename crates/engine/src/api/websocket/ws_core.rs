@@ -274,9 +274,9 @@ pub(super) async fn handle_character_request(
                         .into_iter()
                         .map(|c| {
                             serde_json::json!({
-                                "id": c.id.to_string(),
-                                "name": c.name,
-                                "archetype": Some(c.current_archetype.to_string()),
+                                "id": c.id().to_string(),
+                                "name": c.name().to_string(),
+                                "archetype": Some(c.current_archetype().to_string()),
                             })
                         })
                         .collect();
@@ -297,12 +297,12 @@ pub(super) async fn handle_character_request(
 
             match state.app.use_cases.management.character.get(char_id).await {
                 Ok(Some(character)) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": character.id.to_string(),
-                    "name": character.name,
-                    "description": if character.description.is_empty() { None } else { Some(character.description) },
-                    "archetype": Some(character.current_archetype.to_string()),
-                    "sprite_asset": character.sprite_asset,
-                    "portrait_asset": character.portrait_asset,
+                    "id": character.id().to_string(),
+                    "name": character.name().to_string(),
+                    "description": if character.description().is_empty() { None } else { Some(character.description().to_string()) },
+                    "archetype": Some(character.current_archetype().to_string()),
+                    "sprite_asset": character.sprite_asset(),
+                    "portrait_asset": character.portrait_asset(),
                     "sheet_data": serde_json::Value::Null,
                 }))),
                 Ok(None) => Ok(ResponseResult::error(
@@ -342,12 +342,12 @@ pub(super) async fn handle_character_request(
                 .await
             {
                 Ok(character) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": character.id.to_string(),
-                    "name": character.name,
-                    "description": if character.description.is_empty() { None } else { Some(character.description) },
-                    "archetype": Some(character.current_archetype.to_string()),
-                    "sprite_asset": character.sprite_asset,
-                    "portrait_asset": character.portrait_asset,
+                    "id": character.id().to_string(),
+                    "name": character.name().to_string(),
+                    "description": if character.description().is_empty() { None } else { Some(character.description().to_string()) },
+                    "archetype": Some(character.current_archetype().to_string()),
+                    "sprite_asset": character.sprite_asset(),
+                    "portrait_asset": character.portrait_asset(),
                     "sheet_data": serde_json::Value::Null,
                 }))),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
@@ -387,12 +387,12 @@ pub(super) async fn handle_character_request(
                 .await
             {
                 Ok(character) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": character.id.to_string(),
-                    "name": character.name,
-                    "description": if character.description.is_empty() { None } else { Some(character.description) },
-                    "archetype": Some(character.current_archetype.to_string()),
-                    "sprite_asset": character.sprite_asset,
-                    "portrait_asset": character.portrait_asset,
+                    "id": character.id().to_string(),
+                    "name": character.name().to_string(),
+                    "description": if character.description().is_empty() { None } else { Some(character.description().to_string()) },
+                    "archetype": Some(character.current_archetype().to_string()),
+                    "sprite_asset": character.sprite_asset(),
+                    "portrait_asset": character.portrait_asset(),
                     "sheet_data": serde_json::Value::Null,
                 }))),
                 Err(crate::use_cases::management::ManagementError::NotFound) => Ok(

@@ -166,7 +166,7 @@ impl GenerateExpressionSheet {
         let expressions_list = request.expressions.join(", ");
         let base_prompt = format!(
             "Expression sheet for character '{}'. Grid layout {}x{}. Expressions: {}",
-            character.name, request.grid_layout.0, request.grid_layout.1, expressions_list
+            character.name(), request.grid_layout.0, request.grid_layout.1, expressions_list
         );
 
         let prompt = match request.style_prompt {
@@ -178,7 +178,7 @@ impl GenerateExpressionSheet {
         let batch_id = self
             .queue
             .enqueue_asset_generation(&wrldbldr_domain::AssetGenerationData {
-                world_id: Some(character.world_id),
+                world_id: Some(character.world_id()),
                 entity_type: "character".to_string(),
                 entity_id: request.character_id.to_string(),
                 workflow_id: request.workflow,

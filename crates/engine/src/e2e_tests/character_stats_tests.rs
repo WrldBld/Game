@@ -31,9 +31,9 @@ async fn test_npc_stats_loaded() {
         .expect("NPC should exist");
 
     // Verify stats exist - HP values are Option<i32>
-    println!("NPC: {} has HP: {:?}/{:?}", npc.name, npc.stats.current_hp, npc.stats.max_hp);
+    println!("NPC: {} has HP: {:?}/{:?}", npc.name(), npc.stats().current_hp, npc.stats().max_hp);
 
-    assert!(npc.stats.max_hp.is_some(), "NPC should have max HP defined");
+    assert!(npc.stats().max_hp.is_some(), "NPC should have max HP defined");
 }
 
 /// Test PC sheet data.
@@ -148,7 +148,7 @@ async fn test_stats_in_character_context() {
         .expect("NPC should exist");
 
     // Stats should be available for context building - HP values are Option<i32>
-    println!("Stats available for context: HP={:?}/{:?}", npc.stats.current_hp, npc.stats.max_hp);
+    println!("Stats available for context: HP={:?}/{:?}", npc.stats().current_hp, npc.stats().max_hp);
 
     ctx.finalize_event_log(TestOutcome::Pass);
     let _ = ctx.save_event_log(&E2ETestContext::default_log_path("stats_context"));

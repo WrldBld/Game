@@ -165,7 +165,7 @@ impl StartConversation {
         Ok(ConversationStarted {
             conversation_id,
             action_queue_id,
-            npc_name: npc.name,
+            npc_name: npc.name().to_string(),
             npc_disposition,
         })
     }
@@ -204,8 +204,8 @@ mod tests {
     use uuid::Uuid;
     use wrldbldr_domain::{
         ApprovalRequestData, AssetGenerationData, CampbellArchetype, Character, CharacterId,
-        LlmRequestData, LocationId, MoodState, PlayerActionData, PlayerCharacterId, RegionId,
-        StagedNpc, Staging, StagingSource, WorldId,
+        CharacterName, LlmRequestData, LocationId, MoodState, PlayerActionData, PlayerCharacterId,
+        RegionId, StagedNpc, Staging, StagingSource, WorldId,
     };
 
     use crate::repositories;
@@ -358,12 +358,8 @@ mod tests {
         pc.id = pc_id;
         pc.current_region_id = Some(region_id);
 
-        let npc = {
-            let mut c = Character::new(world_id, "NPC", CampbellArchetype::Mentor)
-                .expect("valid character");
-            c.id = npc_id;
-            c
-        };
+        let npc = Character::new(world_id, CharacterName::new("NPC").unwrap(), CampbellArchetype::Mentor)
+            .with_id(npc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -443,12 +439,8 @@ mod tests {
         pc.id = pc_id;
         pc.current_region_id = Some(region_id);
 
-        let npc = {
-            let mut c = Character::new(world_id, "NPC", CampbellArchetype::Mentor)
-                .expect("valid character");
-            c.id = npc_id;
-            c
-        };
+        let npc = Character::new(world_id, CharacterName::new("NPC").unwrap(), CampbellArchetype::Mentor)
+            .with_id(npc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -479,7 +471,7 @@ mod tests {
 
         let staged_npc = StagedNpc {
             character_id: npc_id,
-            name: npc.name.clone(),
+            name: npc.name().to_string(),
             sprite_asset: None,
             portrait_asset: None,
             is_present: true,

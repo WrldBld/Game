@@ -278,7 +278,7 @@ impl SuggestionOps {
             .character
             .get(npc_id)
             .await?
-            .map(|npc| npc.name);
+            .map(|npc| npc.name().to_string());
         Ok(name)
     }
 }

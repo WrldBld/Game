@@ -61,9 +61,9 @@ impl ObservationCrud {
             let (npc_name, npc_portrait) = if observation.is_revealed_to_player {
                 (
                     npc.as_ref()
-                        .map(|n| n.name.clone())
+                        .map(|n| n.name().to_string())
                         .unwrap_or_else(|| "Unknown NPC".to_string()),
-                    npc.as_ref().and_then(|n| n.portrait_asset.clone()),
+                    npc.as_ref().and_then(|n| n.portrait_asset().map(|s| s.to_string())),
                 )
             } else {
                 ("Unknown Figure".to_string(), None)

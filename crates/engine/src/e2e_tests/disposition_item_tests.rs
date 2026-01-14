@@ -52,7 +52,7 @@ async fn test_grateful_disposition_in_prompt() {
 
         // Verify disposition is Friendly
         assert_eq!(
-            marta.default_disposition,
+            marta.default_disposition(),
             wrldbldr_domain::DispositionLevel::Friendly,
             "Marta should have Friendly disposition"
         );
@@ -134,7 +134,7 @@ async fn test_hostile_disposition_in_prompt() {
 
         // Verify Grom has a less friendly disposition
         assert_ne!(
-            grom.default_disposition,
+            grom.default_disposition(),
             wrldbldr_domain::DispositionLevel::Friendly,
             "Grom should not be Friendly"
         );
@@ -601,8 +601,8 @@ async fn test_multiple_npcs_different_dispositions() {
 
         // Verify they have different dispositions
         assert!(
-            marta.default_disposition != grom.default_disposition
-                || marta.default_mood != grom.default_mood,
+            marta.default_disposition() != grom.default_disposition()
+                || marta.default_mood() != grom.default_mood(),
             "NPCs should have distinct personalities"
         );
 
@@ -650,7 +650,7 @@ async fn test_npc_archetype_in_context() {
 
         // Verify archetype
         assert_eq!(
-            marta.base_archetype,
+            marta.base_archetype(),
             wrldbldr_domain::CampbellArchetype::Mentor,
             "Marta should be a Mentor archetype"
         );
@@ -667,7 +667,7 @@ async fn test_npc_archetype_in_context() {
             .expect("Grom not found");
 
         assert_eq!(
-            grom.base_archetype,
+            grom.base_archetype(),
             wrldbldr_domain::CampbellArchetype::ThresholdGuardian,
             "Grom should be a Threshold Guardian archetype"
         );

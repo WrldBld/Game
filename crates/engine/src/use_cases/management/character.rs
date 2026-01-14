@@ -42,11 +42,9 @@ impl CharacterCrud {
         sprite_asset: Option<String>,
         portrait_asset: Option<String>,
     ) -> Result<wrldbldr_domain::Character, ManagementError> {
-        if name.trim().is_empty() {
-            return Err(ManagementError::InvalidInput(
-                "Character name cannot be empty".to_string(),
-            ));
-        }
+        // Create validated CharacterName (handles empty/whitespace validation)
+        let character_name = wrldbldr_domain::CharacterName::new(name)
+            .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
 
         let archetype_value = archetype
             .as_deref()
@@ -54,11 +52,12 @@ impl CharacterCrud {
             .parse::<wrldbldr_domain::CampbellArchetype>()
             .map_err(ManagementError::Domain)?;
 
-        let mut character = wrldbldr_domain::Character::new(world_id, name, archetype_value)
-            .map_err(|e| ManagementError::Domain(e.to_string()))?;
+        let mut character = wrldbldr_domain::Character::new(world_id, character_name, archetype_value);
 
         if let Some(description) = description {
-            character = character.with_description(description);
+            let desc = wrldbldr_domain::Description::new(description)
+                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            character = character.with_description(desc);
         }
         if let Some(sprite) = sprite_asset {
             character = character.with_sprite(sprite);
@@ -87,28 +86,83 @@ impl CharacterCrud {
             .await?
             .ok_or(ManagementError::NotFound)?;
 
+        // For name/description, we need to rebuild the character using builder pattern
+        // since fields are private. We use the with_* methods for immutable updates.
         if let Some(name) = name {
-            if name.trim().is_empty() {
-                return Err(ManagementError::InvalidInput(
-                    "Character name cannot be empty".to_string(),
-                ));
-            }
-            character.name = name;
+            let validated_name = wrldbldr_domain::CharacterName::new(name)
+                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            // Rebuild character with new name using aggregate's constructor + builder
+            let new_character = wrldbldr_domain::Character::new(
+                character.world_id(),
+                validated_name,
+                character.base_archetype(),
+            )
+            .with_id(character.id())
+            .with_description(character.description().clone())
+            .with_stats(character.stats().clone())
+            .with_state(character.state())
+            .with_current_archetype(character.current_archetype())
+            .with_archetype_history(character.archetype_history().to_vec())
+            .with_default_disposition(character.default_disposition())
+            .with_default_mood(character.default_mood().clone())
+            .with_expression_config(character.expression_config().clone());
+            // Copy assets if present
+            let new_character = if let Some(sprite) = character.sprite_asset() {
+                new_character.with_sprite(sprite)
+            } else {
+                new_character
+            };
+            let new_character = if let Some(portrait) = character.portrait_asset() {
+                new_character.with_portrait(portrait)
+            } else {
+                new_character
+            };
+            character = new_character;
         }
         if let Some(description) = description {
-            character.description = description;
+            let desc = wrldbldr_domain::Description::new(description)
+                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            character.set_description(desc);
         }
         if let Some(sprite) = sprite_asset {
-            character.sprite_asset = Some(sprite);
+            character.set_sprite(Some(sprite));
         }
         if let Some(portrait) = portrait_asset {
-            character.portrait_asset = Some(portrait);
+            character.set_portrait(Some(portrait));
         }
         if let Some(is_alive) = is_alive {
-            character.is_alive = is_alive;
+            if is_alive && character.is_dead() {
+                // Resurrect if was dead and should be alive
+                character.resurrect();
+            } else if !is_alive && character.is_alive() {
+                // Kill if was alive and should be dead - apply max damage
+                if let Some(max_hp) = character.stats().max_hp {
+                    character.apply_damage(max_hp + 1000);
+                } else {
+                    // No HP tracking, manually set state via with_state
+                    character = wrldbldr_domain::Character::new(
+                        character.world_id(),
+                        character.name().clone(),
+                        character.base_archetype(),
+                    )
+                    .with_id(character.id())
+                    .with_description(character.description().clone())
+                    .with_stats(character.stats().clone())
+                    .with_state(wrldbldr_domain::CharacterState::Dead)
+                    .with_current_archetype(character.current_archetype())
+                    .with_archetype_history(character.archetype_history().to_vec())
+                    .with_default_disposition(character.default_disposition())
+                    .with_default_mood(character.default_mood().clone())
+                    .with_expression_config(character.expression_config().clone());
+                }
+            }
         }
         if let Some(is_active) = is_active {
-            character.is_active = is_active;
+            if is_active {
+                character.activate();
+            } else {
+                character.deactivate();
+            }
         }
 
         self.character.save(&character).await?;

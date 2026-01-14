@@ -204,7 +204,7 @@ impl ProcessPlayerAction {
 
         let target_name = npc_entity
             .as_ref()
-            .map(|npc| npc.name.clone())
+            .map(|npc| npc.name().to_string())
             .or_else(|| action_data.target.clone())
             .unwrap_or_else(|| "the NPC".to_string());
 
@@ -339,18 +339,18 @@ impl ProcessPlayerAction {
 
             CharacterContext {
                 character_id: npc_id.map(|id| id.to_string()),
-                name: npc.name.clone(),
-                archetype: npc.current_archetype.to_string(),
-                current_mood: Some(npc.default_mood.to_string()),
+                name: npc.name().to_string(),
+                archetype: npc.current_archetype().to_string(),
+                current_mood: Some(npc.default_mood().to_string()),
                 disposition_toward_player: disposition
                     .as_ref()
                     .map(|d| d.disposition.to_string())
-                    .or_else(|| Some(npc.default_disposition.to_string())),
+                    .or_else(|| Some(npc.default_disposition().to_string())),
                 motivations,
                 social_stance: None, // Could be populated from actantial context
                 relationship_to_player: disposition.as_ref().map(|d| d.relationship.to_string()),
-                available_expressions: Some(npc.expression_config.expressions.clone()),
-                available_actions: Some(npc.expression_config.actions.clone()),
+                available_expressions: Some(npc.expression_config().expressions.clone()),
+                available_actions: Some(npc.expression_config().actions.clone()),
             }
         } else {
             // Fallback for when NPC entity is not found

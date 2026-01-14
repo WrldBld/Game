@@ -103,14 +103,14 @@ impl JoinWorld {
             }).collect::<Vec<_>>(),
             "characters": characters.into_iter().map(|c| {
                 serde_json::json!({
-                    "id": c.id.to_string(),
-                    "name": c.name,
-                    "description": c.description,
-                    "archetype": format!("{:?}", c.current_archetype),
-                    "sprite_asset": c.sprite_asset,
-                    "portrait_asset": c.portrait_asset,
-                    "is_alive": c.is_alive,
-                    "is_active": c.is_active,
+                    "id": c.id().to_string(),
+                    "name": c.name().to_string(),
+                    "description": c.description().as_str().to_string(),
+                    "archetype": format!("{:?}", c.current_archetype()),
+                    "sprite_asset": c.sprite_asset(),
+                    "portrait_asset": c.portrait_asset(),
+                    "is_alive": c.is_alive(),
+                    "is_active": c.is_active(),
                 })
             }).collect::<Vec<_>>(),
             "scenes": scenes_json,

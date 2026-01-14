@@ -34,9 +34,8 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     pc.id = pc_id;
     pc.current_region_id = None;
 
-    let mut npc = wrldbldr_domain::Character::new(world_id, "NPC", CampbellArchetype::Hero)
-        .expect("valid character");
-    npc.id = npc_id;
+    let mut npc = wrldbldr_domain::Character::new(world_id, wrldbldr_domain::CharacterName::new("NPC").unwrap(), CampbellArchetype::Hero);
+    npc = npc.with_id(npc_id);
 
     let mut world_repo = MockWorldRepo::new();
     let world_for_get = world.clone();
@@ -151,7 +150,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     // Character details used by PreStageRegion.
     let npc_for_get = npc.clone();
     repos.character_repo.expect_get().returning(move |id| {
-        if id == npc_for_get.id {
+        if id == npc_for_get.id() {
             Ok(Some(npc_for_get.clone()))
         } else {
             Ok(None)

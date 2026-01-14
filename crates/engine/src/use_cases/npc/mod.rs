@@ -74,7 +74,7 @@ impl NpcDisposition {
             .await
             .ok()
             .flatten()
-            .map(|npc| npc.name)
+            .map(|npc| npc.name().to_string())
             .unwrap_or_else(|| "Unknown NPC".to_string());
 
         Ok(NpcDispositionUpdate {
@@ -109,7 +109,7 @@ impl NpcDisposition {
             .await
             .ok()
             .flatten()
-            .map(|npc| npc.name)
+            .map(|npc| npc.name().to_string())
             .unwrap_or_else(|| "Unknown NPC".to_string());
 
         Ok(NpcDispositionUpdate {
@@ -136,7 +136,7 @@ impl NpcDisposition {
                 .await
                 .ok()
                 .flatten()
-                .map(|npc| npc.name)
+                .map(|npc| npc.name().to_string())
                 .unwrap_or_else(|| "Unknown NPC".to_string());
 
             response.push(NpcDispositionInfo {
@@ -182,13 +182,13 @@ impl NpcMood {
             .staging
             .get_npc_mood(region_id, npc_id)
             .await
-            .unwrap_or(npc.default_mood);
+            .unwrap_or(npc.default_mood().clone());
 
         self.staging.set_npc_mood(region_id, npc_id, mood).await?;
 
         Ok(NpcMoodChange {
             npc_id,
-            npc_name: npc.name,
+            npc_name: npc.name().to_string(),
             old_mood,
             new_mood: mood,
             region_id,
@@ -297,7 +297,7 @@ impl NpcLocationSharing {
             .character
             .get(npc_id)
             .await?
-            .map(|npc| npc.name)
+            .map(|npc| npc.name().to_string())
             .unwrap_or_else(|| "Unknown".to_string());
 
         let region_name = self
@@ -370,8 +370,8 @@ impl NpcApproachEvents {
 
         match self.character.get(npc_id).await {
             Ok(Some(npc)) => Ok(NpcApproachEventResult {
-                npc_name: npc.name,
-                npc_sprite: npc.sprite_asset,
+                npc_name: npc.name().to_string(),
+                npc_sprite: npc.sprite_asset().map(|s| s.to_string()),
                 lookup_error: None,
             }),
             Ok(None) => Ok(NpcApproachEventResult {

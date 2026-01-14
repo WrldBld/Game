@@ -197,7 +197,13 @@ impl ApproveStagingRequest {
             let character = self.character.get(npc_info.character_id).await.ok().flatten();
             let (name, sprite_asset, portrait_asset, default_mood, has_incomplete_data) =
                 match character {
-                    Some(c) => (c.name, c.sprite_asset, c.portrait_asset, c.default_mood, false),
+                    Some(c) => (
+                        c.name().to_string(),
+                        c.sprite_asset().map(|s| s.to_string()),
+                        c.portrait_asset().map(|s| s.to_string()),
+                        c.default_mood().clone(),
+                        false,
+                    ),
                     None => {
                         tracing::warn!(
                             character_id = %npc_info.character_id,
@@ -242,9 +248,9 @@ impl ApproveStagingRequest {
                 let (name, sprite_asset, portrait_asset) =
                     match self.character.get(npc_info.character_id).await {
                         Ok(Some(character)) => (
-                            character.name,
-                            character.sprite_asset,
-                            character.portrait_asset,
+                            character.name().to_string(),
+                            character.sprite_asset().map(|s| s.to_string()),
+                            character.portrait_asset().map(|s| s.to_string()),
                         ),
                         Ok(None) => {
                             tracing::warn!(

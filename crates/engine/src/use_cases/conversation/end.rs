@@ -128,14 +128,14 @@ impl EndConversation {
             pc_id = %pc_id,
             pc_name = %pc.name,
             npc_id = %npc_id,
-            npc_name = %npc.name,
+            npc_name = %npc.name(),
             conversation_id = ?ended_conversation_id,
             "Conversation ended"
         );
 
         Ok(ConversationEnded {
             npc_id,
-            npc_name: npc.name,
+            npc_name: npc.name().to_string(),
             pc_id,
             pc_name: pc.name,
             summary,
@@ -160,7 +160,7 @@ mod tests {
 
     use chrono::Utc;
     use uuid::Uuid;
-    use wrldbldr_domain::{CampbellArchetype, Character, CharacterId, LocationId, PlayerCharacterId, WorldId};
+    use wrldbldr_domain::{CampbellArchetype, Character, CharacterId, CharacterName, LocationId, PlayerCharacterId, WorldId};
 
     use crate::repositories;
     use crate::infrastructure::ports::{
@@ -274,12 +274,8 @@ mod tests {
             wrldbldr_domain::PlayerCharacter::new("user", world_id, "TestPC", location_id, now);
         pc.id = pc_id;
 
-        let npc = {
-            let mut c = Character::new(world_id, "TestNPC", CampbellArchetype::Mentor)
-                .expect("valid character");
-            c.id = npc_id;
-            c
-        };
+        let npc = Character::new(world_id, CharacterName::new("TestNPC").unwrap(), CampbellArchetype::Mentor)
+            .with_id(npc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -334,12 +330,8 @@ mod tests {
             wrldbldr_domain::PlayerCharacter::new("user", world_id, "TestPC", location_id, now);
         pc.id = pc_id;
 
-        let npc = {
-            let mut c = Character::new(world_id, "TestNPC", CampbellArchetype::Mentor)
-                .expect("valid character");
-            c.id = npc_id;
-            c
-        };
+        let npc = Character::new(world_id, CharacterName::new("TestNPC").unwrap(), CampbellArchetype::Mentor)
+            .with_id(npc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -390,12 +382,8 @@ mod tests {
             wrldbldr_domain::PlayerCharacter::new("user", world_id, "TestPC", location_id, now);
         pc.id = pc_id;
 
-        let npc = {
-            let mut c = Character::new(world_id, "TestNPC", CampbellArchetype::Mentor)
-                .expect("valid character");
-            c.id = npc_id;
-            c
-        };
+        let npc = Character::new(world_id, CharacterName::new("TestNPC").unwrap(), CampbellArchetype::Mentor)
+            .with_id(npc_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();

@@ -22,7 +22,7 @@ pub use entities::{
     ActantialView, ActiveFeature, AssetType, BackgroundFeature, BatchStatus, CastingTime,
     CastingTimeUnit, ChainStatus, ChainedEvent, Challenge, ChallengeEventOutcome,
     ChallengeLocationAvailability, ChallengeOutcomes, ChallengePrerequisite,
-    ChallengeRegionAvailability, ChallengeType, ChallengeUnlock, Character, CharacterFeats,
+    ChallengeRegionAvailability, ChallengeType, ChallengeUnlock, CharacterFeats,
     CharacterFeatures, CharacterIdentity, CharacterSpells, CharacterWant, ClassFeature, ClassLevel,
     CombatEventType, CombatOutcome, Difficulty, DifficultyDescriptor, DmMarkerType, DurationUnit,
     EntityType, EventChain, EventChainMembership, EventEffect, EventOutcome, Feat, FeatBenefit,
@@ -38,7 +38,7 @@ pub use entities::{
     RechargeType, Region, RegionConnection, RegionExit, RegionState, RegionStateSummary,
     ResolvedStateInfo, ResolvedVisualState, Scene, SceneCharacter, SceneCharacterRole,
     SceneCondition, Skill, SkillCategory, Spell, SpellComponents, SpellDuration, SpellLevel,
-    SpellRange, SpellSlotPool, StagedNpc, Staging, StagingSource, StatBlock, StatModifier, StoryEvent,
+    SpellRange, SpellSlotPool, StagedNpc, Staging, StagingSource, StatBlock, StatModifier, StatValue, StoryEvent,
     StoryEventInfoImportance, StoryEventType, TimeAdvanceResult, TimeContext, TriggerCondition,
     TriggerContext, TriggerEvaluation, TriggerLogic, TriggerType, UsesFormula, VisualStateSource,
     Want, WantTargetType, WantVisibility, WorkflowAnalysis, WorkflowConfiguration, WorkflowInput,
@@ -47,15 +47,17 @@ pub use entities::{
     ContentFilter, ContentItem, ContentSource, ContentType, SourceType,
 };
 
+// Re-export Character from aggregates (the Rustic DDD version with private fields)
+// This replaces the legacy entities::Character with public fields
+pub use aggregates::Character;
+
 pub use error::DomainError;
 pub use events::{
     ArchetypeShift, ChallengeOutcome, DamageOutcome, DomainEvent, HealOutcome, ResurrectOutcome,
 };
 
-// Re-export aggregate types
-// NOTE: aggregates::Character is the new Rustic DDD version with private fields.
-// entities::Character is the legacy version with public fields.
-// During migration (Phase 4-6), both exist. After Phase 7, only aggregates::Character remains.
+// Re-export aggregate types with "Aggregate" suffix for migration compatibility
+// These aliases allow existing code using `CharacterAggregate` to continue working
 pub use aggregates::Character as CharacterAggregate;
 // NOTE: aggregates::Location is the new Rustic DDD version with private fields.
 // entities::Location is the legacy version with public fields.

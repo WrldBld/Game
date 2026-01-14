@@ -28,8 +28,8 @@ use crate::value_objects::{
 };
 use wrldbldr_domain::{CharacterId, WorldId};
 
-// Re-export from entities for now (StatBlock, StatModifier, StatValue)
-pub use crate::entities::{StatBlock, StatModifier, StatValue};
+// Re-export from value_objects (StatBlock, StatModifier, StatValue)
+pub use crate::value_objects::{StatBlock, StatModifier, StatValue};
 
 /// A character (NPC) in the world
 ///
@@ -545,6 +545,11 @@ impl Character {
     /// Revert to base archetype.
     pub fn revert_to_base(&mut self) {
         self.current_archetype = self.base_archetype;
+    }
+
+    /// Set the character's name.
+    pub fn set_name(&mut self, name: CharacterName) {
+        self.name = name;
     }
 
     /// Set the character's description.

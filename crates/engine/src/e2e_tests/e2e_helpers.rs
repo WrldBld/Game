@@ -1033,7 +1033,7 @@ pub async fn approve_staging_with_npc(
             is_present: true,
             reasoning: Some("E2E test staging".to_string()),
             is_hidden_from_players: false,
-            mood: Some(format!("{:?}", npc.default_mood).to_lowercase()),
+            mood: Some(format!("{:?}", npc.default_mood()).to_lowercase()),
         }],
         location_state_id: None,
         region_state_id: None,
@@ -1065,7 +1065,7 @@ pub async fn approve_staging_with_npcs(
             is_present: true,
             reasoning: Some("E2E test staging".to_string()),
             is_hidden_from_players: false,
-            mood: Some(format!("{:?}", npc.default_mood).to_lowercase()),
+            mood: Some(format!("{:?}", npc.default_mood()).to_lowercase()),
         });
     }
 
@@ -1206,7 +1206,7 @@ pub async fn run_conversation_turn(
         if let Some(conv_id) = conversation_id {
             ctx.log_event(E2EEvent::ConversationTurn {
                 id: conv_id,
-                speaker: npc.name.clone(),
+                speaker: npc.name().to_string(),
                 content: npc_response.clone(),
                 turn_number: 0, // Turn number not tracked in continue
             });
@@ -1261,7 +1261,7 @@ pub async fn start_conversation_with_npc(
         id: conversation_id,
         pc_id: pc_id.to_string(),
         npc_id: npc_id.to_string(),
-        npc_name: npc.name.clone(),
+        npc_name: npc.name().to_string(),
     });
 
     // Log player turn
@@ -1313,7 +1313,7 @@ pub async fn start_conversation_with_npc(
         // Log NPC response turn
         ctx.log_event(E2EEvent::ConversationTurn {
             id: conversation_id,
-            speaker: npc.name.clone(),
+            speaker: npc.name().to_string(),
             content: npc_response.clone(),
             turn_number: 2,
         });

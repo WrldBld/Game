@@ -25,6 +25,7 @@ mod relationship;
 mod rule_system;
 mod settings;
 mod staging_context;
+pub mod stat_block;
 mod world_state;
 
 // Activation rules for visual states
@@ -121,6 +122,9 @@ pub use names::{CharacterName, Description, LocationName, WorldName};
 
 // Character lifecycle state enum
 pub use character_state::CharacterState;
+
+// Stat block value objects
+pub use stat_block::{StatBlock, StatModifier, StatValue};
 
 // NOTE: Want has been promoted to an entity (domain/entities/want.rs)
 // ActantTarget is no longer used - targets are now Neo4j edges

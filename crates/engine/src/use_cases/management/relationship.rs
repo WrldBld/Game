@@ -26,7 +26,7 @@ impl RelationshipCrud {
         let characters = self.character.list_in_world(world_id).await?;
         let mut relationships = Vec::new();
         for character in characters {
-            relationships.extend(self.character.get_relationships(character.id).await?);
+            relationships.extend(self.character.get_relationships(character.id()).await?);
         }
         Ok(relationships)
     }

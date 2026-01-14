@@ -683,14 +683,14 @@ impl NarrativeOps {
                     Ok(Some(character)) => {
                         // Extract effective stat values (base + modifiers)
                         let mut char_stats = HashMap::new();
-                        for (stat_name, stat_value) in character.stats.get_all_stats() {
+                        for (stat_name, stat_value) in character.stats().get_all_stats() {
                             char_stats.insert(stat_name, stat_value.effective);
                         }
                         // Also include HP if present
-                        if let Some(hp) = character.stats.get_current_hp() {
+                        if let Some(hp) = character.stats().get_current_hp() {
                             char_stats.insert("current_hp".to_string(), hp);
                         }
-                        if let Some(max_hp) = character.stats.get_max_hp() {
+                        if let Some(max_hp) = character.stats().get_max_hp() {
                             char_stats.insert("max_hp".to_string(), max_hp);
                         }
                         stats_map.insert(char_id, char_stats);
