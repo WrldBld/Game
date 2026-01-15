@@ -45,6 +45,13 @@ where
         self.entries.write().await.insert(key, entry);
     }
 
+    /// Insert a value with an explicit timestamp (tests only).
+    #[cfg(test)]
+    pub async fn insert_at(&self, key: K, value: V, inserted_at: Instant) {
+        let entry = TtlEntry { value, inserted_at };
+        self.entries.write().await.insert(key, entry);
+    }
+
     /// Get a value if it exists and hasn't expired.
     pub async fn get(&self, key: &K) -> Option<V> {
         let guard = self.entries.read().await;
@@ -102,7 +109,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     #[tokio::test]
     async fn insert_and_get() {
@@ -127,25 +134,21 @@ mod tests {
 
     #[tokio::test]
     async fn expired_entries_not_returned() {
-        let cache: TtlCache<String, i32> = TtlCache::new(Duration::from_millis(10));
-        cache.insert("key".to_string(), 42).await;
-
-        // Wait for expiration
-        tokio::time::sleep(Duration::from_millis(20)).await;
+        let ttl = Duration::from_millis(10);
+        let cache: TtlCache<String, i32> = TtlCache::new(ttl);
+        let expired_at = Instant::now() - (ttl + Duration::from_millis(1));
+        cache.insert_at("key".to_string(), 42, expired_at).await;
 
         assert_eq!(cache.get(&"key".to_string()).await, None);
     }
 
     #[tokio::test]
     async fn cleanup_removes_expired() {
-        let cache: TtlCache<String, i32> = TtlCache::new(Duration::from_millis(10));
-        cache.insert("key1".to_string(), 1).await;
-        cache.insert("key2".to_string(), 2).await;
-
-        // Wait for expiration
-        tokio::time::sleep(Duration::from_millis(20)).await;
-
-        // Add a fresh entry
+        let ttl = Duration::from_millis(10);
+        let cache: TtlCache<String, i32> = TtlCache::new(ttl);
+        let expired_at = Instant::now() - (ttl + Duration::from_millis(1));
+        cache.insert_at("key1".to_string(), 1, expired_at).await;
+        cache.insert_at("key2".to_string(), 2, expired_at).await;
         cache.insert("key3".to_string(), 3).await;
 
         let removed = cache.cleanup_expired().await;
@@ -156,25 +159,24 @@ mod tests {
 
     #[tokio::test]
     async fn contains_respects_ttl() {
-        let cache: TtlCache<String, i32> = TtlCache::new(Duration::from_millis(10));
+        let ttl = Duration::from_millis(10);
+        let cache: TtlCache<String, i32> = TtlCache::new(ttl);
         cache.insert("key".to_string(), 42).await;
 
         assert!(cache.contains(&"key".to_string()).await);
 
-        // Wait for expiration
-        tokio::time::sleep(Duration::from_millis(20)).await;
+        let expired_at = Instant::now() - (ttl + Duration::from_millis(1));
+        cache.insert_at("key".to_string(), 42, expired_at).await;
 
         assert!(!cache.contains(&"key".to_string()).await);
     }
 
     #[tokio::test]
     async fn entries_filters_expired() {
-        let cache: TtlCache<String, i32> = TtlCache::new(Duration::from_millis(10));
-        cache.insert("old".to_string(), 1).await;
-
-        // Wait for first entry to expire
-        tokio::time::sleep(Duration::from_millis(20)).await;
-
+        let ttl = Duration::from_millis(10);
+        let cache: TtlCache<String, i32> = TtlCache::new(ttl);
+        let expired_at = Instant::now() - (ttl + Duration::from_millis(1));
+        cache.insert_at("old".to_string(), 1, expired_at).await;
         cache.insert("new".to_string(), 2).await;
 
         let entries = cache.entries().await;

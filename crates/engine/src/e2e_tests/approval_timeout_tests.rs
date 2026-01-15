@@ -16,7 +16,7 @@
 //! - Time advancement proceeds automatically (or is cancelled)
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use uuid::Uuid;
@@ -584,8 +584,8 @@ async fn test_time_suggestion_expires_after_timeout() {
     .expect("Player creation should succeed");
 
     // Create a TTL cache with a very short TTL for testing (50ms)
-    let short_ttl_store: TtlCache<Uuid, TimeSuggestion> =
-        TtlCache::new(Duration::from_millis(50));
+    let ttl = Duration::from_millis(50);
+    let short_ttl_store: TtlCache<Uuid, TimeSuggestion> = TtlCache::new(ttl);
 
     // Create a time suggestion
     // Note: TimeSuggestion uses domain GameTime which wraps DateTime<Utc>
@@ -607,8 +607,10 @@ async fn test_time_suggestion_expires_after_timeout() {
         period_change: None,
     };
 
-    // Insert the suggestion
-    short_ttl_store.insert(suggestion_id, suggestion).await;
+    // Insert the suggestion as fresh
+    short_ttl_store
+        .insert_at(suggestion_id, suggestion.clone(), Instant::now())
+        .await;
 
     // Verify it exists immediately
     let exists_before = short_ttl_store.get(&suggestion_id).await;
@@ -617,8 +619,11 @@ async fn test_time_suggestion_expires_after_timeout() {
         "Suggestion should exist immediately after insertion"
     );
 
-    // Wait for TTL to expire (use generous margin)
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    // Overwrite with an expired timestamp to avoid sleeps
+    let expired_at = Instant::now() - (ttl + Duration::from_millis(1));
+    short_ttl_store
+        .insert_at(suggestion_id, suggestion, expired_at)
+        .await;
 
     // Verify the suggestion has expired
     let exists_after = short_ttl_store.get(&suggestion_id).await;
@@ -735,8 +740,8 @@ async fn test_old_approvals_cleaned_up() {
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
     // Create a TTL cache with very short TTL for testing (30ms)
-    let short_ttl_store: TtlCache<String, PendingStagingRequest> =
-        TtlCache::new(Duration::from_millis(30));
+    let ttl = Duration::from_millis(30);
+    let short_ttl_store: TtlCache<String, PendingStagingRequest> = TtlCache::new(ttl);
 
     let location_id = ctx
         .world
@@ -758,7 +763,7 @@ async fn test_old_approvals_cleaned_up() {
         };
 
         short_ttl_store
-            .insert(format!("request-{}", i), request)
+            .insert_at(format!("request-{}", i), request, Instant::now())
             .await;
     }
 
@@ -774,8 +779,25 @@ async fn test_old_approvals_cleaned_up() {
         "Should be able to access all 5 entries"
     );
 
-    // Wait for TTL to expire (use generous margin)
-    tokio::time::sleep(Duration::from_millis(80)).await;
+    // Overwrite with expired timestamps to avoid sleeps
+    let expired_at = Instant::now() - (ttl + Duration::from_millis(1));
+    for i in 0..5 {
+        let region_id = ctx
+            .world
+            .region("Common Room")
+            .expect("Region should exist");
+
+        let request = PendingStagingRequest {
+            region_id,
+            location_id,
+            world_id: ctx.world.world_id,
+            created_at: Utc::now(),
+        };
+
+        short_ttl_store
+            .insert_at(format!("request-{}", i), request, expired_at)
+            .await;
+    }
 
     // Entries are still in the cache, but not accessible (expired)
     let entries_after_expiry = short_ttl_store.entries().await;
@@ -819,7 +841,8 @@ async fn test_old_approvals_cleaned_up() {
 /// Test that TtlCache correctly tracks insertion time for TTL calculation.
 #[tokio::test]
 async fn test_ttl_cache_basic_expiration() {
-    let cache: TtlCache<String, String> = TtlCache::new(Duration::from_millis(20));
+    let ttl = Duration::from_millis(20);
+    let cache: TtlCache<String, String> = TtlCache::new(ttl);
 
     // Insert an entry
     cache.insert("key1".to_string(), "value1".to_string()).await;
@@ -830,8 +853,10 @@ async fn test_ttl_cache_basic_expiration() {
         Some("value1".to_string())
     );
 
-    // Wait for expiration
-    tokio::time::sleep(Duration::from_millis(40)).await;
+    let expired_at = Instant::now() - (ttl + Duration::from_millis(1));
+    cache
+        .insert_at("key1".to_string(), "value1".to_string(), expired_at)
+        .await;
 
     // Should no longer be accessible
     assert_eq!(cache.get(&"key1".to_string()).await, None);
@@ -840,13 +865,16 @@ async fn test_ttl_cache_basic_expiration() {
 /// Test that fresh entries are preserved during cleanup.
 #[tokio::test]
 async fn test_ttl_cache_cleanup_preserves_fresh_entries() {
-    let cache: TtlCache<String, String> = TtlCache::new(Duration::from_millis(50));
+    let ttl = Duration::from_millis(50);
+    let cache: TtlCache<String, String> = TtlCache::new(ttl);
 
     // Insert first entry
     cache.insert("old".to_string(), "old_value".to_string()).await;
 
-    // Wait for first entry to expire
-    tokio::time::sleep(Duration::from_millis(70)).await;
+    let expired_at = Instant::now() - (ttl + Duration::from_millis(1));
+    cache
+        .insert_at("old".to_string(), "old_value".to_string(), expired_at)
+        .await;
 
     // Insert second entry (fresh)
     cache.insert("new".to_string(), "new_value".to_string()).await;
@@ -870,15 +898,16 @@ async fn test_ttl_cache_cleanup_preserves_fresh_entries() {
 /// Test that contains() respects TTL.
 #[tokio::test]
 async fn test_ttl_cache_contains_respects_ttl() {
-    let cache: TtlCache<String, i32> = TtlCache::new(Duration::from_millis(20));
+    let ttl = Duration::from_millis(20);
+    let cache: TtlCache<String, i32> = TtlCache::new(ttl);
 
     cache.insert("key".to_string(), 42).await;
 
     // Should exist immediately
     assert!(cache.contains(&"key".to_string()).await);
 
-    // Wait for expiration
-    tokio::time::sleep(Duration::from_millis(40)).await;
+    let expired_at = Instant::now() - (ttl + Duration::from_millis(1));
+    cache.insert_at("key".to_string(), 42, expired_at).await;
 
     // Should not exist after expiration
     assert!(!cache.contains(&"key".to_string()).await);
@@ -887,14 +916,17 @@ async fn test_ttl_cache_contains_respects_ttl() {
 /// Test that remove() works even for expired entries.
 #[tokio::test]
 async fn test_ttl_cache_remove_works_for_expired() {
-    let cache: TtlCache<String, String> = TtlCache::new(Duration::from_millis(20));
+    let ttl = Duration::from_millis(20);
+    let cache: TtlCache<String, String> = TtlCache::new(ttl);
 
     cache
         .insert("key".to_string(), "value".to_string())
         .await;
 
-    // Wait for expiration
-    tokio::time::sleep(Duration::from_millis(40)).await;
+    let expired_at = Instant::now() - (ttl + Duration::from_millis(1));
+    cache
+        .insert_at("key".to_string(), "value".to_string(), expired_at)
+        .await;
 
     // Remove should still work (returns the value even if expired)
     let removed = cache.remove(&"key".to_string()).await;
