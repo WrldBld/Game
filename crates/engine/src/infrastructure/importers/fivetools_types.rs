@@ -336,6 +336,8 @@ pub type FiveToolsIndex = HashMap<String, String>;
 pub struct FiveToolsRaceFile {
     #[serde(default)]
     pub race: Vec<FiveToolsRace>,
+    #[serde(default)]
+    pub subrace: Vec<FiveToolsSubrace>,
 }
 
 /// A race in 5etools format.
@@ -368,6 +370,24 @@ pub struct FiveToolsRace {
     pub age: Option<FiveToolsAge>,
     #[serde(default)]
     pub lineage: Option<String>,
+    #[serde(rename = "_copy", default)]
+    pub copy: Option<FiveToolsCopy>,
+}
+
+/// A subrace in 5etools format.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FiveToolsSubrace {
+    pub name: String,
+    pub source: String,
+    pub race_name: String,
+    pub race_source: String,
+    #[serde(default)]
+    pub page: Option<u32>,
+    #[serde(default)]
+    pub ability: Vec<FiveToolsRaceAbility>,
+    #[serde(default)]
+    pub entries: Vec<serde_json::Value>,
     #[serde(rename = "_copy", default)]
     pub copy: Option<FiveToolsCopy>,
 }
@@ -663,4 +683,103 @@ pub struct FiveToolsBackground {
     pub ability: Option<Vec<FiveToolsRaceAbility>>,
     #[serde(rename = "_copy", default)]
     pub copy: Option<FiveToolsCopy>,
+}
+
+// === Optional Feature Types ===
+
+/// Root structure for the 5etools optionalfeatures.json file.
+#[derive(Debug, Deserialize)]
+pub struct FiveToolsOptionalFeatureFile {
+    #[serde(default)]
+    pub optionalfeature: Vec<FiveToolsOptionalFeature>,
+}
+
+/// An optional feature in 5etools format.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FiveToolsOptionalFeature {
+    pub name: String,
+    pub source: String,
+    #[serde(default)]
+    pub page: Option<u32>,
+    #[serde(default)]
+    pub feature_type: Vec<String>,
+    #[serde(default)]
+    pub prerequisite: Option<Vec<serde_json::Value>>,
+    #[serde(default)]
+    pub entries: Vec<serde_json::Value>,
+}
+
+// === Item Types ===
+
+/// Root structure for the 5etools items.json file.
+#[derive(Debug, Deserialize)]
+pub struct FiveToolsItemFile {
+    #[serde(default)]
+    pub item: Vec<FiveToolsItem>,
+}
+
+/// An item in 5etools format.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FiveToolsItem {
+    pub name: String,
+    pub source: String,
+    #[serde(default)]
+    pub page: Option<u32>,
+    #[serde(rename = "type", default)]
+    pub item_type: Option<String>,
+    #[serde(default)]
+    pub rarity: Option<String>,
+    #[serde(default)]
+    pub weight: Option<f32>,
+    #[serde(default)]
+    pub value: Option<i32>,
+    #[serde(default)]
+    pub req_attune: Option<serde_json::Value>,
+    #[serde(default)]
+    pub req_attune_tags: Option<Vec<serde_json::Value>>,
+    #[serde(default)]
+    pub wondrous: Option<bool>,
+    #[serde(default)]
+    pub entries: Vec<serde_json::Value>,
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
+/// Root structure for the 5etools items-base.json file.
+#[derive(Debug, Deserialize)]
+pub struct FiveToolsBaseItemFile {
+    #[serde(default)]
+    pub baseitem: Vec<FiveToolsBaseItem>,
+}
+
+/// A base item in 5etools format (weapons, armor, gear).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FiveToolsBaseItem {
+    pub name: String,
+    pub source: String,
+    #[serde(default)]
+    pub page: Option<u32>,
+    #[serde(rename = "type", default)]
+    pub item_type: Option<String>,
+    #[serde(default)]
+    pub rarity: Option<String>,
+    #[serde(default)]
+    pub weight: Option<f32>,
+    #[serde(default)]
+    pub value: Option<i32>,
+    #[serde(default)]
+    pub entries: Vec<serde_json::Value>,
+    #[serde(default)]
+    pub weapon: Option<bool>,
+    #[serde(default)]
+    pub armor: Option<bool>,
+    #[serde(default)]
+    pub weapon_category: Option<String>,
+    #[serde(default)]
+    pub armor_category: Option<String>,
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
 }

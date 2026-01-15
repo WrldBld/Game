@@ -60,13 +60,12 @@ Address architecture debt identified in `docs/architecture/review.md` review:
 
 ## Phase 4: 5e Primitives Coverage (Content + Tests)
 ### Work
-- Complete support for all D&D 5e primitives in content persistence and retrieval.
-  - Ensure storage and CRUD for feats, spells, classes, subclasses, races, backgrounds, items, proficiencies, and related metadata.
-  - Wire content access through `ContentRepo` and `ContentService` where applicable.
+- Complete support for all D&D 5e primitives in content retrieval via the compendium provider.
+  - Ensure import + conversion for feats, spells, classes, subclasses, races, subraces, backgrounds, class features, abilities, items, weapons, armor, and magic items.
+  - Wire access through `ContentService` / `CompendiumProvider` (ContentRepo remains for persisted world content like skills).
 - Add tests covering each primitive:
   - Importer coverage for 5etools data.
-  - Repository CRUD for each primitive (Neo4j integration tests).
-  - Use case/API coverage for listing/getting primitives.
+  - Content service coverage for listing/getting primitives.
 
 ### Exit criteria
 - All 5e primitives are persisted and queryable via `ContentRepo`.

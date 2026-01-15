@@ -458,6 +458,22 @@ mod tests {
 
             assert!(!spells.is_empty(), "Should get spells");
             println!("Got {} spells from service", spells.len());
+
+            // Get items
+            let items = service
+                .get_content("dnd5e", &ContentType::Item, &filter)
+                .expect("Failed to get items");
+
+            assert!(!items.is_empty(), "Should get items");
+            println!("Got {} items from service", items.len());
+
+            // Get class features
+            let features = service
+                .get_content("dnd5e", &ContentType::ClassFeature, &filter)
+                .expect("Failed to get class features");
+
+            assert!(!features.is_empty(), "Should get class features");
+            println!("Got {} class features from service", features.len());
         }
 
         #[tokio::test(flavor = "multi_thread")]
@@ -557,8 +573,16 @@ mod tests {
 
             println!("D&D 5e content types: {:?}", types);
             assert!(types.contains(&ContentType::CharacterOrigin));
+            assert!(types.contains(&ContentType::CharacterSuborigin));
             assert!(types.contains(&ContentType::CharacterClass));
+            assert!(types.contains(&ContentType::CharacterSubclass));
             assert!(types.contains(&ContentType::CharacterBackground));
+            assert!(types.contains(&ContentType::ClassFeature));
+            assert!(types.contains(&ContentType::Ability));
+            assert!(types.contains(&ContentType::Weapon));
+            assert!(types.contains(&ContentType::Armor));
+            assert!(types.contains(&ContentType::Item));
+            assert!(types.contains(&ContentType::MagicItem));
             assert!(types.contains(&ContentType::Spell));
             assert!(types.contains(&ContentType::Feat));
         }

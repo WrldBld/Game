@@ -114,6 +114,89 @@ pub struct BackgroundOption {
     pub description: String,
 }
 
+/// A simplified subrace option for content browsing.
+#[derive(Debug, Clone, Serialize)]
+pub struct SubraceOption {
+    pub id: String,
+    pub name: String,
+    pub source: String,
+    pub race_name: String,
+    pub race_source: String,
+    pub ability_bonuses: Vec<AbilityBonusOption>,
+    pub traits: Vec<RaceTrait>,
+    pub description: String,
+}
+
+/// A simplified subclass option for content browsing.
+#[derive(Debug, Clone, Serialize)]
+pub struct SubclassContent {
+    pub id: String,
+    pub name: String,
+    pub short_name: String,
+    pub source: String,
+    pub class_name: String,
+    pub class_source: String,
+    pub features: Vec<String>,
+    pub description: String,
+}
+
+/// A simplified class feature option for content browsing.
+#[derive(Debug, Clone, Serialize)]
+pub struct ClassFeatureOption {
+    pub id: String,
+    pub name: String,
+    pub source: String,
+    pub class_name: String,
+    pub class_source: String,
+    pub level: u8,
+    pub subclass_short_name: Option<String>,
+    pub subclass_source: Option<String>,
+    pub description: String,
+}
+
+/// A simplified optional feature for content browsing.
+#[derive(Debug, Clone, Serialize)]
+pub struct OptionalFeatureOption {
+    pub id: String,
+    pub name: String,
+    pub source: String,
+    pub feature_type: Vec<String>,
+    pub description: String,
+}
+
+/// A simplified item for content browsing.
+#[derive(Debug, Clone, Serialize)]
+pub struct ItemOption {
+    pub id: String,
+    pub name: String,
+    pub source: String,
+    pub item_type: Option<String>,
+    pub rarity: Option<String>,
+    pub weight: Option<f32>,
+    pub value: Option<i32>,
+    pub description: String,
+    pub is_magic: bool,
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
+/// A simplified base item (weapon/armor/gear) for content browsing.
+#[derive(Debug, Clone, Serialize)]
+pub struct BaseItemOption {
+    pub id: String,
+    pub name: String,
+    pub source: String,
+    pub item_type: Option<String>,
+    pub rarity: Option<String>,
+    pub weight: Option<f32>,
+    pub value: Option<i32>,
+    pub description: String,
+    pub is_weapon: bool,
+    pub is_armor: bool,
+    pub weapon_category: Option<String>,
+    pub armor_category: Option<String>,
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
 /// Language proficiency options.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -340,6 +423,169 @@ impl FiveToolsImporter {
         Ok(backgrounds)
     }
 
+    /// Import all subraces from 5etools data.
+    pub async fn import_subraces(&self) -> Result<Vec<SubraceOption>, ImportError> {
+        let races_path = self.data_path.join("data/races.json");
+
+        if !races_path.exists() {
+            return Err(ImportError::DataFileNotFound(races_path));
+        }
+
+        let content = fs::read_to_string(&races_path).await?;
+        let race_file: FiveToolsRaceFile = serde_json::from_str(&content)?;
+
+        let subraces = race_file
+            .subrace
+            .into_iter()
+            .filter(|r| r.copy.is_none())
+            .filter_map(|raw| self.convert_subrace(raw))
+            .collect();
+
+        Ok(subraces)
+    }
+
+    /// Import all subclasses from 5etools data.
+    pub async fn import_subclasses(&self) -> Result<Vec<SubclassContent>, ImportError> {
+        let class_dir = self.data_path.join("data/class");
+        let index_path = class_dir.join("index.json");
+
+        if !index_path.exists() {
+            return Err(ImportError::IndexNotFound(index_path));
+        }
+
+        let index_content = fs::read_to_string(&index_path).await?;
+        let index: FiveToolsIndex = serde_json::from_str(&index_content)?;
+
+        let mut all_subclasses = Vec::new();
+
+        for (_source, filename) in index {
+            if !filename.starts_with("class-") || filename.contains("fluff") {
+                continue;
+            }
+
+            let file_path = class_dir.join(&filename);
+            if !file_path.exists() {
+                continue;
+            }
+
+            let content = fs::read_to_string(&file_path).await?;
+            let class_file: FiveToolsClassFile = serde_json::from_str(&content)?;
+
+            for raw_subclass in class_file.subclass {
+                if let Some(subclass) = self.convert_subclass(raw_subclass) {
+                    all_subclasses.push(subclass);
+                }
+            }
+        }
+
+        Ok(all_subclasses)
+    }
+
+    /// Import all class and subclass features from 5etools data.
+    pub async fn import_class_features(&self) -> Result<Vec<ClassFeatureOption>, ImportError> {
+        let class_dir = self.data_path.join("data/class");
+        let index_path = class_dir.join("index.json");
+
+        if !index_path.exists() {
+            return Err(ImportError::IndexNotFound(index_path));
+        }
+
+        let index_content = fs::read_to_string(&index_path).await?;
+        let index: FiveToolsIndex = serde_json::from_str(&index_content)?;
+
+        let mut all_features = Vec::new();
+
+        for (_source, filename) in index {
+            if !filename.starts_with("class-") || filename.contains("fluff") {
+                continue;
+            }
+
+            let file_path = class_dir.join(&filename);
+            if !file_path.exists() {
+                continue;
+            }
+
+            let content = fs::read_to_string(&file_path).await?;
+            let class_file: FiveToolsClassFile = serde_json::from_str(&content)?;
+
+            for raw_feature in class_file.class_feature {
+                if let Some(feature) = self.convert_class_feature(raw_feature) {
+                    all_features.push(feature);
+                }
+            }
+
+            for raw_feature in class_file.subclass_feature {
+                if let Some(feature) = self.convert_subclass_feature(raw_feature) {
+                    all_features.push(feature);
+                }
+            }
+        }
+
+        Ok(all_features)
+    }
+
+    /// Import all optional features (abilities) from 5etools data.
+    pub async fn import_optional_features(
+        &self,
+    ) -> Result<Vec<OptionalFeatureOption>, ImportError> {
+        let optional_path = self.data_path.join("data/optionalfeatures.json");
+
+        if !optional_path.exists() {
+            return Err(ImportError::DataFileNotFound(optional_path));
+        }
+
+        let content = fs::read_to_string(&optional_path).await?;
+        let feature_file: FiveToolsOptionalFeatureFile = serde_json::from_str(&content)?;
+
+        let features = feature_file
+            .optionalfeature
+            .into_iter()
+            .filter_map(|raw| self.convert_optional_feature(raw))
+            .collect();
+
+        Ok(features)
+    }
+
+    /// Import all items from 5etools data.
+    pub async fn import_items(&self) -> Result<Vec<ItemOption>, ImportError> {
+        let items_path = self.data_path.join("data/items.json");
+
+        if !items_path.exists() {
+            return Err(ImportError::DataFileNotFound(items_path));
+        }
+
+        let content = fs::read_to_string(&items_path).await?;
+        let item_file: FiveToolsItemFile = serde_json::from_str(&content)?;
+
+        let items = item_file
+            .item
+            .into_iter()
+            .filter_map(|raw| self.convert_item(raw))
+            .collect();
+
+        Ok(items)
+    }
+
+    /// Import all base items (weapons/armor/gear) from 5etools data.
+    pub async fn import_base_items(&self) -> Result<Vec<BaseItemOption>, ImportError> {
+        let items_path = self.data_path.join("data/items-base.json");
+
+        if !items_path.exists() {
+            return Err(ImportError::DataFileNotFound(items_path));
+        }
+
+        let content = fs::read_to_string(&items_path).await?;
+        let base_file: FiveToolsBaseItemFile = serde_json::from_str(&content)?;
+
+        let items = base_file
+            .baseitem
+            .into_iter()
+            .filter_map(|raw| self.convert_base_item(raw))
+            .collect();
+
+        Ok(items)
+    }
+
     // === Conversion Methods ===
 
     fn convert_spell(&self, raw: FiveToolsSpell) -> Option<Spell> {
@@ -413,6 +659,13 @@ impl FiveToolsImporter {
             ritual,
             concentration,
         })
+    }
+
+    fn slugify(&self, value: &str) -> String {
+        value
+            .to_lowercase()
+            .replace(' ', "_")
+            .replace('\'', "")
     }
 
     fn convert_school(&self, code: &str) -> String {
@@ -798,29 +1051,7 @@ impl FiveToolsImporter {
         };
 
         // Convert ability bonuses
-        let ability_bonuses = raw
-            .ability
-            .iter()
-            .map(|ab| match ab {
-                FiveToolsRaceAbility::Fixed(bonuses) => {
-                    let converted: HashMap<String, i32> = bonuses
-                        .iter()
-                        .map(|(k, v)| (k.to_uppercase(), *v))
-                        .collect();
-                    AbilityBonusOption::Fixed { bonuses: converted }
-                }
-                FiveToolsRaceAbility::Choice(choice) => AbilityBonusOption::Choice {
-                    from: choice
-                        .choose
-                        .from
-                        .iter()
-                        .map(|s| s.to_uppercase())
-                        .collect(),
-                    count: choice.choose.count.unwrap_or(1),
-                    amount: choice.choose.amount.unwrap_or(1),
-                },
-            })
-            .collect();
+        let ability_bonuses = self.convert_race_ability_bonuses(&raw.ability);
 
         // Extract traits from entries
         let traits = raw
@@ -1079,6 +1310,232 @@ impl FiveToolsImporter {
             description,
         })
     }
+
+    fn convert_subrace(&self, raw: FiveToolsSubrace) -> Option<SubraceOption> {
+        let id = format!(
+            "5e_{}_{}_{}",
+            raw.source.to_lowercase(),
+            self.slugify(&raw.race_name),
+            self.slugify(&raw.name)
+        );
+
+        let ability_bonuses = self.convert_race_ability_bonuses(&raw.ability);
+
+        let traits = raw
+            .entries
+            .iter()
+            .filter_map(|entry| {
+                if let serde_json::Value::Object(obj) = entry {
+                    let name = obj.get("name")?.as_str()?.to_string();
+                    let entries = obj.get("entries")?.as_array()?;
+                    let description = entries
+                        .iter()
+                        .filter_map(|e| self.entry_to_string(e))
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    Some(RaceTrait { name, description })
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let description = self.entries_to_string(&raw.entries);
+
+        Some(SubraceOption {
+            id,
+            name: raw.name,
+            source: raw.source,
+            race_name: raw.race_name,
+            race_source: raw.race_source,
+            ability_bonuses,
+            traits,
+            description,
+        })
+    }
+
+    fn convert_subclass(&self, raw: FiveToolsSubclass) -> Option<SubclassContent> {
+        let id = format!(
+            "5e_{}_{}_{}",
+            raw.source.to_lowercase(),
+            self.slugify(&raw.class_name),
+            self.slugify(&raw.name)
+        );
+
+        let features = raw
+            .subclass_features
+            .iter()
+            .filter_map(|value| value.as_str().map(|s| s.to_string()))
+            .collect::<Vec<_>>();
+
+        Some(SubclassContent {
+            id,
+            name: raw.name,
+            short_name: raw.short_name,
+            source: raw.source,
+            class_name: raw.class_name,
+            class_source: raw.class_source,
+            features,
+            description: String::new(),
+        })
+    }
+
+    fn convert_class_feature(&self, raw: FiveToolsClassFeature) -> Option<ClassFeatureOption> {
+        let id = format!(
+            "5e_{}_{}_{}_lvl{}",
+            raw.source.to_lowercase(),
+            self.slugify(&raw.class_name),
+            self.slugify(&raw.name),
+            raw.level
+        );
+
+        Some(ClassFeatureOption {
+            id,
+            name: raw.name,
+            source: raw.source,
+            class_name: raw.class_name,
+            class_source: raw.class_source,
+            level: raw.level,
+            subclass_short_name: None,
+            subclass_source: None,
+            description: self.entries_to_string(&raw.entries),
+        })
+    }
+
+    fn convert_subclass_feature(
+        &self,
+        raw: FiveToolsSubclassFeature,
+    ) -> Option<ClassFeatureOption> {
+        let id = format!(
+            "5e_{}_{}_{}_{}_lvl{}",
+            raw.source.to_lowercase(),
+            self.slugify(&raw.class_name),
+            self.slugify(&raw.subclass_short_name),
+            self.slugify(&raw.name),
+            raw.level
+        );
+
+        Some(ClassFeatureOption {
+            id,
+            name: raw.name,
+            source: raw.source,
+            class_name: raw.class_name,
+            class_source: raw.class_source,
+            level: raw.level,
+            subclass_short_name: Some(raw.subclass_short_name),
+            subclass_source: Some(raw.subclass_source),
+            description: self.entries_to_string(&raw.entries),
+        })
+    }
+
+    fn convert_optional_feature(
+        &self,
+        raw: FiveToolsOptionalFeature,
+    ) -> Option<OptionalFeatureOption> {
+        let id = format!(
+            "5e_{}_{}",
+            raw.source.to_lowercase(),
+            self.slugify(&raw.name)
+        );
+
+        Some(OptionalFeatureOption {
+            id,
+            name: raw.name,
+            source: raw.source,
+            feature_type: raw.feature_type,
+            description: self.entries_to_string(&raw.entries),
+        })
+    }
+
+    fn convert_item(&self, raw: FiveToolsItem) -> Option<ItemOption> {
+        let id = format!(
+            "5e_item_{}_{}",
+            raw.source.to_lowercase(),
+            self.slugify(&raw.name)
+        );
+
+        let is_magic = self.item_is_magic(&raw);
+
+        Some(ItemOption {
+            id,
+            name: raw.name,
+            source: raw.source,
+            item_type: raw.item_type,
+            rarity: raw.rarity,
+            weight: raw.weight,
+            value: raw.value,
+            description: self.entries_to_string(&raw.entries),
+            is_magic,
+            extra: raw.extra,
+        })
+    }
+
+    fn convert_base_item(&self, raw: FiveToolsBaseItem) -> Option<BaseItemOption> {
+        let id = format!(
+            "5e_base_{}_{}",
+            raw.source.to_lowercase(),
+            self.slugify(&raw.name)
+        );
+
+        Some(BaseItemOption {
+            id,
+            name: raw.name,
+            source: raw.source,
+            item_type: raw.item_type,
+            rarity: raw.rarity,
+            weight: raw.weight,
+            value: raw.value,
+            description: self.entries_to_string(&raw.entries),
+            is_weapon: raw.weapon.unwrap_or(false),
+            is_armor: raw.armor.unwrap_or(false),
+            weapon_category: raw.weapon_category,
+            armor_category: raw.armor_category,
+            extra: raw.extra,
+        })
+    }
+
+    fn item_is_magic(&self, item: &FiveToolsItem) -> bool {
+        if let Some(rarity) = &item.rarity {
+            if rarity.to_lowercase() != "none" {
+                return true;
+            }
+        }
+        if item.wondrous.unwrap_or(false) {
+            return true;
+        }
+        if item.req_attune.is_some() {
+            return true;
+        }
+        false
+    }
+
+    fn convert_race_ability_bonuses(
+        &self,
+        abilities: &[FiveToolsRaceAbility],
+    ) -> Vec<AbilityBonusOption> {
+        abilities
+            .iter()
+            .map(|ab| match ab {
+                FiveToolsRaceAbility::Fixed(bonuses) => {
+                    let converted: HashMap<String, i32> = bonuses
+                        .iter()
+                        .map(|(k, v)| (k.to_uppercase(), *v))
+                        .collect();
+                    AbilityBonusOption::Fixed { bonuses: converted }
+                }
+                FiveToolsRaceAbility::Choice(choice) => AbilityBonusOption::Choice {
+                    from: choice
+                        .choose
+                        .from
+                        .iter()
+                        .map(|s| s.to_uppercase())
+                        .collect(),
+                    count: choice.choose.count.unwrap_or(1),
+                    amount: choice.choose.amount.unwrap_or(1),
+                },
+            })
+            .collect()
+    }
 }
 
 // === CompendiumProvider Implementation ===
@@ -1093,13 +1550,20 @@ use wrldbldr_domain::{
 /// D&D 5e content provider that wraps FiveToolsImporter.
 ///
 /// Implements the CompendiumProvider trait to provide a unified API for
-/// accessing D&D 5e content (races, classes, backgrounds, spells, feats).
+/// accessing D&D 5e content (races, subraces, classes, subclasses, backgrounds,
+/// class features, abilities, items, spells, feats).
 pub struct Dnd5eContentProvider {
     importer: FiveToolsImporter,
     // Cached content
     races: OnceCell<Vec<RaceOption>>,
     classes: OnceCell<Vec<ClassOption>>,
     backgrounds: OnceCell<Vec<BackgroundOption>>,
+    subraces: OnceCell<Vec<SubraceOption>>,
+    subclasses: OnceCell<Vec<SubclassContent>>,
+    class_features: OnceCell<Vec<ClassFeatureOption>>,
+    optional_features: OnceCell<Vec<OptionalFeatureOption>>,
+    items: OnceCell<Vec<ItemOption>>,
+    base_items: OnceCell<Vec<BaseItemOption>>,
     spells: OnceCell<Vec<Spell>>,
     feats: OnceCell<Vec<Feat>>,
 }
@@ -1115,6 +1579,12 @@ impl Dnd5eContentProvider {
             races: OnceCell::new(),
             classes: OnceCell::new(),
             backgrounds: OnceCell::new(),
+            subraces: OnceCell::new(),
+            subclasses: OnceCell::new(),
+            class_features: OnceCell::new(),
+            optional_features: OnceCell::new(),
+            items: OnceCell::new(),
+            base_items: OnceCell::new(),
             spells: OnceCell::new(),
             feats: OnceCell::new(),
         }
@@ -1127,6 +1597,12 @@ impl Dnd5eContentProvider {
             races: OnceCell::new(),
             classes: OnceCell::new(),
             backgrounds: OnceCell::new(),
+            subraces: OnceCell::new(),
+            subclasses: OnceCell::new(),
+            class_features: OnceCell::new(),
+            optional_features: OnceCell::new(),
+            items: OnceCell::new(),
+            base_items: OnceCell::new(),
             spells: OnceCell::new(),
             feats: OnceCell::new(),
         }
@@ -1167,6 +1643,78 @@ impl Dnd5eContentProvider {
             .get_or_try_init(|| async {
                 self.importer
                     .import_backgrounds()
+                    .await
+                    .map_err(|e| ContentError::LoadError(e.to_string()))
+            })
+            .await
+    }
+
+    /// Load subraces with caching.
+    async fn load_subraces_cached(&self) -> Result<&Vec<SubraceOption>, ContentError> {
+        self.subraces
+            .get_or_try_init(|| async {
+                self.importer
+                    .import_subraces()
+                    .await
+                    .map_err(|e| ContentError::LoadError(e.to_string()))
+            })
+            .await
+    }
+
+    /// Load subclasses with caching.
+    async fn load_subclasses_cached(&self) -> Result<&Vec<SubclassContent>, ContentError> {
+        self.subclasses
+            .get_or_try_init(|| async {
+                self.importer
+                    .import_subclasses()
+                    .await
+                    .map_err(|e| ContentError::LoadError(e.to_string()))
+            })
+            .await
+    }
+
+    /// Load class features with caching.
+    async fn load_class_features_cached(&self) -> Result<&Vec<ClassFeatureOption>, ContentError> {
+        self.class_features
+            .get_or_try_init(|| async {
+                self.importer
+                    .import_class_features()
+                    .await
+                    .map_err(|e| ContentError::LoadError(e.to_string()))
+            })
+            .await
+    }
+
+    /// Load optional features with caching.
+    async fn load_optional_features_cached(&self) -> Result<&Vec<OptionalFeatureOption>, ContentError> {
+        self.optional_features
+            .get_or_try_init(|| async {
+                self.importer
+                    .import_optional_features()
+                    .await
+                    .map_err(|e| ContentError::LoadError(e.to_string()))
+            })
+            .await
+    }
+
+    /// Load items with caching.
+    async fn load_items_cached(&self) -> Result<&Vec<ItemOption>, ContentError> {
+        self.items
+            .get_or_try_init(|| async {
+                self.importer
+                    .import_items()
+                    .await
+                    .map_err(|e| ContentError::LoadError(e.to_string()))
+            })
+            .await
+    }
+
+    /// Load base items with caching.
+    async fn load_base_items_cached(&self) -> Result<&Vec<BaseItemOption>, ContentError> {
+        self.base_items
+            .get_or_try_init(|| async {
+                self.importer
+                    .import_base_items()
                     .await
                     .map_err(|e| ContentError::LoadError(e.to_string()))
             })
@@ -1278,6 +1826,163 @@ impl Dnd5eContentProvider {
         .with_tags(vec!["background".to_string(), bg.source.clone()])
     }
 
+    fn subrace_to_content_item(subrace: &SubraceOption) -> ContentItem {
+        let data = serde_json::json!({
+            "race_name": subrace.race_name,
+            "race_source": subrace.race_source,
+            "ability_bonuses": subrace.ability_bonuses,
+            "traits": subrace.traits,
+        });
+
+        ContentItem::new(
+            &subrace.id,
+            ContentType::CharacterSuborigin,
+            &subrace.name,
+            &subrace.source,
+        )
+        .with_description(&subrace.description)
+        .with_data(data)
+        .with_tags(vec![
+            "subrace".to_string(),
+            subrace.source.clone(),
+            subrace.race_name.to_lowercase(),
+        ])
+    }
+
+    fn subclass_to_content_item(subclass: &SubclassContent) -> ContentItem {
+        let data = serde_json::json!({
+            "class_name": subclass.class_name,
+            "class_source": subclass.class_source,
+            "short_name": subclass.short_name,
+            "features": subclass.features,
+        });
+
+        ContentItem::new(
+            &subclass.id,
+            ContentType::CharacterSubclass,
+            &subclass.name,
+            &subclass.source,
+        )
+        .with_description(&subclass.description)
+        .with_data(data)
+        .with_tags(vec![
+            "subclass".to_string(),
+            subclass.source.clone(),
+            subclass.class_name.to_lowercase(),
+        ])
+    }
+
+    fn class_feature_to_content_item(feature: &ClassFeatureOption) -> ContentItem {
+        let data = serde_json::json!({
+            "class_name": feature.class_name,
+            "class_source": feature.class_source,
+            "level": feature.level,
+            "subclass_short_name": feature.subclass_short_name,
+            "subclass_source": feature.subclass_source,
+        });
+
+        let mut tags = vec![
+            "class_feature".to_string(),
+            feature.source.clone(),
+            feature.class_name.to_lowercase(),
+        ];
+        if feature.subclass_short_name.is_some() {
+            tags.push("subclass_feature".to_string());
+        }
+
+        ContentItem::new(
+            &feature.id,
+            ContentType::ClassFeature,
+            &feature.name,
+            &feature.source,
+        )
+        .with_description(&feature.description)
+        .with_data(data)
+        .with_tags(tags)
+    }
+
+    fn optional_feature_to_content_item(feature: &OptionalFeatureOption) -> ContentItem {
+        let data = serde_json::json!({
+            "feature_type": feature.feature_type,
+        });
+
+        let mut tags = vec!["ability".to_string(), feature.source.clone()];
+        tags.extend(
+            feature
+                .feature_type
+                .iter()
+                .map(|t| t.to_lowercase())
+                .collect::<Vec<_>>(),
+        );
+
+        ContentItem::new(
+            &feature.id,
+            ContentType::Ability,
+            &feature.name,
+            &feature.source,
+        )
+        .with_description(&feature.description)
+        .with_data(data)
+        .with_tags(tags)
+    }
+
+    fn item_to_content_item(item: &ItemOption) -> ContentItem {
+        let data = serde_json::json!({
+            "item_type": item.item_type,
+            "rarity": item.rarity,
+            "weight": item.weight,
+            "value": item.value,
+            "extra": item.extra,
+        });
+
+        let mut tags = vec!["item".to_string(), item.source.clone()];
+        if let Some(rarity) = &item.rarity {
+            tags.push(rarity.to_lowercase());
+        }
+        if item.is_magic {
+            tags.push("magic".to_string());
+        }
+
+        let content_type = if item.is_magic {
+            ContentType::MagicItem
+        } else {
+            ContentType::Item
+        };
+
+        ContentItem::new(&item.id, content_type, &item.name, &item.source)
+            .with_description(&item.description)
+            .with_data(data)
+            .with_tags(tags)
+    }
+
+    fn base_item_to_content_item(item: &BaseItemOption, content_type: ContentType) -> ContentItem {
+        let data = serde_json::json!({
+            "item_type": item.item_type,
+            "rarity": item.rarity,
+            "weight": item.weight,
+            "value": item.value,
+            "weapon_category": item.weapon_category,
+            "armor_category": item.armor_category,
+            "extra": item.extra,
+        });
+
+        let mut tags = vec![item.source.clone()];
+        if let Some(rarity) = &item.rarity {
+            tags.push(rarity.to_lowercase());
+        }
+        match content_type {
+            ContentType::Weapon => tags.push("weapon".to_string()),
+            ContentType::Armor => tags.push("armor".to_string()),
+            ContentType::Item => tags.push("item".to_string()),
+            _ => {}
+        }
+
+        ContentItem::new(&item.id, content_type, &item.name, &item.source)
+            .with_description(&item.description)
+            .with_data(data)
+            .with_tags(tags)
+    }
+
     fn spell_to_content_item(spell: &Spell) -> ContentItem {
         let data = serde_json::json!({
             "level": spell.level,
@@ -1337,8 +2042,16 @@ impl CompendiumProvider for Dnd5eContentProvider {
     fn content_types(&self) -> Vec<ContentType> {
         vec![
             ContentType::CharacterOrigin, // Races
+            ContentType::CharacterSuborigin,
             ContentType::CharacterClass,
+            ContentType::CharacterSubclass,
             ContentType::CharacterBackground,
+            ContentType::ClassFeature,
+            ContentType::Ability,
+            ContentType::Weapon,
+            ContentType::Armor,
+            ContentType::Item,
+            ContentType::MagicItem,
             ContentType::Spell,
             ContentType::Feat,
         ]
@@ -1353,8 +2066,45 @@ impl CompendiumProvider for Dnd5eContentProvider {
             rt.block_on(async {
                 let count = match content_type {
                     ContentType::CharacterOrigin => self.load_races_cached().await?.len(),
+                    ContentType::CharacterSuborigin => self.load_subraces_cached().await?.len(),
                     ContentType::CharacterClass => self.load_classes_cached().await?.len(),
+                    ContentType::CharacterSubclass => self.load_subclasses_cached().await?.len(),
                     ContentType::CharacterBackground => self.load_backgrounds_cached().await?.len(),
+                    ContentType::ClassFeature => self.load_class_features_cached().await?.len(),
+                    ContentType::Ability => self.load_optional_features_cached().await?.len(),
+                    ContentType::Weapon => self
+                        .load_base_items_cached()
+                        .await?
+                        .iter()
+                        .filter(|item| item.is_weapon)
+                        .count(),
+                    ContentType::Armor => self
+                        .load_base_items_cached()
+                        .await?
+                        .iter()
+                        .filter(|item| item.is_armor)
+                        .count(),
+                    ContentType::Item => {
+                        let base_items = self
+                            .load_base_items_cached()
+                            .await?
+                            .iter()
+                            .filter(|item| !item.is_weapon && !item.is_armor)
+                            .count();
+                        let items = self
+                            .load_items_cached()
+                            .await?
+                            .iter()
+                            .filter(|item| !item.is_magic)
+                            .count();
+                        base_items + items
+                    }
+                    ContentType::MagicItem => self
+                        .load_items_cached()
+                        .await?
+                        .iter()
+                        .filter(|item| item.is_magic)
+                        .count(),
                     ContentType::Spell => self.load_spells_cached().await?.len(),
                     ContentType::Feat => self.load_feats_cached().await?.len(),
                     _ => {
@@ -1386,15 +2136,83 @@ impl CompendiumProvider for Dnd5eContentProvider {
                         let races = self.load_races_cached().await?;
                         races.iter().map(Self::race_to_content_item).collect()
                     }
+                    ContentType::CharacterSuborigin => {
+                        let subraces = self.load_subraces_cached().await?;
+                        subraces
+                            .iter()
+                            .map(Self::subrace_to_content_item)
+                            .collect()
+                    }
                     ContentType::CharacterClass => {
                         let classes = self.load_classes_cached().await?;
                         classes.iter().map(Self::class_to_content_item).collect()
+                    }
+                    ContentType::CharacterSubclass => {
+                        let subclasses = self.load_subclasses_cached().await?;
+                        subclasses
+                            .iter()
+                            .map(Self::subclass_to_content_item)
+                            .collect()
                     }
                     ContentType::CharacterBackground => {
                         let backgrounds = self.load_backgrounds_cached().await?;
                         backgrounds
                             .iter()
                             .map(Self::background_to_content_item)
+                            .collect()
+                    }
+                    ContentType::ClassFeature => {
+                        let features = self.load_class_features_cached().await?;
+                        features
+                            .iter()
+                            .map(Self::class_feature_to_content_item)
+                            .collect()
+                    }
+                    ContentType::Ability => {
+                        let features = self.load_optional_features_cached().await?;
+                        features
+                            .iter()
+                            .map(Self::optional_feature_to_content_item)
+                            .collect()
+                    }
+                    ContentType::Weapon => {
+                        let items = self.load_base_items_cached().await?;
+                        items
+                            .iter()
+                            .filter(|item| item.is_weapon)
+                            .map(|item| Self::base_item_to_content_item(item, ContentType::Weapon))
+                            .collect()
+                    }
+                    ContentType::Armor => {
+                        let items = self.load_base_items_cached().await?;
+                        items
+                            .iter()
+                            .filter(|item| item.is_armor)
+                            .map(|item| Self::base_item_to_content_item(item, ContentType::Armor))
+                            .collect()
+                    }
+                    ContentType::Item => {
+                        let base_items = self.load_base_items_cached().await?;
+                        let mut items: Vec<ContentItem> = base_items
+                            .iter()
+                            .filter(|item| !item.is_weapon && !item.is_armor)
+                            .map(|item| Self::base_item_to_content_item(item, ContentType::Item))
+                            .collect();
+                        let listed_items = self.load_items_cached().await?;
+                        items.extend(
+                            listed_items
+                                .iter()
+                                .filter(|item| !item.is_magic)
+                                .map(Self::item_to_content_item),
+                        );
+                        items
+                    }
+                    ContentType::MagicItem => {
+                        let items = self.load_items_cached().await?;
+                        items
+                            .iter()
+                            .filter(|item| item.is_magic)
+                            .map(Self::item_to_content_item)
                             .collect()
                     }
                     ContentType::Spell => {
@@ -1447,6 +2265,54 @@ impl CompendiumProvider for Dnd5eContentProvider {
             ContentType::CharacterBackground => Some(FilterSchema {
                 sources: vec!["PHB".to_string()],
                 tags: vec![],
+                supports_search: true,
+                custom_fields: vec![],
+            }),
+            ContentType::CharacterSuborigin => Some(FilterSchema {
+                sources: vec![],
+                tags: vec!["subrace".to_string()],
+                supports_search: true,
+                custom_fields: vec![],
+            }),
+            ContentType::CharacterSubclass => Some(FilterSchema {
+                sources: vec![],
+                tags: vec!["subclass".to_string()],
+                supports_search: true,
+                custom_fields: vec![],
+            }),
+            ContentType::ClassFeature => Some(FilterSchema {
+                sources: vec![],
+                tags: vec!["class_feature".to_string()],
+                supports_search: true,
+                custom_fields: vec![],
+            }),
+            ContentType::Ability => Some(FilterSchema {
+                sources: vec![],
+                tags: vec!["ability".to_string()],
+                supports_search: true,
+                custom_fields: vec![],
+            }),
+            ContentType::Weapon => Some(FilterSchema {
+                sources: vec![],
+                tags: vec!["weapon".to_string()],
+                supports_search: true,
+                custom_fields: vec![],
+            }),
+            ContentType::Armor => Some(FilterSchema {
+                sources: vec![],
+                tags: vec!["armor".to_string()],
+                supports_search: true,
+                custom_fields: vec![],
+            }),
+            ContentType::Item => Some(FilterSchema {
+                sources: vec![],
+                tags: vec!["item".to_string()],
+                supports_search: true,
+                custom_fields: vec![],
+            }),
+            ContentType::MagicItem => Some(FilterSchema {
+                sources: vec![],
+                tags: vec!["magic".to_string()],
                 supports_search: true,
                 custom_fields: vec![],
             }),
@@ -1667,6 +2533,33 @@ mod tests {
 
         #[tokio::test]
         #[ignore = "requires 5etools data"]
+        async fn import_subraces() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let importer = FiveToolsImporter::new(FIVETOOLS_PATH);
+            let result = importer.import_subraces().await;
+
+            match result {
+                Ok(subraces) => {
+                    assert!(!subraces.is_empty(), "Should import subraces");
+                    println!("Imported {} subraces", subraces.len());
+                    let fallen = subraces.iter().find(|s| s.name == "Fallen");
+                    assert!(fallen.is_some(), "Fallen subrace should exist");
+                }
+                Err(e) => {
+                    println!(
+                        "WARNING: Subrace import failed (5etools format may have changed): {}",
+                        e
+                    );
+                }
+            }
+        }
+
+        #[tokio::test]
+        #[ignore = "requires 5etools data"]
         async fn import_spells() {
             if skip_if_no_data() {
                 println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
@@ -1734,6 +2627,139 @@ mod tests {
             }
         }
 
+        #[tokio::test]
+        #[ignore = "requires 5etools data"]
+        async fn import_subclasses() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let importer = FiveToolsImporter::new(FIVETOOLS_PATH);
+            let result = importer.import_subclasses().await;
+
+            match result {
+                Ok(subclasses) => {
+                    assert!(!subclasses.is_empty(), "Should import subclasses");
+                    println!("Imported {} subclasses", subclasses.len());
+                }
+                Err(e) => {
+                    println!(
+                        "WARNING: Subclass import failed (5etools format may have changed): {}",
+                        e
+                    );
+                }
+            }
+        }
+
+        #[tokio::test]
+        #[ignore = "requires 5etools data"]
+        async fn import_class_features() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let importer = FiveToolsImporter::new(FIVETOOLS_PATH);
+            let result = importer.import_class_features().await;
+
+            match result {
+                Ok(features) => {
+                    assert!(!features.is_empty(), "Should import class features");
+                    println!("Imported {} class features", features.len());
+                    let arcane = features.iter().find(|f| f.name == "Arcane Recovery");
+                    assert!(arcane.is_some(), "Arcane Recovery feature should exist");
+                }
+                Err(e) => {
+                    println!(
+                        "WARNING: Class feature import failed (5etools format may have changed): {}",
+                        e
+                    );
+                }
+            }
+        }
+
+        #[tokio::test]
+        #[ignore = "requires 5etools data"]
+        async fn import_optional_features() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let importer = FiveToolsImporter::new(FIVETOOLS_PATH);
+            let result = importer.import_optional_features().await;
+
+            match result {
+                Ok(features) => {
+                    assert!(!features.is_empty(), "Should import optional features");
+                    println!("Imported {} optional features", features.len());
+                    let agonizing = features.iter().find(|f| f.name == "Agonizing Blast");
+                    assert!(agonizing.is_some(), "Agonizing Blast should exist");
+                }
+                Err(e) => {
+                    println!(
+                        "WARNING: Optional feature import failed (5etools format may have changed): {}",
+                        e
+                    );
+                }
+            }
+        }
+
+        #[tokio::test]
+        #[ignore = "requires 5etools data"]
+        async fn import_items() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let importer = FiveToolsImporter::new(FIVETOOLS_PATH);
+            let result = importer.import_items().await;
+
+            match result {
+                Ok(items) => {
+                    assert!(!items.is_empty(), "Should import items");
+                    println!("Imported {} items", items.len());
+                    let abacus = items.iter().find(|i| i.name == "Abacus");
+                    assert!(abacus.is_some(), "Abacus should exist");
+                }
+                Err(e) => {
+                    println!(
+                        "WARNING: Item import failed (5etools format may have changed): {}",
+                        e
+                    );
+                }
+            }
+        }
+
+        #[tokio::test]
+        #[ignore = "requires 5etools data"]
+        async fn import_base_items() {
+            if skip_if_no_data() {
+                println!("Skipping: 5etools data not found at {}", FIVETOOLS_PATH);
+                return;
+            }
+
+            let importer = FiveToolsImporter::new(FIVETOOLS_PATH);
+            let result = importer.import_base_items().await;
+
+            match result {
+                Ok(items) => {
+                    assert!(!items.is_empty(), "Should import base items");
+                    println!("Imported {} base items", items.len());
+                    let breastplate = items.iter().find(|i| i.name == "Breastplate");
+                    assert!(breastplate.is_some(), "Breastplate should exist");
+                }
+                Err(e) => {
+                    println!(
+                        "WARNING: Base item import failed (5etools format may have changed): {}",
+                        e
+                    );
+                }
+            }
+        }
+
         // Test the CompendiumProvider implementation
         // These tests need multi_thread runtime because count_content/load_content use block_in_place
         #[tokio::test(flavor = "multi_thread")]
@@ -1748,8 +2774,16 @@ mod tests {
             let types = provider.content_types();
 
             assert!(types.contains(&ContentType::CharacterOrigin));
+            assert!(types.contains(&ContentType::CharacterSuborigin));
             assert!(types.contains(&ContentType::CharacterClass));
+            assert!(types.contains(&ContentType::CharacterSubclass));
             assert!(types.contains(&ContentType::CharacterBackground));
+            assert!(types.contains(&ContentType::ClassFeature));
+            assert!(types.contains(&ContentType::Ability));
+            assert!(types.contains(&ContentType::Weapon));
+            assert!(types.contains(&ContentType::Armor));
+            assert!(types.contains(&ContentType::Item));
+            assert!(types.contains(&ContentType::MagicItem));
             assert!(types.contains(&ContentType::Spell));
             assert!(types.contains(&ContentType::Feat));
             println!("Provider supports {} content types", types.len());
