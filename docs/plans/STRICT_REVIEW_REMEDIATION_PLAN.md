@@ -115,31 +115,31 @@ Address issues identified in the full code review (per `docs/architecture/review
 
 ## Phases
 
-1) **Security + Boundary Fixes**
+1) **Security + Boundary Fixes** ✅
    - Remove hardcoded Neo4j password fallback.
    - Eliminate `Utc::now()` usage in use cases.
 
-2) **Strict Port-to-Repository Enforcement**
+2) **Strict Port-to-Repository Enforcement** ✅
    - Add repo/service wrappers for ports.
    - Update use cases and wiring.
    - Update tests to mock repos only.
 
-3) **Domain State Integrity**
+3) **Domain State Integrity** ✅
    - Refactor `NarrativeEvent` boolean state into enum.
    - Update serialization/tests.
 
-4) **Domain Events for Mutations**
+4) **Domain Events for Mutations** ✅
    - Introduce event enums for `Character`, `NarrativeEvent`, `Scene` mutation methods.
    - Update callers.
 
-5) **Test Determinism**
+5) **Test Determinism** ✅
    - Remove sleep-based timing tests and replace with deterministic clock/test harness approach.
 
 ## Validation Checklist
 
-- [ ] `rg -n "password" crates/engine/src/main.rs` has no default secret literals.
-- [ ] `rg -n "Utc::now" crates/engine/src/use_cases` only shows tests.
-- [ ] `rg -n "Arc<dyn .*Port" crates/engine/src/use_cases` is empty (excluding tests).
-- [ ] `NarrativeEvent` uses an enum state, no multi-boolean state.
-- [ ] All aggregate mutations return events (no `fn x(&mut self) {}` without return).
-- [ ] No sleep-based TTL assertions in e2e tests.
+- [x] `rg -n "password" crates/engine/src/main.rs` has no default secret literals.
+- [x] `rg -n "Utc::now" crates/engine/src/use_cases` only shows tests.
+- [x] `rg -n "Arc<dyn .*Port" crates/engine/src/use_cases` is empty (excluding tests).
+- [x] `NarrativeEvent` uses an enum state, no multi-boolean state.
+- [x] All aggregate mutations return events (no `fn x(&mut self) {}` without return).
+- [x] No sleep-based TTL assertions in e2e tests.

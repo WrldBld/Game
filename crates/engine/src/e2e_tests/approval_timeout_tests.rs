@@ -749,11 +749,11 @@ async fn test_old_approvals_cleaned_up() {
         .expect("Location should exist");
 
     // Insert multiple pending staging requests
+    let region_id = ctx
+        .world
+        .region("Common Room")
+        .expect("Region should exist");
     for i in 0..5 {
-        let region_id = ctx
-            .world
-            .region("Common Room")
-            .expect("Region should exist");
 
         let request = PendingStagingRequest {
             region_id,
@@ -782,11 +782,6 @@ async fn test_old_approvals_cleaned_up() {
     // Overwrite with expired timestamps to avoid sleeps
     let expired_at = Instant::now() - (ttl + Duration::from_millis(1));
     for i in 0..5 {
-        let region_id = ctx
-            .world
-            .region("Common Room")
-            .expect("Region should exist");
-
         let request = PendingStagingRequest {
             region_id,
             location_id,
