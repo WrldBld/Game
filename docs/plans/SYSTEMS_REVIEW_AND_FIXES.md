@@ -1,5 +1,9 @@
 # Systems Review and Fixes
 
+Status: Active
+Owner: Team
+Last updated: 2026-01-14
+
 Purpose: Capture gaps found by reviewing `docs/systems/*` first, then auditing implementation and tests in code. This file is a running log of discoveries and the follow-up plan.
 
 ## Scope
@@ -40,4 +44,3 @@ Purpose: Capture gaps found by reviewing `docs/systems/*` first, then auditing i
 
 - Updated scene system docs to remove contradiction about entry-condition evaluation (engine evaluates built-in conditions; UI is pending). See docs/systems/scene-system.md.
 - Updated staging system docs to reflect that pre-staging UI + modal and the player staging-pending overlay exist (noting implementation is “basic”). See docs/systems/staging-system.md.
-

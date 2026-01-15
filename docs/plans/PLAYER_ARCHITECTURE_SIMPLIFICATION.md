@@ -1,6 +1,8 @@
 # Player Architecture Simplification (Draft)
 
-Date: 2026-01-06
+Status: Draft
+Owner: Team
+Last updated: 2026-01-14
 
 ## Goal
 

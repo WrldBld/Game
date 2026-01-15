@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Narrative System enables DMs to design **future events** with triggers and effects. When conditions are met (player enters a location, completes a challenge, talks to an NPC), events fire and change the game world. Events can be chained into sequences with branching paths based on outcomes.
 
 ## WebSocket Coverage
@@ -30,23 +41,23 @@ This system provides the scaffolding for emergent storytelling:
 
 - [x] **US-NAR-001**: As a DM, I can create narrative events with trigger conditions
   - *Implementation*: NarrativeEvent entity with NarrativeTrigger, TriggerLogic
-  - *Files*: `crates/domain/src/entities/narrative_event.rs`
+  - *Files*: `crates/domain/src/aggregates/narrative_event.rs`
 
 - [x] **US-NAR-002**: As a DM, I can define multiple outcomes with different effects
   - *Implementation*: EventOutcome with conditions and EventEffect list
-  - *Files*: `crates/domain/src/entities/narrative_event.rs`
+  - *Files*: `crates/domain/src/aggregates/narrative_event.rs`
 
 - [x] **US-NAR-003**: As a DM, I can chain events into sequences
   - *Implementation*: EventChain entity with CONTAINS_EVENT edges
   - *Files*: `crates/domain/src/entities/event_chain.rs`
 
 - [x] **US-NAR-004**: As a DM, the Engine detects when trigger conditions are met
-  - *Implementation*: TriggerEvaluationService evaluates triggers against GameStateSnapshot
-  - *Files*: `crates/engine/src/entities/narrative.rs`
+  - *Implementation*: Trigger evaluation runs in narrative use cases against current world state
+  - *Files*: `crates/engine/src/use_cases/narrative/events.rs`
 
 - [x] **US-NAR-005**: As a DM, the LLM can suggest triggering events during dialogue
   - *Implementation*: LLM outputs `<narrative_event_suggestion>` tags
-  - *Files*: `crates/engine/src/use_cases/conversation/llm_queue.rs`
+  - *Files*: `crates/engine/src/use_cases/queues/mod.rs`
 
 - [x] **US-NAR-006**: As a DM, I can approve/reject event triggers before they execute
   - *Implementation*: NarrativeEventSuggestionDecision WebSocket message
@@ -54,27 +65,27 @@ This system provides the scaffolding for emergent storytelling:
 
 - [x] **US-NAR-007**: As a DM, I can browse and manage a narrative event library
   - *Implementation*: NarrativeEventLibrary with search, filters, favorites
-  - *Files*: `crates/player-ui/src/presentation/components/story_arc/narrative_event_library.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/story_arc/narrative_event_library.rs`
 
 - [x] **US-NAR-008**: As a DM, I can visualize event chains as flowcharts
   - *Implementation*: EventChainVisualizer component
-  - *Files*: `crates/player-ui/src/presentation/components/story_arc/event_chain_visualizer.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/story_arc/event_chain_visualizer.rs`
 
 - [x] **US-NAR-009**: As a DM, I can use a visual builder for trigger conditions
   - *Implementation*: TriggerBuilder component with schema-driven form generation
-  - *Files*: `crates/player-ui/src/presentation/components/story_arc/trigger_builder.rs`, `crates/protocol/src/types.rs` (TriggerSchema)
+  - *Files*: `crates/player/src/ui/presentation/components/story_arc/trigger_builder.rs`, `crates/protocol/src/types.rs` (TriggerSchema)
 
 ### Pending
 
 - [x] **US-NAR-010**: SetFlag effect with flag storage system
-  - *Status*: Implemented - Flag entity with Neo4j storage
-  - *Files*: `crates/engine/src/entities/flag.rs`, `crates/engine/src/infrastructure/neo4j/flag_repo.rs`
+  - *Status*: Implemented - Flag repository with Neo4j storage
+  - *Files*: `crates/engine/src/repositories/flag.rs`, `crates/engine/src/infrastructure/neo4j/flag_repo.rs`
 
 - [ ] **US-NAR-011**: StartCombat effect requires combat system
-  - *Notes*: Effect type exists but execution stubs - needs combat system implementation
+  - *Notes*: Effect type exists but execution is gated; DM sees a warning and no state changes occur until combat is implemented
 
 - [ ] **US-NAR-012**: AddReward effect requires reward/XP system  
-  - *Notes*: Effect type exists but execution stubs - needs reward system implementation
+  - *Notes*: Effect type exists but execution is gated; DM sees a warning and no state changes occur until rewards are implemented
 
 ---
 
@@ -369,9 +380,9 @@ pub enum EventEffect {
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Domain | `crates/domain/src/entities/narrative_event.rs` | Event entity, EventEffect enum |
+| Domain | `crates/domain/src/aggregates/narrative_event.rs` | Event entity, EventEffect enum |
 | Domain | `crates/domain/src/entities/event_chain.rs` | Chain entity |
-| Entity | `crates/engine/src/entities/narrative.rs` | Narrative operations, trigger checks |
+| Use Case | `crates/engine/src/use_cases/narrative/events.rs` | Narrative operations, trigger checks |
 | Use Case | `crates/engine/src/use_cases/narrative/execute_effects.rs` | Execute all effect types |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/narrative_repo.rs` | Neo4j repo |
 | Infrastructure | `crates/engine/src/infrastructure/ports.rs` | NarrativeRepo trait |

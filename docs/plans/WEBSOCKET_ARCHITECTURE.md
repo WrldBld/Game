@@ -2,8 +2,10 @@
 
 **Created**: 2025-12-25  
 **Status**: PROPOSAL  
+**Owner**: Team  
+**Last updated**: 2026-01-14  
 **Estimated Effort**: 2-3 days  
-**Related Backlog**: P3.6 in `docs/progress/IMPLEMENTATION_BACKLOG.md`
+**Related Backlog**: See `docs/progress/ROADMAP.md` for prioritized items.
 
 ---
 

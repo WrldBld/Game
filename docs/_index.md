@@ -69,11 +69,18 @@ Technical reference for developers.
 
 ## Plans
 
-| Document                                                                              | Description                                  |
-| ------------------------------------------------------------------------------------- | -------------------------------------------- |
-| [Known Architecture Issues](plans/KNOWN_ARCHITECTURE_ISSUES.md)                       | Pre-existing tech debt for later remediation |
-| [Architecture Remediation Master Plan](plans/ARCHITECTURE_REMEDIATION_MASTER_PLAN.md) | Single source of truth for refactoring       |
-| [Service Port Migration Plan](plans/SERVICE_PORT_INBOUND_MIGRATION_PLAN.md)           | Completed migration documentation            |
+| Document                                                                        | Description                                              |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| [Strict Review Remediation Plan](plans/STRICT_REVIEW_REMEDIATION_PLAN.md)       | Active architecture remediation plan (strict layering)   |
+| [Mood & Expression System Plan](plans/MOOD_EXPRESSION_SYSTEM_IMPLEMENTATION.md) | P3.1 feature plan for emotional model + UI               |
+| [Playtestable State Plan](plans/PLAYTESTABLE_STATE_PLAN.md)                     | Stabilize core loop for playtesting                      |
+| [Player Architecture Simplification](plans/PLAYER_ARCHITECTURE_SIMPLIFICATION.md) | Draft plan to reduce client-side abstraction             |
+| [Behavior Testing + TDD Plan](plans/BEHAVIOR_TESTING_TDD_PLAN.md)               | Testing strategy and workflow                            |
+| [Implementation Gaps Plan](plans/IMPLEMENTATION_GAPS_PLAN.md)                   | Wiring gaps checklist (engine/player coverage)           |
+| [Use Case Wiring Audit](plans/USE_CASE_WIRING_AUDIT.md)                         | Audit of wired vs unwired use cases                       |
+| [Systems Review and Fixes](plans/SYSTEMS_REVIEW_AND_FIXES.md)                    | Ongoing systems doc audit and fixes                      |
+| [Simplified Architecture](plans/SIMPLIFIED_ARCHITECTURE.md)                     | Active architecture baseline                             |
+| [WebSocket Architecture](plans/WEBSOCKET_ARCHITECTURE.md)                       | Proposal for WS-first approach                           |
 
 ---
 

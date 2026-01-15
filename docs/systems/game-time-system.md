@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Game Time System manages in-game time progression for narrative TTRPGs. Unlike real-time systems, game time advances through player actions and DM decisions, creating a "suggested time" model where the system proposes time costs for actions and the DM approves, modifies, or skips them. This enables time-sensitive mechanics (NPC schedules, scene availability, staging TTL) while keeping the DM in control of narrative pacing.
 
 ---
@@ -494,7 +505,7 @@ pub struct TimeAdvanceData {
 | Domain    | `crates/domain/src/game_time.rs`                       | GameTime, TimeOfDay, config types |
 | Domain    | `crates/domain/src/entities/world.rs`                  | World with game_time field        |
 | Ports     | `crates/engine/src/infrastructure/ports.rs`            | WorldRepo with time methods       |
-| Entities  | `crates/engine/src/entities/world.rs`                  | World entity operations           |
+| Repository | `crates/engine/src/repositories/world.rs`              | World persistence + time updates |
 | Use Cases | `crates/engine/src/use_cases/time/mod.rs`              | Time suggestion use cases         |
 | API       | `crates/engine/src/api/websocket/mod.rs`               | Time-related handlers             |
 | Neo4j     | `crates/engine/src/infrastructure/neo4j/world_repo.rs` | Persist time config               |

@@ -1,5 +1,9 @@
 # Playtestable State Implementation Plan
 
+Status: Active
+Owner: Team
+Last updated: 2026-01-14
+
 ## Overview
 This plan tracks progress toward a playtestable visual novel state. Created 2026-01-09 based on comprehensive codebase review.
 

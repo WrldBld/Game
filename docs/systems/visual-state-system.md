@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Visual State System manages **dynamic visual configurations** for locations and regions based on activation rules. LocationStates define city-wide visual changes (holidays, sieges, festivals), while RegionStates define region-specific changes (time-of-day backdrops, post-event modifications). States are resolved during staging and approved by the DM alongside NPC presence.
 
 ---
@@ -34,6 +45,12 @@ Location (City)
         +-- RegionState: "Night" (empty, quiet)
 ```
 
+### Resolution Precedence
+
+- **RegionState overrides LocationState** for region-specific properties (backdrop, atmosphere, ambience).
+- **LocationState provides defaults** when a RegionState omits a property.
+- **Fallback states** apply when no other state matches (default state per location/region).
+
 ### Activation Rules
 
 | Rule Type | Evaluation | Examples |
@@ -47,13 +64,17 @@ Location (City)
 | `FlagSet` | When game flag is true | Quest completion states |
 | `CharacterPresent` | When NPC is staged | VIP arrival changes |
 | **Soft Rules** (LLM) | | |
-| `Custom` | LLM evaluates description | "When tension is high", "If party is being stealthy" |
+| `Custom` | LLM evaluates description (DM approval required) | "When tension is high", "If party is being stealthy" |
 
 ---
 
 ## User Stories
 
 ### Backend Implemented (UI Pending)
+
+- [x] **US-VS-001**: As a DM, I can create location states with visual overrides (backdrop, atmosphere, sound)
+  - *Backend*: `LocationState` entity with CRUD operations in `location_state.rs`, `location_state_repo.rs`
+  - *UI*: Creator mode editor not yet implemented
 
 - [x] **US-VS-002**: As a DM, I can create region states with visual overrides
   - *Backend*: `RegionState` entity with CRUD operations in `region_state.rs`, `region_state_repo.rs`
@@ -72,9 +93,6 @@ Location (City)
   - *UI*: Default toggle not yet implemented
 
 ### UI Pending
-
-- [ ] **US-VS-001**: As a DM, I can create location states with visual overrides (backdrop, atmosphere, sound)
-  - *Note*: LocationState entity not yet implemented (only RegionState exists)
 
 - [ ] **US-VS-004**: As a DM, I can define soft activation rules (custom LLM conditions)
   - *Implementation*: Free-text condition with optional LLM prompt
@@ -486,12 +504,12 @@ When staging is requested, states are resolved as follows:
 
 | Component | Engine | Player | Notes |
 |-----------|--------|--------|-------|
-| LocationState Entity | Pending | - | `entities/location_state.rs` |
-| RegionState Entity | Pending | - | `entities/region_state.rs` |
-| ActivationRule Value Object | Pending | - | `value_objects/activation_rules.rs` |
-| LocationStateRepository | Pending | - | Neo4j CRUD |
-| RegionStateRepository | Pending | - | Neo4j CRUD |
-| StateResolutionService | Pending | - | Rule evaluation logic |
+| LocationState Entity | ✅ | - | `crates/domain/src/entities/location_state.rs` |
+| RegionState Entity | ✅ | - | `crates/domain/src/entities/region_state.rs` |
+| ActivationRule Value Object | ✅ | - | `crates/domain/src/value_objects/activation_rules.rs` |
+| LocationStateRepository | ✅ | - | `crates/engine/src/repositories/location_state.rs` |
+| RegionStateRepository | ✅ | - | `crates/engine/src/repositories/region_state.rs` |
+| StateResolutionService | ✅ | - | `crates/engine/src/use_cases/visual_state/resolve_state.rs` |
 | Extended Staging Entity | Pending | - | Add visual state fields |
 | Extended Staging Messages | Pending | Pending | Visual state in approval |
 | Location State Editor UI | - | Pending | Creator mode |
@@ -512,13 +530,16 @@ When staging is requested, states are resolved as follows:
 | Domain | `crates/domain/src/entities/staging.rs` | Extended with visual state |
 | Domain | `crates/domain/src/value_objects/activation_rules.rs` | Shared rule types |
 | Domain | `crates/domain/src/ids.rs` | LocationStateId, RegionStateId |
+| Repository | `crates/engine/src/repositories/location_state.rs` | LocationState persistence |
+| Repository | `crates/engine/src/repositories/region_state.rs` | RegionState persistence |
+| Use Case | `crates/engine/src/use_cases/visual_state/resolve_state.rs` | State resolution |
 
 ### Player
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| UI | `crates/player-ui/src/presentation/components/creator/location_state_editor.rs` | State editor (pending) |
-| UI | `crates/player-ui/src/presentation/components/dm_panel/staging_approval.rs` | Extended approval UI |
+| UI | Planned (TBD) | Location state editor |
+| UI | `crates/player/src/ui/presentation/components/dm_panel/staging_approval.rs` | Extended approval UI |
 
 ---
 

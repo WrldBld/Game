@@ -1,5 +1,9 @@
 # Implementation Gaps Plan
 
+Status: Active
+Owner: Team
+Last updated: 2026-01-14
+
 This plan tracks gaps between the systems docs, protocol, and current engine/player wiring.
 Update this file as work progresses.
 

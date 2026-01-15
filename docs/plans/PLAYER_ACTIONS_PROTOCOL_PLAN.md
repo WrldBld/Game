@@ -1,5 +1,9 @@
 # Player Actions Protocol Plan (Checklist)
 
+Status: Draft
+Owner: Team
+Last updated: 2026-01-14
+
 ## Goal
 
 Unify player actions under a comprehensive protocol that supports:

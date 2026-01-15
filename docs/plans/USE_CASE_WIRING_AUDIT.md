@@ -1,5 +1,9 @@
 # Use Case Wiring Audit
 
+Status: Active
+Owner: Team
+Last updated: 2026-01-14
+
 Goal: identify use cases that exist but are not wired, handlers that still contain orchestration logic, and other blockers to a maintainable engine.
 
 ## Use Cases Defined (Current Wiring Status)

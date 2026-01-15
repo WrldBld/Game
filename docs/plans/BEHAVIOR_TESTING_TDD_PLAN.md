@@ -1,5 +1,9 @@
 # Behavior Testing + TDD Plan
 
+Status: Active
+Owner: Team
+Last updated: 2026-01-14
+
 ## Goals
 
 - Add **behavior-based tests** that demonstrate each system’s user-visible behavior exists and stays within spec.

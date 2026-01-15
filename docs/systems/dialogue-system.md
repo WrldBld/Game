@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Dialogue System powers NPC conversations using an LLM (Ollama). When a player speaks to an NPC, the Engine builds rich context from the graph database (character motivations, relationships, location, narrative events) and sends it to the LLM. The generated response goes to the DM for approval before the player sees it. The LLM can also suggest tool calls (give items, change relationships) and challenge/event triggers.
 
 Conversations are persisted as first-class graph nodes tied to scenes and game time so dialogue history can drive narrative triggers, time-based availability, and scene continuity.
@@ -18,6 +29,12 @@ This is the heart of the AI game master experience:
 4. **Tool Calls**: LLM can suggest game actions (give items, reveal info, etc.)
 5. **Conversation History**: Recent dialogue is included in context
 
+### Dialogue Rules
+
+- **Response length** defaults to 1–3 sentences unless the DM overrides.
+- **Tool calls have no side effects** until the DM approves them; rejected tools are ignored.
+- **Context edges** (`IN_SCENE`, `AT_LOCATION`, `AT_REGION`, `OCCURRED_AT`) should be set when known, but conversations can exist without them.
+
 ---
 
 ## User Stories
@@ -25,12 +42,12 @@ This is the heart of the AI game master experience:
 ### Implemented
 
 - [x] **US-DLG-001**: As a player, I can speak to NPCs and receive contextual responses
-  - *Implementation*: PlayerAction → LLMQueueService → Ollama → DM approval → DialogueResponse
-  - *Files*: `crates/engine/src/use_cases/conversation/llm_queue.rs`
+  - *Implementation*: PlayerAction → queue processing → LLM client → DM approval → DialogueResponse
+  - *Files*: `crates/engine/src/use_cases/queues/mod.rs`, `crates/engine/src/use_cases/conversation/start.rs`
 
 - [x] **US-DLG-002**: As a DM, I can approve LLM responses before players see them
   - *Implementation*: ApprovalRequired WebSocket message, ApprovalDecision handling
-  - *Files*: `crates/engine/src/api/websocket/mod.rs`, `crates/player-ui/src/presentation/components/dm_panel/approval_popup.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`, `crates/player/src/ui/presentation/components/dm_panel/approval_popup.rs`
 
 - [x] **US-DLG-003**: As a DM, I can modify LLM responses before approving
   - *Implementation*: AcceptWithModification decision type, modified dialogue text
@@ -46,7 +63,7 @@ This is the heart of the AI game master experience:
 
 - [x] **US-DLG-006**: As a DM, I can approve/reject LLM tool call suggestions
   - *Implementation*: ProposedToolInfo in approval, approved_tools filtering
-  - *Files*: `crates/engine/src/use_cases/conversation/tool_execution.rs`
+  - *Files*: `crates/engine/src/use_cases/queues/tool_extractor.rs`
 
 - [x] **US-DLG-007**: As a DM, I can set directorial notes that guide the LLM
   - *Implementation*: DirectorialNotes value object, included in LLM system prompt
@@ -54,21 +71,23 @@ This is the heart of the AI game master experience:
 
 - [x] **US-DLG-008**: As a player, I see a "thinking" indicator while LLM processes
   - *Implementation*: LLMProcessing WebSocket message, UI shows animated indicator
-  - *Files*: `crates/player-ui/src/presentation/views/pc_view.rs`
+  - *Files*: `crates/player/src/ui/presentation/views/pc_view.rs`
 
 - [x] **US-DLG-009**: As a DM, I can configure token budgets per context category
   - *Implementation*: Settings API at `/api/settings` and `/api/worlds/{world_id}/settings` exposes all 10 ContextBudgetConfig fields; metadata endpoint provides field descriptions for UI rendering
   - *Files*: `crates/domain/src/value_objects/context_budget.rs`, `crates/engine/src/api/http.rs`
 
-- [x] **US-DLG-010**: As a DM, I can customize the LLM response format through configurable templates
-  - *Implementation*: `PromptBuilder` resolves `dialogue.response_format`, `dialogue.challenge_suggestion_format`, and `dialogue.narrative_event_format` templates via `PromptTemplateService`
-  - *Files*: `crates/engine/src/use_cases/conversation/prompt_builder.rs`, `crates/domain/src/value_objects/prompt_templates.rs`
+### Pending
+
+- [ ] **US-DLG-010**: As a DM, I can customize the LLM response format through configurable templates
+  - *Design*: Template metadata + overrides resolved at request time
+  - *Reference*: `crates/domain/src/value_objects/prompt_templates.rs`
 
 ### Implemented (Dialogue Tracking Enhancement)
 
 - [x] **US-DLG-011**: As a system, I persist dialogue exchanges as StoryEvents for later querying
-  - *Implementation*: `record_dialogue_exchange()` in Narrative entity, called from WebSocket approval handler
-  - *Files*: `crates/engine/src/entities/narrative.rs`, `crates/engine/src/api/websocket/mod.rs`
+  - *Implementation*: Narrative repositories persist dialogue exchanges from approval handler
+  - *Files*: `crates/engine/src/repositories/narrative.rs`, `crates/engine/src/api/websocket/mod.rs`
   - *Completed*: 2026-01-03 implemented in simplified architecture
 
 - [x] **US-DLG-012**: As a system, I can query the last dialogues with a specific NPC
@@ -311,10 +330,10 @@ pub enum GameTool {
 | Domain | `crates/domain/src/value_objects/context_budget.rs` | Budget config |
 | Domain | `crates/domain/src/value_objects/game_tools.rs` | Tool definitions |
 | Domain | `crates/domain/src/value_objects/directorial.rs` | Directorial notes |
-| Entity | `crates/engine/src/entities/llm.rs` | LLM operations |
-| Use Case | `crates/engine/src/use_cases/conversation/prompt_builder.rs` | Build prompts |
-| Use Case | `crates/engine/src/use_cases/conversation/llm_queue.rs` | LLM processing |
-| Use Case | `crates/engine/src/use_cases/conversation/tool_execution.rs` | Execute tools |
+| Infrastructure | `crates/engine/src/infrastructure/ollama.rs` | LLM operations |
+| Use Case | `crates/engine/src/use_cases/queues/mod.rs` | LLM request assembly + processing |
+| Use Case | `crates/engine/src/use_cases/queues/tool_builder.rs` | Tool definition assembly |
+| Use Case | `crates/engine/src/use_cases/queues/tool_extractor.rs` | Tool extraction + routing |
 | Infrastructure | `crates/engine/src/infrastructure/ollama.rs` | LLM client |
 | API | `crates/engine/src/api/websocket/mod.rs` | Approval handling |
 

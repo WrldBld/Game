@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Asset System integrates with ComfyUI to generate images (character portraits, sprites, backdrops) on demand. It manages workflows, queues generation requests, tracks progress, and maintains a gallery of generated assets. The system includes resilience features like circuit breakers, retries, and health monitoring.
 
 ---
@@ -26,24 +37,24 @@ AI-generated art enhances immersion:
   - *Files*: `crates/domain/src/entities/workflow_config.rs`
 
 - [x] **US-AST-002**: As a DM, I can queue image generation with prompts
-  - *Implementation*: GenerationBatch entity, AssetGenerationQueue
-  - *Files*: `crates/engine/src/use_cases/assets/queue.rs`
+  - *Implementation*: GenerationBatch entity, asset generation use cases
+  - *Files*: `crates/engine/src/use_cases/assets/mod.rs`
 
 - [x] **US-AST-003**: As a DM, I can see real-time generation progress
   - *Implementation*: GenerationQueued/Progress/Complete/Failed WebSocket messages
-  - *Files*: `crates/player-ui/src/presentation/components/creator/generation_queue.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/creator/generation_queue.rs`
 
 - [x] **US-AST-004**: As a DM, I can browse generated assets in a gallery
   - *Implementation*: AssetGallery with filtering, thumbnails, context menu
-  - *Files*: `crates/player-ui/src/presentation/components/creator/asset_gallery.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/creator/asset_gallery.rs`
 
 - [x] **US-AST-005**: As a DM, I can set a generated asset as active for an entity
   - *Implementation*: Asset activation sets portrait_asset/sprite_asset/backdrop_asset
-  - *Files*: `crates/engine/src/entities/assets.rs`
+  - *Files*: `crates/engine/src/repositories/assets.rs`
 
 - [x] **US-AST-006**: As a DM, I can cancel/retry/clear generation batches
   - *Implementation*: Batch management UI with status-appropriate actions
-  - *Files*: `crates/player-ui/src/presentation/components/creator/generation_queue.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/creator/generation_queue.rs`
 
 - [x] **US-AST-007**: As a DM, I can use style references for consistent art
   - *Implementation*: StyleReferenceMapping, IPAdapter detection
@@ -51,15 +62,15 @@ AI-generated art enhances immersion:
 
 - [x] **US-AST-008**: As a DM, I can see ComfyUI connection status
   - *Implementation*: ComfyUIBanner component with health indicator
-  - *Files*: `crates/player-ui/src/presentation/components/creator/comfyui_banner.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/creator/comfyui_banner.rs`
 
 - [x] **US-AST-009**: As a DM, I can quick-generate from Director Mode
   - *Implementation*: DirectorGenerateModal, generate buttons on NPC panel
-  - *Files*: `crates/player-ui/src/presentation/components/dm_panel/director_generate_modal.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/dm_panel/director_generate_modal.rs`
 
 - [x] **US-AST-010**: As a DM, I can edit workflow parameters in the UI
   - *Implementation*: Enhanced WorkflowConfigEditor with editable mappings, lock toggles, style detection
-  - *Files*: `crates/player-ui/src/presentation/components/settings/workflow_config_editor.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/settings/workflow_config_editor.rs`
 
 ### Pending
 
@@ -304,8 +315,8 @@ pub enum BatchStatus {
 | Domain | `crates/domain/src/entities/gallery_asset.rs` | Asset entity |
 | Domain | `crates/domain/src/entities/generation_batch.rs` | Batch entity |
 | Domain | `crates/domain/src/entities/workflow_config.rs` | Workflow entity |
-| Entity | `crates/engine/src/entities/assets.rs` | Asset operations |
-| Use Case | `crates/engine/src/use_cases/assets/queue.rs` | Generation queue |
+| Repository | `crates/engine/src/repositories/assets.rs` | Asset operations |
+| Use Case | `crates/engine/src/use_cases/assets/mod.rs` | Generation queue |
 | Infrastructure | `crates/engine/src/infrastructure/comfyui.rs` | ComfyUI client |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/asset_repo.rs` | Neo4j persistence |
 

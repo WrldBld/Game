@@ -2,6 +2,8 @@
 
 **Status**: ACTIVE  
 **Created**: 2026-01-03  
+**Owner**: Team  
+**Last updated**: 2026-01-14  
 **Branch**: `new-arch`
 
 ## Overview

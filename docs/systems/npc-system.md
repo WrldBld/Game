@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The NPC System determines **where NPCs are** at any given time without simulating their movement. It defines NPC-Region relationships (works at, lives at, frequents, avoids) that describe an NPC's connection to locations. The DM can also trigger events that bring NPCs to players or narrate location-wide occurrences.
 
 > **Note**: The actual determination of which NPCs appear when a player enters a region is handled by the [Staging System](./staging-system.md), which uses these relationships as input for both rule-based and LLM-enhanced presence decisions, with DM approval.
@@ -26,7 +37,7 @@ This system creates a living world without the complexity of AI pathfinding or s
 
 - [x] **US-NPC-001**: As a player, I see relevant NPCs when I enter a region based on their schedules
   - *Implementation*: [Staging System](./staging-system.md) queries NPC-Region relationships, generates suggestions, and requires DM approval
-  - *Files*: `crates/engine/src/entities/staging.rs` (replaces `presence_service.rs`)
+  - *Files*: `crates/engine/src/use_cases/staging/mod.rs`, `crates/engine/src/repositories/staging.rs`
 
 - [x] **US-NPC-002**: As a DM, I can define where NPCs work (region + shift)
   - *Implementation*: `WORKS_AT_REGION` edge with `shift` property (day/night/always)
@@ -54,11 +65,11 @@ This system creates a living world without the complexity of AI pathfinding or s
 
 - [x] **US-NPC-008**: As a player, I see an NPC approach me with a description
   - *Implementation*: `ApproachEventOverlay` modal with NPC sprite and "Continue" button
-  - *Files*: `crates/player-ui/src/presentation/components/event_overlays.rs`, `crates/player-ui/src/presentation/state/game_state.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/event_overlays.rs`, `crates/player/src/ui/presentation/state/game_state.rs`
 
 - [x] **US-NPC-009**: As a player, I see location events as narrative text
   - *Implementation*: `LocationEventBanner` component at top of screen, click to dismiss
-  - *Files*: `crates/player-ui/src/presentation/components/event_overlays.rs`, `crates/player-ui/src/presentation/handlers/session_message_handler.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/event_overlays.rs`, `crates/player/src/ui/presentation/handlers/session_message_handler.rs`
 
 ### Future Improvements
 
@@ -226,9 +237,9 @@ Result: List of NPCs with presence suggestions and reasoning
 |-------|------|---------|
 | Domain | `crates/domain/src/value_objects/region.rs` | RegionRelationship types |
 | Domain | `crates/domain/src/entities/staging.rs` | Staging entity |
-| Entity | `crates/engine/src/entities/staging.rs` | Staging operations |
+| Repository | `crates/engine/src/repositories/staging.rs` | Staging operations |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/character_repo.rs` | NPC-Region queries |
-| Infrastructure | `crates/engine/src/infrastructure/neo4j/region_repo.rs` | Region queries |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/location_repo.rs` | Location/region queries |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/staging_repo.rs` | Staging persistence |
 | API | `crates/engine/src/api/websocket/mod.rs` | DM event handlers |
 | Protocol | `crates/protocol/src/messages.rs` | Staging message types |
