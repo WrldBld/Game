@@ -4,6 +4,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::Context;
 use axum::http::header::HeaderName;
 use axum::http::{HeaderValue, Method};
 use axum::routing::get;
@@ -60,7 +61,8 @@ async fn main() -> anyhow::Result<()> {
     // Load configuration
     let neo4j_uri = std::env::var("NEO4J_URI").unwrap_or_else(|_| "bolt://localhost:7687".into());
     let neo4j_user = std::env::var("NEO4J_USER").unwrap_or_else(|_| "neo4j".into());
-    let neo4j_pass = std::env::var("NEO4J_PASSWORD").unwrap_or_else(|_| "password".into());
+    let neo4j_pass = std::env::var("NEO4J_PASSWORD")
+        .context("NEO4J_PASSWORD is required (set it in your environment or .env)")?;
     let ollama_url = std::env::var("OLLAMA_URL")
         .or_else(|_| std::env::var("OLLAMA_BASE_URL"))
         .unwrap_or_else(|_| "http://localhost:11434".into());

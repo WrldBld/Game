@@ -106,7 +106,8 @@ impl App {
             clock.clone(),
         ));
         let flag = Arc::new(repositories::Flag::new(repos.flag.clone()));
-        let narrative_repo = Arc::new(repositories::Narrative::new(repos.narrative.clone()));
+        let narrative_repo =
+            Arc::new(repositories::Narrative::new(repos.narrative.clone(), clock.clone()));
         let narrative = Arc::new(use_cases::Narrative::new(
             narrative_repo,
             location.clone(),
@@ -127,7 +128,7 @@ impl App {
         ));
         let assets = Arc::new(repositories::Assets::new(repos.asset.clone(), image_gen));
         let goal = Arc::new(repositories::Goal::new(repos.goal.clone()));
-        let lore = Arc::new(repositories::Lore::new(repos.lore.clone()));
+        let lore = Arc::new(repositories::Lore::new(repos.lore.clone(), clock.clone()));
         let location_state = Arc::new(repositories::LocationStateEntity::new(
             repos.location_state.clone(),
         ));

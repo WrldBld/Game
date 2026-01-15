@@ -92,7 +92,7 @@ mod trigger_tests {
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
 
         let narrative_ops = super::NarrativeOps::new(
-            Arc::new(Narrative::new(Arc::new(narrative_repo))),
+            Arc::new(Narrative::new(Arc::new(narrative_repo), clock.clone())),
             Arc::new(Location::new(location_repo.clone())),
             Arc::new(World::new(world_repo.clone(), clock.clone())),
             Arc::new(PlayerCharacter::new(player_character_repo)),

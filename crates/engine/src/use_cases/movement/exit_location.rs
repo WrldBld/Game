@@ -317,7 +317,10 @@ mod tests {
             clock.clone(),
         ));
         let narrative = Arc::new(Narrative::new(
-            Arc::new(repositories::Narrative::new(Arc::new(MockNarrativeRepo::new()))),
+            Arc::new(repositories::Narrative::new(
+                Arc::new(MockNarrativeRepo::new()),
+                clock.clone(),
+            )),
             location.clone(),
             world.clone(),
             player_character.clone(),

@@ -242,7 +242,7 @@ impl LoreOps {
             None => LoreCategory::Common,
         };
 
-        let now = chrono::Utc::now();
+        let now = self.lore.now();
         let mut lore = wrldbldr_domain::Lore::new(world_id, &input.title, category, now);
 
         if let Some(summary) = input.summary.as_ref() {
@@ -327,7 +327,7 @@ impl LoreOps {
         if let Some(is_common) = input.is_common_knowledge {
             lore.is_common_knowledge = is_common;
         }
-        lore.updated_at = chrono::Utc::now();
+        lore.updated_at = self.lore.now();
 
         self.lore.save(&lore).await?;
 
@@ -386,7 +386,7 @@ impl LoreOps {
 
         let chunk_id = chunk.id.to_string();
         lore.chunks.push(chunk);
-        lore.updated_at = chrono::Utc::now();
+        lore.updated_at = self.lore.now();
 
         self.lore.save(&lore).await?;
 
@@ -437,7 +437,7 @@ impl LoreOps {
             chunk.discovery_hint = Some(hint.clone());
         }
 
-        lore.updated_at = chrono::Utc::now();
+        lore.updated_at = self.lore.now();
         self.lore.save(&lore).await?;
 
         Ok(UpdateChunkResult {
@@ -471,7 +471,7 @@ impl LoreOps {
             chunk.order = i as u32;
         }
 
-        lore.updated_at = chrono::Utc::now();
+        lore.updated_at = self.lore.now();
         self.lore.save(&lore).await?;
 
         Ok(DeleteChunkResult {
@@ -507,7 +507,7 @@ impl LoreOps {
         }
 
         let domain_source = lore_discovery_source(discovery_source)?;
-        let now = chrono::Utc::now();
+        let now = self.lore.now();
         let knowledge = if let Some(ids) = chunk_ids {
             LoreKnowledge::partial(lore_id, character_id, ids, domain_source, now)
         } else {
@@ -711,7 +711,7 @@ mod tests {
             world_id,
             "Test Lore",
             LoreCategory::Common,
-            chrono::Utc::now(),
+            self.lore.now(),
         )
     }
 

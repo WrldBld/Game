@@ -31,6 +31,10 @@ impl World {
         self.repo.get(id).await
     }
 
+    pub fn now(&self) -> chrono::DateTime<chrono::Utc> {
+        self.clock.now()
+    }
+
     pub async fn save(&self, world: &domain::World) -> Result<(), RepoError> {
         self.repo.save(world).await
     }

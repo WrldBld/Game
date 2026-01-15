@@ -192,7 +192,10 @@ mod tests {
         let scene_repo = Arc::new(MockSceneRepo::new());
 
         Arc::new(Narrative::new(
-            Arc::new(repositories::Narrative::new(Arc::new(narrative_repo))),
+            Arc::new(repositories::Narrative::new(
+                Arc::new(narrative_repo),
+                clock.clone(),
+            )),
             Arc::new(repositories::Location::new(location_repo.clone())),
             Arc::new(repositories::World::new(world_repo.clone(), clock.clone())),
             Arc::new(repositories::PlayerCharacter::new(player_character_repo)),

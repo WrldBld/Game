@@ -87,7 +87,7 @@ impl RequestStagingApproval {
                     region_id: input.region.id,
                     location_id: input.region.location_id,
                     world_id: input.world_id,
-                    created_at: chrono::Utc::now(),
+                    created_at: self.world.now(),
                 },
             )
             .await;

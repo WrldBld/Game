@@ -10,7 +10,7 @@ use wrldbldr_domain::{
     StoryEventId, WorldId,
 };
 
-use crate::infrastructure::ports::{NarrativeRepo, RepoError};
+use crate::infrastructure::ports::{ClockPort, NarrativeRepo, RepoError};
 use crate::llm_context::ConversationTurn;
 
 /// Narrative entity CRUD operations.
@@ -20,11 +20,16 @@ use crate::llm_context::ConversationTurn;
 /// trigger evaluation - see `NarrativeOps` for that.
 pub struct Narrative {
     repo: Arc<dyn NarrativeRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Narrative {
-    pub fn new(repo: Arc<dyn NarrativeRepo>) -> Self {
-        Self { repo }
+    pub fn new(repo: Arc<dyn NarrativeRepo>, clock: Arc<dyn ClockPort>) -> Self {
+        Self { repo, clock }
+    }
+
+    pub fn now(&self) -> chrono::DateTime<chrono::Utc> {
+        self.clock.now()
     }
 
     // =========================================================================

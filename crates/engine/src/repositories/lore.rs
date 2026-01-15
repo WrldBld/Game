@@ -3,16 +3,21 @@
 use std::sync::Arc;
 use wrldbldr_domain::{self as domain, CharacterId, LoreCategory, LoreChunkId, LoreId, WorldId};
 
-use crate::infrastructure::ports::{LoreRepo, RepoError};
+use crate::infrastructure::ports::{ClockPort, LoreRepo, RepoError};
 
 /// Lore entity operations.
 pub struct Lore {
     repo: Arc<dyn LoreRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl Lore {
-    pub fn new(repo: Arc<dyn LoreRepo>) -> Self {
-        Self { repo }
+    pub fn new(repo: Arc<dyn LoreRepo>, clock: Arc<dyn ClockPort>) -> Self {
+        Self { repo, clock }
+    }
+
+    pub fn now(&self) -> chrono::DateTime<chrono::Utc> {
+        self.clock.now()
     }
 
     // CRUD operations

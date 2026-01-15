@@ -490,7 +490,8 @@ pub(crate) fn build_test_app_with_ports(
     ));
     let flag = Arc::new(crate::repositories::Flag::new(flag_repo.clone()));
     let world = Arc::new(crate::repositories::World::new(world_repo.clone(), clock.clone()));
-    let narrative_repo = Arc::new(crate::repositories::Narrative::new(narrative_port));
+    let narrative_repo =
+        Arc::new(crate::repositories::Narrative::new(narrative_port, clock.clone()));
     let narrative = Arc::new(crate::use_cases::narrative_operations::Narrative::new(
         narrative_repo,
         location.clone(),
@@ -516,7 +517,7 @@ pub(crate) fn build_test_app_with_ports(
         image_gen,
     ));
     let goal = Arc::new(crate::repositories::Goal::new(goal_repo.clone()));
-    let lore = Arc::new(crate::repositories::Lore::new(lore_repo.clone()));
+    let lore = Arc::new(crate::repositories::Lore::new(lore_repo.clone(), clock.clone()));
     let location_state = Arc::new(crate::repositories::LocationStateEntity::new(
         location_state_repo.clone(),
     ));

@@ -103,7 +103,7 @@ impl StoryEventOps {
         title: String,
         content: Option<String>,
     ) -> Result<Uuid, StoryEventError> {
-        let now = chrono::Utc::now();
+        let now = self.narrative.now();
         let event = wrldbldr_domain::StoryEvent {
             id: StoryEventId::new(),
             world_id,

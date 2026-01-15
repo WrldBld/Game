@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use chrono::Utc;
 use serde::Serialize;
 
 use wrldbldr_domain::{self as domain, ActId, EventChain, EventChainId, NarrativeEventId, WorldId};
@@ -105,7 +104,7 @@ impl EventChainOps {
         act_id: Option<ActId>,
         events: Option<Vec<NarrativeEventId>>,
     ) -> Result<EventChainSummary, EventChainError> {
-        let now = Utc::now();
+        let now = self.narrative.now();
         let mut chain = EventChain::new(world_id, &input.name, now);
 
         if let Some(description) = input.description {
@@ -165,7 +164,7 @@ impl EventChainOps {
             chain.act_id = Some(act_id);
         }
         if let Some(events) = events {
-            chain.reorder_events(events, Utc::now());
+            chain.reorder_events(events, self.narrative.now());
         }
 
         self.narrative.save_chain(&chain).await?;
@@ -188,7 +187,7 @@ impl EventChainOps {
             .await?
             .ok_or(EventChainError::NotFound)?;
 
-        let now = Utc::now();
+        let now = self.narrative.now();
         if active {
             chain.activate(now);
         } else {
@@ -225,7 +224,7 @@ impl EventChainOps {
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
-        let now = Utc::now();
+        let now = self.narrative.now();
         if let Some(pos) = position {
             chain.insert_event(pos, event_id, now);
         } else {
@@ -245,7 +244,7 @@ impl EventChainOps {
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
-        let now = Utc::now();
+        let now = self.narrative.now();
         chain.remove_event(&event_id, now);
         self.narrative.save_chain(&chain).await?;
         Ok(())
@@ -261,7 +260,7 @@ impl EventChainOps {
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
-        let now = Utc::now();
+        let now = self.narrative.now();
         chain.complete_event(event_id, now);
         self.narrative.save_chain(&chain).await?;
         Ok(())
@@ -276,7 +275,7 @@ impl EventChainOps {
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
-        chain.reset(Utc::now());
+        chain.reset(self.narrative.now());
         self.narrative.save_chain(&chain).await?;
         Ok(event_chain_to_summary(&chain))
     }

@@ -90,7 +90,7 @@ impl ApproveStagingRequest {
         };
 
         let current_game_time = world.game_time().current();
-        let approved_at = chrono::Utc::now();
+        let approved_at = self.world.now();
 
         let staged_npcs = self.build_staged_npcs(&input.approved_npcs).await;
 
