@@ -35,13 +35,59 @@ pub use crate::entities::{
     NarrativeTriggerType, OutcomeCondition, TriggerContext, TriggerEvaluation, TriggerLogic,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EventActivation {
+    Active,
+    Inactive,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EventRepeatability {
+    OneShot,
+    Repeatable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FavoriteStatus {
+    Normal,
+    Favorite,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum TriggerStatus {
+    Never,
+    Triggered {
+        at: DateTime<Utc>,
+        selected_outcome: Option<String>,
+    },
+}
+
+impl TriggerStatus {
+    fn from_wire(
+        is_triggered: bool,
+        triggered_at: Option<DateTime<Utc>>,
+        selected_outcome: Option<String>,
+        fallback_time: DateTime<Utc>,
+    ) -> Self {
+        if is_triggered {
+            let at = triggered_at.unwrap_or(fallback_time);
+            Self::Triggered {
+                at,
+                selected_outcome,
+            }
+        } else {
+            Self::Never
+        }
+    }
+}
+
 /// A narrative event that can be triggered when conditions are met
 ///
 /// # Invariants
 ///
 /// - `name` is always non-empty
 /// - `trigger_count` is always >= 0
-/// - If `is_triggered` is true, `triggered_at` is Some
+/// - If `trigger_status` is Triggered, `selected_outcome` may be Some
 ///
 /// # Graph Relationships
 ///
@@ -109,15 +155,11 @@ pub struct NarrativeEvent {
 
     // Status
     /// Whether this event is currently active (can be triggered)
-    is_active: bool,
-    /// Whether this event has already been triggered
-    is_triggered: bool,
-    /// Timestamp when triggered (if triggered)
-    triggered_at: Option<DateTime<Utc>>,
-    /// Which outcome was selected (if triggered)
-    selected_outcome: Option<String>,
+    activation: EventActivation,
+    /// Trigger state with timestamp and selected outcome.
+    trigger_status: TriggerStatus,
     /// Whether this event can repeat (trigger multiple times)
-    is_repeatable: bool,
+    repeatability: EventRepeatability,
     /// Times this event has been triggered (for repeatable events)
     trigger_count: u32,
 
@@ -133,7 +175,7 @@ pub struct NarrativeEvent {
     /// Priority for ordering multiple triggered events (higher = first)
     priority: i32,
     /// Is this a favorite for quick access
-    is_favorite: bool,
+    favorite: FavoriteStatus,
 
     // NOTE: chain_id, chain_position moved to CONTAINS_EVENT edge (from EventChain)
 
@@ -181,16 +223,14 @@ impl NarrativeEvent {
             suggested_opening: None,
             outcomes: Vec::new(),
             default_outcome: None,
-            is_active: true,
-            is_triggered: false,
-            triggered_at: None,
-            selected_outcome: None,
-            is_repeatable: false,
+            activation: EventActivation::Active,
+            trigger_status: TriggerStatus::Never,
+            repeatability: EventRepeatability::OneShot,
             trigger_count: 0,
             delay_turns: 0,
             expires_after_turns: None,
             priority: 0,
-            is_favorite: false,
+            favorite: FavoriteStatus::Normal,
             created_at: now,
             updated_at: now,
         }
@@ -289,31 +329,39 @@ impl NarrativeEvent {
     /// Returns true if the event is currently active.
     #[inline]
     pub fn is_active(&self) -> bool {
-        self.is_active
+        matches!(self.activation, EventActivation::Active)
     }
 
     /// Returns true if the event has been triggered.
     #[inline]
     pub fn is_triggered(&self) -> bool {
-        self.is_triggered
+        matches!(self.trigger_status, TriggerStatus::Triggered { .. })
     }
 
     /// Returns when the event was triggered, if it was.
     #[inline]
     pub fn triggered_at(&self) -> Option<DateTime<Utc>> {
-        self.triggered_at
+        match &self.trigger_status {
+            TriggerStatus::Triggered { at, .. } => Some(*at),
+            TriggerStatus::Never => None,
+        }
     }
 
     /// Returns the selected outcome name, if triggered.
     #[inline]
     pub fn selected_outcome(&self) -> Option<&str> {
-        self.selected_outcome.as_deref()
+        match &self.trigger_status {
+            TriggerStatus::Triggered {
+                selected_outcome, ..
+            } => selected_outcome.as_deref(),
+            TriggerStatus::Never => None,
+        }
     }
 
     /// Returns true if the event is repeatable.
     #[inline]
     pub fn is_repeatable(&self) -> bool {
-        self.is_repeatable
+        matches!(self.repeatability, EventRepeatability::Repeatable)
     }
 
     /// Returns the number of times this event has been triggered.
@@ -351,7 +399,7 @@ impl NarrativeEvent {
     /// Returns true if the event is a favorite.
     #[inline]
     pub fn is_favorite(&self) -> bool {
-        self.is_favorite
+        matches!(self.favorite, FavoriteStatus::Favorite)
     }
 
     // =========================================================================
@@ -448,13 +496,21 @@ impl NarrativeEvent {
 
     /// Set whether the event is active.
     pub fn with_active(mut self, active: bool) -> Self {
-        self.is_active = active;
+        self.activation = if active {
+            EventActivation::Active
+        } else {
+            EventActivation::Inactive
+        };
         self
     }
 
     /// Set whether the event is repeatable.
     pub fn with_repeatable(mut self, repeatable: bool) -> Self {
-        self.is_repeatable = repeatable;
+        self.repeatability = if repeatable {
+            EventRepeatability::Repeatable
+        } else {
+            EventRepeatability::OneShot
+        };
         self
     }
 
@@ -478,7 +534,11 @@ impl NarrativeEvent {
 
     /// Set whether the event is a favorite.
     pub fn with_favorite(mut self, favorite: bool) -> Self {
-        self.is_favorite = favorite;
+        self.favorite = if favorite {
+            FavoriteStatus::Favorite
+        } else {
+            FavoriteStatus::Normal
+        };
         self
     }
 
@@ -490,9 +550,12 @@ impl NarrativeEvent {
         selected_outcome: Option<String>,
         trigger_count: u32,
     ) -> Self {
-        self.is_triggered = is_triggered;
-        self.triggered_at = triggered_at;
-        self.selected_outcome = selected_outcome;
+        self.trigger_status = TriggerStatus::from_wire(
+            is_triggered,
+            triggered_at,
+            selected_outcome,
+            self.created_at,
+        );
         self.trigger_count = trigger_count;
         self
     }
@@ -549,7 +612,11 @@ impl NarrativeEvent {
 
     /// Set the event's active state.
     pub fn set_active(&mut self, active: bool, now: DateTime<Utc>) {
-        self.is_active = active;
+        self.activation = if active {
+            EventActivation::Active
+        } else {
+            EventActivation::Inactive
+        };
         self.updated_at = now;
     }
 
@@ -561,7 +628,11 @@ impl NarrativeEvent {
 
     /// Set the event's favorite state.
     pub fn set_favorite(&mut self, favorite: bool, now: DateTime<Utc>) {
-        self.is_favorite = favorite;
+        self.favorite = if favorite {
+            FavoriteStatus::Favorite
+        } else {
+            FavoriteStatus::Normal
+        };
         self.updated_at = now;
     }
 
@@ -816,23 +887,22 @@ impl NarrativeEvent {
 
     /// Mark this event as triggered with the given outcome.
     pub fn trigger(&mut self, outcome_name: Option<String>, now: DateTime<Utc>) {
-        self.is_triggered = true;
-        self.triggered_at = Some(now);
-        self.selected_outcome = outcome_name;
+        self.trigger_status = TriggerStatus::Triggered {
+            at: now,
+            selected_outcome: outcome_name,
+        };
         self.trigger_count += 1;
         self.updated_at = now;
 
         // If not repeatable, deactivate
-        if !self.is_repeatable {
-            self.is_active = false;
+        if !self.is_repeatable() {
+            self.activation = EventActivation::Inactive;
         }
     }
 
     /// Reset the triggered state (for repeatable events).
     pub fn reset(&mut self, now: DateTime<Utc>) {
-        self.is_triggered = false;
-        self.triggered_at = None;
-        self.selected_outcome = None;
+        self.trigger_status = TriggerStatus::Never;
         self.updated_at = now;
     }
 
@@ -903,16 +973,16 @@ impl Serialize for NarrativeEvent {
             suggested_opening: self.suggested_opening.clone(),
             outcomes: self.outcomes.clone(),
             default_outcome: self.default_outcome.clone(),
-            is_active: self.is_active,
-            is_triggered: self.is_triggered,
-            triggered_at: self.triggered_at,
-            selected_outcome: self.selected_outcome.clone(),
-            is_repeatable: self.is_repeatable,
+            is_active: self.is_active(),
+            is_triggered: self.is_triggered(),
+            triggered_at: self.triggered_at(),
+            selected_outcome: self.selected_outcome().map(|value| value.to_string()),
+            is_repeatable: self.is_repeatable(),
             trigger_count: self.trigger_count,
             delay_turns: self.delay_turns,
             expires_after_turns: self.expires_after_turns,
             priority: self.priority,
-            is_favorite: self.is_favorite,
+            is_favorite: self.is_favorite(),
             created_at: self.created_at,
             updated_at: self.updated_at,
         };
@@ -941,16 +1011,31 @@ impl<'de> Deserialize<'de> for NarrativeEvent {
             suggested_opening: wire.suggested_opening,
             outcomes: wire.outcomes,
             default_outcome: wire.default_outcome,
-            is_active: wire.is_active,
-            is_triggered: wire.is_triggered,
-            triggered_at: wire.triggered_at,
-            selected_outcome: wire.selected_outcome,
-            is_repeatable: wire.is_repeatable,
+            activation: if wire.is_active {
+                EventActivation::Active
+            } else {
+                EventActivation::Inactive
+            },
+            trigger_status: TriggerStatus::from_wire(
+                wire.is_triggered,
+                wire.triggered_at,
+                wire.selected_outcome,
+                wire.created_at,
+            ),
+            repeatability: if wire.is_repeatable {
+                EventRepeatability::Repeatable
+            } else {
+                EventRepeatability::OneShot
+            },
             trigger_count: wire.trigger_count,
             delay_turns: wire.delay_turns,
             expires_after_turns: wire.expires_after_turns,
             priority: wire.priority,
-            is_favorite: wire.is_favorite,
+            favorite: if wire.is_favorite {
+                FavoriteStatus::Favorite
+            } else {
+                FavoriteStatus::Normal
+            },
             created_at: wire.created_at,
             updated_at: wire.updated_at,
         })
