@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use neo4rs::{Graph, Query};
 
-use crate::e2e_tests::benchmark::E2EBenchmark;
+use crate::e2e_tests::E2EBenchmark;
 use crate::infrastructure::neo4j::graph::Neo4jGraph as InnerGraph;
 use crate::infrastructure::neo4j::Neo4jRowStream;
 

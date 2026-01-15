@@ -19,6 +19,11 @@ mod queue_types;
 mod repositories;
 mod use_cases;
 
+#[cfg(test)]
+pub mod test_fixtures;
+#[cfg(test)]
+pub mod e2e_tests;
+
 use api::{
     websocket::{
         GenerationStateStoreImpl, PendingStagingStoreImpl, TimeSuggestionStoreImpl, WsState,

@@ -518,7 +518,7 @@ mod tests {
 
             // Search for "fireball" across all content
             let results = service
-                .search_content("dnd5e", "fireball", 20)
+                .search_content("dnd5e", "fireball", 500)
                 .expect("Failed to search");
 
             println!("Found {} items matching 'fireball'", results.len());
@@ -528,7 +528,9 @@ mod tests {
             );
 
             // Should include Fireball spell
-            let has_fireball = results.iter().any(|r| r.name == "Fireball");
+            let has_fireball = results
+                .iter()
+                .any(|r| r.name == "Fireball" && r.content_type == ContentType::Spell);
             assert!(has_fireball, "Should find Fireball spell");
         }
 

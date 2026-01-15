@@ -130,7 +130,7 @@ async fn test_first_event_triggers_on_location_entry() {
         result
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Chain Event A - Tavern Entry"),
+            .any(|e| e.name().as_str() == "Chain Event A - Tavern Entry"),
         "Expected 'Chain Event A - Tavern Entry' to be in triggered events, got: {:?}",
         result
             .triggered_events
@@ -143,7 +143,7 @@ async fn test_first_event_triggers_on_location_entry() {
     let triggered_event = result
         .triggered_events
         .iter()
-        .find(|e| e.name() == "Chain Event A - Tavern Entry")
+        .find(|e| e.name().as_str() == "Chain Event A - Tavern Entry")
         .expect("Event should be in triggered list");
     assert_eq!(
         triggered_event.scene_direction(),
@@ -281,7 +281,7 @@ async fn test_subsequent_event_unlocks_after_completion() {
         result
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Chain Event B - Follow Up"),
+            .any(|e| e.name().as_str() == "Chain Event B - Follow Up"),
         "Expected 'Chain Event B - Follow Up' to be triggered after Event A completed, got: {:?}",
         result
             .triggered_events
@@ -402,7 +402,7 @@ async fn test_event_condition_checks_player_flags() {
         !result_without_flag
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Secret Meeting"),
+            .any(|e| e.name().as_str() == "Secret Meeting"),
         "Event should NOT trigger without the flag, but got: {:?}",
         result_without_flag
             .triggered_events
@@ -442,7 +442,7 @@ async fn test_event_condition_checks_player_flags() {
         result_with_flag
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Secret Meeting"),
+            .any(|e| e.name().as_str() == "Secret Meeting"),
         "Event should trigger after flag is set, got: {:?}",
         result_with_flag
             .triggered_events
@@ -564,7 +564,7 @@ async fn test_event_condition_checks_inventory() {
         !result_without_item
             .triggered_events
             .iter()
-            .any(|e| e.name() == "The Locked Door Opens"),
+            .any(|e| e.name().as_str() == "The Locked Door Opens"),
         "Event should NOT trigger without the key, but got: {:?}",
         result_without_item
             .triggered_events
@@ -608,7 +608,7 @@ async fn test_event_condition_checks_inventory() {
         result_with_item
             .triggered_events
             .iter()
-            .any(|e| e.name() == "The Locked Door Opens"),
+            .any(|e| e.name().as_str() == "The Locked Door Opens"),
         "Event should trigger after item is acquired, got: {:?}",
         result_with_item
             .triggered_events
@@ -797,7 +797,7 @@ async fn test_event_condition_checks_stats() {
         !result
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Charismatic Old Tom"),
+            .any(|e| e.name().as_str() == "Charismatic Old Tom"),
         "Event should NOT trigger for Old Tom (CHA 6 < 14), got: {:?}",
         result
             .triggered_events
@@ -811,7 +811,7 @@ async fn test_event_condition_checks_stats() {
         result
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Charismatic Vera"),
+            .any(|e| e.name().as_str() == "Charismatic Vera"),
         "Event should trigger for Vera (CHA 17 >= 14), got: {:?}",
         result
             .triggered_events
@@ -1033,7 +1033,7 @@ async fn test_chain_completes_in_order() {
         result1
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Chain Event A - The Introduction"),
+            .any(|e| e.name().as_str() == "Chain Event A - The Introduction"),
         "Event A should trigger on first entry, got: {:?}",
         result1
             .triggered_events
@@ -1045,14 +1045,14 @@ async fn test_chain_completes_in_order() {
         !result1
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Chain Event B - The Revelation"),
+            .any(|e| e.name().as_str() == "Chain Event B - The Revelation"),
         "Event B should NOT trigger before Event A completes"
     );
     assert!(
         !result1
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Chain Event C - The Decision"),
+            .any(|e| e.name().as_str() == "Chain Event C - The Decision"),
         "Event C should NOT trigger before Event B completes"
     );
 
@@ -1095,7 +1095,7 @@ async fn test_chain_completes_in_order() {
         result2
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Chain Event B - The Revelation"),
+            .any(|e| e.name().as_str() == "Chain Event B - The Revelation"),
         "Event B should trigger after Event A completes, got: {:?}",
         result2
             .triggered_events
@@ -1107,7 +1107,7 @@ async fn test_chain_completes_in_order() {
         !result2
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Chain Event C - The Decision"),
+            .any(|e| e.name().as_str() == "Chain Event C - The Decision"),
         "Event C should NOT trigger before Event B completes"
     );
 
@@ -1150,7 +1150,7 @@ async fn test_chain_completes_in_order() {
         result3
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Chain Event C - The Decision"),
+            .any(|e| e.name().as_str() == "Chain Event C - The Decision"),
         "Event C should trigger after Event B completes, got: {:?}",
         result3
             .triggered_events
@@ -1315,7 +1315,7 @@ async fn test_chain_completion_triggers_final_effects() {
         result1
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Quest Start - The Call"),
+            .any(|e| e.name().as_str() == "Quest Start - The Call"),
         "Quest start event should trigger"
     );
 
@@ -1359,7 +1359,7 @@ async fn test_chain_completion_triggers_final_effects() {
         result2
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Quest Complete - The Reward"),
+            .any(|e| e.name().as_str() == "Quest Complete - The Reward"),
         "Quest completion event should trigger after first event completes, got: {:?}",
         result2
             .triggered_events
@@ -1618,7 +1618,7 @@ async fn test_partial_chain_persists_across_sessions() {
         result1
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Persistent Chain A"),
+            .any(|e| e.name().as_str() == "Persistent Chain A"),
         "Event A should trigger initially"
     );
 
@@ -1678,7 +1678,7 @@ async fn test_partial_chain_persists_across_sessions() {
         result2
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Persistent Chain B"),
+            .any(|e| e.name().as_str() == "Persistent Chain B"),
         "Event B should trigger after Event A completion persisted, got: {:?}",
         result2
             .triggered_events
@@ -1692,7 +1692,7 @@ async fn test_partial_chain_persists_across_sessions() {
         !result2
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Persistent Chain C"),
+            .any(|e| e.name().as_str() == "Persistent Chain C"),
         "Event C should NOT trigger until Event B completes"
     );
 
@@ -1750,7 +1750,7 @@ async fn test_partial_chain_persists_across_sessions() {
         result3
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Persistent Chain C"),
+            .any(|e| e.name().as_str() == "Persistent Chain C"),
         "Event C should trigger after both A and B completion persisted, got: {:?}",
         result3
             .triggered_events
@@ -1956,7 +1956,7 @@ async fn test_chain_branch_based_on_outcome() {
         result1
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Branching Event A - The Offer"),
+            .any(|e| e.name().as_str() == "Branching Event A - The Offer"),
         "Event A should trigger initially"
     );
 
@@ -2000,7 +2000,7 @@ async fn test_chain_branch_based_on_outcome() {
         result2
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Branch B - Accepted Quest"),
+            .any(|e| e.name().as_str() == "Branch B - Accepted Quest"),
         "Event B (accept branch) should trigger after accepting, got: {:?}",
         result2
             .triggered_events
@@ -2014,7 +2014,7 @@ async fn test_chain_branch_based_on_outcome() {
         !result2
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Branch C - Refused Quest"),
+            .any(|e| e.name().as_str() == "Branch C - Refused Quest"),
         "Event C (refuse branch) should NOT trigger when we accepted"
     );
 }
@@ -2210,7 +2210,7 @@ async fn test_alternate_branch_path() {
         result1
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Alt Branch A - The Proposal"),
+            .any(|e| e.name().as_str() == "Alt Branch A - The Proposal"),
         "Event A should trigger initially"
     );
 
@@ -2254,7 +2254,7 @@ async fn test_alternate_branch_path() {
         result2
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Alt Branch C - Rejected Scheme"),
+            .any(|e| e.name().as_str() == "Alt Branch C - Rejected Scheme"),
         "Event C (refuse branch) should trigger after refusing, got: {:?}",
         result2
             .triggered_events
@@ -2268,7 +2268,7 @@ async fn test_alternate_branch_path() {
         !result2
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Alt Branch B - Joined Scheme"),
+            .any(|e| e.name().as_str() == "Alt Branch B - Joined Scheme"),
         "Event B (accept branch) should NOT trigger when we refused"
     );
 }
@@ -2377,7 +2377,7 @@ async fn test_repeatable_chain_can_restart() {
         result1
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Repeatable Daily Quest"),
+            .any(|e| e.name().as_str() == "Repeatable Daily Quest"),
         "Event should trigger first time"
     );
 
@@ -2434,7 +2434,7 @@ async fn test_repeatable_chain_can_restart() {
         !result2
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Repeatable Daily Quest"),
+            .any(|e| e.name().as_str() == "Repeatable Daily Quest"),
         "Event should NOT trigger while still in triggered state"
     );
 
@@ -2491,7 +2491,7 @@ async fn test_repeatable_chain_can_restart() {
         result3
             .triggered_events
             .iter()
-            .any(|e| e.name() == "Repeatable Daily Quest"),
+            .any(|e| e.name().as_str() == "Repeatable Daily Quest"),
         "Event should trigger again after reset, got: {:?}",
         result3
             .triggered_events
@@ -2614,7 +2614,7 @@ async fn test_one_time_chain_cannot_repeat() {
         result1
             .triggered_events
             .iter()
-            .any(|e| e.name() == "One-Time Main Quest"),
+            .any(|e| e.name().as_str() == "One-Time Main Quest"),
         "Event should trigger first time"
     );
 
@@ -2675,7 +2675,7 @@ async fn test_one_time_chain_cannot_repeat() {
         !result2
             .triggered_events
             .iter()
-            .any(|e| e.name() == "One-Time Main Quest"),
+            .any(|e| e.name().as_str() == "One-Time Main Quest"),
         "One-time event should NOT trigger second time"
     );
 
@@ -2701,7 +2701,7 @@ async fn test_one_time_chain_cannot_repeat() {
         !result3
             .triggered_events
             .iter()
-            .any(|e| e.name() == "One-Time Main Quest"),
+            .any(|e| e.name().as_str() == "One-Time Main Quest"),
         "One-time event should NEVER trigger again"
     );
 

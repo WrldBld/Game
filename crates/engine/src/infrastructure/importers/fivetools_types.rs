@@ -531,6 +531,16 @@ pub struct FiveToolsClassFile {
     pub subclass_feature: Vec<FiveToolsSubclassFeature>,
 }
 
+/// Root structure for 5etools class features when only features are needed.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FiveToolsClassFeatureFile {
+    #[serde(default)]
+    pub class_feature: Vec<FiveToolsClassFeature>,
+    #[serde(default)]
+    pub subclass_feature: Vec<FiveToolsSubclassFeature>,
+}
+
 /// A class in 5etools format.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -734,7 +744,7 @@ pub struct FiveToolsItem {
     #[serde(default)]
     pub weight: Option<f32>,
     #[serde(default)]
-    pub value: Option<i32>,
+    pub value: Option<f32>,
     #[serde(default)]
     pub req_attune: Option<serde_json::Value>,
     #[serde(default)]
@@ -769,7 +779,7 @@ pub struct FiveToolsBaseItem {
     #[serde(default)]
     pub weight: Option<f32>,
     #[serde(default)]
-    pub value: Option<i32>,
+    pub value: Option<f32>,
     #[serde(default)]
     pub entries: Vec<serde_json::Value>,
     #[serde(default)]

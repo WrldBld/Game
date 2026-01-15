@@ -153,11 +153,11 @@ async fn test_repeatable_events() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.name() == "Repeatable Event"),
+        events.iter().any(|e| e.name().as_str() == "Repeatable Event"),
         "Repeatable event should be listed"
     );
     assert!(
-        events.iter().any(|e| e.name() == "One-Time Event"),
+        events.iter().any(|e| e.name().as_str() == "One-Time Event"),
         "One-time event should be listed"
     );
 }
@@ -301,7 +301,7 @@ async fn test_favorite_events() {
 
     let favorites: Vec<_> = events.iter().filter(|e| e.is_favorite()).collect();
     assert!(
-        favorites.iter().any(|e| e.name() == "Favorite Event"),
+        favorites.iter().any(|e| e.name().as_str() == "Favorite Event"),
         "Favorite event should be in filtered favorites list"
     );
 }

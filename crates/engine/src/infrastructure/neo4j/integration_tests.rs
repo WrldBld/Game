@@ -77,7 +77,8 @@ async fn narrative_triggers_fallback_is_bounded_to_500() {
 
     let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
     let clock: Arc<dyn crate::infrastructure::ports::ClockPort> = Arc::new(FixedClock(now));
-    let repo = super::Neo4jNarrativeRepo::new(graph.clone(), clock);
+    let test_graph = super::Neo4jGraph::new(graph.clone());
+    let repo = super::Neo4jNarrativeRepo::new(test_graph, clock);
 
     let trigger = NarrativeTrigger {
         trigger_type: NarrativeTriggerType::PlayerEntersLocation {
@@ -137,7 +138,8 @@ async fn save_pending_staging_creates_includes_npc_edges_for_all_npcs() {
 
     let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
     let clock: Arc<dyn crate::infrastructure::ports::ClockPort> = Arc::new(FixedClock(now));
-    let repo = super::Neo4jStagingRepo::new(graph.clone(), clock);
+    let test_graph = super::Neo4jGraph::new(graph.clone());
+    let repo = super::Neo4jStagingRepo::new(test_graph, clock);
 
     let region_id = RegionId::new();
     let location_id = LocationId::new();

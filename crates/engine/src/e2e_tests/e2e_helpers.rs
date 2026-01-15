@@ -1205,7 +1205,9 @@ pub fn create_e2e_llm(test_name: &str) -> Arc<VcrLlm> {
 // Gameplay Flow Helpers
 // =============================================================================
 
-use wrldbldr_domain::{DmApprovalDecision, PlayerCharacterId, StagingSource};
+use wrldbldr_domain::{PlayerCharacterId, StagingSource};
+
+use crate::queue_types::DmApprovalDecision;
 
 use crate::use_cases::staging::{ApproveStagingInput, ApprovedNpc};
 

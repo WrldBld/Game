@@ -741,6 +741,7 @@ pub(crate) fn build_test_app_with_ports(
     let narrative_events = Arc::new(crate::use_cases::narrative::NarrativeEventOps::new(
         narrative.clone(),
         execute_effects.clone(),
+        clock.clone(),
     ));
     let narrative_chains = Arc::new(crate::use_cases::narrative::EventChainOps::new(
         narrative.clone(),

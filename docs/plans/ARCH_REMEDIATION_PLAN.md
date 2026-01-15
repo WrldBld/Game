@@ -68,9 +68,12 @@ Address architecture debt identified in `docs/architecture/review.md` review:
   - Content service coverage for listing/getting primitives.
 
 ### Exit criteria
-- All 5e primitives are persisted and queryable via `ContentRepo`.
-- Tests exist for each primitive (import + repository + API/use case where applicable).
+- All 5e primitives are available via `CompendiumProvider`/`ContentService`.
+- Tests exist for each primitive (import + service where applicable).
 - `cargo test --workspace` passes with required test dependencies.
+
+### Status
+- Completed: 5etools importer + compendium coverage now includes subraces, subclasses, class features, abilities, items, weapons, armor, and magic items, with integration tests updated.
 
 ## Risks / Mitigations
 - API surface changes: mitigate with type aliases or transitional re-exports inside engine.

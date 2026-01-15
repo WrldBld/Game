@@ -228,7 +228,7 @@ async fn test_one_time_location_event() {
     let first_visit_triggered = result1
         .triggered_events
         .iter()
-        .any(|e| e.name() == "First Visit Event");
+        .any(|e| e.name().as_str() == "First Visit Event");
 
     // Go back
     let _ = ctx
@@ -252,7 +252,7 @@ async fn test_one_time_location_event() {
     let second_visit_triggered = result2
         .triggered_events
         .iter()
-        .any(|e| e.name() == "First Visit Event");
+        .any(|e| e.name().as_str() == "First Visit Event");
 
     // Document behavior - one-time event should only trigger once
     println!("First visit triggered: {}", first_visit_triggered);

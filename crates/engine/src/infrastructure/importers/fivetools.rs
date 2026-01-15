@@ -173,7 +173,7 @@ pub struct ItemOption {
     pub item_type: Option<String>,
     pub rarity: Option<String>,
     pub weight: Option<f32>,
-    pub value: Option<i32>,
+    pub value: Option<f32>,
     pub description: String,
     pub is_magic: bool,
     pub extra: HashMap<String, serde_json::Value>,
@@ -188,7 +188,7 @@ pub struct BaseItemOption {
     pub item_type: Option<String>,
     pub rarity: Option<String>,
     pub weight: Option<f32>,
-    pub value: Option<i32>,
+    pub value: Option<f32>,
     pub description: String,
     pub is_weapon: bool,
     pub is_armor: bool,
@@ -506,7 +506,7 @@ impl FiveToolsImporter {
             }
 
             let content = fs::read_to_string(&file_path).await?;
-            let class_file: FiveToolsClassFile = serde_json::from_str(&content)?;
+            let class_file: FiveToolsClassFeatureFile = serde_json::from_str(&content)?;
 
             for raw_feature in class_file.class_feature {
                 if let Some(feature) = self.convert_class_feature(raw_feature) {
