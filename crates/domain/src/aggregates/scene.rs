@@ -95,7 +95,7 @@ impl Scene {
     /// # Example
     ///
     /// ```
-    /// use wrldbldr_domain::{ActId, LocationId};
+    /// use wrldbldr_domain::{ActId, LocationId, SceneName};
     /// use wrldbldr_domain::aggregates::scene::Scene;
     ///
     /// let act_id = ActId::new();

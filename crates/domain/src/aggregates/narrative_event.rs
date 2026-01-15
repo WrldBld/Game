@@ -195,18 +195,19 @@ impl NarrativeEvent {
     /// # Example
     ///
     /// ```
-    /// use chrono::Utc;
-    /// use wrldbldr_domain::WorldId;
-    /// use wrldbldr_domain::aggregates::narrative_event::NarrativeEvent;
+/// use chrono::Utc;
+/// use wrldbldr_domain::WorldId;
+/// use wrldbldr_domain::aggregates::narrative_event::NarrativeEvent;
+/// use wrldbldr_domain::NarrativeEventName;
     ///
     /// let world_id = WorldId::new();
     /// use chrono::TimeZone;
     /// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
-    /// let event = NarrativeEvent::new(
-    ///     world_id,
-    ///     NarrativeEventName::new("Secret Meeting").unwrap(),
-    ///     now,
-    /// );
+/// let event = NarrativeEvent::new(
+///     world_id,
+///     NarrativeEventName::new("Secret Meeting").unwrap(),
+///     now,
+/// );
     ///
     /// assert_eq!(event.name().as_str(), "Secret Meeting");
     /// assert!(event.is_active());

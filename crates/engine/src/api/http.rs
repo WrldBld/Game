@@ -441,7 +441,12 @@ mod tests {
         let repos = TestAppRepos::new(world_repo);
         let router = build_router_with_repos(repos);
 
-        let world = wrldbldr_domain::World::new("Test World", "Desc", Utc::now());
+        let now = Utc::now();
+        let mut world = wrldbldr_domain::World::new(
+            wrldbldr_domain::WorldName::new("Test World").unwrap(),
+            now,
+        );
+        world.set_description(wrldbldr_domain::Description::new("Desc").unwrap(), now);
         let export = crate::use_cases::world::WorldExport {
             world: world.clone(),
             locations: Vec::new(),
@@ -467,6 +472,6 @@ mod tests {
 
         assert_eq!(response.status(), axum::http::StatusCode::OK);
         let payload: serde_json::Value = read_body_json(response).await;
-        assert_eq!(payload["id"], world.id.to_string());
+        assert_eq!(payload["id"], world.id().to_string());
     }
 }

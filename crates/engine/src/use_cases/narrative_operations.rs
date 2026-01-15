@@ -57,7 +57,8 @@ mod trigger_tests {
         MockWorldRepo,
     };
     use crate::repositories::{
-        Challenge, Character, Flag, Location, Narrative, Observation, PlayerCharacter, Scene, World,
+        Challenge, Character, Clock, Flag, Location, Narrative, Observation, PlayerCharacter,
+        Scene, World,
     };
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);

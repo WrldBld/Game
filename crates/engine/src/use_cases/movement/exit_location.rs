@@ -287,8 +287,9 @@ mod tests {
         player_character_repo: MockPlayerCharacterRepo,
         location_repo: MockLocationRepo,
         world_repo: MockWorldRepo,
-        clock: Arc<dyn ClockPort>,
+        clock_port: Arc<dyn ClockPort>,
     ) -> super::ExitLocation {
+        let clock = Arc::new(repositories::Clock::new(clock_port.clone()));
         let player_character = Arc::new(repositories::PlayerCharacter::new(Arc::new(
             player_character_repo,
         )));
@@ -301,7 +302,7 @@ mod tests {
         let observation = Arc::new(repositories::Observation::new(
             Arc::new(MockObservationRepo::new()),
             location_repo.clone(),
-            clock.clone(),
+            clock_port.clone(),
         ));
 
         let scene = Arc::new(Scene::new(Arc::new(MockSceneRepo::new())));
@@ -314,12 +315,12 @@ mod tests {
 
         let world = Arc::new(repositories::World::new(
             Arc::new(world_repo),
-            clock.clone(),
+            clock_port.clone(),
         ));
         let narrative = Arc::new(Narrative::new(
             Arc::new(repositories::Narrative::new(
                 Arc::new(MockNarrativeRepo::new()),
-                clock.clone(),
+                clock_port.clone(),
             )),
             location.clone(),
             world.clone(),
