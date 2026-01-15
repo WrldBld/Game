@@ -73,7 +73,8 @@ pub use aggregates::NarrativeEvent;
 
 pub use error::DomainError;
 pub use events::{
-    ArchetypeShift, ChallengeOutcome, DamageOutcome, DomainEvent, HealOutcome, ResurrectOutcome,
+    ArchetypeShift, ChallengeOutcome, CharacterStateChange, CharacterUpdate, DamageOutcome,
+    DomainEvent, HealOutcome, NarrativeEventUpdate, ResurrectOutcome, SceneUpdate,
 };
 
 // Re-export aggregate types with "Aggregate" suffix for migration compatibility

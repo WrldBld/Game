@@ -3,7 +3,7 @@
 //! These enums communicate what happened when character state was modified,
 //! allowing callers to react appropriately.
 
-use crate::value_objects::CampbellArchetype;
+use crate::value_objects::{CampbellArchetype, CharacterName, CharacterState, Description};
 
 /// Outcome of applying damage to a character
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,6 +37,28 @@ pub struct ArchetypeShift {
     pub from: CampbellArchetype,
     pub to: CampbellArchetype,
     pub reason: String,
+}
+
+/// Outcome of updating character metadata fields.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CharacterUpdate {
+    NameChanged { from: CharacterName, to: CharacterName },
+    DescriptionChanged { from: Description, to: Description },
+    SpriteChanged {
+        from: Option<String>,
+        to: Option<String>,
+    },
+    PortraitChanged {
+        from: Option<String>,
+        to: Option<String>,
+    },
+}
+
+/// Outcome of toggling character active/inactive state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CharacterStateChange {
+    StateChanged { from: CharacterState, to: CharacterState },
+    Unchanged { state: CharacterState },
 }
 
 /// Outcome of attempting to resurrect a character

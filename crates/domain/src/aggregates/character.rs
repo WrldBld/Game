@@ -21,7 +21,10 @@
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::events::{DamageOutcome, HealOutcome, ResurrectOutcome};
+use crate::events::{
+    ArchetypeShift, CharacterStateChange, CharacterUpdate, DamageOutcome, HealOutcome,
+    ResurrectOutcome,
+};
 use crate::value_objects::{
     ArchetypeChange, CampbellArchetype, CharacterName, CharacterState, Description,
     DispositionLevel, ExpressionConfig, MoodState,
@@ -502,19 +505,31 @@ impl Character {
     /// Set the character to inactive state.
     ///
     /// Has no effect if the character is dead.
-    pub fn deactivate(&mut self) {
-        if self.state.is_alive() {
+    pub fn deactivate(&mut self) -> CharacterStateChange {
+        let previous = self.state;
+        if self.state.is_alive() && !matches!(self.state, CharacterState::Inactive) {
             self.state = CharacterState::Inactive;
+            return CharacterStateChange::StateChanged {
+                from: previous,
+                to: self.state,
+            };
         }
+        CharacterStateChange::Unchanged { state: self.state }
     }
 
     /// Set the character to active state.
     ///
     /// Has no effect if the character is dead.
-    pub fn activate(&mut self) {
-        if self.state.is_alive() {
+    pub fn activate(&mut self) -> CharacterStateChange {
+        let previous = self.state;
+        if self.state.is_alive() && !matches!(self.state, CharacterState::Active) {
             self.state = CharacterState::Active;
+            return CharacterStateChange::StateChanged {
+                from: previous,
+                to: self.state,
+            };
         }
+        CharacterStateChange::Unchanged { state: self.state }
     }
 
     /// Change the character's current archetype with a recorded reason.
@@ -523,48 +538,84 @@ impl Character {
         new_archetype: CampbellArchetype,
         reason: impl Into<String>,
         now: chrono::DateTime<chrono::Utc>,
-    ) {
+    ) -> ArchetypeShift {
+        let previous = self.current_archetype;
+        let reason = reason.into();
         let change = ArchetypeChange {
             from: self.current_archetype,
             to: new_archetype,
-            reason: reason.into(),
+            reason: reason.clone(),
             timestamp: now,
         };
         self.archetype_history.push(change);
         self.current_archetype = new_archetype;
+
+        ArchetypeShift {
+            from: previous,
+            to: self.current_archetype,
+            reason,
+        }
     }
 
     /// Temporarily assume a different archetype (for a scene).
     ///
     /// This only changes the current archetype, not the base, and doesn't
     /// record in history (it's temporary).
-    pub fn assume_archetype(&mut self, archetype: CampbellArchetype) {
+    pub fn assume_archetype(&mut self, archetype: CampbellArchetype) -> ArchetypeShift {
+        let previous = self.current_archetype;
         self.current_archetype = archetype;
+        ArchetypeShift {
+            from: previous,
+            to: self.current_archetype,
+            reason: "assumed archetype".to_string(),
+        }
     }
 
     /// Revert to base archetype.
-    pub fn revert_to_base(&mut self) {
+    pub fn revert_to_base(&mut self) -> ArchetypeShift {
+        let previous = self.current_archetype;
         self.current_archetype = self.base_archetype;
+        ArchetypeShift {
+            from: previous,
+            to: self.current_archetype,
+            reason: "reverted to base archetype".to_string(),
+        }
     }
 
     /// Set the character's name.
-    pub fn set_name(&mut self, name: CharacterName) {
-        self.name = name;
+    pub fn set_name(&mut self, name: CharacterName) -> CharacterUpdate {
+        let previous = std::mem::replace(&mut self.name, name);
+        CharacterUpdate::NameChanged {
+            from: previous,
+            to: self.name.clone(),
+        }
     }
 
     /// Set the character's description.
-    pub fn set_description(&mut self, description: Description) {
-        self.description = description;
+    pub fn set_description(&mut self, description: Description) -> CharacterUpdate {
+        let previous = std::mem::replace(&mut self.description, description);
+        CharacterUpdate::DescriptionChanged {
+            from: previous,
+            to: self.description.clone(),
+        }
     }
 
     /// Set the character's sprite asset path.
-    pub fn set_sprite(&mut self, path: Option<String>) {
-        self.sprite_asset = path;
+    pub fn set_sprite(&mut self, path: Option<String>) -> CharacterUpdate {
+        let previous = std::mem::replace(&mut self.sprite_asset, path);
+        CharacterUpdate::SpriteChanged {
+            from: previous,
+            to: self.sprite_asset.clone(),
+        }
     }
 
     /// Set the character's portrait asset path.
-    pub fn set_portrait(&mut self, path: Option<String>) {
-        self.portrait_asset = path;
+    pub fn set_portrait(&mut self, path: Option<String>) -> CharacterUpdate {
+        let previous = std::mem::replace(&mut self.portrait_asset, path);
+        CharacterUpdate::PortraitChanged {
+            from: previous,
+            to: self.portrait_asset.clone(),
+        }
     }
 }
 

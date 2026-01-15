@@ -19,6 +19,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Error as DeError;
 use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId};
 
+use crate::events::SceneUpdate;
 use crate::value_objects::SceneName;
 
 // Re-export from entities for now (TimeContext, SceneCondition, SceneCharacter, SceneCharacterRole)
@@ -274,58 +275,96 @@ impl Scene {
     // =========================================================================
 
     /// Set the scene's name.
-    pub fn set_name(&mut self, name: SceneName) {
-        self.name = name;
+    pub fn set_name(&mut self, name: SceneName) -> SceneUpdate {
+        let previous = std::mem::replace(&mut self.name, name);
+        SceneUpdate::NameChanged {
+            from: previous,
+            to: self.name.clone(),
+        }
     }
 
     /// Set the scene's location ID.
     /// DEPRECATED: Use AT_LOCATION edge via repository instead.
-    pub fn set_location(&mut self, location_id: LocationId) {
+    pub fn set_location(&mut self, location_id: LocationId) -> SceneUpdate {
+        let previous = self.location_id;
         self.location_id = location_id;
+        SceneUpdate::LocationChanged {
+            from: previous,
+            to: self.location_id,
+        }
     }
 
     /// Set the scene's time context.
-    pub fn set_time_context(&mut self, time_context: TimeContext) {
+    pub fn set_time_context(&mut self, time_context: TimeContext) -> SceneUpdate {
+        let previous = self.time_context.clone();
         self.time_context = time_context;
+        SceneUpdate::TimeContextChanged {
+            from: previous,
+            to: self.time_context.clone(),
+        }
     }
 
     /// Set the scene's backdrop override.
-    pub fn set_backdrop_override(&mut self, backdrop: Option<String>) {
-        self.backdrop_override = backdrop;
+    pub fn set_backdrop_override(&mut self, backdrop: Option<String>) -> SceneUpdate {
+        let previous = std::mem::replace(&mut self.backdrop_override, backdrop);
+        SceneUpdate::BackdropOverrideChanged {
+            from: previous,
+            to: self.backdrop_override.clone(),
+        }
     }
 
     /// Set the scene's directorial notes.
-    pub fn set_directorial_notes(&mut self, notes: impl Into<String>) {
-        self.directorial_notes = notes.into();
+    pub fn set_directorial_notes(&mut self, notes: impl Into<String>) -> SceneUpdate {
+        let next = notes.into();
+        let previous = std::mem::replace(&mut self.directorial_notes, next);
+        SceneUpdate::DirectorialNotesChanged {
+            from: previous,
+            to: self.directorial_notes.clone(),
+        }
     }
 
     /// Set the scene's order within the act.
-    pub fn set_order(&mut self, order: u32) {
+    pub fn set_order(&mut self, order: u32) -> SceneUpdate {
+        let previous = self.order;
         self.order = order;
+        SceneUpdate::OrderChanged {
+            from: previous,
+            to: self.order,
+        }
     }
 
     /// Add a featured character.
     /// DEPRECATED: Use FEATURES_CHARACTER edge via repository instead.
-    pub fn add_featured_character(&mut self, character_id: CharacterId) {
-        if !self.featured_characters.contains(&character_id) {
-            self.featured_characters.push(character_id);
+    pub fn add_featured_character(&mut self, character_id: CharacterId) -> SceneUpdate {
+        if self.featured_characters.contains(&character_id) {
+            return SceneUpdate::FeaturedCharacterAlreadyPresent { character_id };
         }
+        self.featured_characters.push(character_id);
+        SceneUpdate::FeaturedCharacterAdded { character_id }
     }
 
     /// Remove a featured character.
     /// DEPRECATED: Use FEATURES_CHARACTER edge via repository instead.
-    pub fn remove_featured_character(&mut self, character_id: CharacterId) {
+    pub fn remove_featured_character(&mut self, character_id: CharacterId) -> SceneUpdate {
+        if !self.featured_characters.contains(&character_id) {
+            return SceneUpdate::FeaturedCharacterNotPresent { character_id };
+        }
         self.featured_characters.retain(|id| *id != character_id);
+        SceneUpdate::FeaturedCharacterRemoved { character_id }
     }
 
     /// Add an entry condition.
-    pub fn add_entry_condition(&mut self, condition: SceneCondition) {
+    pub fn add_entry_condition(&mut self, condition: SceneCondition) -> SceneUpdate {
+        let added = condition.clone();
         self.entry_conditions.push(condition);
+        SceneUpdate::EntryConditionAdded { condition: added }
     }
 
     /// Clear all entry conditions.
-    pub fn clear_entry_conditions(&mut self) {
+    pub fn clear_entry_conditions(&mut self) -> SceneUpdate {
+        let previous_count = self.entry_conditions.len();
         self.entry_conditions.clear();
+        SceneUpdate::EntryConditionsCleared { previous_count }
     }
 }
 

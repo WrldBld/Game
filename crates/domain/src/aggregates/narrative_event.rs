@@ -27,6 +27,7 @@ use serde::de::Error as DeError;
 
 use wrldbldr_domain::{NarrativeEventId, WorldId};
 
+use crate::events::NarrativeEventUpdate;
 use crate::value_objects::NarrativeEventName;
 
 // Re-export complex types from entities that are used within the aggregate
@@ -577,21 +578,43 @@ impl NarrativeEvent {
     // =========================================================================
 
     /// Set the event's name.
-    pub fn set_name(&mut self, name: NarrativeEventName, now: DateTime<Utc>) {
-        self.name = name;
+    pub fn set_name(&mut self, name: NarrativeEventName, now: DateTime<Utc>) -> NarrativeEventUpdate {
+        let previous = std::mem::replace(&mut self.name, name);
         self.updated_at = now;
+        NarrativeEventUpdate::NameChanged {
+            from: previous,
+            to: self.name.clone(),
+        }
     }
 
     /// Set the event's description.
-    pub fn set_description(&mut self, description: impl Into<String>, now: DateTime<Utc>) {
-        self.description = description.into();
+    pub fn set_description(
+        &mut self,
+        description: impl Into<String>,
+        now: DateTime<Utc>,
+    ) -> NarrativeEventUpdate {
+        let next = description.into();
+        let previous = std::mem::replace(&mut self.description, next);
         self.updated_at = now;
+        NarrativeEventUpdate::DescriptionChanged {
+            from: previous,
+            to: self.description.clone(),
+        }
     }
 
     /// Set the event's scene direction.
-    pub fn set_scene_direction(&mut self, direction: impl Into<String>, now: DateTime<Utc>) {
-        self.scene_direction = direction.into();
+    pub fn set_scene_direction(
+        &mut self,
+        direction: impl Into<String>,
+        now: DateTime<Utc>,
+    ) -> NarrativeEventUpdate {
+        let next = direction.into();
+        let previous = std::mem::replace(&mut self.scene_direction, next);
         self.updated_at = now;
+        NarrativeEventUpdate::SceneDirectionChanged {
+            from: previous,
+            to: self.scene_direction.clone(),
+        }
     }
 
     /// Set the event's trigger conditions.
@@ -599,41 +622,68 @@ impl NarrativeEvent {
         &mut self,
         conditions: Vec<NarrativeTrigger>,
         now: DateTime<Utc>,
-    ) {
-        self.trigger_conditions = conditions;
+    ) -> NarrativeEventUpdate {
+        let previous = std::mem::replace(&mut self.trigger_conditions, conditions);
         self.updated_at = now;
+        NarrativeEventUpdate::TriggerConditionsUpdated {
+            from: previous,
+            to: self.trigger_conditions.clone(),
+        }
     }
 
     /// Set the event's outcomes.
-    pub fn set_outcomes(&mut self, outcomes: Vec<EventOutcome>, now: DateTime<Utc>) {
-        self.outcomes = outcomes;
+    pub fn set_outcomes(
+        &mut self,
+        outcomes: Vec<EventOutcome>,
+        now: DateTime<Utc>,
+    ) -> NarrativeEventUpdate {
+        let previous = std::mem::replace(&mut self.outcomes, outcomes);
         self.updated_at = now;
+        NarrativeEventUpdate::OutcomesUpdated {
+            from: previous,
+            to: self.outcomes.clone(),
+        }
     }
 
     /// Set the event's active state.
-    pub fn set_active(&mut self, active: bool, now: DateTime<Utc>) {
+    pub fn set_active(&mut self, active: bool, now: DateTime<Utc>) -> NarrativeEventUpdate {
+        let previous = self.is_active();
         self.activation = if active {
             EventActivation::Active
         } else {
             EventActivation::Inactive
         };
         self.updated_at = now;
+        NarrativeEventUpdate::ActivationChanged {
+            from: previous,
+            to: self.is_active(),
+        }
     }
 
     /// Set the event's priority.
-    pub fn set_priority(&mut self, priority: i32, now: DateTime<Utc>) {
+    pub fn set_priority(&mut self, priority: i32, now: DateTime<Utc>) -> NarrativeEventUpdate {
+        let previous = self.priority;
         self.priority = priority;
         self.updated_at = now;
+        NarrativeEventUpdate::PriorityChanged {
+            from: previous,
+            to: self.priority,
+        }
     }
 
     /// Set the event's favorite state.
-    pub fn set_favorite(&mut self, favorite: bool, now: DateTime<Utc>) {
+    pub fn set_favorite(&mut self, favorite: bool, now: DateTime<Utc>) -> NarrativeEventUpdate {
+        let previous = self.is_favorite();
         self.favorite = if favorite {
             FavoriteStatus::Favorite
         } else {
             FavoriteStatus::Normal
         };
         self.updated_at = now;
+        NarrativeEventUpdate::FavoriteChanged {
+            from: previous,
+            to: self.is_favorite(),
+        }
     }
 
     // =========================================================================
@@ -886,7 +936,12 @@ impl NarrativeEvent {
     // =========================================================================
 
     /// Mark this event as triggered with the given outcome.
-    pub fn trigger(&mut self, outcome_name: Option<String>, now: DateTime<Utc>) {
+    pub fn trigger(
+        &mut self,
+        outcome_name: Option<String>,
+        now: DateTime<Utc>,
+    ) -> NarrativeEventUpdate {
+        let outcome = outcome_name.clone();
         self.trigger_status = TriggerStatus::Triggered {
             at: now,
             selected_outcome: outcome_name,
@@ -898,12 +953,20 @@ impl NarrativeEvent {
         if !self.is_repeatable() {
             self.activation = EventActivation::Inactive;
         }
+
+        NarrativeEventUpdate::Triggered {
+            outcome,
+            trigger_count: self.trigger_count,
+            active: self.is_active(),
+        }
     }
 
     /// Reset the triggered state (for repeatable events).
-    pub fn reset(&mut self, now: DateTime<Utc>) {
+    pub fn reset(&mut self, now: DateTime<Utc>) -> NarrativeEventUpdate {
+        let trigger_count = self.trigger_count;
         self.trigger_status = TriggerStatus::Never;
         self.updated_at = now;
+        NarrativeEventUpdate::Reset { trigger_count }
     }
 
     // =========================================================================
