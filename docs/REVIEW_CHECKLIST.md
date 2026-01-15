@@ -20,6 +20,7 @@ Quick reference for code reviewers. Check applicable items before approving.
 - [ ] No `domain` importing tokio, axum, or async code
 - [ ] Protocol types only in API layer (not in use cases or domain)
 - [ ] New port traits added to `infrastructure/ports.rs` (not scattered)
+- [ ] Repository wrappers use `*Repository` naming
 - [ ] Repositories call port traits directly (no unnecessary abstraction)
 
 ## Error Handling
@@ -31,6 +32,7 @@ Quick reference for code reviewers. Check applicable items before approving.
   ```
 - [ ] No silent `.unwrap()` on fallible operations
 - [ ] Errors logged with tracing before propagation (where appropriate)
+- [ ] Error mapping is consistent across layers (no ad-hoc strings)
 - [ ] User-facing errors don't expose internal details
 
 ## Database (Neo4j)
@@ -50,6 +52,7 @@ Quick reference for code reviewers. Check applicable items before approving.
 - [ ] Happy path and error cases covered
 - [ ] No flaky timing dependencies
 - [ ] Mock expectations are specific (not `.any()`)
+- [ ] Benchmarking runs in test phase when needed
 
 ## Memory & Performance
 
@@ -78,12 +81,15 @@ Quick reference for code reviewers. Check applicable items before approving.
 - [ ] Public APIs have doc comments (what, not how)
 - [ ] Complex logic has inline comments explaining why
 - [ ] ADR created for significant architectural decisions
+- [ ] Logging/telemetry expectations documented for key flows
+- [ ] Lint/format baselines documented (clippy + formatting)
 
 ## Security
 
 - [ ] No secrets in code or committed files
 - [ ] User input validated at system boundaries
 - [ ] SQL/Cypher injection not possible
+- [ ] Security review includes secrets scan + authz audit
 
 ---
 

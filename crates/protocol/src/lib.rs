@@ -8,7 +8,7 @@
 //!
 //! # Design Principles
 //!
-//! 1. **Minimal dependencies** - Only serde, uuid, chrono, and serde_json
+//! 1. **Minimal dependencies** - Only serde, uuid, serde_json, and thiserror
 //! 2. **No business logic** - Pure data types and serialization
 //! 3. **WASM compatible** - Must compile for both native and wasm32 targets
 //! 4. **No domain IDs** - use raw `uuid::Uuid` in DTOs
@@ -34,8 +34,6 @@ pub use messages::{
     // Staging types
     ApprovedNpcInfo,
     ChallengeOutcomeDecisionData,
-    // Conversion error types
-    UnknownChallengeOutcomeDecisionError,
     // Scene types
     CharacterData,
     CharacterPosition,
@@ -49,6 +47,7 @@ pub use messages::{
     DirectorialContext,
     GoalData,
     InteractionData,
+    MapBoundsData,
     // Navigation types
     NavigationData,
     NavigationExit,
@@ -63,7 +62,6 @@ pub use messages::{
     OutcomeDetailData,
     ParticipantInfo,
     PreviousStagingInfo,
-    MapBoundsData,
     RegionData,
     RegionItemData,
     RegionListItemData,
@@ -73,6 +71,8 @@ pub use messages::{
     SocialViewsData,
     SplitPartyLocation,
     StagedNpcInfo,
+    // Conversion error types
+    UnknownChallengeOutcomeDecisionError,
     UpdateGoalData,
     UpdateWantData,
     WaitingPcInfo,
@@ -156,8 +156,6 @@ pub use types::{
     TimeOfDayData,
     TimeSuggestionData,
     TimeSuggestionDecision,
-    // Conversion error types
-    UnknownTimeSuggestionDecisionError,
     // Trigger schema types (for Visual Trigger Builder)
     TriggerCategory,
     TriggerFieldSchema,
@@ -165,6 +163,8 @@ pub use types::{
     TriggerLogicOption,
     TriggerSchema,
     TriggerTypeSchema,
+    // Conversion error types
+    UnknownTimeSuggestionDecisionError,
     VisualStateSourceData,
 };
 
@@ -316,8 +316,8 @@ pub use wrldbldr_domain::{
     CharacterSheetSchema,
     ConditionLevel,
     CreationStep,
-    DerivedField,
     DerivationType,
+    DerivedField,
     EntityRefType,
     FieldDefinition,
     FieldLayout,

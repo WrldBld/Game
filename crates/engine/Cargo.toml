@@ -22,7 +22,6 @@ neo4rs = { workspace = true }
 # Async runtime
 async-trait = { workspace = true }
 tokio = { workspace = true }
-tokio-util = { workspace = true }
 futures-util = { workspace = true }
 
 # HTTP client (for LLM, ComfyUI)

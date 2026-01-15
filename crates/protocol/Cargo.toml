@@ -20,9 +20,6 @@ serde_json = { workspace = true }
 # Unique identifiers - with js feature for WASM compatibility
 uuid = { workspace = true }
 
-# Date/time handling
-chrono = { workspace = true }
-
 # Error handling
 thiserror = { workspace = true }
 

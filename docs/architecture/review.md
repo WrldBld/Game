@@ -422,6 +422,7 @@ impl EnterRegion {
 | Missing input validation | User input used without parsing/validation | HIGH |
 | Unwrap on user input | `.unwrap()` on parse results from external input | HIGH |
 | Excessive permissions | Endpoint doesn't check authorization | MEDIUM |
+| Missing security audit step | No documented secrets scan/authz review | MEDIUM |
 
 ```rust
 // CORRECT - parameterized query
@@ -440,6 +441,7 @@ let query = query(&format!("MATCH (c:Character {{id: '{}'}}) RETURN c", id));
 | Lost error context | `.map_err(|_| SomeError::Generic)` | MEDIUM |
 | Panic in library code | `panic!()`, `unreachable!()` without comment | MEDIUM |
 | Missing `?` propagation | Manual match on Result when `?` would work | LOW |
+| Inconsistent error mapping | Ad-hoc string errors across layers | MEDIUM |
 
 ```rust
 // WRONG - loses context
@@ -634,6 +636,7 @@ Use this checklist when doing a comprehensive review of the entire codebase.
 - [ ] All port traits are defined in `infrastructure/ports.rs`
 - [ ] No more than ~10-15 port traits total
 - [ ] Repositories are in `repositories/`, use cases in `use_cases/`
+- [ ] Repository wrappers use `*Repository` naming
 - [ ] Use cases inject repositories, not port traits directly
 
 ### Security
@@ -650,6 +653,7 @@ Use this checklist when doing a comprehensive review of the entire codebase.
 - [ ] Error types have context (entity type, ID, operation)
 - [ ] Repository methods follow `get`, `save`, `delete`, `list_*` naming
 - [ ] Use case methods follow `execute` naming
+- [ ] Workspace has no unused dependencies
 
 ### Testing
 
@@ -664,6 +668,8 @@ Use this checklist when doing a comprehensive review of the entire codebase.
 - [ ] Public types have doc comments
 - [ ] Complex logic has inline comments explaining why
 - [ ] ADRs exist for significant architectural decisions
+- [ ] Logging/telemetry expectations documented for key flows
+- [ ] Lint/format baselines documented (clippy + formatting)
 
 ---
 
@@ -701,7 +707,6 @@ cargo clippy --workspace -- -D warnings
 
 - [ ] Cypher queries use parameters
 - [ ] New query patterns have indexes (check neo4j-schema.md)
-- [ ] Migrations documented if schema changed
 
 ### API Changes
 
