@@ -12,9 +12,9 @@ use wrldbldr_domain::{
     SceneId, StoryEvent, StoryEventId, StoryEventType, TimeContext, TriggerContext, WorldId,
 };
 
-use crate::infrastructure::ports::{ClockPort, RepoError};
+use crate::infrastructure::ports::RepoError;
 use crate::repositories::{
-    Challenge, Character, Flag, Location, Narrative as NarrativeRepository, Observation,
+    Challenge, Character, Clock, Flag, Location, Narrative as NarrativeRepository, Observation,
     PlayerCharacter, Scene, World,
 };
 use crate::llm_context::ConversationTurn;
@@ -41,7 +41,7 @@ pub struct NarrativeOps {
     challenge_repo: Arc<Challenge>,
     flag_repo: Arc<Flag>,
     scene_repo: Arc<Scene>,
-    clock: Arc<dyn ClockPort>,
+    clock: Arc<Clock>,
 }
 
 #[cfg(test)]
@@ -89,18 +89,22 @@ mod trigger_tests {
         let flag_repo = Arc::new(MockFlagRepo::new());
         let scene_repo = Arc::new(MockSceneRepo::new());
 
-        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let clock = Arc::new(Clock::new(clock_port.clone()));
 
         let narrative_ops = super::NarrativeOps::new(
-            Arc::new(Narrative::new(Arc::new(narrative_repo), clock.clone())),
+            Arc::new(Narrative::new(
+                Arc::new(narrative_repo),
+                clock_port.clone(),
+            )),
             Arc::new(Location::new(location_repo.clone())),
-            Arc::new(World::new(world_repo.clone(), clock.clone())),
+            Arc::new(World::new(world_repo.clone(), clock_port.clone())),
             Arc::new(PlayerCharacter::new(player_character_repo)),
             Arc::new(Character::new(character_repo)),
             Arc::new(Observation::new(
                 observation_repo,
                 location_repo,
-                clock.clone(),
+                clock_port.clone(),
             )),
             Arc::new(Challenge::new(challenge_repo)),
             Arc::new(Flag::new(flag_repo)),
@@ -127,7 +131,7 @@ impl NarrativeOps {
         challenge_repo: Arc<Challenge>,
         flag_repo: Arc<Flag>,
         scene_repo: Arc<Scene>,
-        clock: Arc<dyn ClockPort>,
+        clock: Arc<Clock>,
     ) -> Self {
         Self {
             narrative,
@@ -146,6 +150,11 @@ impl NarrativeOps {
     /// Get the underlying Narrative entity for CRUD operations.
     pub fn entity(&self) -> &Arc<NarrativeRepository> {
         &self.narrative
+    }
+
+    /// Access current time via injected clock.
+    pub fn now(&self) -> chrono::DateTime<chrono::Utc> {
+        self.clock.now()
     }
 
     // =========================================================================

@@ -23,7 +23,8 @@ use crate::llm_context::{
 };
 use crate::queue_types::{LlmRequestData, LlmRequestType, PlayerActionData};
 
-use crate::infrastructure::ports::{LlmPort, QueuePort, RepoError};
+use crate::infrastructure::ports::RepoError;
+use crate::repositories::{Llm, Queue};
 
 /// Events that need to be broadcast to clients after queue processing.
 ///
@@ -84,7 +85,7 @@ pub struct PlayerActionProcessed {
 /// Dequeues player actions, builds LLM prompts, and enqueues LLM requests.
 #[allow(dead_code)]
 pub struct ProcessPlayerAction {
-    queue: Arc<dyn QueuePort>,
+    queue: Arc<Queue>,
     character: Arc<crate::repositories::character::Character>,
     player_character: Arc<crate::repositories::PlayerCharacter>,
     staging: Arc<crate::repositories::staging::Staging>,
@@ -97,7 +98,7 @@ pub struct ProcessPlayerAction {
 
 impl ProcessPlayerAction {
     pub fn new(
-        queue: Arc<dyn QueuePort>,
+        queue: Arc<Queue>,
         character: Arc<crate::repositories::character::Character>,
         player_character: Arc<crate::repositories::PlayerCharacter>,
         staging: Arc<crate::repositories::staging::Staging>,
@@ -532,12 +533,12 @@ pub struct LlmRequestProcessed {
 ///
 /// Dequeues LLM requests, calls the LLM, and enqueues DM approval requests.
 pub struct ProcessLlmRequest {
-    queue: Arc<dyn QueuePort>,
-    llm: Arc<dyn LlmPort>,
+    queue: Arc<Queue>,
+    llm: Arc<Llm>,
 }
 
 impl ProcessLlmRequest {
-    pub fn new(queue: Arc<dyn QueuePort>, llm: Arc<dyn LlmPort>) -> Self {
+    pub fn new(queue: Arc<Queue>, llm: Arc<Llm>) -> Self {
         Self { queue, llm }
     }
 

@@ -103,9 +103,7 @@ async fn import_world(
 // Settings
 // =============================================================================
 
-async fn get_settings(
-    State(app): State<Arc<App>>,
-) -> Result<Json<wrldbldr_domain::AppSettings>, ApiError> {
+async fn get_settings(State(app): State<Arc<App>>) -> Result<Json<wrldbldr_domain::AppSettings>, ApiError> {
     let settings = app
         .use_cases
         .settings
@@ -166,9 +164,7 @@ async fn update_world_settings(
 ) -> Result<Json<wrldbldr_domain::AppSettings>, ApiError> {
     if let Some(world_id) = settings.world_id {
         if world_id != wrldbldr_domain::WorldId::from_uuid(id) {
-            return Err(ApiError::BadRequest(
-                "world_id does not match path".to_string(),
-            ));
+            return Err(ApiError::BadRequest("world_id does not match path".to_string()));
         }
     }
 
@@ -263,9 +259,7 @@ fn parse_rule_system_variant(value: &str) -> Result<wrldbldr_domain::RuleSystemV
                 }
                 wrldbldr_domain::RuleSystemVariant::Custom(inner.to_string())
             } else {
-                return Err(ApiError::BadRequest(
-                    "Unknown rule system variant".to_string(),
-                ));
+                return Err(ApiError::BadRequest("Unknown rule system variant".to_string()));
             }
         }
     };
@@ -288,8 +282,12 @@ pub enum ApiError {
 impl axum::response::IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
         match self {
-            ApiError::NotFound => (axum::http::StatusCode::NOT_FOUND, "Not found").into_response(),
-            ApiError::BadRequest(msg) => (axum::http::StatusCode::BAD_REQUEST, msg).into_response(),
+            ApiError::NotFound => {
+                (axum::http::StatusCode::NOT_FOUND, "Not found").into_response()
+            }
+            ApiError::BadRequest(msg) => {
+                (axum::http::StatusCode::BAD_REQUEST, msg).into_response()
+            }
             ApiError::Internal(_) => (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 "Internal error",
@@ -311,7 +309,6 @@ mod tests {
     use axum::body::Body;
     use chrono::Utc;
     use tower::ServiceExt;
-    use wrldbldr_domain::{Description, WorldName};
 
     use crate::api::websocket::test_support::TestAppRepos;
     use crate::infrastructure::ports::MockWorldRepo;
@@ -376,14 +373,18 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), axum::http::StatusCode::OK);
-        let metadata: Vec<wrldbldr_domain::SettingsFieldMetadata> = read_body_json(response).await;
+        let metadata: Vec<wrldbldr_domain::SettingsFieldMetadata> =
+            read_body_json(response).await;
         assert!(!metadata.is_empty());
     }
 
     #[tokio::test]
     async fn update_world_settings_rejects_mismatched_world_id() {
         let mut repos = TestAppRepos::new(MockWorldRepo::new());
-        repos.settings_repo.expect_save_for_world().times(0);
+        repos
+            .settings_repo
+            .expect_save_for_world()
+            .times(0);
 
         let app = crate::api::websocket::test_support::build_test_app(repos, Utc::now());
         let router: Router = routes().with_state(app);
@@ -440,10 +441,7 @@ mod tests {
         let repos = TestAppRepos::new(world_repo);
         let router = build_router_with_repos(repos);
 
-        let now = Utc::now();
-        let world_name = WorldName::new("Test World").unwrap();
-        let world = wrldbldr_domain::World::new(world_name, now)
-            .with_description(Description::new("Desc").unwrap());
+        let world = wrldbldr_domain::World::new("Test World", "Desc", Utc::now());
         let export = crate::use_cases::world::WorldExport {
             world: world.clone(),
             locations: Vec::new(),
@@ -469,6 +467,6 @@ mod tests {
 
         assert_eq!(response.status(), axum::http::StatusCode::OK);
         let payload: serde_json::Value = read_body_json(response).await;
-        assert_eq!(payload["id"], world.id().to_string());
+        assert_eq!(payload["id"], world.id.to_string());
     }
 }

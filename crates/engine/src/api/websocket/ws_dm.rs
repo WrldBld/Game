@@ -22,8 +22,10 @@ pub(super) async fn handle_directorial_update(
         None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
     };
 
+    let context_store =
+        crate::repositories::DirectorialContextStore::new(state.connections.clone());
     let ctx = crate::use_cases::session::DirectorialUpdateContext {
-        context_store: state.connections.as_ref(),
+        context_store: &context_store,
     };
     let input = crate::use_cases::session::DirectorialUpdateInput::from_protocol(world_id, context);
 

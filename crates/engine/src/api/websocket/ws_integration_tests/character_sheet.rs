@@ -38,8 +38,8 @@ async fn get_sheet_template_returns_dnd5e_schema_for_dnd5e_world() {
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: TimeSuggestionStoreImpl::new(),
-        pending_staging_requests: PendingStagingStoreImpl::new(),
+        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });
 
@@ -161,8 +161,8 @@ async fn get_sheet_template_returns_error_for_nonexistent_world() {
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: TimeSuggestionStoreImpl::new(),
-        pending_staging_requests: PendingStagingStoreImpl::new(),
+        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });
 
@@ -234,8 +234,8 @@ async fn get_sheet_template_schema_has_ability_score_validation() {
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: TimeSuggestionStoreImpl::new(),
-        pending_staging_requests: PendingStagingStoreImpl::new(),
+        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });
 
@@ -363,8 +363,8 @@ async fn get_sheet_template_schema_includes_creation_steps() {
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: TimeSuggestionStoreImpl::new(),
-        pending_staging_requests: PendingStagingStoreImpl::new(),
+        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });
 

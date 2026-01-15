@@ -84,9 +84,15 @@ impl App {
         content_config: ContentServiceConfig,
     ) -> Self {
         // Create infrastructure services
-        let clock: Arc<dyn ClockPort> = Arc::new(SystemClock::new());
-        let random: Arc<dyn RandomPort> = Arc::new(SystemRandom::new());
+        let clock_port: Arc<dyn ClockPort> = Arc::new(SystemClock::new());
+        let random_port: Arc<dyn RandomPort> = Arc::new(SystemRandom::new());
         let queue_port: Arc<dyn QueuePort> = queue.clone();
+        let llm_port: Arc<dyn LlmPort> = llm.clone();
+
+        let clock = Arc::new(repositories::Clock::new(clock_port.clone()));
+        let random = Arc::new(repositories::Random::new(random_port.clone()));
+        let queue_repo = Arc::new(repositories::Queue::new(queue_port.clone()));
+        let llm_repo = Arc::new(repositories::Llm::new(llm_port.clone()));
 
         // Create repository modules
         let character = Arc::new(repositories::Character::new(repos.character.clone()));
@@ -99,15 +105,20 @@ impl App {
         let content = Arc::new(repositories::Content::new(repos.content.clone()));
         let interaction = Arc::new(repositories::Interaction::new(repos.interaction.clone()));
         let challenge = Arc::new(repositories::Challenge::new(repos.challenge.clone()));
-        let world = Arc::new(repositories::World::new(repos.world.clone(), clock.clone()));
+        let world = Arc::new(repositories::World::new(
+            repos.world.clone(),
+            clock_port.clone(),
+        ));
         let observation = Arc::new(repositories::Observation::new(
             repos.observation.clone(),
             repos.location.clone(),
-            clock.clone(),
+            clock_port.clone(),
         ));
         let flag = Arc::new(repositories::Flag::new(repos.flag.clone()));
-        let narrative_repo =
-            Arc::new(repositories::Narrative::new(repos.narrative.clone(), clock.clone()));
+        let narrative_repo = Arc::new(repositories::Narrative::new(
+            repos.narrative.clone(),
+            clock_port.clone(),
+        ));
         let narrative = Arc::new(use_cases::Narrative::new(
             narrative_repo,
             location.clone(),
@@ -128,7 +139,7 @@ impl App {
         ));
         let assets = Arc::new(repositories::Assets::new(repos.asset.clone(), image_gen));
         let goal = Arc::new(repositories::Goal::new(repos.goal.clone()));
-        let lore = Arc::new(repositories::Lore::new(repos.lore.clone(), clock.clone()));
+        let lore = Arc::new(repositories::Lore::new(repos.lore.clone(), clock_port.clone()));
         let location_state = Arc::new(repositories::LocationStateEntity::new(
             repos.location_state.clone(),
         ));
@@ -200,7 +211,7 @@ impl App {
             staging.clone(),
             scene.clone(),
             world.clone(),
-            queue_port.clone(),
+            queue_repo.clone(),
             clock.clone(),
         ));
         let conversation_continue = Arc::new(use_cases::conversation::ContinueConversation::new(
@@ -209,7 +220,7 @@ impl App {
             staging.clone(),
             world.clone(),
             narrative.clone(),
-            queue_port.clone(),
+            queue_repo.clone(),
             clock.clone(),
         ));
         let conversation_end = Arc::new(use_cases::conversation::EndConversation::new(
@@ -226,7 +237,7 @@ impl App {
         let player_action = use_cases::PlayerActionUseCases::new(Arc::new(
             use_cases::player_action::HandlePlayerAction::new(
                 conversation_start,
-                queue_port.clone(),
+                queue_repo.clone(),
                 clock.clone(),
             ),
         ));
@@ -238,7 +249,7 @@ impl App {
         );
 
         let ai = use_cases::AiUseCases::new(Arc::new(use_cases::ai::SuggestionOps::new(
-            queue_port.clone(),
+            queue_repo.clone(),
             world.clone(),
             character.clone(),
         )));
@@ -251,7 +262,7 @@ impl App {
             player_character.clone(),
         ));
         let outcome_decision = Arc::new(use_cases::challenge::OutcomeDecision::new(
-            queue_port.clone(),
+            queue_repo.clone(),
             resolve_outcome.clone(),
         ));
 
@@ -259,7 +270,7 @@ impl App {
             Arc::new(use_cases::challenge::RollChallenge::new(
                 challenge.clone(),
                 player_character.clone(),
-                queue_port.clone(),
+                queue_repo.clone(),
                 random.clone(),
                 clock.clone(),
             )),
@@ -272,7 +283,7 @@ impl App {
         );
 
         let approve_suggestion = Arc::new(use_cases::approval::ApproveSuggestion::new(
-            queue_port.clone(),
+            queue_repo.clone(),
         ));
         let approval = use_cases::ApprovalUseCases::new(
             Arc::new(use_cases::approval::ApproveStaging::new(staging.clone())),
@@ -280,19 +291,19 @@ impl App {
             Arc::new(use_cases::approval::ApprovalDecisionFlow::new(
                 approve_suggestion.clone(),
                 narrative.clone(),
-                queue_port.clone(),
+                queue_repo.clone(),
             )),
         );
 
         let generate_asset = Arc::new(use_cases::assets::GenerateAsset::new(
             assets.clone(),
-            queue_port.clone(),
+            queue_repo.clone(),
             clock.clone(),
         ));
         let expression_sheet = Arc::new(use_cases::assets::GenerateExpressionSheet::new(
             assets.clone(),
             character.clone(),
-            queue_port.clone(),
+            queue_repo.clone(),
             clock.clone(),
         ));
         let assets_uc = use_cases::AssetUseCases::new(generate_asset, expression_sheet);
@@ -316,7 +327,7 @@ impl App {
 
         let queues = use_cases::QueueUseCases::new(
             Arc::new(use_cases::queues::ProcessPlayerAction::new(
-                queue_port.clone(),
+                queue_repo.clone(),
                 character.clone(),
                 player_character.clone(),
                 staging.clone(),
@@ -327,8 +338,8 @@ impl App {
                 challenge.clone(),
             )),
             Arc::new(use_cases::queues::ProcessLlmRequest::new(
-                queue_port.clone(),
-                llm.clone(),
+                queue_repo.clone(),
+                llm_repo.clone(),
             )),
         );
 
@@ -353,7 +364,7 @@ impl App {
             Arc::new(use_cases::narrative::EventChainOps::new(narrative.clone()));
         let narrative_decision = Arc::new(use_cases::narrative::NarrativeDecisionFlow::new(
             approve_suggestion.clone(),
-            queue_port.clone(),
+            queue_repo.clone(),
             narrative.clone(),
             execute_effects.clone(),
         ));
@@ -389,12 +400,12 @@ impl App {
                 flag.clone(),
                 visual_state_uc.resolve.clone(),
                 settings_entity.clone(),
-                llm.clone(),
+                llm_repo.clone(),
             )),
             Arc::new(use_cases::staging::RegenerateStagingSuggestions::new(
                 location.clone(),
                 character.clone(),
-                llm.clone(),
+                llm_repo.clone(),
             )),
             Arc::new(use_cases::staging::ApproveStagingRequest::new(
                 staging.clone(),
@@ -448,7 +459,8 @@ impl App {
         ));
 
         // Create custom condition evaluator for LLM-based condition/trigger evaluation
-        let custom_condition = Arc::new(use_cases::CustomConditionEvaluator::new(llm.clone()));
+        let custom_condition =
+            Arc::new(use_cases::CustomConditionEvaluator::new(llm_repo.clone()));
 
         let management = use_cases::ManagementUseCases::new(
             use_cases::management::WorldCrud::new(world.clone(), clock.clone()),

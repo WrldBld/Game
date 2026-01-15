@@ -11,10 +11,9 @@ use wrldbldr_domain::{
     RelationshipType, SceneId, WorldId,
 };
 
-use crate::infrastructure::ports::ClockPort;
 use crate::repositories::character::Character;
 use crate::repositories::scene::Scene;
-use crate::repositories::{Challenge, Flag, Inventory, Observation, PlayerCharacter, World};
+use crate::repositories::{Challenge, Clock, Flag, Inventory, Observation, PlayerCharacter, World};
 use crate::use_cases::narrative_operations::Narrative;
 
 /// Result of executing a single effect.
@@ -79,7 +78,7 @@ pub struct ExecuteEffects {
     scene: Arc<Scene>,
     flag: Arc<Flag>,
     world: Arc<World>,
-    clock: Arc<dyn ClockPort>,
+    clock: Arc<Clock>,
 }
 
 impl ExecuteEffects {
@@ -93,7 +92,7 @@ impl ExecuteEffects {
         scene: Arc<Scene>,
         flag: Arc<Flag>,
         world: Arc<World>,
-        clock: Arc<dyn ClockPort>,
+        clock: Arc<Clock>,
     ) -> Self {
         Self {
             inventory,

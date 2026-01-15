@@ -24,9 +24,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{AssetId, CharacterId};
 
-use crate::infrastructure::ports::{ClockPort, QueuePort, RepoError};
+use crate::infrastructure::ports::RepoError;
 use crate::repositories::character::Character;
-use crate::repositories::Assets;
+use crate::repositories::{Assets, Clock, Queue};
 
 /// Standard expression order in a 4x4 grid
 pub const STANDARD_EXPRESSION_ORDER: [&str; 16] = [
@@ -128,16 +128,16 @@ pub struct SlicedExpression {
 pub struct GenerateExpressionSheet {
     assets: Arc<Assets>,
     character: Arc<Character>,
-    queue: Arc<dyn QueuePort>,
-    clock: Arc<dyn ClockPort>,
+    queue: Arc<Queue>,
+    clock: Arc<Clock>,
 }
 
 impl GenerateExpressionSheet {
     pub fn new(
         assets: Arc<Assets>,
         character: Arc<Character>,
-        queue: Arc<dyn QueuePort>,
-        clock: Arc<dyn ClockPort>,
+        queue: Arc<Queue>,
+        clock: Arc<Clock>,
     ) -> Self {
         Self {
             assets,

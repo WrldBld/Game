@@ -135,8 +135,8 @@ async fn main() -> anyhow::Result<()> {
     let ws_state = Arc::new(WsState {
         app: app.clone(),
         connections,
-        pending_time_suggestions: TimeSuggestionStoreImpl::new(),
-        pending_staging_requests: PendingStagingStoreImpl::new(),
+        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
         generation_read_state: GenerationStateStoreImpl::new(),
     });
 
@@ -342,26 +342,8 @@ async fn main() -> anyhow::Result<()> {
             for (request_id, pending) in pending_requests {
                 let world_id = pending.world_id;
 
-                // Fetch world settings to get timeout configuration
-                let settings = match staging_ws_state
-                    .app
-                    .use_cases
-                    .settings
-                    .get_for_world(world_id)
-                    .await
-                {
-                    Ok(s) => s,
-                    Err(e) => {
-                        tracing::warn!(
-                            error = %e,
-                            world_id = %world_id,
-                            "Failed to fetch world settings for staging timeout, using defaults"
-                        );
-                        Default::default()
-                    }
-                };
-
-                let timeout_seconds = settings.staging_timeout_seconds;
+                let timeout_seconds =
+                    crate::use_cases::staging::DEFAULT_STAGING_TIMEOUT_SECONDS;
 
                 // Skip if timeout is disabled (0) or not yet expired
                 if timeout_seconds == 0 {
@@ -387,30 +369,6 @@ async fn main() -> anyhow::Result<()> {
                         request_id = %request_id,
                         "Staging request already removed by another handler, skipping timeout processing"
                     );
-                    continue;
-                }
-
-                // Check if auto-approve is enabled for this world
-                if !settings.auto_approve_on_timeout {
-                    // Notify all players in the world that staging for this region timed out
-                    // Players waiting for this region will see it and can retry
-                    let region_id_str = pending.region_id.to_string();
-                    tracing::info!(
-                        request_id = %request_id,
-                        world_id = %world_id,
-                        region_id = %region_id_str,
-                        "Staging timeout without auto-approve, broadcasting timeout notification"
-                    );
-                    staging_ws_state
-                        .connections
-                        .broadcast_to_world(
-                            world_id,
-                            wrldbldr_protocol::ServerMessage::StagingTimedOut {
-                                region_id: region_id_str.clone(),
-                                region_name: region_id_str, // Use ID as name (player has region info)
-                            },
-                        )
-                        .await;
                     continue;
                 }
 

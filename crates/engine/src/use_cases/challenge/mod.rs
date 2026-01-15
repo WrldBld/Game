@@ -30,9 +30,9 @@ pub use crud::{
     ChallengeError as ChallengeCrudError, ChallengeOps, CreateChallengeInput, UpdateChallengeInput,
 };
 
-use crate::infrastructure::ports::{ClockPort, QueuePort, RandomPort, RepoError};
+use crate::infrastructure::ports::RepoError;
 use crate::repositories::scene::Scene;
-use crate::repositories::{Challenge, Inventory, Observation, PlayerCharacter};
+use crate::repositories::{Challenge, Clock, Inventory, Observation, PlayerCharacter, Queue, Random};
 
 /// Container for challenge use cases.
 pub struct ChallengeUseCases {
@@ -148,18 +148,18 @@ impl TriggerChallengePrompt {
 pub struct RollChallenge {
     challenge: Arc<Challenge>,
     player_character: Arc<PlayerCharacter>,
-    queue: Arc<dyn QueuePort>,
-    random: Arc<dyn RandomPort>,
-    clock: Arc<dyn ClockPort>,
+    queue: Arc<Queue>,
+    random: Arc<Random>,
+    clock: Arc<Clock>,
 }
 
 impl RollChallenge {
     pub fn new(
         challenge: Arc<Challenge>,
         player_character: Arc<PlayerCharacter>,
-        queue: Arc<dyn QueuePort>,
-        random: Arc<dyn RandomPort>,
-        clock: Arc<dyn ClockPort>,
+        queue: Arc<Queue>,
+        random: Arc<Random>,
+        clock: Arc<Clock>,
     ) -> Self {
         Self {
             challenge,
@@ -551,12 +551,12 @@ impl ResolveOutcome {
 
 /// Decision flow for challenge outcome approvals.
 pub struct OutcomeDecision {
-    queue: Arc<dyn QueuePort>,
+    queue: Arc<Queue>,
     resolve: Arc<ResolveOutcome>,
 }
 
 impl OutcomeDecision {
-    pub fn new(queue: Arc<dyn QueuePort>, resolve: Arc<ResolveOutcome>) -> Self {
+    pub fn new(queue: Arc<Queue>, resolve: Arc<ResolveOutcome>) -> Self {
         Self { queue, resolve }
     }
 
@@ -569,7 +569,7 @@ impl OutcomeDecision {
         let approval_id = Uuid::parse_str(&resolution_id)
             .map_err(|_| OutcomeDecisionError::InvalidResolutionId)?;
 
-        let approval_data = self
+        let approval_data: crate::queue_types::ApprovalRequestData = self
             .queue
             .get_approval_request(approval_id)
             .await

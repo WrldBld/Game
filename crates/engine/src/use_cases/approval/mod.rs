@@ -11,7 +11,8 @@ use wrldbldr_domain::{CharacterId, RegionId, WorldId};
 
 use crate::queue_types::DmApprovalDecision;
 
-use crate::infrastructure::ports::{QueuePort, RepoError};
+use crate::infrastructure::ports::RepoError;
+use crate::repositories::Queue;
 use crate::repositories::staging::Staging;
 
 /// Container for approval use cases.
@@ -116,11 +117,11 @@ pub struct SuggestionApprovalResult {
 ///
 /// Handles DM approval of LLM-generated content (dialogue, tool calls).
 pub struct ApproveSuggestion {
-    queue: Arc<dyn QueuePort>,
+    queue: Arc<Queue>,
 }
 
 impl ApproveSuggestion {
-    pub fn new(queue: Arc<dyn QueuePort>) -> Self {
+    pub fn new(queue: Arc<Queue>) -> Self {
         Self { queue }
     }
 
@@ -139,7 +140,7 @@ impl ApproveSuggestion {
         decision: DmApprovalDecision,
     ) -> Result<SuggestionApprovalResult, ApprovalError> {
         // Get the queue item first to extract NPC info
-        let queue_item = self
+        let queue_item: Option<crate::queue_types::ApprovalRequestData> = self
             .queue
             .get_approval_request(approval_queue_id)
             .await
@@ -206,14 +207,14 @@ impl ApproveSuggestion {
 pub struct ApprovalDecisionFlow {
     approve_suggestion: Arc<ApproveSuggestion>,
     narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
-    queue: Arc<dyn QueuePort>,
+    queue: Arc<Queue>,
 }
 
 impl ApprovalDecisionFlow {
     pub fn new(
         approve_suggestion: Arc<ApproveSuggestion>,
         narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
-        queue: Arc<dyn QueuePort>,
+        queue: Arc<Queue>,
     ) -> Self {
         Self {
             approve_suggestion,
@@ -227,7 +228,7 @@ impl ApprovalDecisionFlow {
         approval_id: Uuid,
         decision: DmApprovalDecision,
     ) -> Result<ApprovalDecisionOutcome, ApprovalDecisionError> {
-        let approval_data = self
+        let approval_data: crate::queue_types::ApprovalRequestData = self
             .queue
             .get_approval_request(approval_id)
             .await

@@ -168,7 +168,7 @@ mod tests {
         MockWorldRepo,
     };
     use crate::repositories;
-    use crate::repositories::Character as CharacterOp;
+    use crate::repositories::{Character as CharacterOp, Clock as ClockRepo};
     use crate::use_cases::Narrative;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -179,9 +179,17 @@ mod tests {
         }
     }
 
+    fn build_clock(
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> (Arc<dyn ClockPort>, Arc<ClockRepo>) {
+        let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let clock = Arc::new(ClockRepo::new(clock_port.clone()));
+        (clock_port, clock)
+    }
+
     fn create_narrative_entity(narrative_repo: MockNarrativeRepo) -> Arc<Narrative> {
         let now = Utc::now();
-        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let (clock_port, clock) = build_clock(now);
         let location_repo = Arc::new(MockLocationRepo::new());
         let world_repo = Arc::new(MockWorldRepo::new());
         let player_character_repo = Arc::new(MockPlayerCharacterRepo::new());
@@ -194,16 +202,16 @@ mod tests {
         Arc::new(Narrative::new(
             Arc::new(repositories::Narrative::new(
                 Arc::new(narrative_repo),
-                clock.clone(),
+                clock_port.clone(),
             )),
             Arc::new(repositories::Location::new(location_repo.clone())),
-            Arc::new(repositories::World::new(world_repo.clone(), clock.clone())),
+            Arc::new(repositories::World::new(world_repo.clone(), clock_port.clone())),
             Arc::new(repositories::PlayerCharacter::new(player_character_repo)),
             Arc::new(repositories::Character::new(character_repo)),
             Arc::new(repositories::Observation::new(
                 observation_repo,
                 location_repo,
-                clock.clone(),
+                clock_port.clone(),
             )),
             Arc::new(repositories::Challenge::new(challenge_repo)),
             Arc::new(repositories::Flag::new(flag_repo)),

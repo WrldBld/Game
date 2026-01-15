@@ -4,11 +4,11 @@
 
 use std::sync::Arc;
 
-use crate::infrastructure::ports::{ClockPort, NpcDispositionInfo, RepoError};
+use crate::infrastructure::ports::{NpcDispositionInfo, RepoError};
 use crate::repositories::character::Character;
 use crate::repositories::location::Location;
 use crate::repositories::staging::Staging;
-use crate::repositories::Observation;
+use crate::repositories::{Clock, Observation};
 use wrldbldr_domain::{
     CharacterId, DispositionLevel, LocationId, MoodState, NpcDispositionState, PlayerCharacterId,
     RegionId, RelationshipLevel,
@@ -44,11 +44,11 @@ impl NpcUseCases {
 /// Disposition and relationship operations.
 pub struct NpcDisposition {
     character: Arc<Character>,
-    clock: Arc<dyn ClockPort>,
+    clock: Arc<Clock>,
 }
 
 impl NpcDisposition {
-    pub fn new(character: Arc<Character>, clock: Arc<dyn ClockPort>) -> Self {
+    pub fn new(character: Arc<Character>, clock: Arc<Clock>) -> Self {
         Self { character, clock }
     }
 
@@ -266,7 +266,7 @@ pub struct NpcLocationSharing {
     character: Arc<Character>,
     location: Arc<Location>,
     observation: Arc<Observation>,
-    clock: Arc<dyn ClockPort>,
+    clock: Arc<Clock>,
 }
 
 impl NpcLocationSharing {
@@ -274,7 +274,7 @@ impl NpcLocationSharing {
         character: Arc<Character>,
         location: Arc<Location>,
         observation: Arc<Observation>,
-        clock: Arc<dyn ClockPort>,
+        clock: Arc<Clock>,
     ) -> Self {
         Self {
             character,

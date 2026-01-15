@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::infrastructure::ports::{QueuePort, RepoError};
+use crate::infrastructure::ports::RepoError;
+use crate::repositories::Queue;
 use crate::use_cases::approval::{ApprovalError, ApproveSuggestion};
 use crate::use_cases::narrative::{EffectExecutionContext, ExecuteEffects};
 use crate::use_cases::narrative_operations::Narrative;
@@ -13,7 +14,7 @@ use crate::queue_types::DmApprovalDecision;
 /// Narrative event suggestion approval flow.
 pub struct NarrativeDecisionFlow {
     approve_suggestion: Arc<ApproveSuggestion>,
-    queue: Arc<dyn QueuePort>,
+    queue: Arc<Queue>,
     narrative: Arc<Narrative>,
     execute_effects: Arc<ExecuteEffects>,
 }
@@ -21,7 +22,7 @@ pub struct NarrativeDecisionFlow {
 impl NarrativeDecisionFlow {
     pub fn new(
         approve_suggestion: Arc<ApproveSuggestion>,
-        queue: Arc<dyn QueuePort>,
+        queue: Arc<Queue>,
         narrative: Arc<Narrative>,
         execute_effects: Arc<ExecuteEffects>,
     ) -> Self {
@@ -40,7 +41,7 @@ impl NarrativeDecisionFlow {
         event_id: NarrativeEventId,
         selected_outcome: Option<String>,
     ) -> Result<NarrativeDecisionOutcome, NarrativeDecisionError> {
-        let approval_data = self
+        let approval_data: crate::queue_types::ApprovalRequestData = self
             .queue
             .get_approval_request(approval_id)
             .await

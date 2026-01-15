@@ -7,7 +7,8 @@ use wrldbldr_domain::{
     WorldId,
 };
 
-use crate::infrastructure::ports::{ClockPort, RepoError};
+use crate::infrastructure::ports::RepoError;
+use crate::repositories::Clock;
 use crate::use_cases::narrative::{EffectExecutionContext, EffectExecutionSummary, ExecuteEffects};
 use crate::use_cases::narrative_operations::Narrative;
 
@@ -59,14 +60,14 @@ pub struct NarrativeEventSummary {
 pub struct NarrativeEventOps {
     narrative: Arc<Narrative>,
     execute_effects: Arc<ExecuteEffects>,
-    clock: Arc<dyn ClockPort>,
+    clock: Arc<Clock>,
 }
 
 impl NarrativeEventOps {
     pub fn new(
         narrative: Arc<Narrative>,
         execute_effects: Arc<ExecuteEffects>,
-        clock: Arc<dyn ClockPort>,
+        clock: Arc<Clock>,
     ) -> Self {
         Self {
             narrative,

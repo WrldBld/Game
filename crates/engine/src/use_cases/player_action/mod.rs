@@ -6,7 +6,7 @@ use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 
 use crate::queue_types::PlayerActionData;
 
-use crate::infrastructure::ports::{ClockPort, QueuePort};
+use crate::repositories::{Clock, Queue};
 use crate::use_cases::conversation::{ConversationError, StartConversation};
 
 pub struct PlayerActionUseCases {
@@ -21,15 +21,15 @@ impl PlayerActionUseCases {
 
 pub struct HandlePlayerAction {
     start_conversation: Arc<StartConversation>,
-    queue: Arc<dyn QueuePort>,
-    clock: Arc<dyn ClockPort>,
+    queue: Arc<Queue>,
+    clock: Arc<Clock>,
 }
 
 impl HandlePlayerAction {
     pub fn new(
         start_conversation: Arc<StartConversation>,
-        queue: Arc<dyn QueuePort>,
-        clock: Arc<dyn ClockPort>,
+        queue: Arc<Queue>,
+        clock: Arc<Clock>,
     ) -> Self {
         Self {
             start_conversation,

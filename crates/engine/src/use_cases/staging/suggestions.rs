@@ -4,9 +4,8 @@ use std::collections::{HashMap, HashSet};
 
 use serde::Deserialize;
 
-use crate::infrastructure::ports::{
-    ChatMessage, LlmPort, LlmRequest, NpcRegionRelationType, NpcWithRegionInfo,
-};
+use crate::infrastructure::ports::{ChatMessage, LlmRequest, NpcRegionRelationType, NpcWithRegionInfo};
+use crate::repositories::Llm;
 use crate::repositories::staging::Staging;
 use wrldbldr_domain::{CharacterId, RegionId};
 
@@ -83,7 +82,7 @@ pub async fn generate_rule_based_suggestions(
 
 pub async fn generate_llm_based_suggestions(
     npcs_with_relationships: &[NpcWithRegionInfo],
-    llm: &dyn LlmPort,
+    llm: &Llm,
     region_name: &str,
     location_name: &str,
     guidance: Option<&str>,

@@ -7,7 +7,8 @@
 
 use std::sync::Arc;
 
-use crate::infrastructure::ports::{ChatMessage, LlmError, LlmPort, LlmRequest};
+use crate::infrastructure::ports::{ChatMessage, LlmError, LlmRequest};
+use crate::repositories::Llm;
 
 /// Result of evaluating a custom condition.
 #[derive(Debug, Clone)]
@@ -149,13 +150,13 @@ impl EvaluationContext {
 /// This use case wraps the LLM port and provides a structured way to evaluate
 /// natural language conditions against the current game state.
 pub struct CustomConditionEvaluator {
-    llm: Arc<dyn LlmPort>,
+    llm: Arc<Llm>,
     /// Minimum confidence threshold to consider condition met (default: 0.7)
     confidence_threshold: f32,
 }
 
 impl CustomConditionEvaluator {
-    pub fn new(llm: Arc<dyn LlmPort>) -> Self {
+    pub fn new(llm: Arc<Llm>) -> Self {
         Self {
             llm,
             confidence_threshold: 0.7,
@@ -353,7 +354,8 @@ Please evaluate whether this condition is currently met and respond with the JSO
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::infrastructure::ports::{FinishReason, LlmResponse, ToolDefinition};
+    use crate::infrastructure::ports::{FinishReason, LlmPort, LlmResponse, ToolDefinition};
+    use crate::repositories::Llm;
     use async_trait::async_trait;
 
     /// Mock LLM that returns a configurable response
@@ -389,9 +391,15 @@ mod tests {
         }
     }
 
+    fn build_evaluator(response: impl Into<String>) -> CustomConditionEvaluator {
+        let mock = Arc::new(MockLlm::new(response));
+        let llm = Arc::new(Llm::new(mock));
+        CustomConditionEvaluator::new(llm)
+    }
+
     #[tokio::test]
     async fn test_evaluate_condition_true() {
-        let mock = Arc::new(MockLlm::new(
+        let evaluator = build_evaluator(
             r#"```json
 {
   "result": true,
@@ -399,9 +407,7 @@ mod tests {
   "reasoning": "The player has the key item and knows the guard."
 }
 ```"#,
-        ));
-
-        let evaluator = CustomConditionEvaluator::new(mock);
+        );
         let context = EvaluationContext::new()
             .with_inventory(["Ancient Key"])
             .with_known_characters(["Guard Captain"]);
@@ -421,11 +427,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_evaluate_condition_false() {
-        let mock = Arc::new(MockLlm::new(
+        let evaluator = build_evaluator(
             r#"{"result": false, "confidence": 0.85, "reasoning": "The player does not have the required item."}"#,
-        ));
-
-        let evaluator = CustomConditionEvaluator::new(mock);
+        );
         let context = EvaluationContext::new();
 
         let result = evaluator
@@ -439,11 +443,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_low_confidence_fails_threshold() {
-        let mock = Arc::new(MockLlm::new(
+        let evaluator = build_evaluator(
             r#"{"result": true, "confidence": 0.5, "reasoning": "Uncertain based on available information."}"#,
-        ));
-
-        let evaluator = CustomConditionEvaluator::new(mock);
+        );
         let result = evaluator
             .evaluate(
                 "The player is trusted by the guild",
@@ -458,11 +460,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_custom_confidence_threshold() {
-        let mock = Arc::new(MockLlm::new(
+        let evaluator = build_evaluator(
             r#"{"result": true, "confidence": 0.6, "reasoning": "Some evidence supports this."}"#,
-        ));
-
-        let evaluator = CustomConditionEvaluator::new(mock).with_confidence_threshold(0.5);
+        )
+        .with_confidence_threshold(0.5);
         let result = evaluator
             .evaluate("The player has earned respect", &EvaluationContext::new())
             .await
@@ -473,7 +474,7 @@ mod tests {
 
     #[test]
     fn test_extract_json_from_markdown() {
-        let evaluator = CustomConditionEvaluator::new(Arc::new(MockLlm::new("")));
+        let evaluator = build_evaluator("");
 
         let response = r#"Here is my evaluation:
 ```json
@@ -488,7 +489,7 @@ That's my answer."#;
 
     #[test]
     fn test_extract_raw_json() {
-        let evaluator = CustomConditionEvaluator::new(Arc::new(MockLlm::new("")));
+        let evaluator = build_evaluator("");
 
         let response = r#"{"result": false, "confidence": 0.9, "reasoning": "No evidence"}"#;
         let json = evaluator.extract_json(response);

@@ -15,6 +15,7 @@
 //! - DM doesn't respond within timeout
 //! - Time advancement proceeds automatically (or is cancelled)
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::Utc;
@@ -672,7 +673,8 @@ async fn test_expired_time_decision_returns_error() {
     // Use the standard TimeSuggestionStoreImpl (30 min TTL)
     // Since we can't wait 30 minutes, we'll test the NotFound case
     // by attempting to resolve a suggestion that was never inserted
-    let store = TimeSuggestionStoreImpl::new();
+    let store = Arc::new(TimeSuggestionStoreImpl::new());
+    let store_repo = crate::repositories::TimeSuggestionStore::new(store);
 
     // Create a fake suggestion ID that doesn't exist in the store
     let fake_suggestion_id = Uuid::new_v4();
@@ -684,7 +686,7 @@ async fn test_expired_time_decision_returns_error() {
         .time
         .suggestions
         .resolve(
-            &store,
+            &store_repo,
             ctx.world.world_id,
             fake_suggestion_id,
             TimeSuggestionDecision::Approve,

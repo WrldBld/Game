@@ -6,7 +6,8 @@ use wrldbldr_domain::{CharacterId, WorldId};
 
 use crate::queue_types::{LlmRequestData, LlmRequestType, SuggestionContext};
 
-use crate::infrastructure::ports::{QueueError, QueuePort, RepoError};
+use crate::infrastructure::ports::{QueueError, RepoError};
+use crate::repositories::Queue;
 use crate::repositories::character::Character;
 use crate::repositories::World;
 
@@ -55,13 +56,13 @@ impl AiUseCases {
 }
 
 pub struct SuggestionOps {
-    queue: Arc<dyn QueuePort>,
+    queue: Arc<Queue>,
     world: Arc<World>,
     character: Arc<Character>,
 }
 
 impl SuggestionOps {
-    pub fn new(queue: Arc<dyn QueuePort>, world: Arc<World>, character: Arc<Character>) -> Self {
+    pub fn new(queue: Arc<Queue>, world: Arc<World>, character: Arc<Character>) -> Self {
         Self {
             queue,
             world,

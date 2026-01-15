@@ -10,11 +10,11 @@ use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 
 use crate::queue_types::PlayerActionData;
 
-use crate::infrastructure::ports::{ClockPort, QueuePort, RepoError};
+use crate::infrastructure::ports::RepoError;
 use crate::repositories::character::Character;
 use crate::repositories::scene::Scene;
 use crate::repositories::staging::Staging;
-use crate::repositories::{PlayerCharacter, World};
+use crate::repositories::{Clock, PlayerCharacter, Queue, World};
 
 /// Result of starting a conversation.
 #[derive(Debug)]
@@ -39,8 +39,8 @@ pub struct StartConversation {
     staging: Arc<Staging>,
     scene: Arc<Scene>,
     world: Arc<World>,
-    queue: Arc<dyn QueuePort>,
-    clock: Arc<dyn ClockPort>,
+    queue: Arc<Queue>,
+    clock: Arc<Clock>,
 }
 
 impl StartConversation {
@@ -50,8 +50,8 @@ impl StartConversation {
         staging: Arc<Staging>,
         scene: Arc<Scene>,
         world: Arc<World>,
-        queue: Arc<dyn QueuePort>,
-        clock: Arc<dyn ClockPort>,
+        queue: Arc<Queue>,
+        clock: Arc<Clock>,
     ) -> Self {
         Self {
             character,
@@ -214,7 +214,10 @@ mod tests {
         MockWorldRepo, QueueError, QueueItem, QueuePort,
     };
     use crate::repositories;
-    use crate::repositories::{Character as CharacterOp, Scene as SceneOp, Staging as StagingOp};
+    use crate::repositories::{
+        Character as CharacterOp, Clock as ClockRepo, Queue as QueueRepo, Scene as SceneOp,
+        Staging as StagingOp,
+    };
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -403,9 +406,11 @@ mod tests {
             .withf(move |r, _| *r == region_id)
             .returning(|_, _| Ok(None));
 
-        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let clock = Arc::new(ClockRepo::new(clock_port.clone()));
         let queue_id = Uuid::new_v4();
-        let queue = Arc::new(RecordingQueuePort::new(queue_id));
+        let queue_port = Arc::new(RecordingQueuePort::new(queue_id));
+        let queue = Arc::new(QueueRepo::new(queue_port.clone()));
 
         let use_case = super::StartConversation::new(
             Arc::new(CharacterOp::new(Arc::new(character_repo))),
@@ -414,7 +419,7 @@ mod tests {
             Arc::new(SceneOp::new(Arc::new(MockSceneRepo::new()))),
             Arc::new(repositories::World::new(
                 Arc::new(world_repo),
-                clock.clone(),
+                clock_port.clone(),
             )),
             queue.clone(),
             clock.clone(),
@@ -432,7 +437,7 @@ mod tests {
             .unwrap_err();
 
         assert!(matches!(err, super::ConversationError::NpcNotInRegion));
-        assert!(queue.recorded_player_actions().is_empty());
+        assert!(queue_port.recorded_player_actions().is_empty());
     }
 
     #[tokio::test]
@@ -521,9 +526,11 @@ mod tests {
             .withf(move |r, t| *r == region_id && *t == current_game_time)
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
-        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let clock = Arc::new(ClockRepo::new(clock_port.clone()));
         let queue_id = Uuid::new_v4();
-        let queue = Arc::new(RecordingQueuePort::new(queue_id));
+        let queue_port = Arc::new(RecordingQueuePort::new(queue_id));
+        let queue = Arc::new(QueueRepo::new(queue_port.clone()));
 
         let use_case = super::StartConversation::new(
             Arc::new(CharacterOp::new(Arc::new(character_repo))),
@@ -532,7 +539,7 @@ mod tests {
             Arc::new(SceneOp::new(Arc::new(MockSceneRepo::new()))),
             Arc::new(repositories::World::new(
                 Arc::new(world_repo),
-                clock.clone(),
+                clock_port.clone(),
             )),
             queue.clone(),
             clock.clone(),
@@ -553,7 +560,7 @@ mod tests {
         assert!(!result.conversation_id.is_nil());
         assert_eq!(result.npc_name, "NPC".to_string());
 
-        let recorded = queue.recorded_player_actions();
+        let recorded = queue_port.recorded_player_actions();
         assert_eq!(recorded.len(), 1);
         let action = &recorded[0];
         assert_eq!(action.world_id, world_id);

@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
-use crate::infrastructure::ports::{DirectorialContext, DirectorialContextPort, NpcMotivation};
+use crate::infrastructure::ports::{DirectorialContext, NpcMotivation};
+use crate::repositories::DirectorialContextStore;
 use wrldbldr_domain::WorldId;
 
 /// IO dependencies for directorial updates (WS-state owned).
 pub struct DirectorialUpdateContext<'a> {
-    pub context_store: &'a dyn DirectorialContextPort,
+    pub context_store: &'a DirectorialContextStore,
 }
 
 /// Input for storing directorial context.

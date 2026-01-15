@@ -369,17 +369,15 @@ pub(super) async fn handle_respond_to_time_suggestion(
         }
     };
 
+    let time_suggestions = crate::repositories::TimeSuggestionStore::new(
+        state.pending_time_suggestions.clone(),
+    );
     match state
         .app
         .use_cases
         .time
         .suggestions
-        .resolve(
-            &state.pending_time_suggestions,
-            world_id,
-            suggestion_uuid,
-            domain_decision,
-        )
+        .resolve(&time_suggestions, world_id, suggestion_uuid, domain_decision)
         .await
     {
         Ok(Some(resolution)) => {

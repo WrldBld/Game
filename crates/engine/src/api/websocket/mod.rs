@@ -75,8 +75,8 @@ const GENERATION_STATE_TTL: Duration = Duration::from_secs(5 * 60);
 pub struct WsState {
     pub app: Arc<App>,
     pub connections: Arc<ConnectionManager>,
-    pub pending_time_suggestions: TimeSuggestionStoreImpl,
-    pub pending_staging_requests: PendingStagingStoreImpl,
+    pub pending_time_suggestions: Arc<TimeSuggestionStoreImpl>,
+    pub pending_staging_requests: Arc<PendingStagingStoreImpl>,
     pub generation_read_state: GenerationStateStoreImpl,
 }
 
@@ -1316,9 +1316,13 @@ mod ws_integration_tests_inline {
         queue: Arc<dyn QueuePort>,
         llm: Arc<dyn LlmPort>,
     ) -> Arc<App> {
-        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock { now });
-        let random: Arc<dyn RandomPort> = Arc::new(FixedRandom);
+        let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock { now });
+        let random_port: Arc<dyn RandomPort> = Arc::new(FixedRandom);
         let image_gen: Arc<dyn ImageGenPort> = Arc::new(NoopImageGen);
+        let clock = Arc::new(crate::repositories::Clock::new(clock_port.clone()));
+        let random = Arc::new(crate::repositories::Random::new(random_port.clone()));
+        let queue_repo = Arc::new(crate::repositories::Queue::new(queue.clone()));
+        let llm_repo = Arc::new(crate::repositories::Llm::new(llm.clone()));
 
         // Repo mocks.
         let world_repo = Arc::new(repos.world_repo);
@@ -1362,12 +1366,15 @@ mod ws_integration_tests_inline {
         let observation = Arc::new(crate::repositories::Observation::new(
             observation_repo.clone(),
             location_repo.clone(),
-            clock.clone(),
+            clock_port.clone(),
         ));
         let flag = Arc::new(crate::repositories::Flag::new(flag_repo.clone()));
-        let world = Arc::new(crate::repositories::World::new(world_repo.clone(), clock.clone()));
+        let world = Arc::new(crate::repositories::World::new(
+            world_repo.clone(),
+            clock_port.clone(),
+        ));
         let narrative_repo =
-            Arc::new(crate::repositories::Narrative::new(narrative_port, clock.clone()));
+            Arc::new(crate::repositories::Narrative::new(narrative_port, clock_port.clone()));
         let narrative = Arc::new(crate::use_cases::narrative_operations::Narrative::new(
             narrative_repo,
             location.clone(),
@@ -1393,7 +1400,7 @@ mod ws_integration_tests_inline {
             image_gen,
         ));
         let goal = Arc::new(crate::repositories::Goal::new(goal_repo.clone()));
-        let lore = Arc::new(crate::repositories::Lore::new(lore_repo.clone(), clock.clone()));
+        let lore = Arc::new(crate::repositories::Lore::new(lore_repo.clone(), clock_port.clone()));
         let location_state = Arc::new(crate::repositories::LocationStateEntity::new(
             location_state_repo.clone(),
         ));
@@ -1465,7 +1472,7 @@ mod ws_integration_tests_inline {
             staging.clone(),
             scene.clone(),
             world.clone(),
-            queue.clone(),
+            queue_repo.clone(),
             clock.clone(),
         ));
         let conversation_continue =
@@ -1475,7 +1482,7 @@ mod ws_integration_tests_inline {
                 staging.clone(),
                 world.clone(),
                 narrative.clone(),
-                queue.clone(),
+                queue_repo.clone(),
                 clock.clone(),
             ));
         let conversation_end = Arc::new(crate::use_cases::conversation::EndConversation::new(
@@ -1492,7 +1499,7 @@ mod ws_integration_tests_inline {
         let player_action = crate::use_cases::PlayerActionUseCases::new(Arc::new(
             crate::use_cases::player_action::HandlePlayerAction::new(
                 conversation_start,
-                queue.clone(),
+                queue_repo.clone(),
                 clock.clone(),
             ),
         ));
@@ -1505,7 +1512,7 @@ mod ws_integration_tests_inline {
 
         let ai =
             crate::use_cases::AiUseCases::new(Arc::new(crate::use_cases::ai::SuggestionOps::new(
-                queue.clone(),
+                queue_repo.clone(),
                 world.clone(),
                 character.clone(),
             )));
@@ -1518,7 +1525,7 @@ mod ws_integration_tests_inline {
             player_character.clone(),
         ));
         let outcome_decision = Arc::new(crate::use_cases::challenge::OutcomeDecision::new(
-            queue.clone(),
+            queue_repo.clone(),
             resolve_outcome.clone(),
         ));
 
@@ -1526,7 +1533,7 @@ mod ws_integration_tests_inline {
             Arc::new(crate::use_cases::challenge::RollChallenge::new(
                 challenge.clone(),
                 player_character.clone(),
-                queue.clone(),
+                queue_repo.clone(),
                 random,
                 clock.clone(),
             )),
@@ -1541,7 +1548,7 @@ mod ws_integration_tests_inline {
         );
 
         let approve_suggestion = Arc::new(crate::use_cases::approval::ApproveSuggestion::new(
-            queue.clone(),
+            queue_repo.clone(),
         ));
         let approval = crate::use_cases::ApprovalUseCases::new(
             Arc::new(crate::use_cases::approval::ApproveStaging::new(
@@ -1551,20 +1558,20 @@ mod ws_integration_tests_inline {
             Arc::new(crate::use_cases::approval::ApprovalDecisionFlow::new(
                 approve_suggestion,
                 narrative.clone(),
-                queue.clone(),
+                queue_repo.clone(),
             )),
         );
 
         let assets_uc = crate::use_cases::AssetUseCases::new(
             Arc::new(crate::use_cases::assets::GenerateAsset::new(
                 assets.clone(),
-                queue.clone(),
+                queue_repo.clone(),
                 clock.clone(),
             )),
             Arc::new(crate::use_cases::assets::GenerateExpressionSheet::new(
                 assets.clone(),
                 character.clone(),
-                queue.clone(),
+                queue_repo.clone(),
                 clock.clone(),
             )),
         );
@@ -1588,7 +1595,7 @@ mod ws_integration_tests_inline {
 
         let queues = crate::use_cases::QueueUseCases::new(
             Arc::new(crate::use_cases::queues::ProcessPlayerAction::new(
-                queue.clone(),
+                queue_repo.clone(),
                 character.clone(),
                 player_character.clone(),
                 staging.clone(),
@@ -1599,8 +1606,8 @@ mod ws_integration_tests_inline {
                 challenge.clone(),
             )),
             Arc::new(crate::use_cases::queues::ProcessLlmRequest::new(
-                queue.clone(),
-                llm.clone(),
+                queue_repo.clone(),
+                llm_repo.clone(),
             )),
         );
 
@@ -1619,13 +1626,14 @@ mod ws_integration_tests_inline {
         let narrative_events = Arc::new(crate::use_cases::narrative::NarrativeEventOps::new(
             narrative.clone(),
             execute_effects.clone(),
+            clock.clone(),
         ));
         let narrative_chains = Arc::new(crate::use_cases::narrative::EventChainOps::new(
             narrative.clone(),
         ));
         let narrative_decision = Arc::new(crate::use_cases::narrative::NarrativeDecisionFlow::new(
             approve_suggestion.clone(),
-            queue.clone(),
+            queue_repo.clone(),
             narrative.clone(),
             execute_effects.clone(),
         ));
@@ -1663,13 +1671,13 @@ mod ws_integration_tests_inline {
                 flag.clone(),
                 visual_state_uc.resolve.clone(),
                 settings_entity.clone(),
-                llm.clone(),
+                llm_repo.clone(),
             )),
             Arc::new(
                 crate::use_cases::staging::RegenerateStagingSuggestions::new(
                     location.clone(),
                     character.clone(),
-                    llm.clone(),
+                    llm_repo.clone(),
                 ),
             ),
             Arc::new(crate::use_cases::staging::ApproveStagingRequest::new(
@@ -1931,8 +1939,8 @@ mod ws_integration_tests_inline {
         let ws_state = Arc::new(WsState {
             app,
             connections,
-            pending_time_suggestions: TimeSuggestionStoreImpl::new(),
-            pending_staging_requests: PendingStagingStoreImpl::new(),
+            pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+            pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
             generation_read_state: GenerationStateStoreImpl::new(),
         });
 
@@ -2279,8 +2287,8 @@ mod ws_integration_tests_inline {
         let ws_state = Arc::new(WsState {
             app,
             connections,
-            pending_time_suggestions: TimeSuggestionStoreImpl::new(),
-            pending_staging_requests: PendingStagingStoreImpl::new(),
+            pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+            pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
             generation_read_state: GenerationStateStoreImpl::new(),
         });
 
@@ -2436,8 +2444,8 @@ mod ws_integration_tests_inline {
         let ws_state = Arc::new(WsState {
             app,
             connections,
-            pending_time_suggestions: TimeSuggestionStoreImpl::new(),
-            pending_staging_requests: PendingStagingStoreImpl::new(),
+            pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+            pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
             generation_read_state: GenerationStateStoreImpl::new(),
         });
 
@@ -2590,8 +2598,8 @@ mod ws_integration_tests_inline {
         let ws_state = Arc::new(WsState {
             app,
             connections,
-            pending_time_suggestions: TimeSuggestionStoreImpl::new(),
-            pending_staging_requests: PendingStagingStoreImpl::new(),
+            pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+            pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
             generation_read_state: GenerationStateStoreImpl::new(),
         });
 
@@ -2719,8 +2727,8 @@ mod ws_integration_tests_inline {
         let ws_state = Arc::new(WsState {
             app,
             connections,
-            pending_time_suggestions: TimeSuggestionStoreImpl::new(),
-            pending_staging_requests: PendingStagingStoreImpl::new(),
+            pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+            pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
             generation_read_state: GenerationStateStoreImpl::new(),
         });
 
@@ -3060,8 +3068,8 @@ mod ws_integration_tests_inline {
         let ws_state = Arc::new(WsState {
             app,
             connections,
-            pending_time_suggestions: TimeSuggestionStoreImpl::new(),
-            pending_staging_requests: PendingStagingStoreImpl::new(),
+            pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+            pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
             generation_read_state: GenerationStateStoreImpl::new(),
         });
 
@@ -3240,8 +3248,8 @@ mod ws_integration_tests_inline {
         let ws_state = Arc::new(WsState {
             app,
             connections,
-            pending_time_suggestions: TimeSuggestionStoreImpl::new(),
-            pending_staging_requests: PendingStagingStoreImpl::new(),
+            pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+            pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
             generation_read_state: GenerationStateStoreImpl::new(),
         });
 

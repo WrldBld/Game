@@ -4,10 +4,9 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 
-use crate::infrastructure::ports::ClockPort;
 use crate::repositories::character::Character;
 use crate::repositories::location::Location;
-use crate::repositories::{Observation, PlayerCharacter, World};
+use crate::repositories::{Clock, Observation, PlayerCharacter, World};
 
 use super::ManagementError;
 
@@ -17,7 +16,7 @@ pub struct ObservationCrud {
     character: Arc<Character>,
     location: Arc<Location>,
     world: Arc<World>,
-    clock: Arc<dyn ClockPort>,
+    clock: Arc<Clock>,
 }
 
 impl ObservationCrud {
@@ -27,7 +26,7 @@ impl ObservationCrud {
         character: Arc<Character>,
         location: Arc<Location>,
         world: Arc<World>,
-        clock: Arc<dyn ClockPort>,
+        clock: Arc<Clock>,
     ) -> Self {
         Self {
             observation,

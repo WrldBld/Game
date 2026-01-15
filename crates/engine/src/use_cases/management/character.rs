@@ -4,18 +4,18 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{CharacterId, WorldId};
 
-use crate::infrastructure::ports::ClockPort;
 use crate::repositories::character::Character;
+use crate::repositories::Clock;
 
 use super::ManagementError;
 
 pub struct CharacterCrud {
     character: Arc<Character>,
-    clock: Arc<dyn ClockPort>,
+    clock: Arc<Clock>,
 }
 
 impl CharacterCrud {
-    pub fn new(character: Arc<Character>, clock: Arc<dyn ClockPort>) -> Self {
+    pub fn new(character: Arc<Character>, clock: Arc<Clock>) -> Self {
         Self { character, clock }
     }
 

@@ -5,15 +5,16 @@ use uuid::Uuid;
 
 use crate::infrastructure::ports::{
     ConnectedUserInfo, JoinWorldError as PortJoinWorldError, RepoError, SessionError,
-    UserJoinedInfo, WorldRole, WorldSessionPort,
+    UserJoinedInfo, WorldRole,
 };
+use crate::repositories::WorldSession;
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 
 use super::{JoinWorld, JoinWorldError};
 
 /// IO dependencies for join-world flows (WS-state owned).
 pub struct JoinWorldContext<'a> {
-    pub session: &'a dyn WorldSessionPort,
+    pub session: &'a WorldSession,
 }
 
 /// Input for joining a world over WebSocket (domain types).

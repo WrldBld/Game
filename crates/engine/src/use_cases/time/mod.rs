@@ -15,8 +15,8 @@ use wrldbldr_domain::{
 };
 
 use crate::infrastructure::ports::QueueError;
-use crate::infrastructure::ports::{ClockPort, RepoError, TimeSuggestionStore};
-use crate::repositories::{World, WorldError};
+use crate::infrastructure::ports::RepoError;
+use crate::repositories::{Clock, TimeSuggestionStore, World, WorldError};
 
 /// Container for time use cases.
 pub struct TimeUseCases {
@@ -67,11 +67,11 @@ pub enum SuggestTimeResult {
 #[allow(dead_code)]
 pub struct SuggestTime {
     world: Arc<World>,
-    clock: Arc<dyn ClockPort>,
+    clock: Arc<Clock>,
 }
 
 impl SuggestTime {
-    pub fn new(world: Arc<World>, clock: Arc<dyn ClockPort>) -> Self {
+    pub fn new(world: Arc<World>, clock: Arc<Clock>) -> Self {
         Self { world, clock }
     }
 
@@ -191,11 +191,11 @@ pub enum SuggestTimeError {
 /// Consolidated use case for time control operations (get/advance/set/config).
 pub struct TimeControl {
     world: Arc<World>,
-    clock: Arc<dyn ClockPort>,
+    clock: Arc<Clock>,
 }
 
 impl TimeControl {
-    pub fn new(world: Arc<World>, clock: Arc<dyn ClockPort>) -> Self {
+    pub fn new(world: Arc<World>, clock: Arc<Clock>) -> Self {
         Self { world, clock }
     }
 
@@ -392,7 +392,7 @@ impl TimeSuggestions {
 
     pub async fn resolve(
         &self,
-        store: &dyn TimeSuggestionStore,
+        store: &TimeSuggestionStore,
         world_id: WorldId,
         suggestion_id: Uuid,
         decision: TimeSuggestionDecision,
@@ -623,6 +623,7 @@ mod tests {
 
     use crate::infrastructure::ports::{ClockPort, MockWorldRepo};
     use crate::repositories;
+    use crate::repositories::Clock as ClockRepo;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -630,6 +631,14 @@ mod tests {
         fn now(&self) -> chrono::DateTime<chrono::Utc> {
             self.0
         }
+    }
+
+    fn build_clock(
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> (Arc<dyn ClockPort>, Arc<ClockRepo>) {
+        let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let clock = Arc::new(ClockRepo::new(clock_port.clone()));
+        (clock_port, clock)
     }
 
     #[tokio::test]
@@ -653,10 +662,10 @@ mod tests {
             .returning(move |_| Ok(Some(domain_world_for_get.clone())));
         world_repo.expect_save().times(0);
 
-        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let (clock_port, clock) = build_clock(now);
         let world_entity = Arc::new(repositories::World::new(
             Arc::new(world_repo),
-            clock.clone(),
+            clock_port.clone(),
         ));
         let suggest_time = super::SuggestTime::new(world_entity, clock);
 
@@ -711,10 +720,10 @@ mod tests {
             .returning(move |_| Ok(Some(domain_world_for_get.clone())));
         world_repo.expect_save().times(0);
 
-        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let (clock_port, clock) = build_clock(now);
         let world_entity = Arc::new(repositories::World::new(
             Arc::new(world_repo),
-            clock.clone(),
+            clock_port.clone(),
         ));
         let suggest_time = super::SuggestTime::new(world_entity, clock);
 
@@ -749,10 +758,10 @@ mod tests {
             .returning(move |_| Ok(Some(domain_world_for_get.clone())));
         world_repo.expect_save().times(0);
 
-        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
+        let (clock_port, clock) = build_clock(now);
         let world_entity = Arc::new(repositories::World::new(
             Arc::new(world_repo),
-            clock.clone(),
+            clock_port.clone(),
         ));
         let suggest_time = super::SuggestTime::new(world_entity, clock);
 

@@ -6,13 +6,13 @@ use chrono::{Datelike, Timelike};
 use uuid::Uuid;
 use wrldbldr_domain::{LocationId, PlayerCharacter, RegionId, Staging as DomainStaging, WorldId};
 
-use crate::infrastructure::ports::{
-    LlmPort, PendingStagingRequest, PendingStagingStore, TimeSuggestion, TimeSuggestionStore,
-};
+use crate::infrastructure::ports::{PendingStagingRequest, TimeSuggestion};
 use crate::repositories::character::Character;
 use crate::repositories::location::Location;
 use crate::repositories::staging::Staging;
-use crate::repositories::{Flag, Settings, World};
+use crate::repositories::{
+    Flag, Llm, PendingStaging, Settings, TimeSuggestionStore, World,
+};
 use crate::use_cases::visual_state::{ResolveVisualState, StateResolutionContext};
 
 use super::suggestions::{generate_llm_based_suggestions, generate_rule_based_suggestions};
@@ -24,8 +24,8 @@ use super::{get_settings_with_fallback, StagingError, DEFAULT_STAGING_TIMEOUT_SE
 
 /// IO dependencies for staging requests (WS-state owned).
 pub struct StagingApprovalContext<'a> {
-    pub pending_time_suggestions: &'a dyn TimeSuggestionStore,
-    pub pending_staging_requests: &'a dyn PendingStagingStore,
+    pub pending_time_suggestions: &'a TimeSuggestionStore,
+    pub pending_staging_requests: &'a PendingStaging,
 }
 
 /// Request input for staging approval.
@@ -47,7 +47,7 @@ pub struct RequestStagingApproval {
     flag: Arc<Flag>,
     visual_state: Arc<ResolveVisualState>,
     settings: Arc<Settings>,
-    llm: Arc<dyn LlmPort>,
+    llm: Arc<Llm>,
 }
 
 impl RequestStagingApproval {
@@ -59,7 +59,7 @@ impl RequestStagingApproval {
         flag: Arc<Flag>,
         visual_state: Arc<ResolveVisualState>,
         settings: Arc<Settings>,
-        llm: Arc<dyn LlmPort>,
+        llm: Arc<Llm>,
     ) -> Self {
         Self {
             character,

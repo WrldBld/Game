@@ -9,11 +9,9 @@ use wrldbldr_domain::{
     WantTarget, WantVisibility, WorldId,
 };
 
-use crate::infrastructure::ports::{
-    ActantialViewRecord, ClockPort, GoalDetails, RepoError, WantDetails, WantTargetRef,
-};
+use crate::infrastructure::ports::{ActantialViewRecord, GoalDetails, RepoError, WantDetails, WantTargetRef};
 use crate::repositories::character::Character;
-use crate::repositories::Goal;
+use crate::repositories::{Clock, Goal};
 use crate::use_cases::validation::{require_non_empty, ValidationError};
 
 /// Shared error type for actantial use cases.
@@ -138,11 +136,11 @@ impl GoalOps {
 
 pub struct WantOps {
     character: Arc<Character>,
-    clock: Arc<dyn ClockPort>,
+    clock: Arc<Clock>,
 }
 
 impl WantOps {
-    pub fn new(character: Arc<Character>, clock: Arc<dyn ClockPort>) -> Self {
+    pub fn new(character: Arc<Character>, clock: Arc<Clock>) -> Self {
         Self { character, clock }
     }
 

@@ -20,9 +20,8 @@ use crate::infrastructure::ports::RepoError;
 use crate::repositories::Settings;
 
 // Re-export types
-pub use crate::infrastructure::ports::{
-    PendingStagingRequest, PendingStagingStore, TimeSuggestion, TimeSuggestionStore,
-};
+pub use crate::infrastructure::ports::{PendingStagingRequest, TimeSuggestion};
+pub use crate::repositories::{PendingStaging, TimeSuggestionStore};
 pub use approve::{ApproveStagingInput, ApproveStagingRequest, StagingReadyPayload};
 pub use auto_approve::AutoApproveStagingTimeout;
 pub use regenerate::RegenerateStagingSuggestions;
