@@ -505,7 +505,7 @@ impl CharacterSheetProvider for Dnd5eSystem {
             if let Some(ability) = skill_ability(skill) {
                 let ability_mod = derived
                     .get(&format!("{}_MOD", ability))
-                    .and_then(SheetValue::as_u64)
+                    .and_then(SheetValue::as_i64)
                     .unwrap_or(0) as i32;
 
                 let proficiency = values
@@ -532,7 +532,7 @@ impl CharacterSheetProvider for Dnd5eSystem {
         for ability in &["STR", "DEX", "CON", "INT", "WIS", "CHA"] {
             let ability_mod = derived
                 .get(&format!("{}_MOD", ability))
-                .and_then(SheetValue::as_u64)
+                .and_then(SheetValue::as_i64)
                 .unwrap_or(0) as i32;
 
             let proficient = values
@@ -551,7 +551,7 @@ impl CharacterSheetProvider for Dnd5eSystem {
         // Calculate passive perception
         let wis_mod = derived
             .get("WIS_MOD")
-            .and_then(SheetValue::as_u64)
+            .and_then(SheetValue::as_i64)
             .unwrap_or(0) as i32;
         let perception_prof = values
             .get("PERCEPTION_PROF")
@@ -572,7 +572,7 @@ impl CharacterSheetProvider for Dnd5eSystem {
         // Calculate initiative
         let dex_mod = derived
             .get("DEX_MOD")
-            .and_then(SheetValue::as_u64)
+            .and_then(SheetValue::as_i64)
             .unwrap_or(0) as i32;
         derived.insert("INITIATIVE".to_string(), SheetValue::Integer(dex_mod));
 
