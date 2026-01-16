@@ -1855,13 +1855,11 @@ mod ws_integration_tests_inline {
             let msg = ws.next().await.unwrap().unwrap();
             match msg {
                 WsMessage::Text(text) => {
-                    return serde_json::from_str::<wrldbldr_shared::ServerMessage>(&text)
-                        .unwrap();
+                    return serde_json::from_str::<wrldbldr_shared::ServerMessage>(&text).unwrap();
                 }
                 WsMessage::Binary(bin) => {
                     let text = String::from_utf8(bin).unwrap();
-                    return serde_json::from_str::<wrldbldr_shared::ServerMessage>(&text)
-                        .unwrap();
+                    return serde_json::from_str::<wrldbldr_shared::ServerMessage>(&text).unwrap();
                 }
                 _ => {}
             }

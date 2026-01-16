@@ -125,6 +125,7 @@ fn arch_check() -> anyhow::Result<()> {
     step("no-cross-crate-shims", check_no_cross_crate_shims)?;
     step("handler-complexity", check_handler_complexity)?;
     step("use-case-layer", check_use_case_layer)?;
+    step("use-case-no-shared-types", check_use_case_no_shared_types)?;
     step("engine-protocol-isolation", check_engine_protocol_isolation)?;
     step(
         "engine-ports-protocol-isolation",
@@ -1345,6 +1346,132 @@ fn check_use_case_layer() -> anyhow::Result<()> {
             eprintln!("  - {v}");
         }
         anyhow::bail!("arch-check failed: use cases import protocol types");
+    }
+
+    Ok(())
+}
+
+/// Check that use cases don't embed wrldbldr_shared types in struct fields or return types.
+///
+/// This is a stricter check than `check_engine_protocol_isolation` because it:
+/// 1. Includes mod.rs files (which are often where use case logic lives)
+/// 2. Specifically looks for shared types in struct fields and return positions
+///
+/// Allowed patterns:
+/// - `to_protocol()` and `from_protocol()` conversion helper methods
+/// - Imports for type conversions (as long as they're not in return types)
+///
+/// Forbidden patterns:
+/// - `pub field: wrldbldr_shared::SomeType` in result structs
+/// - `-> Result<wrldbldr_shared::SomeType, ...>` in function signatures
+/// - `-> wrldbldr_shared::SomeType` in function signatures
+fn check_use_case_no_shared_types() -> anyhow::Result<()> {
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .context("finding workspace root")?;
+
+    let use_cases_dir = workspace_root.join("crates/engine/src/use_cases");
+
+    if !use_cases_dir.exists() {
+        return Ok(());
+    }
+
+    // Pattern to find shared types in struct fields: `field: wrldbldr_shared::` or `field: Option<wrldbldr_shared::`
+    let struct_field_re =
+        regex_lite::Regex::new(r"(?m)^\s*pub\s+\w+\s*:\s*(?:Option<)?wrldbldr_shared::")?;
+
+    // Pattern to find shared types in return positions: `-> ... wrldbldr_shared::`
+    let return_type_re = regex_lite::Regex::new(r"->\s*[^{;]*wrldbldr_shared::")?;
+
+    // Files/patterns to exempt:
+    // - to_protocol() and from_protocol() helper methods are acceptable
+    let helper_method_re = regex_lite::Regex::new(r"fn\s+(to_protocol|from_protocol)\s*\(")?;
+
+    // Intentionally allowed files (documented architecture decisions)
+    let allowed_files: HashSet<&str> = [
+        // content_service.rs uses CompendiumProvider trait - intentional shared contract
+        "content_service.rs",
+    ]
+    .into_iter()
+    .collect();
+
+    let mut violations = Vec::new();
+
+    for entry in walkdir_rs_files(&use_cases_dir)? {
+        let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+        if allowed_files.contains(file_name) {
+            continue;
+        }
+
+        let contents = std::fs::read_to_string(&entry)
+            .with_context(|| format!("reading {}", entry.display()))?;
+
+        let sanitized = sanitize_rust_for_scan(&contents);
+        let skip_ranges = collect_cfg_test_item_ranges(&sanitized);
+
+        // Check struct fields
+        for mat in struct_field_re.find_iter(&sanitized) {
+            let start = mat.range().start;
+            if offset_is_in_ranges(start, &skip_ranges) {
+                continue;
+            }
+
+            let (line_no, line) = line_at_offset(&contents, start);
+            violations.push(format!(
+                "{}:{}: use case struct embeds wrldbldr_shared type\n    {}\n    Fix: Create a domain-level DTO instead",
+                entry.display(),
+                line_no,
+                line.trim()
+            ));
+        }
+
+        // Check return types (but skip helper methods)
+        for mat in return_type_re.find_iter(&sanitized) {
+            let start = mat.range().start;
+            if offset_is_in_ranges(start, &skip_ranges) {
+                continue;
+            }
+
+            // Check if this is within a helper method (to_protocol/from_protocol)
+            let line_start = contents[..start].rfind('\n').map(|i| i + 1).unwrap_or(0);
+            let context = &contents[line_start..start.min(contents.len())];
+            if helper_method_re.is_match(context) {
+                continue;
+            }
+
+            // Also check the whole function signature (look back a few lines)
+            let fn_context_start = start.saturating_sub(200);
+            let fn_context = &contents[fn_context_start..start];
+            if helper_method_re.is_match(fn_context) && fn_context.contains("fn ") {
+                continue;
+            }
+
+            let (line_no, line) = line_at_offset(&contents, start);
+            violations.push(format!(
+                "{}:{}: use case returns wrldbldr_shared type\n    {}\n    Fix: Return domain types; convert to wire format in API layer",
+                entry.display(),
+                line_no,
+                line.trim()
+            ));
+        }
+    }
+
+    if !violations.is_empty() {
+        eprintln!(
+            "Use case shared type violations ({} found):",
+            violations.len()
+        );
+        eprintln!("  Rule: Use cases must return domain types, not wrldbldr_shared types");
+        eprintln!("  See: AGENTS.md 'Use Case Design Rules (STRICT)'\n");
+        for v in violations.iter().take(20) {
+            eprintln!("  - {v}");
+        }
+        if violations.len() > 20 {
+            eprintln!("  ... (+{} more)", violations.len() - 20);
+        }
+        anyhow::bail!("arch-check failed: use cases embed/return wrldbldr_shared types");
     }
 
     Ok(())

@@ -314,14 +314,12 @@ impl ApproveStagingRequest {
         }
 
         Some(wrldbldr_shared::types::ResolvedVisualStateData {
-            location_state: location_state.map(|s| {
-                wrldbldr_shared::types::ResolvedStateInfoData {
-                    id: s.id().to_string(),
-                    name: s.name().to_string(),
-                    backdrop_override: s.backdrop_override().map(|s| s.to_string()),
-                    atmosphere_override: s.atmosphere_override().map(|s| s.to_string()),
-                    ambient_sound: s.ambient_sound().map(|s| s.to_string()),
-                }
+            location_state: location_state.map(|s| wrldbldr_shared::types::ResolvedStateInfoData {
+                id: s.id().to_string(),
+                name: s.name().to_string(),
+                backdrop_override: s.backdrop_override().map(|s| s.to_string()),
+                atmosphere_override: s.atmosphere_override().map(|s| s.to_string()),
+                ambient_sound: s.ambient_sound().map(|s| s.to_string()),
             }),
             region_state: region_state.map(|s| wrldbldr_shared::types::ResolvedStateInfoData {
                 id: s.id().to_string(),

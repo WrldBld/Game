@@ -9,9 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use wrldbldr_domain::{value_objects::RuleSystemConfig, WorldId};
-use wrldbldr_shared::{
-    ClientMessage, RequestPayload, ResponseResult, ServerMessage, WorldRequest,
-};
+use wrldbldr_shared::{ClientMessage, RequestPayload, ResponseResult, ServerMessage, WorldRequest};
 
 use crate::infrastructure::ollama::OllamaClient;
 use crate::infrastructure::ports::LlmPort;

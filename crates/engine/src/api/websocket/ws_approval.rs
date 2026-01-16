@@ -26,9 +26,7 @@ pub(super) async fn handle_approval_decision(
 
     // Convert protocol decision to domain decision
     let domain_decision = match decision {
-        wrldbldr_shared::ApprovalDecision::Accept => {
-            crate::queue_types::DmApprovalDecision::Accept
-        }
+        wrldbldr_shared::ApprovalDecision::Accept => crate::queue_types::DmApprovalDecision::Accept,
         wrldbldr_shared::ApprovalDecision::AcceptWithRecipients { item_recipients } => {
             crate::queue_types::DmApprovalDecision::AcceptWithRecipients { item_recipients }
         }
