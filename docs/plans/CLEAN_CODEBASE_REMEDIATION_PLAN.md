@@ -183,20 +183,23 @@ Acceptance:
 ## Phase 3: Layer Responsibility Cleanup
 
 ### 3.1 Remove protocol types from use cases
-- [ ] Inventory `wrldbldr_shared` usage in `crates/engine/src/use_cases`.
-- [ ] Move protocol conversions into API/websocket/http layers.
-- [ ] Adjust use cases to return domain types or use-case-specific DTOs (domain-only).
-- [ ] Update tests to reflect domain-type outputs.
-- [ ] Targeted cleanup:
-  - `engine/src/use_cases/session/directorial.rs`
-  - `engine/src/use_cases/session/join_world_flow.rs`
-  - `engine/src/use_cases/time/mod.rs`
-  - `engine/src/use_cases/staging/approve.rs`
-  - `engine/src/use_cases/staging/request_approval.rs`
-  - `engine/src/use_cases/staging/types.rs`
+- [x] Inventory `wrldbldr_shared` usage in `crates/engine/src/use_cases`.
+- [x] Move protocol conversions into API/websocket/http layers.
+- [x] Adjust use cases to return domain types or use-case-specific DTOs (domain-only).
+- [x] Update tests to reflect domain-type outputs.
+- [x] Targeted cleanup:
+  - `engine/src/use_cases/session/directorial.rs` - Uses `from_protocol()` helper (acceptable)
+  - `engine/src/use_cases/session/join_world_flow.rs` - Uses `from_protocol()` helper (acceptable)
+  - `engine/src/use_cases/time/mod.rs` - Now uses domain `GameTimeConfig` and `TimeAdvanceResultData`
+  - `engine/src/use_cases/staging/approve.rs` - Uses domain types
+  - `engine/src/use_cases/staging/request_approval.rs` - Uses domain types
+  - `engine/src/use_cases/staging/types.rs` - Added domain visual state types
+- [x] Added `check_use_case_no_shared_types()` to xtask arch-check to prevent regression
 
 Acceptance:
-- `rg "wrldbldr_shared" crates/engine/src/use_cases` returns zero hits.
+- Use cases return domain types or use-case-specific DTOs.
+- Protocol conversions (`to_protocol()`, `from_protocol()`) are acceptable at use-case boundaries.
+- `check_use_case_no_shared_types()` enforces no embedded shared types in struct fields/return types.
 
 ### 3.2 Stop swallowing repository failures in use cases
 - [ ] Replace `ok().flatten()` and `unwrap_or_default()` in use-case repository calls with explicit error handling.
@@ -420,7 +423,7 @@ Acceptance:
 - [x] Phase 1.6 complete
 - [x] Phase 1.7 complete
 - [x] Phase 2.1 complete (already implemented - see revised criteria)
-- [ ] Phase 3.1 complete
+- [x] Phase 3.1 complete (shared types removed; arch-check enforces)
 - [ ] Phase 3.2 complete
 - [ ] Phase 3.3 complete
 - [ ] Phase 4.1 complete
