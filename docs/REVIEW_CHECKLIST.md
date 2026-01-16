@@ -18,7 +18,7 @@ Quick reference for code reviewers. Check applicable items before approving.
 - [ ] No `use_cases` importing from `api` layer
 - [ ] No `domain` importing from `engine`
 - [ ] No `domain` importing tokio, axum, or async code
-- [ ] Protocol types only in API layer (not in use cases or domain)
+- [ ] Shared/wire types only in API layer (not in use cases or domain)
 - [ ] New port traits added to `infrastructure/ports.rs` (not scattered)
 - [ ] Repository wrappers use `*Repository` naming
 - [ ] Repositories call port traits directly (no unnecessary abstraction)

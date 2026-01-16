@@ -390,11 +390,26 @@ impl CharacterRepository {
 | Pure data access | `repositories/` | `get`, `save`, `list` |
 | Business orchestration | `use_cases/` | Movement, conversation, challenges |
 
-### Use Case Design Rules
+### Use Case Design Rules (STRICT)
 
 1. **Inject repositories** - Not port traits directly
 2. **Orchestrate multiple operations** - Coordinate repos + domain logic
-3. **Return domain types** - Not raw database records
+3. **Return domain types or use-case DTOs** - Never shared/wire types
+
+**DO**:
+- Return domain aggregates, value objects, or use-case-specific result structs
+- Define result structs in the use case module if needed (e.g., `EnterRegionResult`)
+- Use domain types for all internal logic
+
+**DON'T**:
+- Import `wrldbldr_shared` types as return values or struct fields
+- Build wire-format responses (that's the API layer's job)
+- Embed `serde_json::Value` in results
+
+**Why?** Use cases are business logic. Wire format concerns belong in the API layer (`api/websocket/`, `api/http.rs`). This separation:
+- Allows testing use cases without serialization concerns
+- Prevents protocol changes from breaking business logic
+- Keeps use cases focused on domain operations
 
 **Example Use Case:**
 ```rust
@@ -421,7 +436,7 @@ impl EnterRegion {
 
 ### Key Facts
 
-- **4 crates**: domain, protocol, engine, player
+- **4 crates**: domain, shared, engine, player
 - **Backend**: Axum HTTP + WebSocket server
 - **Frontend**: Dioxus (WASM + Desktop)
 - **Database**: Neo4j graph database
@@ -486,7 +501,7 @@ The domain crate must be **pure**:
 
 **DON'T**:
 - Import tokio, axum, neo4rs, or any framework
-- Import from engine, player, or protocol
+- Import from engine, player, or shared
 - Call `Utc::now()` - inject via `ClockPort`
 - Use `rand` - inject via `RandomPort`
 - Perform any I/O
