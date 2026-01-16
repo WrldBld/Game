@@ -143,7 +143,7 @@ pub(super) async fn handle_staging_approval(
             ServerMessage::StagingReady {
                 region_id: payload.region_id.to_string(),
                 npcs_present: npcs_present_proto,
-                visual_state: payload.visual_state,
+                visual_state: payload.visual_state.map(|vs| vs.to_protocol()),
             },
         )
         .await;

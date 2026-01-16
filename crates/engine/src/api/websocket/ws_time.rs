@@ -1,6 +1,8 @@
 use super::*;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
-use wrldbldr_domain::{TimeAdvanceReason, TimeOfDay};
+use crate::use_cases::time::TimeAdvanceResultData;
+use wrldbldr_domain::{GameTime, TimeAdvanceReason, TimeOfDay};
+use wrldbldr_shared::types as protocol;
 
 pub(super) async fn handle_set_game_time(
     state: &WsState,
@@ -46,12 +48,13 @@ pub(super) async fn handle_set_game_time(
 
     if notify_players {
         let reason = TimeAdvanceReason::DmSetTime;
-        let advance_data = crate::use_cases::time::build_time_advance_data(
+        let domain_data = crate::use_cases::time::build_time_advance_data(
             &outcome.previous_time,
             &outcome.new_time,
             outcome.minutes_advanced,
             &reason,
         );
+        let advance_data = time_advance_data_to_protocol(&domain_data);
         let msg = ServerMessage::GameTimeAdvanced { data: advance_data };
         state
             .connections
@@ -116,12 +119,13 @@ pub(super) async fn handle_skip_to_period(
     let reason = TimeAdvanceReason::DmSkipToPeriod {
         period: period_typed,
     };
-    let advance_data = crate::use_cases::time::build_time_advance_data(
+    let domain_data = crate::use_cases::time::build_time_advance_data(
         &outcome.previous_time,
         &outcome.new_time,
         outcome.minutes_advanced,
         &reason,
     );
+    let advance_data = time_advance_data_to_protocol(&domain_data);
     let msg = ServerMessage::GameTimeAdvanced { data: advance_data };
     state
         .connections
@@ -189,7 +193,7 @@ pub(super) async fn handle_set_time_mode(
     state: &WsState,
     connection_id: Uuid,
     world_id: String,
-    mode: wrldbldr_shared::types::TimeMode,
+    mode: protocol::TimeMode,
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
@@ -225,7 +229,8 @@ pub(super) async fn handle_set_time_mode(
         }
     };
 
-    config.mode = mode;
+    // Convert protocol mode to domain mode at API boundary
+    config.mode = protocol_time_mode_to_domain(mode);
 
     match state
         .app
@@ -263,7 +268,7 @@ pub(super) async fn handle_set_time_costs(
     state: &WsState,
     connection_id: Uuid,
     world_id: String,
-    costs: wrldbldr_shared::types::TimeCostConfig,
+    costs: protocol::TimeCostConfig,
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
@@ -299,7 +304,8 @@ pub(super) async fn handle_set_time_costs(
         }
     };
 
-    config.time_costs = costs;
+    // Convert protocol time costs to domain at API boundary
+    config.time_costs = protocol_time_costs_to_domain(&costs);
 
     let updated = match state
         .app
@@ -321,9 +327,10 @@ pub(super) async fn handle_set_time_costs(
         }
     };
 
+    // Convert domain config back to protocol for the response
     let msg = ServerMessage::TimeConfigUpdated {
         world_id: world_id_typed.to_string(),
-        config: updated.normalized_config,
+        config: time_config_to_protocol(&updated.normalized_config),
     };
     state
         .connections
@@ -337,7 +344,7 @@ pub(super) async fn handle_respond_to_time_suggestion(
     state: &WsState,
     connection_id: Uuid,
     suggestion_id: String,
-    decision: wrldbldr_shared::types::TimeSuggestionDecision,
+    decision: protocol::TimeSuggestionDecision,
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
@@ -385,9 +392,9 @@ pub(super) async fn handle_respond_to_time_suggestion(
         .await
     {
         Ok(Some(resolution)) => {
-            let msg = ServerMessage::GameTimeAdvanced {
-                data: resolution.advance_data,
-            };
+            // Convert domain data to protocol at API boundary
+            let advance_data = time_advance_data_to_protocol(&resolution.advance_data);
+            let msg = ServerMessage::GameTimeAdvanced { data: advance_data };
             state.connections.broadcast_to_world(world_id, msg).await;
             None
         }
@@ -414,5 +421,115 @@ fn parse_time_of_day(period: &str) -> Option<TimeOfDay> {
         "evening" => Some(TimeOfDay::Evening),
         "night" => Some(TimeOfDay::Night),
         _ => None,
+    }
+}
+
+// =============================================================================
+// Protocol Conversion Functions
+// =============================================================================
+
+/// Convert domain GameTime to protocol GameTime.
+pub(super) fn game_time_to_protocol(gt: &GameTime) -> protocol::GameTime {
+    protocol::GameTime {
+        day: gt.day(),
+        hour: gt.hour(),
+        minute: gt.minute(),
+        is_paused: gt.is_paused(),
+    }
+}
+
+/// Convert domain TimeAdvanceResultData to protocol TimeAdvanceData.
+pub(super) fn time_advance_data_to_protocol(
+    data: &TimeAdvanceResultData,
+) -> protocol::TimeAdvanceData {
+    protocol::TimeAdvanceData {
+        previous_time: game_time_to_protocol(&data.previous_time),
+        new_time: game_time_to_protocol(&data.new_time),
+        minutes_advanced: data.minutes_advanced,
+        reason: data.reason.clone(),
+        period_changed: data.period_changed,
+        new_period: data.new_period.clone(),
+    }
+}
+
+/// Convert domain GameTimeConfig to protocol GameTimeConfig.
+pub(super) fn time_config_to_protocol(
+    config: &wrldbldr_domain::GameTimeConfig,
+) -> protocol::GameTimeConfig {
+    protocol::GameTimeConfig {
+        mode: match config.mode {
+            wrldbldr_domain::TimeMode::Manual => protocol::TimeMode::Manual,
+            wrldbldr_domain::TimeMode::Suggested => protocol::TimeMode::Suggested,
+            wrldbldr_domain::TimeMode::Auto => protocol::TimeMode::Suggested,
+        },
+        time_costs: protocol::TimeCostConfig {
+            travel_location: config.time_costs.travel_location,
+            travel_region: config.time_costs.travel_region,
+            rest_short: config.time_costs.rest_short,
+            rest_long: config.time_costs.rest_long,
+            conversation: config.time_costs.conversation,
+            challenge: config.time_costs.challenge,
+            scene_transition: config.time_costs.scene_transition,
+        },
+        show_time_to_players: config.show_time_to_players,
+        time_format: protocol::TimeFormat::TwelveHour,
+    }
+}
+
+/// Convert protocol TimeMode to domain TimeMode.
+fn protocol_time_mode_to_domain(mode: protocol::TimeMode) -> wrldbldr_domain::TimeMode {
+    match mode {
+        protocol::TimeMode::Manual => wrldbldr_domain::TimeMode::Manual,
+        protocol::TimeMode::Suggested => wrldbldr_domain::TimeMode::Suggested,
+        protocol::TimeMode::Auto => wrldbldr_domain::TimeMode::Suggested, // Auto normalized to Suggested
+    }
+}
+
+/// Convert protocol TimeCostConfig to domain TimeCostConfig.
+fn protocol_time_costs_to_domain(
+    costs: &protocol::TimeCostConfig,
+) -> wrldbldr_domain::TimeCostConfig {
+    wrldbldr_domain::TimeCostConfig {
+        travel_location: costs.travel_location,
+        travel_region: costs.travel_region,
+        rest_short: costs.rest_short,
+        rest_long: costs.rest_long,
+        conversation: costs.conversation,
+        challenge: costs.challenge,
+        scene_transition: costs.scene_transition,
+    }
+}
+
+/// Convert protocol GameTimeConfig to domain GameTimeConfig.
+pub(super) fn protocol_time_config_to_domain(
+    config: &protocol::GameTimeConfig,
+) -> wrldbldr_domain::GameTimeConfig {
+    wrldbldr_domain::GameTimeConfig {
+        mode: protocol_time_mode_to_domain(config.mode),
+        time_costs: protocol_time_costs_to_domain(&config.time_costs),
+        show_time_to_players: config.show_time_to_players,
+        time_format: wrldbldr_domain::TimeFormat::TwelveHour,
+    }
+}
+
+/// Convert domain TimeSuggestion to protocol TimeSuggestionData.
+pub(super) fn time_suggestion_to_protocol(
+    suggestion: &crate::infrastructure::ports::TimeSuggestion,
+) -> protocol::TimeSuggestionData {
+    protocol::TimeSuggestionData {
+        suggestion_id: suggestion.id.to_string(),
+        pc_id: suggestion.pc_id.to_string(),
+        pc_name: suggestion.pc_name.clone(),
+        action_type: suggestion.action_type.clone(),
+        action_description: suggestion.action_description.clone(),
+        suggested_minutes: suggestion.suggested_minutes,
+        current_time: game_time_to_protocol(&suggestion.current_time),
+        resulting_time: game_time_to_protocol(&suggestion.resulting_time),
+        period_change: suggestion.period_change.as_ref().map(|(from, to)| {
+            (
+                from.display_name().to_string(),
+                to.display_name().to_string(),
+            )
+        }),
     }
 }

@@ -146,6 +146,77 @@ impl GameTimeData {
     }
 }
 
+// =============================================================================
+// Visual State Domain Types (for staging)
+// =============================================================================
+
+/// Domain type for resolved state info (lightweight visual state data).
+#[derive(Debug, Clone)]
+pub struct ResolvedStateInfo {
+    pub id: String,
+    pub name: String,
+    pub backdrop_override: Option<String>,
+    pub atmosphere_override: Option<String>,
+    pub ambient_sound: Option<String>,
+}
+
+impl ResolvedStateInfo {
+    /// Convert to protocol type for wire transmission.
+    pub fn to_protocol(&self) -> wrldbldr_shared::types::ResolvedStateInfoData {
+        wrldbldr_shared::types::ResolvedStateInfoData {
+            id: self.id.clone(),
+            name: self.name.clone(),
+            backdrop_override: self.backdrop_override.clone(),
+            atmosphere_override: self.atmosphere_override.clone(),
+            ambient_sound: self.ambient_sound.clone(),
+        }
+    }
+}
+
+/// Domain type for resolved visual state (location + region states).
+#[derive(Debug, Clone, Default)]
+pub struct ResolvedVisualState {
+    pub location_state: Option<ResolvedStateInfo>,
+    pub region_state: Option<ResolvedStateInfo>,
+}
+
+impl ResolvedVisualState {
+    /// Convert to protocol type for wire transmission.
+    pub fn to_protocol(&self) -> wrldbldr_shared::types::ResolvedVisualStateData {
+        wrldbldr_shared::types::ResolvedVisualStateData {
+            location_state: self.location_state.as_ref().map(|s| s.to_protocol()),
+            region_state: self.region_state.as_ref().map(|s| s.to_protocol()),
+        }
+    }
+}
+
+/// Domain type for state option (for DM selection dropdown).
+#[derive(Debug, Clone)]
+pub struct StateOption {
+    pub id: String,
+    pub name: String,
+    pub priority: i32,
+    pub is_default: bool,
+    pub match_reason: Option<String>,
+}
+
+impl StateOption {
+    /// Convert to protocol type for wire transmission.
+    pub fn to_protocol(&self) -> wrldbldr_shared::types::StateOptionData {
+        wrldbldr_shared::types::StateOptionData {
+            id: self.id.clone(),
+            name: self.name.clone(),
+            priority: self.priority,
+            is_default: self.is_default,
+            match_reason: self.match_reason.clone(),
+        }
+    }
+}
+
+// =============================================================================
+// Staging Approval Data
+// =============================================================================
+
 /// Data for DM staging approval notification.
 #[derive(Debug, Clone)]
 pub struct StagingApprovalData {
@@ -160,10 +231,9 @@ pub struct StagingApprovalData {
     pub llm_based_npcs: Vec<StagedNpc>,
     pub default_ttl_hours: i32,
     pub waiting_pcs: Vec<WaitingPc>,
-    // Visual state data (kept as protocol types for now)
-    pub resolved_visual_state: Option<wrldbldr_shared::types::ResolvedVisualStateData>,
-    pub available_location_states: Vec<wrldbldr_shared::types::StateOptionData>,
-    pub available_region_states: Vec<wrldbldr_shared::types::StateOptionData>,
+    pub resolved_visual_state: Option<ResolvedVisualState>,
+    pub available_location_states: Vec<StateOption>,
+    pub available_region_states: Vec<StateOption>,
 }
 
 /// Result of staging request use case.

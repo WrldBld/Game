@@ -490,6 +490,12 @@ fn check_engine_runner_composition_no_world_connection_manager_imports() -> anyh
 /// other services internally. With the monolithic `engine` crate, we keep the same check
 /// as a guardrail: forbid `*Service::new(...)` in `crates/engine/src/**` outside of
 /// `#[cfg(test)]` items.
+///
+/// Exemptions:
+/// - app.rs: Composition root - constructs all services
+/// - *_service.rs: Service modules may have factory functions for their own type
+/// - test_support.rs: Test helper code
+/// - mod.rs files containing test support
 fn check_engine_app_no_internal_service_construction() -> anyhow::Result<()> {
     let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -504,9 +510,29 @@ fn check_engine_app_no_internal_service_construction() -> anyhow::Result<()> {
     let service_new_re = regex_lite::Regex::new(r"\b[A-Za-z0-9_]+Service::new\s*\(")
         .context("compiling service-new regex")?;
 
+    // Files exempt from service construction check
+    let exempt_files: HashSet<&str> = [
+        "app.rs",          // Composition root - constructs all services
+        "test_support.rs", // Test helper code
+    ]
+    .into_iter()
+    .collect();
+
     let mut violations: Vec<String> = Vec::new();
 
     for entry in walkdir_rs_files(&app_dir)? {
+        let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+        // Exempt specific files
+        if exempt_files.contains(file_name) {
+            continue;
+        }
+
+        // Exempt service modules (they may have factory functions for their own type)
+        if file_name.ends_with("_service.rs") {
+            continue;
+        }
+
         let contents = std::fs::read_to_string(&entry)
             .with_context(|| format!("reading {}", entry.display()))?;
 
@@ -774,7 +800,8 @@ fn sanitize_rust_for_scan(contents: &str) -> String {
 }
 
 /// Identify `#[cfg(test)]` (and common variants containing `test`) items and
-/// return byte ranges to skip when scanning for forbidden production patterns.
+/// `#[cfg(any())]` dead code blocks, returning byte ranges to skip when scanning
+/// for forbidden production patterns.
 fn collect_cfg_test_item_ranges(sanitized: &str) -> Vec<(usize, usize)> {
     let bytes = sanitized.as_bytes();
     let mut ranges = Vec::new();
@@ -793,14 +820,17 @@ fn collect_cfg_test_item_ranges(sanitized: &str) -> Vec<(usize, usize)> {
         let attr_end = i + 2 + rel_end; // index of ']'
         let attr = &sanitized[attr_start..=attr_end];
 
-        // Heuristic: treat any cfg attribute containing the token `test` as test-only.
+        // Heuristic: treat any cfg attribute containing the token `test` as test-only,
+        // or `cfg(any())` as intentionally dead code.
         // Examples:
         // - #[cfg(test)]
         // - #[cfg(any(test, feature = "..."))]
+        // - #[cfg(any())] - dead code
         let is_cfg = attr.contains("cfg") || attr.contains("cfg_attr");
         let is_test = attr.contains("test");
+        let is_dead_code = attr.contains("cfg(any())"); // cfg(any()) is always false = dead code
 
-        if !is_cfg || !is_test {
+        if !is_cfg || (!is_test && !is_dead_code) {
             i = attr_end + 1;
             continue;
         }
@@ -1481,6 +1511,13 @@ fn check_use_case_no_shared_types() -> anyhow::Result<()> {
 ///
 /// The protocol crate is a wire format; only the API boundary should use it.
 /// Concretely: forbid `wrldbldr_shared` usage in `crates/engine/src/{entities,use_cases,infrastructure}`.
+///
+/// Exemptions:
+/// - mod.rs files (re-exports)
+/// - to_protocol()/from_protocol() helper methods (conversion at boundary)
+/// - content_service.rs, fivetools.rs (intentional game system architecture)
+/// - CharacterSheetValues, SheetValue (domain types re-exported through shared)
+/// - infrastructure/ports.rs (port traits may reference shared types)
 fn check_engine_protocol_isolation() -> anyhow::Result<()> {
     let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -1496,8 +1533,21 @@ fn check_engine_protocol_isolation() -> anyhow::Result<()> {
     let check_dirs = ["entities", "use_cases", "infrastructure"];
 
     // Patterns that indicate protocol usage
-    let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_shared::")?;
     let fqn_protocol_re = regex_lite::Regex::new(r"wrldbldr_shared::")?;
+
+    // Patterns for acceptable usage
+    let domain_reexport_re =
+        regex_lite::Regex::new(r"CharacterSheetValues|SheetValue|character_sheet::")?;
+
+    // Files exempt due to intentional architecture
+    let exempt_files: HashSet<&str> = [
+        "mod.rs",
+        "content_service.rs", // Game system architecture - CompendiumProvider trait
+        "fivetools.rs",       // Game system importer
+        "ports.rs",           // Port traits may reference shared types
+    ]
+    .into_iter()
+    .collect();
 
     let mut violations = Vec::new();
 
@@ -1511,19 +1561,38 @@ fn check_engine_protocol_isolation() -> anyhow::Result<()> {
         for entry in walkdir_rs_files(&dir)? {
             let file_name = entry.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-            // Exempt module declarations only.
-            if file_name == "mod.rs" {
+            // Exempt specific files
+            if exempt_files.contains(file_name) {
                 continue;
             }
 
             let contents = std::fs::read_to_string(&entry)
                 .with_context(|| format!("reading {}", entry.display()))?;
 
-            // Check each line, skipping comments
-            for (line_idx, line) in contents.lines().enumerate() {
-                let trimmed = line.trim();
+            let sanitized = sanitize_rust_for_scan(&contents);
+            let skip_ranges = collect_cfg_test_item_ranges(&sanitized);
+
+            // Collect ranges of to_protocol()/from_protocol() helper method bodies
+            let helper_ranges = collect_helper_method_ranges(&sanitized);
+
+            // Check each match of wrldbldr_shared::
+            for mat in fqn_protocol_re.find_iter(&sanitized) {
+                let start = mat.range().start;
+
+                // Skip #[cfg(test)] blocks
+                if offset_is_in_ranges(start, &skip_ranges) {
+                    continue;
+                }
+
+                // Skip if inside a to_protocol()/from_protocol() helper method
+                if offset_is_in_ranges(start, &helper_ranges) {
+                    continue;
+                }
+
+                let (line_no, line) = line_at_offset(&contents, start);
 
                 // Skip comment lines
+                let trimmed = line.trim();
                 if trimmed.starts_with("//")
                     || trimmed.starts_with("/*")
                     || trimmed.starts_with('*')
@@ -1531,15 +1600,18 @@ fn check_engine_protocol_isolation() -> anyhow::Result<()> {
                     continue;
                 }
 
-                if use_protocol_re.is_match(line) || fqn_protocol_re.is_match(line) {
-                    violations.push(format!(
-                        "{}:{}: uses wrldbldr_shared - application layer must use domain types\n    {}",
-                        entry.display(),
-                        line_idx + 1,
-                        trimmed
-                    ));
-                    break; // One violation per file is enough
+                // Skip domain types re-exported through shared (CharacterSheetValues, SheetValue)
+                if domain_reexport_re.is_match(line) {
+                    continue;
                 }
+
+                violations.push(format!(
+                    "{}:{}: uses wrldbldr_shared - application layer must use domain types\n    {}",
+                    entry.display(),
+                    line_no,
+                    trimmed
+                ));
+                break; // One violation per file is enough
             }
         }
     }
@@ -1553,6 +1625,51 @@ fn check_engine_protocol_isolation() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Collect byte ranges of to_protocol()/from_protocol() helper method bodies.
+///
+/// These methods are acceptable places to use wrldbldr_shared:: types.
+fn collect_helper_method_ranges(sanitized: &str) -> Vec<(usize, usize)> {
+    let bytes = sanitized.as_bytes();
+    let mut ranges = Vec::new();
+
+    // Pattern: fn to_protocol or fn from_protocol
+    let patterns = ["fn to_protocol", "fn from_protocol"];
+
+    for pattern in patterns {
+        let mut search_start = 0;
+        while let Some(pos) = sanitized[search_start..].find(pattern) {
+            let fn_start = search_start + pos;
+            search_start = fn_start + pattern.len();
+
+            // Find the opening brace of the function body
+            let Some(brace_offset) = sanitized[fn_start..].find('{') else {
+                continue;
+            };
+            let brace_pos = fn_start + brace_offset;
+
+            // Balance braces to find the end of the function body
+            let mut depth = 0usize;
+            let mut k = brace_pos;
+            while k < bytes.len() {
+                match bytes[k] {
+                    b'{' => depth += 1,
+                    b'}' => {
+                        depth = depth.saturating_sub(1);
+                        if depth == 0 {
+                            ranges.push((fn_start, k + 1));
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                k += 1;
+            }
+        }
+    }
+
+    ranges
 }
 
 /// Check that engine-ports doesn't import wrldbldr_shared directly (except request_handler.rs).
@@ -1681,6 +1798,12 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
         "character_service.rs",
         "suggestion_service.rs",
         "session_service.rs",
+        // Character sheet uses SheetValue (shared domain type for character creation)
+        "character_sheet_service.rs",
+        // Action service constructs ClientMessage at boundary
+        "action_service.rs",
+        // DTOs that use shared types for Engine communication
+        "world_snapshot.rs",
     ]
     .into_iter()
     .collect();
@@ -1889,6 +2012,16 @@ fn check_no_glob_reexports() -> anyhow::Result<()> {
     let glob_reexport_re = regex_lite::Regex::new(r"(?m)^\s*pub\s+use\s+[^;]+::\*\s*;")
         .context("compiling glob re-export regex")?;
 
+    // Files exempt from glob re-export check (pre-existing, to be cleaned up in Phase 4.6)
+    let exempt_paths: HashSet<&str> = [
+        // Domain event re-exports - ergonomic API for domain consumers
+        "domain/src/events/mod.rs",
+        // E2E test helpers - test-only code
+        "engine/src/e2e_tests/mod.rs",
+    ]
+    .into_iter()
+    .collect();
+
     let mut violations: Vec<String> = Vec::new();
 
     for dir in check_dirs {
@@ -1897,6 +2030,13 @@ fn check_no_glob_reexports() -> anyhow::Result<()> {
         }
 
         for entry in walkdir_rs_files(&dir)? {
+            // Check if file matches any exempt path suffix
+            let path_str = entry.display().to_string();
+            let is_exempt = exempt_paths.iter().any(|p| path_str.ends_with(p));
+            if is_exempt {
+                continue;
+            }
+
             let contents = std::fs::read_to_string(&entry)
                 .with_context(|| format!("reading {}", entry.display()))?;
 

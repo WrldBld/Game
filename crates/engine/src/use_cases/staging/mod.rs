@@ -28,8 +28,9 @@ pub use auto_approve::AutoApproveStagingTimeout;
 pub use regenerate::RegenerateStagingSuggestions;
 pub use request_approval::{RequestStagingApproval, StagingApprovalContext, StagingApprovalInput};
 pub use types::{
-    ApprovedNpc, GameTimeData, NpcPresent, PreviousStagingData, StagedNpc, StagingApprovalData,
-    StagingPendingData, StagingRequestResult, WaitingPc,
+    ApprovedNpc, GameTimeData, NpcPresent, PreviousStagingData, ResolvedStateInfo,
+    ResolvedVisualState, StagedNpc, StagingApprovalData, StagingPendingData, StagingRequestResult,
+    StateOption, WaitingPc,
 };
 
 /// Timeout in seconds before a pending staging request auto-approves.

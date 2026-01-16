@@ -4,6 +4,10 @@ use chrono::Timelike;
 
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use crate::api::websocket::ws_time::{
+    game_time_to_protocol, protocol_time_config_to_domain, time_advance_data_to_protocol,
+    time_config_to_protocol,
+};
 
 use wrldbldr_shared::{CharacterRequest, ItemsRequest, NpcRequest, TimeRequest, WorldRequest};
 
@@ -544,7 +548,7 @@ pub(super) async fn handle_time_request(
                 .await
             {
                 Ok(game_time) => Ok(ResponseResult::success(serde_json::json!({
-                    "game_time": crate::use_cases::time::game_time_to_protocol(&game_time),
+                    "game_time": game_time_to_protocol(&game_time),
                 }))),
                 Err(crate::use_cases::time::TimeControlError::WorldNotFound) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "World not found"),
@@ -593,8 +597,10 @@ pub(super) async fn handle_time_request(
                 }
             };
 
-            let game_time = crate::use_cases::time::game_time_to_protocol(&outcome.new_time);
-            let update_msg = ServerMessage::GameTimeUpdated { game_time };
+            let protocol_game_time = game_time_to_protocol(&outcome.new_time);
+            let update_msg = ServerMessage::GameTimeUpdated {
+                game_time: protocol_game_time,
+            };
             state
                 .connections
                 .broadcast_to_world(world_id_typed, update_msg)
@@ -609,7 +615,7 @@ pub(super) async fn handle_time_request(
             );
 
             Ok(ResponseResult::success(serde_json::json!({
-                "game_time": game_time,
+                "game_time": protocol_game_time,
                 "hours_advanced": hours,
             })))
         }
@@ -658,12 +664,13 @@ pub(super) async fn handle_time_request(
                 }
             };
 
-            let advance_data = crate::use_cases::time::build_time_advance_data(
+            let domain_data = crate::use_cases::time::build_time_advance_data(
                 &outcome.previous_time,
                 &outcome.new_time,
                 minutes,
                 &advance_reason,
             );
+            let advance_data = time_advance_data_to_protocol(&domain_data);
             let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
             state
                 .connections
@@ -676,9 +683,9 @@ pub(super) async fn handle_time_request(
                 "Game time advanced (minutes)"
             );
 
-            let game_time = crate::use_cases::time::game_time_to_protocol(&outcome.new_time);
+            let protocol_game_time = game_time_to_protocol(&outcome.new_time);
             Ok(ResponseResult::success(serde_json::json!({
-                "game_time": game_time,
+                "game_time": protocol_game_time,
                 "minutes_advanced": minutes,
             })))
         }
@@ -727,12 +734,13 @@ pub(super) async fn handle_time_request(
 
             if notify_players {
                 let reason = wrldbldr_domain::TimeAdvanceReason::DmSetTime;
-                let advance_data = crate::use_cases::time::build_time_advance_data(
+                let domain_data = crate::use_cases::time::build_time_advance_data(
                     &outcome.previous_time,
                     &outcome.new_time,
                     0,
                     &reason,
                 );
+                let advance_data = time_advance_data_to_protocol(&domain_data);
                 let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
                 state
                     .connections
@@ -747,9 +755,9 @@ pub(super) async fn handle_time_request(
                 "Game time set"
             );
 
-            let game_time = crate::use_cases::time::game_time_to_protocol(&outcome.new_time);
+            let protocol_game_time = game_time_to_protocol(&outcome.new_time);
             Ok(ResponseResult::success(serde_json::json!({
-                "game_time": game_time,
+                "game_time": protocol_game_time,
             })))
         }
 
@@ -809,12 +817,13 @@ pub(super) async fn handle_time_request(
             let reason = wrldbldr_domain::TimeAdvanceReason::DmSkipToPeriod {
                 period: target_period,
             };
-            let advance_data = crate::use_cases::time::build_time_advance_data(
+            let domain_data = crate::use_cases::time::build_time_advance_data(
                 &outcome.previous_time,
                 &outcome.new_time,
                 outcome.minutes_advanced,
                 &reason,
             );
+            let advance_data = time_advance_data_to_protocol(&domain_data);
             let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
             state
                 .connections
@@ -827,9 +836,9 @@ pub(super) async fn handle_time_request(
                 "Skipped to time period"
             );
 
-            let game_time = crate::use_cases::time::game_time_to_protocol(&outcome.new_time);
+            let protocol_game_time = game_time_to_protocol(&outcome.new_time);
             Ok(ResponseResult::success(serde_json::json!({
-                "game_time": game_time,
+                "game_time": protocol_game_time,
                 "skipped_to": period,
             })))
         }
@@ -883,12 +892,15 @@ pub(super) async fn handle_time_request(
                     Err(e) => return Err(e),
                 };
 
+            // Convert protocol config to domain config at API boundary
+            let domain_config = protocol_time_config_to_domain(&config);
+
             let update = match state
                 .app
                 .use_cases
                 .time
                 .control
-                .update_time_config(world_id_typed, config)
+                .update_time_config(world_id_typed, domain_config)
                 .await
             {
                 Ok(result) => result,
@@ -909,9 +921,10 @@ pub(super) async fn handle_time_request(
                 }
             };
 
+            // Convert domain config back to protocol for broadcasting
             let update_msg = ServerMessage::TimeConfigUpdated {
                 world_id: update.world_id.to_string(),
-                config: update.normalized_config,
+                config: time_config_to_protocol(&update.normalized_config),
             };
             state
                 .connections

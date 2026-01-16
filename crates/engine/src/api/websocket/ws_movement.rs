@@ -1,5 +1,6 @@
 use super::*;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use crate::api::websocket::ws_time::time_suggestion_to_protocol;
 use crate::use_cases::movement::scene_change::{
     NavigationExitInfo, NavigationInfo, NavigationTargetInfo, NpcPresenceInfo, RegionInfo,
     RegionItemInfo,
@@ -101,9 +102,20 @@ fn staging_approval_to_server_message(
             .iter()
             .map(|pc| pc.to_protocol())
             .collect(),
-        resolved_visual_state: approval.resolved_visual_state.clone(),
-        available_location_states: approval.available_location_states.clone(),
-        available_region_states: approval.available_region_states.clone(),
+        resolved_visual_state: approval
+            .resolved_visual_state
+            .as_ref()
+            .map(|vs| vs.to_protocol()),
+        available_location_states: approval
+            .available_location_states
+            .iter()
+            .map(|s| s.to_protocol())
+            .collect(),
+        available_region_states: approval
+            .available_region_states
+            .iter()
+            .map(|s| s.to_protocol())
+            .collect(),
     }
 }
 
@@ -187,7 +199,7 @@ pub(super) async fn handle_move_to_region(
                             // Send time suggestion to DMs if present
                             if let Some(ref time_suggestion) = staging_result.time_suggestion {
                                 let suggestion_msg = ServerMessage::TimeSuggestion {
-                                    data: time_suggestion.to_protocol(),
+                                    data: time_suggestion_to_protocol(time_suggestion),
                                 };
                                 state
                                     .connections
@@ -374,7 +386,7 @@ pub(super) async fn handle_exit_to_location(
                             // Send time suggestion to DMs if present
                             if let Some(ref time_suggestion) = staging_result.time_suggestion {
                                 let suggestion_msg = ServerMessage::TimeSuggestion {
-                                    data: time_suggestion.to_protocol(),
+                                    data: time_suggestion_to_protocol(time_suggestion),
                                 };
                                 state
                                     .connections
@@ -480,7 +492,7 @@ async fn maybe_broadcast_time_suggestion(
 ) {
     if let Some(suggestion) = time_suggestion {
         let msg = ServerMessage::TimeSuggestion {
-            data: suggestion.to_protocol(),
+            data: time_suggestion_to_protocol(suggestion),
         };
         // Remove any existing suggestion for the same PC to prevent unbounded growth.
         // This handles the case where a player performs multiple actions before

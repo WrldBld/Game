@@ -15,8 +15,8 @@ use crate::use_cases::visual_state::{ResolveVisualState, StateResolutionContext}
 
 use super::suggestions::{generate_llm_based_suggestions, generate_rule_based_suggestions};
 use super::types::{
-    GameTimeData, PreviousStagingData, StagedNpc, StagingApprovalData, StagingPendingData,
-    StagingRequestResult, WaitingPc,
+    GameTimeData, PreviousStagingData, ResolvedStateInfo, ResolvedVisualState, StagedNpc,
+    StagingApprovalData, StagingPendingData, StagingRequestResult, StateOption, WaitingPc,
 };
 use super::{get_settings_with_fallback, StagingError, DEFAULT_STAGING_TIMEOUT_SECONDS};
 
@@ -205,9 +205,9 @@ impl RequestStagingApproval {
         location_id: LocationId,
         region_id: RegionId,
     ) -> (
-        Option<wrldbldr_shared::types::ResolvedVisualStateData>,
-        Vec<wrldbldr_shared::types::StateOptionData>,
-        Vec<wrldbldr_shared::types::StateOptionData>,
+        Option<ResolvedVisualState>,
+        Vec<StateOption>,
+        Vec<StateOption>,
     ) {
         let game_time = match self.world.get(world_id).await {
             Ok(Some(w)) => w.game_time().clone(),
@@ -236,24 +236,23 @@ impl RequestStagingApproval {
         };
 
         let resolved = if resolution.is_complete {
-            Some(wrldbldr_shared::types::ResolvedVisualStateData {
-                location_state: resolution.location_state.as_ref().map(|s| {
-                    wrldbldr_shared::types::ResolvedStateInfoData {
+            Some(ResolvedVisualState {
+                location_state: resolution
+                    .location_state
+                    .as_ref()
+                    .map(|s| ResolvedStateInfo {
                         id: s.id.clone(),
                         name: s.name.clone(),
                         backdrop_override: s.backdrop_override.clone(),
                         atmosphere_override: s.atmosphere_override.clone(),
                         ambient_sound: s.ambient_sound.clone(),
-                    }
-                }),
-                region_state: resolution.region_state.as_ref().map(|s| {
-                    wrldbldr_shared::types::ResolvedStateInfoData {
-                        id: s.id.clone(),
-                        name: s.name.clone(),
-                        backdrop_override: s.backdrop_override.clone(),
-                        atmosphere_override: s.atmosphere_override.clone(),
-                        ambient_sound: s.ambient_sound.clone(),
-                    }
+                    }),
+                region_state: resolution.region_state.as_ref().map(|s| ResolvedStateInfo {
+                    id: s.id.clone(),
+                    name: s.name.clone(),
+                    backdrop_override: s.backdrop_override.clone(),
+                    atmosphere_override: s.atmosphere_override.clone(),
+                    ambient_sound: s.ambient_sound.clone(),
                 }),
             })
         } else {
@@ -269,7 +268,7 @@ impl RequestStagingApproval {
                 } else {
                     None
                 };
-                wrldbldr_shared::types::StateOptionData {
+                StateOption {
                     id: s.id.clone(),
                     name: s.name.clone(),
                     priority: s.priority,
@@ -288,7 +287,7 @@ impl RequestStagingApproval {
                 } else {
                     None
                 };
-                wrldbldr_shared::types::StateOptionData {
+                StateOption {
                     id: s.id.clone(),
                     name: s.name.clone(),
                     priority: s.priority,

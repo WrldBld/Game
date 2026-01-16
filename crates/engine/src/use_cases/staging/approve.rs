@@ -10,7 +10,7 @@ use crate::repositories::location::Location;
 use crate::repositories::staging::Staging;
 use crate::repositories::{LocationStateEntity, RegionStateEntity, World};
 
-use super::types::{ApprovedNpc, NpcPresent};
+use super::types::{ApprovedNpc, NpcPresent, ResolvedStateInfo, ResolvedVisualState};
 use super::StagingError;
 
 /// Input for approving a staging request.
@@ -30,7 +30,7 @@ pub struct ApproveStagingInput {
 pub struct StagingReadyPayload {
     pub region_id: RegionId,
     pub npcs_present: Vec<NpcPresent>,
-    pub visual_state: Option<wrldbldr_shared::types::ResolvedVisualStateData>,
+    pub visual_state: Option<ResolvedVisualState>,
 }
 
 /// Use case for applying DM staging approvals.
@@ -300,7 +300,7 @@ impl ApproveStagingRequest {
         &self,
         location_id: LocationId,
         region_id: RegionId,
-    ) -> Option<wrldbldr_shared::types::ResolvedVisualStateData> {
+    ) -> Option<ResolvedVisualState> {
         let location_state = self
             .location_state
             .get_active(location_id)
@@ -313,15 +313,15 @@ impl ApproveStagingRequest {
             return None;
         }
 
-        Some(wrldbldr_shared::types::ResolvedVisualStateData {
-            location_state: location_state.map(|s| wrldbldr_shared::types::ResolvedStateInfoData {
+        Some(ResolvedVisualState {
+            location_state: location_state.map(|s| ResolvedStateInfo {
                 id: s.id().to_string(),
                 name: s.name().to_string(),
                 backdrop_override: s.backdrop_override().map(|s| s.to_string()),
                 atmosphere_override: s.atmosphere_override().map(|s| s.to_string()),
                 ambient_sound: s.ambient_sound().map(|s| s.to_string()),
             }),
-            region_state: region_state.map(|s| wrldbldr_shared::types::ResolvedStateInfoData {
+            region_state: region_state.map(|s| ResolvedStateInfo {
                 id: s.id().to_string(),
                 name: s.name().to_string(),
                 backdrop_override: s.backdrop_override().map(|s| s.to_string()),

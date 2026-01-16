@@ -397,7 +397,7 @@ async fn main() -> anyhow::Result<()> {
                                 wrldbldr_shared::ServerMessage::StagingReady {
                                     region_id: payload.region_id.to_string(),
                                     npcs_present: npcs_present_proto,
-                                    visual_state: payload.visual_state,
+                                    visual_state: payload.visual_state.map(|vs| vs.to_protocol()),
                                 },
                             )
                             .await;
