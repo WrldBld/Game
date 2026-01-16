@@ -133,15 +133,15 @@ impl ActivationRule {
 #[serde(rename_all = "camelCase")]
 pub struct ActivationEvaluation {
     /// Whether the state should be activated
-    is_active: bool,
+    pub is_active: bool,
     /// Rules that matched
-    matched_rules: Vec<String>,
+    pub matched_rules: Vec<String>,
     /// Rules that didn't match
-    unmatched_rules: Vec<String>,
+    pub unmatched_rules: Vec<String>,
     /// Soft rules that need LLM evaluation
-    pending_soft_rules: Vec<String>,
+    pub pending_soft_rules: Vec<String>,
     /// LLM reasoning (if soft rules were evaluated)
-    llm_reasoning: Option<String>,
+    pub llm_reasoning: Option<String>,
 }
 
 impl ActivationEvaluation {
@@ -177,35 +177,6 @@ impl ActivationEvaluation {
         self.llm_reasoning = Some(reasoning);
         self.pending_soft_rules.clear();
         self
-    }
-
-    // ============================================================================
-    // Accessors
-    // ============================================================================
-
-    /// Whether the state should be activated
-    pub fn is_active(&self) -> bool {
-        self.is_active
-    }
-
-    /// Rules that matched
-    pub fn matched_rules(&self) -> &[String] {
-        &self.matched_rules
-    }
-
-    /// Rules that didn't match
-    pub fn unmatched_rules(&self) -> &[String] {
-        &self.unmatched_rules
-    }
-
-    /// Soft rules that need LLM evaluation
-    pub fn pending_soft_rules(&self) -> &[String] {
-        &self.pending_soft_rules
-    }
-
-    /// LLM reasoning (if soft rules were evaluated)
-    pub fn llm_reasoning(&self) -> Option<&str> {
-        self.llm_reasoning.as_deref()
     }
 }
 

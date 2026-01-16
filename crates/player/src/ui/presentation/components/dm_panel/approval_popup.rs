@@ -107,7 +107,7 @@ pub fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
         let text = edited_dialogue.read();
         let parsed = parse_dialogue(&text);
         let config = ExpressionConfig::default();
-        let warnings = validate_markers(parsed.markers(), config.expressions(), config.actions());
+        let warnings = validate_markers(&parsed.markers, config.expressions(), config.actions());
         (parsed, warnings)
     });
 
@@ -177,7 +177,7 @@ pub fn ApprovalPopup(props: ApprovalPopupProps) -> Element {
                 // Expression timeline preview
                 {
                     let (parsed, _) = &*dialogue_validation.read();
-                    let marker_displays: Vec<(String, bool)> = parsed.markers().iter()
+                    let marker_displays: Vec<(String, bool)> = parsed.markers.iter()
                         .filter_map(|marker| {
                             let display = match (marker.action_value(), marker.expression_value()) {
                                 (Some(action), Some(expr)) => format!("{}|{}", action, expr),
@@ -898,7 +898,7 @@ fn DialogueWithMarkers(text: String) -> Element {
     let parsed = parse_dialogue(&text);
 
     // If no markers, just show the text
-    if parsed.markers().is_empty() {
+    if parsed.markers.is_empty() {
         return rsx! {
             p {
                 class: "text-white italic m-0 leading-normal",
@@ -911,10 +911,10 @@ fn DialogueWithMarkers(text: String) -> Element {
     let mut segments: Vec<DialogueSegment> = Vec::new();
     let mut last_end = 0;
 
-    for marker in parsed.markers() {
+    for marker in &parsed.markers {
         // Add text before this marker
-        if marker.start_offset() > last_end {
-            let before = text[last_end..marker.start_offset()].to_string();
+        if marker.start_offset > last_end {
+            let before = text[last_end..marker.start_offset].to_string();
             if !before.is_empty() {
                 segments.push(DialogueSegment::Text(before));
             }
@@ -922,12 +922,12 @@ fn DialogueWithMarkers(text: String) -> Element {
 
         // Add the marker itself
         segments.push(DialogueSegment::Marker {
-            content: marker.raw().to_string(),
+            content: marker.raw.clone(),
             has_action: marker.action_value().is_some(),
             has_expr: marker.expression_value().is_some(),
         });
 
-        last_end = marker.end_offset();
+        last_end = marker.end_offset;
     }
 
     // Add remaining text after last marker

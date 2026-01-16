@@ -219,9 +219,9 @@ pub enum FamilyRelation {
 /// An event that affected a relationship
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RelationshipEvent {
-    description: String,
-    sentiment_change: f32,
-    timestamp: chrono::DateTime<chrono::Utc>,
+    pub description: String,
+    pub sentiment_change: f32,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
 impl RelationshipEvent {
@@ -236,21 +236,6 @@ impl RelationshipEvent {
             sentiment_change,
             timestamp,
         }
-    }
-
-    /// Get the description of what happened
-    pub fn description(&self) -> &str {
-        &self.description
-    }
-
-    /// Get the sentiment change caused by this event
-    pub fn sentiment_change(&self) -> f32 {
-        self.sentiment_change
-    }
-
-    /// Get when this event occurred
-    pub fn timestamp(&self) -> chrono::DateTime<chrono::Utc> {
-        self.timestamp
     }
 }
 

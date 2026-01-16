@@ -122,16 +122,17 @@ impl From<&StatBlock> for StatBlockStored {
 
 impl From<StatBlockStored> for StatBlock {
     fn from(value: StatBlockStored) -> Self {
-        let mut stat_block = StatBlock::new();
-        stat_block.set_current_hp(value.current_hp);
-        stat_block.set_max_hp(value.max_hp);
+        let mut stat_block = StatBlock::new()
+            .with_current_hp(value.current_hp)
+            .with_max_hp(value.max_hp);
         for (k, v) in value.stats {
-            stat_block.stats_mut().insert(k, v);
+            stat_block = stat_block.with_stat(k, v);
         }
-        for (k, v) in value.modifiers {
-            stat_block
-                .modifiers_mut()
-                .insert(k, v.into_iter().map(StatModifier::from).collect());
+        for (stat_name, mods) in value.modifiers {
+            for mod_stored in mods {
+                stat_block =
+                    stat_block.with_modifier_added(&stat_name, StatModifier::from(mod_stored));
+            }
         }
         stat_block
     }

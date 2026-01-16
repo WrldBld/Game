@@ -122,7 +122,7 @@ impl DialogueState {
         self.speaker_id.set(Some(speaker_id));
         self.speaker_name.set(speaker_name);
         self.full_text.set(text);
-        self.clean_text.set(parsed.clean_text().to_string());
+        self.clean_text.set(parsed.clean_text.clone());
         self.displayed_text.set(String::new());
         self.choices.set(choices);
         self.is_typing.set(true);
@@ -270,10 +270,10 @@ fn calculate_marker_positions(parsed: &ParsedDialogue) -> Vec<PositionedMarker> 
     let mut positioned = Vec::new();
     let mut offset_adjustment = 0;
 
-    for marker in parsed.markers() {
+    for marker in &parsed.markers {
         // The clean position is the original position minus all the marker text
         // that came before this one
-        let clean_position = marker.start_offset().saturating_sub(offset_adjustment);
+        let clean_position = marker.start_offset.saturating_sub(offset_adjustment);
 
         positioned.push(PositionedMarker {
             clean_position,

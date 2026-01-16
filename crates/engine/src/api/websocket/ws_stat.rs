@@ -113,7 +113,7 @@ pub(super) async fn handle_stat_request(
                 }
             };
 
-            character.stats_mut().set_stat(&stat_name, final_value);
+            character.set_stats(character.stats().clone().with_stat(&stat_name, final_value));
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);
@@ -145,9 +145,12 @@ pub(super) async fn handle_stat_request(
                 StatModifier::inactive(&data.source, data.value)
             };
             let modifier_id = modifier.id();
-            character
-                .stats_mut()
-                .add_modifier(&data.stat_name, modifier);
+            character.set_stats(
+                character
+                    .stats()
+                    .clone()
+                    .with_modifier_added(&data.stat_name, modifier),
+            );
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);
@@ -192,15 +195,17 @@ pub(super) async fn handle_stat_request(
                 Err(resp) => return Ok(resp),
             };
 
-            if !character
-                .stats_mut()
-                .remove_modifier(&stat_name, modifier_id_typed)
-            {
+            let (new_stats, removed) = character
+                .stats()
+                .clone()
+                .with_modifier_removed(&stat_name, modifier_id_typed);
+            if !removed {
                 return Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Modifier not found",
                 ));
             }
+            character.set_stats(new_stats);
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);
@@ -239,15 +244,17 @@ pub(super) async fn handle_stat_request(
                 Err(resp) => return Ok(resp),
             };
 
-            if !character
-                .stats_mut()
-                .toggle_modifier(&stat_name, modifier_id_typed)
-            {
+            let (new_stats, toggled) = character
+                .stats()
+                .clone()
+                .with_modifier_toggled(&stat_name, modifier_id_typed);
+            if !toggled {
                 return Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Modifier not found",
                 ));
             }
+            character.set_stats(new_stats);
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);
@@ -275,7 +282,7 @@ pub(super) async fn handle_stat_request(
                 Err(resp) => return Ok(resp),
             };
 
-            character.stats_mut().clear_modifiers(&stat_name);
+            character.set_stats(character.stats().clone().with_modifiers_cleared(&stat_name));
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);
@@ -299,7 +306,7 @@ pub(super) async fn handle_stat_request(
                 Err(resp) => return Ok(resp),
             };
 
-            character.stats_mut().clear_all_modifiers();
+            character.set_stats(character.stats().clone().with_all_modifiers_cleared());
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);
@@ -371,11 +378,11 @@ pub(super) async fn handle_stat_request(
             };
 
             // Initialize stats from the template defaults
+            let mut new_stats = character.stats().clone();
             for stat_def in &config.stat_definitions {
-                character
-                    .stats_mut()
-                    .set_stat(&stat_def.name, stat_def.default_value);
+                new_stats = new_stats.with_stat(&stat_def.name, stat_def.default_value);
             }
+            character.set_stats(new_stats);
 
             if let Err(resp) = save_character_or_error(state, &character).await {
                 return Ok(resp);

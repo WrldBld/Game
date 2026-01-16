@@ -128,16 +128,6 @@ impl StatBlock {
         &self.modifiers
     }
 
-    /// Get a mutable reference to stats for controlled modification.
-    pub fn stats_mut(&mut self) -> &mut HashMap<String, i32> {
-        &mut self.stats
-    }
-
-    /// Get a mutable reference to modifiers for controlled modification.
-    pub fn modifiers_mut(&mut self) -> &mut HashMap<String, Vec<StatModifier>> {
-        &mut self.modifiers
-    }
-
     pub fn with_stat(mut self, name: impl Into<String>, value: i32) -> Self {
         self.stats.insert(name.into(), value);
         self
@@ -183,58 +173,74 @@ impl StatBlock {
             .unwrap_or(&[])
     }
 
-    /// Set the base value of a stat
-    pub fn set_stat(&mut self, name: impl Into<String>, value: i32) {
-        self.stats.insert(name.into(), value);
-    }
-
-    /// Add a modifier to a stat.
+    /// Add a modifier to a stat (builder-style).
     ///
     /// Note: Modifiers can be added to stats that don't have a base value yet.
     /// In this case, `get_stat()` will return `None` and the modifier will have
-    /// no effect until a base value is set via `set_stat()`. This allows pre-staging
+    /// no effect until a base value is set via `with_stat()`. This allows pre-staging
     /// modifiers (e.g., from equipment) before character creation is complete.
-    pub fn add_modifier(&mut self, stat_name: impl Into<String>, modifier: StatModifier) {
+    pub fn with_modifier_added(
+        mut self,
+        stat_name: impl Into<String>,
+        modifier: StatModifier,
+    ) -> Self {
         self.modifiers
             .entry(stat_name.into())
             .or_default()
             .push(modifier);
+        self
     }
 
-    /// Remove a modifier by its ID
-    pub fn remove_modifier(&mut self, stat_name: &str, modifier_id: StatModifierId) -> bool {
-        if let Some(mods) = self.modifiers.get_mut(stat_name) {
+    /// Remove a modifier by its ID (builder-style).
+    ///
+    /// Returns `(Self, bool)` where the bool indicates if a modifier was removed.
+    pub fn with_modifier_removed(
+        mut self,
+        stat_name: &str,
+        modifier_id: StatModifierId,
+    ) -> (Self, bool) {
+        let removed = if let Some(mods) = self.modifiers.get_mut(stat_name) {
             let len_before = mods.len();
             mods.retain(|m| m.id() != modifier_id);
-            return mods.len() < len_before;
-        }
-        false
+            mods.len() < len_before
+        } else {
+            false
+        };
+        (self, removed)
     }
 
-    /// Toggle a modifier's active state
+    /// Toggle a modifier's active state (builder-style).
     ///
-    /// Note: This method mutates in-place because modifiers are stored in a Vec
-    /// and need to be updated by reference. The StatModifier itself is immutable
-    /// but we replace it with a toggled copy.
-    pub fn toggle_modifier(&mut self, stat_name: &str, modifier_id: StatModifierId) -> bool {
-        if let Some(mods) = self.modifiers.get_mut(stat_name) {
+    /// Returns `(Self, bool)` where the bool indicates if the modifier was found and toggled.
+    pub fn with_modifier_toggled(
+        mut self,
+        stat_name: &str,
+        modifier_id: StatModifierId,
+    ) -> (Self, bool) {
+        let toggled = if let Some(mods) = self.modifiers.get_mut(stat_name) {
             if let Some(idx) = mods.iter().position(|m| m.id() == modifier_id) {
                 let modifier = mods.remove(idx);
                 mods.insert(idx, modifier.toggled());
-                return true;
+                true
+            } else {
+                false
             }
-        }
-        false
+        } else {
+            false
+        };
+        (self, toggled)
     }
 
-    /// Clear all modifiers for a stat
-    pub fn clear_modifiers(&mut self, stat_name: &str) {
+    /// Clear all modifiers for a stat (builder-style).
+    pub fn with_modifiers_cleared(mut self, stat_name: &str) -> Self {
         self.modifiers.remove(stat_name);
+        self
     }
 
-    /// Clear all modifiers from all stats
-    pub fn clear_all_modifiers(&mut self) {
+    /// Clear all modifiers from all stats (builder-style).
+    pub fn with_all_modifiers_cleared(mut self) -> Self {
         self.modifiers.clear();
+        self
     }
 
     // =========================================================================
@@ -291,23 +297,25 @@ impl StatBlock {
         self.max_hp
     }
 
-    /// Set current HP directly.
+    /// Set current HP directly (builder-style).
     ///
     /// This sets the base HP value. Modifiers are applied on top when
     /// reading via `get_current_hp()`.
-    pub fn set_current_hp(&mut self, hp: Option<i32>) {
+    pub fn with_current_hp(mut self, hp: Option<i32>) -> Self {
         self.current_hp = hp;
+        self
     }
 
-    /// Set max HP directly.
+    /// Set max HP directly (builder-style).
     ///
     /// This sets the base max HP value. Modifiers are applied on top when
     /// reading via `get_max_hp()`.
-    pub fn set_max_hp(&mut self, hp: Option<i32>) {
+    pub fn with_max_hp(mut self, hp: Option<i32>) -> Self {
         self.max_hp = hp;
+        self
     }
 
-    /// Set both current and max HP with validation.
+    /// Set both current and max HP with validation (builder-style).
     ///
     /// # Errors
     ///
@@ -320,12 +328,13 @@ impl StatBlock {
     /// ```
     /// use wrldbldr_domain::value_objects::StatBlock;
     ///
-    /// let mut stats = StatBlock::new();
-    /// stats.set_hp(50, 100).expect("valid HP values");
+    /// let stats = StatBlock::new()
+    ///     .with_hp_validated(50, 100)
+    ///     .expect("valid HP values");
     /// assert_eq!(stats.current_hp(), Some(50));
     /// assert_eq!(stats.max_hp(), Some(100));
     /// ```
-    pub fn set_hp(&mut self, current: i32, max: i32) -> Result<(), crate::DomainError> {
+    pub fn with_hp_validated(mut self, current: i32, max: i32) -> Result<Self, crate::DomainError> {
         if current < 0 {
             return Err(crate::DomainError::validation("HP cannot be negative"));
         }
@@ -339,26 +348,26 @@ impl StatBlock {
         }
         self.current_hp = Some(current);
         self.max_hp = Some(max);
-        Ok(())
+        Ok(self)
     }
 
-    /// Add a temporary HP modifier (e.g., from "Aid" spell, "Inspiring Leader" feat).
+    /// Add a temporary HP modifier (builder-style, e.g., from "Aid" spell, "Inspiring Leader" feat).
     ///
     /// The modifier affects `get_current_hp()` calculations but not the stored base value.
-    pub fn add_hp_modifier(&mut self, source: impl Into<String>, value: i32) {
-        self.add_modifier("current_hp", StatModifier::new(source, value));
+    pub fn with_hp_modifier(self, source: impl Into<String>, value: i32) -> Self {
+        self.with_modifier_added("current_hp", StatModifier::new(source, value))
     }
 
-    /// Add an inactive temporary HP modifier (tracked but not applied until activated).
-    pub fn add_hp_modifier_inactive(&mut self, source: impl Into<String>, value: i32) {
-        self.add_modifier("current_hp", StatModifier::inactive(source, value));
+    /// Add an inactive temporary HP modifier (builder-style, tracked but not applied until activated).
+    pub fn with_hp_modifier_inactive(self, source: impl Into<String>, value: i32) -> Self {
+        self.with_modifier_added("current_hp", StatModifier::inactive(source, value))
     }
 
-    /// Add a max HP modifier (e.g., from "Heroes' Feast", Constitution changes).
+    /// Add a max HP modifier (builder-style, e.g., from "Heroes' Feast", Constitution changes).
     ///
     /// The modifier affects `get_max_hp()` calculations but not the stored base value.
-    pub fn add_max_hp_modifier(&mut self, source: impl Into<String>, value: i32) {
-        self.add_modifier("max_hp", StatModifier::new(source, value));
+    pub fn with_max_hp_modifier(self, source: impl Into<String>, value: i32) -> Self {
+        self.with_modifier_added("max_hp", StatModifier::new(source, value))
     }
 
     /// Get all current HP modifiers.
@@ -444,25 +453,28 @@ mod tests {
 
     #[test]
     fn stat_block_get_stat_with_active_modifier_adds_value() {
-        let mut stats = StatBlock::new().with_stat("STR", 15);
-        stats.add_modifier("STR", StatModifier::new("Gauntlets of Ogre Power", 4));
+        let stats = StatBlock::new()
+            .with_stat("STR", 15)
+            .with_modifier_added("STR", StatModifier::new("Gauntlets of Ogre Power", 4));
         assert_eq!(stats.get_stat("STR"), Some(19));
         assert_eq!(stats.get_base_stat("STR"), Some(15));
     }
 
     #[test]
     fn stat_block_get_stat_with_inactive_modifier_ignores_value() {
-        let mut stats = StatBlock::new().with_stat("STR", 15);
-        stats.add_modifier("STR", StatModifier::inactive("Exhausted", -2));
+        let stats = StatBlock::new()
+            .with_stat("STR", 15)
+            .with_modifier_added("STR", StatModifier::inactive("Exhausted", -2));
         assert_eq!(stats.get_stat("STR"), Some(15));
     }
 
     #[test]
     fn stat_block_multiple_modifiers_sum_correctly() {
-        let mut stats = StatBlock::new().with_stat("STR", 10);
-        stats.add_modifier("STR", StatModifier::new("Belt of Giant Strength", 4));
-        stats.add_modifier("STR", StatModifier::new("Bull's Strength spell", 4));
-        stats.add_modifier("STR", StatModifier::inactive("Curse", -2));
+        let stats = StatBlock::new()
+            .with_stat("STR", 10)
+            .with_modifier_added("STR", StatModifier::new("Belt of Giant Strength", 4))
+            .with_modifier_added("STR", StatModifier::new("Bull's Strength spell", 4))
+            .with_modifier_added("STR", StatModifier::inactive("Curse", -2));
         // 10 + 4 + 4 = 18 (curse is inactive)
         assert_eq!(stats.get_stat("STR"), Some(18));
         assert_eq!(stats.get_modifier_total("STR"), 8);
@@ -470,58 +482,68 @@ mod tests {
 
     #[test]
     fn stat_block_negative_modifiers_work() {
-        let mut stats = StatBlock::new().with_stat("STR", 15);
-        stats.add_modifier("STR", StatModifier::new("Weakened condition", -4));
+        let stats = StatBlock::new()
+            .with_stat("STR", 15)
+            .with_modifier_added("STR", StatModifier::new("Weakened condition", -4));
         assert_eq!(stats.get_stat("STR"), Some(11));
     }
 
     #[test]
     fn stat_block_remove_modifier_works() {
-        let mut stats = StatBlock::new().with_stat("STR", 15);
         let modifier = StatModifier::new("Temporary Buff", 2);
         let modifier_id = modifier.id();
-        stats.add_modifier("STR", modifier);
+        let stats = StatBlock::new()
+            .with_stat("STR", 15)
+            .with_modifier_added("STR", modifier);
 
         assert_eq!(stats.get_stat("STR"), Some(17));
-        assert!(stats.remove_modifier("STR", modifier_id));
+        let (stats, removed) = stats.with_modifier_removed("STR", modifier_id);
+        assert!(removed);
         assert_eq!(stats.get_stat("STR"), Some(15));
     }
 
     #[test]
     fn stat_block_remove_nonexistent_modifier_returns_false() {
-        let mut stats = StatBlock::new().with_stat("STR", 15);
+        let stats = StatBlock::new().with_stat("STR", 15);
         let fake_id = crate::StatModifierId::new();
-        assert!(!stats.remove_modifier("STR", fake_id));
-        assert!(!stats.remove_modifier("DEX", fake_id));
+        let (stats, removed) = stats.with_modifier_removed("STR", fake_id);
+        assert!(!removed);
+        let (_stats, removed) = stats.with_modifier_removed("DEX", fake_id);
+        assert!(!removed);
     }
 
     #[test]
     fn stat_block_toggle_modifier_works() {
-        let mut stats = StatBlock::new().with_stat("DEX", 14);
         let modifier = StatModifier::new("Haste", 2);
         let modifier_id = modifier.id();
-        stats.add_modifier("DEX", modifier);
+        let stats = StatBlock::new()
+            .with_stat("DEX", 14)
+            .with_modifier_added("DEX", modifier);
 
         // Initially active
         assert_eq!(stats.get_stat("DEX"), Some(16));
 
         // Toggle off
-        assert!(stats.toggle_modifier("DEX", modifier_id));
+        let (stats, toggled) = stats.with_modifier_toggled("DEX", modifier_id);
+        assert!(toggled);
         assert_eq!(stats.get_stat("DEX"), Some(14));
 
         // Toggle back on
-        assert!(stats.toggle_modifier("DEX", modifier_id));
+        let (stats, toggled) = stats.with_modifier_toggled("DEX", modifier_id);
+        assert!(toggled);
         assert_eq!(stats.get_stat("DEX"), Some(16));
     }
 
     #[test]
     fn stat_block_clear_modifiers_for_stat() {
-        let mut stats = StatBlock::new().with_stat("INT", 12).with_stat("WIS", 14);
-        stats.add_modifier("INT", StatModifier::new("Book", 2));
-        stats.add_modifier("INT", StatModifier::new("Headband", 4));
-        stats.add_modifier("WIS", StatModifier::new("Periapt", 2));
+        let stats = StatBlock::new()
+            .with_stat("INT", 12)
+            .with_stat("WIS", 14)
+            .with_modifier_added("INT", StatModifier::new("Book", 2))
+            .with_modifier_added("INT", StatModifier::new("Headband", 4))
+            .with_modifier_added("WIS", StatModifier::new("Periapt", 2));
 
-        stats.clear_modifiers("INT");
+        let stats = stats.with_modifiers_cleared("INT");
 
         assert_eq!(stats.get_stat("INT"), Some(12));
         assert_eq!(stats.get_stat("WIS"), Some(16)); // WIS modifiers intact
@@ -529,11 +551,13 @@ mod tests {
 
     #[test]
     fn stat_block_clear_all_modifiers() {
-        let mut stats = StatBlock::new().with_stat("INT", 12).with_stat("WIS", 14);
-        stats.add_modifier("INT", StatModifier::new("Book", 2));
-        stats.add_modifier("WIS", StatModifier::new("Periapt", 2));
+        let stats = StatBlock::new()
+            .with_stat("INT", 12)
+            .with_stat("WIS", 14)
+            .with_modifier_added("INT", StatModifier::new("Book", 2))
+            .with_modifier_added("WIS", StatModifier::new("Periapt", 2));
 
-        stats.clear_all_modifiers();
+        let stats = stats.with_all_modifiers_cleared();
 
         assert_eq!(stats.get_stat("INT"), Some(12));
         assert_eq!(stats.get_stat("WIS"), Some(14));
@@ -541,8 +565,10 @@ mod tests {
 
     #[test]
     fn stat_block_get_all_stats_includes_modifiers() {
-        let mut stats = StatBlock::new().with_stat("STR", 10).with_stat("DEX", 14);
-        stats.add_modifier("STR", StatModifier::new("Belt", 4));
+        let stats = StatBlock::new()
+            .with_stat("STR", 10)
+            .with_stat("DEX", 14)
+            .with_modifier_added("STR", StatModifier::new("Belt", 4));
 
         let all = stats.get_all_stats();
 
@@ -559,11 +585,12 @@ mod tests {
 
     #[test]
     fn stat_block_get_modifiers_returns_all() {
-        let mut stats = StatBlock::new().with_stat("CHA", 16);
         let m1 = StatModifier::new("Cloak", 2);
         let m2 = StatModifier::inactive("Curse", -1);
-        stats.add_modifier("CHA", m1.clone());
-        stats.add_modifier("CHA", m2.clone());
+        let stats = StatBlock::new()
+            .with_stat("CHA", 16)
+            .with_modifier_added("CHA", m1.clone())
+            .with_modifier_added("CHA", m2.clone());
 
         let modifiers = stats.get_modifiers("CHA");
         assert_eq!(modifiers.len(), 2);
@@ -596,7 +623,7 @@ mod tests {
 
     #[test]
     fn stat_block_hp_with_modifiers() {
-        let mut stats = StatBlock::new().with_hp(45, 50);
+        let stats = StatBlock::new().with_hp(45, 50);
 
         // Base values should be accessible
         assert_eq!(stats.get_base_current_hp(), Some(45));
@@ -607,23 +634,23 @@ mod tests {
         assert_eq!(stats.get_max_hp(), Some(50));
 
         // Add a temporary HP modifier
-        stats.add_hp_modifier("Aid Spell", 10);
+        let stats = stats.with_hp_modifier("Aid Spell", 10);
         assert_eq!(stats.get_base_current_hp(), Some(45)); // Base unchanged
         assert_eq!(stats.get_current_hp(), Some(55)); // Effective includes modifier
 
         // Add a max HP modifier
-        stats.add_max_hp_modifier("Constitution Boost", 5);
+        let stats = stats.with_max_hp_modifier("Constitution Boost", 5);
         assert_eq!(stats.get_base_max_hp(), Some(50)); // Base unchanged
         assert_eq!(stats.get_max_hp(), Some(55)); // Effective includes modifier
     }
 
     #[test]
     fn stat_block_hp_modifiers_stack() {
-        let mut stats = StatBlock::new().with_hp(30, 30);
-
-        stats.add_hp_modifier("Heroism", 10);
-        stats.add_hp_modifier("Aid", 5);
-        stats.add_hp_modifier("Inspiring Leader", 8);
+        let stats = StatBlock::new()
+            .with_hp(30, 30)
+            .with_hp_modifier("Heroism", 10)
+            .with_hp_modifier("Aid", 5)
+            .with_hp_modifier("Inspiring Leader", 8);
 
         assert_eq!(stats.get_base_current_hp(), Some(30));
         assert_eq!(stats.get_current_hp(), Some(53)); // 30 + 10 + 5 + 8
@@ -631,10 +658,10 @@ mod tests {
 
     #[test]
     fn stat_block_hp_negative_modifiers() {
-        let mut stats = StatBlock::new().with_hp(50, 50);
-
-        stats.add_hp_modifier("Poison", -10);
-        stats.add_max_hp_modifier("Exhaustion", -5);
+        let stats = StatBlock::new()
+            .with_hp(50, 50)
+            .with_hp_modifier("Poison", -10)
+            .with_max_hp_modifier("Exhaustion", -5);
 
         assert_eq!(stats.get_current_hp(), Some(40));
         assert_eq!(stats.get_max_hp(), Some(45));
@@ -642,9 +669,9 @@ mod tests {
 
     #[test]
     fn stat_block_hp_inactive_modifiers() {
-        let mut stats = StatBlock::new().with_hp(40, 40);
-
-        stats.add_hp_modifier_inactive("Dormant Blessing", 15);
+        let stats = StatBlock::new()
+            .with_hp(40, 40)
+            .with_hp_modifier_inactive("Dormant Blessing", 15);
 
         // Inactive modifier shouldn't affect effective HP
         assert_eq!(stats.get_current_hp(), Some(40));
@@ -658,8 +685,9 @@ mod tests {
 
     #[test]
     fn stat_block_hp_toggle_modifier() {
-        let mut stats = StatBlock::new().with_hp(30, 30);
-        stats.add_hp_modifier("Rage Bonus", 10);
+        let stats = StatBlock::new()
+            .with_hp(30, 30)
+            .with_hp_modifier("Rage Bonus", 10);
 
         let modifiers = stats.get_hp_modifiers();
         let modifier_id = modifiers[0].id();
@@ -667,11 +695,11 @@ mod tests {
         assert_eq!(stats.get_current_hp(), Some(40));
 
         // Toggle to inactive
-        stats.toggle_modifier("current_hp", modifier_id);
+        let (stats, _) = stats.with_modifier_toggled("current_hp", modifier_id);
         assert_eq!(stats.get_current_hp(), Some(30));
 
         // Toggle back to active
-        stats.toggle_modifier("current_hp", modifier_id);
+        let (stats, _) = stats.with_modifier_toggled("current_hp", modifier_id);
         assert_eq!(stats.get_current_hp(), Some(40));
     }
 

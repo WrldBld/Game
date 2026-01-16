@@ -149,9 +149,9 @@ impl RegionRelationshipType {
 /// A character's relationship to a region
 #[derive(Debug, Clone)]
 pub struct RegionRelationship {
-    region_id: wrldbldr_domain::RegionId,
-    region_name: String,
-    relationship_type: RegionRelationshipType,
+    pub region_id: wrldbldr_domain::RegionId,
+    pub region_name: String,
+    pub relationship_type: RegionRelationshipType,
 }
 
 impl RegionRelationship {
@@ -166,22 +166,5 @@ impl RegionRelationship {
             region_name: region_name.into(),
             relationship_type,
         }
-    }
-
-    // ── Accessors ────────────────────────────────────────────────────────
-
-    /// Get the region ID
-    pub fn region_id(&self) -> wrldbldr_domain::RegionId {
-        self.region_id
-    }
-
-    /// Get the region name
-    pub fn region_name(&self) -> &str {
-        &self.region_name
-    }
-
-    /// Get the relationship type
-    pub fn relationship_type(&self) -> &RegionRelationshipType {
-        &self.relationship_type
     }
 }

@@ -525,7 +525,7 @@ impl ResolveVisualState {
         // First try to find highest priority active state
         let active_state = evaluations
             .iter()
-            .filter(|(_, eval)| eval.is_active())
+            .filter(|(_, eval)| eval.is_active)
             .max_by_key(|(state, _)| state.priority());
 
         if let Some((state, eval)) = active_state {
@@ -566,7 +566,7 @@ impl ResolveVisualState {
         // First try to find highest priority active state
         let active_state = evaluations
             .iter()
-            .filter(|(_, eval)| eval.is_active())
+            .filter(|(_, eval)| eval.is_active)
             .max_by_key(|(state, _)| state.priority());
 
         if let Some((state, eval)) = active_state {

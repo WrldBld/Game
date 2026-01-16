@@ -1679,15 +1679,14 @@ mod tests {
     use super::*;
 
     fn create_test_stats() -> StatBlock {
-        let mut stats = StatBlock::default();
-        stats.set_stat("STR", 16);
-        stats.set_stat("DEX", 14);
-        stats.set_stat("CON", 14);
-        stats.set_stat("INT", 10);
-        stats.set_stat("WIS", 12);
-        stats.set_stat("CHA", 8);
-        stats.set_stat("LEVEL", 5);
-        stats
+        StatBlock::default()
+            .with_stat("STR", 16)
+            .with_stat("DEX", 14)
+            .with_stat("CON", 14)
+            .with_stat("INT", 10)
+            .with_stat("WIS", 12)
+            .with_stat("CHA", 8)
+            .with_stat("LEVEL", 5)
     }
 
     #[test]

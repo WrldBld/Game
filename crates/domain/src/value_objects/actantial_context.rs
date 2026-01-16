@@ -229,11 +229,11 @@ impl WantTarget {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActantialActor {
     /// The target (NPC or PC)
-    target: ActantialTarget,
+    pub target: ActantialTarget,
     /// The actor's name for display
-    name: String,
+    pub name: String,
     /// Why the character views them this way
-    reason: String,
+    pub reason: String,
 }
 
 impl ActantialActor {
@@ -247,25 +247,6 @@ impl ActantialActor {
             name: name.into(),
             reason: reason.into(),
         }
-    }
-
-    // -------------------------------------------------------------------------
-    // Accessors
-    // -------------------------------------------------------------------------
-
-    /// Get the target (NPC or PC)
-    pub fn target(&self) -> &ActantialTarget {
-        &self.target
-    }
-
-    /// Get the actor's name
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Get the reason the character views them this way
-    pub fn reason(&self) -> &str {
-        &self.reason
     }
 
     // -------------------------------------------------------------------------
@@ -808,11 +789,11 @@ pub struct ActantialLLMContext {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecretMotivationContext {
     /// What the character secretly wants
-    want: String,
+    pub want: String,
     /// How to deflect when probed
-    deflection: String,
+    pub deflection: String,
     /// Subtle behavioral tells
-    tells: Vec<String>,
+    pub tells: Vec<String>,
 }
 
 impl SecretMotivationContext {
@@ -823,25 +804,6 @@ impl SecretMotivationContext {
             deflection: deflection.into(),
             tells,
         }
-    }
-
-    // -------------------------------------------------------------------------
-    // Accessors
-    // -------------------------------------------------------------------------
-
-    /// Get what the character secretly wants
-    pub fn want(&self) -> &str {
-        &self.want
-    }
-
-    /// Get the deflection behavior
-    pub fn deflection(&self) -> &str {
-        &self.deflection
-    }
-
-    /// Get the behavioral tells
-    pub fn tells(&self) -> &[String] {
-        &self.tells
     }
 }
 
@@ -945,12 +907,12 @@ impl ActantialLLMContext {
         for secret in &self.secret_motivations {
             lines.push(format!(
                 "[SECRET] Wants: {} | Deflect: {} | Tells: {}",
-                secret.want(),
-                secret.deflection(),
-                if secret.tells().is_empty() {
+                secret.want,
+                secret.deflection,
+                if secret.tells.is_empty() {
                     "none".to_string()
                 } else {
-                    secret.tells().join("; ")
+                    secret.tells.join("; ")
                 }
             ));
         }

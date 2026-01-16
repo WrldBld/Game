@@ -19,8 +19,8 @@
 //! let markers = parse_dialogue_markers(text);
 //!
 //! assert_eq!(markers.len(), 2);
-//! assert_eq!(markers[0].expression_value(), Some("curious"));
-//! assert_eq!(markers[1].expression_value(), Some("suspicious"));
+//! assert_eq!(markers[0].expression.as_deref(), Some("curious"));
+//! assert_eq!(markers[1].expression.as_deref(), Some("suspicious"));
 //! ```
 
 use serde::{Deserialize, Serialize};
@@ -30,20 +30,20 @@ use serde::{Deserialize, Serialize};
 pub struct DialogueMarker {
     /// The action to perform (displayed as stage direction)
     /// e.g., "sighs", "nods", "shakes head"
-    action: Option<String>,
+    pub action: Option<String>,
 
     /// The expression to change to
     /// e.g., "happy", "sad", "suspicious"
-    expression: Option<String>,
+    pub expression: Option<String>,
 
     /// Character offset where this marker starts in the original text
-    start_offset: usize,
+    pub start_offset: usize,
 
     /// Character offset where this marker ends in the original text
-    end_offset: usize,
+    pub end_offset: usize,
 
     /// The raw marker text including asterisks
-    raw: String,
+    pub raw: String,
 }
 
 impl DialogueMarker {
@@ -116,7 +116,8 @@ impl DialogueMarker {
         self.action.is_none() && self.expression.is_none()
     }
 
-    // ── Accessors ────────────────────────────────────────────────────────
+    // ── Convenience Accessors ─────────────────────────────────────────────
+    // These provide &str access patterns similar to the old accessor methods
 
     /// Get the action to perform, if any
     pub fn action_value(&self) -> Option<&str> {
@@ -127,34 +128,19 @@ impl DialogueMarker {
     pub fn expression_value(&self) -> Option<&str> {
         self.expression.as_deref()
     }
-
-    /// Get the character offset where this marker starts in the original text
-    pub fn start_offset(&self) -> usize {
-        self.start_offset
-    }
-
-    /// Get the character offset where this marker ends in the original text
-    pub fn end_offset(&self) -> usize {
-        self.end_offset
-    }
-
-    /// Get the raw marker text including asterisks
-    pub fn raw(&self) -> &str {
-        &self.raw
-    }
 }
 
 /// Result of parsing dialogue text for markers
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParsedDialogue {
     /// The original text with markers
-    original: String,
+    pub original: String,
 
     /// Text with markers removed (for display)
-    clean_text: String,
+    pub clean_text: String,
 
     /// Extracted markers with their positions
-    markers: Vec<DialogueMarker>,
+    pub markers: Vec<DialogueMarker>,
 }
 
 impl ParsedDialogue {
@@ -165,23 +151,6 @@ impl ParsedDialogue {
             clean_text,
             markers,
         }
-    }
-
-    // ── Accessors ────────────────────────────────────────────────────────
-
-    /// Get the original text with markers
-    pub fn original(&self) -> &str {
-        &self.original
-    }
-
-    /// Get the text with markers removed (for display)
-    pub fn clean_text(&self) -> &str {
-        &self.clean_text
-    }
-
-    /// Get the extracted markers with their positions
-    pub fn markers(&self) -> &[DialogueMarker] {
-        &self.markers
     }
 
     // ── Query Methods ────────────────────────────────────────────────────
@@ -341,7 +310,7 @@ mod tests {
         assert_eq!(markers.len(), 1);
         assert_eq!(markers[0].expression_value(), Some("happy"));
         assert!(markers[0].action_value().is_none());
-        assert_eq!(markers[0].start_offset(), 0);
+        assert_eq!(markers[0].start_offset, 0);
     }
 
     #[test]
@@ -368,8 +337,8 @@ mod tests {
         let text = "*happy* Hello there! *curious* How are you?";
         let parsed = parse_dialogue(text);
 
-        assert_eq!(parsed.clean_text(), "Hello there! How are you?");
-        assert_eq!(parsed.markers().len(), 2);
+        assert_eq!(parsed.clean_text, "Hello there! How are you?");
+        assert_eq!(parsed.markers.len(), 2);
     }
 
     #[test]

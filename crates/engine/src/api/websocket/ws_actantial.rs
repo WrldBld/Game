@@ -809,10 +809,10 @@ fn want_context_to_data(want: &wrldbldr_domain::WantContext) -> WantData {
 
 fn actantial_actor_to_data(actor: &ActantialActor) -> ActantialActorData {
     ActantialActorData {
-        id: actor.target().id_string(),
-        name: actor.name().to_string(),
-        actor_type: map_actor_type_data(actor.target().actor_type()),
-        reason: actor.reason().to_string(),
+        id: actor.target.id_string(),
+        name: actor.name.clone(),
+        actor_type: map_actor_type_data(actor.target.actor_type()),
+        reason: actor.reason.clone(),
     }
 }
 

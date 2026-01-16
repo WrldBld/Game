@@ -208,10 +208,15 @@ impl Character {
         &self.stats
     }
 
-    /// Returns a mutable reference to the character's stats.
+    /// Replace the character's stats with a new StatBlock.
+    ///
+    /// This is used when you need to modify stats using the builder pattern:
+    /// ```ignore
+    /// character.set_stats(character.stats().clone().with_stat("STR", 18));
+    /// ```
     #[inline]
-    pub fn stats_mut(&mut self) -> &mut StatBlock {
-        &mut self.stats
+    pub fn set_stats(&mut self, stats: StatBlock) {
+        self.stats = stats;
     }
 
     // =========================================================================
@@ -382,7 +387,7 @@ impl Character {
 
         // Apply damage
         let new_hp = current_hp.saturating_sub(amount);
-        self.stats.set_current_hp(Some(new_hp));
+        self.stats = std::mem::take(&mut self.stats).with_current_hp(Some(new_hp));
 
         if new_hp <= 0 {
             self.state = CharacterState::Dead;
@@ -446,7 +451,7 @@ impl Character {
         // Apply healing, capped at max HP
         let new_hp: i32 = (current_hp + amount).min(max_hp);
         let actual_healed = new_hp - current_hp;
-        self.stats.set_current_hp(Some(new_hp));
+        self.stats = std::mem::take(&mut self.stats).with_current_hp(Some(new_hp));
 
         HealOutcome::Healed {
             amount_healed: actual_healed,
@@ -500,7 +505,7 @@ impl Character {
             None => 1,
         };
 
-        self.stats.set_current_hp(Some(hp_restored_to));
+        self.stats = std::mem::take(&mut self.stats).with_current_hp(Some(hp_restored_to));
         self.state = CharacterState::Active;
 
         ResurrectOutcome::Resurrected { hp_restored_to }

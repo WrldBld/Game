@@ -874,13 +874,13 @@ fn update_character_field(
         "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA" | "LEVEL" | "CURRENT_HP" | "MAX_HP"
         | "TEMP_HP" | "AC" | "SPEED" => {
             if let Some(val) = value.as_i64() {
-                character.stats_mut().set_stat(field_id, val as i32);
+                character.set_stats(character.stats().clone().with_stat(field_id, val as i32));
             }
         }
         // Derived/calculated stats
         "PROF_BONUS" | "INITIATIVE" | "PASSIVE_PERCEPTION" => {
             if let Some(val) = value.as_i64() {
-                character.stats_mut().set_stat(field_id, val as i32);
+                character.set_stats(character.stats().clone().with_stat(field_id, val as i32));
             }
         }
         // Skill proficiencies
@@ -893,27 +893,30 @@ fn update_character_field(
                     "half" => -1, // Use negative as flag for half
                     _ => 0,
                 };
-                character.stats_mut().set_stat(field_id, prof_value);
+                character.set_stats(character.stats().clone().with_stat(field_id, prof_value));
             }
         }
         // Saving throw proficiencies
         field if field.ends_with("_SAVE_PROF") => {
             if let Some(val) = value.as_bool() {
-                character
-                    .stats_mut()
-                    .set_stat(field_id, if val { 1 } else { 0 });
+                character.set_stats(
+                    character
+                        .stats()
+                        .clone()
+                        .with_stat(field_id, if val { 1 } else { 0 }),
+                );
             }
         }
         // Saving throw modifiers (calculated)
         field if field.ends_with("_SAVE") => {
             if let Some(val) = value.as_i64() {
-                character.stats_mut().set_stat(field_id, val as i32);
+                character.set_stats(character.stats().clone().with_stat(field_id, val as i32));
             }
         }
         // Skill modifiers (calculated)
         field if field.ends_with("_MOD") => {
             if let Some(val) = value.as_i64() {
-                character.stats_mut().set_stat(field_id, val as i32);
+                character.set_stats(character.stats().clone().with_stat(field_id, val as i32));
             }
         }
         // Identity fields (CLASS, RACE, BACKGROUND)
@@ -943,7 +946,7 @@ fn update_character_field(
         _ => {
             tracing::debug!(field_id = %field_id, "Unknown field, storing as stat if numeric");
             if let Some(val) = value.as_i64() {
-                character.stats_mut().set_stat(field_id, val as i32);
+                character.set_stats(character.stats().clone().with_stat(field_id, val as i32));
             }
         }
     }
