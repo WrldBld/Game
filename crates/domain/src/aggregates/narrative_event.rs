@@ -701,10 +701,10 @@ impl NarrativeEvent {
         let mut unmatched = Vec::new();
 
         for trigger in &self.trigger_conditions {
-            if self.trigger_matches(trigger.trigger_type(), context) {
-                matched.push(trigger.trigger_id().to_string());
+            if self.trigger_matches(&trigger.trigger_type, context) {
+                matched.push(trigger.trigger_id.clone());
             } else {
-                unmatched.push(trigger.trigger_id().to_string());
+                unmatched.push(trigger.trigger_id.clone());
             }
         }
 
@@ -725,8 +725,8 @@ impl NarrativeEvent {
         let required_met = self
             .trigger_conditions
             .iter()
-            .filter(|t| t.is_required())
-            .all(|t| matched.iter().any(|m| m == t.trigger_id()));
+            .filter(|t| t.is_required)
+            .all(|t| matched.iter().any(|m| m == &t.trigger_id));
 
         TriggerEvaluation::new(
             is_triggered && required_met,
@@ -966,7 +966,7 @@ impl NarrativeEvent {
 
     /// Get the outcome by name.
     pub fn get_outcome(&self, name: &str) -> Option<&EventOutcome> {
-        self.outcomes.iter().find(|o| o.name() == name)
+        self.outcomes.iter().find(|o| o.name == name)
     }
 
     /// Get the default outcome.
@@ -1300,8 +1300,8 @@ mod tests {
             let context = TriggerContext::new();
 
             let eval = event.evaluate_triggers(&context);
-            assert!(!eval.is_triggered());
-            assert_eq!(eval.total_triggers(), 0);
+            assert!(!eval.is_triggered);
+            assert_eq!(eval.total_triggers, 0);
         }
 
         #[test]
@@ -1310,14 +1310,14 @@ mod tests {
             let world_id = WorldId::new();
             let now = fixed_time();
 
-            let trigger = NarrativeTrigger::new(
+            let mut trigger = NarrativeTrigger::new(
                 NarrativeTriggerType::FlagSet {
                     flag_name: "quest_started".to_string(),
                 },
                 "Quest must be started",
                 "flag-1",
-            )
-            .with_required(true);
+            );
+            trigger.is_required = true;
 
             let event =
                 NarrativeEvent::new(world_id, NarrativeEventName::new("Test").unwrap(), now)
@@ -1326,14 +1326,14 @@ mod tests {
             // Without flag set
             let context = TriggerContext::new();
             let eval = event.evaluate_triggers(&context);
-            assert!(!eval.is_triggered());
+            assert!(!eval.is_triggered);
 
             // With flag set
             let mut flags = HashMap::new();
             flags.insert("quest_started".to_string(), true);
             let context = TriggerContext::new().with_flags(flags);
             let eval = event.evaluate_triggers(&context);
-            assert!(eval.is_triggered());
+            assert!(eval.is_triggered);
         }
     }
 }

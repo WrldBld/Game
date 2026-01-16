@@ -452,7 +452,7 @@ impl NarrativeOps {
                 if let NarrativeTriggerType::Custom {
                     description,
                     llm_evaluation: true,
-                } = trigger.trigger_type()
+                } = &trigger.trigger_type
                 {
                     triggers.insert(description.clone());
                 }
@@ -645,7 +645,7 @@ impl NarrativeOps {
             for event in &candidates {
                 for trigger in event.trigger_conditions() {
                     if let NarrativeTriggerType::RelationshipThreshold { character_id, .. } =
-                        trigger.trigger_type()
+                        &trigger.trigger_type
                     {
                         npc_ids.insert(*character_id);
                     }
@@ -694,7 +694,7 @@ impl NarrativeOps {
             for event in &candidates {
                 for trigger in event.trigger_conditions() {
                     if let NarrativeTriggerType::StatThreshold { character_id, .. } =
-                        trigger.trigger_type()
+                        &trigger.trigger_type
                     {
                         char_ids.insert(*character_id);
                     }
@@ -784,7 +784,7 @@ impl NarrativeOps {
             .into_iter()
             .filter(|event| {
                 let eval = event.evaluate_triggers(&context);
-                eval.is_triggered()
+                eval.is_triggered
             })
             .collect();
 

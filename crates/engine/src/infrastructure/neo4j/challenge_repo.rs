@@ -86,24 +86,24 @@ struct OutcomesStored {
 impl From<&ChallengeOutcomes> for OutcomesStored {
     fn from(value: &ChallengeOutcomes) -> Self {
         Self {
-            success: value.success().into(),
-            failure: value.failure().into(),
-            partial: value.partial().map(Into::into),
-            critical_success: value.critical_success().map(Into::into),
-            critical_failure: value.critical_failure().map(Into::into),
+            success: (&value.success).into(),
+            failure: (&value.failure).into(),
+            partial: value.partial.as_ref().map(Into::into),
+            critical_success: value.critical_success.as_ref().map(Into::into),
+            critical_failure: value.critical_failure.as_ref().map(Into::into),
         }
     }
 }
 
 impl From<OutcomesStored> for ChallengeOutcomes {
     fn from(value: OutcomesStored) -> Self {
-        ChallengeOutcomes::from_parts(
-            value.success.into(),
-            value.failure.into(),
-            value.partial.map(Into::into),
-            value.critical_success.map(Into::into),
-            value.critical_failure.map(Into::into),
-        )
+        ChallengeOutcomes {
+            success: value.success.into(),
+            failure: value.failure.into(),
+            partial: value.partial.map(Into::into),
+            critical_success: value.critical_success.map(Into::into),
+            critical_failure: value.critical_failure.map(Into::into),
+        }
     }
 }
 
@@ -118,8 +118,8 @@ struct OutcomeStored {
 impl From<&Outcome> for OutcomeStored {
     fn from(value: &Outcome) -> Self {
         Self {
-            description: value.description().to_string(),
-            triggers_json: serde_json::to_string(value.triggers()).ok(),
+            description: value.description.clone(),
+            triggers_json: serde_json::to_string(&value.triggers).ok(),
         }
     }
 }
@@ -150,9 +150,9 @@ struct TriggerConditionStored {
 impl From<&TriggerCondition> for TriggerConditionStored {
     fn from(value: &TriggerCondition) -> Self {
         Self {
-            condition_type_json: serde_json::to_string(value.condition_type()).unwrap_or_default(),
-            description: value.description().to_string(),
-            required: value.required(),
+            condition_type_json: serde_json::to_string(&value.condition_type).unwrap_or_default(),
+            description: value.description.clone(),
+            required: value.required,
         }
     }
 }
@@ -163,7 +163,9 @@ impl From<TriggerConditionStored> for TriggerCondition {
             serde_json::from_str(&value.condition_type_json).unwrap_or(TriggerType::Custom {
                 description: value.description.clone(),
             });
-        TriggerCondition::new(condition_type, value.description).with_required(value.required)
+        let mut tc = TriggerCondition::new(condition_type, value.description);
+        tc.required = value.required;
+        tc
     }
 }
 

@@ -111,10 +111,10 @@ impl ChallengeOps {
         // For outcomes, we need to preserve existing and update what's provided
         let success_desc = input
             .success_outcome
-            .unwrap_or_else(|| challenge.outcomes().success().description().to_string());
+            .unwrap_or_else(|| challenge.outcomes().success.description.clone());
         let failure_desc = input
             .failure_outcome
-            .unwrap_or_else(|| challenge.outcomes().failure().description().to_string());
+            .unwrap_or_else(|| challenge.outcomes().failure.description.clone());
         let outcomes = domain::ChallengeOutcomes::simple(success_desc, failure_desc);
 
         // Rebuild the challenge with updated values
@@ -224,19 +224,22 @@ fn challenge_to_json(challenge: &domain::Challenge) -> Value {
         "skill_id": "",
         "difficulty": difficulty_to_json(challenge.difficulty()),
         "outcomes": {
-            "success": outcome_to_json(challenge.outcomes().success()),
-            "failure": outcome_to_json(challenge.outcomes().failure()),
+            "success": outcome_to_json(&challenge.outcomes().success),
+            "failure": outcome_to_json(&challenge.outcomes().failure),
             "partial": challenge
                 .outcomes()
-                .partial()
+                .partial
+                .as_ref()
                 .map(outcome_to_json),
             "critical_success": challenge
                 .outcomes()
-                .critical_success()
+                .critical_success
+                .as_ref()
                 .map(outcome_to_json),
             "critical_failure": challenge
                 .outcomes()
-                .critical_failure()
+                .critical_failure
+                .as_ref()
                 .map(outcome_to_json),
         },
         "trigger_conditions": challenge
@@ -254,9 +257,9 @@ fn challenge_to_json(challenge: &domain::Challenge) -> Value {
 
 fn outcome_to_json(outcome: &domain::Outcome) -> Value {
     serde_json::json!({
-        "description": outcome.description(),
+        "description": &outcome.description,
         "triggers": outcome
-            .triggers()
+            .triggers
             .iter()
             .map(outcome_trigger_to_json)
             .collect::<Vec<_>>(),
@@ -304,9 +307,9 @@ fn outcome_trigger_to_json(trigger: &domain::OutcomeTrigger) -> Value {
 
 fn trigger_condition_to_json(condition: &domain::TriggerCondition) -> Value {
     serde_json::json!({
-        "condition_type": trigger_type_to_json(condition.condition_type()),
-        "description": condition.description(),
-        "required": condition.required(),
+        "condition_type": trigger_type_to_json(&condition.condition_type),
+        "description": &condition.description,
+        "required": condition.required,
     })
 }
 

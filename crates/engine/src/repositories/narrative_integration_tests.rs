@@ -27,7 +27,7 @@ fn test_has_class_trigger_fires_with_fighter() {
     // Assert: Trigger should match (Fighter 5 >= 3)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered(),
+        eval.is_triggered,
         "Fighter 5 should match HasClass(fighter, 3)"
     );
 }
@@ -45,7 +45,7 @@ fn test_has_class_trigger_fails_below_min_level() {
     // Assert: Trigger should NOT match (Fighter 5 < 10)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered(),
+        !eval.is_triggered,
         "Fighter 5 should NOT match HasClass(fighter, 10)"
     );
 }
@@ -63,7 +63,7 @@ fn test_has_class_trigger_without_min_level() {
     // Assert: Trigger should match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered(),
+        eval.is_triggered,
         "Wizard 3 should match HasClass(wizard, None)"
     );
 }
@@ -81,7 +81,7 @@ fn test_has_class_trigger_multiclass_fighter() {
     // Assert: Trigger should match (Fighter 3 >= 3)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered(),
+        eval.is_triggered,
         "Multiclass with Fighter 3 should match HasClass(fighter, 3)"
     );
 }
@@ -99,7 +99,7 @@ fn test_has_class_trigger_multiclass_wizard() {
     // Assert: Trigger should NOT match (Wizard 2 < 3)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered(),
+        !eval.is_triggered,
         "Multiclass with Wizard 2 should NOT match HasClass(wizard, 3)"
     );
 }
@@ -117,7 +117,7 @@ fn test_has_class_trigger_fighter_does_not_match_wizard_character() {
     // Assert: Trigger should NOT match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered(),
+        !eval.is_triggered,
         "Wizard should NOT match HasClass(fighter)"
     );
 }
@@ -139,7 +139,7 @@ fn test_has_origin_trigger_fires_with_elf() {
     // Assert: Trigger should match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered(),
+        eval.is_triggered,
         "Elf wizard should match HasOrigin(elf)"
     );
 }
@@ -157,7 +157,7 @@ fn test_has_origin_trigger_fires_with_human() {
     // Assert: Trigger should match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered(),
+        eval.is_triggered,
         "Human fighter should match HasOrigin(human)"
     );
 }
@@ -175,7 +175,7 @@ fn test_has_origin_trigger_fails_with_wrong_race() {
     // Assert: Trigger should NOT match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered(),
+        !eval.is_triggered,
         "Human fighter should NOT match HasOrigin(dwarf)"
     );
 }
@@ -197,7 +197,7 @@ fn test_knows_spell_trigger_fires_with_fireball() {
     // Assert: Trigger should match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered(),
+        eval.is_triggered,
         "Wizard should match KnowsSpell(fireball)"
     );
 }
@@ -215,7 +215,7 @@ fn test_knows_spell_trigger_fires_with_shield() {
     // Assert: Trigger should match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered(),
+        eval.is_triggered,
         "Multiclass should match KnowsSpell(shield)"
     );
 }
@@ -233,7 +233,7 @@ fn test_knows_spell_trigger_fails_with_unknown_spell() {
     // Assert: Trigger should NOT match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered(),
+        !eval.is_triggered,
         "Wizard should NOT match KnowsSpell(wish)"
     );
 }
@@ -251,7 +251,7 @@ fn test_knows_spell_trigger_fails_for_non_caster() {
     // Assert: Trigger should NOT match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered(),
+        !eval.is_triggered,
         "Fighter should NOT match KnowsSpell(magic_missile)"
     );
 }
@@ -273,7 +273,7 @@ fn test_has_feat_trigger_fires_with_great_weapon_master() {
     // Assert: Trigger should match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered(),
+        eval.is_triggered,
         "Fighter should match HasFeat(great_weapon_master)"
     );
 }
@@ -291,7 +291,7 @@ fn test_has_feat_trigger_fires_with_war_caster() {
     // Assert: Trigger should match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered(),
+        eval.is_triggered,
         "Multiclass should match HasFeat(war_caster)"
     );
 }
@@ -309,7 +309,7 @@ fn test_has_feat_trigger_fails_without_feat() {
     // Assert: Trigger should NOT match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered(),
+        !eval.is_triggered,
         "Wizard should NOT match HasFeat(sentinel)"
     );
 }
@@ -335,7 +335,7 @@ fn test_trigger_context_case_insensitive_class_matching() {
     // Assert: Trigger should match (case insensitive)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered(),
+        eval.is_triggered,
         "HasClass matching should be case insensitive"
     );
 }
@@ -356,7 +356,7 @@ fn test_trigger_context_case_insensitive_origin_matching() {
     // Assert: Trigger should match (case insensitive)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered(),
+        eval.is_triggered,
         "HasOrigin matching should be case insensitive"
     );
 }
@@ -377,7 +377,7 @@ fn test_trigger_context_case_insensitive_spell_matching() {
     // Assert: Trigger should match (case insensitive)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered(),
+        eval.is_triggered,
         "KnowsSpell matching should be case insensitive"
     );
 }
@@ -406,10 +406,10 @@ fn test_multiple_triggers_all_logic() {
     // Assert: All triggers should match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered(),
+        eval.is_triggered,
         "Wizard should match all: class + origin + spell"
     );
-    assert_eq!(eval.matched_triggers().len(), 3);
+    assert_eq!(eval.matched_triggers.len(), 3);
 }
 
 #[test]
@@ -432,10 +432,10 @@ fn test_multiple_triggers_any_logic() {
     // Assert: Event should trigger (one match with ANY logic)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered(),
+        eval.is_triggered,
         "Fighter should match ANY with GWM feat"
     );
-    assert_eq!(eval.matched_triggers().len(), 1);
+    assert_eq!(eval.matched_triggers.len(), 1);
 }
 
 #[test]
@@ -457,11 +457,11 @@ fn test_multiple_triggers_all_logic_partial_match() {
     // Assert: Event should NOT trigger (partial match with ALL logic)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered(),
+        !eval.is_triggered,
         "Fighter should NOT match ALL with Elf origin"
     );
-    assert_eq!(eval.matched_triggers().len(), 1);
-    assert_eq!(eval.unmatched_triggers().len(), 1);
+    assert_eq!(eval.matched_triggers.len(), 1);
+    assert_eq!(eval.unmatched_triggers.len(), 1);
 }
 
 // =============================================================================

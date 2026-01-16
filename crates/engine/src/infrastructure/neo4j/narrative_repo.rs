@@ -554,7 +554,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 event
                     .trigger_conditions()
                     .iter()
-                    .any(|t| match t.trigger_type() {
+                    .any(|t| match &t.trigger_type {
                         NarrativeTriggerType::PlayerEntersLocation { location_id, .. } => {
                             location_id.to_string() == region_id_str
                         }
@@ -1902,10 +1902,10 @@ enum StoredDmMarkerType {
 impl From<&NarrativeTrigger> for StoredNarrativeTrigger {
     fn from(t: &NarrativeTrigger) -> Self {
         Self {
-            trigger_type: StoredNarrativeTriggerType::from(t.trigger_type()),
-            description: t.description().to_string(),
-            is_required: t.is_required(),
-            trigger_id: t.trigger_id().to_string(),
+            trigger_type: StoredNarrativeTriggerType::from(&t.trigger_type),
+            description: t.description.clone(),
+            is_required: t.is_required,
+            trigger_id: t.trigger_id.clone(),
         }
     }
 }
@@ -2077,17 +2077,17 @@ impl From<&NarrativeTriggerType> for StoredNarrativeTriggerType {
 impl From<&EventOutcome> for StoredEventOutcome {
     fn from(o: &EventOutcome) -> Self {
         Self {
-            name: o.name().to_string(),
-            label: o.label().to_string(),
-            description: o.description().to_string(),
-            condition: o.condition().map(StoredOutcomeCondition::from),
-            effects: o.effects().iter().map(StoredEventEffect::from).collect(),
+            name: o.name.clone(),
+            label: o.label.clone(),
+            description: o.description.clone(),
+            condition: o.condition.as_ref().map(StoredOutcomeCondition::from),
+            effects: o.effects.iter().map(StoredEventEffect::from).collect(),
             chain_events: o
-                .chain_events()
+                .chain_events
                 .iter()
                 .map(StoredChainedEvent::from)
                 .collect(),
-            timeline_summary: o.timeline_summary().map(|s| s.to_string()),
+            timeline_summary: o.timeline_summary.clone(),
         }
     }
 }
@@ -2255,13 +2255,14 @@ impl From<&EventEffect> for StoredEventEffect {
 impl From<&ChainedEvent> for StoredChainedEvent {
     fn from(c: &ChainedEvent) -> Self {
         Self {
-            event_id: c.event_id().to_string(),
-            event_name: c.event_name().to_string(),
-            delay_turns: c.delay_turns(),
+            event_id: c.event_id.to_string(),
+            event_name: c.event_name.clone(),
+            delay_turns: c.delay_turns,
             additional_trigger: c
-                .additional_trigger()
+                .additional_trigger
+                .as_ref()
                 .map(|t| Box::new(StoredNarrativeTriggerType::from(t))),
-            chain_reason: c.chain_reason().map(|s| s.to_string()),
+            chain_reason: c.chain_reason.clone(),
         }
     }
 }
@@ -2621,12 +2622,13 @@ impl From<DmMarkerType> for StoredDmMarkerType {
 
 impl From<StoredNarrativeTrigger> for NarrativeTrigger {
     fn from(s: StoredNarrativeTrigger) -> Self {
-        NarrativeTrigger::new(
+        let mut trigger = NarrativeTrigger::new(
             NarrativeTriggerType::from(s.trigger_type),
             s.description,
             s.trigger_id,
-        )
-        .with_required(s.is_required)
+        );
+        trigger.is_required = s.is_required;
+        trigger
     }
 }
 
@@ -2794,16 +2796,11 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
 
 impl From<StoredEventOutcome> for EventOutcome {
     fn from(s: StoredEventOutcome) -> Self {
-        let mut outcome = EventOutcome::new(s.name, s.label, s.description)
-            .with_effects(s.effects.into_iter().map(EventEffect::from).collect())
-            .with_chain_events(s.chain_events.into_iter().map(ChainedEvent::from).collect());
-
-        if let Some(condition) = s.condition {
-            outcome = outcome.with_condition(OutcomeCondition::from(condition));
-        }
-        if let Some(summary) = s.timeline_summary {
-            outcome = outcome.with_timeline_summary(summary);
-        }
+        let mut outcome = EventOutcome::new(s.name, s.label, s.description);
+        outcome.effects = s.effects.into_iter().map(EventEffect::from).collect();
+        outcome.chain_events = s.chain_events.into_iter().map(ChainedEvent::from).collect();
+        outcome.condition = s.condition.map(OutcomeCondition::from);
+        outcome.timeline_summary = s.timeline_summary;
         outcome
     }
 }
@@ -2973,15 +2970,10 @@ impl From<StoredChainedEvent> for ChainedEvent {
         let mut chained = ChainedEvent::new(
             NarrativeEventId::from(parse_uuid_or_nil(&s.event_id, "event_id")),
             s.event_name,
-        )
-        .with_delay_turns(s.delay_turns);
-
-        if let Some(trigger) = s.additional_trigger {
-            chained = chained.with_additional_trigger(NarrativeTriggerType::from(*trigger));
-        }
-        if let Some(reason) = s.chain_reason {
-            chained = chained.with_chain_reason(reason);
-        }
+        );
+        chained.delay_turns = s.delay_turns;
+        chained.additional_trigger = s.additional_trigger.map(|t| NarrativeTriggerType::from(*t));
+        chained.chain_reason = s.chain_reason;
         chained
     }
 }

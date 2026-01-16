@@ -78,13 +78,13 @@ impl NarrativeDecisionFlow {
                     .and_then(|s| s.suggested_outcome.clone())
             })
             .or_else(|| event.default_outcome().map(|s| s.to_string()))
-            .or_else(|| event.outcomes().first().map(|o| o.name().to_string()))
+            .or_else(|| event.outcomes().first().map(|o| o.name.clone()))
             .unwrap_or_default();
 
-        let outcome = event.outcomes().iter().find(|o| o.name() == outcome_name);
+        let outcome = event.outcomes().iter().find(|o| o.name == outcome_name);
 
         if let Some(outcome) = outcome {
-            if !outcome.effects().is_empty() {
+            if !outcome.effects.is_empty() {
                 let pc_id = approval_data
                     .pc_id
                     .ok_or(NarrativeDecisionError::PcContextRequired)?;
@@ -96,7 +96,7 @@ impl NarrativeDecisionFlow {
 
                 let summary = self
                     .execute_effects
-                    .execute(event_id, outcome_name.clone(), outcome.effects(), &context)
+                    .execute(event_id, outcome_name.clone(), &outcome.effects, &context)
                     .await;
 
                 tracing::info!(
@@ -114,9 +114,7 @@ impl NarrativeDecisionFlow {
             triggered: Some(NarrativeTriggeredPayload {
                 event_id: event_id.to_string(),
                 event_name: event.name().to_string(),
-                outcome_description: outcome
-                    .map(|o| o.description().to_string())
-                    .unwrap_or_default(),
+                outcome_description: outcome.map(|o| o.description.clone()).unwrap_or_default(),
                 scene_direction: event.scene_direction().to_string(),
             }),
         })

@@ -412,7 +412,7 @@ impl ProcessPlayerAction {
                 let trigger_hints: Vec<String> = c
                     .trigger_conditions()
                     .iter()
-                    .flat_map(|tc| match tc.condition_type() {
+                    .flat_map(|tc| match &tc.condition_type {
                         wrldbldr_domain::TriggerType::DialogueTopic { topic_keywords } => {
                             topic_keywords.clone()
                         }

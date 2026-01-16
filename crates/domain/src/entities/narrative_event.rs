@@ -39,13 +39,13 @@ pub enum TriggerLogic {
 #[serde(rename_all = "camelCase")]
 pub struct NarrativeTrigger {
     /// The type and parameters of this trigger
-    trigger_type: NarrativeTriggerType,
+    pub trigger_type: NarrativeTriggerType,
     /// Human-readable description for DM
-    description: String,
+    pub description: String,
     /// Whether this specific condition must be met (for AtLeast logic)
-    is_required: bool,
+    pub is_required: bool,
     /// Unique identifier for this trigger within the event
-    trigger_id: String,
+    pub trigger_id: String,
 }
 
 impl NarrativeTrigger {
@@ -62,24 +62,7 @@ impl NarrativeTrigger {
         }
     }
 
-    // Read accessors
-    pub fn trigger_type(&self) -> &NarrativeTriggerType {
-        &self.trigger_type
-    }
-
-    pub fn description(&self) -> &str {
-        &self.description
-    }
-
-    pub fn is_required(&self) -> bool {
-        self.is_required
-    }
-
-    pub fn trigger_id(&self) -> &str {
-        &self.trigger_id
-    }
-
-    // Builder methods
+    /// Builder method to mark this trigger as required.
     pub fn with_required(mut self, is_required: bool) -> Self {
         self.is_required = is_required;
         self
@@ -247,19 +230,19 @@ pub enum NarrativeTriggerType {
 #[serde(rename_all = "camelCase")]
 pub struct EventOutcome {
     /// Unique identifier for this outcome within the event
-    name: String,
+    pub name: String,
     /// Display label for DM
-    label: String,
+    pub label: String,
     /// Description of what happens in this outcome
-    description: String,
+    pub description: String,
     /// Conditions for this outcome (how does player reach this?)
-    condition: Option<OutcomeCondition>,
+    pub condition: Option<OutcomeCondition>,
     /// Effects that occur when this outcome happens
-    effects: Vec<EventEffect>,
+    pub effects: Vec<EventEffect>,
     /// Narrative events to chain to after this outcome
-    chain_events: Vec<ChainedEvent>,
+    pub chain_events: Vec<ChainedEvent>,
     /// Narrative summary to add to timeline
-    timeline_summary: Option<String>,
+    pub timeline_summary: Option<String>,
 }
 
 impl EventOutcome {
@@ -277,56 +260,6 @@ impl EventOutcome {
             chain_events: Vec::new(),
             timeline_summary: None,
         }
-    }
-
-    // Read accessors
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn label(&self) -> &str {
-        &self.label
-    }
-
-    pub fn description(&self) -> &str {
-        &self.description
-    }
-
-    pub fn condition(&self) -> Option<&OutcomeCondition> {
-        self.condition.as_ref()
-    }
-
-    pub fn effects(&self) -> &[EventEffect] {
-        &self.effects
-    }
-
-    pub fn chain_events(&self) -> &[ChainedEvent] {
-        &self.chain_events
-    }
-
-    pub fn timeline_summary(&self) -> Option<&str> {
-        self.timeline_summary.as_deref()
-    }
-
-    // Builder methods
-    pub fn with_condition(mut self, condition: OutcomeCondition) -> Self {
-        self.condition = Some(condition);
-        self
-    }
-
-    pub fn with_effects(mut self, effects: Vec<EventEffect>) -> Self {
-        self.effects = effects;
-        self
-    }
-
-    pub fn with_chain_events(mut self, chain_events: Vec<ChainedEvent>) -> Self {
-        self.chain_events = chain_events;
-        self
-    }
-
-    pub fn with_timeline_summary(mut self, summary: impl Into<String>) -> Self {
-        self.timeline_summary = Some(summary.into());
-        self
     }
 }
 
@@ -458,15 +391,15 @@ pub enum EventEffect {
 #[serde(rename_all = "camelCase")]
 pub struct ChainedEvent {
     /// Event to chain to
-    event_id: NarrativeEventId,
+    pub event_id: NarrativeEventId,
     /// Name for display
-    event_name: String,
+    pub event_name: String,
     /// Delay before chain activates (turns)
-    delay_turns: u32,
+    pub delay_turns: u32,
     /// Additional trigger condition for chain (beyond just completing parent)
-    additional_trigger: Option<NarrativeTriggerType>,
+    pub additional_trigger: Option<NarrativeTriggerType>,
     /// Description of why this chains
-    chain_reason: Option<String>,
+    pub chain_reason: Option<String>,
 }
 
 impl ChainedEvent {
@@ -478,43 +411,6 @@ impl ChainedEvent {
             additional_trigger: None,
             chain_reason: None,
         }
-    }
-
-    // Read accessors
-    pub fn event_id(&self) -> NarrativeEventId {
-        self.event_id
-    }
-
-    pub fn event_name(&self) -> &str {
-        &self.event_name
-    }
-
-    pub fn delay_turns(&self) -> u32 {
-        self.delay_turns
-    }
-
-    pub fn additional_trigger(&self) -> Option<&NarrativeTriggerType> {
-        self.additional_trigger.as_ref()
-    }
-
-    pub fn chain_reason(&self) -> Option<&str> {
-        self.chain_reason.as_deref()
-    }
-
-    // Builder methods
-    pub fn with_delay_turns(mut self, delay_turns: u32) -> Self {
-        self.delay_turns = delay_turns;
-        self
-    }
-
-    pub fn with_additional_trigger(mut self, trigger: NarrativeTriggerType) -> Self {
-        self.additional_trigger = Some(trigger);
-        self
-    }
-
-    pub fn with_chain_reason(mut self, reason: impl Into<String>) -> Self {
-        self.chain_reason = Some(reason.into());
-        self
     }
 }
 
@@ -843,11 +739,11 @@ impl TriggerContext {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TriggerEvaluation {
-    is_triggered: bool,
-    matched_triggers: Vec<String>,
-    unmatched_triggers: Vec<String>,
-    total_triggers: usize,
-    confidence: f32,
+    pub is_triggered: bool,
+    pub matched_triggers: Vec<String>,
+    pub unmatched_triggers: Vec<String>,
+    pub total_triggers: usize,
+    pub confidence: f32,
 }
 
 impl TriggerEvaluation {
@@ -865,27 +761,6 @@ impl TriggerEvaluation {
             total_triggers,
             confidence,
         }
-    }
-
-    // Read accessors
-    pub fn is_triggered(&self) -> bool {
-        self.is_triggered
-    }
-
-    pub fn matched_triggers(&self) -> &[String] {
-        &self.matched_triggers
-    }
-
-    pub fn unmatched_triggers(&self) -> &[String] {
-        &self.unmatched_triggers
-    }
-
-    pub fn total_triggers(&self) -> usize {
-        self.total_triggers
-    }
-
-    pub fn confidence(&self) -> f32 {
-        self.confidence
     }
 
     /// Get a human-readable summary
@@ -908,9 +783,9 @@ impl TriggerEvaluation {
 #[serde(rename_all = "camelCase")]
 pub struct FeaturedNpc {
     /// The character ID of the featured NPC
-    character_id: CharacterId,
+    pub character_id: CharacterId,
     /// Optional role description for this NPC in the event
-    role: Option<String>,
+    pub role: Option<String>,
 }
 
 impl FeaturedNpc {
@@ -927,15 +802,6 @@ impl FeaturedNpc {
             role: Some(role.into()),
         }
     }
-
-    // Read accessors
-    pub fn character_id(&self) -> CharacterId {
-        self.character_id
-    }
-
-    pub fn role(&self) -> Option<&str> {
-        self.role.as_deref()
-    }
 }
 
 /// Represents an event's membership in an EventChain (via CONTAINS_EVENT edge)
@@ -946,11 +812,11 @@ impl FeaturedNpc {
 #[serde(rename_all = "camelCase")]
 pub struct EventChainMembership {
     /// The chain this event belongs to
-    chain_id: EventChainId,
+    pub chain_id: EventChainId,
     /// Position in the chain (0-indexed)
-    position: u32,
+    pub position: u32,
     /// Whether this event has been completed in the chain
-    is_completed: bool,
+    pub is_completed: bool,
 }
 
 impl EventChainMembership {
@@ -960,24 +826,5 @@ impl EventChainMembership {
             position,
             is_completed: false,
         }
-    }
-
-    // Read accessors
-    pub fn chain_id(&self) -> EventChainId {
-        self.chain_id
-    }
-
-    pub fn position(&self) -> u32 {
-        self.position
-    }
-
-    pub fn is_completed(&self) -> bool {
-        self.is_completed
-    }
-
-    // Builder methods
-    pub fn with_completed(mut self, is_completed: bool) -> Self {
-        self.is_completed = is_completed;
-        self
     }
 }

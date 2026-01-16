@@ -375,74 +375,19 @@ impl EventChain {
 }
 
 /// Summary information about a chain's state
+///
+/// This is a status/display DTO with no invariants - uses public fields per ADR-008.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChainStatus {
-    chain_id: EventChainId,
-    chain_name: String,
-    is_active: bool,
-    is_complete: bool,
-    total_events: usize,
-    completed_events: usize,
-    progress_percent: u32,
-    current_event_id: Option<NarrativeEventId>,
-}
-
-impl ChainStatus {
-    pub fn new(
-        chain_id: EventChainId,
-        chain_name: impl Into<String>,
-        is_active: bool,
-        is_complete: bool,
-        total_events: usize,
-        completed_events: usize,
-        progress_percent: u32,
-        current_event_id: Option<NarrativeEventId>,
-    ) -> Self {
-        Self {
-            chain_id,
-            chain_name: chain_name.into(),
-            is_active,
-            is_complete,
-            total_events,
-            completed_events,
-            progress_percent,
-            current_event_id,
-        }
-    }
-
-    // Read accessors
-    pub fn chain_id(&self) -> EventChainId {
-        self.chain_id
-    }
-
-    pub fn chain_name(&self) -> &str {
-        &self.chain_name
-    }
-
-    pub fn is_active(&self) -> bool {
-        self.is_active
-    }
-
-    pub fn is_complete(&self) -> bool {
-        self.is_complete
-    }
-
-    pub fn total_events(&self) -> usize {
-        self.total_events
-    }
-
-    pub fn completed_events(&self) -> usize {
-        self.completed_events
-    }
-
-    pub fn progress_percent(&self) -> u32 {
-        self.progress_percent
-    }
-
-    pub fn current_event_id(&self) -> Option<NarrativeEventId> {
-        self.current_event_id
-    }
+    pub chain_id: EventChainId,
+    pub chain_name: String,
+    pub is_active: bool,
+    pub is_complete: bool,
+    pub total_events: usize,
+    pub completed_events: usize,
+    pub progress_percent: u32,
+    pub current_event_id: Option<NarrativeEventId>,
 }
 
 impl From<&EventChain> for ChainStatus {
@@ -1147,14 +1092,14 @@ mod tests {
 
         let status = ChainStatus::from(&chain);
 
-        assert_eq!(status.chain_id(), chain.id());
-        assert_eq!(status.chain_name(), "Test Chain");
-        assert!(status.is_active());
-        assert!(!status.is_complete());
-        assert_eq!(status.total_events(), 2);
-        assert_eq!(status.completed_events(), 1);
-        assert_eq!(status.progress_percent(), 50);
-        assert_eq!(status.current_event_id(), Some(event_b));
+        assert_eq!(status.chain_id, chain.id());
+        assert_eq!(status.chain_name, "Test Chain");
+        assert!(status.is_active);
+        assert!(!status.is_complete);
+        assert_eq!(status.total_events, 2);
+        assert_eq!(status.completed_events, 1);
+        assert_eq!(status.progress_percent, 50);
+        assert_eq!(status.current_event_id, Some(event_b));
     }
 
     #[test]
@@ -1169,7 +1114,7 @@ mod tests {
 
         let status = ChainStatus::from(&chain);
 
-        assert!(status.is_complete());
-        assert_eq!(status.current_event_id(), None);
+        assert!(status.is_complete);
+        assert_eq!(status.current_event_id, None);
     }
 }

@@ -244,9 +244,9 @@ impl RollChallenge {
             modifier,
             total,
             outcome_type: outcome_type.to_string(),
-            outcome_description: outcome.description().to_string(),
+            outcome_description: outcome.description.clone(),
             outcome_triggers: outcome
-                .triggers()
+                .triggers
                 .iter()
                 .map(|t| ProposedTool {
                     id: uuid::Uuid::new_v4().to_string(),
@@ -273,7 +273,7 @@ impl RollChallenge {
             pc_id: Some(pc_id),
             npc_id: None,
             npc_name: String::new(),
-            proposed_dialogue: outcome.description().to_string(),
+            proposed_dialogue: outcome.description.clone(),
             internal_reasoning: format!(
                 "Challenge '{}' - Roll: {} + {} = {} -> {}",
                 challenge.name(),
@@ -306,7 +306,7 @@ impl RollChallenge {
             modifier,
             total,
             outcome_type,
-            outcome_description: outcome.description().to_string(),
+            outcome_description: outcome.description.clone(),
             requires_approval: true,
             approval_queue_id: Some(approval_queue_id),
             challenge_id,
@@ -387,19 +387,21 @@ impl ResolveOutcome {
         // Find the matching outcome based on outcome_type
         let outcomes = challenge.outcomes();
         let outcome = match outcome_type {
-            OutcomeType::CriticalSuccess => {
-                outcomes.critical_success().unwrap_or(outcomes.success())
-            }
-            OutcomeType::Success => outcomes.success(),
-            OutcomeType::Partial => outcomes.partial().unwrap_or(outcomes.success()),
-            OutcomeType::Failure => outcomes.failure(),
-            OutcomeType::CriticalFailure => {
-                outcomes.critical_failure().unwrap_or(outcomes.failure())
-            }
+            OutcomeType::CriticalSuccess => outcomes
+                .critical_success
+                .as_ref()
+                .unwrap_or(&outcomes.success),
+            OutcomeType::Success => &outcomes.success,
+            OutcomeType::Partial => outcomes.partial.as_ref().unwrap_or(&outcomes.success),
+            OutcomeType::Failure => &outcomes.failure,
+            OutcomeType::CriticalFailure => outcomes
+                .critical_failure
+                .as_ref()
+                .unwrap_or(&outcomes.failure),
         };
 
         // Execute each trigger in the outcome
-        for trigger in outcome.triggers() {
+        for trigger in &outcome.triggers {
             self.execute_trigger(
                 trigger,
                 challenge.name(),

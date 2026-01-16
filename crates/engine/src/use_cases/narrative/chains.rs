@@ -339,13 +339,13 @@ fn event_chain_to_summary(chain: &EventChain) -> EventChainSummary {
 
 fn chain_status_to_summary(status: &domain::ChainStatus) -> ChainStatusSummary {
     ChainStatusSummary {
-        chain_id: status.chain_id().to_string(),
-        chain_name: status.chain_name().to_string(),
-        is_active: status.is_active(),
-        is_complete: status.is_complete(),
-        total_events: status.total_events(),
-        completed_events: status.completed_events(),
-        progress_percent: status.progress_percent(),
-        current_event_id: status.current_event_id().map(|id| id.to_string()),
+        chain_id: status.chain_id.to_string(),
+        chain_name: status.chain_name.clone(),
+        is_active: status.is_active,
+        is_complete: status.is_complete,
+        total_events: status.total_events,
+        completed_events: status.completed_events,
+        progress_percent: status.progress_percent,
+        current_event_id: status.current_event_id.map(|id| id.to_string()),
     }
 }

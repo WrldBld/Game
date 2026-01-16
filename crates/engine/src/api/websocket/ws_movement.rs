@@ -621,15 +621,15 @@ async fn send_triggered_events(
 
 fn resolve_event_outcome_description(event: &wrldbldr_domain::NarrativeEvent) -> String {
     if let Some(default_name) = event.default_outcome() {
-        if let Some(outcome) = event.outcomes().iter().find(|o| o.name() == default_name) {
-            return outcome.description().to_string();
+        if let Some(outcome) = event.outcomes().iter().find(|o| o.name == default_name) {
+            return outcome.description.clone();
         }
     }
 
     event
         .outcomes()
         .first()
-        .map(|outcome| outcome.description().to_string())
+        .map(|outcome| outcome.description.clone())
         .unwrap_or_default()
 }
 

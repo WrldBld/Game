@@ -205,7 +205,7 @@ impl Challenge {
 
         // Validate outcome triggers
         for (outcome_name, outcome) in self.all_outcomes_named() {
-            for (i, trigger) in outcome.triggers().iter().enumerate() {
+            for (i, trigger) in outcome.triggers.iter().enumerate() {
                 if let Err(e) = trigger.validate() {
                     errors.push(format!("{} outcome trigger {}: {}", outcome_name, i + 1, e));
                 }
@@ -227,7 +227,7 @@ impl Challenge {
 
         // From outcome triggers
         for (_, outcome) in self.all_outcomes_named() {
-            for trigger in outcome.triggers() {
+            for trigger in &outcome.triggers {
                 ids.extend(trigger.referenced_challenge_ids());
             }
         }
@@ -277,7 +277,7 @@ impl Challenge {
             .trigger_conditions
             .iter()
             .zip(matched.iter())
-            .filter(|(tc, _)| tc.required())
+            .filter(|(tc, _)| tc.required)
             .all(|(_, &m)| m);
 
         // At least one condition must match overall
@@ -704,14 +704,14 @@ impl Difficulty {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChallengeOutcomes {
-    success: Outcome,
-    failure: Outcome,
+    pub success: Outcome,
+    pub failure: Outcome,
     /// For narrative systems or "meet DC exactly" results
-    partial: Option<Outcome>,
+    pub partial: Option<Outcome>,
     /// Natural 20 or roll of 01 on d100
-    critical_success: Option<Outcome>,
+    pub critical_success: Option<Outcome>,
     /// Natural 1 or fumble roll
-    critical_failure: Option<Outcome>,
+    pub critical_failure: Option<Outcome>,
 }
 
 impl ChallengeOutcomes {
@@ -724,30 +724,6 @@ impl ChallengeOutcomes {
             critical_failure: None,
         }
     }
-
-    // === Accessors ===
-
-    pub fn success(&self) -> &Outcome {
-        &self.success
-    }
-
-    pub fn failure(&self) -> &Outcome {
-        &self.failure
-    }
-
-    pub fn partial(&self) -> Option<&Outcome> {
-        self.partial.as_ref()
-    }
-
-    pub fn critical_success(&self) -> Option<&Outcome> {
-        self.critical_success.as_ref()
-    }
-
-    pub fn critical_failure(&self) -> Option<&Outcome> {
-        self.critical_failure.as_ref()
-    }
-
-    // === Builder Methods ===
 
     pub fn with_partial(mut self, partial: impl Into<String>) -> Self {
         self.partial = Some(Outcome::new(partial));
@@ -763,23 +739,6 @@ impl ChallengeOutcomes {
         self.critical_failure = Some(Outcome::new(critical));
         self
     }
-
-    /// Reconstruct ChallengeOutcomes from parts (for repository deserialization).
-    pub fn from_parts(
-        success: Outcome,
-        failure: Outcome,
-        partial: Option<Outcome>,
-        critical_success: Option<Outcome>,
-        critical_failure: Option<Outcome>,
-    ) -> Self {
-        Self {
-            success,
-            failure,
-            partial,
-            critical_success,
-            critical_failure,
-        }
-    }
 }
 
 /// A single outcome with narrative text and triggered effects
@@ -787,9 +746,9 @@ impl ChallengeOutcomes {
 #[serde(rename_all = "camelCase")]
 pub struct Outcome {
     /// Narrative description shown to players
-    description: String,
+    pub description: String,
     /// Effects that trigger when this outcome occurs
-    triggers: Vec<OutcomeTrigger>,
+    pub triggers: Vec<OutcomeTrigger>,
 }
 
 impl Outcome {
@@ -800,25 +759,8 @@ impl Outcome {
         }
     }
 
-    // === Accessors ===
-
-    pub fn description(&self) -> &str {
-        &self.description
-    }
-
-    pub fn triggers(&self) -> &[OutcomeTrigger] {
-        &self.triggers
-    }
-
-    // === Builder Methods ===
-
     pub fn with_trigger(mut self, trigger: OutcomeTrigger) -> Self {
         self.triggers.push(trigger);
-        self
-    }
-
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = description.into();
         self
     }
 }
@@ -1001,11 +943,11 @@ impl OutcomeTrigger {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TriggerCondition {
-    condition_type: TriggerType,
+    pub condition_type: TriggerType,
     /// Human-readable description for DM reference
-    description: String,
+    pub description: String,
     /// Whether this condition alone is sufficient (AND vs OR logic)
-    required: bool,
+    pub required: bool,
 }
 
 impl TriggerCondition {
@@ -1015,27 +957,6 @@ impl TriggerCondition {
             description: description.into(),
             required: false,
         }
-    }
-
-    // === Accessors ===
-
-    pub fn condition_type(&self) -> &TriggerType {
-        &self.condition_type
-    }
-
-    pub fn description(&self) -> &str {
-        &self.description
-    }
-
-    pub fn required(&self) -> bool {
-        self.required
-    }
-
-    // === Builder Methods ===
-
-    pub fn with_required(mut self, required: bool) -> Self {
-        self.required = required;
-        self
     }
 
     /// Mark this condition as required
@@ -1293,9 +1214,9 @@ impl std::fmt::Display for OutcomeType {
 #[serde(rename_all = "camelCase")]
 pub struct ChallengePrerequisite {
     /// The prerequisite challenge ID
-    challenge_id: ChallengeId,
+    pub challenge_id: ChallengeId,
     /// Whether success is required (true = must succeed, false = just attempted)
-    success_required: bool,
+    pub success_required: bool,
 }
 
 impl ChallengePrerequisite {
@@ -1312,23 +1233,6 @@ impl ChallengePrerequisite {
             success_required: true,
         }
     }
-
-    // === Accessors ===
-
-    pub fn challenge_id(&self) -> ChallengeId {
-        self.challenge_id
-    }
-
-    pub fn success_required(&self) -> bool {
-        self.success_required
-    }
-
-    // === Builder Methods ===
-
-    pub fn with_success_required(mut self, success_required: bool) -> Self {
-        self.success_required = success_required;
-        self
-    }
 }
 
 /// Data for AVAILABLE_AT edge between Challenge and Location
@@ -1336,11 +1240,11 @@ impl ChallengePrerequisite {
 #[serde(rename_all = "camelCase")]
 pub struct ChallengeLocationAvailability {
     /// The location where this challenge is available
-    location_id: LocationId,
+    pub location_id: LocationId,
     /// Whether the challenge is always available at this location
-    always_available: bool,
+    pub always_available: bool,
     /// Time restriction (if any): "Morning", "Afternoon", "Evening", "Night"
-    time_restriction: Option<String>,
+    pub time_restriction: Option<String>,
 }
 
 impl ChallengeLocationAvailability {
@@ -1352,30 +1256,9 @@ impl ChallengeLocationAvailability {
         }
     }
 
-    // === Accessors ===
-
-    pub fn location_id(&self) -> LocationId {
-        self.location_id
-    }
-
-    pub fn always_available(&self) -> bool {
-        self.always_available
-    }
-
-    pub fn time_restriction(&self) -> Option<&str> {
-        self.time_restriction.as_deref()
-    }
-
-    // === Builder Methods ===
-
     pub fn with_time_restriction(mut self, time: impl Into<String>) -> Self {
         self.time_restriction = Some(time.into());
         self.always_available = false;
-        self
-    }
-
-    pub fn with_always_available(mut self, always_available: bool) -> Self {
-        self.always_available = always_available;
         self
     }
 }
@@ -1385,11 +1268,11 @@ impl ChallengeLocationAvailability {
 #[serde(rename_all = "camelCase")]
 pub struct ChallengeRegionAvailability {
     /// The region where this challenge is available
-    region_id: RegionId,
+    pub region_id: RegionId,
     /// Whether the challenge is always available at this region
-    always_available: bool,
+    pub always_available: bool,
     /// Time restriction (if any): "Morning", "Afternoon", "Evening", "Night"
-    time_restriction: Option<String>,
+    pub time_restriction: Option<String>,
 }
 
 impl ChallengeRegionAvailability {
@@ -1401,30 +1284,9 @@ impl ChallengeRegionAvailability {
         }
     }
 
-    // === Accessors ===
-
-    pub fn region_id(&self) -> RegionId {
-        self.region_id
-    }
-
-    pub fn always_available(&self) -> bool {
-        self.always_available
-    }
-
-    pub fn time_restriction(&self) -> Option<&str> {
-        self.time_restriction.as_deref()
-    }
-
-    // === Builder Methods ===
-
     pub fn with_time_restriction(mut self, time: impl Into<String>) -> Self {
         self.time_restriction = Some(time.into());
         self.always_available = false;
-        self
-    }
-
-    pub fn with_always_available(mut self, always_available: bool) -> Self {
-        self.always_available = always_available;
         self
     }
 }
@@ -1434,18 +1296,12 @@ impl ChallengeRegionAvailability {
 #[serde(rename_all = "camelCase")]
 pub struct ChallengeUnlock {
     /// The location that gets unlocked on successful completion
-    location_id: LocationId,
+    pub location_id: LocationId,
 }
 
 impl ChallengeUnlock {
     pub fn new(location_id: LocationId) -> Self {
         Self { location_id }
-    }
-
-    // === Accessors ===
-
-    pub fn location_id(&self) -> LocationId {
-        self.location_id
     }
 }
 
@@ -1468,7 +1324,7 @@ mod tests {
         assert_eq!(challenge.name(), "Investigate the Statue");
         assert!(challenge.active());
         assert_eq!(
-            challenge.outcomes().success().description(),
+            challenge.outcomes().success.description,
             "You find a hidden mechanism in the statue's base"
         );
     }
@@ -1501,7 +1357,7 @@ mod tests {
             .with_trigger(OutcomeTrigger::reveal_persistent("Map of the catacombs"))
             .with_trigger(OutcomeTrigger::enable(ChallengeId::new()));
 
-        assert_eq!(outcome.triggers().len(), 2);
+        assert_eq!(outcome.triggers.len(), 2);
     }
 
     #[test]
@@ -1513,12 +1369,12 @@ mod tests {
         // Roll 10 + modifier 5 = 15, meets DC 15
         let (outcome_type, outcome) = challenge.evaluate_roll(10, 5);
         assert_eq!(outcome_type, OutcomeType::Success);
-        assert_eq!(outcome.description(), "Success!");
+        assert_eq!(outcome.description, "Success!");
 
         // Roll 10 + modifier 3 = 13, below DC 15
         let (outcome_type, outcome) = challenge.evaluate_roll(10, 3);
         assert_eq!(outcome_type, OutcomeType::Failure);
-        assert_eq!(outcome.description(), "Failure!");
+        assert_eq!(outcome.description, "Failure!");
     }
 
     #[test]
@@ -1533,12 +1389,12 @@ mod tests {
         // Natural 20 = critical success
         let (outcome_type, outcome) = challenge.evaluate_roll(20, 0);
         assert_eq!(outcome_type, OutcomeType::CriticalSuccess);
-        assert_eq!(outcome.description(), "Critical!");
+        assert_eq!(outcome.description, "Critical!");
 
         // Natural 1 = critical failure
         let (outcome_type, outcome) = challenge.evaluate_roll(1, 10);
         assert_eq!(outcome_type, OutcomeType::CriticalFailure);
-        assert_eq!(outcome.description(), "Fumble!");
+        assert_eq!(outcome.description, "Fumble!");
     }
 
     #[test]
@@ -1577,7 +1433,7 @@ mod tests {
         // Roll 5 + modifier 3 = 8, 7-9 = partial success
         let (outcome_type, outcome) = challenge.evaluate_roll(5, 3);
         assert_eq!(outcome_type, OutcomeType::Partial);
-        assert_eq!(outcome.description(), "Partial!");
+        assert_eq!(outcome.description, "Partial!");
 
         // Roll 4 + modifier 3 = 7, 7-9 = partial success
         let (outcome_type, _) = challenge.evaluate_roll(4, 3);
