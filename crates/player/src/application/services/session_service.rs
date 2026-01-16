@@ -113,8 +113,13 @@ impl SessionService {
         let world_id = uuid::Uuid::parse_str(world_id)?;
         let world_role = participant_role_to_world_role(role.into());
 
-        self.command_bus
-            .send(ClientMessageBuilder::join_world(world_id, world_role, user_id.to_string(), None, None))
+        self.command_bus.send(ClientMessageBuilder::join_world(
+            world_id,
+            world_role,
+            user_id.to_string(),
+            None,
+            None,
+        ))
     }
 
     /// Subscribe to session events and set up automatic world join on connect.
@@ -161,7 +166,11 @@ impl SessionService {
                         "Sending JoinWorld message (native) - already connected"
                     );
                     let _ = command_bus.send(ClientMessageBuilder::join_world(
-                        world_uuid, world_role, user_id_for_task.clone(), None, None,
+                        world_uuid,
+                        world_role,
+                        user_id_for_task.clone(),
+                        None,
+                        None,
                     ));
                     join_sent = true;
                 }
@@ -186,7 +195,11 @@ impl SessionService {
                                 "Sending JoinWorld message (native)"
                             );
                             let _ = command_bus.send(ClientMessageBuilder::join_world(
-                                world_uuid, world_role, user_id_for_task.clone(), None, None,
+                                world_uuid,
+                                world_role,
+                                user_id_for_task.clone(),
+                                None,
+                                None,
                             ));
                             join_sent = true;
                         }
@@ -253,7 +266,11 @@ impl SessionService {
                         "Sending JoinWorld message (WASM) - already connected"
                     );
                     let _ = command_bus.send(ClientMessageBuilder::join_world(
-                        world_uuid, world_role, user_id_for_task.clone(), None, None,
+                        world_uuid,
+                        world_role,
+                        user_id_for_task.clone(),
+                        None,
+                        None,
                     ));
                     join_sent = true;
                 }
@@ -278,7 +295,11 @@ impl SessionService {
                                 "Sending JoinWorld message (WASM)"
                             );
                             let _ = command_bus.send(ClientMessageBuilder::join_world(
-                                world_uuid, world_role, user_id_for_task.clone(), None, None,
+                                world_uuid,
+                                world_role,
+                                user_id_for_task.clone(),
+                                None,
+                                None,
                             ));
                             join_sent = true;
                         }

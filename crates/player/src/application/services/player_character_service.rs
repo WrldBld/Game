@@ -6,9 +6,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::application::dto::CharacterSheetDataApi;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
+use wrldbldr_protocol::character_sheet::CharacterSheetValues;
 use wrldbldr_protocol::{PlayerCharacterRequest, RequestPayload};
 
 /// Full player character data
@@ -22,7 +22,7 @@ pub struct PlayerCharacterData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sheet_data: Option<CharacterSheetDataApi>,
+    pub sheet_data: Option<CharacterSheetValues>,
     pub current_location_id: String,
     pub starting_location_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -42,7 +42,7 @@ pub struct CreatePlayerCharacterRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub starting_region_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sheet_data: Option<serde_json::Value>,
+    pub sheet_data: Option<CharacterSheetValues>,
 }
 
 /// Request to update a player character
@@ -51,7 +51,7 @@ pub struct UpdatePlayerCharacterRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sheet_data: Option<serde_json::Value>,
+    pub sheet_data: Option<CharacterSheetValues>,
 }
 
 /// Response from location update

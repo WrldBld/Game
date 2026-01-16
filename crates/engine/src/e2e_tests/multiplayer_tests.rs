@@ -1533,9 +1533,7 @@ async fn test_player_leave_notifies_others() {
             .get("name")
             .and_then(|v| v.as_str())
             .expect("Should have PC name");
-        let leaving_player_region = pc_b_info
-            .get("current_region_id")
-            .and_then(|v| v.as_str());
+        let leaving_player_region = pc_b_info.get("current_region_id").and_then(|v| v.as_str());
 
         // Player B disconnects - in real scenario this would:
         // 1. WebSocket connection closes

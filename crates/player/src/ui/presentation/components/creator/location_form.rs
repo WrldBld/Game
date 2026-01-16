@@ -2,11 +2,11 @@
 
 use dioxus::prelude::*;
 
-use crate::infrastructure::spawn_task;
 use super::asset_gallery::AssetGallery;
 use super::suggestion_button::{SuggestionButton, SuggestionType};
 use crate::application::services::LocationFormData;
 use crate::application::services::SuggestionContext;
+use crate::infrastructure::spawn_task;
 use crate::presentation::components::common::FormField;
 use crate::presentation::services::use_location_service;
 

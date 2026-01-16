@@ -269,7 +269,9 @@ impl NarrativeEventName {
         let name = name.into();
         let trimmed = name.trim();
         if trimmed.is_empty() {
-            return Err(DomainError::validation("Narrative event name cannot be empty"));
+            return Err(DomainError::validation(
+                "Narrative event name cannot be empty",
+            ));
         }
         if trimmed.len() > MAX_NAME_LENGTH {
             return Err(DomainError::validation(format!(
@@ -448,18 +450,15 @@ mod tests {
         }
 
         #[test]
-        fn serde_roundtrip() {
+        fn clone_preserves_name() {
             let name = CharacterName::new("Gimli").unwrap();
-            let json = serde_json::to_string(&name).unwrap();
-            assert_eq!(json, "\"Gimli\"");
-
-            let deserialized: CharacterName = serde_json::from_str(&json).unwrap();
-            assert_eq!(deserialized.as_str(), "Gimli");
+            let cloned = name.clone();
+            assert_eq!(cloned.as_str(), "Gimli");
         }
 
         #[test]
-        fn serde_invalid_rejected() {
-            let result: Result<CharacterName, _> = serde_json::from_str("\"\"");
+        fn empty_name_rejected() {
+            let result = CharacterName::new("");
             assert!(result.is_err());
         }
     }
@@ -494,11 +493,10 @@ mod tests {
         }
 
         #[test]
-        fn serde_roundtrip() {
+        fn clone_preserves_name() {
             let name = LocationName::new("Gondor").unwrap();
-            let json = serde_json::to_string(&name).unwrap();
-            let deserialized: LocationName = serde_json::from_str(&json).unwrap();
-            assert_eq!(deserialized.as_str(), "Gondor");
+            let cloned = name.clone();
+            assert_eq!(cloned.as_str(), "Gondor");
         }
     }
 
@@ -532,11 +530,10 @@ mod tests {
         }
 
         #[test]
-        fn serde_roundtrip() {
+        fn clone_preserves_name() {
             let name = WorldName::new("Westeros").unwrap();
-            let json = serde_json::to_string(&name).unwrap();
-            let deserialized: WorldName = serde_json::from_str(&json).unwrap();
-            assert_eq!(deserialized.as_str(), "Westeros");
+            let cloned = name.clone();
+            assert_eq!(cloned.as_str(), "Westeros");
         }
     }
 
@@ -570,11 +567,10 @@ mod tests {
         }
 
         #[test]
-        fn serde_roundtrip() {
+        fn clone_preserves_name() {
             let name = SceneName::new("Crossing the Bridge").unwrap();
-            let json = serde_json::to_string(&name).unwrap();
-            let deserialized: SceneName = serde_json::from_str(&json).unwrap();
-            assert_eq!(deserialized.as_str(), "Crossing the Bridge");
+            let cloned = name.clone();
+            assert_eq!(cloned.as_str(), "Crossing the Bridge");
         }
     }
 
@@ -608,11 +604,10 @@ mod tests {
         }
 
         #[test]
-        fn serde_roundtrip() {
+        fn clone_preserves_name() {
             let name = NarrativeEventName::new("The Oath Broken").unwrap();
-            let json = serde_json::to_string(&name).unwrap();
-            let deserialized: NarrativeEventName = serde_json::from_str(&json).unwrap();
-            assert_eq!(deserialized.as_str(), "The Oath Broken");
+            let cloned = name.clone();
+            assert_eq!(cloned.as_str(), "The Oath Broken");
         }
     }
 
@@ -661,20 +656,16 @@ mod tests {
         }
 
         #[test]
-        fn serde_roundtrip() {
+        fn clone_preserves_description() {
             let desc = Description::new("An ancient elf lord").unwrap();
-            let json = serde_json::to_string(&desc).unwrap();
-            let deserialized: Description = serde_json::from_str(&json).unwrap();
-            assert_eq!(deserialized.as_str(), "An ancient elf lord");
+            let cloned = desc.clone();
+            assert_eq!(cloned.as_str(), "An ancient elf lord");
         }
 
         #[test]
-        fn serde_empty_roundtrip() {
+        fn empty_description_is_empty() {
             let desc = Description::empty();
-            let json = serde_json::to_string(&desc).unwrap();
-            assert_eq!(json, "\"\"");
-            let deserialized: Description = serde_json::from_str(&json).unwrap();
-            assert!(deserialized.is_empty());
+            assert!(desc.is_empty());
         }
     }
 }

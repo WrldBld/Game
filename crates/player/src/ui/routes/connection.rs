@@ -7,9 +7,11 @@
 use dioxus::prelude::*;
 
 use crate::application::services::DEFAULT_ENGINE_URL;
-use crate::infrastructure::spawn_task;
-use crate::infrastructure::messaging::{CommandBus, ConnectionState, ConnectionStateObserver, EventBus};
+use crate::infrastructure::messaging::{
+    CommandBus, ConnectionState, ConnectionStateObserver, EventBus,
+};
 use crate::infrastructure::session_type_converters::participant_role_to_world_role;
+use crate::infrastructure::spawn_task;
 use crate::infrastructure::websocket::ClientMessageBuilder;
 use crate::ports::outbound::player_events::PlayerEvent;
 use crate::ports::outbound::storage_keys;

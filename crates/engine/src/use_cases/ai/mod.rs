@@ -7,8 +7,8 @@ use wrldbldr_domain::{CharacterId, WorldId};
 use crate::queue_types::{LlmRequestData, LlmRequestType, SuggestionContext};
 
 use crate::infrastructure::ports::{QueueError, RepoError};
-use crate::repositories::Queue;
 use crate::repositories::character::Character;
+use crate::repositories::Queue;
 use crate::repositories::World;
 
 /// Actantial role for NPC want relationships (domain representation).

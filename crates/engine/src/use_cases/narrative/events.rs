@@ -3,8 +3,7 @@ use std::sync::Arc;
 use serde::Serialize;
 
 use wrldbldr_domain::{
-    self as domain, NarrativeEvent, NarrativeEventId, NarrativeEventName, NarrativeTrigger,
-    WorldId,
+    self as domain, NarrativeEvent, NarrativeEventId, NarrativeEventName, NarrativeTrigger, WorldId,
 };
 
 use crate::infrastructure::ports::RepoError;
@@ -101,8 +100,8 @@ impl NarrativeEventOps {
         outcomes: Option<Vec<domain::EventOutcome>>,
     ) -> Result<NarrativeEventSummary, NarrativeEventError> {
         let now = self.clock.now();
-        let name =
-            NarrativeEventName::new(name).map_err(|e| NarrativeEventError::InvalidInput(e.to_string()))?;
+        let name = NarrativeEventName::new(name)
+            .map_err(|e| NarrativeEventError::InvalidInput(e.to_string()))?;
         let mut event = NarrativeEvent::new(world_id, name, now);
 
         if let Some(description) = description {

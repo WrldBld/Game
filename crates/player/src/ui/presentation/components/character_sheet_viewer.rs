@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use crate::application::dto::CharacterSheetSchema;
 use crate::presentation::components::schema_character_sheet::SchemaCharacterSheet;
+use wrldbldr_protocol::character_sheet::SheetValue;
 
 /// Props for the character sheet viewer
 #[derive(Props, Clone, PartialEq)]
@@ -14,7 +15,7 @@ pub struct CharacterSheetViewerProps {
     /// The sheet schema
     pub schema: CharacterSheetSchema,
     /// The character's values
-    pub values: HashMap<String, serde_json::Value>,
+    pub values: HashMap<String, SheetValue>,
     /// Handler for closing the viewer
     pub on_close: EventHandler<()>,
 }

@@ -42,8 +42,7 @@ async fn test_trigger_narrative_event() {
 
     // Create a simple event
     let event_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -95,8 +94,7 @@ async fn test_repeatable_events() {
 
     // Create a repeatable event
     let repeatable_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -120,8 +118,7 @@ async fn test_repeatable_events() {
 
     // Create a non-repeatable event
     let non_repeatable_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -153,7 +150,9 @@ async fn test_repeatable_events() {
         .expect("Should list events");
 
     assert!(
-        events.iter().any(|e| e.name().as_str() == "Repeatable Event"),
+        events
+            .iter()
+            .any(|e| e.name().as_str() == "Repeatable Event"),
         "Repeatable event should be listed"
     );
     assert!(
@@ -178,8 +177,7 @@ async fn test_event_priority() {
         (10, "High Priority"),
     ] {
         let event_id = Uuid::new_v4();
-        ctx
-            .graph()
+        ctx.graph()
             .run(
                 query(
                     r#"CREATE (e:NarrativeEvent {
@@ -266,8 +264,7 @@ async fn test_favorite_events() {
 
     // Create a favorite event
     let event_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -301,7 +298,9 @@ async fn test_favorite_events() {
 
     let favorites: Vec<_> = events.iter().filter(|e| e.is_favorite()).collect();
     assert!(
-        favorites.iter().any(|e| e.name().as_str() == "Favorite Event"),
+        favorites
+            .iter()
+            .any(|e| e.name().as_str() == "Favorite Event"),
         "Favorite event should be in filtered favorites list"
     );
 }

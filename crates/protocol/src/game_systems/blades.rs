@@ -10,12 +10,13 @@
 
 use super::traits::{
     AllocationSystem, CalculationEngine, CharacterSheetProvider, CharacterSheetSchema,
-    ConditionLevel, CreationStep, DerivedField, DerivationType, DotPoolCategory, FieldDefinition,
+    ConditionLevel, CreationStep, DerivationType, DerivedField, DotPoolCategory, FieldDefinition,
     FieldLayout, FieldValidation, GameSystem, ProficiencyLevel, ResourceColor, SchemaFieldType,
-    SchemaSection, SchemaSelectOption, SectionType, StartingDot,
+    SchemaSection, SchemaSelectOption, SectionType, SheetValue, StartingDot,
 };
-use crate::entities::{StatBlock, StatModifier};
+
 use std::collections::HashMap;
+use wrldbldr_domain::value_objects::{StatBlock, StatModifier};
 
 /// Blades action roll outcome.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -203,20 +204,9 @@ impl BladesSystem {
         Self {
             action_names: vec![
                 // Insight
-                "Hunt",
-                "Study",
-                "Survey",
-                "Tinker",
-                // Prowess
-                "Finesse",
-                "Prowl",
-                "Skirmish",
-                "Wreck",
-                // Resolve
-                "Attune",
-                "Command",
-                "Consort",
-                "Sway",
+                "Hunt", "Study", "Survey", "Tinker", // Prowess
+                "Finesse", "Prowl", "Skirmish", "Wreck", // Resolve
+                "Attune", "Command", "Consort", "Sway",
             ],
         }
     }
@@ -299,11 +289,7 @@ impl CalculationEngine for BladesSystem {
 
     fn stack_modifiers(&self, modifiers: &[StatModifier]) -> i32 {
         // In Blades, modifiers add/remove dice from pool
-        modifiers
-            .iter()
-            .filter(|m| m.active)
-            .map(|m| m.value)
-            .sum()
+        modifiers.iter().filter(|m| m.active).map(|m| m.value).sum()
     }
 
     fn calculate_ac(
@@ -328,12 +314,7 @@ impl CalculationEngine for BladesSystem {
         stats.get_stat(action).unwrap_or(0)
     }
 
-    fn saving_throw_modifier(
-        &self,
-        stats: &StatBlock,
-        attribute: &str,
-        _proficient: bool,
-    ) -> i32 {
+    fn saving_throw_modifier(&self, stats: &StatBlock, attribute: &str, _proficient: bool) -> i32 {
         // Resistance rolls use attribute ratings
         stats.get_stat(attribute).unwrap_or(0)
     }
@@ -378,38 +359,30 @@ impl CharacterSheetProvider for BladesSystem {
                 CreationStep {
                     id: "identity".to_string(),
                     label: "Identity".to_string(),
-                    description: "Choose your character's name, alias, playbook, heritage, background, and vice.".to_string(),
-                    section_ids: vec!["identity".to_string()],
-                    order: 1,
-                    required: true,
-                    allocation: None,
+                    description: Some("Choose your character's name, alias, playbook, heritage, background, and vice.".to_string()),
+                    sections: vec!["identity".to_string()],
+                    optional: false,
                 },
                 CreationStep {
                     id: "actions".to_string(),
                     label: "Action Ratings".to_string(),
-                    description: "Assign action dots based on your playbook. You get 4 action dots to assign, plus your playbook's starting action at rating 2.".to_string(),
-                    section_ids: vec!["attributes_actions".to_string()],
-                    order: 2,
-                    required: true,
-                    allocation: Some(Self::dot_pool_allocation()),
+                    description: Some("Assign action dots based on your playbook. You get 4 action dots to assign, plus your playbook's starting action at rating 2.".to_string()),
+                    sections: vec!["attributes_actions".to_string()],
+                    optional: false,
                 },
                 CreationStep {
                     id: "abilities".to_string(),
                     label: "Special Abilities".to_string(),
-                    description: "Choose your starting special ability from your playbook.".to_string(),
-                    section_ids: vec!["special_abilities".to_string()],
-                    order: 3,
-                    required: true,
-                    allocation: None,
+                    description: Some("Choose your starting special ability from your playbook.".to_string()),
+                    sections: vec!["special_abilities".to_string()],
+                    optional: false,
                 },
                 CreationStep {
                     id: "load".to_string(),
                     label: "Load & Equipment".to_string(),
-                    description: "Choose your load level and equipment for the score.".to_string(),
-                    section_ids: vec!["load_armor".to_string()],
-                    order: 4,
-                    required: false,
-                    allocation: None,
+                    description: Some("Choose your load level and equipment for the score.".to_string()),
+                    sections: vec!["load_armor".to_string()],
+                    optional: true,
                 },
             ],
         }
@@ -417,41 +390,37 @@ impl CharacterSheetProvider for BladesSystem {
 
     fn calculate_derived_values(
         &self,
-        values: &HashMap<String, serde_json::Value>,
-    ) -> HashMap<String, serde_json::Value> {
+        values: &HashMap<String, SheetValue>,
+    ) -> HashMap<String, SheetValue> {
         let mut derived = HashMap::new();
 
         // Helper to get action rating
-        let get_action = |name: &str| -> u8 {
-            values
-                .get(name)
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0) as u8
-        };
+        let get_action =
+            |name: &str| -> u8 { values.get(name).and_then(SheetValue::as_u64).unwrap_or(0) as u8 };
 
         // Calculate Insight attribute (number of actions with 1+ dots)
         let insight_actions = ["HUNT", "STUDY", "SURVEY", "TINKER"];
-        let insight_rating: u8 = insight_actions
-            .iter()
-            .filter(|a| get_action(a) > 0)
-            .count() as u8;
-        derived.insert("INSIGHT".to_string(), serde_json::json!(insight_rating));
+        let insight_rating: u8 = insight_actions.iter().filter(|a| get_action(a) > 0).count() as u8;
+        derived.insert(
+            "INSIGHT".to_string(),
+            SheetValue::Integer(insight_rating as i32),
+        );
 
         // Calculate Prowess attribute
         let prowess_actions = ["FINESSE", "PROWL", "SKIRMISH", "WRECK"];
-        let prowess_rating: u8 = prowess_actions
-            .iter()
-            .filter(|a| get_action(a) > 0)
-            .count() as u8;
-        derived.insert("PROWESS".to_string(), serde_json::json!(prowess_rating));
+        let prowess_rating: u8 = prowess_actions.iter().filter(|a| get_action(a) > 0).count() as u8;
+        derived.insert(
+            "PROWESS".to_string(),
+            SheetValue::Integer(prowess_rating as i32),
+        );
 
         // Calculate Resolve attribute
         let resolve_actions = ["ATTUNE", "COMMAND", "CONSORT", "SWAY"];
-        let resolve_rating: u8 = resolve_actions
-            .iter()
-            .filter(|a| get_action(a) > 0)
-            .count() as u8;
-        derived.insert("RESOLVE".to_string(), serde_json::json!(resolve_rating));
+        let resolve_rating: u8 = resolve_actions.iter().filter(|a| get_action(a) > 0).count() as u8;
+        derived.insert(
+            "RESOLVE".to_string(),
+            SheetValue::Integer(resolve_rating as i32),
+        );
 
         // Calculate trauma count
         let trauma_conditions = [
@@ -466,25 +435,33 @@ impl CharacterSheetProvider for BladesSystem {
         ];
         let trauma_count: u8 = trauma_conditions
             .iter()
-            .filter(|t| values.get(&t.to_string()).and_then(|v| v.as_bool()).unwrap_or(false))
+            .filter(|t| {
+                values
+                    .get(&t.to_string())
+                    .and_then(SheetValue::as_bool)
+                    .unwrap_or(false)
+            })
             .count() as u8;
-        derived.insert("TRAUMA_COUNT".to_string(), serde_json::json!(trauma_count));
+        derived.insert(
+            "TRAUMA_COUNT".to_string(),
+            SheetValue::Integer(trauma_count as i32),
+        );
 
         // Calculate load used
         // This would sum up equipped items' load values
         // For now, just track the load level's max
-        if let Some(load_level) = values.get("LOAD_LEVEL").and_then(|v| v.as_str()) {
+        if let Some(load_level) = values.get("LOAD_LEVEL").and_then(SheetValue::as_str) {
             let max_load = match load_level {
                 "light" => 3,
                 "normal" => 5,
                 "heavy" => 6,
                 _ => 5,
             };
-            derived.insert("MAX_LOAD".to_string(), serde_json::json!(max_load));
+            derived.insert("MAX_LOAD".to_string(), SheetValue::Integer(max_load));
         }
 
         // Calculate XP trigger based on playbook
-        if let Some(playbook) = values.get("PLAYBOOK").and_then(|v| v.as_str()) {
+        if let Some(playbook) = values.get("PLAYBOOK").and_then(SheetValue::as_str) {
             let xp_trigger = match playbook {
                 "cutter" => "Address challenges with violence or coercion",
                 "hound" => "Address challenges with tracking or violence",
@@ -495,7 +472,10 @@ impl CharacterSheetProvider for BladesSystem {
                 "whisper" => "Address challenges with knowledge or arcane power",
                 _ => "",
             };
-            derived.insert("XP_TRIGGER".to_string(), serde_json::json!(xp_trigger));
+            derived.insert(
+                "XP_TRIGGER".to_string(),
+                SheetValue::String(xp_trigger.to_string()),
+            );
         }
 
         derived
@@ -504,13 +484,13 @@ impl CharacterSheetProvider for BladesSystem {
     fn validate_field(
         &self,
         field_id: &str,
-        value: &serde_json::Value,
-        all_values: &HashMap<String, serde_json::Value>,
+        value: &SheetValue,
+        all_values: &HashMap<String, SheetValue>,
     ) -> Option<String> {
         match field_id {
             // Validate action ratings (0-4)
-            "HUNT" | "STUDY" | "SURVEY" | "TINKER" | "FINESSE" | "PROWL" | "SKIRMISH"
-            | "WRECK" | "ATTUNE" | "COMMAND" | "CONSORT" | "SWAY" => {
+            "HUNT" | "STUDY" | "SURVEY" | "TINKER" | "FINESSE" | "PROWL" | "SKIRMISH" | "WRECK"
+            | "ATTUNE" | "COMMAND" | "CONSORT" | "SWAY" => {
                 if let Some(rating) = value.as_u64() {
                     if rating > 4 {
                         return Some("Action ratings must be between 0 and 4".to_string());
@@ -581,19 +561,19 @@ impl CharacterSheetProvider for BladesSystem {
         None
     }
 
-    fn default_values(&self) -> HashMap<String, serde_json::Value> {
+    fn default_values(&self) -> HashMap<String, SheetValue> {
         let mut defaults = HashMap::new();
 
         // Actions default to 0
         for action in &[
-            "HUNT", "STUDY", "SURVEY", "TINKER", "FINESSE", "PROWL", "SKIRMISH", "WRECK",
-            "ATTUNE", "COMMAND", "CONSORT", "SWAY",
+            "HUNT", "STUDY", "SURVEY", "TINKER", "FINESSE", "PROWL", "SKIRMISH", "WRECK", "ATTUNE",
+            "COMMAND", "CONSORT", "SWAY",
         ] {
-            defaults.insert(action.to_string(), serde_json::json!(0));
+            defaults.insert(action.to_string(), SheetValue::Integer(0));
         }
 
         // Stress defaults to 0
-        defaults.insert("STRESS".to_string(), serde_json::json!(0));
+        defaults.insert("STRESS".to_string(), SheetValue::Integer(0));
 
         // Traumas default to false
         for trauma in &[
@@ -606,26 +586,41 @@ impl CharacterSheetProvider for BladesSystem {
             "TRAUMA_UNSTABLE",
             "TRAUMA_VICIOUS",
         ] {
-            defaults.insert(trauma.to_string(), serde_json::json!(false));
+            defaults.insert(trauma.to_string(), SheetValue::Boolean(false));
         }
 
         // Harm defaults to empty
-        defaults.insert("HARM_LEVEL1_1".to_string(), serde_json::json!(""));
-        defaults.insert("HARM_LEVEL1_2".to_string(), serde_json::json!(""));
-        defaults.insert("HARM_LEVEL2_1".to_string(), serde_json::json!(""));
-        defaults.insert("HARM_LEVEL2_2".to_string(), serde_json::json!(""));
-        defaults.insert("HARM_LEVEL3".to_string(), serde_json::json!(""));
+        defaults.insert(
+            "HARM_LEVEL1_1".to_string(),
+            SheetValue::String(String::new()),
+        );
+        defaults.insert(
+            "HARM_LEVEL1_2".to_string(),
+            SheetValue::String(String::new()),
+        );
+        defaults.insert(
+            "HARM_LEVEL2_1".to_string(),
+            SheetValue::String(String::new()),
+        );
+        defaults.insert(
+            "HARM_LEVEL2_2".to_string(),
+            SheetValue::String(String::new()),
+        );
+        defaults.insert("HARM_LEVEL3".to_string(), SheetValue::String(String::new()));
 
         // Armor defaults to false
-        defaults.insert("ARMOR_STANDARD".to_string(), serde_json::json!(false));
-        defaults.insert("ARMOR_HEAVY".to_string(), serde_json::json!(false));
-        defaults.insert("ARMOR_SPECIAL".to_string(), serde_json::json!(false));
+        defaults.insert("ARMOR_STANDARD".to_string(), SheetValue::Boolean(false));
+        defaults.insert("ARMOR_HEAVY".to_string(), SheetValue::Boolean(false));
+        defaults.insert("ARMOR_SPECIAL".to_string(), SheetValue::Boolean(false));
 
         // Load defaults to normal
-        defaults.insert("LOAD_LEVEL".to_string(), serde_json::json!("normal"));
+        defaults.insert(
+            "LOAD_LEVEL".to_string(),
+            SheetValue::String("normal".to_string()),
+        );
 
         // Healing clock defaults to 0
-        defaults.insert("HEALING_CLOCK".to_string(), serde_json::json!(0));
+        defaults.insert("HEALING_CLOCK".to_string(), SheetValue::Integer(0));
 
         defaults
     }
@@ -645,7 +640,8 @@ impl BladesSystem {
                 DotPoolCategory {
                     id: "insight".to_string(),
                     label: "Insight (information and understanding)".to_string(),
-                    dots: 0, // No per-category limit, dots can go anywhere
+                    max: 0,
+                    dots: 0,
                     fields: vec![
                         "HUNT".to_string(),
                         "STUDY".to_string(),
@@ -656,6 +652,7 @@ impl BladesSystem {
                 DotPoolCategory {
                     id: "prowess".to_string(),
                     label: "Prowess (physical capability and violence)".to_string(),
+                    max: 0,
                     dots: 0,
                     fields: vec![
                         "FINESSE".to_string(),
@@ -667,6 +664,7 @@ impl BladesSystem {
                 DotPoolCategory {
                     id: "resolve".to_string(),
                     label: "Resolve (willpower and social interaction)".to_string(),
+                    max: 0,
                     dots: 0,
                     fields: vec![
                         "ATTUNE".to_string(),
@@ -736,7 +734,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: None,
@@ -754,7 +752,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: Some("Your street name or nickname".to_string()),
@@ -768,7 +766,9 @@ impl BladesSystem {
                             SchemaSelectOption {
                                 value: "cutter".to_string(),
                                 label: "Cutter".to_string(),
-                                description: Some("A dangerous and intimidating fighter".to_string()),
+                                description: Some(
+                                    "A dangerous and intimidating fighter".to_string(),
+                                ),
                             },
                             SchemaSelectOption {
                                 value: "hound".to_string(),
@@ -808,7 +808,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: None,
@@ -857,8 +857,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
-                        new_row: true,
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: Some("Where your family line is from".to_string()),
@@ -912,7 +911,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: Some("Your previous life before becoming a scoundrel".to_string()),
@@ -926,7 +925,9 @@ impl BladesSystem {
                             SchemaSelectOption {
                                 value: "faith".to_string(),
                                 label: "Faith".to_string(),
-                                description: Some("Worship of a deity or forgotten god".to_string()),
+                                description: Some(
+                                    "Worship of a deity or forgotten god".to_string(),
+                                ),
                             },
                             SchemaSelectOption {
                                 value: "gambling".to_string(),
@@ -941,7 +942,9 @@ impl BladesSystem {
                             SchemaSelectOption {
                                 value: "obligation".to_string(),
                                 label: "Obligation".to_string(),
-                                description: Some("Family, friends, or causes you support".to_string()),
+                                description: Some(
+                                    "Family, friends, or causes you support".to_string(),
+                                ),
                             },
                             SchemaSelectOption {
                                 value: "pleasure".to_string(),
@@ -951,7 +954,9 @@ impl BladesSystem {
                             SchemaSelectOption {
                                 value: "stupor".to_string(),
                                 label: "Stupor".to_string(),
-                                description: Some("Drugs, alcohol, or other intoxicants".to_string()),
+                                description: Some(
+                                    "Drugs, alcohol, or other intoxicants".to_string(),
+                                ),
                             },
                             SchemaSelectOption {
                                 value: "weird".to_string(),
@@ -966,7 +971,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: Some("How you relieve stress".to_string()),
@@ -988,8 +993,7 @@ impl BladesSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
-                        new_row: true,
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some("Earn XP when you...".to_string()),
@@ -1017,10 +1021,10 @@ impl BladesSystem {
                 min: Some(0),
                 max: Some(4),
                 pattern: None,
-                error_message: Some("Action ratings must be 0-4".to_string()),
+                message: Some("Action ratings must be 0-4".to_string()),
             }),
             layout: FieldLayout {
-                width: Some(3),
+                column_span: 3,
                 ..Default::default()
             },
             description: Some(description.to_string()),
@@ -1044,8 +1048,7 @@ impl BladesSystem {
             }),
             validation: None,
             layout: FieldLayout {
-                width: Some(12),
-                new_row: true,
+                column_span: 12,
                 ..Default::default()
             },
             description: Some("Number of actions with 1+ dots in this attribute".to_string()),
@@ -1109,7 +1112,9 @@ impl BladesSystem {
                             ConditionLevel {
                                 level: 3,
                                 label: "Severe/Fatal (1 slot)".to_string(),
-                                effect: Some("Need help to act, -1d stacks with level 2".to_string()),
+                                effect: Some(
+                                    "Need help to act, -1d stacks with level 2".to_string(),
+                                ),
                             },
                         ],
                     },
@@ -1118,7 +1123,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some("Injuries reduce your effectiveness".to_string()),
@@ -1137,8 +1142,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
-                        new_row: true,
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some("Level 3 harm - Need help to act".to_string()),
@@ -1157,8 +1161,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
-                        new_row: true,
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: Some("Level 2 harm - Reduces effect by 1".to_string()),
@@ -1176,7 +1179,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: Some("Level 2 harm - Reduces effect by 1".to_string()),
@@ -1195,8 +1198,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
-                        new_row: true,
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: Some("Level 1 harm - No mechanical effect".to_string()),
@@ -1214,7 +1216,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: Some("Level 1 harm - No mechanical effect".to_string()),
@@ -1224,16 +1226,13 @@ impl BladesSystem {
                 FieldDefinition {
                     id: "HEALING_CLOCK".to_string(),
                     label: "Healing Clock".to_string(),
-                    field_type: SchemaFieldType::Clock {
-                        segments: 4,
-                    },
+                    field_type: SchemaFieldType::Clock { segments: 4 },
                     editable: true,
                     required: false,
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
-                        new_row: true,
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: Some("When filled, reduce harm by one level".to_string()),
@@ -1266,10 +1265,10 @@ impl BladesSystem {
                         min: Some(0),
                         max: Some(9),
                         pattern: None,
-                        error_message: Some("Stress must be 0-9".to_string()),
+                        message: Some("Stress must be 0-9".to_string())
                     }),
                     layout: FieldLayout {
-                        width: Some(6),
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: Some("Spend stress to push yourself, assist, or resist consequences. At 9 stress, you trauma out.".to_string()),
@@ -1288,7 +1287,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: None,
@@ -1320,7 +1319,7 @@ impl BladesSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: Some("At 4 trauma, your character retires".to_string()),
@@ -1339,9 +1338,8 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(3),
-                        new_row: true,
-                        ..Default::default()
+                        column_span: 3,
+                                                ..Default::default()
                     },
                     description: Some("You're not moved by emotional appeals or danger".to_string()),
                     placeholder: None,
@@ -1358,7 +1356,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(3),
+                        column_span: 3,
                         ..Default::default()
                     },
                     description: Some("You're often lost in reverie, reliving past horrors".to_string()),
@@ -1376,7 +1374,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(3),
+                        column_span: 3,
                         ..Default::default()
                     },
                     description: Some("You're fixated on a particular goal or idea".to_string()),
@@ -1394,7 +1392,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(3),
+                        column_span: 3,
                         ..Default::default()
                     },
                     description: Some("You imagine threats everywhere and can't trust anyone".to_string()),
@@ -1412,9 +1410,8 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(3),
-                        new_row: true,
-                        ..Default::default()
+                        column_span: 3,
+                                                ..Default::default()
                     },
                     description: Some("You have little regard for your own safety or best interests".to_string()),
                     placeholder: None,
@@ -1431,7 +1428,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(3),
+                        column_span: 3,
                         ..Default::default()
                     },
                     description: Some("You lose your edge, become sentimental and easily manipulated".to_string()),
@@ -1449,7 +1446,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(3),
+                        column_span: 3,
                         ..Default::default()
                     },
                     description: Some("Your moods and actions are erratic and unpredictable".to_string()),
@@ -1467,7 +1464,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(3),
+                        column_span: 3,
                         ..Default::default()
                     },
                     description: Some("You seek revenge and enjoy inflicting pain and misery".to_string()),
@@ -1504,7 +1501,9 @@ impl BladesSystem {
                             SchemaSelectOption {
                                 value: "heavy".to_string(),
                                 label: "Heavy (6)".to_string(),
-                                description: Some("Slow and noisy, 6 load, -1d to Prowess".to_string()),
+                                description: Some(
+                                    "Slow and noisy, 6 load, -1d to Prowess".to_string(),
+                                ),
                             },
                         ],
                         allow_custom: false,
@@ -1514,7 +1513,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: Some("Determines how much gear you can carry".to_string()),
@@ -1537,7 +1536,7 @@ impl BladesSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: None,
@@ -1555,7 +1554,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Negate harm from an attack (1 load)".to_string()),
@@ -1573,7 +1572,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Additional armor use (+1 load)".to_string()),
@@ -1591,7 +1590,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("From playbook abilities".to_string()),
@@ -1600,7 +1599,9 @@ impl BladesSystem {
             ],
             collapsible: true,
             collapsed_default: false,
-            description: Some("Choose your load before each score. Mark armor when used.".to_string()),
+            description: Some(
+                "Choose your load before each score. Mark armor when used.".to_string(),
+            ),
         }
     }
 
@@ -1622,7 +1623,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some("Your playbook special abilities".to_string()),
@@ -1640,12 +1641,13 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
-                        new_row: true,
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some("Your carried items and their load cost".to_string()),
-                    placeholder: Some("Fine pistol (1), blade (1), throwing knives (1)...".to_string()),
+                    placeholder: Some(
+                        "Fine pistol (1), blade (1), throwing knives (1)...".to_string(),
+                    ),
                 },
             ],
             collapsible: true,
@@ -1669,7 +1671,7 @@ impl BladesSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some(
@@ -1718,13 +1720,13 @@ impl ProgressClock {
 /// Playbook types in Blades.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Playbook {
-    Cutter,    // Fighter
-    Hound,     // Sharpshooter
-    Leech,     // Technician
-    Lurk,      // Infiltrator
-    Slide,     // Manipulator
-    Spider,    // Mastermind
-    Whisper,   // Channeler
+    Cutter,  // Fighter
+    Hound,   // Sharpshooter
+    Leech,   // Technician
+    Lurk,    // Infiltrator
+    Slide,   // Manipulator
+    Spider,  // Mastermind
+    Whisper, // Channeler
 }
 
 impl Playbook {
@@ -1784,14 +1786,23 @@ mod tests {
     #[test]
     fn outcome_from_dice() {
         // Critical (multiple 6s)
-        assert_eq!(BladesOutcome::from_dice(&[6, 6, 3]), BladesOutcome::Critical);
+        assert_eq!(
+            BladesOutcome::from_dice(&[6, 6, 3]),
+            BladesOutcome::Critical
+        );
 
         // Success (single 6)
         assert_eq!(BladesOutcome::from_dice(&[6, 3, 2]), BladesOutcome::Success);
 
         // Partial (4-5)
-        assert_eq!(BladesOutcome::from_dice(&[5, 3, 2]), BladesOutcome::PartialSuccess);
-        assert_eq!(BladesOutcome::from_dice(&[4, 2, 1]), BladesOutcome::PartialSuccess);
+        assert_eq!(
+            BladesOutcome::from_dice(&[5, 3, 2]),
+            BladesOutcome::PartialSuccess
+        );
+        assert_eq!(
+            BladesOutcome::from_dice(&[4, 2, 1]),
+            BladesOutcome::PartialSuccess
+        );
 
         // Failure (1-3)
         assert_eq!(BladesOutcome::from_dice(&[3, 2, 1]), BladesOutcome::Failure);
@@ -1923,8 +1934,10 @@ mod tests {
             .unwrap();
 
         // Check that all 12 actions are present
-        let action_ids = ["HUNT", "STUDY", "SURVEY", "TINKER", "FINESSE", "PROWL",
-            "SKIRMISH", "WRECK", "ATTUNE", "COMMAND", "CONSORT", "SWAY"];
+        let action_ids = [
+            "HUNT", "STUDY", "SURVEY", "TINKER", "FINESSE", "PROWL", "SKIRMISH", "WRECK", "ATTUNE",
+            "COMMAND", "CONSORT", "SWAY",
+        ];
 
         for action in &action_ids {
             let field = actions.fields.iter().find(|f| f.id == *action);
@@ -1952,9 +1965,16 @@ mod tests {
             .find(|s| s.id == "stress_trauma")
             .unwrap();
 
-        let trauma_ids = ["TRAUMA_COLD", "TRAUMA_HAUNTED", "TRAUMA_OBSESSED",
-            "TRAUMA_PARANOID", "TRAUMA_RECKLESS", "TRAUMA_SOFT",
-            "TRAUMA_UNSTABLE", "TRAUMA_VICIOUS"];
+        let trauma_ids = [
+            "TRAUMA_COLD",
+            "TRAUMA_HAUNTED",
+            "TRAUMA_OBSESSED",
+            "TRAUMA_PARANOID",
+            "TRAUMA_RECKLESS",
+            "TRAUMA_SOFT",
+            "TRAUMA_UNSTABLE",
+            "TRAUMA_VICIOUS",
+        ];
 
         for trauma in &trauma_ids {
             let field = stress_trauma.fields.iter().find(|f| f.id == *trauma);
@@ -1972,29 +1992,29 @@ mod tests {
 
         let mut values = HashMap::new();
         // Set some Insight actions
-        values.insert("HUNT".to_string(), serde_json::json!(2));
-        values.insert("STUDY".to_string(), serde_json::json!(1));
-        values.insert("SURVEY".to_string(), serde_json::json!(0));
-        values.insert("TINKER".to_string(), serde_json::json!(0));
+        values.insert("HUNT".to_string(), SheetValue::Integer(2));
+        values.insert("STUDY".to_string(), SheetValue::Integer(1));
+        values.insert("SURVEY".to_string(), SheetValue::Integer(0));
+        values.insert("TINKER".to_string(), SheetValue::Integer(0));
         // Set some Prowess actions
-        values.insert("FINESSE".to_string(), serde_json::json!(1));
-        values.insert("PROWL".to_string(), serde_json::json!(2));
-        values.insert("SKIRMISH".to_string(), serde_json::json!(1));
-        values.insert("WRECK".to_string(), serde_json::json!(0));
+        values.insert("FINESSE".to_string(), SheetValue::Integer(1));
+        values.insert("PROWL".to_string(), SheetValue::Integer(2));
+        values.insert("SKIRMISH".to_string(), SheetValue::Integer(1));
+        values.insert("WRECK".to_string(), SheetValue::Integer(0));
         // Set some Resolve actions
-        values.insert("ATTUNE".to_string(), serde_json::json!(0));
-        values.insert("COMMAND".to_string(), serde_json::json!(1));
-        values.insert("CONSORT".to_string(), serde_json::json!(0));
-        values.insert("SWAY".to_string(), serde_json::json!(0));
+        values.insert("ATTUNE".to_string(), SheetValue::Integer(0));
+        values.insert("COMMAND".to_string(), SheetValue::Integer(1));
+        values.insert("CONSORT".to_string(), SheetValue::Integer(0));
+        values.insert("SWAY".to_string(), SheetValue::Integer(0));
 
         let derived = system.calculate_derived_values(&values);
 
         // Insight: 2 actions with dots (HUNT, STUDY)
-        assert_eq!(derived.get("INSIGHT").unwrap(), &serde_json::json!(2));
+        assert_eq!(derived.get("INSIGHT").unwrap(), &SheetValue::Integer(2));
         // Prowess: 3 actions with dots (FINESSE, PROWL, SKIRMISH)
-        assert_eq!(derived.get("PROWESS").unwrap(), &serde_json::json!(3));
+        assert_eq!(derived.get("PROWESS").unwrap(), &SheetValue::Integer(3));
         // Resolve: 1 action with dots (COMMAND)
-        assert_eq!(derived.get("RESOLVE").unwrap(), &serde_json::json!(1));
+        assert_eq!(derived.get("RESOLVE").unwrap(), &SheetValue::Integer(1));
     }
 
     #[test]
@@ -2002,18 +2022,21 @@ mod tests {
         let system = BladesSystem::new();
 
         let mut values = HashMap::new();
-        values.insert("TRAUMA_COLD".to_string(), serde_json::json!(true));
-        values.insert("TRAUMA_HAUNTED".to_string(), serde_json::json!(false));
-        values.insert("TRAUMA_OBSESSED".to_string(), serde_json::json!(true));
-        values.insert("TRAUMA_PARANOID".to_string(), serde_json::json!(false));
-        values.insert("TRAUMA_RECKLESS".to_string(), serde_json::json!(false));
-        values.insert("TRAUMA_SOFT".to_string(), serde_json::json!(false));
-        values.insert("TRAUMA_UNSTABLE".to_string(), serde_json::json!(true));
-        values.insert("TRAUMA_VICIOUS".to_string(), serde_json::json!(false));
+        values.insert("TRAUMA_COLD".to_string(), SheetValue::Boolean(true));
+        values.insert("TRAUMA_HAUNTED".to_string(), SheetValue::Boolean(false));
+        values.insert("TRAUMA_OBSESSED".to_string(), SheetValue::Boolean(true));
+        values.insert("TRAUMA_PARANOID".to_string(), SheetValue::Boolean(false));
+        values.insert("TRAUMA_RECKLESS".to_string(), SheetValue::Boolean(false));
+        values.insert("TRAUMA_SOFT".to_string(), SheetValue::Boolean(false));
+        values.insert("TRAUMA_UNSTABLE".to_string(), SheetValue::Boolean(true));
+        values.insert("TRAUMA_VICIOUS".to_string(), SheetValue::Boolean(false));
 
         let derived = system.calculate_derived_values(&values);
 
-        assert_eq!(derived.get("TRAUMA_COUNT").unwrap(), &serde_json::json!(3));
+        assert_eq!(
+            derived.get("TRAUMA_COUNT").unwrap(),
+            &SheetValue::Integer(3)
+        );
     }
 
     #[test]
@@ -2021,13 +2044,16 @@ mod tests {
         let system = BladesSystem::new();
 
         let mut values = HashMap::new();
-        values.insert("PLAYBOOK".to_string(), serde_json::json!("lurk"));
+        values.insert(
+            "PLAYBOOK".to_string(),
+            SheetValue::String("lurk".to_string()),
+        );
 
         let derived = system.calculate_derived_values(&values);
 
         assert_eq!(
             derived.get("XP_TRIGGER").unwrap(),
-            &serde_json::json!("Address challenges with stealth or evasion")
+            &SheetValue::String("Address challenges with stealth or evasion".to_string())
         );
     }
 
@@ -2036,11 +2062,14 @@ mod tests {
         let system = BladesSystem::new();
 
         let mut values = HashMap::new();
-        values.insert("LOAD_LEVEL".to_string(), serde_json::json!("heavy"));
+        values.insert(
+            "LOAD_LEVEL".to_string(),
+            SheetValue::String("heavy".to_string()),
+        );
 
         let derived = system.calculate_derived_values(&values);
 
-        assert_eq!(derived.get("MAX_LOAD").unwrap(), &serde_json::json!(6));
+        assert_eq!(derived.get("MAX_LOAD").unwrap(), &SheetValue::Integer(6));
     }
 
     #[test]
@@ -2049,13 +2078,19 @@ mod tests {
         let values = HashMap::new();
 
         // Valid rating
-        assert!(system.validate_field("HUNT", &serde_json::json!(3), &values).is_none());
+        assert!(system
+            .validate_field("HUNT", &SheetValue::Integer(3), &values)
+            .is_none());
 
         // Invalid rating (too high)
-        assert!(system.validate_field("HUNT", &serde_json::json!(5), &values).is_some());
+        assert!(system
+            .validate_field("HUNT", &SheetValue::Integer(5), &values)
+            .is_some());
 
         // Invalid type
-        assert!(system.validate_field("HUNT", &serde_json::json!("two"), &values).is_some());
+        assert!(system
+            .validate_field("HUNT", &SheetValue::String("two".to_string()), &values)
+            .is_some());
     }
 
     #[test]
@@ -2064,10 +2099,14 @@ mod tests {
         let values = HashMap::new();
 
         // Valid stress
-        assert!(system.validate_field("STRESS", &serde_json::json!(5), &values).is_none());
+        assert!(system
+            .validate_field("STRESS", &SheetValue::Integer(5), &values)
+            .is_none());
 
         // Invalid stress (too high)
-        assert!(system.validate_field("STRESS", &serde_json::json!(10), &values).is_some());
+        assert!(system
+            .validate_field("STRESS", &SheetValue::Integer(10), &values)
+            .is_some());
     }
 
     #[test]
@@ -2075,13 +2114,13 @@ mod tests {
         let system = BladesSystem::new();
 
         let mut values = HashMap::new();
-        values.insert("TRAUMA_COLD".to_string(), serde_json::json!(true));
-        values.insert("TRAUMA_HAUNTED".to_string(), serde_json::json!(true));
-        values.insert("TRAUMA_OBSESSED".to_string(), serde_json::json!(true));
-        values.insert("TRAUMA_PARANOID".to_string(), serde_json::json!(true));
+        values.insert("TRAUMA_COLD".to_string(), SheetValue::Boolean(true));
+        values.insert("TRAUMA_HAUNTED".to_string(), SheetValue::Boolean(true));
+        values.insert("TRAUMA_OBSESSED".to_string(), SheetValue::Boolean(true));
+        values.insert("TRAUMA_PARANOID".to_string(), SheetValue::Boolean(true));
 
         // Adding a 5th trauma should fail
-        let result = system.validate_field("TRAUMA_RECKLESS", &serde_json::json!(true), &values);
+        let result = system.validate_field("TRAUMA_RECKLESS", &SheetValue::Boolean(true), &values);
         assert!(result.is_some());
         assert!(result.unwrap().contains("Maximum 4 traumas"));
     }
@@ -2092,19 +2131,28 @@ mod tests {
         let defaults = system.default_values();
 
         // Actions default to 0
-        assert_eq!(defaults.get("HUNT").unwrap(), &serde_json::json!(0));
-        assert_eq!(defaults.get("SWAY").unwrap(), &serde_json::json!(0));
+        assert_eq!(defaults.get("HUNT").unwrap(), &SheetValue::Integer(0));
+        assert_eq!(defaults.get("SWAY").unwrap(), &SheetValue::Integer(0));
 
         // Stress defaults to 0
-        assert_eq!(defaults.get("STRESS").unwrap(), &serde_json::json!(0));
+        assert_eq!(defaults.get("STRESS").unwrap(), &SheetValue::Integer(0));
 
         // Traumas default to false
-        assert_eq!(defaults.get("TRAUMA_COLD").unwrap(), &serde_json::json!(false));
+        assert_eq!(
+            defaults.get("TRAUMA_COLD").unwrap(),
+            &SheetValue::Boolean(false)
+        );
 
         // Load defaults to normal
-        assert_eq!(defaults.get("LOAD_LEVEL").unwrap(), &serde_json::json!("normal"));
+        assert_eq!(
+            defaults.get("LOAD_LEVEL").unwrap(),
+            &SheetValue::String("normal".to_string())
+        );
 
         // Armor defaults to false
-        assert_eq!(defaults.get("ARMOR_STANDARD").unwrap(), &serde_json::json!(false));
+        assert_eq!(
+            defaults.get("ARMOR_STANDARD").unwrap(),
+            &SheetValue::Boolean(false)
+        );
     }
 }

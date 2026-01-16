@@ -224,14 +224,10 @@ async fn test_movement_triggers_location_event() {
         .expect("Tavern Bar should exist");
 
     // Create player
-    let (_, pc_id) = create_test_player(
-        ctx.graph(),
-        ctx.world.world_id,
-        common_room,
-        "Event Tester",
-    )
-    .await
-    .expect("Player creation should succeed");
+    let (_, pc_id) =
+        create_test_player(ctx.graph(), ctx.world.world_id, common_room, "Event Tester")
+            .await
+            .expect("Player creation should succeed");
 
     // Create a location-enter narrative event for Tavern Bar
     // This tests if triggers are evaluated on movement
@@ -243,8 +239,7 @@ async fn test_movement_triggers_location_event() {
         .location("The Rusty Anchor")
         .expect("Location should exist");
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 "CREATE (e:NarrativeEvent {

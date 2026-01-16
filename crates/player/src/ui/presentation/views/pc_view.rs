@@ -6,11 +6,12 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
+use crate::application::dto::CharacterSheetSchema;
 use crate::application::dto::InventoryItemData;
+use crate::application::dto::{DiceInput, InteractionData, PlayerAction};
+use crate::infrastructure::messaging::CommandBus;
 use crate::infrastructure::spawn_task;
-use crate::application::dto::{
-    CharacterSheetSchema, DiceInput, InteractionData, PlayerAction,
-};
+use crate::infrastructure::websocket::ClientMessageBuilder;
 use crate::presentation::components::action_panel::ActionPanel;
 use crate::presentation::components::character_sheet_viewer::CharacterSheetViewer;
 use crate::presentation::components::event_overlays::{ApproachEventOverlay, LocationEventBanner};
@@ -25,8 +26,6 @@ use crate::presentation::components::tactical::{
 use crate::presentation::components::visual_novel::{
     Backdrop, CharacterLayer, DialogueBox, EmptyDialogueBox,
 };
-use crate::infrastructure::messaging::CommandBus;
-use crate::infrastructure::websocket::ClientMessageBuilder;
 use crate::presentation::services::{
     use_character_service, use_command_bus, use_location_service, use_observation_service,
     use_skill_service, use_world_service,
@@ -35,6 +34,7 @@ use crate::presentation::state::{
     use_dialogue_state, use_game_state, use_session_state, use_typewriter_effect,
     RollSubmissionStatus,
 };
+use wrldbldr_protocol::character_sheet::SheetValue;
 
 /// Player Character View - visual novel gameplay interface
 ///
@@ -60,7 +60,7 @@ pub fn PCView() -> Element {
     // Character sheet viewer state
     let mut show_character_sheet = use_signal(|| false);
     let mut character_sheet_schema: Signal<Option<CharacterSheetSchema>> = use_signal(|| None);
-    let mut character_sheet_values: Signal<HashMap<String, serde_json::Value>> = use_signal(HashMap::new);
+    let mut character_sheet_values: Signal<HashMap<String, SheetValue>> = use_signal(HashMap::new);
     let mut player_character_name = use_signal(|| "Your Character".to_string());
     let mut selected_character_id: Signal<Option<String>> = use_signal(|| None);
     let mut is_loading_sheet = use_signal(|| false);
@@ -375,10 +375,8 @@ pub fn PCView() -> Element {
                             spawn_task(async move {
                                 // Load schema
                                 match world_svc.get_sheet_template(&wid).await {
-                                    Ok(schema_json) => {
-                                        if let Ok(schema) = serde_json::from_value::<CharacterSheetSchema>(schema_json) {
-                                            character_sheet_schema.set(Some(schema));
-                                        }
+                                    Ok(schema) => {
+                                        character_sheet_schema.set(Some(schema));
                                     }
                                     Err(e) => tracing::warn!("Failed to load sheet schema: {}", e),
                                 }
@@ -387,7 +385,12 @@ pub fn PCView() -> Element {
                                     Ok(char_data) => {
                                         player_character_name.set(char_data.name);
                                         if let Some(sheet_data) = char_data.sheet_data {
-                                            character_sheet_values.set(sheet_data.values);
+                                            character_sheet_values.set(
+                                                sheet_data
+                                                    .values
+                                                    .into_iter()
+                                                    .collect::<HashMap<_, _>>()
+                                            );
                                         }
                                     }
                                     Err(e) => tracing::warn!("Failed to load character: {}", e),
@@ -955,11 +958,7 @@ pub fn PCView() -> Element {
 
 /// Overlay shown when player is waiting for DM to approve staging
 #[component]
-fn StagingPendingOverlay(
-    region_name: String,
-    started_at_ms: u64,
-    timeout_seconds: u64,
-) -> Element {
+fn StagingPendingOverlay(region_name: String, started_at_ms: u64, timeout_seconds: u64) -> Element {
     let platform = use_context::<std::sync::Arc<dyn crate::ports::outbound::PlatformPort>>();
     let mut remaining_seconds = use_signal(|| {
         // Calculate initial remaining time
@@ -1218,7 +1217,10 @@ fn handle_advance(dialogue_state: &mut crate::presentation::state::DialogueState
 
 /// Handle an interaction being selected from the action panel
 /// Returns Ok(()) on success, Err(message) on failure
-fn handle_interaction(command_bus: &CommandBus, interaction: &InteractionData) -> Result<(), String> {
+fn handle_interaction(
+    command_bus: &CommandBus,
+    interaction: &InteractionData,
+) -> Result<(), String> {
     tracing::info!(
         "Selected interaction: {} ({})",
         interaction.name,
@@ -1258,7 +1260,11 @@ fn send_challenge_roll_input(
 
 /// Send a move to region command via CommandBus
 /// Returns Ok(()) on success, Err(message) on failure
-fn send_move_to_region(command_bus: &CommandBus, pc_id: &str, region_id: &str) -> Result<(), String> {
+fn send_move_to_region(
+    command_bus: &CommandBus,
+    pc_id: &str,
+    region_id: &str,
+) -> Result<(), String> {
     let msg = ClientMessageBuilder::move_to_region(pc_id, region_id);
     command_bus
         .send(msg)

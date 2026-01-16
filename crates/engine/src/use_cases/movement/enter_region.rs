@@ -351,9 +351,13 @@ mod tests {
             location.clone(),
             world.clone(),
             player_character.clone(),
-            Arc::new(repositories::Character::new(Arc::new(MockCharacterRepo::new()))),
+            Arc::new(repositories::Character::new(Arc::new(
+                MockCharacterRepo::new(),
+            ))),
             observation.clone(),
-            Arc::new(repositories::Challenge::new(Arc::new(MockChallengeRepo::new()))),
+            Arc::new(repositories::Challenge::new(Arc::new(
+                MockChallengeRepo::new(),
+            ))),
             flag.clone(),
             scene.clone(),
             clock.clone(),

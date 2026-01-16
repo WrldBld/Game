@@ -7,8 +7,10 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::application::dto::CharacterSheetSchema;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
+use wrldbldr_protocol::character_sheet::SheetValue;
 use wrldbldr_protocol::{CharacterSheetRequest, RequestPayload};
 
 /// Info about a game system
@@ -31,16 +33,16 @@ pub struct ListSystemsResponse {
 #[derive(Clone, Debug, Deserialize)]
 pub struct StartCreationResponse {
     pub character_id: String,
-    pub schema: Option<serde_json::Value>,
-    pub defaults: HashMap<String, serde_json::Value>,
+    pub schema: Option<CharacterSheetSchema>,
+    pub defaults: HashMap<String, SheetValue>,
 }
 
 /// Response from updating a creation field
 #[derive(Clone, Debug, Deserialize)]
 pub struct UpdateFieldResponse {
     pub field_id: String,
-    pub value: serde_json::Value,
-    pub calculated: HashMap<String, serde_json::Value>,
+    pub value: SheetValue,
+    pub calculated: HashMap<String, SheetValue>,
 }
 
 /// Response from completing creation
@@ -56,9 +58,9 @@ pub struct CompleteCreationResponse {
 pub struct GetSheetResponse {
     pub character_id: String,
     pub name: String,
-    pub schema: Option<serde_json::Value>,
-    pub values: HashMap<String, serde_json::Value>,
-    pub calculated: HashMap<String, serde_json::Value>,
+    pub schema: Option<CharacterSheetSchema>,
+    pub values: HashMap<String, SheetValue>,
+    pub calculated: HashMap<String, SheetValue>,
 }
 
 /// Character sheet service for schema and creation operations
@@ -91,7 +93,7 @@ impl CharacterSheetService {
     }
 
     /// Get the character sheet schema for a game system
-    pub async fn get_schema(&self, system_id: &str) -> Result<serde_json::Value, ServiceError> {
+    pub async fn get_schema(&self, system_id: &str) -> Result<CharacterSheetSchema, ServiceError> {
         let result = self
             .commands
             .request_with_timeout(
@@ -132,7 +134,7 @@ impl CharacterSheetService {
         &self,
         character_id: &str,
         field_id: &str,
-        value: serde_json::Value,
+        value: SheetValue,
     ) -> Result<UpdateFieldResponse, ServiceError> {
         let result = self
             .commands
@@ -202,7 +204,7 @@ impl CharacterSheetService {
         &self,
         character_id: &str,
         field_id: &str,
-        value: serde_json::Value,
+        value: SheetValue,
     ) -> Result<UpdateFieldResponse, ServiceError> {
         let result = self
             .commands
@@ -223,7 +225,7 @@ impl CharacterSheetService {
     pub async fn recalculate_all(
         &self,
         character_id: &str,
-    ) -> Result<HashMap<String, serde_json::Value>, ServiceError> {
+    ) -> Result<HashMap<String, SheetValue>, ServiceError> {
         let result = self
             .commands
             .request_with_timeout(
@@ -236,7 +238,7 @@ impl CharacterSheetService {
 
         #[derive(Deserialize)]
         struct Response {
-            calculated: HashMap<String, serde_json::Value>,
+            calculated: HashMap<String, SheetValue>,
         }
 
         let response: Response = result.parse()?;

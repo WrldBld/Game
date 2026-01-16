@@ -287,7 +287,10 @@ pub fn print_aggregate_benchmarks() {
     let total_neo4j_queries: usize = summaries.iter().map(|s| s.neo4j_query_count).sum();
     let total_llm_calls: usize = summaries.iter().map(|s| s.llm_call_count).sum();
 
-    println!("\n=== Aggregate Benchmark Results ({} tests) ===", summaries.len());
+    println!(
+        "\n=== Aggregate Benchmark Results ({} tests) ===",
+        summaries.len()
+    );
     println!("Total time:     {:>8} ms", total_ms);
     println!();
     println!("External calls:");
@@ -343,8 +346,8 @@ where
 // LLM Benchmark Decorator
 // =============================================================================
 
-use async_trait::async_trait;
 use crate::infrastructure::ports::{LlmError, LlmPort, LlmRequest, LlmResponse, ToolDefinition};
+use async_trait::async_trait;
 
 /// Decorator that adds benchmark timing to any LlmPort implementation.
 pub struct BenchmarkLlmDecorator {
@@ -369,7 +372,8 @@ impl LlmPort for BenchmarkLlmDecorator {
         let elapsed_ms = start.elapsed().as_millis() as u64;
 
         let tokens = response.usage.as_ref().map(|u| u.total_tokens);
-        self.benchmark.record_llm_call("generate", elapsed_ms, tokens);
+        self.benchmark
+            .record_llm_call("generate", elapsed_ms, tokens);
 
         Ok(response)
     }
@@ -397,7 +401,9 @@ impl LlmPort for BenchmarkLlmDecorator {
 
 /// Check if benchmarking is enabled via environment variable.
 pub fn is_benchmark_enabled() -> bool {
-    std::env::var("E2E_BENCHMARK").map(|v| v == "1" || v.to_lowercase() == "true").unwrap_or(false)
+    std::env::var("E2E_BENCHMARK")
+        .map(|v| v == "1" || v.to_lowercase() == "true")
+        .unwrap_or(false)
 }
 
 #[cfg(test)]

@@ -236,9 +236,7 @@ mod tests {
         }
     }
 
-    fn build_clock(
-        now: chrono::DateTime<chrono::Utc>,
-    ) -> (Arc<dyn ClockPort>, Arc<ClockRepo>) {
+    fn build_clock(now: chrono::DateTime<chrono::Utc>) -> (Arc<dyn ClockPort>, Arc<ClockRepo>) {
         let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
         let clock = Arc::new(ClockRepo::new(clock_port.clone()));
         (clock_port, clock)

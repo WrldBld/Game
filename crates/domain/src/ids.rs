@@ -90,7 +90,6 @@ define_id!(ActionId);
 // Asset and generation IDs
 define_id!(AssetId);
 define_id!(BatchId);
-define_id!(WorkflowConfigId);
 
 // Scene interaction IDs
 define_id!(InteractionId);

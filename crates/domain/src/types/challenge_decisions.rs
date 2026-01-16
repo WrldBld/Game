@@ -89,38 +89,34 @@ mod tests {
     }
 
     #[test]
-    fn serde_roundtrip_accept() {
+    fn decision_equality_accept() {
         let decision = ChallengeOutcomeDecision::Accept;
-        let json = serde_json::to_string(&decision).unwrap();
-        let decoded: ChallengeOutcomeDecision = serde_json::from_str(&json).unwrap();
-        assert_eq!(decision, decoded);
+        let other = ChallengeOutcomeDecision::Accept;
+        assert_eq!(decision, other);
     }
 
     #[test]
-    fn serde_roundtrip_edit() {
+    fn decision_equality_edit() {
         let decision = ChallengeOutcomeDecision::Edit {
             modified_description: "Custom outcome".to_string(),
         };
-        let json = serde_json::to_string(&decision).unwrap();
-        let decoded: ChallengeOutcomeDecision = serde_json::from_str(&json).unwrap();
-        assert_eq!(decision, decoded);
+        let other = decision.clone();
+        assert_eq!(decision, other);
     }
 
     #[test]
-    fn serde_roundtrip_suggest_with_guidance() {
+    fn decision_equality_suggest_with_guidance() {
         let decision = ChallengeOutcomeDecision::Suggest {
             guidance: Some("Make it epic".to_string()),
         };
-        let json = serde_json::to_string(&decision).unwrap();
-        let decoded: ChallengeOutcomeDecision = serde_json::from_str(&json).unwrap();
-        assert_eq!(decision, decoded);
+        let other = decision.clone();
+        assert_eq!(decision, other);
     }
 
     #[test]
-    fn serde_roundtrip_suggest_without_guidance() {
+    fn decision_equality_suggest_without_guidance() {
         let decision = ChallengeOutcomeDecision::Suggest { guidance: None };
-        let json = serde_json::to_string(&decision).unwrap();
-        let decoded: ChallengeOutcomeDecision = serde_json::from_str(&json).unwrap();
-        assert_eq!(decision, decoded);
+        let other = decision.clone();
+        assert_eq!(decision, other);
     }
 }

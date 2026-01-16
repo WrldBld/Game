@@ -10,10 +10,11 @@
 //!
 //! Archetype history and stats remain as JSON (acceptable per ADR - complex nested non-relational)
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
 use neo4rs::{query, Row};
-use crate::infrastructure::neo4j::Neo4jGraph;
 use uuid::Uuid;
+use wrldbldr_domain::value_objects::{StatBlock, StatModifier};
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_typed_id, parse_typed_id_from_row, row_to_item, NodeExt};
@@ -45,8 +46,8 @@ struct StatModifierStored {
     active: bool,
 }
 
-impl From<entities::StatModifier> for StatModifierStored {
-    fn from(value: entities::StatModifier) -> Self {
+impl From<StatModifier> for StatModifierStored {
+    fn from(value: StatModifier) -> Self {
         Self {
             id: value.id.to_string(),
             source: value.source,
@@ -56,8 +57,8 @@ impl From<entities::StatModifier> for StatModifierStored {
     }
 }
 
-impl From<&entities::StatModifier> for StatModifierStored {
-    fn from(value: &entities::StatModifier) -> Self {
+impl From<&StatModifier> for StatModifierStored {
+    fn from(value: &StatModifier) -> Self {
         Self {
             id: value.id.to_string(),
             source: value.source.clone(),
@@ -67,7 +68,7 @@ impl From<&entities::StatModifier> for StatModifierStored {
     }
 }
 
-impl From<StatModifierStored> for entities::StatModifier {
+impl From<StatModifierStored> for StatModifier {
     fn from(value: StatModifierStored) -> Self {
         let id = Uuid::parse_str(&value.id).unwrap_or_else(|e| {
             let new_id = Uuid::new_v4();
@@ -135,7 +136,7 @@ impl From<StatBlockStored> for StatBlock {
         for (k, v) in value.modifiers {
             stat_block
                 .modifiers_mut()
-                .insert(k, v.into_iter().map(entities::StatModifier::from).collect());
+                .insert(k, v.into_iter().map(StatModifier::from).collect());
         }
         stat_block
     }

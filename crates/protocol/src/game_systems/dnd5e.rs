@@ -4,12 +4,12 @@
 
 use super::traits::{
     AllocationSystem, CalculationEngine, CasterType, CharacterSheetProvider, CharacterSheetSchema,
-    CreationStep, DerivedField, DerivationType, FieldDefinition, FieldLayout, FieldValidation,
+    CreationStep, DerivationType, DerivedField, FieldDefinition, FieldLayout, FieldValidation,
     GameSystem, PointCost, ProficiencyLevel, ProficiencyOption, ResourceColor, SchemaFieldType,
-    SchemaSection, SchemaSelectOption, SectionType, SpellcastingSystem,
+    SchemaSection, SchemaSelectOption, SectionType, SheetValue, SpellcastingSystem,
 };
-use crate::entities::{StatBlock, StatModifier};
 use std::collections::HashMap;
+use wrldbldr_domain::value_objects::{StatBlock, StatModifier};
 
 /// XP thresholds for each level in D&D 5e.
 /// Index is level - 1 (so level 1 = index 0).
@@ -372,10 +372,25 @@ impl SpellcastingSystem for Dnd5eSystem {
     fn spells_known(&self, class: &str, level: u8) -> Option<u8> {
         // Only some classes track spells known
         match class.to_lowercase().as_str() {
-            "sorcerer" => Some(SORCERER_SPELLS_KNOWN.get(level as usize).copied().unwrap_or(15)),
+            "sorcerer" => Some(
+                SORCERER_SPELLS_KNOWN
+                    .get(level as usize)
+                    .copied()
+                    .unwrap_or(15),
+            ),
             "bard" => Some(BARD_SPELLS_KNOWN.get(level as usize).copied().unwrap_or(22)),
-            "ranger" => Some(RANGER_SPELLS_KNOWN.get(level as usize).copied().unwrap_or(11)),
-            "warlock" => Some(WARLOCK_SPELLS_KNOWN.get(level as usize).copied().unwrap_or(15)),
+            "ranger" => Some(
+                RANGER_SPELLS_KNOWN
+                    .get(level as usize)
+                    .copied()
+                    .unwrap_or(11),
+            ),
+            "warlock" => Some(
+                WARLOCK_SPELLS_KNOWN
+                    .get(level as usize)
+                    .copied()
+                    .unwrap_or(15),
+            ),
             "eldritch knight" => Some(
                 ELDRITCH_KNIGHT_SPELLS_KNOWN
                     .get(level as usize)
@@ -411,41 +426,38 @@ impl CharacterSheetProvider for Dnd5eSystem {
                 CreationStep {
                     id: "identity".to_string(),
                     label: "Basic Info".to_string(),
-                    description: "Choose your character's name, race, class, and background."
-                        .to_string(),
-                    section_ids: vec!["identity".to_string()],
-                    order: 1,
-                    required: true,
-                    allocation: None,
+                    description: Some(
+                        "Choose your character's name, race, class, and background.".to_string(),
+                    ),
+                    sections: vec!["identity".to_string()],
+                    optional: false,
                 },
                 CreationStep {
                     id: "abilities".to_string(),
                     label: "Ability Scores".to_string(),
-                    description: "Set your ability scores using point buy, standard array, or rolling."
-                        .to_string(),
-                    section_ids: vec!["ability_scores".to_string()],
-                    order: 2,
-                    required: true,
-                    allocation: Some(Self::default_allocation_system()),
+                    description: Some(
+                        "Set your ability scores using point buy, standard array, or rolling."
+                            .to_string(),
+                    ),
+                    sections: vec!["ability_scores".to_string()],
+                    optional: false,
                 },
                 CreationStep {
                     id: "proficiencies".to_string(),
                     label: "Skills & Proficiencies".to_string(),
-                    description: "Choose your skill proficiencies and saving throw proficiencies."
-                        .to_string(),
-                    section_ids: vec!["skills".to_string(), "saving_throws".to_string()],
-                    order: 3,
-                    required: true,
-                    allocation: None,
+                    description: Some(
+                        "Choose your skill proficiencies and saving throw proficiencies."
+                            .to_string(),
+                    ),
+                    sections: vec!["skills".to_string(), "saving_throws".to_string()],
+                    optional: false,
                 },
                 CreationStep {
                     id: "equipment".to_string(),
                     label: "Equipment".to_string(),
-                    description: "Select starting equipment or roll for gold.".to_string(),
-                    section_ids: vec!["combat".to_string()],
-                    order: 4,
-                    required: false,
-                    allocation: None,
+                    description: Some("Select starting equipment or roll for gold.".to_string()),
+                    sections: vec!["combat".to_string()],
+                    optional: true,
                 },
             ],
         }
@@ -453,35 +465,38 @@ impl CharacterSheetProvider for Dnd5eSystem {
 
     fn calculate_derived_values(
         &self,
-        values: &HashMap<String, serde_json::Value>,
-    ) -> HashMap<String, serde_json::Value> {
+        values: &HashMap<String, SheetValue>,
+    ) -> HashMap<String, SheetValue> {
         let mut derived = HashMap::new();
 
         // Get level (default to 1)
         let level = values
             .get("LEVEL")
-            .and_then(|v| v.as_i64())
+            .and_then(SheetValue::as_u64)
             .unwrap_or(1) as u8;
 
         // Calculate proficiency bonus
         let prof_bonus = self.proficiency_bonus(level);
-        derived.insert("PROF_BONUS".to_string(), serde_json::json!(prof_bonus));
+        derived.insert("PROF_BONUS".to_string(), SheetValue::Integer(prof_bonus));
 
         // Calculate XP thresholds
         let xp_next = xp_for_next_level(level);
-        derived.insert("XP_NEXT_LEVEL".to_string(), serde_json::json!(xp_next));
+        derived.insert("XP_NEXT_LEVEL".to_string(), SheetValue::Integer(xp_next));
 
         // Also calculate level from XP if XP_CURRENT is provided
-        if let Some(xp_current) = values.get("XP_CURRENT").and_then(|v| v.as_i64()) {
+        if let Some(xp_current) = values.get("XP_CURRENT").and_then(SheetValue::as_u64) {
             let calculated_level = level_from_xp(xp_current as i32);
-            derived.insert("LEVEL_FROM_XP".to_string(), serde_json::json!(calculated_level));
+            derived.insert(
+                "LEVEL_FROM_XP".to_string(),
+                SheetValue::Integer(calculated_level as i32),
+            );
         }
 
         // Calculate ability modifiers
         for ability in &["STR", "DEX", "CON", "INT", "WIS", "CHA"] {
-            if let Some(score) = values.get(*ability).and_then(|v| v.as_i64()) {
+            if let Some(score) = values.get(*ability).and_then(SheetValue::as_u64) {
                 let modifier = self.ability_modifier(score as i32);
-                derived.insert(format!("{}_MOD", ability), serde_json::json!(modifier));
+                derived.insert(format!("{}_MOD", ability), SheetValue::Integer(modifier));
             }
         }
 
@@ -490,12 +505,12 @@ impl CharacterSheetProvider for Dnd5eSystem {
             if let Some(ability) = skill_ability(skill) {
                 let ability_mod = derived
                     .get(&format!("{}_MOD", ability))
-                    .and_then(|v| v.as_i64())
+                    .and_then(SheetValue::as_u64)
                     .unwrap_or(0) as i32;
 
                 let proficiency = values
                     .get(&format!("{}_PROF", skill.to_uppercase().replace(' ', "_")))
-                    .and_then(|v| v.as_str())
+                    .and_then(SheetValue::as_str)
                     .unwrap_or("none");
 
                 let prof_mult = match proficiency {
@@ -508,7 +523,7 @@ impl CharacterSheetProvider for Dnd5eSystem {
                 let skill_mod = ability_mod + (prof_bonus as f64 * prof_mult) as i32;
                 derived.insert(
                     format!("{}_MOD", skill.to_uppercase().replace(' ', "_")),
-                    serde_json::json!(skill_mod),
+                    SheetValue::Integer(skill_mod),
                 );
             }
         }
@@ -517,12 +532,12 @@ impl CharacterSheetProvider for Dnd5eSystem {
         for ability in &["STR", "DEX", "CON", "INT", "WIS", "CHA"] {
             let ability_mod = derived
                 .get(&format!("{}_MOD", ability))
-                .and_then(|v| v.as_i64())
+                .and_then(SheetValue::as_u64)
                 .unwrap_or(0) as i32;
 
             let proficient = values
                 .get(&format!("{}_SAVE_PROF", ability))
-                .and_then(|v| v.as_bool())
+                .and_then(SheetValue::as_bool)
                 .unwrap_or(false);
 
             let save_mod = if proficient {
@@ -530,17 +545,17 @@ impl CharacterSheetProvider for Dnd5eSystem {
             } else {
                 ability_mod
             };
-            derived.insert(format!("{}_SAVE", ability), serde_json::json!(save_mod));
+            derived.insert(format!("{}_SAVE", ability), SheetValue::Integer(save_mod));
         }
 
         // Calculate passive perception
         let wis_mod = derived
             .get("WIS_MOD")
-            .and_then(|v| v.as_i64())
+            .and_then(SheetValue::as_u64)
             .unwrap_or(0) as i32;
         let perception_prof = values
             .get("PERCEPTION_PROF")
-            .and_then(|v| v.as_str())
+            .and_then(SheetValue::as_str)
             .unwrap_or("none");
         let perception_bonus = match perception_prof {
             "expert" => prof_bonus * 2,
@@ -551,23 +566,23 @@ impl CharacterSheetProvider for Dnd5eSystem {
         let passive_perception = 10 + wis_mod + perception_bonus;
         derived.insert(
             "PASSIVE_PERCEPTION".to_string(),
-            serde_json::json!(passive_perception),
+            SheetValue::Integer(passive_perception),
         );
 
         // Calculate initiative
         let dex_mod = derived
             .get("DEX_MOD")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
-        derived.insert("INITIATIVE".to_string(), serde_json::json!(dex_mod));
+            .and_then(SheetValue::as_u64)
+            .unwrap_or(0) as i32;
+        derived.insert("INITIATIVE".to_string(), SheetValue::Integer(dex_mod));
 
         // Calculate max HP if class and CON are set
         if let (Some(class), Some(con_mod)) = (
-            values.get("CLASS").and_then(|v| v.as_str()),
-            derived.get("CON_MOD").and_then(|v| v.as_i64()),
+            values.get("CLASS").and_then(SheetValue::as_str),
+            derived.get("CON_MOD").and_then(SheetValue::as_u64),
         ) {
             let max_hp = self.calculate_max_hp(level, class, con_mod as i32, 0);
-            derived.insert("MAX_HP".to_string(), serde_json::json!(max_hp));
+            derived.insert("MAX_HP".to_string(), SheetValue::Integer(max_hp));
         }
 
         derived
@@ -576,13 +591,13 @@ impl CharacterSheetProvider for Dnd5eSystem {
     fn validate_field(
         &self,
         field_id: &str,
-        value: &serde_json::Value,
-        _all_values: &HashMap<String, serde_json::Value>,
+        value: &SheetValue,
+        _all_values: &HashMap<String, SheetValue>,
     ) -> Option<String> {
         match field_id {
             "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA" => {
-                if let Some(score) = value.as_i64() {
-                    if !(1..=30).contains(&score) {
+                if let Some(score) = value.as_u64() {
+                    if !(1..=30).contains(&(score as i32)) {
                         return Some("Ability scores must be between 1 and 30".to_string());
                     }
                 } else {
@@ -590,8 +605,8 @@ impl CharacterSheetProvider for Dnd5eSystem {
                 }
             }
             "LEVEL" => {
-                if let Some(level) = value.as_i64() {
-                    if !(1..=20).contains(&level) {
+                if let Some(level) = value.as_u64() {
+                    if !(1..=20).contains(&(level as i32)) {
                         return Some("Level must be between 1 and 20".to_string());
                     }
                 } else {
@@ -612,17 +627,17 @@ impl CharacterSheetProvider for Dnd5eSystem {
         None
     }
 
-    fn default_values(&self) -> HashMap<String, serde_json::Value> {
+    fn default_values(&self) -> HashMap<String, SheetValue> {
         let mut defaults = HashMap::new();
-        defaults.insert("LEVEL".to_string(), serde_json::json!(1));
-        defaults.insert("XP_CURRENT".to_string(), serde_json::json!(0));
-        defaults.insert("STR".to_string(), serde_json::json!(10));
-        defaults.insert("DEX".to_string(), serde_json::json!(10));
-        defaults.insert("CON".to_string(), serde_json::json!(10));
-        defaults.insert("INT".to_string(), serde_json::json!(10));
-        defaults.insert("WIS".to_string(), serde_json::json!(10));
-        defaults.insert("CHA".to_string(), serde_json::json!(10));
-        defaults.insert("CURRENT_HP".to_string(), serde_json::json!(0));
+        defaults.insert("LEVEL".to_string(), SheetValue::Integer(1));
+        defaults.insert("XP_CURRENT".to_string(), SheetValue::Integer(0));
+        defaults.insert("STR".to_string(), SheetValue::Integer(10));
+        defaults.insert("DEX".to_string(), SheetValue::Integer(10));
+        defaults.insert("CON".to_string(), SheetValue::Integer(10));
+        defaults.insert("INT".to_string(), SheetValue::Integer(10));
+        defaults.insert("WIS".to_string(), SheetValue::Integer(10));
+        defaults.insert("CHA".to_string(), SheetValue::Integer(10));
+        defaults.insert("CURRENT_HP".to_string(), SheetValue::Integer(0));
         defaults
     }
 }
@@ -647,7 +662,7 @@ impl Dnd5eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: None,
@@ -668,10 +683,10 @@ impl Dnd5eSystem {
                         min: Some(1),
                         max: Some(20),
                         pattern: None,
-                        error_message: Some("Level must be 1-20".to_string()),
+                        message: Some("Level must be 1-20".to_string()),
                     }),
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: None,
@@ -694,7 +709,7 @@ impl Dnd5eSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Based on character level".to_string()),
@@ -715,11 +730,10 @@ impl Dnd5eSystem {
                         min: Some(0),
                         max: None,
                         pattern: None,
-                        error_message: Some("XP cannot be negative".to_string()),
+                        message: Some("XP cannot be negative".to_string()),
                     }),
                     layout: FieldLayout {
-                        width: Some(3),
-                        new_row: true,
+                        column_span: 3,
                         ..Default::default()
                     },
                     description: Some("Current experience points".to_string()),
@@ -742,7 +756,7 @@ impl Dnd5eSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(3),
+                        column_span: 3,
                         ..Default::default()
                     },
                     description: Some("XP needed to reach next level".to_string()),
@@ -756,7 +770,9 @@ impl Dnd5eSystem {
                             SchemaSelectOption {
                                 value: "barbarian".to_string(),
                                 label: "Barbarian".to_string(),
-                                description: Some("A fierce warrior of primitive background".to_string()),
+                                description: Some(
+                                    "A fierce warrior of primitive background".to_string(),
+                                ),
                             },
                             SchemaSelectOption {
                                 value: "bard".to_string(),
@@ -821,8 +837,7 @@ impl Dnd5eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
-                        new_row: true,
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: None,
@@ -886,7 +901,7 @@ impl Dnd5eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: None,
@@ -970,7 +985,7 @@ impl Dnd5eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: None,
@@ -985,7 +1000,11 @@ impl Dnd5eSystem {
 
     fn ability_scores_section(&self) -> SchemaSection {
         let abilities = [
-            ("STR", "Strength", "Physical power, athletics, melee attacks"),
+            (
+                "STR",
+                "Strength",
+                "Physical power, athletics, melee attacks",
+            ),
             ("DEX", "Dexterity", "Agility, reflexes, ranged attacks"),
             ("CON", "Constitution", "Endurance, health, stamina"),
             ("INT", "Intelligence", "Reasoning, memory, knowledge"),
@@ -1011,10 +1030,10 @@ impl Dnd5eSystem {
                     min: Some(1),
                     max: Some(30),
                     pattern: None,
-                    error_message: Some("Ability scores must be 1-30".to_string()),
+                    message: Some("Ability scores must be 1-30".to_string()),
                 }),
                 layout: FieldLayout {
-                    width: Some(2),
+                    column_span: 2,
                     ..Default::default()
                 },
                 description: Some(description.to_string()),
@@ -1054,7 +1073,7 @@ impl Dnd5eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: None,
@@ -1072,12 +1091,16 @@ impl Dnd5eSystem {
                     required: false,
                     derived_from: Some(DerivedField {
                         derivation_type: DerivationType::Custom,
-                        dependencies: vec!["LEVEL".to_string(), "CLASS".to_string(), "CON".to_string()],
+                        dependencies: vec![
+                            "LEVEL".to_string(),
+                            "CLASS".to_string(),
+                            "CON".to_string(),
+                        ],
                         display_format: None,
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Calculated from class and Constitution".to_string()),
@@ -1096,7 +1119,7 @@ impl Dnd5eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: None,
@@ -1115,8 +1138,7 @@ impl Dnd5eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
-                        new_row: true,
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Depends on armor and Dexterity".to_string()),
@@ -1139,7 +1161,7 @@ impl Dnd5eSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Based on Dexterity modifier".to_string()),
@@ -1158,7 +1180,7 @@ impl Dnd5eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Movement speed in feet".to_string()),
@@ -1181,7 +1203,7 @@ impl Dnd5eSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("10 + Perception modifier".to_string()),
@@ -1255,7 +1277,7 @@ impl Dnd5eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: Some(format!("Based on {}", ability)),
@@ -1300,7 +1322,7 @@ impl Dnd5eSystem {
                 derived_from: None,
                 validation: None,
                 layout: FieldLayout {
-                    width: Some(4),
+                    column_span: 4,
                     ..Default::default()
                 },
                 description: None,
@@ -1324,26 +1346,24 @@ impl Dnd5eSystem {
             id: "features".to_string(),
             label: "Features & Traits".to_string(),
             section_type: SectionType::Features,
-            fields: vec![
-                FieldDefinition {
-                    id: "FEATURES".to_string(),
-                    label: "Features & Traits".to_string(),
-                    field_type: SchemaFieldType::Text {
-                        multiline: true,
-                        max_length: None,
-                    },
-                    editable: true,
-                    required: false,
-                    derived_from: None,
-                    validation: None,
-                    layout: FieldLayout {
-                        width: Some(12),
-                        ..Default::default()
-                    },
-                    description: Some("Class features, racial traits, feats, etc.".to_string()),
-                    placeholder: Some("Enter your features and traits...".to_string()),
+            fields: vec![FieldDefinition {
+                id: "FEATURES".to_string(),
+                label: "Features & Traits".to_string(),
+                field_type: SchemaFieldType::Text {
+                    multiline: true,
+                    max_length: None,
                 },
-            ],
+                editable: true,
+                required: false,
+                derived_from: None,
+                validation: None,
+                layout: FieldLayout {
+                    column_span: 12,
+                    ..Default::default()
+                },
+                description: Some("Class features, racial traits, feats, etc.".to_string()),
+                placeholder: Some("Enter your features and traits...".to_string()),
+            }],
             collapsible: true,
             collapsed_default: true,
             description: None,
@@ -1355,25 +1375,23 @@ impl Dnd5eSystem {
             id: "modifiers".to_string(),
             label: "Active Effects".to_string(),
             section_type: SectionType::Modifiers,
-            fields: vec![
-                FieldDefinition {
-                    id: "ACTIVE_MODIFIERS".to_string(),
-                    label: "Conditions & Effects".to_string(),
-                    field_type: SchemaFieldType::ModifierList { filter_stat: None },
-                    editable: false,
-                    required: false,
-                    derived_from: None,
-                    validation: None,
-                    layout: FieldLayout {
-                        width: Some(12),
-                        ..Default::default()
-                    },
-                    description: Some(
-                        "Active conditions, spells, and effects modifying your stats".to_string(),
-                    ),
-                    placeholder: None,
+            fields: vec![FieldDefinition {
+                id: "ACTIVE_MODIFIERS".to_string(),
+                label: "Conditions & Effects".to_string(),
+                field_type: SchemaFieldType::ModifierList { filter_stat: None },
+                editable: false,
+                required: false,
+                derived_from: None,
+                validation: None,
+                layout: FieldLayout {
+                    column_span: 12,
+                    ..Default::default()
                 },
-            ],
+                description: Some(
+                    "Active conditions, spells, and effects modifying your stats".to_string(),
+                ),
+                placeholder: None,
+            }],
             collapsible: true,
             collapsed_default: false,
             description: Some("View and manage active conditions and effects".to_string()),
@@ -1395,7 +1413,7 @@ impl Dnd5eSystem {
     /// (before racial bonuses). Each point above 8 costs more.
     pub fn point_buy_allocation() -> AllocationSystem {
         AllocationSystem::PointBuy {
-            total_points: 27,
+            points: 27,
             min_value: 8,
             max_value: 15,
             base_value: 8,
@@ -1425,7 +1443,7 @@ impl Dnd5eSystem {
     /// Players assign the values 15, 14, 13, 12, 10, 8 to their six ability scores.
     pub fn standard_array_allocation() -> AllocationSystem {
         AllocationSystem::StandardArray {
-            values: vec![15, 14, 13, 12, 10, 8],
+            arrays: vec![vec![15, 14, 13, 12, 10, 8]],
             target_fields: vec![
                 "STR".to_string(),
                 "DEX".to_string(),
@@ -1971,15 +1989,18 @@ mod tests {
     fn derived_values_include_xp_next_level() {
         let system = Dnd5eSystem::new();
         let mut values = HashMap::new();
-        values.insert("LEVEL".to_string(), serde_json::json!(5));
-        values.insert("XP_CURRENT".to_string(), serde_json::json!(8000));
+        values.insert("LEVEL".to_string(), SheetValue::Integer(5));
+        values.insert("XP_CURRENT".to_string(), SheetValue::Integer(8000));
 
         let derived = system.calculate_derived_values(&values);
 
         // XP for next level (6) should be 14000
-        assert_eq!(derived.get("XP_NEXT_LEVEL").unwrap().as_i64().unwrap(), 14000);
+        assert_eq!(
+            derived.get("XP_NEXT_LEVEL").unwrap().as_u64().unwrap(),
+            14000
+        );
         // Level from XP (8000) should be 5
-        assert_eq!(derived.get("LEVEL_FROM_XP").unwrap().as_i64().unwrap(), 5);
+        assert_eq!(derived.get("LEVEL_FROM_XP").unwrap().as_u64().unwrap(), 5);
     }
 
     // ==========================================================================
@@ -1987,73 +2008,109 @@ mod tests {
     // ==========================================================================
 
     /// Helper to create a complete Level 5 Fighter character sheet.
-    fn create_fighter_5_sheet() -> HashMap<String, serde_json::Value> {
+    fn create_fighter_5_sheet() -> HashMap<String, SheetValue> {
         let mut values = HashMap::new();
         // Identity
-        values.insert("NAME".to_string(), serde_json::json!("Tharion Ironforge"));
-        values.insert("CLASS".to_string(), serde_json::json!("Fighter"));
-        values.insert("LEVEL".to_string(), serde_json::json!(5));
-        values.insert("RACE".to_string(), serde_json::json!("Human"));
+        values.insert(
+            "NAME".to_string(),
+            SheetValue::String("Tharion Ironforge".to_string()),
+        );
+        values.insert(
+            "CLASS".to_string(),
+            SheetValue::String("Fighter".to_string()),
+        );
+        values.insert("LEVEL".to_string(), SheetValue::Integer(5));
+        values.insert("RACE".to_string(), SheetValue::String("Human".to_string()));
         // Ability scores (typical Fighter array)
-        values.insert("STR".to_string(), serde_json::json!(18)); // +4
-        values.insert("DEX".to_string(), serde_json::json!(14)); // +2
-        values.insert("CON".to_string(), serde_json::json!(16)); // +3
-        values.insert("INT".to_string(), serde_json::json!(10)); // +0
-        values.insert("WIS".to_string(), serde_json::json!(12)); // +1
-        values.insert("CHA".to_string(), serde_json::json!(8));  // -1
-        // Saving throw proficiencies (Fighters: STR, CON)
-        values.insert("STR_SAVE_PROF".to_string(), serde_json::json!(true));
-        values.insert("CON_SAVE_PROF".to_string(), serde_json::json!(true));
+        values.insert("STR".to_string(), SheetValue::Integer(18)); // +4
+        values.insert("DEX".to_string(), SheetValue::Integer(14)); // +2
+        values.insert("CON".to_string(), SheetValue::Integer(16)); // +3
+        values.insert("INT".to_string(), SheetValue::Integer(10)); // +0
+        values.insert("WIS".to_string(), SheetValue::Integer(12)); // +1
+        values.insert("CHA".to_string(), SheetValue::Integer(8)); // -1
+                                                                  // Saving throw proficiencies (Fighters: STR, CON)
+        values.insert("STR_SAVE_PROF".to_string(), SheetValue::Boolean(true));
+        values.insert("CON_SAVE_PROF".to_string(), SheetValue::Boolean(true));
         // Skill proficiencies
-        values.insert("ATHLETICS_PROF".to_string(), serde_json::json!("proficient"));
-        values.insert("PERCEPTION_PROF".to_string(), serde_json::json!("proficient"));
-        values.insert("INTIMIDATION_PROF".to_string(), serde_json::json!("proficient"));
+        values.insert(
+            "ATHLETICS_PROF".to_string(),
+            SheetValue::String("proficient".to_string()),
+        );
+        values.insert(
+            "PERCEPTION_PROF".to_string(),
+            SheetValue::String("proficient".to_string()),
+        );
+        values.insert(
+            "INTIMIDATION_PROF".to_string(),
+            SheetValue::String("proficient".to_string()),
+        );
         values
     }
 
     /// Helper to create a Level 3 Wizard character sheet.
-    fn create_wizard_3_sheet() -> HashMap<String, serde_json::Value> {
+    fn create_wizard_3_sheet() -> HashMap<String, SheetValue> {
         let mut values = HashMap::new();
-        values.insert("NAME".to_string(), serde_json::json!("Elara Moonwhisper"));
-        values.insert("CLASS".to_string(), serde_json::json!("Wizard"));
-        values.insert("LEVEL".to_string(), serde_json::json!(3));
-        values.insert("RACE".to_string(), serde_json::json!("Elf"));
+        values.insert(
+            "NAME".to_string(),
+            SheetValue::String("Elara Moonwhisper".to_string()),
+        );
+        values.insert(
+            "CLASS".to_string(),
+            SheetValue::String("Wizard".to_string()),
+        );
+        values.insert("LEVEL".to_string(), SheetValue::Integer(3));
+        values.insert("RACE".to_string(), SheetValue::String("Elf".to_string()));
         // Ability scores (typical Wizard array)
-        values.insert("STR".to_string(), serde_json::json!(8));  // -1
-        values.insert("DEX".to_string(), serde_json::json!(14)); // +2
-        values.insert("CON".to_string(), serde_json::json!(12)); // +1
-        values.insert("INT".to_string(), serde_json::json!(17)); // +3
-        values.insert("WIS".to_string(), serde_json::json!(13)); // +1
-        values.insert("CHA".to_string(), serde_json::json!(10)); // +0
-        // Saving throw proficiencies (Wizards: INT, WIS)
-        values.insert("INT_SAVE_PROF".to_string(), serde_json::json!(true));
-        values.insert("WIS_SAVE_PROF".to_string(), serde_json::json!(true));
+        values.insert("STR".to_string(), SheetValue::Integer(8)); // -1
+        values.insert("DEX".to_string(), SheetValue::Integer(14)); // +2
+        values.insert("CON".to_string(), SheetValue::Integer(12)); // +1
+        values.insert("INT".to_string(), SheetValue::Integer(17)); // +3
+        values.insert("WIS".to_string(), SheetValue::Integer(13)); // +1
+        values.insert("CHA".to_string(), SheetValue::Integer(10)); // +0
+                                                                   // Saving throw proficiencies (Wizards: INT, WIS)
+        values.insert("INT_SAVE_PROF".to_string(), SheetValue::Boolean(true));
+        values.insert("WIS_SAVE_PROF".to_string(), SheetValue::Boolean(true));
         // Skill proficiencies
-        values.insert("ARCANA_PROF".to_string(), serde_json::json!("proficient"));
-        values.insert("INVESTIGATION_PROF".to_string(), serde_json::json!("proficient"));
+        values.insert(
+            "ARCANA_PROF".to_string(),
+            SheetValue::String("proficient".to_string()),
+        );
+        values.insert(
+            "INVESTIGATION_PROF".to_string(),
+            SheetValue::String("proficient".to_string()),
+        );
         values
     }
 
     /// Helper to create a Level 5 Rogue with expertise.
-    fn create_rogue_5_sheet() -> HashMap<String, serde_json::Value> {
+    fn create_rogue_5_sheet() -> HashMap<String, SheetValue> {
         let mut values = HashMap::new();
-        values.insert("NAME".to_string(), serde_json::json!("Shadow"));
-        values.insert("CLASS".to_string(), serde_json::json!("Rogue"));
-        values.insert("LEVEL".to_string(), serde_json::json!(5));
+        values.insert("NAME".to_string(), SheetValue::String("Shadow".to_string()));
+        values.insert("CLASS".to_string(), SheetValue::String("Rogue".to_string()));
+        values.insert("LEVEL".to_string(), SheetValue::Integer(5));
         // Ability scores (typical Rogue array)
-        values.insert("STR".to_string(), serde_json::json!(10)); // +0
-        values.insert("DEX".to_string(), serde_json::json!(18)); // +4
-        values.insert("CON".to_string(), serde_json::json!(12)); // +1
-        values.insert("INT".to_string(), serde_json::json!(14)); // +2
-        values.insert("WIS".to_string(), serde_json::json!(12)); // +1
-        values.insert("CHA".to_string(), serde_json::json!(14)); // +2
-        // Saving throw proficiencies (Rogues: DEX, INT)
-        values.insert("DEX_SAVE_PROF".to_string(), serde_json::json!(true));
-        values.insert("INT_SAVE_PROF".to_string(), serde_json::json!(true));
+        values.insert("STR".to_string(), SheetValue::Integer(10)); // +0
+        values.insert("DEX".to_string(), SheetValue::Integer(18)); // +4
+        values.insert("CON".to_string(), SheetValue::Integer(12)); // +1
+        values.insert("INT".to_string(), SheetValue::Integer(14)); // +2
+        values.insert("WIS".to_string(), SheetValue::Integer(12)); // +1
+        values.insert("CHA".to_string(), SheetValue::Integer(14)); // +2
+                                                                   // Saving throw proficiencies (Rogues: DEX, INT)
+        values.insert("DEX_SAVE_PROF".to_string(), SheetValue::Boolean(true));
+        values.insert("INT_SAVE_PROF".to_string(), SheetValue::Boolean(true));
         // Skill proficiencies with expertise
-        values.insert("STEALTH_PROF".to_string(), serde_json::json!("expert"));
-        values.insert("PERCEPTION_PROF".to_string(), serde_json::json!("expert"));
-        values.insert("SLEIGHT_OF_HAND_PROF".to_string(), serde_json::json!("proficient"));
+        values.insert(
+            "STEALTH_PROF".to_string(),
+            SheetValue::String("expert".to_string()),
+        );
+        values.insert(
+            "PERCEPTION_PROF".to_string(),
+            SheetValue::String("expert".to_string()),
+        );
+        values.insert(
+            "SLEIGHT_OF_HAND_PROF".to_string(),
+            SheetValue::String("proficient".to_string()),
+        );
         values
     }
 
@@ -2064,30 +2121,33 @@ mod tests {
         let derived = system.calculate_derived_values(&values);
 
         // Proficiency bonus at level 5 should be +3
-        assert_eq!(derived.get("PROF_BONUS").unwrap().as_i64().unwrap(), 3);
+        assert_eq!(derived.get("PROF_BONUS").unwrap().as_u64().unwrap(), 3);
 
         // Ability modifiers
-        assert_eq!(derived.get("STR_MOD").unwrap().as_i64().unwrap(), 4);  // 18 -> +4
-        assert_eq!(derived.get("DEX_MOD").unwrap().as_i64().unwrap(), 2);  // 14 -> +2
-        assert_eq!(derived.get("CON_MOD").unwrap().as_i64().unwrap(), 3);  // 16 -> +3
-        assert_eq!(derived.get("INT_MOD").unwrap().as_i64().unwrap(), 0);  // 10 -> +0
-        assert_eq!(derived.get("WIS_MOD").unwrap().as_i64().unwrap(), 1);  // 12 -> +1
+        assert_eq!(derived.get("STR_MOD").unwrap().as_i64().unwrap(), 4); // 18 -> +4
+        assert_eq!(derived.get("DEX_MOD").unwrap().as_i64().unwrap(), 2); // 14 -> +2
+        assert_eq!(derived.get("CON_MOD").unwrap().as_i64().unwrap(), 3); // 16 -> +3
+        assert_eq!(derived.get("INT_MOD").unwrap().as_i64().unwrap(), 0); // 10 -> +0
+        assert_eq!(derived.get("WIS_MOD").unwrap().as_i64().unwrap(), 1); // 12 -> +1
         assert_eq!(derived.get("CHA_MOD").unwrap().as_i64().unwrap(), -1); // 8 -> -1
 
         // Saving throws (STR and CON proficient)
-        assert_eq!(derived.get("STR_SAVE").unwrap().as_i64().unwrap(), 7);  // +4 + 3 prof
-        assert_eq!(derived.get("DEX_SAVE").unwrap().as_i64().unwrap(), 2);  // +2 (no prof)
-        assert_eq!(derived.get("CON_SAVE").unwrap().as_i64().unwrap(), 6);  // +3 + 3 prof
-        assert_eq!(derived.get("INT_SAVE").unwrap().as_i64().unwrap(), 0);  // +0 (no prof)
-        assert_eq!(derived.get("WIS_SAVE").unwrap().as_i64().unwrap(), 1);  // +1 (no prof)
-        assert_eq!(derived.get("CHA_SAVE").unwrap().as_i64().unwrap(), -1); // -1 (no prof)
+        assert_eq!(derived.get("STR_SAVE").unwrap().as_i64().unwrap(), 7); // +4 + 3 prof
+        assert_eq!(derived.get("DEX_SAVE").unwrap().as_i64().unwrap(), 2); // +2 (no prof)
+        assert_eq!(derived.get("CON_SAVE").unwrap().as_i64().unwrap(), 6); // +3 + 3 prof
+        assert_eq!(derived.get("INT_SAVE").unwrap().as_i64().unwrap(), 0); // +0 (no prof)
+        assert_eq!(derived.get("WIS_SAVE").unwrap().as_i64().unwrap(), 1); // +1 (no prof)
+        assert_eq!(derived.get("CHA_SAVE").unwrap().as_i64().unwrap(), -1); // -1
 
         // Initiative = DEX mod
         assert_eq!(derived.get("INITIATIVE").unwrap().as_i64().unwrap(), 2);
 
         // Passive perception = 10 + WIS mod + perception prof
         // = 10 + 1 + 3 = 14
-        assert_eq!(derived.get("PASSIVE_PERCEPTION").unwrap().as_i64().unwrap(), 14);
+        assert_eq!(
+            derived.get("PASSIVE_PERCEPTION").unwrap().as_i64().unwrap(),
+            14
+        );
 
         // Max HP = 10 (d10 at L1) + 3 (CON) + 4*(6+3) (avg d10 + CON for L2-5)
         // = 13 + 36 = 49
@@ -2104,14 +2164,14 @@ mod tests {
         assert_eq!(derived.get("PROF_BONUS").unwrap().as_i64().unwrap(), 2);
 
         // Key ability modifiers
-        assert_eq!(derived.get("INT_MOD").unwrap().as_i64().unwrap(), 3);  // 17 -> +3
-        assert_eq!(derived.get("DEX_MOD").unwrap().as_i64().unwrap(), 2);  // 14 -> +2
-        assert_eq!(derived.get("CON_MOD").unwrap().as_i64().unwrap(), 1);  // 12 -> +1
+        assert_eq!(derived.get("INT_MOD").unwrap().as_i64().unwrap(), 3); // 17 -> +3
+        assert_eq!(derived.get("DEX_MOD").unwrap().as_i64().unwrap(), 2); // 14 -> +2
+        assert_eq!(derived.get("CON_MOD").unwrap().as_i64().unwrap(), 1); // 12 -> +1
 
         // Saving throws (INT and WIS proficient)
-        assert_eq!(derived.get("INT_SAVE").unwrap().as_i64().unwrap(), 5);  // +3 + 2 prof
-        assert_eq!(derived.get("WIS_SAVE").unwrap().as_i64().unwrap(), 3);  // +1 + 2 prof
-        assert_eq!(derived.get("DEX_SAVE").unwrap().as_i64().unwrap(), 2);  // +2 (no prof)
+        assert_eq!(derived.get("INT_SAVE").unwrap().as_i64().unwrap(), 5); // +3 + 2 prof
+        assert_eq!(derived.get("WIS_SAVE").unwrap().as_i64().unwrap(), 3); // +1 + 2 prof
+        assert_eq!(derived.get("DEX_SAVE").unwrap().as_i64().unwrap(), 2); // +2 (no prof)
 
         // Initiative = DEX mod
         assert_eq!(derived.get("INITIATIVE").unwrap().as_i64().unwrap(), 2);
@@ -2134,7 +2194,10 @@ mod tests {
         assert_eq!(derived.get("PERCEPTION_MOD").unwrap().as_i64().unwrap(), 4);
 
         // Intimidation is CHA-based, proficient: -1 (CHA) + 3 (prof) = +2
-        assert_eq!(derived.get("INTIMIDATION_MOD").unwrap().as_i64().unwrap(), 2);
+        assert_eq!(
+            derived.get("INTIMIDATION_MOD").unwrap().as_i64().unwrap(),
+            2
+        );
 
         // Stealth is DEX-based, not proficient: +2 (DEX)
         assert_eq!(derived.get("STEALTH_MOD").unwrap().as_i64().unwrap(), 2);
@@ -2155,7 +2218,14 @@ mod tests {
         assert_eq!(derived.get("PERCEPTION_MOD").unwrap().as_i64().unwrap(), 7);
 
         // Sleight of Hand is DEX-based, proficient: +4 (DEX) + 3 (prof) = +7
-        assert_eq!(derived.get("SLEIGHT_OF_HAND_MOD").unwrap().as_i64().unwrap(), 7);
+        assert_eq!(
+            derived
+                .get("SLEIGHT_OF_HAND_MOD")
+                .unwrap()
+                .as_i64()
+                .unwrap(),
+            7
+        );
 
         // Initiative = DEX mod = +4
         assert_eq!(derived.get("INITIATIVE").unwrap().as_i64().unwrap(), 4);
@@ -2166,7 +2236,7 @@ mod tests {
         let system = Dnd5eSystem::new();
         let mut values = HashMap::new();
         // Only set ability scores, no level
-        values.insert("STR".to_string(), serde_json::json!(14));
+        values.insert("STR".to_string(), SheetValue::Integer(14));
 
         let derived = system.calculate_derived_values(&values);
 
@@ -2179,7 +2249,7 @@ mod tests {
     fn calculate_derived_values_handles_missing_abilities() {
         let system = Dnd5eSystem::new();
         let mut values = HashMap::new();
-        values.insert("LEVEL".to_string(), serde_json::json!(5));
+        values.insert("LEVEL".to_string(), SheetValue::Integer(5));
         // Only set STR, leave others empty
 
         let derived = system.calculate_derived_values(&values);
@@ -2202,10 +2272,18 @@ mod tests {
         let empty = HashMap::new();
 
         // Valid scores (1-30)
-        assert!(system.validate_field("STR", &serde_json::json!(1), &empty).is_none());
-        assert!(system.validate_field("STR", &serde_json::json!(10), &empty).is_none());
-        assert!(system.validate_field("STR", &serde_json::json!(20), &empty).is_none());
-        assert!(system.validate_field("DEX", &serde_json::json!(30), &empty).is_none());
+        assert!(system
+            .validate_field("STR", &SheetValue::Integer(1), &empty)
+            .is_none());
+        assert!(system
+            .validate_field("STR", &SheetValue::Integer(10), &empty)
+            .is_none());
+        assert!(system
+            .validate_field("STR", &SheetValue::Integer(20), &empty)
+            .is_none());
+        assert!(system
+            .validate_field("DEX", &SheetValue::Integer(30), &empty)
+            .is_none());
     }
 
     #[test]
@@ -2214,17 +2292,17 @@ mod tests {
         let empty = HashMap::new();
 
         // Score too low
-        let result = system.validate_field("STR", &serde_json::json!(0), &empty);
+        let result = system.validate_field("STR", &SheetValue::Integer(0), &empty);
         assert!(result.is_some());
         assert!(result.unwrap().contains("between 1 and 30"));
 
         // Score too high
-        let result = system.validate_field("INT", &serde_json::json!(31), &empty);
+        let result = system.validate_field("INT", &SheetValue::Integer(31), &empty);
         assert!(result.is_some());
         assert!(result.unwrap().contains("between 1 and 30"));
 
         // Negative score
-        let result = system.validate_field("WIS", &serde_json::json!(-5), &empty);
+        let result = system.validate_field("WIS", &SheetValue::Integer(-5), &empty);
         assert!(result.is_some());
     }
 
@@ -2234,12 +2312,13 @@ mod tests {
         let empty = HashMap::new();
 
         // String instead of number
-        let result = system.validate_field("STR", &serde_json::json!("sixteen"), &empty);
+        let result =
+            system.validate_field("STR", &SheetValue::String("sixteen".to_string()), &empty);
         assert!(result.is_some());
         assert!(result.unwrap().contains("must be a number"));
 
         // Null value
-        let result = system.validate_field("DEX", &serde_json::Value::Null, &empty);
+        let result = system.validate_field("DEX", &SheetValue::Null, &empty);
         assert!(result.is_some());
     }
 
@@ -2249,9 +2328,15 @@ mod tests {
         let empty = HashMap::new();
 
         // Valid levels (1-20)
-        assert!(system.validate_field("LEVEL", &serde_json::json!(1), &empty).is_none());
-        assert!(system.validate_field("LEVEL", &serde_json::json!(10), &empty).is_none());
-        assert!(system.validate_field("LEVEL", &serde_json::json!(20), &empty).is_none());
+        assert!(system
+            .validate_field("LEVEL", &SheetValue::Integer(1), &empty)
+            .is_none());
+        assert!(system
+            .validate_field("LEVEL", &SheetValue::Integer(10), &empty)
+            .is_none());
+        assert!(system
+            .validate_field("LEVEL", &SheetValue::Integer(20), &empty)
+            .is_none());
     }
 
     #[test]
@@ -2260,12 +2345,12 @@ mod tests {
         let empty = HashMap::new();
 
         // Level 0
-        let result = system.validate_field("LEVEL", &serde_json::json!(0), &empty);
+        let result = system.validate_field("LEVEL", &SheetValue::Integer(0), &empty);
         assert!(result.is_some());
         assert!(result.unwrap().contains("between 1 and 20"));
 
         // Level 21
-        let result = system.validate_field("LEVEL", &serde_json::json!(21), &empty);
+        let result = system.validate_field("LEVEL", &SheetValue::Integer(21), &empty);
         assert!(result.is_some());
         assert!(result.unwrap().contains("between 1 and 20"));
     }
@@ -2276,15 +2361,17 @@ mod tests {
         let empty = HashMap::new();
 
         // Valid name
-        assert!(system.validate_field("NAME", &serde_json::json!("Tharion"), &empty).is_none());
+        assert!(system
+            .validate_field("NAME", &SheetValue::String("Tharion".to_string()), &empty)
+            .is_none());
 
         // Empty name
-        let result = system.validate_field("NAME", &serde_json::json!(""), &empty);
+        let result = system.validate_field("NAME", &SheetValue::String(String::new()), &empty);
         assert!(result.is_some());
         assert!(result.unwrap().contains("required"));
 
         // Wrong type
-        let result = system.validate_field("NAME", &serde_json::json!(123), &empty);
+        let result = system.validate_field("NAME", &SheetValue::Integer(123), &empty);
         assert!(result.is_some());
         assert!(result.unwrap().contains("must be a string"));
     }
@@ -2295,8 +2382,16 @@ mod tests {
         let empty = HashMap::new();
 
         // Unknown fields should pass validation (no restrictions)
-        assert!(system.validate_field("CUSTOM_FIELD", &serde_json::json!("anything"), &empty).is_none());
-        assert!(system.validate_field("NOTES", &serde_json::json!(12345), &empty).is_none());
+        assert!(system
+            .validate_field(
+                "CUSTOM_FIELD",
+                &SheetValue::String("anything".to_string()),
+                &empty
+            )
+            .is_none());
+        assert!(system
+            .validate_field("NOTES", &SheetValue::Integer(12345), &empty)
+            .is_none());
     }
 
     // ==========================================================================
@@ -2322,12 +2417,18 @@ mod tests {
         let system = Dnd5eSystem::new();
         let schema = system.character_sheet_schema();
 
-        let ability_section = schema.sections.iter()
+        let ability_section = schema
+            .sections
+            .iter()
             .find(|s| s.id == "ability_scores")
             .expect("Should have ability_scores section");
 
         // Check all six abilities are defined
-        let field_ids: Vec<&str> = ability_section.fields.iter().map(|f| f.id.as_str()).collect();
+        let field_ids: Vec<&str> = ability_section
+            .fields
+            .iter()
+            .map(|f| f.id.as_str())
+            .collect();
         assert!(field_ids.contains(&"STR"));
         assert!(field_ids.contains(&"DEX"));
         assert!(field_ids.contains(&"CON"));
@@ -2342,17 +2443,24 @@ mod tests {
         let schema = system.character_sheet_schema();
 
         // Find ability scores section and check for validation rules
-        let ability_section = schema.sections.iter()
+        let ability_section = schema
+            .sections
+            .iter()
             .find(|s| s.id == "ability_scores")
             .expect("Should have ability_scores section");
 
         // Look for STR field and check its validation
-        let str_field = ability_section.fields.iter()
+        let str_field = ability_section
+            .fields
+            .iter()
             .find(|f| f.id == "STR")
             .expect("Should have STR field");
 
         // Ability scores should have validation rules (1-30)
-        assert!(str_field.validation.is_some(), "STR should have validation rules");
+        assert!(
+            str_field.validation.is_some(),
+            "STR should have validation rules"
+        );
         let validation = str_field.validation.as_ref().unwrap();
         assert_eq!(validation.min, Some(1));
         assert_eq!(validation.max, Some(30));
@@ -2362,12 +2470,15 @@ mod tests {
     fn calculate_derived_values_produces_modifier_fields() {
         let system = Dnd5eSystem::new();
         let mut values = HashMap::new();
-        values.insert("STR".to_string(), serde_json::json!(16));
+        values.insert("STR".to_string(), SheetValue::Integer(16));
 
         let derived = system.calculate_derived_values(&values);
 
         // Derived values should include the ability modifier
-        assert!(derived.contains_key("STR_MOD"), "Should produce STR_MOD derived field");
+        assert!(
+            derived.contains_key("STR_MOD"),
+            "Should produce STR_MOD derived field"
+        );
         assert_eq!(derived.get("STR_MOD").unwrap().as_i64().unwrap(), 3);
     }
 

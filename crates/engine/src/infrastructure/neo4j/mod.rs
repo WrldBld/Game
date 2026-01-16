@@ -11,17 +11,18 @@ mod helpers;
 pub mod query_helpers;
 mod schema;
 
-#[cfg(test)]
-pub use graph_test::Neo4jGraph;
 #[cfg(not(test))]
 pub use graph::Neo4jGraph;
 pub use graph::Neo4jRowStream;
+#[cfg(test)]
+pub use graph_test::Neo4jGraph;
 pub use schema::ensure_schema;
 
 mod act_repo;
 mod asset_repo;
 mod challenge_repo;
 mod character_repo;
+mod content_repo;
 mod flag_repo;
 mod goal_repo;
 mod interaction_repo;
@@ -34,7 +35,6 @@ mod observation_repo;
 mod player_character_repo;
 mod region_state_repo;
 mod scene_repo;
-mod content_repo;
 mod staging_repo;
 mod world_repo;
 
@@ -42,6 +42,7 @@ pub use act_repo::Neo4jActRepo;
 pub use asset_repo::Neo4jAssetRepo;
 pub use challenge_repo::Neo4jChallengeRepo;
 pub use character_repo::Neo4jCharacterRepo;
+pub use content_repo::Neo4jContentRepo;
 pub use flag_repo::Neo4jFlagRepo;
 pub use goal_repo::Neo4jGoalRepo;
 pub use interaction_repo::Neo4jInteractionRepo;
@@ -54,7 +55,6 @@ pub use observation_repo::Neo4jObservationRepo;
 pub use player_character_repo::Neo4jPlayerCharacterRepo;
 pub use region_state_repo::Neo4jRegionStateRepo;
 pub use scene_repo::Neo4jSceneRepo;
-pub use content_repo::Neo4jContentRepo;
 pub use staging_repo::Neo4jStagingRepo;
 pub use world_repo::Neo4jWorldRepo;
 

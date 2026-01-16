@@ -203,10 +203,11 @@ pub(super) async fn handle_world_request(
             };
 
             // Get the schema based on the world's rule system
-            use wrldbldr_domain::game_systems::{
-                BladesSystem, Coc7eSystem, Dnd5eSystem, FateCoreSystem, PbtaSystem, Pf2eSystem,
+            use wrldbldr_protocol::game_systems::{
+                BladesSystem, CharacterSheetProvider, Coc7eSystem, Dnd5eSystem, FateCoreSystem,
+                PbtaSystem, Pf2eSystem,
             };
-            use wrldbldr_domain::{CharacterSheetProvider, RuleSystemVariant};
+            use wrldbldr_protocol::RuleSystemVariant;
 
             let schema = match &world.rule_system().variant {
                 RuleSystemVariant::Dnd5e => Some(Dnd5eSystem::new().character_sheet_schema()),
@@ -302,7 +303,7 @@ pub(super) async fn handle_character_request(
                     "archetype": Some(character.current_archetype().to_string()),
                     "sprite_asset": character.sprite_asset(),
                     "portrait_asset": character.portrait_asset(),
-                    "sheet_data": serde_json::Value::Null,
+                    "sheet_data": None::<wrldbldr_protocol::character_sheet::CharacterSheetValues>,
                 }))),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
@@ -347,7 +348,7 @@ pub(super) async fn handle_character_request(
                     "archetype": Some(character.current_archetype().to_string()),
                     "sprite_asset": character.sprite_asset(),
                     "portrait_asset": character.portrait_asset(),
-                    "sheet_data": serde_json::Value::Null,
+                    "sheet_data": None::<wrldbldr_protocol::character_sheet::CharacterSheetValues>,
                 }))),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
@@ -392,7 +393,7 @@ pub(super) async fn handle_character_request(
                     "archetype": Some(character.current_archetype().to_string()),
                     "sprite_asset": character.sprite_asset(),
                     "portrait_asset": character.portrait_asset(),
-                    "sheet_data": serde_json::Value::Null,
+                    "sheet_data": None::<wrldbldr_protocol::character_sheet::CharacterSheetValues>,
                 }))),
                 Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Character not found"),

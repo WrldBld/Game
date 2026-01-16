@@ -25,8 +25,7 @@ async fn test_player_enters_location_trigger() {
 
     // Create event with PlayerEntersLocation trigger
     let event_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -50,8 +49,7 @@ async fn test_player_enters_location_trigger() {
 
     // Create PlayerEntersLocation trigger
     let trigger_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id})
@@ -170,8 +168,7 @@ async fn test_one_time_location_event() {
 
     // Create a one-time location event
     let event_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -195,8 +192,7 @@ async fn test_one_time_location_event() {
 
     // Create trigger
     let trigger_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id})
@@ -275,8 +271,7 @@ async fn test_repeatable_location_event() {
 
     // Create a repeatable location event
     let event_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -300,8 +295,7 @@ async fn test_repeatable_location_event() {
 
     // Create trigger
     let trigger_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id})

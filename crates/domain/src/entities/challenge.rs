@@ -792,7 +792,9 @@ impl OutcomeTrigger {
             }
             Self::ModifyCharacterStat { stat, .. } => {
                 if stat.trim().is_empty() {
-                    return Err("ModifyCharacterStat trigger requires non-empty stat name".to_string());
+                    return Err(
+                        "ModifyCharacterStat trigger requires non-empty stat name".to_string()
+                    );
                 }
             }
             Self::Custom { description } => {
@@ -935,10 +937,14 @@ impl TriggerType {
         match self {
             Self::ObjectInteraction { keywords } => {
                 if keywords.is_empty() {
-                    return Err("ObjectInteraction trigger requires at least one keyword".to_string());
+                    return Err(
+                        "ObjectInteraction trigger requires at least one keyword".to_string()
+                    );
                 }
                 if keywords.iter().all(|k| k.trim().is_empty()) {
-                    return Err("ObjectInteraction trigger keywords cannot all be empty".to_string());
+                    return Err(
+                        "ObjectInteraction trigger keywords cannot all be empty".to_string()
+                    );
                 }
             }
             Self::EnterArea { area_keywords } => {

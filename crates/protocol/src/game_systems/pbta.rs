@@ -8,14 +8,15 @@
 //! - Hold mechanic
 //! - Playbook-based characters
 
+use std::collections::HashMap;
+
 use super::traits::{
     AllocationSystem, CalculationEngine, CharacterSheetProvider, CharacterSheetSchema,
-    CreationStep, DerivedField, DerivationType, FieldDefinition, FieldLayout, FieldValidation,
+    CreationStep, DerivationType, DerivedField, FieldDefinition, FieldLayout, FieldValidation,
     GameSystem, ProficiencyLevel, ResourceColor, SchemaFieldType, SchemaSection,
-    SchemaSelectOption, SectionType, StatArrayOption,
+    SchemaSelectOption, SectionType, SheetValue, StatArrayOption,
 };
-use crate::entities::{StatBlock, StatModifier};
-use std::collections::HashMap;
+use wrldbldr_domain::value_objects::{StatBlock, StatModifier};
 
 /// PbtA roll outcome.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,7 +68,11 @@ pub enum HarmSystem {
     /// Dungeon World style: HP
     HitPoints { max: i32, current: i32 },
     /// Monster of the Week style: harm track
-    HarmTrack { boxes: u8, filled: u8, unstable_at: u8 },
+    HarmTrack {
+        boxes: u8,
+        filled: u8,
+        unstable_at: u8,
+    },
     /// Masks/Monsterhearts style: conditions
     Conditions { active: Vec<String> },
 }
@@ -262,11 +267,7 @@ impl CalculationEngine for PbtaSystem {
 
     fn stack_modifiers(&self, modifiers: &[StatModifier]) -> i32 {
         // PbtA modifiers stack (forward, ongoing, etc.)
-        modifiers
-            .iter()
-            .filter(|m| m.active)
-            .map(|m| m.value)
-            .sum()
+        modifiers.iter().filter(|m| m.active).map(|m| m.value).sum()
     }
 
     fn calculate_ac(
@@ -295,12 +296,7 @@ impl CalculationEngine for PbtaSystem {
         self.ability_modifier(value)
     }
 
-    fn saving_throw_modifier(
-        &self,
-        stats: &StatBlock,
-        ability: &str,
-        _proficient: bool,
-    ) -> i32 {
+    fn saving_throw_modifier(&self, stats: &StatBlock, ability: &str, _proficient: bool) -> i32 {
         let value = stats.get_stat(ability).unwrap_or(0);
         self.ability_modifier(value)
     }
@@ -368,56 +364,59 @@ impl CharacterSheetProvider for PbtaSystem {
 
     fn calculate_derived_values(
         &self,
-        values: &HashMap<String, serde_json::Value>,
-    ) -> HashMap<String, serde_json::Value> {
+        values: &HashMap<String, SheetValue>,
+    ) -> HashMap<String, SheetValue> {
         let mut derived = HashMap::new();
 
         match self.variant {
             PbtaVariant::DungeonWorld => {
                 // Dungeon World uses D&D-style ability scores -> modifiers
                 for stat in &["STR", "DEX", "CON", "INT", "WIS", "CHA"] {
-                    if let Some(score) = values.get(*stat).and_then(|v| v.as_i64()) {
+                    if let Some(score) = values.get(*stat).and_then(SheetValue::as_i64) {
                         let modifier = self.ability_modifier(score as i32);
-                        derived.insert(format!("{}_MOD", stat), serde_json::json!(modifier));
+                        derived.insert(format!("{}_MOD", stat), SheetValue::Integer(modifier));
                     }
                 }
 
                 // Calculate HP if class and CON are set
                 if let (Some(class), Some(con)) = (
-                    values.get("PLAYBOOK").and_then(|v| v.as_str()),
-                    values.get("CON").and_then(|v| v.as_i64()),
+                    values.get("PLAYBOOK").and_then(SheetValue::as_str),
+                    values.get("CON").and_then(SheetValue::as_i64),
                 ) {
                     let max_hp = self.calculate_max_hp(1, class, con as i32, 0);
-                    derived.insert("MAX_HP".to_string(), serde_json::json!(max_hp));
+                    derived.insert("MAX_HP".to_string(), SheetValue::Integer(max_hp));
                 }
             }
             _ => {
                 // For non-DW PbtA games, stats ARE the modifiers (no conversion needed)
                 // But we still track them for consistency
                 for stat in self.stat_names() {
-                    if let Some(value) = values.get(*stat).and_then(|v| v.as_i64()) {
-                        derived.insert(format!("{}_MOD", stat), serde_json::json!(value));
+                    if let Some(value) = values.get(*stat).and_then(SheetValue::as_i64) {
+                        derived.insert(format!("{}_MOD", stat), SheetValue::Integer(value as i32));
                     }
                 }
             }
         }
 
         // Calculate total XP (if tracking advancement)
-        if let Some(xp) = values.get("XP").and_then(|v| v.as_i64()) {
+        if let Some(xp) = values.get("XP").and_then(SheetValue::as_i64) {
             let xp_max = match self.variant {
                 PbtaVariant::DungeonWorld => {
                     // DW: Level + 7
                     let level = values
                         .get("LEVEL")
-                        .and_then(|v| v.as_i64())
+                        .and_then(SheetValue::as_i64)
                         .unwrap_or(1);
                     level + 7
                 }
                 _ => 5, // Most PbtA games use 5 XP to advance
             };
-            derived.insert("XP_MAX".to_string(), serde_json::json!(xp_max));
+            derived.insert("XP_MAX".to_string(), SheetValue::Integer(xp_max as i32));
             let xp_remaining = (xp_max - xp).max(0);
-            derived.insert("XP_REMAINING".to_string(), serde_json::json!(xp_remaining));
+            derived.insert(
+                "XP_REMAINING".to_string(),
+                SheetValue::Integer(xp_remaining as i32),
+            );
         }
 
         derived
@@ -426,8 +425,8 @@ impl CharacterSheetProvider for PbtaSystem {
     fn validate_field(
         &self,
         field_id: &str,
-        value: &serde_json::Value,
-        _all_values: &HashMap<String, serde_json::Value>,
+        value: &SheetValue,
+        _all_values: &HashMap<String, SheetValue>,
     ) -> Option<String> {
         match self.variant {
             PbtaVariant::DungeonWorld => {
@@ -435,10 +434,8 @@ impl CharacterSheetProvider for PbtaSystem {
                 match field_id {
                     "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA" => {
                         if let Some(score) = value.as_i64() {
-                            if !(3..=18).contains(&score) {
-                                return Some(
-                                    "Ability scores must be between 3 and 18".to_string(),
-                                );
+                            if !(3..=18).contains(&(score as i32)) {
+                                return Some("Ability scores must be between 3 and 18".to_string());
                             }
                         } else {
                             return Some("Ability score must be a number".to_string());
@@ -452,7 +449,7 @@ impl CharacterSheetProvider for PbtaSystem {
                 let stat_names: Vec<&str> = self.stat_names().to_vec();
                 if stat_names.contains(&field_id) {
                     if let Some(stat) = value.as_i64() {
-                        if !(-2..=3).contains(&stat) {
+                        if !(-2..=3).contains(&(stat as i32)) {
                             return Some("Stats must be between -2 and +3".to_string());
                         }
                     } else {
@@ -493,47 +490,47 @@ impl CharacterSheetProvider for PbtaSystem {
         None
     }
 
-    fn default_values(&self) -> HashMap<String, serde_json::Value> {
+    fn default_values(&self) -> HashMap<String, SheetValue> {
         let mut defaults = HashMap::new();
 
         match self.variant {
             PbtaVariant::DungeonWorld => {
                 // DW uses D&D-style scores, default to 10
-                defaults.insert("STR".to_string(), serde_json::json!(10));
-                defaults.insert("DEX".to_string(), serde_json::json!(10));
-                defaults.insert("CON".to_string(), serde_json::json!(10));
-                defaults.insert("INT".to_string(), serde_json::json!(10));
-                defaults.insert("WIS".to_string(), serde_json::json!(10));
-                defaults.insert("CHA".to_string(), serde_json::json!(10));
-                defaults.insert("LEVEL".to_string(), serde_json::json!(1));
-                defaults.insert("ARMOR".to_string(), serde_json::json!(0));
+                defaults.insert("STR".to_string(), SheetValue::Integer(10));
+                defaults.insert("DEX".to_string(), SheetValue::Integer(10));
+                defaults.insert("CON".to_string(), SheetValue::Integer(10));
+                defaults.insert("INT".to_string(), SheetValue::Integer(10));
+                defaults.insert("WIS".to_string(), SheetValue::Integer(10));
+                defaults.insert("CHA".to_string(), SheetValue::Integer(10));
+                defaults.insert("LEVEL".to_string(), SheetValue::Integer(1));
+                defaults.insert("ARMOR".to_string(), SheetValue::Integer(0));
             }
             PbtaVariant::ApocalypseWorld => {
-                defaults.insert("Cool".to_string(), serde_json::json!(0));
-                defaults.insert("Hard".to_string(), serde_json::json!(0));
-                defaults.insert("Hot".to_string(), serde_json::json!(0));
-                defaults.insert("Sharp".to_string(), serde_json::json!(0));
-                defaults.insert("Weird".to_string(), serde_json::json!(0));
+                defaults.insert("Cool".to_string(), SheetValue::Integer(0));
+                defaults.insert("Hard".to_string(), SheetValue::Integer(0));
+                defaults.insert("Hot".to_string(), SheetValue::Integer(0));
+                defaults.insert("Sharp".to_string(), SheetValue::Integer(0));
+                defaults.insert("Weird".to_string(), SheetValue::Integer(0));
             }
             PbtaVariant::MonsterOfTheWeek => {
-                defaults.insert("Charm".to_string(), serde_json::json!(0));
-                defaults.insert("Cool".to_string(), serde_json::json!(0));
-                defaults.insert("Sharp".to_string(), serde_json::json!(0));
-                defaults.insert("Tough".to_string(), serde_json::json!(0));
-                defaults.insert("Weird".to_string(), serde_json::json!(0));
+                defaults.insert("Charm".to_string(), SheetValue::Integer(0));
+                defaults.insert("Cool".to_string(), SheetValue::Integer(0));
+                defaults.insert("Sharp".to_string(), SheetValue::Integer(0));
+                defaults.insert("Tough".to_string(), SheetValue::Integer(0));
+                defaults.insert("Weird".to_string(), SheetValue::Integer(0));
             }
             PbtaVariant::Generic => {
                 for stat in self.stat_names() {
-                    defaults.insert(stat.to_string(), serde_json::json!(0));
+                    defaults.insert(stat.to_string(), SheetValue::Integer(0));
                 }
             }
         }
 
         // Common defaults
-        defaults.insert("XP".to_string(), serde_json::json!(0));
-        defaults.insert("HOLD".to_string(), serde_json::json!(0));
-        defaults.insert("HARM".to_string(), serde_json::json!(0));
-        defaults.insert("CURRENT_HP".to_string(), serde_json::json!(0));
+        defaults.insert("XP".to_string(), SheetValue::Integer(0));
+        defaults.insert("HOLD".to_string(), SheetValue::Integer(0));
+        defaults.insert("HARM".to_string(), SheetValue::Integer(0));
+        defaults.insert("CURRENT_HP".to_string(), SheetValue::Integer(0));
 
         defaults
     }
@@ -663,10 +660,7 @@ impl PbtaSystem {
     }
 
     fn build_sections(&self) -> Vec<SchemaSection> {
-        let mut sections = vec![
-            self.identity_section(),
-            self.stats_section(),
-        ];
+        let mut sections = vec![self.identity_section(), self.stats_section()];
 
         // Add harm/HP section based on variant
         sections.push(self.harm_section());
@@ -691,38 +685,32 @@ impl PbtaSystem {
             CreationStep {
                 id: "identity".to_string(),
                 label: "Who Are You?".to_string(),
-                description: "Choose your name, playbook, and look.".to_string(),
-                section_ids: vec!["identity".to_string()],
-                order: 1,
-                required: true,
-                allocation: None,
+                description: Some("Choose your name, playbook, and look.".to_string()),
+                sections: vec!["identity".to_string()],
+                optional: false,
             },
             CreationStep {
                 id: "stats".to_string(),
                 label: "Stats".to_string(),
-                description: "Assign your stats according to your playbook.".to_string(),
-                section_ids: vec!["stats".to_string()],
-                order: 2,
-                required: true,
-                allocation: Some(self.stat_array_allocation()),
+                description: Some("Assign your stats according to your playbook.".to_string()),
+                sections: vec!["stats".to_string()],
+                optional: false,
             },
             CreationStep {
                 id: "moves".to_string(),
                 label: "Moves".to_string(),
-                description: "Choose your starting moves.".to_string(),
-                section_ids: vec!["moves".to_string()],
-                order: 3,
-                required: true,
-                allocation: None,
+                description: Some("Choose your starting moves.".to_string()),
+                sections: vec!["moves".to_string()],
+                optional: false,
             },
             CreationStep {
                 id: "bonds".to_string(),
                 label: "Bonds".to_string(),
-                description: "Establish your relationships with other characters.".to_string(),
-                section_ids: vec!["bonds".to_string()],
-                order: 4,
-                required: false,
-                allocation: None,
+                description: Some(
+                    "Establish your relationships with other characters.".to_string(),
+                ),
+                sections: vec!["bonds".to_string()],
+                optional: true,
             },
         ]
     }
@@ -747,7 +735,7 @@ impl PbtaSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: None,
@@ -765,7 +753,7 @@ impl PbtaSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: Some(self.playbook_description().to_string()),
@@ -783,8 +771,7 @@ impl PbtaSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
-                        new_row: true,
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some("Describe your character's appearance".to_string()),
@@ -832,10 +819,10 @@ impl PbtaSystem {
                     min: Some(-2),
                     max: Some(3),
                     pattern: None,
-                    error_message: Some("Stats must be between -2 and +3".to_string()),
+                    message: Some("Stats must be between -2 and +3".to_string()),
                 }),
                 layout: FieldLayout {
-                    width: Some(2),
+                    column_span: 2,
                     ..Default::default()
                 },
                 description: self.stat_description(stat).map(|s| s.to_string()),
@@ -870,10 +857,10 @@ impl PbtaSystem {
                     min: Some(3),
                     max: Some(18),
                     pattern: None,
-                    error_message: Some("Ability scores must be 3-18".to_string()),
+                    message: Some("Ability scores must be 3-18".to_string()),
                 }),
                 layout: FieldLayout {
-                    width: Some(2),
+                    column_span: 2,
                     ..Default::default()
                 },
                 description: Some(desc.to_string()),
@@ -897,11 +884,10 @@ impl PbtaSystem {
                 min: Some(1),
                 max: Some(10),
                 pattern: None,
-                error_message: Some("Level must be 1-10".to_string()),
+                message: Some("Level must be 1-10".to_string()),
             }),
             layout: FieldLayout {
-                width: Some(2),
-                new_row: true,
+                column_span: 2,
                 ..Default::default()
             },
             description: Some("Character level".to_string()),
@@ -922,7 +908,7 @@ impl PbtaSystem {
             derived_from: None,
             validation: None,
             layout: FieldLayout {
-                width: Some(2),
+                column_span: 2,
                 ..Default::default()
             },
             description: Some("Damage reduction from armor".to_string()),
@@ -964,10 +950,10 @@ impl PbtaSystem {
                     min: Some(0),
                     max: Some(6),
                     pattern: None,
-                    error_message: Some("Harm must be 0-6".to_string()),
+                    message: Some("Harm must be 0-6".to_string()),
                 }),
                 layout: FieldLayout {
-                    width: Some(6),
+                    column_span: 6,
                     ..Default::default()
                 },
                 description: Some(
@@ -987,7 +973,7 @@ impl PbtaSystem {
                 derived_from: None,
                 validation: None,
                 layout: FieldLayout {
-                    width: Some(3),
+                    column_span: 3,
                     ..Default::default()
                 },
                 description: Some("Whether you've been stabilized after taking harm".to_string()),
@@ -1010,7 +996,7 @@ impl PbtaSystem {
                 derived_from: None,
                 validation: None,
                 layout: FieldLayout {
-                    width: Some(6),
+                    column_span: 6,
                     ..Default::default()
                 },
                 description: None,
@@ -1033,7 +1019,7 @@ impl PbtaSystem {
                 }),
                 validation: None,
                 layout: FieldLayout {
-                    width: Some(3),
+                    column_span: 3,
                     ..Default::default()
                 },
                 description: Some("Class base + Constitution score".to_string()),
@@ -1051,7 +1037,7 @@ impl PbtaSystem {
                 derived_from: None,
                 validation: None,
                 layout: FieldLayout {
-                    width: Some(3),
+                    column_span: 3,
                     ..Default::default()
                 },
                 description: Some("Your class damage die".to_string()),
@@ -1073,10 +1059,10 @@ impl PbtaSystem {
                     min: Some(0),
                     max: Some(7),
                     pattern: None,
-                    error_message: Some("Harm must be 0-7".to_string()),
+                    message: Some("Harm must be 0-7".to_string()),
                 }),
                 layout: FieldLayout {
-                    width: Some(6),
+                    column_span: 6,
                     ..Default::default()
                 },
                 description: Some(
@@ -1097,7 +1083,7 @@ impl PbtaSystem {
                 derived_from: None,
                 validation: None,
                 layout: FieldLayout {
-                    width: Some(3),
+                    column_span: 3,
                     ..Default::default()
                 },
                 description: Some("At 4+ harm, you become unstable".to_string()),
@@ -1114,11 +1100,10 @@ impl PbtaSystem {
                     min: Some(0),
                     max: Some(7),
                     pattern: None,
-                    error_message: Some("Luck must be 0-7".to_string()),
+                    message: Some("Luck must be 0-7".to_string()),
                 }),
                 layout: FieldLayout {
-                    width: Some(6),
-                    new_row: true,
+                    column_span: 6,
                     ..Default::default()
                 },
                 description: Some("Spend luck to change a roll or avoid harm".to_string()),
@@ -1128,28 +1113,26 @@ impl PbtaSystem {
     }
 
     fn generic_harm_fields(&self) -> Vec<FieldDefinition> {
-        vec![
-            FieldDefinition {
-                id: "HARM".to_string(),
-                label: "Harm".to_string(),
-                field_type: SchemaFieldType::Clock { segments: 6 },
-                editable: true,
-                required: false,
-                derived_from: None,
-                validation: Some(FieldValidation {
-                    min: Some(0),
-                    max: Some(6),
-                    pattern: None,
-                    error_message: Some("Harm must be 0-6".to_string()),
-                }),
-                layout: FieldLayout {
-                    width: Some(6),
-                    ..Default::default()
-                },
-                description: Some("Track harm as you take damage".to_string()),
-                placeholder: None,
+        vec![FieldDefinition {
+            id: "HARM".to_string(),
+            label: "Harm".to_string(),
+            field_type: SchemaFieldType::Clock { segments: 6 },
+            editable: true,
+            required: false,
+            derived_from: None,
+            validation: Some(FieldValidation {
+                min: Some(0),
+                max: Some(6),
+                pattern: None,
+                message: Some("Harm must be 0-6".to_string()),
+            }),
+            layout: FieldLayout {
+                column_span: 6,
+                ..Default::default()
             },
-        ]
+            description: Some("Track harm as you take damage".to_string()),
+            placeholder: None,
+        }]
     }
 
     fn moves_section(&self) -> SchemaSection {
@@ -1170,7 +1153,7 @@ impl PbtaSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some("Moves available to all characters".to_string()),
@@ -1188,8 +1171,7 @@ impl PbtaSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
-                        new_row: true,
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some("Moves from your playbook".to_string()),
@@ -1207,8 +1189,7 @@ impl PbtaSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
-                        new_row: true,
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some("Moves gained through advancement".to_string()),
@@ -1236,10 +1217,10 @@ impl PbtaSystem {
                     min: Some(0),
                     max: Some(self.xp_track_size() as i32),
                     pattern: None,
-                    error_message: None,
+                    message: None,
                 }),
                 layout: FieldLayout {
-                    width: Some(6),
+                    column_span: 6,
                     ..Default::default()
                 },
                 description: Some(self.xp_description().to_string()),
@@ -1258,7 +1239,7 @@ impl PbtaSystem {
                 derived_from: None,
                 validation: None,
                 layout: FieldLayout {
-                    width: Some(3),
+                    column_span: 3,
                     ..Default::default()
                 },
                 description: Some("Spend hold from moves".to_string()),
@@ -1280,7 +1261,7 @@ impl PbtaSystem {
             derived_from: None,
             validation: None,
             layout: FieldLayout {
-                width: Some(3),
+                column_span: 3,
                 ..Default::default()
             },
             description: Some("One-time bonus to your next roll".to_string()),
@@ -1300,8 +1281,7 @@ impl PbtaSystem {
             derived_from: None,
             validation: None,
             layout: FieldLayout {
-                width: Some(3),
-                new_row: true,
+                column_span: 3,
                 ..Default::default()
             },
             description: Some("Persistent bonus until condition ends".to_string()),
@@ -1324,7 +1304,7 @@ impl PbtaSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(3),
+                        column_span: 3,
                         ..Default::default()
                     },
                     description: Some("Trade goods and currency".to_string()),
@@ -1345,7 +1325,7 @@ impl PbtaSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(3),
+                        column_span: 3,
                         ..Default::default()
                     },
                     description: Some("Gold coins".to_string()),
@@ -1363,7 +1343,7 @@ impl PbtaSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(3),
+                        column_span: 3,
                         ..Default::default()
                     },
                     description: Some("Current / Max load".to_string()),
@@ -1409,7 +1389,7 @@ impl PbtaSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: None,
@@ -1427,7 +1407,7 @@ impl PbtaSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: None,
@@ -1445,7 +1425,7 @@ impl PbtaSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: None,
@@ -1463,7 +1443,7 @@ impl PbtaSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: None,
@@ -1657,13 +1637,11 @@ impl PbtaSystem {
                     description: Some("Seeking vengeance for a loss".to_string()),
                 },
             ],
-            PbtaVariant::Generic => vec![
-                SchemaSelectOption {
-                    value: "custom".to_string(),
-                    label: "Custom Playbook".to_string(),
-                    description: Some("Define your own archetype".to_string()),
-                },
-            ],
+            PbtaVariant::Generic => vec![SchemaSelectOption {
+                value: "custom".to_string(),
+                label: "Custom Playbook".to_string(),
+                description: Some("Define your own archetype".to_string()),
+            }],
         }
     }
 
@@ -1710,7 +1688,9 @@ impl PbtaSystem {
             PbtaVariant::ApocalypseWorld => {
                 "Track harm on the clock. At 6, you're at death's door."
             }
-            PbtaVariant::DungeonWorld => "Your hit points. When you reach 0, take your Last Breath.",
+            PbtaVariant::DungeonWorld => {
+                "Your hit points. When you reach 0, take your Last Breath."
+            }
             PbtaVariant::MonsterOfTheWeek => {
                 "Track harm. At 4+, you're unstable. At 7, you're dying."
             }
@@ -1738,9 +1718,7 @@ impl PbtaSystem {
             PbtaVariant::ApocalypseWorld => {
                 "Hx represents how well you know other characters. Higher is better for helping."
             }
-            PbtaVariant::DungeonWorld => {
-                "Bonds describe your relationships with other characters."
-            }
+            PbtaVariant::DungeonWorld => "Bonds describe your relationships with other characters.",
             PbtaVariant::MonsterOfTheWeek => "History with other hunters in your team.",
             PbtaVariant::Generic => "Your relationships with other characters.",
         }
@@ -1758,25 +1736,24 @@ impl PbtaSystem {
             id: "modifiers".to_string(),
             label: "Conditions & Effects".to_string(),
             section_type: SectionType::Modifiers,
-            fields: vec![
-                FieldDefinition {
-                    id: "ACTIVE_MODIFIERS".to_string(),
-                    label: "Active Conditions".to_string(),
-                    field_type: SchemaFieldType::ModifierList { filter_stat: None },
-                    editable: false,
-                    required: false,
-                    derived_from: None,
-                    validation: None,
-                    layout: FieldLayout {
-                        width: Some(12),
-                        ..Default::default()
-                    },
-                    description: Some(
-                        "Active conditions, debilities, and ongoing effects modifying your rolls.".to_string(),
-                    ),
-                    placeholder: None,
+            fields: vec![FieldDefinition {
+                id: "ACTIVE_MODIFIERS".to_string(),
+                label: "Active Conditions".to_string(),
+                field_type: SchemaFieldType::ModifierList { filter_stat: None },
+                editable: false,
+                required: false,
+                derived_from: None,
+                validation: None,
+                layout: FieldLayout {
+                    column_span: 12,
+                    ..Default::default()
                 },
-            ],
+                description: Some(
+                    "Active conditions, debilities, and ongoing effects modifying your rolls."
+                        .to_string(),
+                ),
+                placeholder: None,
+            }],
             collapsible: true,
             collapsed_default: false,
             description: Some(description.to_string()),
@@ -2191,17 +2168,17 @@ mod tests {
         let aw = PbtaSystem::apocalypse_world();
         let defaults = aw.default_values();
 
-        assert_eq!(defaults.get("Cool"), Some(&serde_json::json!(0)));
-        assert_eq!(defaults.get("Hard"), Some(&serde_json::json!(0)));
-        assert_eq!(defaults.get("XP"), Some(&serde_json::json!(0)));
-        assert_eq!(defaults.get("HOLD"), Some(&serde_json::json!(0)));
+        assert_eq!(defaults.get("Cool"), Some(&SheetValue::Integer(0)));
+        assert_eq!(defaults.get("Hard"), Some(&SheetValue::Integer(0)));
+        assert_eq!(defaults.get("XP"), Some(&SheetValue::Integer(0)));
+        assert_eq!(defaults.get("HOLD"), Some(&SheetValue::Integer(0)));
 
         let dw = PbtaSystem::dungeon_world();
         let defaults = dw.default_values();
 
-        assert_eq!(defaults.get("STR"), Some(&serde_json::json!(10)));
-        assert_eq!(defaults.get("LEVEL"), Some(&serde_json::json!(1)));
-        assert_eq!(defaults.get("ARMOR"), Some(&serde_json::json!(0)));
+        assert_eq!(defaults.get("STR"), Some(&SheetValue::Integer(10)));
+        assert_eq!(defaults.get("LEVEL"), Some(&SheetValue::Integer(1)));
+        assert_eq!(defaults.get("ARMOR"), Some(&SheetValue::Integer(0)));
     }
 
     #[test]
@@ -2210,12 +2187,20 @@ mod tests {
         let all_values = HashMap::new();
 
         // Valid stat
-        assert!(system.validate_field("Cool", &serde_json::json!(2), &all_values).is_none());
-        assert!(system.validate_field("Cool", &serde_json::json!(-1), &all_values).is_none());
+        assert!(system
+            .validate_field("Cool", &SheetValue::Integer(2), &all_values)
+            .is_none());
+        assert!(system
+            .validate_field("Cool", &SheetValue::Integer(-1), &all_values)
+            .is_none());
 
         // Invalid stat (out of range)
-        assert!(system.validate_field("Cool", &serde_json::json!(5), &all_values).is_some());
-        assert!(system.validate_field("Cool", &serde_json::json!(-3), &all_values).is_some());
+        assert!(system
+            .validate_field("Cool", &SheetValue::Integer(5), &all_values)
+            .is_some());
+        assert!(system
+            .validate_field("Cool", &SheetValue::Integer(-3), &all_values)
+            .is_some());
     }
 
     #[test]
@@ -2224,47 +2209,56 @@ mod tests {
         let all_values = HashMap::new();
 
         // Valid score
-        assert!(system.validate_field("STR", &serde_json::json!(16), &all_values).is_none());
+        assert!(system
+            .validate_field("STR", &SheetValue::Integer(16), &all_values)
+            .is_none());
 
         // Invalid score (out of range)
-        assert!(system.validate_field("STR", &serde_json::json!(20), &all_values).is_some());
-        assert!(system.validate_field("STR", &serde_json::json!(2), &all_values).is_some());
+        assert!(system
+            .validate_field("STR", &SheetValue::Integer(20), &all_values)
+            .is_some());
+        assert!(system
+            .validate_field("STR", &SheetValue::Integer(2), &all_values)
+            .is_some());
     }
 
     #[test]
     fn calculate_derived_values_aw() {
         let system = PbtaSystem::apocalypse_world();
         let mut values = HashMap::new();
-        values.insert("Cool".to_string(), serde_json::json!(2));
-        values.insert("XP".to_string(), serde_json::json!(3));
+        values.insert("Cool".to_string(), SheetValue::Integer(2));
+        values.insert("XP".to_string(), SheetValue::Integer(3));
 
         let derived = system.calculate_derived_values(&values);
 
-        assert_eq!(derived.get("Cool_MOD"), Some(&serde_json::json!(2)));
-        assert_eq!(derived.get("XP_MAX"), Some(&serde_json::json!(5)));
-        assert_eq!(derived.get("XP_REMAINING"), Some(&serde_json::json!(2)));
+        assert_eq!(derived.get("Cool_MOD"), Some(&SheetValue::Integer(2)));
+        assert_eq!(derived.get("XP_MAX"), Some(&SheetValue::Integer(5)));
+        assert_eq!(derived.get("XP_REMAINING"), Some(&SheetValue::Integer(2)));
     }
 
     #[test]
     fn calculate_derived_values_dw() {
         let system = PbtaSystem::dungeon_world();
         let mut values = HashMap::new();
-        values.insert("STR".to_string(), serde_json::json!(16));
-        values.insert("CON".to_string(), serde_json::json!(14));
-        values.insert("PLAYBOOK".to_string(), serde_json::json!("fighter"));
-        values.insert("LEVEL".to_string(), serde_json::json!(1));
-        values.insert("XP".to_string(), serde_json::json!(2));
+        values.insert("STR".to_string(), SheetValue::Integer(16));
+        values.insert("CON".to_string(), SheetValue::Integer(14));
+        values.insert(
+            "PLAYBOOK".to_string(),
+            SheetValue::String("fighter".to_string()),
+        );
+        values.insert("LEVEL".to_string(), SheetValue::Integer(1));
+        values.insert("XP".to_string(), SheetValue::Integer(2));
 
         let derived = system.calculate_derived_values(&values);
 
         // STR 16 -> modifier +3
-        assert_eq!(derived.get("STR_MOD"), Some(&serde_json::json!(3)));
+        assert_eq!(derived.get("STR_MOD"), Some(&SheetValue::Integer(3)));
         // CON 14 -> modifier +2
-        assert_eq!(derived.get("CON_MOD"), Some(&serde_json::json!(2)));
+        assert_eq!(derived.get("CON_MOD"), Some(&SheetValue::Integer(2)));
         // Fighter base 10 + CON 14 = 24
-        assert_eq!(derived.get("MAX_HP"), Some(&serde_json::json!(24)));
+        assert_eq!(derived.get("MAX_HP"), Some(&SheetValue::Integer(24)));
         // Level 1 + 7 = 8 XP to level
-        assert_eq!(derived.get("XP_MAX"), Some(&serde_json::json!(8)));
+        assert_eq!(derived.get("XP_MAX"), Some(&SheetValue::Integer(8)));
     }
 
     #[test]
@@ -2304,7 +2298,11 @@ mod tests {
         let system = PbtaSystem::apocalypse_world();
         let schema = system.character_sheet_schema();
 
-        let resources = schema.sections.iter().find(|s| s.id == "resources").unwrap();
+        let resources = schema
+            .sections
+            .iter()
+            .find(|s| s.id == "resources")
+            .unwrap();
         let field_ids: Vec<&str> = resources.fields.iter().map(|f| f.id.as_str()).collect();
 
         assert!(field_ids.contains(&"XP"));
@@ -2318,7 +2316,11 @@ mod tests {
         let system = PbtaSystem::apocalypse_world();
         let schema = system.character_sheet_schema();
 
-        let resources = schema.sections.iter().find(|s| s.id == "resources").unwrap();
+        let resources = schema
+            .sections
+            .iter()
+            .find(|s| s.id == "resources")
+            .unwrap();
         let field_ids: Vec<&str> = resources.fields.iter().map(|f| f.id.as_str()).collect();
 
         assert!(field_ids.contains(&"BARTER"));
@@ -2329,7 +2331,11 @@ mod tests {
         let system = PbtaSystem::dungeon_world();
         let schema = system.character_sheet_schema();
 
-        let resources = schema.sections.iter().find(|s| s.id == "resources").unwrap();
+        let resources = schema
+            .sections
+            .iter()
+            .find(|s| s.id == "resources")
+            .unwrap();
         let field_ids: Vec<&str> = resources.fields.iter().map(|f| f.id.as_str()).collect();
 
         assert!(field_ids.contains(&"COIN"));
@@ -2350,7 +2356,11 @@ mod tests {
 
         let motw = PbtaSystem::monster_of_the_week();
         let motw_schema = motw.character_sheet_schema();
-        let motw_bonds = motw_schema.sections.iter().find(|s| s.id == "bonds").unwrap();
+        let motw_bonds = motw_schema
+            .sections
+            .iter()
+            .find(|s| s.id == "bonds")
+            .unwrap();
         assert_eq!(motw_bonds.label, "History");
     }
 }

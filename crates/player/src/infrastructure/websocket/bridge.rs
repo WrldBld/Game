@@ -281,7 +281,9 @@ async fn wasm_bridge_task(
                 match bus_msg {
                     BusMessage::Send(msg) => {
                         if let Err(e) = client.send(msg) {
-                            web_sys::console::error_1(&format!("Failed to send message: {}", e).into());
+                            web_sys::console::error_1(
+                                &format!("Failed to send message: {}", e).into(),
+                            );
                         }
                     }
                     BusMessage::Request { id, payload } => {
@@ -291,7 +293,9 @@ async fn wasm_bridge_task(
                             payload,
                         };
                         if let Err(e) = client.send(msg) {
-                            web_sys::console::error_1(&format!("Failed to send request: {}", e).into());
+                            web_sys::console::error_1(
+                                &format!("Failed to send request: {}", e).into(),
+                            );
                         }
                     }
                 }

@@ -10,9 +10,7 @@ use crate::infrastructure::ports::{PendingStagingRequest, TimeSuggestion};
 use crate::repositories::character::Character;
 use crate::repositories::location::Location;
 use crate::repositories::staging::Staging;
-use crate::repositories::{
-    Flag, Llm, PendingStaging, Settings, TimeSuggestionStore, World,
-};
+use crate::repositories::{Flag, Llm, PendingStaging, Settings, TimeSuggestionStore, World};
 use crate::use_cases::visual_state::{ResolveVisualState, StateResolutionContext};
 
 use super::suggestions::{generate_llm_based_suggestions, generate_rule_based_suggestions};

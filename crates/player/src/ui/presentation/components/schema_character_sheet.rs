@@ -6,7 +6,11 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
-use crate::application::dto::{CharacterSheetSchema, SchemaFieldDefinition, SchemaFieldType, SchemaResourceColor, SchemaSection as SchemaSectionDto, SchemaSectionType};
+use crate::application::dto::{
+    CharacterSheetSchema, SchemaFieldDefinition, SchemaFieldType, SchemaResourceColor,
+    SchemaSection as SchemaSectionDto, SchemaSectionType,
+};
+use wrldbldr_protocol::character_sheet::SheetValue;
 
 /// Schema-based character sheet form
 ///
@@ -17,7 +21,7 @@ pub struct SchemaCharacterSheetProps {
     /// The schema defining the character sheet structure
     pub schema: CharacterSheetSchema,
     /// Signal for field values - child components read/write directly
-    pub values: Signal<HashMap<String, serde_json::Value>>,
+    pub values: Signal<HashMap<String, SheetValue>>,
     /// Whether to show the system name header (default true)
     #[props(default = true)]
     pub show_header: bool,
@@ -66,7 +70,7 @@ pub fn SchemaCharacterSheet(props: SchemaCharacterSheetProps) -> Element {
 pub struct SchemaSectionProps {
     pub section: SchemaSectionDto,
     /// Signal for field values - child components read/write directly
-    pub values: Signal<HashMap<String, serde_json::Value>>,
+    pub values: Signal<HashMap<String, SheetValue>>,
     /// Force all fields to be read-only
     #[props(default = false)]
     pub read_only: bool,
@@ -121,7 +125,7 @@ pub struct SchemaFieldProps {
     /// The field ID for this field
     pub field_id: String,
     /// Signal for field values - writes directly on change
-    pub values: Signal<HashMap<String, serde_json::Value>>,
+    pub values: Signal<HashMap<String, SheetValue>>,
     /// Force field to be read-only
     #[props(default = false)]
     pub read_only: bool,
@@ -136,7 +140,11 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
     let is_readonly = props.read_only || !field.editable || is_derived;
 
     // Read current value from signal
-    let current_value = values.read().get(&field_id).cloned();
+    let current_value = values
+        .read()
+        .get(&field_id)
+        .cloned()
+        .unwrap_or(SheetValue::Null);
 
     rsx! {
         div {
@@ -151,15 +159,18 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
             match &field.field_type {
                 SchemaFieldType::Text { multiline, .. } => {
                     let fid = field_id.clone();
+                    let current_text = current_value.as_str().unwrap_or("");
                     if *multiline {
                         rsx! {
                             textarea {
                                 class: "w-full p-2 bg-dark-bg border border-gray-600 rounded text-white text-sm resize-y",
                                 readonly: is_readonly,
                                 placeholder: field.placeholder.as_deref().unwrap_or(""),
-                                value: current_value.as_ref().and_then(|v| v.as_str()).unwrap_or(""),
+                                value: "{current_text}",
                                 oninput: move |e| {
-                                    values.write().insert(fid.clone(), serde_json::json!(e.value()));
+                                    values
+                                        .write()
+                                        .insert(fid.clone(), SheetValue::String(e.value()));
                                 },
                             }
                         }
@@ -170,9 +181,11 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                                 class: "w-full p-2 bg-dark-bg border border-gray-600 rounded text-white text-sm",
                                 readonly: is_readonly,
                                 placeholder: field.placeholder.as_deref().unwrap_or(""),
-                                value: current_value.as_ref().and_then(|v| v.as_str()).unwrap_or(""),
+                                value: "{current_text}",
                                 oninput: move |e| {
-                                    values.write().insert(fid.clone(), serde_json::json!(e.value()));
+                                    values
+                                        .write()
+                                        .insert(fid.clone(), SheetValue::String(e.value()));
                                 },
                             }
                         }
@@ -180,7 +193,7 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                 }
                 SchemaFieldType::Integer { min, max, show_modifier } => {
                     let fid = field_id.clone();
-                    let current = current_value.as_ref().and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                    let current = current_value.as_i64().unwrap_or(0) as i32;
                     rsx! {
                         div {
                             class: "flex items-center gap-2",
@@ -193,7 +206,9 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                                 value: "{current}",
                                 oninput: move |e| {
                                     if let Ok(val) = e.value().parse::<i32>() {
-                                        values.write().insert(fid.clone(), serde_json::json!(val));
+                                        values
+                                            .write()
+                                            .insert(fid.clone(), SheetValue::Integer(val));
                                     }
                                 },
                             }
@@ -208,7 +223,7 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                 }
                 SchemaFieldType::AbilityScore { min, max } => {
                     let fid = field_id.clone();
-                    let score = current_value.as_ref().and_then(|v| v.as_i64()).unwrap_or(10) as i32;
+                    let score = current_value.as_i64().unwrap_or(10) as i32;
                     let modifier = (score - 10) / 2;
                     rsx! {
                         div {
@@ -222,7 +237,9 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                                 value: "{score}",
                                 oninput: move |e| {
                                     if let Ok(val) = e.value().parse::<i32>() {
-                                        values.write().insert(fid.clone(), serde_json::json!(val));
+                                        values
+                                            .write()
+                                            .insert(fid.clone(), SheetValue::Integer(val));
                                     }
                                 },
                             }
@@ -235,7 +252,7 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                 }
                 SchemaFieldType::Boolean { checked_label, unchecked_label } => {
                     let fid = field_id.clone();
-                    let checked = current_value.as_ref().and_then(|v| v.as_bool()).unwrap_or(false);
+                    let checked = current_value.as_bool().unwrap_or(false);
                     let label = if checked {
                         checked_label.as_deref().unwrap_or("Yes")
                     } else {
@@ -250,7 +267,9 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                                 disabled: is_readonly,
                                 checked,
                                 onchange: move |e| {
-                                    values.write().insert(fid.clone(), serde_json::json!(e.checked()));
+                                    values
+                                        .write()
+                                        .insert(fid.clone(), SheetValue::Boolean(e.checked()));
                                 },
                             }
                             span {
@@ -262,14 +281,16 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                 }
                 SchemaFieldType::Select { options, .. } => {
                     let fid = field_id.clone();
-                    let current = current_value.as_ref().and_then(|v| v.as_str()).unwrap_or("");
+                    let current = current_value.as_str().unwrap_or("");
                     rsx! {
                         select {
                             class: "w-full p-2 bg-dark-bg border border-gray-600 rounded text-white text-sm",
                             disabled: is_readonly,
                             value: "{current}",
                             onchange: move |e| {
-                                values.write().insert(fid.clone(), serde_json::json!(e.value()));
+                                values
+                                    .write()
+                                    .insert(fid.clone(), SheetValue::String(e.value()));
                             },
                             option { value: "", "Select..." }
                             {options.iter().map(|opt| rsx! {
@@ -284,7 +305,7 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                 }
                 SchemaFieldType::ResourceBar { max_field, color } => {
                     let fid = field_id.clone();
-                    let current = current_value.as_ref().and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                    let current = current_value.as_i64().unwrap_or(0) as i32;
                     let color_class = match color {
                         SchemaResourceColor::Red => "bg-red-500",
                         SchemaResourceColor::Blue => "bg-blue-500",
@@ -303,7 +324,9 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                                 value: "{current}",
                                 oninput: move |e| {
                                     if let Ok(val) = e.value().parse::<i32>() {
-                                        values.write().insert(fid.clone(), serde_json::json!(val));
+                                        values
+                                            .write()
+                                            .insert(fid.clone(), SheetValue::Integer(val));
                                     }
                                 },
                             }
@@ -316,7 +339,7 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                     }
                 }
                 SchemaFieldType::DicePool { max_dice, .. } => {
-                    let current = current_value.as_ref().and_then(|v| v.as_i64()).unwrap_or(0) as u8;
+                    let current = current_value.as_i64().unwrap_or(0) as u8;
                     rsx! {
                         div {
                             class: "flex gap-1",
@@ -334,7 +357,9 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                                         class: "{class}",
                                         onclick: move |_| {
                                             let new_val = if filled { i } else { i + 1 };
-                                            values.write().insert(fid.clone(), serde_json::json!(new_val));
+                                            values
+                                                .write()
+                                                .insert(fid.clone(), SheetValue::Integer(new_val as i32));
                                         },
                                     }
                                 }
@@ -344,7 +369,7 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                 }
                 SchemaFieldType::PercentileSkill { show_derived } => {
                     let fid = field_id.clone();
-                    let current = current_value.as_ref().and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                    let current = current_value.as_i64().unwrap_or(0) as i32;
                     let half = current / 2;
                     let fifth = current / 5;
                     rsx! {
@@ -358,7 +383,9 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                                 value: "{current}",
                                 oninput: move |e| {
                                     if let Ok(val) = e.value().parse::<i32>() {
-                                        values.write().insert(fid.clone(), serde_json::json!(val));
+                                        values
+                                            .write()
+                                            .insert(fid.clone(), SheetValue::Integer(val));
                                     }
                                 },
                             }
@@ -371,7 +398,7 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                 }
                 SchemaFieldType::LadderRating { min, max, labels } => {
                     let fid = field_id.clone();
-                    let current = current_value.as_ref().and_then(|v| v.as_i64()).unwrap_or(*min as i64) as i32;
+                    let current = current_value.as_i64().unwrap_or(*min as i64) as i32;
                     let label = labels.iter().find(|l| l.value == current).map(|l| l.label.as_str()).unwrap_or("");
                     rsx! {
                         div {
@@ -384,7 +411,9 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                                 value: "{current}",
                                 oninput: move |e| {
                                     if let Ok(val) = e.value().parse::<i32>() {
-                                        values.write().insert(fid.clone(), serde_json::json!(val));
+                                        values
+                                            .write()
+                                            .insert(fid.clone(), SheetValue::Integer(val));
                                     }
                                 },
                             }
@@ -393,7 +422,7 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                     }
                 }
                 SchemaFieldType::Clock { segments } => {
-                    let current = current_value.as_ref().and_then(|v| v.as_i64()).unwrap_or(0) as u8;
+                    let current = current_value.as_i64().unwrap_or(0) as u8;
                     rsx! {
                         div {
                             class: "flex gap-1",
@@ -411,7 +440,9 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                                         class: "{class}",
                                         onclick: move |_| {
                                             let new_val = if filled { i } else { i + 1 };
-                                            values.write().insert(fid.clone(), serde_json::json!(new_val));
+                                            values
+                                                .write()
+                                                .insert(fid.clone(), SheetValue::Integer(new_val as i32));
                                         },
                                     }
                                 }
@@ -422,7 +453,7 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                 _ => {
                     // Fallback for unsupported field types
                     let fid = field_id.clone();
-                    let current = current_value.as_ref().and_then(|v| v.as_str()).unwrap_or("");
+                    let current = current_value.as_str().unwrap_or("");
                     rsx! {
                         input {
                             r#type: "text",
@@ -430,7 +461,9 @@ pub fn SchemaField(props: SchemaFieldProps) -> Element {
                             readonly: is_readonly,
                             value: "{current}",
                             oninput: move |e| {
-                                values.write().insert(fid.clone(), serde_json::json!(e.value()));
+                                values
+                                    .write()
+                                    .insert(fid.clone(), SheetValue::String(e.value()));
                             },
                         }
                     }

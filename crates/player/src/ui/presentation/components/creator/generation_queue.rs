@@ -910,10 +910,7 @@ fn SuggestionViewModal(
 
     let field_type = suggestion.field_type.clone();
     let request_id = suggestion.request_id.clone();
-    let title = format!(
-        "Suggestions for {}",
-        field_type.replace("_", " ")
-    );
+    let title = format!("Suggestions for {}", field_type.replace("_", " "));
 
     // Determine entity type from field type for navigation
     let entity_type = if field_type.starts_with("character_")

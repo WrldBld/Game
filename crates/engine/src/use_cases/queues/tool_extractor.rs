@@ -3,8 +3,8 @@
 //! Converts LLM ToolCall responses to ProposedTool structs for DM review.
 //! Each proposed tool gets a human-readable description for the DM to understand.
 
+use crate::game_tools::GameTool;
 use crate::infrastructure::ports::ToolCall;
-use wrldbldr_domain::GameTool;
 
 use crate::queue_types::ProposedTool;
 
@@ -18,7 +18,6 @@ pub fn extract_proposed_tools(tool_calls: Vec<ToolCall>) -> Vec<ProposedTool> {
         .map(|tc| ProposedTool {
             id: tc.id,
             name: tc.name.clone(),
-            // Use consolidated description logic from domain
             description: GameTool::describe_from_json(&tc.name, &tc.arguments),
             arguments: tc.arguments,
         })

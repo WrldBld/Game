@@ -14,7 +14,5 @@ pub enum GenerationRequest {
         read_suggestions: Vec<String>,
     },
     /// Dismiss a suggestion, removing it from the queue permanently
-    DismissSuggestion {
-        request_id: String,
-    },
+    DismissSuggestion { request_id: String },
 }

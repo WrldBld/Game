@@ -1,21 +1,23 @@
 //! Character Form - Create and edit characters
 
 use dioxus::prelude::*;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
-use crate::infrastructure::spawn_task;
 use super::asset_gallery::AssetGallery;
 use super::expression_config_editor::ExpressionConfigEditor;
 use super::motivations_tab::MotivationsTab;
 use super::suggestion_button::{SuggestionButton, SuggestionType};
-use crate::application::dto::{CharacterSheetDataApi, CharacterSheetSchema};
-use crate::application::services::SuggestionContext;
+use crate::application::dto::CharacterSheetSchema;
 use crate::application::services::CharacterFormData;
+use crate::application::services::SuggestionContext;
+use crate::infrastructure::spawn_task;
 use crate::presentation::components::common::FormField;
 use crate::presentation::components::schema_character_sheet::SchemaCharacterSheet;
 use crate::presentation::services::{use_character_service, use_world_service};
 use crate::use_platform;
 use wrldbldr_domain::{ExpressionConfig, MoodState};
+use wrldbldr_protocol::character_sheet::CharacterSheetValues;
+use wrldbldr_protocol::character_sheet::SheetValue;
 
 /// Character archetypes
 const ARCHETYPES: &[&str] = &[
@@ -56,9 +58,9 @@ pub fn CharacterForm(
     let mut success_message: Signal<Option<String>> = use_signal(|| None);
     let mut error_message: Signal<Option<String>> = use_signal(|| None);
 
-    // Sheet schema state (uses CharacterSheetSchema with JSON values)
+    // Sheet schema state (uses CharacterSheetSchema with SheetValue)
     let mut sheet_schema: Signal<Option<CharacterSheetSchema>> = use_signal(|| None);
-    let mut sheet_values: Signal<HashMap<String, serde_json::Value>> = use_signal(HashMap::new);
+    let mut sheet_values: Signal<HashMap<String, SheetValue>> = use_signal(HashMap::new);
     let mut show_sheet_section = use_signal(|| true);
 
     // Expression config state (Tier 2 & 3 of emotional model)
@@ -77,17 +79,8 @@ pub fn CharacterForm(
             let world_id_clone = world_id_for_schema.clone();
             spawn_task(async move {
                 match svc.get_sheet_template(&world_id_clone).await {
-                    Ok(schema_json) => {
-                        // Parse the JSON into CharacterSheetSchema
-                        match serde_json::from_value::<CharacterSheetSchema>(schema_json) {
-                            Ok(schema) => {
-                                sheet_schema.set(Some(schema));
-                            }
-                            Err(_e) => {
-                                platform
-                                    .log_warn(&format!("Failed to parse sheet schema: {}", _e));
-                            }
-                        }
+                    Ok(schema) => {
+                        sheet_schema.set(Some(schema));
                     }
                     Err(_e) => {
                         // Schema fetch failure is not critical - sheet section just won't appear
@@ -116,13 +109,8 @@ pub fn CharacterForm(
                             wants.set(char_data.wants.unwrap_or_default());
                             fears.set(char_data.fears.unwrap_or_default());
                             backstory.set(char_data.backstory.unwrap_or_default());
-                            // Load sheet values if present (convert FieldValue to JSON)
                             if let Some(data) = char_data.sheet_data {
-                                let json_values: HashMap<String, serde_json::Value> = data.values
-                                    .into_iter()
-                                    .map(|(k, v)| (k, serde_json::to_value(v).unwrap_or(serde_json::Value::Null)))
-                                    .collect();
-                                sheet_values.set(json_values);
+                                sheet_values.set(data.values.into_iter().collect());
                             }
                             is_loading.set(false);
                         }
@@ -506,7 +494,10 @@ pub fn CharacterForm(
                                         if values.is_empty() {
                                             None
                                         } else {
-                                            Some(CharacterSheetDataApi { values })
+                                            Some(CharacterSheetValues {
+                                                values: values.into_iter().collect::<BTreeMap<_, _>>(),
+                                                last_updated: None,
+                                            })
                                         }
                                     };
 

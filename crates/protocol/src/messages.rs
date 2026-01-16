@@ -1259,7 +1259,9 @@ pub enum ChallengeOutcomeDecisionData {
 impl From<wrldbldr_domain::ChallengeOutcomeDecision> for ChallengeOutcomeDecisionData {
     fn from(decision: wrldbldr_domain::ChallengeOutcomeDecision) -> Self {
         match decision {
-            wrldbldr_domain::ChallengeOutcomeDecision::Accept => ChallengeOutcomeDecisionData::Accept,
+            wrldbldr_domain::ChallengeOutcomeDecision::Accept => {
+                ChallengeOutcomeDecisionData::Accept
+            }
             wrldbldr_domain::ChallengeOutcomeDecision::Edit {
                 modified_description,
             } => ChallengeOutcomeDecisionData::Edit {

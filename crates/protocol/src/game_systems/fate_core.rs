@@ -10,12 +10,12 @@
 
 use super::traits::{
     AllocationSystem, CalculationEngine, CharacterSheetProvider, CharacterSheetSchema,
-    CreationStep, DerivedField, DerivationType, FieldDefinition, FieldLayout, FieldValidation,
+    CreationStep, DerivationType, DerivedField, FieldDefinition, FieldLayout, FieldValidation,
     GameSystem, LadderLabel, ProficiencyLevel, ResourceColor, SchemaFieldType, SchemaSection,
-    SectionType,
+    SectionType, SheetValue,
 };
-use crate::entities::{StatBlock, StatModifier};
 use std::collections::HashMap;
+use wrldbldr_domain::value_objects::{StatBlock, StatModifier};
 
 /// FATE ladder value to descriptor mapping.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -97,7 +97,10 @@ impl FateOutcome {
     }
 
     pub fn is_success(&self) -> bool {
-        matches!(self, FateOutcome::SuccessWithStyle { .. } | FateOutcome::Success { .. })
+        matches!(
+            self,
+            FateOutcome::SuccessWithStyle { .. } | FateOutcome::Success { .. }
+        )
     }
 }
 
@@ -215,7 +218,10 @@ impl FateCoreSystem {
             if count_below < count_at_level {
                 return Err(format!(
                     "Invalid pyramid: {} skills at +{} but only {} at +{}",
-                    count_at_level, level, count_below, level - 1
+                    count_at_level,
+                    level,
+                    count_below,
+                    level - 1
                 ));
             }
         }
@@ -321,12 +327,7 @@ impl CalculationEngine for FateCoreSystem {
         stats.get_stat(skill).unwrap_or(0)
     }
 
-    fn saving_throw_modifier(
-        &self,
-        stats: &StatBlock,
-        ability: &str,
-        _proficient: bool,
-    ) -> i32 {
+    fn saving_throw_modifier(&self, stats: &StatBlock, ability: &str, _proficient: bool) -> i32 {
         // FATE uses skills for defense
         // Physique for physical, Will for mental
         match ability {
@@ -378,49 +379,46 @@ impl CharacterSheetProvider for FateCoreSystem {
                 CreationStep {
                     id: "identity".to_string(),
                     label: "Identity".to_string(),
-                    description: "Name your character and write a brief description.".to_string(),
-                    section_ids: vec!["identity".to_string()],
-                    order: 1,
-                    required: true,
-                    allocation: None,
+                    description: Some(
+                        "Name your character and write a brief description.".to_string(),
+                    ),
+                    sections: vec!["identity".to_string()],
+                    optional: false,
                 },
                 CreationStep {
                     id: "aspects".to_string(),
                     label: "Aspects".to_string(),
-                    description: "Define your High Concept, Trouble, and three additional aspects."
-                        .to_string(),
-                    section_ids: vec!["aspects".to_string()],
-                    order: 2,
-                    required: true,
-                    allocation: None,
+                    description: Some(
+                        "Define your High Concept, Trouble, and three additional aspects."
+                            .to_string(),
+                    ),
+                    sections: vec!["aspects".to_string()],
+                    optional: false,
                 },
                 CreationStep {
                     id: "skills".to_string(),
                     label: "Skills".to_string(),
-                    description: "Assign your skills using the skill pyramid.".to_string(),
-                    section_ids: vec!["skills".to_string()],
-                    order: 3,
-                    required: true,
-                    allocation: Some(Self::skill_pyramid_allocation()),
+                    description: Some("Assign your skills using the skill pyramid.".to_string()),
+                    sections: vec!["skills".to_string()],
+                    optional: false,
                 },
                 CreationStep {
                     id: "stunts".to_string(),
                     label: "Stunts & Refresh".to_string(),
-                    description: "Choose up to 3 free stunts. Additional stunts reduce refresh."
-                        .to_string(),
-                    section_ids: vec!["stunts".to_string(), "resources".to_string()],
-                    order: 4,
-                    required: false,
-                    allocation: None,
+                    description: Some(
+                        "Choose up to 3 free stunts. Additional stunts reduce refresh.".to_string(),
+                    ),
+                    sections: vec!["stunts".to_string(), "resources".to_string()],
+                    optional: true,
                 },
                 CreationStep {
                     id: "stress".to_string(),
                     label: "Stress & Consequences".to_string(),
-                    description: "Calculate stress boxes based on Physique and Will.".to_string(),
-                    section_ids: vec!["stress".to_string(), "consequences".to_string()],
-                    order: 5,
-                    required: false,
-                    allocation: None,
+                    description: Some(
+                        "Calculate stress boxes based on Physique and Will.".to_string(),
+                    ),
+                    sections: vec!["stress".to_string(), "consequences".to_string()],
+                    optional: true,
                 },
             ],
         }
@@ -428,40 +426,40 @@ impl CharacterSheetProvider for FateCoreSystem {
 
     fn calculate_derived_values(
         &self,
-        values: &HashMap<String, serde_json::Value>,
-    ) -> HashMap<String, serde_json::Value> {
+        values: &HashMap<String, SheetValue>,
+    ) -> HashMap<String, SheetValue> {
         let mut derived = HashMap::new();
 
         // Calculate physical stress boxes based on Physique
         let physique = values
             .get("PHYSIQUE")
-            .and_then(|v| v.as_i64())
+            .and_then(SheetValue::as_i64)
             .unwrap_or(0) as i32;
         let physical_stress_boxes = Self::stress_boxes_from_skill(physique);
         derived.insert(
             "PHYSICAL_STRESS_BOXES".to_string(),
-            serde_json::json!(physical_stress_boxes),
+            SheetValue::Integer(physical_stress_boxes.into()),
         );
 
         // Calculate mental stress boxes based on Will
-        let will = values
-            .get("WILL")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0) as i32;
+        let will = values.get("WILL").and_then(SheetValue::as_i64).unwrap_or(0) as i32;
         let mental_stress_boxes = Self::stress_boxes_from_skill(will);
         derived.insert(
             "MENTAL_STRESS_BOXES".to_string(),
-            serde_json::json!(mental_stress_boxes),
+            SheetValue::Integer(mental_stress_boxes.into()),
         );
 
         // Calculate refresh based on stunt count
         let stunt_count = self.count_stunts(values);
         let base_refresh = values
             .get("BASE_REFRESH")
-            .and_then(|v| v.as_u64())
+            .and_then(SheetValue::as_u64)
             .unwrap_or(3) as u8;
         let current_refresh = Self::calculate_refresh(stunt_count, base_refresh);
-        derived.insert("REFRESH".to_string(), serde_json::json!(current_refresh));
+        derived.insert(
+            "REFRESH".to_string(),
+            SheetValue::Integer(current_refresh as i32),
+        );
 
         derived
     }
@@ -469,14 +467,20 @@ impl CharacterSheetProvider for FateCoreSystem {
     fn validate_field(
         &self,
         field_id: &str,
-        value: &serde_json::Value,
-        _all_values: &HashMap<String, serde_json::Value>,
+        value: &SheetValue,
+        _all_values: &HashMap<String, SheetValue>,
     ) -> Option<String> {
         // Validate skill ratings
-        if self.skill_names().iter().any(|s| s.to_uppercase() == field_id) {
+        if self
+            .skill_names()
+            .iter()
+            .any(|s| s.to_uppercase() == field_id)
+        {
             if let Some(rating) = value.as_i64() {
-                if !(-2..=8).contains(&rating) {
-                    return Some("Skill rating must be between -2 (Terrible) and +8 (Legendary)".to_string());
+                if !(-2..=8).contains(&(rating as i32)) {
+                    return Some(
+                        "Skill rating must be between -2 (Terrible) and +8 (Legendary)".to_string(),
+                    );
                 }
             } else {
                 return Some("Skill rating must be a number".to_string());
@@ -509,7 +513,10 @@ impl CharacterSheetProvider for FateCoreSystem {
         if field_id == "HIGH_CONCEPT" || field_id == "TROUBLE" {
             if let Some(aspect) = value.as_str() {
                 if aspect.is_empty() {
-                    return Some(format!("{} is required", field_id.replace('_', " ").to_lowercase()));
+                    return Some(format!(
+                        "{} is required",
+                        field_id.replace('_', " ").to_lowercase()
+                    ));
                 }
             } else {
                 return Some("Aspect must be a string".to_string());
@@ -519,50 +526,62 @@ impl CharacterSheetProvider for FateCoreSystem {
         None
     }
 
-    fn default_values(&self) -> HashMap<String, serde_json::Value> {
+    fn default_values(&self) -> HashMap<String, SheetValue> {
         let mut defaults = HashMap::new();
 
         // Identity
-        defaults.insert("NAME".to_string(), serde_json::json!(""));
-        defaults.insert("DESCRIPTION".to_string(), serde_json::json!(""));
+        defaults.insert("NAME".to_string(), SheetValue::String(String::new()));
+        defaults.insert("DESCRIPTION".to_string(), SheetValue::String(String::new()));
 
         // Aspects
-        defaults.insert("HIGH_CONCEPT".to_string(), serde_json::json!(""));
-        defaults.insert("TROUBLE".to_string(), serde_json::json!(""));
-        defaults.insert("ASPECT_1".to_string(), serde_json::json!(""));
-        defaults.insert("ASPECT_2".to_string(), serde_json::json!(""));
-        defaults.insert("ASPECT_3".to_string(), serde_json::json!(""));
+        defaults.insert(
+            "HIGH_CONCEPT".to_string(),
+            SheetValue::String(String::new()),
+        );
+        defaults.insert("TROUBLE".to_string(), SheetValue::String(String::new()));
+        defaults.insert("ASPECT_1".to_string(), SheetValue::String(String::new()));
+        defaults.insert("ASPECT_2".to_string(), SheetValue::String(String::new()));
+        defaults.insert("ASPECT_3".to_string(), SheetValue::String(String::new()));
 
         // Skills - default to Mediocre (0)
         for skill in self.skill_names() {
-            defaults.insert(skill.to_uppercase(), serde_json::json!(0));
+            defaults.insert(skill.to_uppercase(), SheetValue::Integer(0));
         }
 
         // Stunts
-        defaults.insert("STUNT_1".to_string(), serde_json::json!(""));
-        defaults.insert("STUNT_2".to_string(), serde_json::json!(""));
-        defaults.insert("STUNT_3".to_string(), serde_json::json!(""));
-        defaults.insert("STUNT_4".to_string(), serde_json::json!(""));
-        defaults.insert("STUNT_5".to_string(), serde_json::json!(""));
+        defaults.insert("STUNT_1".to_string(), SheetValue::String(String::new()));
+        defaults.insert("STUNT_2".to_string(), SheetValue::String(String::new()));
+        defaults.insert("STUNT_3".to_string(), SheetValue::String(String::new()));
+        defaults.insert("STUNT_4".to_string(), SheetValue::String(String::new()));
+        defaults.insert("STUNT_5".to_string(), SheetValue::String(String::new()));
 
         // Stress (current values, not max)
-        defaults.insert("PHYSICAL_STRESS_1".to_string(), serde_json::json!(false));
-        defaults.insert("PHYSICAL_STRESS_2".to_string(), serde_json::json!(false));
-        defaults.insert("PHYSICAL_STRESS_3".to_string(), serde_json::json!(false));
-        defaults.insert("PHYSICAL_STRESS_4".to_string(), serde_json::json!(false));
-        defaults.insert("MENTAL_STRESS_1".to_string(), serde_json::json!(false));
-        defaults.insert("MENTAL_STRESS_2".to_string(), serde_json::json!(false));
-        defaults.insert("MENTAL_STRESS_3".to_string(), serde_json::json!(false));
-        defaults.insert("MENTAL_STRESS_4".to_string(), serde_json::json!(false));
+        defaults.insert("PHYSICAL_STRESS_1".to_string(), SheetValue::Boolean(false));
+        defaults.insert("PHYSICAL_STRESS_2".to_string(), SheetValue::Boolean(false));
+        defaults.insert("PHYSICAL_STRESS_3".to_string(), SheetValue::Boolean(false));
+        defaults.insert("PHYSICAL_STRESS_4".to_string(), SheetValue::Boolean(false));
+        defaults.insert("MENTAL_STRESS_1".to_string(), SheetValue::Boolean(false));
+        defaults.insert("MENTAL_STRESS_2".to_string(), SheetValue::Boolean(false));
+        defaults.insert("MENTAL_STRESS_3".to_string(), SheetValue::Boolean(false));
+        defaults.insert("MENTAL_STRESS_4".to_string(), SheetValue::Boolean(false));
 
         // Consequences
-        defaults.insert("CONSEQUENCE_MILD".to_string(), serde_json::json!(""));
-        defaults.insert("CONSEQUENCE_MODERATE".to_string(), serde_json::json!(""));
-        defaults.insert("CONSEQUENCE_SEVERE".to_string(), serde_json::json!(""));
+        defaults.insert(
+            "CONSEQUENCE_MILD".to_string(),
+            SheetValue::String(String::new()),
+        );
+        defaults.insert(
+            "CONSEQUENCE_MODERATE".to_string(),
+            SheetValue::String(String::new()),
+        );
+        defaults.insert(
+            "CONSEQUENCE_SEVERE".to_string(),
+            SheetValue::String(String::new()),
+        );
 
         // Resources
-        defaults.insert("BASE_REFRESH".to_string(), serde_json::json!(3));
-        defaults.insert("CURRENT_FATE_POINTS".to_string(), serde_json::json!(3));
+        defaults.insert("BASE_REFRESH".to_string(), SheetValue::Integer(3));
+        defaults.insert("CURRENT_FATE_POINTS".to_string(), SheetValue::Integer(3));
 
         defaults
     }
@@ -582,8 +601,9 @@ impl FateCoreSystem {
     /// The pyramid ensures breadth of competence with focused expertise.
     pub fn skill_pyramid_allocation() -> AllocationSystem {
         AllocationSystem::Pyramid {
-            apex: 4,  // Great (+4) is the highest allowed
-            base: 1,  // Average (+1) is the lowest rated level
+            apex: 4, // Great (+4) is the highest allowed
+            base: 1, // Average (+1) is the lowest rated level
+            rows: vec![vec![4], vec![3, 3], vec![2, 2, 2], vec![1, 1, 1, 1]],
             target_fields: vec![
                 "ATHLETICS".to_string(),
                 "BURGLARY".to_string(),
@@ -612,8 +632,9 @@ impl FateCoreSystem {
     /// Some groups prefer columns instead of pyramid.
     pub fn skill_column_allocation() -> AllocationSystem {
         AllocationSystem::Pyramid {
-            apex: 4,  // Same apex
-            base: 1,  // Same base
+            apex: 4, // Same apex
+            base: 1, // Same base
+            rows: vec![vec![4], vec![4, 4], vec![3, 3, 3], vec![2, 2, 2, 2]],
             target_fields: vec![
                 "ATHLETICS".to_string(),
                 "BURGLARY".to_string(),
@@ -646,33 +667,62 @@ impl FateCoreSystem {
                 "Skill Pyramid (Recommended)",
                 Self::skill_pyramid_allocation(),
             ),
-            (
-                "column",
-                "Skill Columns",
-                Self::skill_column_allocation(),
-            ),
+            ("column", "Skill Columns", Self::skill_column_allocation()),
         ]
     }
 
     /// Get the FATE ladder labels for skill ratings.
     fn fate_ladder_labels() -> Vec<LadderLabel> {
         vec![
-            LadderLabel { value: -2, label: "Terrible (-2)".to_string() },
-            LadderLabel { value: -1, label: "Poor (-1)".to_string() },
-            LadderLabel { value: 0, label: "Mediocre (+0)".to_string() },
-            LadderLabel { value: 1, label: "Average (+1)".to_string() },
-            LadderLabel { value: 2, label: "Fair (+2)".to_string() },
-            LadderLabel { value: 3, label: "Good (+3)".to_string() },
-            LadderLabel { value: 4, label: "Great (+4)".to_string() },
-            LadderLabel { value: 5, label: "Superb (+5)".to_string() },
-            LadderLabel { value: 6, label: "Fantastic (+6)".to_string() },
-            LadderLabel { value: 7, label: "Epic (+7)".to_string() },
-            LadderLabel { value: 8, label: "Legendary (+8)".to_string() },
+            LadderLabel {
+                value: -2,
+                label: "Terrible (-2)".to_string(),
+            },
+            LadderLabel {
+                value: -1,
+                label: "Poor (-1)".to_string(),
+            },
+            LadderLabel {
+                value: 0,
+                label: "Mediocre (+0)".to_string(),
+            },
+            LadderLabel {
+                value: 1,
+                label: "Average (+1)".to_string(),
+            },
+            LadderLabel {
+                value: 2,
+                label: "Fair (+2)".to_string(),
+            },
+            LadderLabel {
+                value: 3,
+                label: "Good (+3)".to_string(),
+            },
+            LadderLabel {
+                value: 4,
+                label: "Great (+4)".to_string(),
+            },
+            LadderLabel {
+                value: 5,
+                label: "Superb (+5)".to_string(),
+            },
+            LadderLabel {
+                value: 6,
+                label: "Fantastic (+6)".to_string(),
+            },
+            LadderLabel {
+                value: 7,
+                label: "Epic (+7)".to_string(),
+            },
+            LadderLabel {
+                value: 8,
+                label: "Legendary (+8)".to_string(),
+            },
         ]
     }
 
     /// Count non-empty stunts.
-    fn count_stunts(&self, values: &HashMap<String, serde_json::Value>) -> u8 {
+    fn count_stunts(&self, values: &HashMap<String, SheetValue>) -> u8 {
         let mut count = 0;
         for i in 1..=5 {
             if let Some(stunt) = values.get(&format!("STUNT_{}", i)) {
@@ -704,7 +754,7 @@ impl FateCoreSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: None,
@@ -722,12 +772,14 @@ impl FateCoreSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
-                        new_row: true,
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some("A brief description of your character".to_string()),
-                    placeholder: Some("Describe your character's appearance, background, or personality...".to_string()),
+                    placeholder: Some(
+                        "Describe your character's appearance, background, or personality..."
+                            .to_string(),
+                    ),
                 },
             ],
             collapsible: false,
@@ -754,7 +806,7 @@ impl FateCoreSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some("A phrase that sums up what your character is about - who they are and what they do.".to_string()),
@@ -772,9 +824,8 @@ impl FateCoreSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
-                        new_row: true,
-                        ..Default::default()
+                        column_span: 12,
+                                                ..Default::default()
                     },
                     description: Some("Something that complicates your character's existence - a weakness, rival, or obligation.".to_string()),
                     placeholder: Some("e.g., 'The Mob Wants Me Dead'".to_string()),
@@ -791,9 +842,8 @@ impl FateCoreSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
-                        new_row: true,
-                        ..Default::default()
+                        column_span: 12,
+                                                ..Default::default()
                     },
                     description: Some("An additional aspect describing your character.".to_string()),
                     placeholder: Some("Enter an aspect...".to_string()),
@@ -810,9 +860,8 @@ impl FateCoreSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
-                        new_row: true,
-                        ..Default::default()
+                        column_span: 12,
+                                                ..Default::default()
                     },
                     description: None,
                     placeholder: Some("Enter an aspect...".to_string()),
@@ -829,9 +878,8 @@ impl FateCoreSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
-                        new_row: true,
-                        ..Default::default()
+                        column_span: 12,
+                                                ..Default::default()
                     },
                     description: None,
                     placeholder: Some("Enter an aspect...".to_string()),
@@ -849,31 +897,29 @@ impl FateCoreSystem {
         let fields: Vec<FieldDefinition> = self
             .skill_names()
             .iter()
-            .map(|skill| {
-                FieldDefinition {
-                    id: skill.to_uppercase(),
-                    label: skill.to_string(),
-                    field_type: SchemaFieldType::LadderRating {
-                        min: -2,
-                        max: 8,
-                        labels: ladder_labels.clone(),
-                    },
-                    editable: true,
-                    required: false,
-                    derived_from: None,
-                    validation: Some(FieldValidation {
-                        min: Some(-2),
-                        max: Some(8),
-                        pattern: None,
-                        error_message: Some("Rating must be between -2 and +8".to_string()),
-                    }),
-                    layout: FieldLayout {
-                        width: Some(6),
-                        ..Default::default()
-                    },
-                    description: None,
-                    placeholder: None,
-                }
+            .map(|skill| FieldDefinition {
+                id: skill.to_uppercase(),
+                label: skill.to_string(),
+                field_type: SchemaFieldType::LadderRating {
+                    min: -2,
+                    max: 8,
+                    labels: ladder_labels.clone(),
+                },
+                editable: true,
+                required: false,
+                derived_from: None,
+                validation: Some(FieldValidation {
+                    min: Some(-2),
+                    max: Some(8),
+                    pattern: None,
+                    message: Some("Rating must be between -2 and +8".to_string()),
+                }),
+                layout: FieldLayout {
+                    column_span: 6,
+                    ..Default::default()
+                },
+                description: None,
+                placeholder: None,
             })
             .collect();
 
@@ -905,8 +951,7 @@ impl FateCoreSystem {
                 derived_from: None,
                 validation: None,
                 layout: FieldLayout {
-                    width: Some(12),
-                    new_row: true,
+                    column_span: 12,
                     ..Default::default()
                 },
                 description: if required {
@@ -950,7 +995,7 @@ impl FateCoreSystem {
             }),
             validation: None,
             layout: FieldLayout {
-                width: Some(3),
+                column_span: 3,
                 ..Default::default()
             },
             description: Some("Based on Physique skill".to_string()),
@@ -970,7 +1015,7 @@ impl FateCoreSystem {
                 derived_from: None,
                 validation: None,
                 layout: FieldLayout {
-                    width: Some(2),
+                    column_span: 2,
                     ..Default::default()
                 },
                 description: Some(format!("{}-shift stress box", i)),
@@ -996,8 +1041,7 @@ impl FateCoreSystem {
             }),
             validation: None,
             layout: FieldLayout {
-                width: Some(3),
-                new_row: true,
+                column_span: 3,
                 ..Default::default()
             },
             description: Some("Based on Will skill".to_string()),
@@ -1017,7 +1061,7 @@ impl FateCoreSystem {
                 derived_from: None,
                 validation: None,
                 layout: FieldLayout {
-                    width: Some(2),
+                    column_span: 2,
                     ..Default::default()
                 },
                 description: Some(format!("{}-shift stress box", i)),
@@ -1054,7 +1098,7 @@ impl FateCoreSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some("Absorbs 2 shifts. Clears at end of scene with successful overcome action.".to_string()),
@@ -1072,9 +1116,8 @@ impl FateCoreSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
-                        new_row: true,
-                        ..Default::default()
+                        column_span: 12,
+                                                ..Default::default()
                     },
                     description: Some("Absorbs 4 shifts. Clears at end of session.".to_string()),
                     placeholder: Some("e.g., 'Deep Gash', 'Shaken to the Core'".to_string()),
@@ -1091,9 +1134,8 @@ impl FateCoreSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
-                        new_row: true,
-                        ..Default::default()
+                        column_span: 12,
+                                                ..Default::default()
                     },
                     description: Some("Absorbs 6 shifts. Clears at end of scenario.".to_string()),
                     placeholder: Some("e.g., 'Broken Leg', 'Complete Mental Breakdown'".to_string()),
@@ -1126,10 +1168,10 @@ impl FateCoreSystem {
                         min: Some(1),
                         max: Some(10),
                         pattern: None,
-                        error_message: Some("Base refresh must be at least 1".to_string()),
+                        message: Some("Base refresh must be at least 1".to_string()),
                     }),
                     layout: FieldLayout {
-                        width: Some(3),
+                        column_span: 3,
                         ..Default::default()
                     },
                     description: Some("Starting refresh value (default 3)".to_string()),
@@ -1152,7 +1194,7 @@ impl FateCoreSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(3),
+                        column_span: 3,
                         ..Default::default()
                     },
                     description: Some("Refresh after stunt costs (3 free, then -1 per additional)".to_string()),
@@ -1170,9 +1212,8 @@ impl FateCoreSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
-                        new_row: true,
-                        ..Default::default()
+                        column_span: 6,
+                                                ..Default::default()
                     },
                     description: Some("Spend to invoke aspects or power stunts. Resets to refresh at session start.".to_string()),
                     placeholder: None,
@@ -1199,7 +1240,7 @@ impl FateCoreSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some(
@@ -1391,10 +1432,18 @@ mod tests {
         assert_eq!(aspects_section.fields.len(), 5); // High Concept, Trouble, 3 additional
 
         // High Concept and Trouble are required
-        let high_concept = aspects_section.fields.iter().find(|f| f.id == "HIGH_CONCEPT").unwrap();
+        let high_concept = aspects_section
+            .fields
+            .iter()
+            .find(|f| f.id == "HIGH_CONCEPT")
+            .unwrap();
         assert!(high_concept.required);
 
-        let trouble = aspects_section.fields.iter().find(|f| f.id == "TROUBLE").unwrap();
+        let trouble = aspects_section
+            .fields
+            .iter()
+            .find(|f| f.id == "TROUBLE")
+            .unwrap();
         assert!(trouble.required);
     }
 
@@ -1406,20 +1455,32 @@ mod tests {
         let mut values = HashMap::new();
 
         // Test with Physique +0 (Mediocre) and Will +0 (Mediocre)
-        values.insert("PHYSIQUE".to_string(), serde_json::json!(0));
-        values.insert("WILL".to_string(), serde_json::json!(0));
+        values.insert("PHYSIQUE".to_string(), SheetValue::Integer(0));
+        values.insert("WILL".to_string(), SheetValue::Integer(0));
 
         let derived = system.calculate_derived_values(&values);
-        assert_eq!(derived.get("PHYSICAL_STRESS_BOXES"), Some(&serde_json::json!(2)));
-        assert_eq!(derived.get("MENTAL_STRESS_BOXES"), Some(&serde_json::json!(2)));
+        assert_eq!(
+            derived.get("PHYSICAL_STRESS_BOXES"),
+            Some(&SheetValue::Integer(2))
+        );
+        assert_eq!(
+            derived.get("MENTAL_STRESS_BOXES"),
+            Some(&SheetValue::Integer(2))
+        );
 
         // Test with Physique +3 (Good) and Will +4 (Great)
-        values.insert("PHYSIQUE".to_string(), serde_json::json!(3));
-        values.insert("WILL".to_string(), serde_json::json!(4));
+        values.insert("PHYSIQUE".to_string(), SheetValue::Integer(3));
+        values.insert("WILL".to_string(), SheetValue::Integer(4));
 
         let derived = system.calculate_derived_values(&values);
-        assert_eq!(derived.get("PHYSICAL_STRESS_BOXES"), Some(&serde_json::json!(4)));
-        assert_eq!(derived.get("MENTAL_STRESS_BOXES"), Some(&serde_json::json!(4)));
+        assert_eq!(
+            derived.get("PHYSICAL_STRESS_BOXES"),
+            Some(&SheetValue::Integer(4))
+        );
+        assert_eq!(
+            derived.get("MENTAL_STRESS_BOXES"),
+            Some(&SheetValue::Integer(4))
+        );
     }
 
     #[test]
@@ -1430,30 +1491,45 @@ mod tests {
         let mut values = HashMap::new();
 
         // Base refresh 3, no stunts
-        values.insert("BASE_REFRESH".to_string(), serde_json::json!(3));
+        values.insert("BASE_REFRESH".to_string(), SheetValue::Integer(3));
 
         let derived = system.calculate_derived_values(&values);
-        assert_eq!(derived.get("REFRESH"), Some(&serde_json::json!(3)));
+        assert_eq!(derived.get("REFRESH"), Some(&SheetValue::Integer(3)));
 
         // Add 3 stunts (all free, no reduction)
-        values.insert("STUNT_1".to_string(), serde_json::json!("Stunt One"));
-        values.insert("STUNT_2".to_string(), serde_json::json!("Stunt Two"));
-        values.insert("STUNT_3".to_string(), serde_json::json!("Stunt Three"));
+        values.insert(
+            "STUNT_1".to_string(),
+            SheetValue::String("Stunt One".to_string()),
+        );
+        values.insert(
+            "STUNT_2".to_string(),
+            SheetValue::String("Stunt Two".to_string()),
+        );
+        values.insert(
+            "STUNT_3".to_string(),
+            SheetValue::String("Stunt Three".to_string()),
+        );
 
         let derived = system.calculate_derived_values(&values);
-        assert_eq!(derived.get("REFRESH"), Some(&serde_json::json!(3)));
+        assert_eq!(derived.get("REFRESH"), Some(&SheetValue::Integer(3)));
 
         // Add a 4th stunt (costs 1 refresh)
-        values.insert("STUNT_4".to_string(), serde_json::json!("Stunt Four"));
+        values.insert(
+            "STUNT_4".to_string(),
+            SheetValue::String("Stunt Four".to_string()),
+        );
 
         let derived = system.calculate_derived_values(&values);
-        assert_eq!(derived.get("REFRESH"), Some(&serde_json::json!(2)));
+        assert_eq!(derived.get("REFRESH"), Some(&SheetValue::Integer(2)));
 
         // Add a 5th stunt (costs another refresh)
-        values.insert("STUNT_5".to_string(), serde_json::json!("Stunt Five"));
+        values.insert(
+            "STUNT_5".to_string(),
+            SheetValue::String("Stunt Five".to_string()),
+        );
 
         let derived = system.calculate_derived_values(&values);
-        assert_eq!(derived.get("REFRESH"), Some(&serde_json::json!(1)));
+        assert_eq!(derived.get("REFRESH"), Some(&SheetValue::Integer(1)));
     }
 
     #[test]
@@ -1464,12 +1540,20 @@ mod tests {
         let values = HashMap::new();
 
         // Valid rating
-        assert!(system.validate_field("ATHLETICS", &serde_json::json!(4), &values).is_none());
-        assert!(system.validate_field("ATHLETICS", &serde_json::json!(-2), &values).is_none());
+        assert!(system
+            .validate_field("ATHLETICS", &SheetValue::Integer(4), &values)
+            .is_none());
+        assert!(system
+            .validate_field("ATHLETICS", &SheetValue::Integer(-2), &values)
+            .is_none());
 
         // Invalid ratings
-        assert!(system.validate_field("ATHLETICS", &serde_json::json!(9), &values).is_some());
-        assert!(system.validate_field("ATHLETICS", &serde_json::json!(-3), &values).is_some());
+        assert!(system
+            .validate_field("ATHLETICS", &SheetValue::Integer(9), &values)
+            .is_some());
+        assert!(system
+            .validate_field("ATHLETICS", &SheetValue::Integer(-3), &values)
+            .is_some());
     }
 
     #[test]
@@ -1480,25 +1564,46 @@ mod tests {
         let defaults = system.default_values();
 
         // Check identity defaults
-        assert_eq!(defaults.get("NAME"), Some(&serde_json::json!("")));
+        assert_eq!(
+            defaults.get("NAME"),
+            Some(&SheetValue::String(String::new()))
+        );
 
         // Check aspect defaults
-        assert_eq!(defaults.get("HIGH_CONCEPT"), Some(&serde_json::json!("")));
-        assert_eq!(defaults.get("TROUBLE"), Some(&serde_json::json!("")));
+        assert_eq!(
+            defaults.get("HIGH_CONCEPT"),
+            Some(&SheetValue::String(String::new()))
+        );
+        assert_eq!(
+            defaults.get("TROUBLE"),
+            Some(&SheetValue::String(String::new()))
+        );
 
         // Check skill defaults (should be 0 = Mediocre)
-        assert_eq!(defaults.get("ATHLETICS"), Some(&serde_json::json!(0)));
-        assert_eq!(defaults.get("WILL"), Some(&serde_json::json!(0)));
+        assert_eq!(defaults.get("ATHLETICS"), Some(&SheetValue::Integer(0)));
+        assert_eq!(defaults.get("WILL"), Some(&SheetValue::Integer(0)));
 
         // Check resource defaults
-        assert_eq!(defaults.get("BASE_REFRESH"), Some(&serde_json::json!(3)));
-        assert_eq!(defaults.get("CURRENT_FATE_POINTS"), Some(&serde_json::json!(3)));
+        assert_eq!(defaults.get("BASE_REFRESH"), Some(&SheetValue::Integer(3)));
+        assert_eq!(
+            defaults.get("CURRENT_FATE_POINTS"),
+            Some(&SheetValue::Integer(3))
+        );
 
         // Check stress box defaults
-        assert_eq!(defaults.get("PHYSICAL_STRESS_1"), Some(&serde_json::json!(false)));
-        assert_eq!(defaults.get("MENTAL_STRESS_1"), Some(&serde_json::json!(false)));
+        assert_eq!(
+            defaults.get("PHYSICAL_STRESS_1"),
+            Some(&SheetValue::Boolean(false))
+        );
+        assert_eq!(
+            defaults.get("MENTAL_STRESS_1"),
+            Some(&SheetValue::Boolean(false))
+        );
 
         // Check consequence defaults
-        assert_eq!(defaults.get("CONSEQUENCE_MILD"), Some(&serde_json::json!("")));
+        assert_eq!(
+            defaults.get("CONSEQUENCE_MILD"),
+            Some(&SheetValue::String(String::new()))
+        );
     }
 }

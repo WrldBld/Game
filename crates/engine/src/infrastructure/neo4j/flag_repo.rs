@@ -4,9 +4,9 @@
 //! - World flags: (World)-[:HAS_FLAG {name: "flag_name"}]->()
 //! - PC flags: (PlayerCharacter)-[:HAS_FLAG {name: "flag_name"}]->()
 
-use async_trait::async_trait;
-use neo4rs::{query};
 use crate::infrastructure::neo4j::Neo4jGraph;
+use async_trait::async_trait;
+use neo4rs::query;
 use std::sync::Arc;
 
 use wrldbldr_domain::{PlayerCharacterId, WorldId};

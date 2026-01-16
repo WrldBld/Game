@@ -60,14 +60,10 @@ async fn test_set_and_get_pc_flag() {
         .expect("Common Room should exist");
 
     // Create a player character
-    let (_, pc_id) = create_test_player(
-        ctx.graph(),
-        ctx.world.world_id,
-        common_room,
-        "Flag Tester",
-    )
-    .await
-    .expect("Player creation should succeed");
+    let (_, pc_id) =
+        create_test_player(ctx.graph(), ctx.world.world_id, common_room, "Flag Tester")
+            .await
+            .expect("Player creation should succeed");
 
     // Set a PC flag
     ctx.app
@@ -113,14 +109,10 @@ async fn test_world_vs_pc_flag_scope() {
         .expect("Common Room should exist");
 
     // Create a player character
-    let (_, pc_id) = create_test_player(
-        ctx.graph(),
-        ctx.world.world_id,
-        common_room,
-        "Scope Tester",
-    )
-    .await
-    .expect("Player creation should succeed");
+    let (_, pc_id) =
+        create_test_player(ctx.graph(), ctx.world.world_id, common_room, "Scope Tester")
+            .await
+            .expect("Player creation should succeed");
 
     // Set a world flag
     ctx.app

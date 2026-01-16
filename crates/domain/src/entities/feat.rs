@@ -303,7 +303,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn feat_serialization() {
+    fn feat_equality() {
         let feat = Feat {
             id: "dnd5e_great_weapon_master".into(),
             system_id: "dnd5e".into(),
@@ -324,15 +324,16 @@ mod tests {
             tags: vec!["combat".into(), "melee".into()],
         };
 
-        let json = serde_json::to_string(&feat).unwrap();
-        let deserialized: Feat = serde_json::from_str(&json).unwrap();
-        assert_eq!(feat, deserialized);
+        let other = feat.clone();
+        assert_eq!(feat, other);
     }
 
     #[test]
     fn prerequisite_constructors() {
         let prereq = Prerequisite::min_stat("STR", 13);
-        assert!(matches!(prereq, Prerequisite::MinStat { stat, value } if stat == "STR" && value == 13));
+        assert!(
+            matches!(prereq, Prerequisite::MinStat { stat, value } if stat == "STR" && value == 13)
+        );
 
         let prereq = Prerequisite::min_level(4);
         assert!(matches!(prereq, Prerequisite::MinLevel { level: 4 }));

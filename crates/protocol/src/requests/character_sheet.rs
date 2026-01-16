@@ -4,6 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::SheetValue;
+
 /// Character sheet operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -49,7 +51,7 @@ pub enum CharacterSheetRequest {
         /// Field to update
         field_id: String,
         /// New value
-        value: serde_json::Value,
+        value: SheetValue,
     },
 
     /// Complete character creation.
@@ -88,7 +90,7 @@ pub enum CharacterSheetRequest {
         /// Field to update
         field_id: String,
         /// New value
-        value: serde_json::Value,
+        value: SheetValue,
     },
 
     /// Update multiple fields atomically.
@@ -125,7 +127,7 @@ pub struct FieldUpdateData {
     /// Field ID
     pub field_id: String,
     /// New value
-    pub value: serde_json::Value,
+    pub value: SheetValue,
 }
 
 /// Response for system list.

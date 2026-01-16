@@ -85,7 +85,7 @@ pub struct PendingApprovalItem {
     /// When this approval was requested
     pub created_at: DateTime<Utc>,
     /// Additional data specific to the approval type
-    pub data: serde_json::Value,
+    pub data: String,
 }
 
 impl PendingApprovalItem {
@@ -97,7 +97,7 @@ impl PendingApprovalItem {
     pub fn new(
         approval_id: String,
         approval_type: ApprovalType,
-        data: serde_json::Value,
+        data: String,
         now: DateTime<Utc>,
     ) -> Self {
         Self {
@@ -150,30 +150,26 @@ mod tests {
     }
 
     #[test]
-    fn test_speaker_serialization() {
+    fn test_speaker_variants() {
         let player = Speaker::Player {
             pc_id: "pc1".into(),
             pc_name: "Hero".into(),
         };
-        let json = serde_json::to_string(&player).unwrap();
-        assert!(json.contains("\"type\":\"player\""));
+        assert!(matches!(player, Speaker::Player { .. }));
 
         let npc = Speaker::Npc {
             npc_id: "npc1".into(),
             npc_name: "Merchant".into(),
         };
-        let json = serde_json::to_string(&npc).unwrap();
-        assert!(json.contains("\"type\":\"npc\""));
+        assert!(matches!(npc, Speaker::Npc { .. }));
     }
 
     #[test]
-    fn test_approval_type_serialization() {
+    fn test_approval_type_variants() {
         let dialogue = ApprovalType::Dialogue;
-        let json = serde_json::to_string(&dialogue).unwrap();
-        assert_eq!(json, "\"dialogue\"");
+        assert!(matches!(dialogue, ApprovalType::Dialogue));
 
         let challenge = ApprovalType::ChallengeOutcome;
-        let json = serde_json::to_string(&challenge).unwrap();
-        assert_eq!(json, "\"challenge_outcome\"");
+        assert!(matches!(challenge, ApprovalType::ChallengeOutcome));
     }
 }

@@ -5,11 +5,11 @@
 
 use std::sync::Arc;
 
-use serde_json::json;
 use wrldbldr_domain::{
     CharacterId, EventEffect, NarrativeEventId, PlayerCharacterId, RelationshipEvent,
     RelationshipType, SceneId, WorldId,
 };
+use wrldbldr_protocol::character_sheet::SheetValue;
 
 use crate::repositories::character::Character;
 use crate::repositories::scene::Scene;
@@ -887,7 +887,7 @@ impl ExecuteEffects {
 
         // Create updated sheet_data
         let mut sheet_data = pc.sheet_data().cloned().unwrap_or_default();
-        sheet_data.set(stat_name, json!(new_value));
+        sheet_data.set(stat_name, SheetValue::Integer(new_value as i32));
 
         // Create updated PC with new sheet_data
         let mut updated_pc = pc;

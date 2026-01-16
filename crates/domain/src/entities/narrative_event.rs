@@ -161,7 +161,6 @@ pub enum NarrativeTriggerType {
     },
 
     // === Compendium-based triggers ===
-
     /// Player character has a specific spell from the compendium
     KnowsSpell {
         /// The spell ID from the compendium
@@ -398,7 +397,6 @@ pub struct TriggerContext {
     pub character_stats: HashMap<CharacterId, HashMap<String, i32>>,
 
     // === Compendium-based trigger context ===
-
     /// Player character's known spells (spell IDs from compendium).
     #[serde(default)]
     pub known_spells: Vec<String>,
@@ -495,11 +493,7 @@ impl TriggerContext {
     /// # Arguments
     /// * `character_id` - The character whose stats we're recording
     /// * `stats` - Map of stat name to effective value
-    pub fn add_character_stats(
-        &mut self,
-        character_id: CharacterId,
-        stats: HashMap<String, i32>,
-    ) {
+    pub fn add_character_stats(&mut self, character_id: CharacterId, stats: HashMap<String, i32>) {
         self.character_stats.insert(character_id, stats);
     }
 
@@ -513,7 +507,6 @@ impl TriggerContext {
             .copied()
     }
 }
-
 
 /// Result of trigger evaluation
 #[derive(Debug, Clone, Serialize, Deserialize)]

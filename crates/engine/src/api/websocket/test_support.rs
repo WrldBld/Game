@@ -18,12 +18,14 @@ use crate::infrastructure::ports::{
     ClockPort, ImageGenError, ImageGenPort, LlmError, LlmPort, QueueError, QueueItem, RandomPort,
 };
 use crate::infrastructure::ports::{
-    MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockGoalRepo,
-    MockContentRepo, MockInteractionRepo, MockItemRepo, MockLocationRepo, MockLocationStateRepo,
-    MockLoreRepo, MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
-    MockRegionStateRepo, MockSceneRepo, MockSettingsRepo, MockStagingRepo,
+    MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockContentRepo,
+    MockFlagRepo, MockGoalRepo, MockInteractionRepo, MockItemRepo, MockLocationRepo,
+    MockLocationStateRepo, MockLoreRepo, MockNarrativeRepo, MockObservationRepo,
+    MockPlayerCharacterRepo, MockRegionStateRepo, MockSceneRepo, MockSettingsRepo, MockStagingRepo,
 };
-use crate::queue_types::{ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData};
+use crate::queue_types::{
+    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
+};
 
 pub(crate) use crate::infrastructure::ports::{MockWorldRepo, QueuePort};
 
@@ -103,10 +105,7 @@ pub(crate) struct NoopQueue;
 
 #[async_trait::async_trait]
 impl QueuePort for NoopQueue {
-    async fn enqueue_player_action(
-        &self,
-        _data: &PlayerActionData,
-    ) -> Result<Uuid, QueueError> {
+    async fn enqueue_player_action(&self, _data: &PlayerActionData) -> Result<Uuid, QueueError> {
         Err(QueueError::Error("noop".to_string()))
     }
 
@@ -114,10 +113,7 @@ impl QueuePort for NoopQueue {
         Ok(None)
     }
 
-    async fn enqueue_llm_request(
-        &self,
-        _data: &LlmRequestData,
-    ) -> Result<Uuid, QueueError> {
+    async fn enqueue_llm_request(&self, _data: &LlmRequestData) -> Result<Uuid, QueueError> {
         Err(QueueError::Error("noop".to_string()))
     }
 
@@ -125,10 +121,7 @@ impl QueuePort for NoopQueue {
         Ok(None)
     }
 
-    async fn enqueue_dm_approval(
-        &self,
-        _data: &ApprovalRequestData,
-    ) -> Result<Uuid, QueueError> {
+    async fn enqueue_dm_approval(&self, _data: &ApprovalRequestData) -> Result<Uuid, QueueError> {
         Err(QueueError::Error("noop".to_string()))
     }
 
@@ -297,10 +290,7 @@ impl RecordingApprovalQueue {
 
 #[async_trait::async_trait]
 impl QueuePort for RecordingApprovalQueue {
-    async fn enqueue_player_action(
-        &self,
-        _data: &PlayerActionData,
-    ) -> Result<Uuid, QueueError> {
+    async fn enqueue_player_action(&self, _data: &PlayerActionData) -> Result<Uuid, QueueError> {
         Err(QueueError::Error("not implemented".to_string()))
     }
 
@@ -308,10 +298,7 @@ impl QueuePort for RecordingApprovalQueue {
         Ok(None)
     }
 
-    async fn enqueue_llm_request(
-        &self,
-        _data: &LlmRequestData,
-    ) -> Result<Uuid, QueueError> {
+    async fn enqueue_llm_request(&self, _data: &LlmRequestData) -> Result<Uuid, QueueError> {
         Err(QueueError::Error("not implemented".to_string()))
     }
 
@@ -319,10 +306,7 @@ impl QueuePort for RecordingApprovalQueue {
         Ok(None)
     }
 
-    async fn enqueue_dm_approval(
-        &self,
-        _data: &ApprovalRequestData,
-    ) -> Result<Uuid, QueueError> {
+    async fn enqueue_dm_approval(&self, _data: &ApprovalRequestData) -> Result<Uuid, QueueError> {
         Err(QueueError::Error("not implemented".to_string()))
     }
 
@@ -497,8 +481,10 @@ pub(crate) fn build_test_app_with_ports(
         world_repo.clone(),
         clock_port.clone(),
     ));
-    let narrative_repo =
-        Arc::new(crate::repositories::Narrative::new(narrative_port, clock_port.clone()));
+    let narrative_repo = Arc::new(crate::repositories::Narrative::new(
+        narrative_port,
+        clock_port.clone(),
+    ));
     let narrative = Arc::new(crate::use_cases::narrative_operations::Narrative::new(
         narrative_repo,
         location.clone(),
@@ -524,7 +510,10 @@ pub(crate) fn build_test_app_with_ports(
         image_gen,
     ));
     let goal = Arc::new(crate::repositories::Goal::new(goal_repo.clone()));
-    let lore = Arc::new(crate::repositories::Lore::new(lore_repo.clone(), clock_port.clone()));
+    let lore = Arc::new(crate::repositories::Lore::new(
+        lore_repo.clone(),
+        clock_port.clone(),
+    ));
     let location_state = Arc::new(crate::repositories::LocationStateEntity::new(
         location_state_repo.clone(),
     ));
@@ -767,8 +756,10 @@ pub(crate) fn build_test_app_with_ports(
         narrative_decision,
     );
 
-    let time_control =
-        Arc::new(crate::use_cases::time::TimeControl::new(world.clone(), clock.clone()));
+    let time_control = Arc::new(crate::use_cases::time::TimeControl::new(
+        world.clone(),
+        clock.clone(),
+    ));
     let time_suggestions = Arc::new(crate::use_cases::time::TimeSuggestions::new(
         time_control.clone(),
     ));
@@ -897,8 +888,9 @@ pub(crate) fn build_test_app_with_ports(
         crate::use_cases::SessionUseCases::new(join_world, join_world_flow, directorial_update);
 
     // Create custom condition evaluator
-    let custom_condition =
-        Arc::new(crate::use_cases::CustomConditionEvaluator::new(llm_repo.clone()));
+    let custom_condition = Arc::new(crate::use_cases::CustomConditionEvaluator::new(
+        llm_repo.clone(),
+    ));
 
     let use_cases = UseCases {
         movement,

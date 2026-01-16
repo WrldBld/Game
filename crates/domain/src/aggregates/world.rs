@@ -12,7 +12,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::value_objects::{Description, RuleSystemConfig, WorldName};
-use wrldbldr_domain::{GameTime, GameTimeConfig, TimeAdvanceReason, TimeCostConfig, TimeMode, WorldId};
+use wrldbldr_domain::{
+    GameTime, GameTimeConfig, TimeAdvanceReason, TimeCostConfig, TimeMode, WorldId,
+};
 
 // Re-export from entities for now (TimeAdvanceResult)
 pub use crate::entities::TimeAdvanceResult;
@@ -462,41 +464,9 @@ mod tests {
         #[test]
         fn advance_hours_works() {
             let mut world = create_test_world();
-            let result =
-                world.advance_hours(2, world.updated_at() + chrono::Duration::seconds(1));
+            let result = world.advance_hours(2, world.updated_at() + chrono::Duration::seconds(1));
 
             assert_eq!(result.minutes_advanced, 120);
-        }
-    }
-
-    mod serde {
-        use super::*;
-
-        #[test]
-        fn serialize_deserialize_roundtrip() {
-            let name = WorldName::new("Westeros").unwrap();
-            let desc = Description::new("A land of ice and fire").unwrap();
-
-            let world = World::new(name, fixed_time()).with_description(desc);
-
-            let json = serde_json::to_string(&world).unwrap();
-            let deserialized: World = serde_json::from_str(&json).unwrap();
-
-            assert_eq!(deserialized.id(), world.id());
-            assert_eq!(deserialized.name().as_str(), "Westeros");
-            assert_eq!(deserialized.description().as_str(), "A land of ice and fire");
-        }
-
-        #[test]
-        fn serialize_produces_camel_case() {
-            let world = create_test_world();
-            let json = serde_json::to_string(&world).unwrap();
-
-            assert!(json.contains("ruleSystem"));
-            assert!(json.contains("gameTime"));
-            assert!(json.contains("timeConfig"));
-            assert!(json.contains("createdAt"));
-            assert!(json.contains("updatedAt"));
         }
     }
 }

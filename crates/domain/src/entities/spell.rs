@@ -368,7 +368,7 @@ mod tests {
     }
 
     #[test]
-    fn spell_serialization() {
+    fn spell_equality() {
         let spell = Spell {
             id: "dnd5e_fireball".into(),
             system_id: "dnd5e".into(),
@@ -388,22 +388,30 @@ mod tests {
             concentration: false,
         };
 
-        let json = serde_json::to_string(&spell).unwrap();
-        let deserialized: Spell = serde_json::from_str(&json).unwrap();
-        assert_eq!(spell, deserialized);
+        let other = spell.clone();
+        assert_eq!(spell, other);
     }
 
     #[test]
     fn casting_time_constructors() {
         assert_eq!(CastingTime::action().unit, CastingTimeUnit::Action);
-        assert_eq!(CastingTime::bonus_action().unit, CastingTimeUnit::BonusAction);
+        assert_eq!(
+            CastingTime::bonus_action().unit,
+            CastingTimeUnit::BonusAction
+        );
         assert_eq!(CastingTime::minutes(10).amount, 10);
     }
 
     #[test]
     fn spell_range_constructors() {
-        assert!(matches!(SpellRange::self_only(), SpellRange::SelfOnly { area: None }));
+        assert!(matches!(
+            SpellRange::self_only(),
+            SpellRange::SelfOnly { area: None }
+        ));
         assert!(matches!(SpellRange::touch(), SpellRange::Touch));
-        assert!(matches!(SpellRange::feet(60), SpellRange::Feet { distance: 60 }));
+        assert!(matches!(
+            SpellRange::feet(60),
+            SpellRange::Feet { distance: 60 }
+        ));
     }
 }

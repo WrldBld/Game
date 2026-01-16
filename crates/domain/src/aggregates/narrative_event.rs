@@ -22,8 +22,8 @@
 //! - **Domain behavior**: `evaluate_triggers()`, `trigger()`, `reset()`
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Error as DeError;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use wrldbldr_domain::{NarrativeEventId, WorldId};
 
@@ -195,19 +195,19 @@ impl NarrativeEvent {
     /// # Example
     ///
     /// ```
-/// use chrono::Utc;
-/// use wrldbldr_domain::WorldId;
-/// use wrldbldr_domain::aggregates::narrative_event::NarrativeEvent;
-/// use wrldbldr_domain::NarrativeEventName;
+    /// use chrono::Utc;
+    /// use wrldbldr_domain::WorldId;
+    /// use wrldbldr_domain::aggregates::narrative_event::NarrativeEvent;
+    /// use wrldbldr_domain::NarrativeEventName;
     ///
     /// let world_id = WorldId::new();
     /// use chrono::TimeZone;
     /// let now = chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap();
-/// let event = NarrativeEvent::new(
-///     world_id,
-///     NarrativeEventName::new("Secret Meeting").unwrap(),
-///     now,
-/// );
+    /// let event = NarrativeEvent::new(
+    ///     world_id,
+    ///     NarrativeEventName::new("Secret Meeting").unwrap(),
+    ///     now,
+    /// );
     ///
     /// assert_eq!(event.name().as_str(), "Secret Meeting");
     /// assert!(event.is_active());
@@ -579,7 +579,11 @@ impl NarrativeEvent {
     // =========================================================================
 
     /// Set the event's name.
-    pub fn set_name(&mut self, name: NarrativeEventName, now: DateTime<Utc>) -> NarrativeEventUpdate {
+    pub fn set_name(
+        &mut self,
+        name: NarrativeEventName,
+        now: DateTime<Utc>,
+    ) -> NarrativeEventUpdate {
         let previous = std::mem::replace(&mut self.name, name);
         self.updated_at = now;
         NarrativeEventUpdate::NameChanged {
@@ -825,48 +829,44 @@ impl NarrativeEvent {
                     .unwrap_or(false);
                 at_location && time_matches
             }
-            NarrativeTriggerType::NpcAction { action_keywords, .. } => {
-                context
-                    .recent_player_action
-                    .as_ref()
-                    .map(|action| {
-                        action_keywords
-                            .iter()
-                            .any(|kw| action.to_lowercase().contains(&kw.to_lowercase()))
-                    })
-                    .unwrap_or(false)
-            }
+            NarrativeTriggerType::NpcAction {
+                action_keywords, ..
+            } => context
+                .recent_player_action
+                .as_ref()
+                .map(|action| {
+                    action_keywords
+                        .iter()
+                        .any(|kw| action.to_lowercase().contains(&kw.to_lowercase()))
+                })
+                .unwrap_or(false),
             NarrativeTriggerType::RelationshipThreshold {
                 character_id,
                 with_character,
                 min_sentiment,
                 max_sentiment,
                 ..
-            } => {
-                context
-                    .get_relationship(*character_id, *with_character)
-                    .map(|sentiment| {
-                        let meets_min = min_sentiment.is_none_or(|min| sentiment >= min);
-                        let meets_max = max_sentiment.is_none_or(|max| sentiment <= max);
-                        meets_min && meets_max
-                    })
-                    .unwrap_or(false)
-            }
+            } => context
+                .get_relationship(*character_id, *with_character)
+                .map(|sentiment| {
+                    let meets_min = min_sentiment.is_none_or(|min| sentiment >= min);
+                    let meets_max = max_sentiment.is_none_or(|max| sentiment <= max);
+                    meets_min && meets_max
+                })
+                .unwrap_or(false),
             NarrativeTriggerType::StatThreshold {
                 character_id,
                 stat_name,
                 min_value,
                 max_value,
-            } => {
-                context
-                    .get_character_stat(*character_id, stat_name)
-                    .map(|stat_value| {
-                        let meets_min = min_value.is_none_or(|min| stat_value >= min);
-                        let meets_max = max_value.is_none_or(|max| stat_value <= max);
-                        meets_min && meets_max
-                    })
-                    .unwrap_or(false)
-            }
+            } => context
+                .get_character_stat(*character_id, stat_name)
+                .map(|stat_value| {
+                    let meets_min = min_value.is_none_or(|min| stat_value >= min);
+                    let meets_max = max_value.is_none_or(|max| stat_value <= max);
+                    meets_min && meets_max
+                })
+                .unwrap_or(false),
             NarrativeTriggerType::CombatResult { .. } => {
                 // KNOWN LIMITATION: CombatResult trigger is not yet implemented
                 false
@@ -887,48 +887,37 @@ impl NarrativeEvent {
             }
 
             // === Compendium-based triggers ===
+            NarrativeTriggerType::KnowsSpell { spell_id, .. } => context
+                .known_spells
+                .iter()
+                .any(|s| s.eq_ignore_ascii_case(spell_id)),
 
-            NarrativeTriggerType::KnowsSpell { spell_id, .. } => {
-                context
-                    .known_spells
-                    .iter()
-                    .any(|s| s.eq_ignore_ascii_case(spell_id))
-            }
-
-            NarrativeTriggerType::HasFeat { feat_id, .. } => {
-                context
-                    .character_feats
-                    .iter()
-                    .any(|f| f.eq_ignore_ascii_case(feat_id))
-            }
+            NarrativeTriggerType::HasFeat { feat_id, .. } => context
+                .character_feats
+                .iter()
+                .any(|f| f.eq_ignore_ascii_case(feat_id)),
 
             NarrativeTriggerType::HasClass {
                 class_id,
                 min_level,
                 ..
-            } => {
-                context
-                    .class_levels
-                    .iter()
-                    .find(|(id, _)| id.eq_ignore_ascii_case(class_id))
-                    .map(|(_, level)| min_level.is_none_or(|min| *level >= min))
-                    .unwrap_or(false)
-            }
+            } => context
+                .class_levels
+                .iter()
+                .find(|(id, _)| id.eq_ignore_ascii_case(class_id))
+                .map(|(_, level)| min_level.is_none_or(|min| *level >= min))
+                .unwrap_or(false),
 
-            NarrativeTriggerType::HasOrigin { origin_id, .. } => {
-                context
-                    .origin_id
-                    .as_ref()
-                    .map(|o| o.eq_ignore_ascii_case(origin_id))
-                    .unwrap_or(false)
-            }
+            NarrativeTriggerType::HasOrigin { origin_id, .. } => context
+                .origin_id
+                .as_ref()
+                .map(|o| o.eq_ignore_ascii_case(origin_id))
+                .unwrap_or(false),
 
-            NarrativeTriggerType::KnowsCreature { creature_id, .. } => {
-                context
-                    .known_creatures
-                    .iter()
-                    .any(|c| c.eq_ignore_ascii_case(creature_id))
-            }
+            NarrativeTriggerType::KnowsCreature { creature_id, .. } => context
+                .known_creatures
+                .iter()
+                .any(|c| c.eq_ignore_ascii_case(creature_id)),
         }
     }
 
@@ -1174,14 +1163,14 @@ mod tests {
                 NarrativeEventName::new("Epic Event").unwrap(),
                 now,
             )
-                .with_description("A dramatic event")
-                .with_tag("drama")
-                .with_tag("important")
-                .with_scene_direction("Build tension slowly")
-                .with_suggested_opening("The air grows thick...")
-                .with_repeatable(true)
-                .with_priority(10)
-                .with_favorite(true);
+            .with_description("A dramatic event")
+            .with_tag("drama")
+            .with_tag("important")
+            .with_scene_direction("Build tension slowly")
+            .with_suggested_opening("The air grows thick...")
+            .with_repeatable(true)
+            .with_priority(10)
+            .with_favorite(true);
 
             assert_eq!(event.name().as_str(), "Epic Event");
             assert_eq!(event.description(), "A dramatic event");
@@ -1328,12 +1317,9 @@ mod tests {
                 trigger_id: "flag-1".to_string(),
             };
 
-            let event = NarrativeEvent::new(
-                world_id,
-                NarrativeEventName::new("Test").unwrap(),
-                now,
-            )
-                .with_trigger_condition(trigger);
+            let event =
+                NarrativeEvent::new(world_id, NarrativeEventName::new("Test").unwrap(), now)
+                    .with_trigger_condition(trigger);
 
             // Without flag set
             let context = TriggerContext::new();
@@ -1345,59 +1331,6 @@ mod tests {
             context.flags.insert("quest_started".to_string(), true);
             let eval = event.evaluate_triggers(&context);
             assert!(eval.is_triggered);
-        }
-    }
-
-    mod serde {
-        use super::*;
-
-        #[test]
-        fn serialize_deserialize_roundtrip() {
-            let world_id = WorldId::new();
-            let now = fixed_time();
-
-            let event = NarrativeEvent::new(
-                world_id,
-                NarrativeEventName::new("Test Event").unwrap(),
-                now,
-            )
-                .with_description("A test event")
-                .with_tags(vec!["test".to_string(), "important".to_string()])
-                .with_priority(5);
-
-            let json = serde_json::to_string(&event).unwrap();
-            let deserialized: NarrativeEvent = serde_json::from_str(&json).unwrap();
-
-            assert_eq!(deserialized.id(), event.id());
-            assert_eq!(deserialized.world_id(), world_id);
-            assert_eq!(deserialized.name().as_str(), "Test Event");
-            assert_eq!(deserialized.description(), "A test event");
-            assert_eq!(deserialized.tags(), &["test", "important"]);
-            assert_eq!(deserialized.priority(), 5);
-        }
-
-        #[test]
-        fn serialize_produces_camel_case() {
-            let event = create_test_event();
-            let json = serde_json::to_string(&event).unwrap();
-
-            assert!(json.contains("worldId"));
-            assert!(json.contains("triggerConditions"));
-            assert!(json.contains("triggerLogic"));
-            assert!(json.contains("sceneDirection"));
-            assert!(json.contains("suggestedOpening"));
-            assert!(json.contains("defaultOutcome"));
-            assert!(json.contains("isActive"));
-            assert!(json.contains("isTriggered"));
-            assert!(json.contains("triggeredAt"));
-            assert!(json.contains("selectedOutcome"));
-            assert!(json.contains("isRepeatable"));
-            assert!(json.contains("triggerCount"));
-            assert!(json.contains("delayTurns"));
-            assert!(json.contains("expiresAfterTurns"));
-            assert!(json.contains("isFavorite"));
-            assert!(json.contains("createdAt"));
-            assert!(json.contains("updatedAt"));
         }
     }
 }

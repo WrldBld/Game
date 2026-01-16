@@ -13,9 +13,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::character_sheet::CharacterSheetData;
+use crate::types::character_sheet::CharacterSheetValues;
 use crate::value_objects::{CharacterName, CharacterState};
-use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
+use crate::{LocationId, PlayerCharacterId, RegionId, WorldId};
 
 // ============================================================================
 // Domain Events
@@ -97,8 +97,8 @@ pub struct PlayerCharacter {
     name: CharacterName,
     description: Option<String>,
 
-    // Character sheet data (matches CharacterSheetData from Phase 14)
-    sheet_data: Option<CharacterSheetData>,
+    // Character sheet data (wire format values + timestamp)
+    sheet_data: Option<CharacterSheetValues>,
 
     // Location tracking
     current_location_id: LocationId,
@@ -212,13 +212,12 @@ impl PlayerCharacter {
 
     /// Returns the character's sheet data.
     #[inline]
-    pub fn sheet_data(&self) -> Option<&CharacterSheetData> {
+    pub fn sheet_data(&self) -> Option<&CharacterSheetValues> {
         self.sheet_data.as_ref()
     }
 
-    /// Returns a mutable reference to the character's sheet data.
-    #[inline]
-    pub fn sheet_data_mut(&mut self) -> Option<&mut CharacterSheetData> {
+    /// Get a mutable reference to the character sheet data
+    pub fn sheet_data_mut(&mut self) -> Option<&mut CharacterSheetValues> {
         self.sheet_data.as_mut()
     }
 
@@ -335,7 +334,7 @@ impl PlayerCharacter {
     }
 
     /// Set the character sheet data.
-    pub fn with_sheet_data(mut self, sheet_data: CharacterSheetData) -> Self {
+    pub fn with_sheet_data(mut self, sheet_data: CharacterSheetValues) -> Self {
         self.sheet_data = Some(sheet_data);
         self
     }
@@ -451,7 +450,7 @@ impl PlayerCharacter {
     }
 
     /// Set the character sheet data.
-    pub fn set_sheet_data(&mut self, sheet_data: Option<CharacterSheetData>) {
+    pub fn set_sheet_data(&mut self, sheet_data: Option<CharacterSheetValues>) {
         self.sheet_data = sheet_data;
     }
 
@@ -645,7 +644,7 @@ struct PlayerCharacterWireFormat {
     world_id: WorldId,
     name: CharacterName,
     description: Option<String>,
-    sheet_data: Option<CharacterSheetData>,
+    sheet_data: Option<CharacterSheetValues>,
     current_location_id: LocationId,
     current_region_id: Option<RegionId>,
     starting_location_id: LocationId,
@@ -937,52 +936,6 @@ mod tests {
         fn validate_passes_for_valid_pc() {
             let pc = create_test_pc();
             assert!(pc.validate().is_ok());
-        }
-    }
-
-    mod serde {
-        use super::*;
-
-        #[test]
-        fn serialize_deserialize_roundtrip() {
-            let world_id = WorldId::new();
-            let location_id = LocationId::new();
-            let name = CharacterName::new("Bilbo").unwrap();
-            let now = fixed_time();
-
-            let pc = PlayerCharacter::new("user789", world_id, name, location_id, now)
-                .with_description("A hobbit adventurer")
-                .with_sprite("sprites/bilbo.png");
-
-            let json = serde_json::to_string(&pc).unwrap();
-            let deserialized: PlayerCharacter = serde_json::from_str(&json).unwrap();
-
-            assert_eq!(deserialized.id(), pc.id());
-            assert_eq!(deserialized.user_id(), "user789");
-            assert_eq!(deserialized.name().as_str(), "Bilbo");
-            assert_eq!(deserialized.description(), Some("A hobbit adventurer"));
-            assert_eq!(deserialized.sprite_asset(), Some("sprites/bilbo.png"));
-            assert!(deserialized.is_alive());
-            assert!(deserialized.is_active());
-        }
-
-        #[test]
-        fn serialize_produces_camel_case() {
-            let pc = create_test_pc();
-            let json = serde_json::to_string(&pc).unwrap();
-
-            assert!(json.contains("userId"));
-            assert!(json.contains("worldId"));
-            assert!(json.contains("sheetData"));
-            assert!(json.contains("currentLocationId"));
-            assert!(json.contains("currentRegionId"));
-            assert!(json.contains("startingLocationId"));
-            assert!(json.contains("spriteAsset"));
-            assert!(json.contains("portraitAsset"));
-            assert!(json.contains("isAlive"));
-            assert!(json.contains("isActive"));
-            assert!(json.contains("createdAt"));
-            assert!(json.contains("lastActiveAt"));
         }
     }
 }

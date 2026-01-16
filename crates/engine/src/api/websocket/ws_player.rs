@@ -2,6 +2,7 @@ use super::*;
 
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use wrldbldr_protocol::character_sheet::CharacterSheetValues;
 use wrldbldr_protocol::{ObservationRequest, PlayerCharacterRequest, RelationshipRequest};
 
 pub(super) async fn handle_player_character_request(
@@ -77,7 +78,7 @@ pub(super) async fn handle_player_character_request(
                 .await
             {
                 Ok(Some(pc)) => Ok(ResponseResult::success(pc_to_json(pc))),
-                Ok(None) => Ok(ResponseResult::success(serde_json::Value::Null)),
+                Ok(None) => Ok(ResponseResult::success(None::<CharacterSheetValues>)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "get my player character"),
@@ -438,13 +439,14 @@ pub(super) async fn handle_observation_request(
 }
 
 fn pc_to_json(pc: wrldbldr_domain::PlayerCharacter) -> serde_json::Value {
+    let sheet_data = pc.sheet_data().cloned();
     serde_json::json!({
         "id": pc.id().to_string(),
         "user_id": pc.user_id(),
         "world_id": pc.world_id().to_string(),
         "name": pc.name().to_string(),
         "description": pc.description(),
-        "sheet_data": pc.sheet_data(),
+        "sheet_data": sheet_data,
         "current_location_id": pc.current_location_id().to_string(),
         "starting_location_id": pc.starting_location_id().to_string(),
         "sprite_asset": pc.sprite_asset(),

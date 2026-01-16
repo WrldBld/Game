@@ -556,7 +556,7 @@ fn create_test_event_with_triggers(
         NarrativeEventName::new(name).unwrap(),
         chrono::Utc::now(),
     )
-        .with_description(format!("Test event: {}", name))
-        .with_trigger_logic(logic)
-        .with_trigger_conditions(conditions)
+    .with_description(format!("Test event: {}", name))
+    .with_trigger_logic(logic)
+    .with_trigger_conditions(conditions)
 }

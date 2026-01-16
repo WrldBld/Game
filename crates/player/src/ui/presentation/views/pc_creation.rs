@@ -1,9 +1,10 @@
 //! PC Creation View - Multi-step form for creating a player character
 
 use dioxus::prelude::*;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::infrastructure::spawn_task;
+use crate::use_platform;
 
 use crate::application::dto::CharacterSheetSchema;
 use crate::application::services::CreatePlayerCharacterRequest;
@@ -13,7 +14,7 @@ use crate::presentation::services::{
     use_world_service,
 };
 use crate::presentation::state::use_session_state;
-use crate::use_platform;
+use wrldbldr_protocol::character_sheet::{CharacterSheetValues, SheetValue};
 
 /// Wizard step enum
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -51,7 +52,7 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
 
     // Form state - Step 2: Character Sheet
     let mut sheet_schema: Signal<Option<CharacterSheetSchema>> = use_signal(|| None);
-    let sheet_values: Signal<HashMap<String, serde_json::Value>> = use_signal(HashMap::new);
+    let sheet_values: Signal<HashMap<String, SheetValue>> = use_signal(HashMap::new);
     let mut sheet_loading = use_signal(|| false);
 
     // Form state - Step 3: Starting Location
@@ -79,19 +80,12 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
             spawn_task(async move {
                 // Try to get the schema from the world's sheet template endpoint
                 match world_svc.get_sheet_template(&world_id_clone).await {
-                    Ok(schema_json) => {
-                        match serde_json::from_value::<CharacterSheetSchema>(schema_json) {
-                            Ok(schema) => {
-                                plat.log_info(&format!(
-                                    "Loaded character sheet schema for system: {}",
-                                    schema.system_id
-                                ));
-                                sheet_schema.set(Some(schema));
-                            }
-                            Err(e) => {
-                                plat.log_warn(&format!("Failed to parse schema: {}", e));
-                            }
-                        }
+                    Ok(schema) => {
+                        plat.log_info(&format!(
+                            "Loaded character sheet schema for system: {}",
+                            schema.system_id
+                        ));
+                        sheet_schema.set(Some(schema));
                     }
                     Err(e) => {
                         // Fallback: try listing systems and use the first available
@@ -100,19 +94,13 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
                             e
                         ));
                         if let Ok(systems) = sheet_svc.list_systems().await {
-                            if let Some(system) =
-                                systems.iter().find(|s| s.has_sheet_schema)
-                            {
-                                if let Ok(schema_json) = sheet_svc.get_schema(&system.id).await {
-                                    if let Ok(schema) =
-                                        serde_json::from_value::<CharacterSheetSchema>(schema_json)
-                                    {
-                                        plat.log_info(&format!(
-                                            "Using fallback schema: {}",
-                                            schema.system_id
-                                        ));
-                                        sheet_schema.set(Some(schema));
-                                    }
+                            if let Some(system) = systems.iter().find(|s| s.has_sheet_schema) {
+                                if let Ok(schema) = sheet_svc.get_schema(&system.id).await {
+                                    plat.log_info(&format!(
+                                        "Using fallback schema: {}",
+                                        schema.system_id
+                                    ));
+                                    sheet_schema.set(Some(schema));
                                 }
                             }
                         }
@@ -217,11 +205,14 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
         error_message.set(None);
 
         spawn_task(async move {
-            // Convert sheet values to JSON if present
+            // Convert sheet values into CharacterSheetValues if present
             let sheet_data = if sheet_vals.is_empty() {
                 None
             } else {
-                serde_json::to_value(&sheet_vals).ok()
+                Some(CharacterSheetValues {
+                    values: sheet_vals.into_iter().collect::<BTreeMap<_, _>>(),
+                    last_updated: None,
+                })
             };
 
             let starting_region_id = match location_id {
@@ -489,7 +480,7 @@ struct CharacterSheetStepProps {
     /// Character sheet schema from game system
     schema: Option<CharacterSheetSchema>,
     /// Signal for field values - child components read/write directly
-    values: Signal<HashMap<String, serde_json::Value>>,
+    values: Signal<HashMap<String, SheetValue>>,
     loading: bool,
 }
 

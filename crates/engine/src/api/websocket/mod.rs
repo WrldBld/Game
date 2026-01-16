@@ -917,12 +917,11 @@ mod ws_integration_tests_inline {
         QueuePort, RandomPort,
     };
     use crate::infrastructure::ports::{
-        MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockFlagRepo,
-        MockContentRepo, MockGoalRepo, MockInteractionRepo, MockItemRepo, MockLocationRepo,
+        MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockContentRepo,
+        MockFlagRepo, MockGoalRepo, MockInteractionRepo, MockItemRepo, MockLocationRepo,
         MockLocationStateRepo, MockLoreRepo, MockNarrativeRepo, MockObservationRepo,
         MockPlayerCharacterRepo, MockRegionStateRepo, MockSceneRepo, MockSettingsRepo,
-        MockStagingRepo,
-        MockWorldRepo,
+        MockStagingRepo, MockWorldRepo,
     };
 
     struct TestAppRepos {
@@ -990,10 +989,7 @@ mod ws_integration_tests_inline {
             Ok(None)
         }
 
-        async fn enqueue_llm_request(
-            &self,
-            _data: &LlmRequestData,
-        ) -> Result<Uuid, QueueError> {
+        async fn enqueue_llm_request(&self, _data: &LlmRequestData) -> Result<Uuid, QueueError> {
             Err(QueueError::Error("noop".to_string()))
         }
 
@@ -1184,10 +1180,7 @@ mod ws_integration_tests_inline {
             Ok(None)
         }
 
-        async fn enqueue_llm_request(
-            &self,
-            _data: &LlmRequestData,
-        ) -> Result<Uuid, QueueError> {
+        async fn enqueue_llm_request(&self, _data: &LlmRequestData) -> Result<Uuid, QueueError> {
             Err(QueueError::Error("not implemented".to_string()))
         }
 
@@ -1373,8 +1366,10 @@ mod ws_integration_tests_inline {
             world_repo.clone(),
             clock_port.clone(),
         ));
-        let narrative_repo =
-            Arc::new(crate::repositories::Narrative::new(narrative_port, clock_port.clone()));
+        let narrative_repo = Arc::new(crate::repositories::Narrative::new(
+            narrative_port,
+            clock_port.clone(),
+        ));
         let narrative = Arc::new(crate::use_cases::narrative_operations::Narrative::new(
             narrative_repo,
             location.clone(),
@@ -1400,7 +1395,10 @@ mod ws_integration_tests_inline {
             image_gen,
         ));
         let goal = Arc::new(crate::repositories::Goal::new(goal_repo.clone()));
-        let lore = Arc::new(crate::repositories::Lore::new(lore_repo.clone(), clock_port.clone()));
+        let lore = Arc::new(crate::repositories::Lore::new(
+            lore_repo.clone(),
+            clock_port.clone(),
+        ));
         let location_state = Arc::new(crate::repositories::LocationStateEntity::new(
             location_state_repo.clone(),
         ));
@@ -1644,8 +1642,10 @@ mod ws_integration_tests_inline {
             narrative_decision,
         );
 
-        let time_control =
-            Arc::new(crate::use_cases::time::TimeControl::new(world.clone(), clock.clone()));
+        let time_control = Arc::new(crate::use_cases::time::TimeControl::new(
+            world.clone(),
+            clock.clone(),
+        ));
         let time_suggestions = Arc::new(crate::use_cases::time::TimeSuggestions::new(
             time_control.clone(),
         ));

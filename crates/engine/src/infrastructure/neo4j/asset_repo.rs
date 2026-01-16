@@ -4,9 +4,9 @@
 
 use std::str::FromStr;
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
 use neo4rs::{query, Node, Row};
-use crate::infrastructure::neo4j::Neo4jGraph;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use wrldbldr_domain::*;

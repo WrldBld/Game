@@ -2,9 +2,9 @@
 //!
 //! Handles both Location and Region CRUD operations, plus connections.
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
 use neo4rs::{query, Row};
-use crate::infrastructure::neo4j::Neo4jGraph;
 use uuid::Uuid;
 use wrldbldr_domain::*;
 

@@ -139,7 +139,10 @@ impl App {
         ));
         let assets = Arc::new(repositories::Assets::new(repos.asset.clone(), image_gen));
         let goal = Arc::new(repositories::Goal::new(repos.goal.clone()));
-        let lore = Arc::new(repositories::Lore::new(repos.lore.clone(), clock_port.clone()));
+        let lore = Arc::new(repositories::Lore::new(
+            repos.lore.clone(),
+            clock_port.clone(),
+        ));
         let location_state = Arc::new(repositories::LocationStateEntity::new(
             repos.location_state.clone(),
         ));
@@ -375,8 +378,10 @@ impl App {
             narrative_decision,
         );
 
-        let time_control =
-            Arc::new(use_cases::time::TimeControl::new(world.clone(), clock.clone()));
+        let time_control = Arc::new(use_cases::time::TimeControl::new(
+            world.clone(),
+            clock.clone(),
+        ));
         let time_suggestions =
             Arc::new(use_cases::time::TimeSuggestions::new(time_control.clone()));
         let time_uc = use_cases::TimeUseCases::new(suggest_time, time_control, time_suggestions);
@@ -459,8 +464,7 @@ impl App {
         ));
 
         // Create custom condition evaluator for LLM-based condition/trigger evaluation
-        let custom_condition =
-            Arc::new(use_cases::CustomConditionEvaluator::new(llm_repo.clone()));
+        let custom_condition = Arc::new(use_cases::CustomConditionEvaluator::new(llm_repo.clone()));
 
         let management = use_cases::ManagementUseCases::new(
             use_cases::management::WorldCrud::new(world.clone(), clock.clone()),

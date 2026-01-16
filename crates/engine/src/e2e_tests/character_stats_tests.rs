@@ -9,6 +9,7 @@
 use std::sync::Arc;
 
 use super::{create_test_player, E2EEventLog, E2ETestContext, TestOutcome};
+use wrldbldr_protocol::character_sheet::{CharacterSheetValues, SheetValue};
 
 /// Test that NPC stats are loaded.
 #[tokio::test]
@@ -53,14 +54,10 @@ async fn test_pc_sheet_data() {
         .region("Common Room")
         .expect("Common Room should exist");
 
-    let (_, pc_id) = create_test_player(
-        ctx.graph(),
-        ctx.world.world_id,
-        common_room,
-        "Stats Tester",
-    )
-    .await
-    .expect("Player creation should succeed");
+    let (_, pc_id) =
+        create_test_player(ctx.graph(), ctx.world.world_id, common_room, "Stats Tester")
+            .await
+            .expect("Player creation should succeed");
 
     // Get PC
     let pc = ctx
@@ -97,14 +94,17 @@ async fn test_update_pc_sheet_data() {
     .expect("Player creation should succeed");
 
     // Create sheet data with stats
-    let sheet_data = serde_json::json!({
-        "strength": 16,
-        "dexterity": 14,
-        "constitution": 15,
-        "intelligence": 10,
-        "wisdom": 12,
-        "charisma": 8
-    });
+    let sheet_data = CharacterSheetValues {
+        values: std::collections::BTreeMap::from([
+            ("strength".to_string(), SheetValue::Integer(16)),
+            ("dexterity".to_string(), SheetValue::Integer(14)),
+            ("constitution".to_string(), SheetValue::Integer(15)),
+            ("intelligence".to_string(), SheetValue::Integer(10)),
+            ("wisdom".to_string(), SheetValue::Integer(12)),
+            ("charisma".to_string(), SheetValue::Integer(8)),
+        ]),
+        last_updated: None,
+    };
 
     // Update PC sheet data using the update method with sheet_data parameter
     let update_result = ctx
@@ -112,7 +112,7 @@ async fn test_update_pc_sheet_data() {
         .use_cases
         .management
         .player_character
-        .update(pc_id, None, Some(sheet_data.clone()))
+        .update(pc_id, None, Some(sheet_data))
         .await;
 
     match update_result {
@@ -177,14 +177,10 @@ async fn test_stat_system() {
         .region("Common Room")
         .expect("Common Room should exist");
 
-    let (_, pc_id) = create_test_player(
-        ctx.graph(),
-        ctx.world.world_id,
-        common_room,
-        "Stat Tester",
-    )
-    .await
-    .expect("Player creation should succeed");
+    let (_, pc_id) =
+        create_test_player(ctx.graph(), ctx.world.world_id, common_room, "Stat Tester")
+            .await
+            .expect("Player creation should succeed");
 
     // Get PC and check stats via sheet_data
     let pc = ctx

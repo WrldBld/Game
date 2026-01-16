@@ -98,10 +98,7 @@ async fn test_npc_triggers_perception_check_via_tool() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(
-            !started.action_queue_id.is_nil(),
-            "Action should be queued"
-        );
+        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
 
         // Process player action queue -> creates LLM request
         ctx.app
@@ -123,10 +120,7 @@ async fn test_npc_triggers_perception_check_via_tool() {
             .await
             .expect("Failed to process LLM request");
 
-        assert!(
-            llm_result.is_some(),
-            "Should have processed an LLM request"
-        );
+        assert!(llm_result.is_some(), "Should have processed an LLM request");
 
         let result = llm_result.unwrap();
 
@@ -218,10 +212,13 @@ async fn test_tool_call_outcome_affects_dialogue() {
 
     let test_result = async {
         // Create player character via use case to ensure proper setup
-        let pc_id =
-            create_player_character_via_use_case(&ctx, "Challenge Outcome Tester", "test-user-outcome")
-                .await
-                .expect("Failed to create PC");
+        let pc_id = create_player_character_via_use_case(
+            &ctx,
+            "Challenge Outcome Tester",
+            "test-user-outcome",
+        )
+        .await
+        .expect("Failed to create PC");
 
         // Get a challenge from the seeded world
         let challenge_id = ctx
@@ -279,10 +276,7 @@ async fn test_tool_call_outcome_affects_dialogue() {
         );
 
         // The dialogue should exist (actual content depends on seeded challenge data)
-        assert!(
-            !dialogue.is_empty(),
-            "Outcome dialogue should not be empty"
-        );
+        assert!(!dialogue.is_empty(), "Outcome dialogue should not be empty");
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }
@@ -499,10 +493,7 @@ async fn test_npc_gives_item_via_tool() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(
-            !started.action_queue_id.is_nil(),
-            "Action should be queued"
-        );
+        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
 
         // Process player action queue -> creates LLM request
         ctx.app
@@ -523,10 +514,7 @@ async fn test_npc_gives_item_via_tool() {
             .await
             .expect("Failed to process LLM request");
 
-        assert!(
-            llm_result.is_some(),
-            "Should have processed an LLM request"
-        );
+        assert!(llm_result.is_some(), "Should have processed an LLM request");
 
         let result = llm_result.unwrap();
 
@@ -828,10 +816,7 @@ async fn test_tool_effect_persists_after_conversation() {
         // Verify any items given during the conversation still exist
         // The key assertion: items persist after the conversation ends
         for item in &final_inventory {
-            assert!(
-                !item.name.is_empty(),
-                "Item should have a name"
-            );
+            assert!(!item.name.is_empty(), "Item should have a name");
             tracing::info!(
                 item_name = %item.name,
                 item_id = %item.id,
@@ -944,10 +929,7 @@ async fn test_dm_sees_proposed_tools() {
             .await
             .expect("Failed to process LLM request");
 
-        assert!(
-            llm_result.is_some(),
-            "Should have processed an LLM request"
-        );
+        assert!(llm_result.is_some(), "Should have processed an LLM request");
 
         let result = llm_result.unwrap();
 
@@ -1111,10 +1093,7 @@ async fn test_dm_can_reject_tool_call() {
             .await
             .expect("Failed to process LLM request");
 
-        assert!(
-            llm_result.is_some(),
-            "Should have processed an LLM request"
-        );
+        assert!(llm_result.is_some(), "Should have processed an LLM request");
 
         let result = llm_result.unwrap();
 
@@ -1159,10 +1138,7 @@ async fn test_dm_can_reject_tool_call() {
             .expect("Failed to approve with modification");
 
         // Verify dialogue was delivered
-        assert!(
-            approval_result.approved,
-            "Dialogue should be approved"
-        );
+        assert!(approval_result.approved, "Dialogue should be approved");
         assert!(
             approval_result.final_dialogue.is_some(),
             "Should have final dialogue"
@@ -1261,10 +1237,7 @@ async fn test_dm_can_modify_tool_parameters() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(
-            !started.action_queue_id.is_nil(),
-            "Action should be queued"
-        );
+        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
 
         // Process through the queues
         ctx.app
@@ -1284,10 +1257,7 @@ async fn test_dm_can_modify_tool_parameters() {
             .await
             .expect("Failed to process LLM request");
 
-        assert!(
-            llm_result.is_some(),
-            "Should have processed an LLM request"
-        );
+        assert!(llm_result.is_some(), "Should have processed an LLM request");
 
         let result = llm_result.unwrap();
 

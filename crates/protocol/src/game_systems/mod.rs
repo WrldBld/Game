@@ -15,19 +15,22 @@
 
 mod blades;
 mod coc7e;
+mod content;
 mod dnd5e;
 mod fate_core;
 mod pbta;
 mod pf2e;
 mod traits;
 
+use std::sync::Arc;
+
 // D&D 5e exports
 pub use dnd5e::{skill_ability as dnd5e_skill_ability, Dnd5eSystem};
 
 // Pathfinder 2e exports
 pub use pf2e::{
-    determine_success as pf2e_determine_success, multiple_attack_penalty, skill_ability as pf2e_skill_ability,
-    DegreeOfSuccess, Pf2eProficiencyRank, Pf2eSystem,
+    determine_success as pf2e_determine_success, multiple_attack_penalty,
+    skill_ability as pf2e_skill_ability, DegreeOfSuccess, Pf2eProficiencyRank, Pf2eSystem,
 };
 
 // Call of Cthulhu 7e exports
@@ -56,13 +59,15 @@ pub use pbta::{
 
 // Core traits
 pub use traits::{
-    CalculationEngine, CasterType, CharacterSheetProvider, CompendiumProvider, ContentError,
-    FilterField, FilterFieldType, FilterSchema, GameSystem, ProficiencyLevel, RestType,
-    SpellcastingSystem,
+    CalculationEngine, CasterType, CharacterSheetProvider, CompendiumProvider, GameSystem,
+    ProficiencyLevel, RestType, SpellcastingSystem,
 };
 
-
-use std::sync::Arc;
+// Content helpers
+pub use content::{
+    ContentError, ContentFilter, ContentItem, ContentSource, ContentType, FilterField,
+    FilterFieldType, FilterSchema, SourceType,
+};
 
 /// Registry of available game systems.
 pub struct GameSystemRegistry {
@@ -169,11 +174,21 @@ mod tests {
     fn registry_list_with_names() {
         let registry = GameSystemRegistry::new();
         let systems = registry.list_systems_with_names();
-        assert!(systems.iter().any(|(id, name)| *id == "dnd5e" && *name == "D&D 5th Edition"));
-        assert!(systems.iter().any(|(id, name)| *id == "pf2e" && *name == "Pathfinder 2nd Edition"));
-        assert!(systems.iter().any(|(id, name)| *id == "coc7e" && *name == "Call of Cthulhu 7th Edition"));
-        assert!(systems.iter().any(|(id, name)| *id == "fate_core" && *name == "FATE Core"));
-        assert!(systems.iter().any(|(id, name)| *id == "blades" && *name == "Blades in the Dark"));
+        assert!(systems
+            .iter()
+            .any(|(id, name)| *id == "dnd5e" && *name == "D&D 5th Edition"));
+        assert!(systems
+            .iter()
+            .any(|(id, name)| *id == "pf2e" && *name == "Pathfinder 2nd Edition"));
+        assert!(systems
+            .iter()
+            .any(|(id, name)| *id == "coc7e" && *name == "Call of Cthulhu 7th Edition"));
+        assert!(systems
+            .iter()
+            .any(|(id, name)| *id == "fate_core" && *name == "FATE Core"));
+        assert!(systems
+            .iter()
+            .any(|(id, name)| *id == "blades" && *name == "Blades in the Dark"));
     }
 
     #[test]
@@ -186,7 +201,9 @@ mod tests {
         let coc = registry.get("coc7e").expect("CoC should be registered");
         assert_eq!(coc.display_name(), "Call of Cthulhu 7th Edition");
 
-        let fate = registry.get("fate_core").expect("FATE should be registered");
+        let fate = registry
+            .get("fate_core")
+            .expect("FATE should be registered");
         assert_eq!(fate.display_name(), "FATE Core");
 
         let blades = registry.get("blades").expect("Blades should be registered");

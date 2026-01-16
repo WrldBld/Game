@@ -10,9 +10,9 @@
 //!
 //! Entry conditions remain as JSON (acceptable per ADR - complex nested non-relational)
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
 use neo4rs::{query, Row};
-use crate::infrastructure::neo4j::Neo4jGraph;
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_typed_id, NodeExt};
@@ -152,8 +152,7 @@ impl Neo4jSceneRepo {
         let name: String = node
             .get("name")
             .map_err(|e| RepoError::database("query", e))?;
-        let name =
-            SceneName::new(name).map_err(|e| RepoError::database("query", e.to_string()))?;
+        let name = SceneName::new(name).map_err(|e| RepoError::database("query", e.to_string()))?;
         let directorial_notes: String = node.get_string_or("directorial_notes", "");
         let order_num: i64 = node.get_i64_or("order_num", 0);
 

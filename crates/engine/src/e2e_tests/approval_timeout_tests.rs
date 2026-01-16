@@ -574,14 +574,10 @@ async fn test_time_suggestion_expires_after_timeout() {
         .expect("Common Room should exist");
 
     // Create a player character for the time suggestion
-    let (_, pc_id) = create_test_player(
-        ctx.graph(),
-        ctx.world.world_id,
-        common_room,
-        "Time Tester",
-    )
-    .await
-    .expect("Player creation should succeed");
+    let (_, pc_id) =
+        create_test_player(ctx.graph(), ctx.world.world_id, common_room, "Time Tester")
+            .await
+            .expect("Player creation should succeed");
 
     // Create a TTL cache with a very short TTL for testing (50ms)
     let ttl = Duration::from_millis(50);
@@ -754,7 +750,6 @@ async fn test_old_approvals_cleaned_up() {
         .region("Common Room")
         .expect("Region should exist");
     for i in 0..5 {
-
         let request = PendingStagingRequest {
             region_id,
             location_id,
@@ -864,7 +859,9 @@ async fn test_ttl_cache_cleanup_preserves_fresh_entries() {
     let cache: TtlCache<String, String> = TtlCache::new(ttl);
 
     // Insert first entry
-    cache.insert("old".to_string(), "old_value".to_string()).await;
+    cache
+        .insert("old".to_string(), "old_value".to_string())
+        .await;
 
     let expired_at = Instant::now() - (ttl + Duration::from_millis(1));
     cache
@@ -872,7 +869,9 @@ async fn test_ttl_cache_cleanup_preserves_fresh_entries() {
         .await;
 
     // Insert second entry (fresh)
-    cache.insert("new".to_string(), "new_value".to_string()).await;
+    cache
+        .insert("new".to_string(), "new_value".to_string())
+        .await;
 
     // Cleanup should remove old, preserve new
     let cleaned = cache.cleanup_expired().await;
@@ -914,9 +913,7 @@ async fn test_ttl_cache_remove_works_for_expired() {
     let ttl = Duration::from_millis(20);
     let cache: TtlCache<String, String> = TtlCache::new(ttl);
 
-    cache
-        .insert("key".to_string(), "value".to_string())
-        .await;
+    cache.insert("key".to_string(), "value".to_string()).await;
 
     let expired_at = Instant::now() - (ttl + Duration::from_millis(1));
     cache

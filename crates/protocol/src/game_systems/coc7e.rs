@@ -11,11 +11,11 @@
 use super::traits::{
     AllocationSystem, CalculationEngine, CharacterSheetProvider, CharacterSheetSchema,
     CreationStep, DerivationType, DerivedField, FieldDefinition, FieldLayout, FieldValidation,
-    GameSystem, PercentileCategory, ProficiencyLevel, ResourceColor, SchemaFieldType,
-    SchemaSection, SchemaSelectOption, SectionType,
+    GameSystem, ProficiencyLevel, ResourceColor, SchemaFieldType, SchemaSection,
+    SchemaSelectOption, SectionType, SheetValue,
 };
-use crate::entities::{StatBlock, StatModifier};
 use std::collections::HashMap;
+use wrldbldr_domain::value_objects::{StatBlock, StatModifier};
 
 /// Success levels for CoC 7e skill checks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -371,40 +371,34 @@ impl CharacterSheetProvider for Coc7eSystem {
                 CreationStep {
                     id: "identity".to_string(),
                     label: "Investigator Info".to_string(),
-                    description: "Define your investigator's basic information.".to_string(),
-                    section_ids: vec!["identity".to_string()],
-                    order: 1,
-                    required: true,
-                    allocation: None,
+                    description: Some("Define your investigator's basic information.".to_string()),
+                    sections: vec!["identity".to_string()],
+                    optional: false,
                 },
                 CreationStep {
                     id: "characteristics".to_string(),
                     label: "Characteristics".to_string(),
-                    description: "Roll or assign your eight characteristics (3d6*5 or 2d6+6*5)."
-                        .to_string(),
-                    section_ids: vec!["characteristics".to_string()],
-                    order: 2,
-                    required: true,
-                    allocation: Some(Self::rolling_allocation()),
+                    description: Some(
+                        "Roll or assign your eight characteristics (3d6*5 or 2d6+6*5).".to_string(),
+                    ),
+                    sections: vec!["characteristics".to_string()],
+                    optional: false,
                 },
                 CreationStep {
                     id: "derived".to_string(),
                     label: "Derived Attributes".to_string(),
-                    description: "Calculate derived values from characteristics.".to_string(),
-                    section_ids: vec!["derived_attributes".to_string()],
-                    order: 3,
-                    required: true,
-                    allocation: None,
+                    description: Some("Calculate derived values from characteristics.".to_string()),
+                    sections: vec!["derived_attributes".to_string()],
+                    optional: false,
                 },
                 CreationStep {
                     id: "skills".to_string(),
                     label: "Skills".to_string(),
-                    description: "Allocate occupation and personal interest skill points."
-                        .to_string(),
-                    section_ids: vec!["skills".to_string(), "combat".to_string()],
-                    order: 4,
-                    required: true,
-                    allocation: Some(Self::skill_point_allocation()),
+                    description: Some(
+                        "Allocate occupation and personal interest skill points.".to_string(),
+                    ),
+                    sections: vec!["skills".to_string(), "combat".to_string()],
+                    optional: false,
                 },
             ],
         }
@@ -412,41 +406,47 @@ impl CharacterSheetProvider for Coc7eSystem {
 
     fn calculate_derived_values(
         &self,
-        values: &HashMap<String, serde_json::Value>,
-    ) -> HashMap<String, serde_json::Value> {
+        values: &HashMap<String, SheetValue>,
+    ) -> HashMap<String, SheetValue> {
         let mut derived = HashMap::new();
 
         // Get characteristics
-        let str_val = values.get("STR").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
-        let con = values.get("CON").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
-        let siz = values.get("SIZ").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
-        let dex = values.get("DEX").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
-        let pow = values.get("POW").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
-        let edu = values.get("EDU").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
+        let str_val = values.get("STR").and_then(SheetValue::as_i64).unwrap_or(50) as u8;
+        let con = values.get("CON").and_then(SheetValue::as_i64).unwrap_or(50) as u8;
+        let siz = values.get("SIZ").and_then(SheetValue::as_i64).unwrap_or(50) as u8;
+        let dex = values.get("DEX").and_then(SheetValue::as_i64).unwrap_or(50) as u8;
+        let pow = values.get("POW").and_then(SheetValue::as_i64).unwrap_or(50) as u8;
+        let edu = values.get("EDU").and_then(SheetValue::as_i64).unwrap_or(50) as u8;
 
         // Calculate HP = (CON + SIZ) / 10
         let max_hp = Self::calculate_hp(con, siz);
-        derived.insert("MAX_HP".to_string(), serde_json::json!(max_hp));
+        derived.insert("MAX_HP".to_string(), SheetValue::Integer(max_hp as i32));
 
         // Calculate Sanity = POW (starting value)
         let max_sanity = Self::calculate_starting_sanity(pow);
-        derived.insert("MAX_SANITY".to_string(), serde_json::json!(max_sanity));
+        derived.insert(
+            "MAX_SANITY".to_string(),
+            SheetValue::Integer(max_sanity as i32),
+        );
 
         // Calculate Magic Points = POW / 5
         let max_mp = Self::calculate_magic_points(pow);
-        derived.insert("MAX_MP".to_string(), serde_json::json!(max_mp));
+        derived.insert("MAX_MP".to_string(), SheetValue::Integer(max_mp as i32));
 
         // Calculate Move Rate
         let move_rate = Self::calculate_move_rate(str_val, dex, siz);
-        derived.insert("MOVE".to_string(), serde_json::json!(move_rate));
+        derived.insert("MOVE".to_string(), SheetValue::Integer(move_rate as i32));
 
         // Calculate Build
         let build = Self::calculate_build(str_val, siz);
-        derived.insert("BUILD".to_string(), serde_json::json!(build));
+        derived.insert("BUILD".to_string(), SheetValue::Integer(build.into()));
 
         // Calculate Damage Bonus
         let damage_bonus = Self::calculate_damage_bonus(str_val, siz);
-        derived.insert("DAMAGE_BONUS".to_string(), serde_json::json!(damage_bonus));
+        derived.insert(
+            "DAMAGE_BONUS".to_string(),
+            SheetValue::String(damage_bonus.to_string()),
+        );
 
         // Calculate half and fifth values for characteristics
         for (id, val) in [
@@ -457,33 +457,63 @@ impl CharacterSheetProvider for Coc7eSystem {
             ("POW", pow),
             ("EDU", edu),
         ] {
-            derived.insert(format!("{}_HALF", id), serde_json::json!(val / 2));
-            derived.insert(format!("{}_FIFTH", id), serde_json::json!(val / 5));
+            derived.insert(
+                format!("{}_HALF", id),
+                SheetValue::Integer((val / 2) as i32),
+            );
+            derived.insert(
+                format!("{}_FIFTH", id),
+                SheetValue::Integer((val / 5) as i32),
+            );
         }
 
         // Also calculate APP and INT halves/fifths
-        let app = values.get("APP").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
-        let int = values.get("INT").and_then(|v| v.as_i64()).unwrap_or(50) as u8;
+        let app = values.get("APP").and_then(SheetValue::as_i64).unwrap_or(50) as u8;
+        let int = values.get("INT").and_then(SheetValue::as_i64).unwrap_or(50) as u8;
 
-        derived.insert("APP_HALF".to_string(), serde_json::json!(app / 2));
-        derived.insert("APP_FIFTH".to_string(), serde_json::json!(app / 5));
-        derived.insert("INT_HALF".to_string(), serde_json::json!(int / 2));
-        derived.insert("INT_FIFTH".to_string(), serde_json::json!(int / 5));
+        derived.insert(
+            "APP_HALF".to_string(),
+            SheetValue::Integer((app / 2) as i32),
+        );
+        derived.insert(
+            "APP_FIFTH".to_string(),
+            SheetValue::Integer((app / 5) as i32),
+        );
+        derived.insert(
+            "INT_HALF".to_string(),
+            SheetValue::Integer((int / 2) as i32),
+        );
+        derived.insert(
+            "INT_FIFTH".to_string(),
+            SheetValue::Integer((int / 5) as i32),
+        );
 
         // Calculate Dodge base value (DEX / 2)
         let dodge_base = dex / 2;
-        derived.insert("DODGE_BASE".to_string(), serde_json::json!(dodge_base));
+        derived.insert(
+            "DODGE_BASE".to_string(),
+            SheetValue::Integer(dodge_base as i32),
+        );
 
         // Calculate Language (Own) base value (EDU)
-        derived.insert("LANGUAGE_OWN_BASE".to_string(), serde_json::json!(edu));
+        derived.insert(
+            "LANGUAGE_OWN_BASE".to_string(),
+            SheetValue::Integer(edu as i32),
+        );
 
         // Calculate half/fifth values for skills that have values set
         let skill_ids = self.get_all_skill_ids();
         for skill_id in skill_ids {
-            if let Some(val) = values.get(&skill_id).and_then(|v| v.as_i64()) {
+            if let Some(val) = values.get(&skill_id).and_then(SheetValue::as_i64) {
                 let val = val as u8;
-                derived.insert(format!("{}_HALF", skill_id), serde_json::json!(val / 2));
-                derived.insert(format!("{}_FIFTH", skill_id), serde_json::json!(val / 5));
+                derived.insert(
+                    format!("{}_HALF", skill_id),
+                    SheetValue::Integer((val / 2) as i32),
+                );
+                derived.insert(
+                    format!("{}_FIFTH", skill_id),
+                    SheetValue::Integer((val / 5) as i32),
+                );
             }
         }
 
@@ -493,14 +523,14 @@ impl CharacterSheetProvider for Coc7eSystem {
     fn validate_field(
         &self,
         field_id: &str,
-        value: &serde_json::Value,
-        _all_values: &HashMap<String, serde_json::Value>,
+        value: &SheetValue,
+        _all_values: &HashMap<String, SheetValue>,
     ) -> Option<String> {
         match field_id {
             // Characteristics: 0-99 percentile
             "STR" | "CON" | "SIZ" | "DEX" | "APP" | "INT" | "POW" | "EDU" => {
                 if let Some(score) = value.as_i64() {
-                    if !(0..=99).contains(&score) {
+                    if !(0..=99).contains(&(score as i32)) {
                         return Some("Characteristics must be between 0 and 99".to_string());
                     }
                 } else {
@@ -510,7 +540,7 @@ impl CharacterSheetProvider for Coc7eSystem {
             // Skills: 0-99 percentile (except Cthulhu Mythos which is special)
             _ if field_id.ends_with("_SKILL") || self.is_skill_field(field_id) => {
                 if let Some(score) = value.as_i64() {
-                    if !(0..=99).contains(&score) {
+                    if !(0..=99).contains(&(score as i32)) {
                         return Some("Skills must be between 0 and 99".to_string());
                     }
                 } else {
@@ -520,7 +550,7 @@ impl CharacterSheetProvider for Coc7eSystem {
             // Luck: 0-99
             "LUCK" | "CURRENT_LUCK" => {
                 if let Some(luck) = value.as_i64() {
-                    if !(0..=99).contains(&luck) {
+                    if !(0..=99).contains(&(luck as i32)) {
                         return Some("Luck must be between 0 and 99".to_string());
                     }
                 } else {
@@ -530,7 +560,7 @@ impl CharacterSheetProvider for Coc7eSystem {
             // Sanity: 0-99
             "CURRENT_SANITY" => {
                 if let Some(san) = value.as_i64() {
-                    if !(0..=99).contains(&san) {
+                    if !(0..=99).contains(&(san as i32)) {
                         return Some("Sanity must be between 0 and 99".to_string());
                     }
                 } else {
@@ -540,7 +570,7 @@ impl CharacterSheetProvider for Coc7eSystem {
             // Age: reasonable range
             "AGE" => {
                 if let Some(age) = value.as_i64() {
-                    if !(15..=90).contains(&age) {
+                    if !(15..=90).contains(&(age as i32)) {
                         return Some("Age must be between 15 and 90".to_string());
                     }
                 } else {
@@ -561,46 +591,46 @@ impl CharacterSheetProvider for Coc7eSystem {
         None
     }
 
-    fn default_values(&self) -> HashMap<String, serde_json::Value> {
+    fn default_values(&self) -> HashMap<String, SheetValue> {
         let mut defaults = HashMap::new();
 
         // Default characteristics (average human)
-        defaults.insert("STR".to_string(), serde_json::json!(50));
-        defaults.insert("CON".to_string(), serde_json::json!(50));
-        defaults.insert("SIZ".to_string(), serde_json::json!(50));
-        defaults.insert("DEX".to_string(), serde_json::json!(50));
-        defaults.insert("APP".to_string(), serde_json::json!(50));
-        defaults.insert("INT".to_string(), serde_json::json!(50));
-        defaults.insert("POW".to_string(), serde_json::json!(50));
-        defaults.insert("EDU".to_string(), serde_json::json!(50));
+        defaults.insert("STR".to_string(), SheetValue::Integer(50));
+        defaults.insert("CON".to_string(), SheetValue::Integer(50));
+        defaults.insert("SIZ".to_string(), SheetValue::Integer(50));
+        defaults.insert("DEX".to_string(), SheetValue::Integer(50));
+        defaults.insert("APP".to_string(), SheetValue::Integer(50));
+        defaults.insert("INT".to_string(), SheetValue::Integer(50));
+        defaults.insert("POW".to_string(), SheetValue::Integer(50));
+        defaults.insert("EDU".to_string(), SheetValue::Integer(50));
 
         // Luck starts at 3d6*5 average (52-53)
-        defaults.insert("LUCK".to_string(), serde_json::json!(50));
-        defaults.insert("CURRENT_LUCK".to_string(), serde_json::json!(50));
+        defaults.insert("LUCK".to_string(), SheetValue::Integer(50));
+        defaults.insert("CURRENT_LUCK".to_string(), SheetValue::Integer(50));
 
         // Current resources start at max
-        defaults.insert("CURRENT_HP".to_string(), serde_json::json!(10));
-        defaults.insert("CURRENT_SANITY".to_string(), serde_json::json!(50));
-        defaults.insert("CURRENT_MP".to_string(), serde_json::json!(10));
+        defaults.insert("CURRENT_HP".to_string(), SheetValue::Integer(10));
+        defaults.insert("CURRENT_SANITY".to_string(), SheetValue::Integer(50));
+        defaults.insert("CURRENT_MP".to_string(), SheetValue::Integer(10));
 
         // Default skill values (base values)
-        defaults.insert("DODGE".to_string(), serde_json::json!(25)); // DEX/2 base
-        defaults.insert("FIGHTING_BRAWL".to_string(), serde_json::json!(25));
-        defaults.insert("FIREARMS_HANDGUN".to_string(), serde_json::json!(20));
-        defaults.insert("FIREARMS_RIFLE".to_string(), serde_json::json!(25));
-        defaults.insert("FIRST_AID".to_string(), serde_json::json!(30));
-        defaults.insert("LIBRARY_USE".to_string(), serde_json::json!(20));
-        defaults.insert("LISTEN".to_string(), serde_json::json!(20));
-        defaults.insert("SPOT_HIDDEN".to_string(), serde_json::json!(25));
-        defaults.insert("STEALTH".to_string(), serde_json::json!(20));
-        defaults.insert("PSYCHOLOGY".to_string(), serde_json::json!(10));
-        defaults.insert("PERSUADE".to_string(), serde_json::json!(10));
-        defaults.insert("FAST_TALK".to_string(), serde_json::json!(5));
-        defaults.insert("CHARM".to_string(), serde_json::json!(15));
-        defaults.insert("INTIMIDATE".to_string(), serde_json::json!(15));
-        defaults.insert("CREDIT_RATING".to_string(), serde_json::json!(0));
-        defaults.insert("CTHULHU_MYTHOS".to_string(), serde_json::json!(0));
-        defaults.insert("OCCULT".to_string(), serde_json::json!(5));
+        defaults.insert("DODGE".to_string(), SheetValue::Integer(25)); // DEX/2 base
+        defaults.insert("FIGHTING_BRAWL".to_string(), SheetValue::Integer(25));
+        defaults.insert("FIREARMS_HANDGUN".to_string(), SheetValue::Integer(20));
+        defaults.insert("FIREARMS_RIFLE".to_string(), SheetValue::Integer(25));
+        defaults.insert("FIRST_AID".to_string(), SheetValue::Integer(30));
+        defaults.insert("LIBRARY_USE".to_string(), SheetValue::Integer(20));
+        defaults.insert("LISTEN".to_string(), SheetValue::Integer(20));
+        defaults.insert("SPOT_HIDDEN".to_string(), SheetValue::Integer(25));
+        defaults.insert("STEALTH".to_string(), SheetValue::Integer(20));
+        defaults.insert("PSYCHOLOGY".to_string(), SheetValue::Integer(10));
+        defaults.insert("PERSUADE".to_string(), SheetValue::Integer(10));
+        defaults.insert("FAST_TALK".to_string(), SheetValue::Integer(5));
+        defaults.insert("CHARM".to_string(), SheetValue::Integer(15));
+        defaults.insert("INTIMIDATE".to_string(), SheetValue::Integer(15));
+        defaults.insert("CREDIT_RATING".to_string(), SheetValue::Integer(0));
+        defaults.insert("CTHULHU_MYTHOS".to_string(), SheetValue::Integer(0));
+        defaults.insert("OCCULT".to_string(), SheetValue::Integer(5));
 
         defaults
     }
@@ -650,17 +680,17 @@ impl Coc7eSystem {
             min_per_field: 0,
             max_per_field: 99,
             categories: vec![
-                PercentileCategory {
+                crate::character_sheet::PercentileCategory {
                     id: "occupation".to_string(),
                     label: "Occupation Skills (EDU×4)".to_string(),
-                    points: 0, // Calculated from EDU×4
+                    points: 0,      // Calculated from EDU×4
                     fields: vec![], // Determined by occupation choice
                     formula: Some("EDU*4".to_string()),
                 },
-                PercentileCategory {
+                crate::character_sheet::PercentileCategory {
                     id: "personal_interest".to_string(),
                     label: "Personal Interest (INT×2)".to_string(),
-                    points: 0, // Calculated from INT×2
+                    points: 0,      // Calculated from INT×2
                     fields: vec![], // Any skills except Cthulhu Mythos
                     formula: Some("INT*2".to_string()),
                 },
@@ -717,7 +747,7 @@ impl Coc7eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: None,
@@ -800,7 +830,7 @@ impl Coc7eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: Some(
@@ -823,11 +853,10 @@ impl Coc7eSystem {
                         min: Some(15),
                         max: Some(90),
                         pattern: None,
-                        error_message: Some("Age must be between 15 and 90".to_string()),
+                        message: Some("Age must be between 15 and 90".to_string()),
                     }),
                     layout: FieldLayout {
-                        width: Some(2),
-                        new_row: true,
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Age affects EDU and physical characteristics".to_string()),
@@ -845,7 +874,7 @@ impl Coc7eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(5),
+                        column_span: 5,
                         ..Default::default()
                     },
                     description: None,
@@ -863,7 +892,7 @@ impl Coc7eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(5),
+                        column_span: 5,
                         ..Default::default()
                     },
                     description: None,
@@ -901,10 +930,10 @@ impl Coc7eSystem {
                     min: Some(0),
                     max: Some(99),
                     pattern: None,
-                    error_message: Some("Characteristics must be 0-99".to_string()),
+                    message: Some("Characteristics must be 0-99".to_string()),
                 }),
                 layout: FieldLayout {
-                    width: Some(3),
+                    column_span: 3,
                     ..Default::default()
                 },
                 description: Some(description.to_string()),
@@ -949,7 +978,7 @@ impl Coc7eSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("(CON + SIZ) / 10".to_string()),
@@ -972,7 +1001,7 @@ impl Coc7eSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Starting value equals POW".to_string()),
@@ -995,7 +1024,7 @@ impl Coc7eSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("POW / 5".to_string()),
@@ -1016,10 +1045,10 @@ impl Coc7eSystem {
                         min: Some(0),
                         max: Some(99),
                         pattern: None,
-                        error_message: Some("Luck must be 0-99".to_string()),
+                        message: Some("Luck must be 0-99".to_string()),
                     }),
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Roll 3d6*5. Expendable resource.".to_string()),
@@ -1042,8 +1071,7 @@ impl Coc7eSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
-                        new_row: true,
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Based on STR, DEX, SIZ comparison".to_string()),
@@ -1066,7 +1094,7 @@ impl Coc7eSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Based on STR + SIZ".to_string()),
@@ -1088,7 +1116,7 @@ impl Coc7eSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Based on STR + SIZ".to_string()),
@@ -1172,10 +1200,10 @@ impl Coc7eSystem {
                         min: Some(0),
                         max: Some(99),
                         pattern: None,
-                        error_message: Some("Skills must be 0-99".to_string()),
+                        message: Some("Skills must be 0-99".to_string()),
                     }),
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description,
@@ -1215,10 +1243,10 @@ impl Coc7eSystem {
                         min: Some(0),
                         max: Some(99),
                         pattern: None,
-                        error_message: Some("Skills must be 0-99".to_string()),
+                        message: Some("Skills must be 0-99".to_string()),
                     }),
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: Some("Base: DEX/2".to_string()),
@@ -1235,10 +1263,10 @@ impl Coc7eSystem {
                         min: Some(0),
                         max: Some(99),
                         pattern: None,
-                        error_message: Some("Skills must be 0-99".to_string()),
+                        message: Some("Skills must be 0-99".to_string()),
                     }),
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: Some("Base: 25%".to_string()),
@@ -1255,10 +1283,10 @@ impl Coc7eSystem {
                         min: Some(0),
                         max: Some(99),
                         pattern: None,
-                        error_message: Some("Skills must be 0-99".to_string()),
+                        message: Some("Skills must be 0-99".to_string()),
                     }),
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: Some("Base: 20%".to_string()),
@@ -1275,10 +1303,10 @@ impl Coc7eSystem {
                         min: Some(0),
                         max: Some(99),
                         pattern: None,
-                        error_message: Some("Skills must be 0-99".to_string()),
+                        message: Some("Skills must be 0-99".to_string()),
                     }),
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: Some("Base: 25%".to_string()),
@@ -1309,7 +1337,7 @@ impl Coc7eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: None,
@@ -1327,7 +1355,7 @@ impl Coc7eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: Some(
@@ -1347,8 +1375,7 @@ impl Coc7eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
-                        new_row: true,
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: Some("Regenerates at rate of 1 per day".to_string()),
@@ -1366,7 +1393,7 @@ impl Coc7eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: Some(
@@ -1452,7 +1479,7 @@ impl Coc7eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some(
@@ -1711,14 +1738,14 @@ mod tests {
         let mut values = HashMap::new();
 
         // Set characteristics
-        values.insert("STR".to_string(), serde_json::json!(60));
-        values.insert("CON".to_string(), serde_json::json!(65));
-        values.insert("SIZ".to_string(), serde_json::json!(55));
-        values.insert("DEX".to_string(), serde_json::json!(50));
-        values.insert("APP".to_string(), serde_json::json!(45));
-        values.insert("INT".to_string(), serde_json::json!(70));
-        values.insert("POW".to_string(), serde_json::json!(55));
-        values.insert("EDU".to_string(), serde_json::json!(60));
+        values.insert("STR".to_string(), SheetValue::Integer(60));
+        values.insert("CON".to_string(), SheetValue::Integer(65));
+        values.insert("SIZ".to_string(), SheetValue::Integer(55));
+        values.insert("DEX".to_string(), SheetValue::Integer(50));
+        values.insert("APP".to_string(), SheetValue::Integer(45));
+        values.insert("INT".to_string(), SheetValue::Integer(70));
+        values.insert("POW".to_string(), SheetValue::Integer(55));
+        values.insert("EDU".to_string(), SheetValue::Integer(60));
 
         let derived = system.calculate_derived_values(&values);
 
@@ -1753,8 +1780,8 @@ mod tests {
         let system = Coc7eSystem::new();
         let mut values = HashMap::new();
 
-        values.insert("SPOT_HIDDEN".to_string(), serde_json::json!(60));
-        values.insert("LIBRARY_USE".to_string(), serde_json::json!(45));
+        values.insert("SPOT_HIDDEN".to_string(), SheetValue::Integer(60));
+        values.insert("LIBRARY_USE".to_string(), SheetValue::Integer(45));
 
         let derived = system.calculate_derived_values(&values);
 
@@ -1786,22 +1813,22 @@ mod tests {
 
         // Valid characteristic
         assert!(system
-            .validate_field("STR", &serde_json::json!(50), &all_values)
+            .validate_field("STR", &SheetValue::Integer(50), &all_values)
             .is_none());
 
         // Invalid: too high
         assert!(system
-            .validate_field("STR", &serde_json::json!(100), &all_values)
+            .validate_field("STR", &SheetValue::Integer(100), &all_values)
             .is_some());
 
         // Invalid: negative
         assert!(system
-            .validate_field("CON", &serde_json::json!(-5), &all_values)
+            .validate_field("CON", &SheetValue::Integer(-5), &all_values)
             .is_some());
 
         // Invalid: not a number
         assert!(system
-            .validate_field("DEX", &serde_json::json!("fifty"), &all_values)
+            .validate_field("DEX", &SheetValue::String("fifty".to_string()), &all_values)
             .is_some());
     }
 
@@ -1812,12 +1839,12 @@ mod tests {
 
         // Valid skill
         assert!(system
-            .validate_field("SPOT_HIDDEN", &serde_json::json!(50), &all_values)
+            .validate_field("SPOT_HIDDEN", &SheetValue::Integer(50), &all_values)
             .is_none());
 
         // Invalid: too high
         assert!(system
-            .validate_field("LIBRARY_USE", &serde_json::json!(100), &all_values)
+            .validate_field("LIBRARY_USE", &SheetValue::Integer(100), &all_values)
             .is_some());
     }
 
@@ -1828,22 +1855,22 @@ mod tests {
 
         // Valid sanity
         assert!(system
-            .validate_field("CURRENT_SANITY", &serde_json::json!(45), &all_values)
+            .validate_field("CURRENT_SANITY", &SheetValue::Integer(45), &all_values)
             .is_none());
 
         // Invalid sanity
         assert!(system
-            .validate_field("CURRENT_SANITY", &serde_json::json!(100), &all_values)
+            .validate_field("CURRENT_SANITY", &SheetValue::Integer(100), &all_values)
             .is_some());
 
         // Valid luck
         assert!(system
-            .validate_field("LUCK", &serde_json::json!(55), &all_values)
+            .validate_field("LUCK", &SheetValue::Integer(55), &all_values)
             .is_none());
 
         // Invalid luck
         assert!(system
-            .validate_field("CURRENT_LUCK", &serde_json::json!(-1), &all_values)
+            .validate_field("CURRENT_LUCK", &SheetValue::Integer(-1), &all_values)
             .is_some());
     }
 

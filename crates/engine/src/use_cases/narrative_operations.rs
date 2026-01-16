@@ -13,11 +13,11 @@ use wrldbldr_domain::{
 };
 
 use crate::infrastructure::ports::RepoError;
+use crate::llm_context::ConversationTurn;
 use crate::repositories::{
     Challenge, Character, Clock, Flag, Location, Narrative as NarrativeRepository, Observation,
     PlayerCharacter, Scene, World,
 };
-use crate::llm_context::ConversationTurn;
 
 /// Backward-compatible alias for `NarrativeOps`.
 ///
@@ -94,10 +94,7 @@ mod trigger_tests {
         let clock = Arc::new(Clock::new(clock_port.clone()));
 
         let narrative_ops = super::NarrativeOps::new(
-            Arc::new(Narrative::new(
-                Arc::new(narrative_repo),
-                clock_port.clone(),
-            )),
+            Arc::new(Narrative::new(Arc::new(narrative_repo), clock_port.clone())),
             Arc::new(Location::new(location_repo.clone())),
             Arc::new(World::new(world_repo.clone(), clock_port.clone())),
             Arc::new(PlayerCharacter::new(player_character_repo)),
@@ -262,7 +259,9 @@ impl NarrativeOps {
         pc_id: PlayerCharacterId,
         npc_id: CharacterId,
     ) -> Result<Option<uuid::Uuid>, RepoError> {
-        self.narrative.get_active_conversation_id(pc_id, npc_id).await
+        self.narrative
+            .get_active_conversation_id(pc_id, npc_id)
+            .await
     }
 
     pub async fn is_conversation_active(
@@ -820,51 +819,39 @@ fn extract_compendium_context(
     let mut known_spells = Vec::new();
     let mut character_feats = Vec::new();
 
-    // Try to extract from structured CharacterIdentity first
-    if let Some(identity_json) = sheet_data.get("character_identity") {
-        if let Ok(identity) =
-            serde_json::from_value::<wrldbldr_domain::CharacterIdentity>(identity_json.clone())
-        {
-            origin_id = identity.race.clone();
-            for class_entry in &identity.classes {
-                class_levels.insert(class_entry.class_id.to_lowercase(), class_entry.level);
-            }
-        }
+    if let Some(race) = sheet_data.get_string("RACE") {
+        origin_id = Some(race.to_lowercase());
     }
 
-    // Fallback: extract from individual fields if CharacterIdentity not found
-    if origin_id.is_none() {
-        if let Some(race) = sheet_data.get_string("RACE") {
-            origin_id = Some(race.to_lowercase());
-        }
+    if let Some(class_name) = sheet_data.get_string("CLASS") {
+        let level = sheet_data.get_number("LEVEL").unwrap_or(1) as u8;
+        class_levels.insert(class_name.to_lowercase(), level);
     }
 
-    if class_levels.is_empty() {
-        if let Some(class_name) = sheet_data.get_string("CLASS") {
-            let level = sheet_data.get_number("LEVEL").unwrap_or(1) as u8;
-            class_levels.insert(class_name.to_lowercase(), level);
-        }
+    let known_spells_key = sheet_data
+        .get("KNOWN_SPELLS")
+        .and_then(|value| value.as_str())
+        .unwrap_or_default();
+    if !known_spells_key.is_empty() {
+        known_spells.extend(
+            known_spells_key
+                .split(',')
+                .map(|spell| spell.trim().to_lowercase())
+                .filter(|spell| !spell.is_empty()),
+        );
     }
 
-    // Extract from structured CharacterSpells if present
-    if let Some(spells_json) = sheet_data.get("character_spells") {
-        if let Ok(spells) =
-            serde_json::from_value::<wrldbldr_domain::CharacterSpells>(spells_json.clone())
-        {
-            // Add cantrips
-            known_spells.extend(spells.cantrips.iter().map(|s| s.to_lowercase()));
-            // Add known spells
-            known_spells.extend(spells.known.iter().map(|s| s.spell_id.to_lowercase()));
-        }
-    }
-
-    // Extract from structured CharacterFeats if present
-    if let Some(feats_json) = sheet_data.get("character_feats") {
-        if let Ok(feats) =
-            serde_json::from_value::<wrldbldr_domain::CharacterFeats>(feats_json.clone())
-        {
-            character_feats.extend(feats.feats.iter().map(|f| f.feat_id.to_lowercase()));
-        }
+    let feats_key = sheet_data
+        .get("FEATS")
+        .and_then(|value| value.as_str())
+        .unwrap_or_default();
+    if !feats_key.is_empty() {
+        character_feats.extend(
+            feats_key
+                .split(',')
+                .map(|feat| feat.trim().to_lowercase())
+                .filter(|feat| !feat.is_empty()),
+        );
     }
 
     (origin_id, class_levels, known_spells, character_feats)

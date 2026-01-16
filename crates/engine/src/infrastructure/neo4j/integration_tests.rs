@@ -106,13 +106,13 @@ async fn narrative_triggers_fallback_is_bounded_to_500() {
             NarrativeEventName::new(format!("Event {i}")).unwrap(),
             now,
         )
-            .with_description("test")
-            .with_trigger_conditions(vec![trigger.clone()])
-            .with_trigger_logic(TriggerLogic::All)
-            .with_scene_direction("sd")
-            .with_outcomes(vec![outcome.clone()])
-            .with_default_outcome("default")
-            .with_priority(i as i32);
+        .with_description("test")
+        .with_trigger_conditions(vec![trigger.clone()])
+        .with_trigger_logic(TriggerLogic::All)
+        .with_scene_direction("sd")
+        .with_outcomes(vec![outcome.clone()])
+        .with_default_outcome("default")
+        .with_priority(i as i32);
 
         repo.save_event(&event).await.expect("save event");
     }

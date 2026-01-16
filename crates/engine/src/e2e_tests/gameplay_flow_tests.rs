@@ -167,14 +167,10 @@ async fn test_start_conversation_with_staged_npc() {
     let test_result = async {
         // Create player character
         let common_room = ctx.world.region("Common Room").expect("Region not found");
-        let (player_id, pc_id) = create_test_player(
-            ctx.graph(),
-            ctx.world.world_id,
-            common_room,
-            "Test Hero",
-        )
-        .await
-        .expect("Failed to create test player");
+        let (player_id, pc_id) =
+            create_test_player(ctx.graph(), ctx.world.world_id, common_room, "Test Hero")
+                .await
+                .expect("Failed to create test player");
 
         // Stage Marta in the Common Room
         let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");

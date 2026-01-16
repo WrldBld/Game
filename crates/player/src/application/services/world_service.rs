@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
+use crate::application::dto::CharacterSheetSchema;
 use crate::infrastructure::messaging::CommandBus;
 use crate::ports::outbound::{ApiError, RawApiPort};
 use wrldbldr_protocol::ErrorCode;
@@ -142,7 +143,7 @@ impl WorldService {
     pub async fn get_sheet_template(
         &self,
         world_id: &str,
-    ) -> Result<serde_json::Value, ServiceError> {
+    ) -> Result<CharacterSheetSchema, ServiceError> {
         let result = self
             .commands
             .request_with_timeout(

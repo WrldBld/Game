@@ -72,7 +72,10 @@ impl SkillCrud {
         attribute: Option<String>,
         is_hidden: Option<bool>,
     ) -> Result<wrldbldr_domain::Skill, ManagementError> {
-        let mut skill = self.content.get_skill(skill_id).await?
+        let mut skill = self
+            .content
+            .get_skill(skill_id)
+            .await?
             .ok_or(ManagementError::NotFound)?;
 
         if let Some(name) = name {

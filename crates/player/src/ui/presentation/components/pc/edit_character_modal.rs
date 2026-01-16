@@ -1,13 +1,14 @@
 //! Edit Character Modal - Edit player character information
 
 use dioxus::prelude::*;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::application::dto::CharacterSheetSchema;
 use crate::application::services::{PlayerCharacterData, UpdatePlayerCharacterRequest};
 use crate::infrastructure::spawn_task;
 use crate::presentation::components::schema_character_sheet::SchemaCharacterSheet;
 use crate::presentation::services::{use_player_character_service, use_world_service};
+use wrldbldr_protocol::character_sheet::{CharacterSheetValues, SheetValue};
 
 /// Props for EditCharacterModal
 #[derive(Props, Clone, PartialEq)]
@@ -27,12 +28,17 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
     let mut name = use_signal(|| props.pc.name.clone());
     let mut description = use_signal(|| props.pc.description.clone().unwrap_or_default());
     let mut sheet_schema: Signal<Option<CharacterSheetSchema>> = use_signal(|| None);
-    let sheet_values: Signal<HashMap<String, serde_json::Value>> = use_signal(|| {
+    let sheet_values: Signal<HashMap<String, SheetValue>> = use_signal(|| {
         props
             .pc
             .sheet_data
             .as_ref()
-            .map(|s| s.values.clone())
+            .map(|s| {
+                s.values
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect()
+            })
             .unwrap_or_default()
     });
     let mut is_saving = use_signal(|| false);
@@ -47,10 +53,8 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
             let svc = world_svc.clone();
             let world_id_clone = world_id.clone();
             spawn_task(async move {
-                if let Ok(schema_json) = svc.get_sheet_template(&world_id_clone).await {
-                    if let Ok(schema) = serde_json::from_value::<CharacterSheetSchema>(schema_json) {
-                        sheet_schema.set(Some(schema));
-                    }
+                if let Ok(schema) = svc.get_sheet_template(&world_id_clone).await {
+                    sheet_schema.set(Some(schema));
                 }
                 loading.set(false);
             });
@@ -75,11 +79,13 @@ pub fn EditCharacterModal(props: EditCharacterModalProps) -> Element {
         error_message.set(None);
 
         spawn_task(async move {
-            // Convert sheet values map to JSON value for API
             let sheet_data = if sheet_vals.is_empty() {
                 None
             } else {
-                Some(serde_json::json!({ "values": sheet_vals }))
+                Some(CharacterSheetValues {
+                    values: sheet_vals.into_iter().collect::<BTreeMap<_, _>>(),
+                    last_updated: None,
+                })
             };
 
             let request = UpdatePlayerCharacterRequest {

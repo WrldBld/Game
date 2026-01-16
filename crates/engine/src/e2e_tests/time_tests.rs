@@ -185,8 +185,7 @@ async fn test_time_reached_trigger() {
     let event_id = Uuid::new_v4();
 
     // Create event with TimeReached trigger
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -210,8 +209,7 @@ async fn test_time_reached_trigger() {
 
     // Create TimeReached trigger
     let trigger_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id})
@@ -260,8 +258,7 @@ async fn test_time_at_location_trigger() {
         .expect("Location should exist");
 
     // Create event with TimeAtLocation trigger
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -285,8 +282,7 @@ async fn test_time_at_location_trigger() {
 
     // Create TimeAtLocation trigger
     let trigger_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id})

@@ -29,9 +29,7 @@ pub(super) async fn handle_join_world(
 
     let pc_id_typed = pc_id.map(PlayerCharacterId::from_uuid);
     let session = crate::repositories::WorldSession::new(state.connections.clone());
-    let ctx = crate::use_cases::session::JoinWorldContext {
-        session: &session,
-    };
+    let ctx = crate::use_cases::session::JoinWorldContext { session: &session };
     let input = crate::use_cases::session::JoinWorldInput::from_protocol(
         connection_id,
         world_id_typed,

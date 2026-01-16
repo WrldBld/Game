@@ -2,10 +2,10 @@
 //!
 //! Handles NarrativeEvents, EventChains, and StoryEvents.
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
 use chrono::{DateTime, Timelike, Utc};
 use neo4rs::{query, Node, Row};
-use crate::infrastructure::neo4j::Neo4jGraph;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use wrldbldr_domain::*;
@@ -1812,7 +1812,7 @@ enum StoredStoryEventType {
         event_subtype: String,
         title: String,
         description: String,
-        data: serde_json::Value,
+        data: Option<String>,
     },
 }
 

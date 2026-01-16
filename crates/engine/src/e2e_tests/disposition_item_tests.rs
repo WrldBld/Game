@@ -145,14 +145,10 @@ async fn test_hostile_disposition_in_prompt() {
             .await
             .expect("Failed to stage NPC");
 
-        let (player_id, pc_id) = create_test_player(
-            ctx.graph(),
-            ctx.world.world_id,
-            forge,
-            "Cautious Visitor",
-        )
-        .await
-        .expect("Failed to create player");
+        let (player_id, pc_id) =
+            create_test_player(ctx.graph(), ctx.world.world_id, forge, "Cautious Visitor")
+                .await
+                .expect("Failed to create player");
 
         // Start conversation
         let started = ctx
@@ -408,14 +404,10 @@ async fn test_grateful_npc_offers_item() {
             .await
             .expect("Failed to stage NPC");
 
-        let (player_id, pc_id) = create_test_player(
-            ctx.graph(),
-            ctx.world.world_id,
-            common_room,
-            "Needy Hero",
-        )
-        .await
-        .expect("Failed to create player");
+        let (player_id, pc_id) =
+            create_test_player(ctx.graph(), ctx.world.world_id, common_room, "Needy Hero")
+                .await
+                .expect("Failed to create player");
 
         // Ask for help - a friendly NPC might offer an item
         let (_conversation_id, response) = start_conversation_with_npc(
@@ -481,14 +473,10 @@ async fn test_hostile_npc_refuses_help() {
             .await
             .expect("Failed to stage NPC");
 
-        let (player_id, pc_id) = create_test_player(
-            ctx.graph(),
-            ctx.world.world_id,
-            forge,
-            "Unwelcome Visitor",
-        )
-        .await
-        .expect("Failed to create player");
+        let (player_id, pc_id) =
+            create_test_player(ctx.graph(), ctx.world.world_id, forge, "Unwelcome Visitor")
+                .await
+                .expect("Failed to create player");
 
         // Ask for help from unfriendly NPC
         let (_conversation_id, response) = start_conversation_with_npc(
@@ -773,14 +761,10 @@ async fn test_secret_motivation_deflection() {
             .await
             .expect("Failed to stage NPC");
 
-        let (player_id, pc_id) = create_test_player(
-            ctx.graph(),
-            ctx.world.world_id,
-            common_room,
-            "Nosy Visitor",
-        )
-        .await
-        .expect("Failed to create player");
+        let (player_id, pc_id) =
+            create_test_player(ctx.graph(), ctx.world.world_id, common_room, "Nosy Visitor")
+                .await
+                .expect("Failed to create player");
 
         // Ask about something that might touch on secret motivations
         let (_conversation_id, response) = start_conversation_with_npc(

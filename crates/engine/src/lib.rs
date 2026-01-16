@@ -12,8 +12,10 @@
 
 pub mod api;
 pub mod app;
+pub mod game_tools;
 pub mod infrastructure;
 pub mod llm_context;
+pub mod prompt_templates;
 pub mod queue_types;
 pub mod repositories;
 pub mod use_cases;
@@ -27,3 +29,7 @@ pub mod test_fixtures;
 pub mod e2e_tests;
 
 pub use app::App;
+pub use prompt_templates::{
+    all_keys as prompt_template_keys, defaults as prompt_defaults, prompt_template_metadata,
+    PromptTemplateCategory, PromptTemplateMetadata,
+};

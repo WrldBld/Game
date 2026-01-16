@@ -2,9 +2,9 @@
 //!
 //! Handles item persistence in the game world.
 
-use async_trait::async_trait;
-use neo4rs::{query};
 use crate::infrastructure::neo4j::Neo4jGraph;
+use async_trait::async_trait;
+use neo4rs::query;
 use wrldbldr_domain::*;
 
 use super::helpers::row_to_item;

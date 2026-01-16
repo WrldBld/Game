@@ -8,14 +8,16 @@
 //! - Multiple Attack Penalty (MAP)
 //! - Conditions have numeric values
 
+use std::collections::HashMap;
+
 use super::traits::{
     AllocationSystem, BoostSource, CalculationEngine, CasterType, CharacterSheetProvider,
-    CharacterSheetSchema, CreationStep, DerivedField, DerivationType, FieldDefinition, FieldLayout,
+    CharacterSheetSchema, CreationStep, DerivationType, DerivedField, FieldDefinition, FieldLayout,
     FieldValidation, GameSystem, ProficiencyLevel, ProficiencyOption, ResourceColor,
-    SchemaFieldType, SchemaSection, SchemaSelectOption, SectionType, SpellcastingSystem,
+    SchemaFieldType, SchemaSection, SchemaSelectOption, SectionType, SheetValue,
+    SpellcastingSystem,
 };
-use crate::entities::{StatBlock, StatModifier};
-use std::collections::HashMap;
+use wrldbldr_domain::value_objects::{StatBlock, StatModifier};
 
 /// Pathfinder 2e proficiency ranks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -100,7 +102,13 @@ impl DegreeOfSuccess {
 }
 
 /// Determine success level for a PF2e roll.
-pub fn determine_success(roll: i32, modifier: i32, dc: i32, is_nat_20: bool, is_nat_1: bool) -> DegreeOfSuccess {
+pub fn determine_success(
+    roll: i32,
+    modifier: i32,
+    dc: i32,
+    is_nat_20: bool,
+    is_nat_1: bool,
+) -> DegreeOfSuccess {
     let total = roll + modifier;
     let diff = total - dc;
 
@@ -319,12 +327,7 @@ impl CalculationEngine for Pf2eSystem {
         ability_mod + prof
     }
 
-    fn saving_throw_modifier(
-        &self,
-        stats: &StatBlock,
-        ability: &str,
-        proficient: bool,
-    ) -> i32 {
+    fn saving_throw_modifier(&self, stats: &StatBlock, ability: &str, proficient: bool) -> i32 {
         let stat_value = stats.get_stat(ability).unwrap_or(10);
         let ability_mod = self.ability_modifier(stat_value);
         let level = stats.get_stat("LEVEL").unwrap_or(1) as u8;
@@ -352,8 +355,8 @@ impl CalculationEngine for Pf2eSystem {
         // PF2e hit points per level (not dice, but fixed values)
         match class_name.to_lowercase().as_str() {
             "wizard" | "sorcerer" => 6,
-            "alchemist" | "bard" | "cleric" | "druid" | "investigator"
-            | "oracle" | "rogue" | "swashbuckler" | "witch" => 8,
+            "alchemist" | "bard" | "cleric" | "druid" | "investigator" | "oracle" | "rogue"
+            | "swashbuckler" | "witch" => 8,
             "barbarian" | "champion" | "fighter" | "magus" | "monk" | "ranger" => 10,
             _ => 8, // Default
         }
@@ -480,41 +483,36 @@ impl CharacterSheetProvider for Pf2eSystem {
                 CreationStep {
                     id: "basic_info".to_string(),
                     label: "Basic Info".to_string(),
-                    description: "Choose your character's ancestry, class, and background."
-                        .to_string(),
-                    section_ids: vec!["identity".to_string()],
-                    order: 1,
-                    required: true,
-                    allocation: None,
+                    description: Some(
+                        "Choose your character's ancestry, class, and background.".to_string(),
+                    ),
+                    sections: vec!["identity".to_string()],
+                    optional: false,
                 },
                 CreationStep {
                     id: "ability_boosts".to_string(),
                     label: "Ability Boosts".to_string(),
-                    description: "Apply ability boosts from ancestry, background, and class."
-                        .to_string(),
-                    section_ids: vec!["ability_scores".to_string()],
-                    order: 2,
-                    required: true,
-                    allocation: Some(Self::boost_flaw_allocation()),
+                    description: Some(
+                        "Apply ability boosts from ancestry, background, and class.".to_string(),
+                    ),
+                    sections: vec!["ability_scores".to_string()],
+                    optional: false,
                 },
                 CreationStep {
                     id: "skills".to_string(),
                     label: "Skills".to_string(),
-                    description: "Choose your skill training from class and background."
-                        .to_string(),
-                    section_ids: vec!["skills".to_string()],
-                    order: 3,
-                    required: true,
-                    allocation: None,
+                    description: Some(
+                        "Choose your skill training from class and background.".to_string(),
+                    ),
+                    sections: vec!["skills".to_string()],
+                    optional: false,
                 },
                 CreationStep {
                     id: "equipment".to_string(),
                     label: "Equipment".to_string(),
-                    description: "Select starting equipment and gear.".to_string(),
-                    section_ids: vec!["combat".to_string()],
-                    order: 4,
-                    required: false,
-                    allocation: None,
+                    description: Some("Select starting equipment and gear.".to_string()),
+                    sections: vec!["combat".to_string()],
+                    optional: true,
                 },
             ],
         }
@@ -522,21 +520,21 @@ impl CharacterSheetProvider for Pf2eSystem {
 
     fn calculate_derived_values(
         &self,
-        values: &HashMap<String, serde_json::Value>,
-    ) -> HashMap<String, serde_json::Value> {
+        values: &HashMap<String, SheetValue>,
+    ) -> HashMap<String, SheetValue> {
         let mut derived = HashMap::new();
 
         // Get level (default to 1)
         let level = values
             .get("LEVEL")
-            .and_then(|v| v.as_i64())
+            .and_then(SheetValue::as_u64)
             .unwrap_or(1) as u8;
 
         // Calculate ability modifiers
         for ability in &["STR", "DEX", "CON", "INT", "WIS", "CHA"] {
-            if let Some(score) = values.get(*ability).and_then(|v| v.as_i64()) {
+            if let Some(score) = values.get(*ability).and_then(SheetValue::as_u64) {
                 let modifier = self.ability_modifier(score as i32);
-                derived.insert(format!("{}_MOD", ability), serde_json::json!(modifier));
+                derived.insert(format!("{}_MOD", ability), SheetValue::Integer(modifier));
             }
         }
 
@@ -545,13 +543,13 @@ impl CharacterSheetProvider for Pf2eSystem {
             let ability = skill_ability(skill);
             let ability_mod = derived
                 .get(&format!("{}_MOD", ability))
-                .and_then(|v| v.as_i64())
+                .and_then(SheetValue::as_i64)
                 .unwrap_or(0) as i32;
 
             let skill_id = skill.to_uppercase().replace(' ', "_");
             let proficiency_rank = values
                 .get(&format!("{}_RANK", skill_id))
-                .and_then(|v| v.as_str())
+                .and_then(SheetValue::as_str)
                 .unwrap_or("untrained");
 
             let rank = match proficiency_rank {
@@ -564,7 +562,7 @@ impl CharacterSheetProvider for Pf2eSystem {
 
             let prof_bonus = rank.proficiency_bonus(level);
             let skill_mod = ability_mod + prof_bonus;
-            derived.insert(format!("{}_MOD", skill_id), serde_json::json!(skill_mod));
+            derived.insert(format!("{}_MOD", skill_id), SheetValue::Integer(skill_mod));
         }
 
         // Calculate saving throw modifiers
@@ -572,12 +570,12 @@ impl CharacterSheetProvider for Pf2eSystem {
         for (save, ability) in &save_abilities {
             let ability_mod = derived
                 .get(&format!("{}_MOD", ability))
-                .and_then(|v| v.as_i64())
+                .and_then(SheetValue::as_i64)
                 .unwrap_or(0) as i32;
 
             let proficiency_rank = values
                 .get(&format!("{}_RANK", save))
-                .and_then(|v| v.as_str())
+                .and_then(SheetValue::as_str)
                 .unwrap_or("trained");
 
             let rank = match proficiency_rank {
@@ -590,17 +588,17 @@ impl CharacterSheetProvider for Pf2eSystem {
 
             let prof_bonus = rank.proficiency_bonus(level);
             let save_mod = ability_mod + prof_bonus;
-            derived.insert(format!("{}_MOD", save), serde_json::json!(save_mod));
+            derived.insert(format!("{}_MOD", save), SheetValue::Integer(save_mod));
         }
 
         // Calculate Perception
         let wis_mod = derived
             .get("WIS_MOD")
-            .and_then(|v| v.as_i64())
+            .and_then(SheetValue::as_i64)
             .unwrap_or(0) as i32;
         let perception_rank = values
             .get("PERCEPTION_RANK")
-            .and_then(|v| v.as_str())
+            .and_then(SheetValue::as_str)
             .unwrap_or("trained");
         let perception_prof_rank = match perception_rank {
             "legendary" => Pf2eProficiencyRank::Legendary,
@@ -611,16 +609,19 @@ impl CharacterSheetProvider for Pf2eSystem {
         };
         let perception_bonus = perception_prof_rank.proficiency_bonus(level);
         let perception_mod = wis_mod + perception_bonus;
-        derived.insert("PERCEPTION_MOD".to_string(), serde_json::json!(perception_mod));
+        derived.insert(
+            "PERCEPTION_MOD".to_string(),
+            SheetValue::Integer(perception_mod),
+        );
 
         // Calculate AC: 10 + DEX + proficiency + armor bonus
         let dex_mod = derived
             .get("DEX_MOD")
-            .and_then(|v| v.as_i64())
+            .and_then(SheetValue::as_i64)
             .unwrap_or(0) as i32;
         let armor_rank = values
             .get("ARMOR_RANK")
-            .and_then(|v| v.as_str())
+            .and_then(SheetValue::as_str)
             .unwrap_or("trained");
         let armor_prof_rank = match armor_rank {
             "legendary" => Pf2eProficiencyRank::Legendary,
@@ -632,39 +633,39 @@ impl CharacterSheetProvider for Pf2eSystem {
         let armor_prof_bonus = armor_prof_rank.proficiency_bonus(level);
         let armor_item_bonus = values
             .get("ARMOR_BONUS")
-            .and_then(|v| v.as_i64())
+            .and_then(SheetValue::as_i64)
             .unwrap_or(0) as i32;
         let dex_cap = values
             .get("DEX_CAP")
-            .and_then(|v| v.as_i64())
+            .and_then(SheetValue::as_i64)
             .map(|v| v as i32);
         let effective_dex = match dex_cap {
             Some(cap) => dex_mod.min(cap),
             None => dex_mod,
         };
         let ac = 10 + effective_dex + armor_prof_bonus + armor_item_bonus;
-        derived.insert("AC".to_string(), serde_json::json!(ac));
+        derived.insert("AC".to_string(), SheetValue::Integer(ac));
 
         // Calculate Max HP: Ancestry HP + (Class HP + CON) per level
         let con_mod = derived
             .get("CON_MOD")
-            .and_then(|v| v.as_i64())
+            .and_then(SheetValue::as_i64)
             .unwrap_or(0) as i32;
         let ancestry_hp = values
             .get("ANCESTRY_HP")
-            .and_then(|v| v.as_i64())
+            .and_then(SheetValue::as_i64)
             .unwrap_or(8) as i32;
         let class_hp = values
             .get("CLASS_HP")
-            .and_then(|v| v.as_i64())
+            .and_then(SheetValue::as_i64)
             .unwrap_or(8) as i32;
         let max_hp = ancestry_hp + (class_hp + con_mod) * level as i32;
-        derived.insert("MAX_HP".to_string(), serde_json::json!(max_hp.max(1)));
+        derived.insert("MAX_HP".to_string(), SheetValue::Integer(max_hp.max(1)));
 
         // Calculate XP to next level (PF2e uses 1000 XP per level)
         let xp_current = values
             .get("XP_CURRENT")
-            .and_then(|v| v.as_i64())
+            .and_then(SheetValue::as_i64)
             .unwrap_or(0) as i32;
         // XP_NEXT_LEVEL = 1000 - (XP_CURRENT % 1000), but always show 1000 if at 0
         let xp_remaining = if xp_current == 0 {
@@ -672,7 +673,10 @@ impl CharacterSheetProvider for Pf2eSystem {
         } else {
             1000 - (xp_current % 1000)
         };
-        derived.insert("XP_NEXT_LEVEL".to_string(), serde_json::json!(xp_remaining));
+        derived.insert(
+            "XP_NEXT_LEVEL".to_string(),
+            SheetValue::Integer(xp_remaining),
+        );
 
         derived
     }
@@ -680,13 +684,13 @@ impl CharacterSheetProvider for Pf2eSystem {
     fn validate_field(
         &self,
         field_id: &str,
-        value: &serde_json::Value,
-        _all_values: &HashMap<String, serde_json::Value>,
+        value: &SheetValue,
+        _all_values: &HashMap<String, SheetValue>,
     ) -> Option<String> {
         match field_id {
             "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA" => {
                 if let Some(score) = value.as_i64() {
-                    if !(1..=30).contains(&score) {
+                    if !(1..=30).contains(&(score as i32)) {
                         return Some("Ability scores must be between 1 and 30".to_string());
                     }
                 } else {
@@ -695,7 +699,7 @@ impl CharacterSheetProvider for Pf2eSystem {
             }
             "LEVEL" => {
                 if let Some(level) = value.as_i64() {
-                    if !(1..=20).contains(&level) {
+                    if !(1..=20).contains(&(level as i32)) {
                         return Some("Level must be between 1 and 20".to_string());
                     }
                 } else {
@@ -713,7 +717,7 @@ impl CharacterSheetProvider for Pf2eSystem {
             }
             "HERO_POINTS" => {
                 if let Some(points) = value.as_i64() {
-                    if !(0..=3).contains(&points) {
+                    if !(0..=3).contains(&(points as i32)) {
                         return Some("Hero Points must be between 0 and 3".to_string());
                     }
                 } else {
@@ -725,21 +729,21 @@ impl CharacterSheetProvider for Pf2eSystem {
         None
     }
 
-    fn default_values(&self) -> HashMap<String, serde_json::Value> {
+    fn default_values(&self) -> HashMap<String, SheetValue> {
         let mut defaults = HashMap::new();
-        defaults.insert("LEVEL".to_string(), serde_json::json!(1));
-        defaults.insert("STR".to_string(), serde_json::json!(10));
-        defaults.insert("DEX".to_string(), serde_json::json!(10));
-        defaults.insert("CON".to_string(), serde_json::json!(10));
-        defaults.insert("INT".to_string(), serde_json::json!(10));
-        defaults.insert("WIS".to_string(), serde_json::json!(10));
-        defaults.insert("CHA".to_string(), serde_json::json!(10));
-        defaults.insert("CURRENT_HP".to_string(), serde_json::json!(0));
-        defaults.insert("HERO_POINTS".to_string(), serde_json::json!(1));
-        defaults.insert("SPEED".to_string(), serde_json::json!(25));
-        defaults.insert("ANCESTRY_HP".to_string(), serde_json::json!(8));
-        defaults.insert("CLASS_HP".to_string(), serde_json::json!(8));
-        defaults.insert("XP_CURRENT".to_string(), serde_json::json!(0));
+        defaults.insert("LEVEL".to_string(), SheetValue::Integer(1));
+        defaults.insert("STR".to_string(), SheetValue::Integer(10));
+        defaults.insert("DEX".to_string(), SheetValue::Integer(10));
+        defaults.insert("CON".to_string(), SheetValue::Integer(10));
+        defaults.insert("INT".to_string(), SheetValue::Integer(10));
+        defaults.insert("WIS".to_string(), SheetValue::Integer(10));
+        defaults.insert("CHA".to_string(), SheetValue::Integer(10));
+        defaults.insert("CURRENT_HP".to_string(), SheetValue::Integer(0));
+        defaults.insert("HERO_POINTS".to_string(), SheetValue::Integer(1));
+        defaults.insert("SPEED".to_string(), SheetValue::Integer(25));
+        defaults.insert("ANCESTRY_HP".to_string(), SheetValue::Integer(8));
+        defaults.insert("CLASS_HP".to_string(), SheetValue::Integer(8));
+        defaults.insert("XP_CURRENT".to_string(), SheetValue::Integer(0));
         defaults
     }
 }
@@ -760,43 +764,25 @@ impl Pf2eSystem {
         AllocationSystem::BoostFlaw {
             boost_sources: vec![
                 BoostSource {
-                    id: "ancestry".to_string(),
-                    label: "Ancestry (2 boosts, typically predetermined)".to_string(),
-                    free_boosts: 2,
-                    fixed_boosts: vec![], // Set based on ancestry choice
-                    flaws: 0,
-                    fixed_flaws: vec![],
-                    applied: false,
+                    source_type: "ancestry".to_string(),
+                    boosts: vec![],
                 },
                 BoostSource {
-                    id: "background".to_string(),
-                    label: "Background (2 boosts, limited choices)".to_string(),
-                    free_boosts: 2,
-                    fixed_boosts: vec![], // Set based on background choice
-                    flaws: 0,
-                    fixed_flaws: vec![],
-                    applied: false,
+                    source_type: "background".to_string(),
+                    boosts: vec![],
                 },
                 BoostSource {
-                    id: "class".to_string(),
-                    label: "Class (1 boost to key ability)".to_string(),
-                    free_boosts: 1,
-                    fixed_boosts: vec![], // Set based on class choice
-                    flaws: 0,
-                    fixed_flaws: vec![],
-                    applied: false,
+                    source_type: "class".to_string(),
+                    boosts: vec![],
                 },
                 BoostSource {
-                    id: "free".to_string(),
-                    label: "Free Boosts (4 boosts, any unique abilities)".to_string(),
-                    free_boosts: 4,
-                    fixed_boosts: vec![],
-                    flaws: 0,
-                    fixed_flaws: vec![],
-                    applied: false,
+                    source_type: "free".to_string(),
+                    boosts: vec![],
                 },
             ],
             optional_flaws: true,
+            base_value: 10,
+            max_value: 18,
             target_fields: vec![
                 "STR".to_string(),
                 "DEX".to_string(),
@@ -805,8 +791,6 @@ impl Pf2eSystem {
                 "WIS".to_string(),
                 "CHA".to_string(),
             ],
-            base_value: 10,
-            max_value: 18,
         }
     }
 
@@ -828,7 +812,7 @@ impl Pf2eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: None,
@@ -849,10 +833,10 @@ impl Pf2eSystem {
                         min: Some(1),
                         max: Some(20),
                         pattern: None,
-                        error_message: Some("Level must be 1-20".to_string()),
+                        message: Some("Level must be 1-20".to_string()),
                     }),
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: None,
@@ -911,8 +895,7 @@ impl Pf2eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
-                        new_row: true,
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: None,
@@ -930,7 +913,7 @@ impl Pf2eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: Some("Your ancestry's specific lineage".to_string()),
@@ -1034,8 +1017,7 @@ impl Pf2eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
-                        new_row: true,
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: None,
@@ -1154,7 +1136,7 @@ impl Pf2eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: None,
@@ -1194,10 +1176,10 @@ impl Pf2eSystem {
                     min: Some(1),
                     max: Some(30),
                     pattern: None,
-                    error_message: Some("Ability scores must be 1-30".to_string()),
+                    message: Some("Ability scores must be 1-30".to_string()),
                 }),
                 layout: FieldLayout {
-                    width: Some(2),
+                    column_span: 2,
                     ..Default::default()
                 },
                 description: Some(description.to_string()),
@@ -1284,7 +1266,7 @@ impl Pf2eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(6),
+                        column_span: 6,
                         ..Default::default()
                     },
                     description: Some(format!("Based on {}", ability)),
@@ -1356,7 +1338,7 @@ impl Pf2eSystem {
                 derived_from: None,
                 validation: None,
                 layout: FieldLayout {
-                    width: Some(4),
+                    column_span: 4,
                     ..Default::default()
                 },
                 description: Some(description.to_string()),
@@ -1423,7 +1405,7 @@ impl Pf2eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: None,
@@ -1451,7 +1433,7 @@ impl Pf2eSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Ancestry HP + (Class HP + CON) per level".to_string()),
@@ -1472,10 +1454,10 @@ impl Pf2eSystem {
                         min: Some(6),
                         max: Some(12),
                         pattern: None,
-                        error_message: Some("Ancestry HP is typically 6-12".to_string()),
+                        message: Some("Ancestry HP is typically 6-12".to_string()),
                     }),
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("HP from your ancestry".to_string()),
@@ -1496,10 +1478,10 @@ impl Pf2eSystem {
                         min: Some(6),
                         max: Some(12),
                         pattern: None,
-                        error_message: Some("Class HP is typically 6-12".to_string()),
+                        message: Some("Class HP is typically 6-12".to_string()),
                     }),
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("HP per level from your class".to_string()),
@@ -1527,8 +1509,7 @@ impl Pf2eSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
-                        new_row: true,
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("10 + DEX + proficiency + armor".to_string()),
@@ -1546,7 +1527,7 @@ impl Pf2eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: Some("Your armor proficiency rank".to_string()),
@@ -1565,7 +1546,7 @@ impl Pf2eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Item bonus from armor".to_string()),
@@ -1584,7 +1565,7 @@ impl Pf2eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Max DEX bonus from armor".to_string()),
@@ -1603,8 +1584,7 @@ impl Pf2eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
-                        new_row: true,
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("Movement speed in feet".to_string()),
@@ -1622,7 +1602,7 @@ impl Pf2eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: Some("Based on WIS with proficiency".to_string()),
@@ -1649,7 +1629,7 @@ impl Pf2eSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some("WIS mod + proficiency".to_string()),
@@ -1683,10 +1663,10 @@ impl Pf2eSystem {
                         min: Some(0),
                         max: Some(3),
                         pattern: None,
-                        error_message: Some("Hero Points must be 0-3".to_string()),
+                        message: Some("Hero Points must be 0-3".to_string()),
                     }),
                     layout: FieldLayout {
-                        width: Some(2),
+                        column_span: 2,
                         ..Default::default()
                     },
                     description: Some(
@@ -1709,15 +1689,15 @@ impl Pf2eSystem {
                         min: Some(0),
                         max: None,
                         pattern: None,
-                        error_message: Some("XP cannot be negative".to_string()),
+                        message: Some("XP cannot be negative".to_string()),
                     }),
                     layout: FieldLayout {
-                        width: Some(4),
-                        new_row: true,
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: Some(
-                        "Current XP toward next level. In PF2e, you need 1000 XP to level up.".to_string(),
+                        "Current XP toward next level. In PF2e, you need 1000 XP to level up."
+                            .to_string(),
                     ),
                     placeholder: None,
                 },
@@ -1738,7 +1718,7 @@ impl Pf2eSystem {
                     }),
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(4),
+                        column_span: 4,
                         ..Default::default()
                     },
                     description: Some(
@@ -1749,7 +1729,9 @@ impl Pf2eSystem {
             ],
             collapsible: true,
             collapsed_default: false,
-            description: Some("Hero Points, experience points, and other trackable resources".to_string()),
+            description: Some(
+                "Hero Points, experience points, and other trackable resources".to_string(),
+            ),
         }
     }
 
@@ -1768,7 +1750,7 @@ impl Pf2eSystem {
                     derived_from: None,
                     validation: None,
                     layout: FieldLayout {
-                        width: Some(12),
+                        column_span: 12,
                         ..Default::default()
                     },
                     description: Some(
@@ -1800,8 +1782,20 @@ pub fn skill_ability(skill: &str) -> &'static str {
 pub fn multiple_attack_penalty(attack_number: u8, is_agile: bool) -> i32 {
     match attack_number {
         0 | 1 => 0,
-        2 => if is_agile { -4 } else { -5 },
-        _ => if is_agile { -8 } else { -10 },
+        2 => {
+            if is_agile {
+                -4
+            } else {
+                -5
+            }
+        }
+        _ => {
+            if is_agile {
+                -8
+            } else {
+                -10
+            }
+        }
     }
 }
 
@@ -1940,137 +1934,170 @@ mod tests {
     fn calculate_derived_values_ability_modifiers() {
         let system = Pf2eSystem::new();
         let mut values = HashMap::new();
-        values.insert("LEVEL".to_string(), serde_json::json!(1));
-        values.insert("STR".to_string(), serde_json::json!(18)); // +4 mod
-        values.insert("DEX".to_string(), serde_json::json!(14)); // +2 mod
-        values.insert("CON".to_string(), serde_json::json!(12)); // +1 mod
-        values.insert("INT".to_string(), serde_json::json!(10)); // +0 mod
-        values.insert("WIS".to_string(), serde_json::json!(16)); // +3 mod
-        values.insert("CHA".to_string(), serde_json::json!(8));  // -1 mod
+        values.insert("LEVEL".to_string(), SheetValue::Integer(1));
+        values.insert("STR".to_string(), SheetValue::Integer(18)); // +4 mod
+        values.insert("DEX".to_string(), SheetValue::Integer(14)); // +2 mod
+        values.insert("CON".to_string(), SheetValue::Integer(12)); // +1 mod
+        values.insert("INT".to_string(), SheetValue::Integer(10)); // +0 mod
+        values.insert("WIS".to_string(), SheetValue::Integer(16)); // +3 mod
+        values.insert("CHA".to_string(), SheetValue::Integer(8)); // -1 mod
 
         let derived = system.calculate_derived_values(&values);
 
-        assert_eq!(derived.get("STR_MOD").unwrap(), &serde_json::json!(4));
-        assert_eq!(derived.get("DEX_MOD").unwrap(), &serde_json::json!(2));
-        assert_eq!(derived.get("CON_MOD").unwrap(), &serde_json::json!(1));
-        assert_eq!(derived.get("INT_MOD").unwrap(), &serde_json::json!(0));
-        assert_eq!(derived.get("WIS_MOD").unwrap(), &serde_json::json!(3));
-        assert_eq!(derived.get("CHA_MOD").unwrap(), &serde_json::json!(-1));
+        assert_eq!(derived.get("STR_MOD").unwrap(), &SheetValue::Integer(4));
+        assert_eq!(derived.get("DEX_MOD").unwrap(), &SheetValue::Integer(2));
+        assert_eq!(derived.get("CON_MOD").unwrap(), &SheetValue::Integer(1));
+        assert_eq!(derived.get("INT_MOD").unwrap(), &SheetValue::Integer(0));
+        assert_eq!(derived.get("WIS_MOD").unwrap(), &SheetValue::Integer(3));
+        assert_eq!(derived.get("CHA_MOD").unwrap(), &SheetValue::Integer(-1));
     }
 
     #[test]
     fn calculate_derived_values_skill_modifiers_with_proficiency() {
         let system = Pf2eSystem::new();
         let mut values = HashMap::new();
-        values.insert("LEVEL".to_string(), serde_json::json!(5));
-        values.insert("STR".to_string(), serde_json::json!(16)); // +3 mod
-        values.insert("DEX".to_string(), serde_json::json!(14)); // +2 mod
-        values.insert("CON".to_string(), serde_json::json!(10));
-        values.insert("INT".to_string(), serde_json::json!(10));
-        values.insert("WIS".to_string(), serde_json::json!(10));
-        values.insert("CHA".to_string(), serde_json::json!(10));
-        values.insert("ATHLETICS_RANK".to_string(), serde_json::json!("trained"));
-        values.insert("ACROBATICS_RANK".to_string(), serde_json::json!("expert"));
-        values.insert("STEALTH_RANK".to_string(), serde_json::json!("untrained"));
+        values.insert("LEVEL".to_string(), SheetValue::Integer(5));
+        values.insert("STR".to_string(), SheetValue::Integer(16)); // +3 mod
+        values.insert("DEX".to_string(), SheetValue::Integer(14)); // +2 mod
+        values.insert("CON".to_string(), SheetValue::Integer(10));
+        values.insert("INT".to_string(), SheetValue::Integer(10));
+        values.insert("WIS".to_string(), SheetValue::Integer(10));
+        values.insert("CHA".to_string(), SheetValue::Integer(10));
+        values.insert(
+            "ATHLETICS_RANK".to_string(),
+            SheetValue::String("trained".to_string()),
+        );
+        values.insert(
+            "ACROBATICS_RANK".to_string(),
+            SheetValue::String("expert".to_string()),
+        );
+        values.insert(
+            "STEALTH_RANK".to_string(),
+            SheetValue::String("untrained".to_string()),
+        );
 
         let derived = system.calculate_derived_values(&values);
 
         // Athletics: STR (+3) + Trained at level 5 (2 + 5 = 7) = 10
-        assert_eq!(derived.get("ATHLETICS_MOD").unwrap(), &serde_json::json!(10));
+        assert_eq!(
+            derived.get("ATHLETICS_MOD").unwrap(),
+            &SheetValue::Integer(10)
+        );
 
         // Acrobatics: DEX (+2) + Expert at level 5 (4 + 5 = 9) = 11
-        assert_eq!(derived.get("ACROBATICS_MOD").unwrap(), &serde_json::json!(11));
+        assert_eq!(
+            derived.get("ACROBATICS_MOD").unwrap(),
+            &SheetValue::Integer(11)
+        );
 
         // Stealth: DEX (+2) + Untrained (0) = 2
-        assert_eq!(derived.get("STEALTH_MOD").unwrap(), &serde_json::json!(2));
+        assert_eq!(derived.get("STEALTH_MOD").unwrap(), &SheetValue::Integer(2));
     }
 
     #[test]
     fn calculate_derived_values_saves() {
         let system = Pf2eSystem::new();
         let mut values = HashMap::new();
-        values.insert("LEVEL".to_string(), serde_json::json!(5));
-        values.insert("STR".to_string(), serde_json::json!(10));
-        values.insert("DEX".to_string(), serde_json::json!(14)); // +2 mod
-        values.insert("CON".to_string(), serde_json::json!(16)); // +3 mod
-        values.insert("INT".to_string(), serde_json::json!(10));
-        values.insert("WIS".to_string(), serde_json::json!(12)); // +1 mod
-        values.insert("CHA".to_string(), serde_json::json!(10));
-        values.insert("FORTITUDE_RANK".to_string(), serde_json::json!("expert"));
-        values.insert("REFLEX_RANK".to_string(), serde_json::json!("trained"));
-        values.insert("WILL_RANK".to_string(), serde_json::json!("master"));
+        values.insert("LEVEL".to_string(), SheetValue::Integer(5));
+        values.insert("STR".to_string(), SheetValue::Integer(10));
+        values.insert("DEX".to_string(), SheetValue::Integer(14)); // +2 mod
+        values.insert("CON".to_string(), SheetValue::Integer(16)); // +3 mod
+        values.insert("INT".to_string(), SheetValue::Integer(10));
+        values.insert("WIS".to_string(), SheetValue::Integer(12)); // +1 mod
+        values.insert("CHA".to_string(), SheetValue::Integer(10));
+        values.insert(
+            "FORTITUDE_RANK".to_string(),
+            SheetValue::String("expert".to_string()),
+        );
+        values.insert(
+            "REFLEX_RANK".to_string(),
+            SheetValue::String("trained".to_string()),
+        );
+        values.insert(
+            "WILL_RANK".to_string(),
+            SheetValue::String("master".to_string()),
+        );
 
         let derived = system.calculate_derived_values(&values);
 
         // Fortitude: CON (+3) + Expert at level 5 (4 + 5 = 9) = 12
-        assert_eq!(derived.get("FORTITUDE_MOD").unwrap(), &serde_json::json!(12));
+        assert_eq!(
+            derived.get("FORTITUDE_MOD").unwrap(),
+            &SheetValue::Integer(12)
+        );
 
         // Reflex: DEX (+2) + Trained at level 5 (2 + 5 = 7) = 9
-        assert_eq!(derived.get("REFLEX_MOD").unwrap(), &serde_json::json!(9));
+        assert_eq!(derived.get("REFLEX_MOD").unwrap(), &SheetValue::Integer(9));
 
         // Will: WIS (+1) + Master at level 5 (6 + 5 = 11) = 12
-        assert_eq!(derived.get("WILL_MOD").unwrap(), &serde_json::json!(12));
+        assert_eq!(derived.get("WILL_MOD").unwrap(), &SheetValue::Integer(12));
     }
 
     #[test]
     fn calculate_derived_values_ac() {
         let system = Pf2eSystem::new();
         let mut values = HashMap::new();
-        values.insert("LEVEL".to_string(), serde_json::json!(5));
-        values.insert("DEX".to_string(), serde_json::json!(14)); // +2 mod
-        values.insert("STR".to_string(), serde_json::json!(10));
-        values.insert("CON".to_string(), serde_json::json!(10));
-        values.insert("INT".to_string(), serde_json::json!(10));
-        values.insert("WIS".to_string(), serde_json::json!(10));
-        values.insert("CHA".to_string(), serde_json::json!(10));
-        values.insert("ARMOR_RANK".to_string(), serde_json::json!("trained"));
-        values.insert("ARMOR_BONUS".to_string(), serde_json::json!(2)); // Leather
+        values.insert("LEVEL".to_string(), SheetValue::Integer(5));
+        values.insert("DEX".to_string(), SheetValue::Integer(14)); // +2 mod
+        values.insert("STR".to_string(), SheetValue::Integer(10));
+        values.insert("CON".to_string(), SheetValue::Integer(10));
+        values.insert("INT".to_string(), SheetValue::Integer(10));
+        values.insert("WIS".to_string(), SheetValue::Integer(10));
+        values.insert("CHA".to_string(), SheetValue::Integer(10));
+        values.insert(
+            "ARMOR_RANK".to_string(),
+            SheetValue::String("trained".to_string()),
+        );
+        values.insert("ARMOR_BONUS".to_string(), SheetValue::Integer(2)); // Leather
 
         let derived = system.calculate_derived_values(&values);
 
         // AC: 10 + DEX (+2) + Trained at level 5 (2 + 5 = 7) + armor bonus (2) = 21
-        assert_eq!(derived.get("AC").unwrap(), &serde_json::json!(21));
+        assert_eq!(derived.get("AC").unwrap(), &SheetValue::Integer(21));
     }
 
     #[test]
     fn calculate_derived_values_ac_with_dex_cap() {
         let system = Pf2eSystem::new();
         let mut values = HashMap::new();
-        values.insert("LEVEL".to_string(), serde_json::json!(5));
-        values.insert("DEX".to_string(), serde_json::json!(18)); // +4 mod, but capped
-        values.insert("STR".to_string(), serde_json::json!(10));
-        values.insert("CON".to_string(), serde_json::json!(10));
-        values.insert("INT".to_string(), serde_json::json!(10));
-        values.insert("WIS".to_string(), serde_json::json!(10));
-        values.insert("CHA".to_string(), serde_json::json!(10));
-        values.insert("ARMOR_RANK".to_string(), serde_json::json!("trained"));
-        values.insert("ARMOR_BONUS".to_string(), serde_json::json!(4)); // Chain shirt
-        values.insert("DEX_CAP".to_string(), serde_json::json!(2));
+        values.insert("LEVEL".to_string(), SheetValue::Integer(5));
+        values.insert("DEX".to_string(), SheetValue::Integer(18)); // +4 mod, but capped
+        values.insert("STR".to_string(), SheetValue::Integer(10));
+        values.insert("CON".to_string(), SheetValue::Integer(10));
+        values.insert("INT".to_string(), SheetValue::Integer(10));
+        values.insert("WIS".to_string(), SheetValue::Integer(10));
+        values.insert("CHA".to_string(), SheetValue::Integer(10));
+        values.insert(
+            "ARMOR_RANK".to_string(),
+            SheetValue::String("trained".to_string()),
+        );
+        values.insert("ARMOR_BONUS".to_string(), SheetValue::Integer(4)); // Chain shirt
+        values.insert("DEX_CAP".to_string(), SheetValue::Integer(2));
 
         let derived = system.calculate_derived_values(&values);
 
         // AC: 10 + DEX (capped to +2) + Trained at level 5 (7) + armor bonus (4) = 23
-        assert_eq!(derived.get("AC").unwrap(), &serde_json::json!(23));
+        assert_eq!(derived.get("AC").unwrap(), &SheetValue::Integer(23));
     }
 
     #[test]
     fn calculate_derived_values_max_hp() {
         let system = Pf2eSystem::new();
         let mut values = HashMap::new();
-        values.insert("LEVEL".to_string(), serde_json::json!(5));
-        values.insert("CON".to_string(), serde_json::json!(14)); // +2 mod
-        values.insert("STR".to_string(), serde_json::json!(10));
-        values.insert("DEX".to_string(), serde_json::json!(10));
-        values.insert("INT".to_string(), serde_json::json!(10));
-        values.insert("WIS".to_string(), serde_json::json!(10));
-        values.insert("CHA".to_string(), serde_json::json!(10));
-        values.insert("ANCESTRY_HP".to_string(), serde_json::json!(8)); // Human
-        values.insert("CLASS_HP".to_string(), serde_json::json!(10)); // Fighter
+        values.insert("LEVEL".to_string(), SheetValue::Integer(5));
+        values.insert("CON".to_string(), SheetValue::Integer(14)); // +2 mod
+        values.insert("STR".to_string(), SheetValue::Integer(10));
+        values.insert("DEX".to_string(), SheetValue::Integer(10));
+        values.insert("INT".to_string(), SheetValue::Integer(10));
+        values.insert("WIS".to_string(), SheetValue::Integer(10));
+        values.insert("CHA".to_string(), SheetValue::Integer(10));
+        values.insert("ANCESTRY_HP".to_string(), SheetValue::Integer(8)); // Human
+        values.insert("CLASS_HP".to_string(), SheetValue::Integer(10)); // Fighter
 
         let derived = system.calculate_derived_values(&values);
 
         // HP: Ancestry (8) + (Class (10) + CON (+2)) * Level (5) = 8 + (12 * 5) = 8 + 60 = 68
-        assert_eq!(derived.get("MAX_HP").unwrap(), &serde_json::json!(68));
+        assert_eq!(derived.get("MAX_HP").unwrap(), &SheetValue::Integer(68));
     }
 
     #[test]
@@ -2079,12 +2106,20 @@ mod tests {
         let all_values = HashMap::new();
 
         // Valid ability score
-        assert!(system.validate_field("STR", &serde_json::json!(10), &all_values).is_none());
-        assert!(system.validate_field("DEX", &serde_json::json!(18), &all_values).is_none());
+        assert!(system
+            .validate_field("STR", &SheetValue::Integer(10), &all_values)
+            .is_none());
+        assert!(system
+            .validate_field("DEX", &SheetValue::Integer(18), &all_values)
+            .is_none());
 
         // Invalid ability scores
-        assert!(system.validate_field("STR", &serde_json::json!(0), &all_values).is_some());
-        assert!(system.validate_field("STR", &serde_json::json!(31), &all_values).is_some());
+        assert!(system
+            .validate_field("STR", &SheetValue::Integer(0), &all_values)
+            .is_some());
+        assert!(system
+            .validate_field("STR", &SheetValue::Integer(31), &all_values)
+            .is_some());
     }
 
     #[test]
@@ -2093,12 +2128,20 @@ mod tests {
         let all_values = HashMap::new();
 
         // Valid hero points
-        assert!(system.validate_field("HERO_POINTS", &serde_json::json!(0), &all_values).is_none());
-        assert!(system.validate_field("HERO_POINTS", &serde_json::json!(3), &all_values).is_none());
+        assert!(system
+            .validate_field("HERO_POINTS", &SheetValue::Integer(0), &all_values)
+            .is_none());
+        assert!(system
+            .validate_field("HERO_POINTS", &SheetValue::Integer(3), &all_values)
+            .is_none());
 
         // Invalid hero points
-        assert!(system.validate_field("HERO_POINTS", &serde_json::json!(-1), &all_values).is_some());
-        assert!(system.validate_field("HERO_POINTS", &serde_json::json!(4), &all_values).is_some());
+        assert!(system
+            .validate_field("HERO_POINTS", &SheetValue::Integer(-1), &all_values)
+            .is_some());
+        assert!(system
+            .validate_field("HERO_POINTS", &SheetValue::Integer(4), &all_values)
+            .is_some());
     }
 
     #[test]
@@ -2106,14 +2149,17 @@ mod tests {
         let system = Pf2eSystem::new();
         let defaults = system.default_values();
 
-        assert_eq!(defaults.get("LEVEL").unwrap(), &serde_json::json!(1));
-        assert_eq!(defaults.get("STR").unwrap(), &serde_json::json!(10));
-        assert_eq!(defaults.get("DEX").unwrap(), &serde_json::json!(10));
-        assert_eq!(defaults.get("CON").unwrap(), &serde_json::json!(10));
-        assert_eq!(defaults.get("INT").unwrap(), &serde_json::json!(10));
-        assert_eq!(defaults.get("WIS").unwrap(), &serde_json::json!(10));
-        assert_eq!(defaults.get("CHA").unwrap(), &serde_json::json!(10));
-        assert_eq!(defaults.get("HERO_POINTS").unwrap(), &serde_json::json!(1));
-        assert_eq!(defaults.get("SPEED").unwrap(), &serde_json::json!(25));
+        assert_eq!(defaults.get("LEVEL").unwrap(), &SheetValue::Integer(1));
+        assert_eq!(defaults.get("STR").unwrap(), &SheetValue::Integer(10));
+        assert_eq!(defaults.get("DEX").unwrap(), &SheetValue::Integer(10));
+        assert_eq!(defaults.get("CON").unwrap(), &SheetValue::Integer(10));
+        assert_eq!(defaults.get("INT").unwrap(), &SheetValue::Integer(10));
+        assert_eq!(defaults.get("WIS").unwrap(), &SheetValue::Integer(10));
+        assert_eq!(defaults.get("CHA").unwrap(), &SheetValue::Integer(10));
+        assert_eq!(
+            defaults.get("HERO_POINTS").unwrap(),
+            &SheetValue::Integer(1)
+        );
+        assert_eq!(defaults.get("SPEED").unwrap(), &SheetValue::Integer(25));
     }
 }

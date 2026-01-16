@@ -42,8 +42,7 @@ async fn test_create_lore_entry() {
 
     // Create a lore entry directly
     let lore_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (l:Lore {
@@ -88,22 +87,17 @@ async fn test_discover_lore() {
         .region("Common Room")
         .expect("Common Room should exist");
 
-    let (_, pc_id) = create_test_player(
-        ctx.graph(),
-        ctx.world.world_id,
-        common_room,
-        "Lore Seeker",
-    )
-    .await
-    .expect("Player creation should succeed");
+    let (_, pc_id) =
+        create_test_player(ctx.graph(), ctx.world.world_id, common_room, "Lore Seeker")
+            .await
+            .expect("Player creation should succeed");
 
     use neo4rs::query;
     use uuid::Uuid;
 
     // Create a lore entry
     let lore_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (l:Lore {
@@ -198,8 +192,7 @@ async fn test_lore_discovered_trigger() {
     let lore_id = Uuid::new_v4();
 
     // First create the lore
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (l:Lore {
@@ -219,8 +212,7 @@ async fn test_lore_discovered_trigger() {
         .expect("Lore creation should succeed");
 
     // Create event
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -244,8 +236,7 @@ async fn test_lore_discovered_trigger() {
 
     // Create LoreDiscovered trigger
     let trigger_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id})

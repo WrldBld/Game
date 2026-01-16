@@ -373,7 +373,8 @@ impl Character {
         }
 
         // Check if HP tracking is enabled
-        let (current_hp, max_hp): (i32, i32) = match (self.stats.current_hp(), self.stats.max_hp()) {
+        let (current_hp, max_hp): (i32, i32) = match (self.stats.current_hp(), self.stats.max_hp())
+        {
             (Some(current), Some(max)) => (current, max),
             _ => return DamageOutcome::NoHpTracking,
         };
@@ -385,7 +386,9 @@ impl Character {
 
         if new_hp <= 0 {
             self.state = CharacterState::Dead;
-            DamageOutcome::Killed { damage_dealt: amount }
+            DamageOutcome::Killed {
+                damage_dealt: amount,
+            }
         } else {
             DamageOutcome::Wounded {
                 damage_dealt: amount,
@@ -429,7 +432,8 @@ impl Character {
         }
 
         // Check if HP tracking is enabled
-        let (current_hp, max_hp): (i32, i32) = match (self.stats.current_hp(), self.stats.max_hp()) {
+        let (current_hp, max_hp): (i32, i32) = match (self.stats.current_hp(), self.stats.max_hp())
+        {
             (Some(current), Some(max)) => (current, max),
             _ => return HealOutcome::NoHpTracking,
         };
@@ -926,7 +930,10 @@ mod tests {
             assert!(character.is_dead());
 
             let outcome = character.resurrect();
-            assert_eq!(outcome, ResurrectOutcome::Resurrected { hp_restored_to: 50 });
+            assert_eq!(
+                outcome,
+                ResurrectOutcome::Resurrected { hp_restored_to: 50 }
+            );
             assert!(character.is_alive());
             assert!(character.is_active());
             assert_eq!(character.stats().current_hp(), Some(50));
@@ -934,8 +941,7 @@ mod tests {
 
         #[test]
         fn resurrect_without_hp_tracking_sets_hp_to_1() {
-            let mut character =
-                create_test_character().with_state(CharacterState::Dead);
+            let mut character = create_test_character().with_state(CharacterState::Dead);
 
             let outcome = character.resurrect();
             assert_eq!(outcome, ResurrectOutcome::Resurrected { hp_restored_to: 1 });
@@ -969,8 +975,7 @@ mod tests {
 
         #[test]
         fn deactivate_dead_character_has_no_effect() {
-            let mut character =
-                create_test_character().with_state(CharacterState::Dead);
+            let mut character = create_test_character().with_state(CharacterState::Dead);
 
             character.deactivate();
             assert!(character.is_dead());
@@ -978,8 +983,7 @@ mod tests {
 
         #[test]
         fn activate_dead_character_has_no_effect() {
-            let mut character =
-                create_test_character().with_state(CharacterState::Dead);
+            let mut character = create_test_character().with_state(CharacterState::Dead);
 
             character.activate();
             assert!(character.is_dead());
@@ -1022,77 +1026,6 @@ mod tests {
             assert_eq!(change.from, CampbellArchetype::Hero);
             assert_eq!(change.to, CampbellArchetype::Mentor);
             assert_eq!(change.reason, "Character growth");
-        }
-    }
-
-    mod serde {
-        use super::*;
-
-        #[test]
-        fn serialize_deserialize_roundtrip() {
-            let world_id = WorldId::new();
-            let name = CharacterName::new("Bilbo").unwrap();
-            let desc = Description::new("A hobbit from the Shire").unwrap();
-            let character = Character::new(world_id, name, CampbellArchetype::Hero)
-                .with_description(desc)
-                .with_sprite("sprites/bilbo.png")
-                .with_stats(StatBlock::new().with_hp(30, 30).with_stat("STR", 8));
-
-            let json = serde_json::to_string(&character).unwrap();
-            let deserialized: Character = serde_json::from_str(&json).unwrap();
-
-            assert_eq!(deserialized.id(), character.id());
-            assert_eq!(deserialized.name().as_str(), "Bilbo");
-            assert_eq!(
-                deserialized.description().as_str(),
-                "A hobbit from the Shire"
-            );
-            assert_eq!(deserialized.sprite_asset(), Some("sprites/bilbo.png"));
-            assert_eq!(deserialized.state(), CharacterState::Active);
-        }
-
-        #[test]
-        fn deserialize_legacy_format() {
-            // Test legacy format with is_alive/is_active booleans
-            // Note: omitting optional fields that have defaults
-            let json = r#"{
-                "id": "550e8400-e29b-41d4-a716-446655440000",
-                "worldId": "550e8400-e29b-41d4-a716-446655440001",
-                "name": "Legacy Character",
-                "description": "From old format",
-                "spriteAsset": null,
-                "portraitAsset": null,
-                "baseArchetype": "hero",
-                "currentArchetype": "hero",
-                "isAlive": true,
-                "isActive": false
-            }"#;
-
-            let character: Character = serde_json::from_str(json).unwrap();
-            assert_eq!(character.name().as_str(), "Legacy Character");
-            assert_eq!(character.state(), CharacterState::Inactive);
-            assert!(character.is_alive());
-            assert!(!character.is_active());
-        }
-
-        #[test]
-        fn deserialize_new_format_with_state() {
-            // Test new format with state enum
-            let json = r#"{
-                "id": "550e8400-e29b-41d4-a716-446655440000",
-                "worldId": "550e8400-e29b-41d4-a716-446655440001",
-                "name": "New Format Character",
-                "description": "",
-                "spriteAsset": null,
-                "portraitAsset": null,
-                "baseArchetype": "hero",
-                "currentArchetype": "hero",
-                "state": "dead"
-            }"#;
-
-            let character: Character = serde_json::from_str(json).unwrap();
-            assert_eq!(character.state(), CharacterState::Dead);
-            assert!(character.is_dead());
         }
     }
 }

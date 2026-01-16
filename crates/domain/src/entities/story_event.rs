@@ -217,7 +217,7 @@ pub enum StoryEventType {
         event_subtype: String,
         title: String,
         description: String,
-        data: serde_json::Value,
+        data: Option<String>,
     },
 }
 

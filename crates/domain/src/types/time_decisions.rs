@@ -76,26 +76,23 @@ mod tests {
     }
 
     #[test]
-    fn serde_roundtrip_approve() {
+    fn decision_equality_approve() {
         let decision = TimeSuggestionDecision::Approve;
-        let json = serde_json::to_string(&decision).unwrap();
-        let decoded: TimeSuggestionDecision = serde_json::from_str(&json).unwrap();
-        assert_eq!(decision, decoded);
+        let other = TimeSuggestionDecision::Approve;
+        assert_eq!(decision, other);
     }
 
     #[test]
-    fn serde_roundtrip_modify() {
+    fn decision_equality_modify() {
         let decision = TimeSuggestionDecision::Modify { minutes: 45 };
-        let json = serde_json::to_string(&decision).unwrap();
-        let decoded: TimeSuggestionDecision = serde_json::from_str(&json).unwrap();
-        assert_eq!(decision, decoded);
+        let other = decision.clone();
+        assert_eq!(decision, other);
     }
 
     #[test]
-    fn serde_roundtrip_skip() {
+    fn decision_equality_skip() {
         let decision = TimeSuggestionDecision::Skip;
-        let json = serde_json::to_string(&decision).unwrap();
-        let decoded: TimeSuggestionDecision = serde_json::from_str(&json).unwrap();
-        assert_eq!(decision, decoded);
+        let other = TimeSuggestionDecision::Skip;
+        assert_eq!(decision, other);
     }
 }

@@ -50,10 +50,7 @@ impl Neo4jGraph {
         self.inner.run(query).await
     }
 
-    pub async fn execute(
-        &self,
-        query: Query,
-    ) -> Result<Neo4jRowStream, neo4rs::Error> {
+    pub async fn execute(&self, query: Query) -> Result<Neo4jRowStream, neo4rs::Error> {
         self.inner.execute(query).await.map(|stream| {
             let stream = stream.into_stream();
             let stream = TryStreamExt::into_stream(stream);

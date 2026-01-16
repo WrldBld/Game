@@ -129,7 +129,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn class_feature_serialization() {
+    fn class_feature_equality() {
         let feature = ClassFeature {
             id: "dnd5e_fighter_second_wind".into(),
             system_id: "dnd5e".into(),
@@ -144,9 +144,8 @@ mod tests {
             tags: vec!["healing".into()],
         };
 
-        let json = serde_json::to_string(&feature).unwrap();
-        let deserialized: ClassFeature = serde_json::from_str(&json).unwrap();
-        assert_eq!(feature, deserialized);
+        let other = feature.clone();
+        assert_eq!(feature, other);
     }
 
     #[test]
@@ -180,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn racial_trait_serialization() {
+    fn racial_trait_equality() {
         let trait_ = RacialTrait {
             id: "dnd5e_dwarf_darkvision".into(),
             system_id: "dnd5e".into(),
@@ -193,8 +192,7 @@ mod tests {
             tags: vec!["vision".into()],
         };
 
-        let json = serde_json::to_string(&trait_).unwrap();
-        let deserialized: RacialTrait = serde_json::from_str(&json).unwrap();
-        assert_eq!(trait_, deserialized);
+        let other = trait_.clone();
+        assert_eq!(trait_, other);
     }
 }

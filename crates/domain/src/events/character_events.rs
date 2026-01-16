@@ -11,7 +11,10 @@ pub enum DamageOutcome {
     /// Character was already dead, no effect
     AlreadyDead,
     /// Character took damage but survived
-    Wounded { damage_dealt: i32, remaining_hp: i32 },
+    Wounded {
+        damage_dealt: i32,
+        remaining_hp: i32,
+    },
     /// Character was killed by this damage
     Killed { damage_dealt: i32 },
     /// No HP tracking on this character
@@ -42,8 +45,14 @@ pub struct ArchetypeShift {
 /// Outcome of updating character metadata fields.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CharacterUpdate {
-    NameChanged { from: CharacterName, to: CharacterName },
-    DescriptionChanged { from: Description, to: Description },
+    NameChanged {
+        from: CharacterName,
+        to: CharacterName,
+    },
+    DescriptionChanged {
+        from: Description,
+        to: Description,
+    },
     SpriteChanged {
         from: Option<String>,
         to: Option<String>,
@@ -57,8 +66,13 @@ pub enum CharacterUpdate {
 /// Outcome of toggling character active/inactive state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CharacterStateChange {
-    StateChanged { from: CharacterState, to: CharacterState },
-    Unchanged { state: CharacterState },
+    StateChanged {
+        from: CharacterState,
+        to: CharacterState,
+    },
+    Unchanged {
+        state: CharacterState,
+    },
 }
 
 /// Outcome of attempting to resurrect a character

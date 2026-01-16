@@ -523,9 +523,13 @@ pub async fn seed_thornhaven_to_neo4j(
 
     // 4. Create Region Connections (using mapped IDs)
     for conn in &test_world.region_connections {
-        let from_id = region_id_map.get(&conn.from_region_id).copied()
+        let from_id = region_id_map
+            .get(&conn.from_region_id)
+            .copied()
             .unwrap_or_else(|| panic!("From region ID not found for connection"));
-        let to_id = region_id_map.get(&conn.to_region_id).copied()
+        let to_id = region_id_map
+            .get(&conn.to_region_id)
+            .copied()
             .unwrap_or_else(|| panic!("To region ID not found for connection"));
 
         graph
@@ -646,9 +650,13 @@ pub async fn seed_thornhaven_to_neo4j(
             .find(|l| l.id == works_at.location_id)
         {
             if let Some(default_region) = loc_data.regions.first() {
-                let char_id = npc_id_map.get(&works_at.character_id).copied()
+                let char_id = npc_id_map
+                    .get(&works_at.character_id)
+                    .copied()
                     .unwrap_or_else(|| panic!("Character ID not found for works_at"));
-                let region_id = region_id_map.get(&default_region.id).copied()
+                let region_id = region_id_map
+                    .get(&default_region.id)
+                    .copied()
                     .unwrap_or_else(|| panic!("Region ID not found for works_at"));
 
                 graph
@@ -678,9 +686,13 @@ pub async fn seed_thornhaven_to_neo4j(
             .find(|l| l.id == freq.location_id)
         {
             if let Some(default_region) = loc_data.regions.first() {
-                let char_id = npc_id_map.get(&freq.character_id).copied()
+                let char_id = npc_id_map
+                    .get(&freq.character_id)
+                    .copied()
                     .unwrap_or_else(|| panic!("Character ID not found for frequents"));
-                let region_id = region_id_map.get(&default_region.id).copied()
+                let region_id = region_id_map
+                    .get(&default_region.id)
+                    .copied()
                     .unwrap_or_else(|| panic!("Region ID not found for frequents"));
 
                 graph
@@ -748,9 +760,13 @@ pub async fn seed_thornhaven_to_neo4j(
     let mut scene_ids = HashMap::new();
     for scene in &test_world.scenes {
         let new_id = SceneId::from(Uuid::new_v4());
-        let new_act_id = act_id_map.get(&scene.act_id).copied()
+        let new_act_id = act_id_map
+            .get(&scene.act_id)
+            .copied()
             .unwrap_or_else(|| panic!("Act ID not found for scene: {}", scene.name));
-        let new_location_id = location_id_map.get(&scene.location_id).copied()
+        let new_location_id = location_id_map
+            .get(&scene.location_id)
+            .copied()
             .unwrap_or_else(|| panic!("Location ID not found for scene: {}", scene.name));
 
         graph
@@ -1070,10 +1086,7 @@ impl RecordingQueue {
 
 #[async_trait::async_trait]
 impl QueuePort for RecordingQueue {
-    async fn enqueue_player_action(
-        &self,
-        data: &PlayerActionData,
-    ) -> Result<Uuid, QueueError> {
+    async fn enqueue_player_action(&self, data: &PlayerActionData) -> Result<Uuid, QueueError> {
         self.player_actions.lock().unwrap().push(data.clone());
         Ok(Uuid::new_v4())
     }
@@ -1082,10 +1095,7 @@ impl QueuePort for RecordingQueue {
         Ok(None)
     }
 
-    async fn enqueue_llm_request(
-        &self,
-        data: &LlmRequestData,
-    ) -> Result<Uuid, QueueError> {
+    async fn enqueue_llm_request(&self, data: &LlmRequestData) -> Result<Uuid, QueueError> {
         self.llm_requests.lock().unwrap().push(data.clone());
         Ok(Uuid::new_v4())
     }
@@ -1094,10 +1104,7 @@ impl QueuePort for RecordingQueue {
         Ok(None)
     }
 
-    async fn enqueue_dm_approval(
-        &self,
-        data: &ApprovalRequestData,
-    ) -> Result<Uuid, QueueError> {
+    async fn enqueue_dm_approval(&self, data: &ApprovalRequestData) -> Result<Uuid, QueueError> {
         self.approvals.lock().unwrap().push(data.clone());
         Ok(Uuid::new_v4())
     }

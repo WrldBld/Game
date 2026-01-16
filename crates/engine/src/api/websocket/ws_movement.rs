@@ -148,10 +148,9 @@ pub(super) async fn handle_move_to_region(
 
             match result.staging_status {
                 StagingStatus::Pending { previous_staging } => {
-                    let pending_time_suggestions =
-                        crate::repositories::TimeSuggestionStore::new(
-                            state.pending_time_suggestions.clone(),
-                        );
+                    let pending_time_suggestions = crate::repositories::TimeSuggestionStore::new(
+                        state.pending_time_suggestions.clone(),
+                    );
                     let pending_staging_requests = crate::repositories::PendingStaging::new(
                         state.pending_staging_requests.clone(),
                     );
@@ -336,10 +335,9 @@ pub(super) async fn handle_exit_to_location(
 
             match result.staging_status {
                 StagingStatus::Pending { previous_staging } => {
-                    let pending_time_suggestions =
-                        crate::repositories::TimeSuggestionStore::new(
-                            state.pending_time_suggestions.clone(),
-                        );
+                    let pending_time_suggestions = crate::repositories::TimeSuggestionStore::new(
+                        state.pending_time_suggestions.clone(),
+                    );
                     let pending_staging_requests = crate::repositories::PendingStaging::new(
                         state.pending_staging_requests.clone(),
                     );

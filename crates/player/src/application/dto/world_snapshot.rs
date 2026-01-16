@@ -7,6 +7,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use wrldbldr_protocol::character_sheet::SheetValue;
+
 // Import rule system types from domain (canonical source)
 // These have serde derives and are re-exported for player-app consumers
 pub use wrldbldr_domain::value_objects::{
@@ -602,7 +604,7 @@ pub struct CharacterData {
     pub portrait_asset: Option<String>,
     pub is_alive: bool,
     pub is_active: bool,
-    pub stats: serde_json::Value,
+    pub stats: SheetValue,
     pub wants: Vec<WantData>,
 }
 
@@ -679,14 +681,11 @@ pub struct ConnectionData {
 // ============================================================================
 
 /// Character sheet data (actual values)
-/// Uses JSON values for flexibility across different game systems
+/// Uses SheetValue for flexibility across different game systems
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct CharacterSheetData {
-    pub values: std::collections::HashMap<String, serde_json::Value>,
+    pub values: std::collections::BTreeMap<String, SheetValue>,
 }
-
-/// API-facing character sheet data (same structure, explicit naming for service layer)
-pub type CharacterSheetDataApi = CharacterSheetData;
 
 // =============================================================================
 // Story Event Types (Phase 17)
@@ -1126,9 +1125,7 @@ pub enum SchemaFieldType {
         proficiency_levels: Vec<SchemaProficiencyOption>,
     },
     /// Saving throw
-    SavingThrow {
-        ability: String,
-    },
+    SavingThrow { ability: String },
     /// Boolean checkbox
     Boolean {
         #[serde(default)]
@@ -1155,10 +1152,7 @@ pub enum SchemaFieldType {
         color: SchemaResourceColor,
     },
     /// Dice pool (Blades, WoD)
-    DicePool {
-        max_dice: u8,
-        die_type: u8,
-    },
+    DicePool { max_dice: u8, die_type: u8 },
     /// Ladder rating (FATE)
     LadderRating {
         min: i32,
@@ -1171,17 +1165,11 @@ pub enum SchemaFieldType {
         show_derived: bool,
     },
     /// Progress clock (Blades)
-    Clock {
-        segments: u8,
-    },
+    Clock { segments: u8 },
     /// Harm/condition track
-    ConditionTrack {
-        levels: Vec<SchemaConditionLevel>,
-    },
+    ConditionTrack { levels: Vec<SchemaConditionLevel> },
     /// Reference to another entity
-    EntityRef {
-        entity_type: SchemaEntityRefType,
-    },
+    EntityRef { entity_type: SchemaEntityRefType },
     /// Tags/keywords list
     Tags,
     /// XP progress bar

@@ -8,8 +8,9 @@ use super::*;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
-use wrldbldr_domain::{ContentFilter, ContentType};
-use wrldbldr_protocol::{requests::content::ContentRequest, ErrorCode, ResponseResult};
+use wrldbldr_protocol::game_systems::{ContentFilter, ContentType};
+use wrldbldr_protocol::requests::content::ContentRequest;
+use wrldbldr_protocol::{ErrorCode, ResponseResult};
 
 // Input validation limits to prevent DoS attacks
 const MAX_QUERY_LENGTH: usize = 1024;

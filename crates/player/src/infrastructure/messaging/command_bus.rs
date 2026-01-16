@@ -173,11 +173,7 @@ impl CommandBus {
     ) -> Result<ResponseResult, RequestError> {
         let (id, response_rx) = self.request_internal(payload).await?;
 
-        match tokio::time::timeout(
-            std::time::Duration::from_millis(timeout_ms),
-            response_rx,
-        )
-        .await
+        match tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), response_rx).await
         {
             Ok(result) => result.map_err(|_| RequestError::Cancelled),
             Err(_) => {
@@ -205,7 +201,10 @@ impl CommandBus {
 #[cfg(target_arch = "wasm32")]
 impl CommandBus {
     /// Create a new CommandBus with the given channel sender.
-    pub fn new(tx: mpsc::UnboundedSender<BusMessage>, pending: Rc<RefCell<PendingRequests>>) -> Self {
+    pub fn new(
+        tx: mpsc::UnboundedSender<BusMessage>,
+        pending: Rc<RefCell<PendingRequests>>,
+    ) -> Self {
         Self {
             tx: SendWrapper::new(tx),
             pending: SendWrapper::new(pending),
@@ -242,10 +241,7 @@ impl CommandBus {
         self.pending.borrow_mut().insert(id.clone(), response_tx);
 
         // Send the request - bridge will create ClientMessage::Request
-        let send_result = self.tx.unbounded_send(BusMessage::Request {
-            id,
-            payload,
-        });
+        let send_result = self.tx.unbounded_send(BusMessage::Request { id, payload });
 
         async move {
             send_result.map_err(|_| RequestError::SendFailed("channel closed".into()))?;
@@ -302,6 +298,9 @@ mod tests {
         bus.send(msg).unwrap();
 
         let received = rx.recv().await.unwrap();
-        assert!(matches!(received, BusMessage::Send(ClientMessage::Heartbeat)));
+        assert!(matches!(
+            received,
+            BusMessage::Send(ClientMessage::Heartbeat)
+        ));
     }
 }

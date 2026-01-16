@@ -60,7 +60,7 @@ impl PlayerCharacterCrud {
         name: String,
         user_id: Option<String>,
         starting_region_id: Option<RegionId>,
-        sheet_data: Option<serde_json::Value>,
+        sheet_data: Option<wrldbldr_protocol::character_sheet::CharacterSheetValues>,
     ) -> Result<wrldbldr_domain::PlayerCharacter, ManagementError> {
         let character_name: wrldbldr_domain::CharacterName = name
             .try_into()
@@ -82,11 +82,7 @@ impl PlayerCharacterCrud {
             pc = pc.with_starting_region(region_id);
         }
         if let Some(sheet_data) = sheet_data {
-            let data: wrldbldr_domain::CharacterSheetData = serde_json::from_value(sheet_data)
-                .map_err(|e| {
-                    ManagementError::InvalidInput(format!("Invalid sheet_data: {}", e.to_string()))
-                })?;
-            pc = pc.with_sheet_data(data);
+            pc = pc.with_sheet_data(sheet_data);
         }
 
         self.player_character.save(&pc).await?;
@@ -97,7 +93,7 @@ impl PlayerCharacterCrud {
         &self,
         pc_id: PlayerCharacterId,
         name: Option<String>,
-        sheet_data: Option<serde_json::Value>,
+        sheet_data: Option<wrldbldr_protocol::character_sheet::CharacterSheetValues>,
     ) -> Result<wrldbldr_domain::PlayerCharacter, ManagementError> {
         let mut pc = self
             .player_character
@@ -112,11 +108,7 @@ impl PlayerCharacterCrud {
             pc.set_name(character_name);
         }
         if let Some(sheet_data) = sheet_data {
-            let data: wrldbldr_domain::CharacterSheetData = serde_json::from_value(sheet_data)
-                .map_err(|e| {
-                    ManagementError::InvalidInput(format!("Invalid sheet_data: {}", e.to_string()))
-                })?;
-            pc.set_sheet_data(Some(data));
+            pc.set_sheet_data(Some(sheet_data));
         }
         pc.touch(self.clock.now());
 

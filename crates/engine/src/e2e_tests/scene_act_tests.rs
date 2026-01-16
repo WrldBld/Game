@@ -82,14 +82,10 @@ async fn test_scene_resolution_for_region() {
         .region("Common Room")
         .expect("Common Room should exist");
 
-    let (_, pc_id) = create_test_player(
-        ctx.graph(),
-        ctx.world.world_id,
-        common_room,
-        "Scene Tester",
-    )
-    .await
-    .expect("Player creation should succeed");
+    let (_, pc_id) =
+        create_test_player(ctx.graph(), ctx.world.world_id, common_room, "Scene Tester")
+            .await
+            .expect("Player creation should succeed");
 
     // Enter region - should resolve scene
     let result = ctx

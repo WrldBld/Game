@@ -179,9 +179,7 @@ mod tests {
         }
     }
 
-    fn build_clock(
-        now: chrono::DateTime<chrono::Utc>,
-    ) -> (Arc<dyn ClockPort>, Arc<ClockRepo>) {
+    fn build_clock(now: chrono::DateTime<chrono::Utc>) -> (Arc<dyn ClockPort>, Arc<ClockRepo>) {
         let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
         let clock = Arc::new(ClockRepo::new(clock_port.clone()));
         (clock_port, clock)
@@ -205,7 +203,10 @@ mod tests {
                 clock_port.clone(),
             )),
             Arc::new(repositories::Location::new(location_repo.clone())),
-            Arc::new(repositories::World::new(world_repo.clone(), clock_port.clone())),
+            Arc::new(repositories::World::new(
+                world_repo.clone(),
+                clock_port.clone(),
+            )),
             Arc::new(repositories::PlayerCharacter::new(player_character_repo)),
             Arc::new(repositories::Character::new(character_repo)),
             Arc::new(repositories::Observation::new(

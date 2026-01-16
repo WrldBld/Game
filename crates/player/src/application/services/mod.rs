@@ -42,8 +42,6 @@ pub use world_service::WorldService;
 
 // Re-export character service types
 pub use character_service::{CharacterFormData, CharacterService, CharacterSummary};
-// CharacterSheetDataApi is shared - export from dto
-pub use crate::application::dto::CharacterSheetDataApi;
 
 // Re-export player character service types
 pub use player_character_service::{

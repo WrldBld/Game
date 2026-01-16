@@ -2,8 +2,8 @@
 
 use dioxus::prelude::*;
 
-use crate::infrastructure::spawn_task;
 use crate::application::services::{Asset, GenerateRequest};
+use crate::infrastructure::spawn_task;
 use crate::presentation::services::{use_asset_service, use_settings_service};
 
 /// Asset types that can be generated

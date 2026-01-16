@@ -22,9 +22,8 @@ pub mod world_seeder;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use wrldbldr_domain::{
-    CharacterSheetData, NarrativeTriggerType, PlayerCharacter, TriggerContext, World,
-};
+use wrldbldr_domain::{NarrativeTriggerType, PlayerCharacter, TriggerContext, World};
+use wrldbldr_protocol::character_sheet::{CharacterSheetValues, SheetValue};
 
 // =============================================================================
 // Fixture Loading
@@ -148,56 +147,37 @@ pub fn trigger_context_from_pc(pc: &PlayerCharacter) -> TriggerContext {
     };
 
     // Extract origin (race)
-    if let Some(identity_json) = sheet_data.get("character_identity") {
-        if let Ok(identity) =
-            serde_json::from_value::<wrldbldr_domain::CharacterIdentity>(identity_json.clone())
-        {
-            ctx.origin_id = identity.race.clone().map(|r| r.to_lowercase());
-            for class_entry in &identity.classes {
-                ctx.class_levels
-                    .insert(class_entry.class_id.to_lowercase(), class_entry.level);
-            }
-        }
+    if let Some(race) = sheet_data.get_string("RACE") {
+        ctx.origin_id = Some(race.to_lowercase());
     }
 
-    // Fallback: extract from individual fields
-    if ctx.origin_id.is_none() {
-        if let Some(race) = sheet_data.get_string("RACE") {
-            ctx.origin_id = Some(race.to_lowercase());
-        }
+    if let Some(class_name) = sheet_data.get_string("CLASS") {
+        let level = sheet_data.get_number("LEVEL").unwrap_or(1) as u8;
+        ctx.class_levels.insert(class_name.to_lowercase(), level);
     }
 
-    if ctx.class_levels.is_empty() {
-        if let Some(class_name) = sheet_data.get_string("CLASS") {
-            let level = sheet_data.get_number("LEVEL").unwrap_or(1) as u8;
-            ctx.class_levels.insert(class_name.to_lowercase(), level);
-        }
+    let known_spells_key = sheet_data
+        .get("KNOWN_SPELLS")
+        .and_then(|value| value.as_str())
+        .unwrap_or_default();
+    if !known_spells_key.is_empty() {
+        ctx.known_spells = known_spells_key
+            .split(',')
+            .map(|spell| spell.trim().to_lowercase())
+            .filter(|spell| !spell.is_empty())
+            .collect();
     }
 
-    // Extract spells
-    if let Some(spells_json) = sheet_data.get("character_spells") {
-        if let Ok(spells) =
-            serde_json::from_value::<wrldbldr_domain::CharacterSpells>(spells_json.clone())
-        {
-            ctx.known_spells = spells
-                .known
-                .iter()
-                .map(|s| s.spell_id.to_lowercase())
-                .collect();
-        }
-    }
-
-    // Extract feats
-    if let Some(feats_json) = sheet_data.get("character_feats") {
-        if let Ok(feats) =
-            serde_json::from_value::<wrldbldr_domain::CharacterFeats>(feats_json.clone())
-        {
-            ctx.character_feats = feats
-                .feats
-                .iter()
-                .map(|f| f.feat_id.to_lowercase())
-                .collect();
-        }
+    let feats_key = sheet_data
+        .get("FEATS")
+        .and_then(|value| value.as_str())
+        .unwrap_or_default();
+    if !feats_key.is_empty() {
+        ctx.character_feats = feats_key
+            .split(',')
+            .map(|feat| feat.trim().to_lowercase())
+            .filter(|feat| !feat.is_empty())
+            .collect();
     }
 
     ctx
@@ -258,9 +238,9 @@ pub mod triggers {
 // Sheet Data Helpers
 // =============================================================================
 
-/// Helper to build CharacterSheetData for tests.
+/// Helper to build CharacterSheetValues for tests.
 pub struct SheetDataBuilder {
-    values: HashMap<String, serde_json::Value>,
+    values: HashMap<String, SheetValue>,
 }
 
 impl SheetDataBuilder {
@@ -280,61 +260,84 @@ impl SheetDataBuilder {
         cha: i64,
     ) -> Self {
         self.values
-            .insert("STR".to_string(), serde_json::json!(str));
+            .insert("STR".to_string(), SheetValue::Integer(str as i32));
         self.values
-            .insert("DEX".to_string(), serde_json::json!(dex));
+            .insert("DEX".to_string(), SheetValue::Integer(dex as i32));
         self.values
-            .insert("CON".to_string(), serde_json::json!(con));
+            .insert("CON".to_string(), SheetValue::Integer(con as i32));
         self.values
-            .insert("INT".to_string(), serde_json::json!(int));
+            .insert("INT".to_string(), SheetValue::Integer(int as i32));
         self.values
-            .insert("WIS".to_string(), serde_json::json!(wis));
+            .insert("WIS".to_string(), SheetValue::Integer(wis as i32));
         self.values
-            .insert("CHA".to_string(), serde_json::json!(cha));
+            .insert("CHA".to_string(), SheetValue::Integer(cha as i32));
         self
     }
 
     pub fn with_race(mut self, race: &str) -> Self {
         self.values
-            .insert("RACE".to_string(), serde_json::json!(race));
+            .insert("RACE".to_string(), SheetValue::String(race.to_string()));
         self
     }
 
     pub fn with_class(mut self, class: &str, level: u8) -> Self {
         self.values
-            .insert("CLASS".to_string(), serde_json::json!(class));
+            .insert("CLASS".to_string(), SheetValue::String(class.to_string()));
         self.values
-            .insert("LEVEL".to_string(), serde_json::json!(level));
+            .insert("LEVEL".to_string(), SheetValue::Integer(level as i32));
         self
     }
 
     pub fn with_identity(mut self, identity: wrldbldr_domain::CharacterIdentity) -> Self {
-        self.values.insert(
-            "character_identity".to_string(),
-            serde_json::to_value(identity).unwrap(),
-        );
+        if let Some(race) = identity.race {
+            self.values
+                .insert("RACE".to_string(), SheetValue::String(race));
+        }
+        if let Some(primary) = identity.primary_class() {
+            self.values.insert(
+                "CLASS".to_string(),
+                SheetValue::String(primary.class_id.clone()),
+            );
+            self.values.insert(
+                "LEVEL".to_string(),
+                SheetValue::Integer(primary.level as i32),
+            );
+        }
         self
     }
 
     pub fn with_spells(mut self, spells: wrldbldr_domain::CharacterSpells) -> Self {
-        self.values.insert(
-            "character_spells".to_string(),
-            serde_json::to_value(spells).unwrap(),
-        );
+        if !spells.known.is_empty() {
+            let known = spells
+                .known
+                .iter()
+                .map(|spell| spell.spell_id.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            self.values
+                .insert("KNOWN_SPELLS".to_string(), SheetValue::String(known));
+        }
         self
     }
 
     pub fn with_feats(mut self, feats: wrldbldr_domain::CharacterFeats) -> Self {
-        self.values.insert(
-            "character_feats".to_string(),
-            serde_json::to_value(feats).unwrap(),
-        );
+        if !feats.feats.is_empty() {
+            let feat_list = feats
+                .feats
+                .iter()
+                .map(|feat| feat.feat_id.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            self.values
+                .insert("FEATS".to_string(), SheetValue::String(feat_list));
+        }
         self
     }
 
-    pub fn build(self) -> CharacterSheetData {
-        CharacterSheetData {
+    pub fn build(self) -> CharacterSheetValues {
+        CharacterSheetValues {
             values: self.values,
+            last_updated: None,
         }
     }
 }
@@ -420,7 +423,7 @@ mod tests {
             .build();
 
         assert_eq!(sheet.get_number("STR"), Some(16));
-        assert_eq!(sheet.get_string("RACE"), Some("human"));
+        assert_eq!(sheet.get_string("RACE"), Some("human".to_string()));
         assert_eq!(sheet.get_number("LEVEL"), Some(5));
     }
 

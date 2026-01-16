@@ -6,8 +6,8 @@ use crate::infrastructure::ports::{QueueError, QueueItem, QueuePort};
 use crate::queue_types::{
     ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
 };
-use wrldbldr_domain::WorldId;
 use uuid::Uuid;
+use wrldbldr_domain::WorldId;
 
 /// Queue wrapper for use cases.
 pub struct Queue {
@@ -35,7 +35,10 @@ impl Queue {
         self.queue.dequeue_llm_request().await
     }
 
-    pub async fn enqueue_dm_approval(&self, data: &ApprovalRequestData) -> Result<Uuid, QueueError> {
+    pub async fn enqueue_dm_approval(
+        &self,
+        data: &ApprovalRequestData,
+    ) -> Result<Uuid, QueueError> {
         self.queue.enqueue_dm_approval(data).await
     }
 
@@ -99,7 +102,9 @@ impl Queue {
         user_id: &str,
         world_id: WorldId,
     ) -> Result<Option<(Vec<String>, Vec<String>)>, QueueError> {
-        self.queue.get_generation_read_state(user_id, world_id).await
+        self.queue
+            .get_generation_read_state(user_id, world_id)
+            .await
     }
 
     pub async fn upsert_generation_read_state(

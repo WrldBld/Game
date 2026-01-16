@@ -1,25 +1,20 @@
-//! Prompt Template Definitions
-//!
-//! This module defines all configurable LLM prompt templates used throughout the engine.
-//! Each template has a unique key, description, category, and default value.
-//!
-//! Templates are resolved with priority: World DB → Global DB → Env → Default
+//! Configurable LLM prompt templates used by the engine.
 
 use serde::{Deserialize, Serialize};
 
-/// Categories for organizing prompt templates in the UI
+/// Categories for organizing prompt templates in the UI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PromptTemplateCategory {
-    /// NPC dialogue and roleplay
+    /// NPC dialogue and roleplay.
     Dialogue,
-    /// NPC presence/staging decisions  
+    /// NPC presence/staging decisions.
     Staging,
-    /// Challenge outcome suggestions
+    /// Challenge outcome suggestions.
     Outcomes,
-    /// Worldbuilding content suggestions
+    /// Worldbuilding content suggestions.
     Suggestions,
-    /// Context summarization
+    /// Context summarization.
     Summarization,
 }
 
@@ -45,83 +40,83 @@ impl PromptTemplateCategory {
     }
 }
 
-/// Metadata about a prompt template
+/// Metadata about a prompt template.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptTemplateMetadata {
-    /// Unique key for this template
+    /// Unique key for this template.
     pub key: String,
-    /// Human-readable label
+    /// Human-readable label.
     pub label: String,
-    /// Description of what this template is used for
+    /// Description of what this template is used for.
     pub description: String,
-    /// Category for UI grouping
+    /// Category for UI grouping.
     pub category: PromptTemplateCategory,
-    /// The hard-coded default value
+    /// The hard-coded default value.
     pub default_value: String,
-    /// Environment variable name for override
+    /// Environment variable name for override.
     pub env_var: String,
 }
 
-/// All prompt template keys as constants
+/// All prompt template keys as constants.
 pub mod keys {
     // === Dialogue System ===
-    /// The response format instructions shown to the LLM for NPC dialogue
+    /// The response format instructions shown to the LLM for NPC dialogue.
     pub const DIALOGUE_RESPONSE_FORMAT: &str = "dialogue.response_format";
-    /// Challenge suggestion format instructions
+    /// Challenge suggestion format instructions.
     pub const DIALOGUE_CHALLENGE_SUGGESTION_FORMAT: &str = "dialogue.challenge_suggestion_format";
-    /// Narrative event suggestion format instructions
+    /// Narrative event suggestion format instructions.
     pub const DIALOGUE_NARRATIVE_EVENT_FORMAT: &str = "dialogue.narrative_event_format";
 
     // === Staging System ===
-    /// System prompt for NPC staging decisions
+    /// System prompt for NPC staging decisions.
     pub const STAGING_SYSTEM_PROMPT: &str = "staging.system_prompt";
-    /// Instructions for staging response format
+    /// Instructions for staging response format.
     pub const STAGING_RESPONSE_FORMAT: &str = "staging.response_format";
-    /// Role description for staging LLM
+    /// Role description for staging LLM.
     pub const STAGING_ROLE_INSTRUCTIONS: &str = "staging.role_instructions";
 
     // === Outcome Suggestions ===
-    /// System prompt for outcome description generation
+    /// System prompt for outcome description generation.
     pub const OUTCOME_SYSTEM_PROMPT: &str = "outcome.system_prompt";
-    /// System prompt for outcome branch generation
+    /// System prompt for outcome branch generation.
     pub const OUTCOME_BRANCH_SYSTEM_PROMPT: &str = "outcome.branch_system_prompt";
 
     // === Worldbuilding Suggestions ===
-    /// Character name generation prompt
+    /// Character name generation prompt.
     pub const SUGGESTION_CHARACTER_NAME: &str = "suggestion.character_name";
-    /// Character description generation prompt
+    /// Character description generation prompt.
     pub const SUGGESTION_CHARACTER_DESCRIPTION: &str = "suggestion.character_description";
-    /// Character wants/desires generation prompt
+    /// Character wants/desires generation prompt.
     pub const SUGGESTION_CHARACTER_WANTS: &str = "suggestion.character_wants";
-    /// Character fears generation prompt
+    /// Character fears generation prompt.
     pub const SUGGESTION_CHARACTER_FEARS: &str = "suggestion.character_fears";
-    /// Character backstory generation prompt
+    /// Character backstory generation prompt.
     pub const SUGGESTION_CHARACTER_BACKSTORY: &str = "suggestion.character_backstory";
-    /// Location name generation prompt
+    /// Location name generation prompt.
     pub const SUGGESTION_LOCATION_NAME: &str = "suggestion.location_name";
-    /// Location description generation prompt
+    /// Location description generation prompt.
     pub const SUGGESTION_LOCATION_DESCRIPTION: &str = "suggestion.location_description";
-    /// Location atmosphere generation prompt
+    /// Location atmosphere generation prompt.
     pub const SUGGESTION_LOCATION_ATMOSPHERE: &str = "suggestion.location_atmosphere";
-    /// Location features generation prompt
+    /// Location features generation prompt.
     pub const SUGGESTION_LOCATION_FEATURES: &str = "suggestion.location_features";
-    /// Location secrets generation prompt
+    /// Location secrets generation prompt.
     pub const SUGGESTION_LOCATION_SECRETS: &str = "suggestion.location_secrets";
 
     // === Actantial Model Suggestions ===
-    /// Deflection behavior suggestion prompt
+    /// Deflection behavior suggestion prompt.
     pub const SUGGESTION_DEFLECTION_BEHAVIOR: &str = "suggestion.deflection_behavior";
-    /// Behavioral tells suggestion prompt
+    /// Behavioral tells suggestion prompt.
     pub const SUGGESTION_BEHAVIORAL_TELLS: &str = "suggestion.behavioral_tells";
-    /// Want description suggestion prompt (actantial-aware)
+    /// Want description suggestion prompt (actantial-aware).
     pub const SUGGESTION_WANT_DESCRIPTION: &str = "suggestion.want_description";
-    /// Actantial reason suggestion prompt
+    /// Actantial reason suggestion prompt.
     pub const SUGGESTION_ACTANTIAL_REASON: &str = "suggestion.actantial_reason";
 }
 
-/// Default values for all prompt templates
+/// Default values for all prompt templates.
 pub mod defaults {
-    /// Response format instructions for NPC dialogue
+    /// Response format instructions for NPC dialogue.
     pub const DIALOGUE_RESPONSE_FORMAT: &str = r#"
 RESPONSE FORMAT:
 You must respond in the following format:
@@ -187,29 +182,29 @@ Only propose tool calls when dramatically appropriate. The Game Master will appr
 Disposition/mood changes require DM approval and should reflect significant emotional shifts.
 "#;
 
-    /// Challenge suggestion format for dialogue
+    /// Challenge suggestion format for dialogue.
     pub const DIALOGUE_CHALLENGE_SUGGESTION_FORMAT: &str = r#"If a player's action matches a trigger condition, include a challenge suggestion in your response using:
 <challenge_suggestion>
 {"challenge_id": "...", "confidence": "high|medium|low", "reasoning": "..."}
 </challenge_suggestion>"#;
 
-    /// Narrative event suggestion format for dialogue
+    /// Narrative event suggestion format for dialogue.
     pub const DIALOGUE_NARRATIVE_EVENT_FORMAT: &str = r#"If a player's action or dialogue matches a narrative event trigger, suggest triggering it using:
 <narrative_event_suggestion>
 {"event_id": "...", "confidence": "high|medium|low", "reasoning": "...", "matched_triggers": ["..."]}
 </narrative_event_suggestion>"#;
 
-    /// System prompt for staging decisions
+    /// System prompt for staging decisions.
     pub const STAGING_SYSTEM_PROMPT: &str =
         "You are a game master assistant helping determine NPC presence.";
 
-    /// Role instructions for staging
+    /// Role instructions for staging.
     pub const STAGING_ROLE_INSTRUCTIONS: &str = r#"## Your Role
 You may AGREE with or OVERRIDE the rules based on narrative considerations.
 Consider: story reasons, interesting opportunities, conflicts, current context.
 "#;
 
-    /// Response format for staging
+    /// Response format for staging.
     pub const STAGING_RESPONSE_FORMAT: &str = r#"## Response Format
 Respond in JSON format with an array of objects:
 [{"name": "NPC Name", "is_present": true/false, "is_hidden_from_players": true/false, "reasoning": "Brief explanation"}]
@@ -217,7 +212,7 @@ Respond in JSON format with an array of objects:
 Use is_hidden_from_players=true for NPCs that should not be visible to players yet (e.g. watching from shadows, disguised, behind a curtain).
 Be realistic and consistent. Don't have everyone present at once unless it makes sense."#;
 
-    /// System prompt for outcome suggestions
+    /// System prompt for outcome suggestions.
     pub const OUTCOME_SYSTEM_PROMPT: &str = r#"You are a creative TTRPG game master assistant specializing in vivid challenge outcomes.
 
 Your task is to generate engaging outcome descriptions for skill challenges. Each description should:
@@ -229,7 +224,7 @@ Your task is to generate engaging outcome descriptions for skill challenges. Eac
 
 Format: Return exactly 3 suggestions, each on its own line. Do not number them or add prefixes."#;
 
-    /// System prompt for outcome branch generation (with placeholder for branch_count)
+    /// System prompt for outcome branch generation (with placeholder for branch_count).
     pub const OUTCOME_BRANCH_SYSTEM_PROMPT: &str = r#"You are a creative TTRPG game master assistant specializing in vivid challenge outcomes.
 
 Your task is to generate {branch_count} distinct outcome branches for skill challenges. Each branch should offer a different narrative direction while staying consistent with the outcome tier.
@@ -246,38 +241,38 @@ DESCRIPTION: [narrative description]
 
 Do not number the branches or add any other formatting."#;
 
-    /// Character name suggestion prompt
+    /// Character name suggestion prompt.
     pub const SUGGESTION_CHARACTER_NAME: &str = r#"Generate 5 unique character names for a {entity_type} character in a {world_setting} setting. The character archetype is: {hints}. Return only the names, one per line, no numbering or explanations."#;
 
-    /// Character description suggestion prompt
+    /// Character description suggestion prompt.
     pub const SUGGESTION_CHARACTER_DESCRIPTION: &str = r#"Generate 3 different physical descriptions for {entity_name}. Setting: {world_setting}. Archetype: {hints}. Each description should be 2-3 sentences covering appearance, mannerisms, and voice. Return each description on its own line, separated by blank lines."#;
 
-    /// Character wants suggestion prompt
+    /// Character wants suggestion prompt.
     pub const SUGGESTION_CHARACTER_WANTS: &str = r#"Generate 4 different character motivations/wants for {entity_name}. Archetype: {hints}. Description: {additional_context}. Each want should be a single sentence describing what the character desires. Return each want on its own line."#;
 
-    /// Character fears suggestion prompt
+    /// Character fears suggestion prompt.
     pub const SUGGESTION_CHARACTER_FEARS: &str = r#"Generate 4 different fears for {entity_name}. Archetype: {hints}. Wants: {additional_context}. Each fear should be a single sentence. Consider fears that create interesting dramatic tension. Return each fear on its own line."#;
 
-    /// Character backstory suggestion prompt
+    /// Character backstory suggestion prompt.
     pub const SUGGESTION_CHARACTER_BACKSTORY: &str = r#"Generate 2 different backstory options for {entity_name}. Archetype: {hints}. Wants: {additional_context}. Fears: {world_setting}. Each backstory should be 3-4 sentences covering origin, key events, and how they became who they are. Return each backstory separated by a blank line."#;
 
-    /// Location name suggestion prompt
+    /// Location name suggestion prompt.
     pub const SUGGESTION_LOCATION_NAME: &str = r#"Generate 5 unique names for a {entity_type} in a {world_setting} setting. Names should be evocative and memorable. Return only the names, one per line."#;
 
-    /// Location description suggestion prompt
+    /// Location description suggestion prompt.
     pub const SUGGESTION_LOCATION_DESCRIPTION: &str = r#"Generate 3 different descriptions for {entity_name} (a {entity_type}). Setting: {world_setting}. Each description should be 2-3 sentences covering what stands out visually, sounds, and smells. Return each description separated by a blank line."#;
 
-    /// Location atmosphere suggestion prompt
+    /// Location atmosphere suggestion prompt.
     pub const SUGGESTION_LOCATION_ATMOSPHERE: &str = r#"Generate 4 different atmosphere/mood options for {entity_name}. Location type: {entity_type}. Description: {additional_context}. Each should be a short phrase (2-5 words) capturing the feel. Examples: 'Tense and watchful', 'Cozy but cluttered', 'Eerily silent'. Return each atmosphere on its own line."#;
 
-    /// Location features suggestion prompt
+    /// Location features suggestion prompt.
     pub const SUGGESTION_LOCATION_FEATURES: &str = r#"Generate 5 notable features or points of interest for {entity_name}. Location type: {entity_type}. Atmosphere: {hints}. Each should be a single sentence describing something players might interact with or notice. Return each feature on its own line."#;
 
-    /// Location secrets suggestion prompt
+    /// Location secrets suggestion prompt.
     pub const SUGGESTION_LOCATION_SECRETS: &str = r#"Generate 3 hidden secrets that could be discovered in {entity_name}. Location type: {entity_type}. Features: {additional_context}. Each secret should be something players might find with investigation, 1-2 sentences. Return each secret separated by a blank line."#;
 
     // === Actantial Model Suggestions ===
-    /// Deflection behavior suggestion prompt
+    /// Deflection behavior suggestion prompt.
     pub const SUGGESTION_DEFLECTION_BEHAVIOR: &str = r#"Generate 3 different deflection behaviors for {entity_name} when trying to hide their desire for: {hints}.
 Setting: {world_setting}.
 Character context: {additional_context}.
@@ -286,7 +281,7 @@ A deflection behavior is how a character acts to conceal their true want - nervo
 Each suggestion should be 1-2 sentences describing the specific behavior.
 Return each suggestion on its own line."#;
 
-    /// Behavioral tells suggestion prompt
+    /// Behavioral tells suggestion prompt.
     pub const SUGGESTION_BEHAVIORAL_TELLS: &str = r#"Generate 3 different behavioral tells for {entity_name} that reveal their hidden desire for: {hints}.
 Setting: {world_setting}.
 Character context: {additional_context}.
@@ -296,7 +291,7 @@ These are clues perceptive players might notice.
 Each suggestion should be 1-2 sentences describing the specific tell.
 Return each suggestion on its own line."#;
 
-    /// Want description suggestion prompt (actantial-aware)
+    /// Want description suggestion prompt (actantial-aware).
     pub const SUGGESTION_WANT_DESCRIPTION: &str = r#"Generate 3 different want descriptions for {entity_name} in a {world_setting} setting.
 Character archetype: {hints}.
 Additional context: {additional_context}.
@@ -306,7 +301,7 @@ Focus on what the character actively pursues or needs.
 Each description should be a single compelling sentence.
 Return each want on its own line."#;
 
-    /// Actantial reason suggestion prompt
+    /// Actantial reason suggestion prompt.
     pub const SUGGESTION_ACTANTIAL_REASON: &str = r#"Generate 3 different reasons why {entity_name} views {hints} as {additional_context} regarding their current goal.
 Setting: {world_setting}.
 
@@ -316,12 +311,12 @@ Each suggestion should be 1-2 sentences.
 Return each reason on its own line."#;
 }
 
-/// Convert a template key to its environment variable name
+/// Convert a template key to its environment variable name.
 pub fn key_to_env_var(key: &str) -> String {
     format!("WRLDBLDR_PROMPT_{}", key.to_uppercase().replace('.', "_"))
 }
 
-/// Get the default value for a template key
+/// Get the default value for a template key.
 pub fn get_default(key: &str) -> Option<&'static str> {
     match key {
         keys::DIALOGUE_RESPONSE_FORMAT => Some(defaults::DIALOGUE_RESPONSE_FORMAT),
@@ -353,7 +348,7 @@ pub fn get_default(key: &str) -> Option<&'static str> {
     }
 }
 
-/// Get metadata for all prompt templates
+/// Get metadata for all prompt templates.
 pub fn prompt_template_metadata() -> Vec<PromptTemplateMetadata> {
     vec![
         // Dialogue
@@ -547,7 +542,7 @@ pub fn prompt_template_metadata() -> Vec<PromptTemplateMetadata> {
     ]
 }
 
-/// Get all known template keys
+/// Get all known template keys.
 pub fn all_keys() -> Vec<&'static str> {
     vec![
         keys::DIALOGUE_RESPONSE_FORMAT,

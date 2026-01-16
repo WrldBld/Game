@@ -14,6 +14,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
 mod app;
+mod game_tools;
 mod infrastructure;
 mod llm_context;
 mod queue_types;
@@ -21,9 +22,9 @@ mod repositories;
 mod use_cases;
 
 #[cfg(test)]
-pub mod test_fixtures;
-#[cfg(test)]
 pub mod e2e_tests;
+#[cfg(test)]
+pub mod test_fixtures;
 
 use api::{
     websocket::{
@@ -342,8 +343,7 @@ async fn main() -> anyhow::Result<()> {
             for (request_id, pending) in pending_requests {
                 let world_id = pending.world_id;
 
-                let timeout_seconds =
-                    crate::use_cases::staging::DEFAULT_STAGING_TIMEOUT_SECONDS;
+                let timeout_seconds = crate::use_cases::staging::DEFAULT_STAGING_TIMEOUT_SECONDS;
 
                 // Skip if timeout is disabled (0) or not yet expired
                 if timeout_seconds == 0 {

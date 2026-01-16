@@ -662,10 +662,7 @@ impl FiveToolsImporter {
     }
 
     fn slugify(&self, value: &str) -> String {
-        value
-            .to_lowercase()
-            .replace(' ', "_")
-            .replace('\'', "")
+        value.to_lowercase().replace(' ', "_").replace('\'', "")
     }
 
     fn convert_school(&self, code: &str) -> String {
@@ -1542,7 +1539,7 @@ impl FiveToolsImporter {
 
 use std::sync::Arc;
 use tokio::sync::OnceCell;
-use wrldbldr_domain::{
+use wrldbldr_protocol::game_systems::{
     CompendiumProvider, ContentError, ContentFilter, ContentItem, ContentType, FilterField,
     FilterFieldType, FilterSchema,
 };
@@ -1686,7 +1683,9 @@ impl Dnd5eContentProvider {
     }
 
     /// Load optional features with caching.
-    async fn load_optional_features_cached(&self) -> Result<&Vec<OptionalFeatureOption>, ContentError> {
+    async fn load_optional_features_cached(
+        &self,
+    ) -> Result<&Vec<OptionalFeatureOption>, ContentError> {
         self.optional_features
             .get_or_try_init(|| async {
                 self.importer
@@ -2138,10 +2137,7 @@ impl CompendiumProvider for Dnd5eContentProvider {
                     }
                     ContentType::CharacterSuborigin => {
                         let subraces = self.load_subraces_cached().await?;
-                        subraces
-                            .iter()
-                            .map(Self::subrace_to_content_item)
-                            .collect()
+                        subraces.iter().map(Self::subrace_to_content_item).collect()
                     }
                     ContentType::CharacterClass => {
                         let classes = self.load_classes_cached().await?;
@@ -2243,13 +2239,15 @@ impl CompendiumProvider for Dnd5eContentProvider {
                 tags: vec!["core".to_string()],
                 supports_search: true,
                 custom_fields: vec![FilterField {
-                    id: "size".to_string(),
+                    key: "size".to_string(),
                     label: "Size".to_string(),
-                    field_type: FilterFieldType::MultiSelect(vec![
-                        "Small".to_string(),
-                        "Medium".to_string(),
-                        "Large".to_string(),
-                    ]),
+                    field_type: FilterFieldType::MultiSelect {
+                        options: vec![
+                            "Small".to_string(),
+                            "Medium".to_string(),
+                            "Large".to_string(),
+                        ],
+                    },
                 }],
             }),
             ContentType::CharacterClass => Some(FilterSchema {
@@ -2257,7 +2255,7 @@ impl CompendiumProvider for Dnd5eContentProvider {
                 tags: vec!["spellcaster".to_string()],
                 supports_search: true,
                 custom_fields: vec![FilterField {
-                    id: "is_caster".to_string(),
+                    key: "is_caster".to_string(),
                     label: "Spellcaster".to_string(),
                     field_type: FilterFieldType::Boolean,
                 }],
@@ -2322,23 +2320,25 @@ impl CompendiumProvider for Dnd5eContentProvider {
                 supports_search: true,
                 custom_fields: vec![
                     FilterField {
-                        id: "level".to_string(),
+                        key: "level".to_string(),
                         label: "Spell Level".to_string(),
-                        field_type: FilterFieldType::Range(0, 9),
+                        field_type: FilterFieldType::Range { min: 0, max: 9 },
                     },
                     FilterField {
-                        id: "school".to_string(),
+                        key: "school".to_string(),
                         label: "School".to_string(),
-                        field_type: FilterFieldType::MultiSelect(vec![
-                            "Abjuration".to_string(),
-                            "Conjuration".to_string(),
-                            "Divination".to_string(),
-                            "Enchantment".to_string(),
-                            "Evocation".to_string(),
-                            "Illusion".to_string(),
-                            "Necromancy".to_string(),
-                            "Transmutation".to_string(),
-                        ]),
+                        field_type: FilterFieldType::MultiSelect {
+                            options: vec![
+                                "Abjuration".to_string(),
+                                "Conjuration".to_string(),
+                                "Divination".to_string(),
+                                "Enchantment".to_string(),
+                                "Evocation".to_string(),
+                                "Illusion".to_string(),
+                                "Necromancy".to_string(),
+                                "Transmutation".to_string(),
+                            ],
+                        },
                     },
                 ],
             }),

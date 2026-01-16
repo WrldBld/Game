@@ -9,9 +9,10 @@ use serde::{Deserialize, Serialize};
 use crate::application::dto::requests::{
     ChangeArchetypeRequest, CreateCharacterRequest, UpdateCharacterRequest,
 };
-use crate::application::dto::{CharacterSheetDataApi, InventoryItemData};
+use crate::application::dto::InventoryItemData;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
+use wrldbldr_protocol::character_sheet::CharacterSheetValues;
 use wrldbldr_protocol::{CharacterRequest, RequestPayload};
 
 /// Character summary for list views
@@ -43,7 +44,7 @@ pub struct CharacterFormData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub portrait_asset: Option<String>,
     #[serde(default)]
-    pub sheet_data: Option<CharacterSheetDataApi>,
+    pub sheet_data: Option<CharacterSheetValues>,
 }
 
 /// Character service for managing characters

@@ -2,10 +2,10 @@
 //!
 //! Handles NPC staging for regions and pending staging approval.
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use neo4rs::{query, Node, Row};
-use crate::infrastructure::neo4j::Neo4jGraph;
 
 use wrldbldr_domain::MoodState;
 use wrldbldr_domain::*;

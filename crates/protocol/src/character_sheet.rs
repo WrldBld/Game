@@ -17,6 +17,7 @@
 //! - **Sections**: Fields are grouped into logical sections for UI layout
 
 use serde::{Deserialize, Serialize};
+pub use wrldbldr_domain::types::character_sheet::{CharacterSheetValues, SheetValue};
 
 // =============================================================================
 // Character Sheet Schema
@@ -398,523 +399,469 @@ pub struct FieldValidation {
     pub pattern: Option<String>,
     /// Error message for validation failure
     #[serde(default)]
-    pub error_message: Option<String>,
+    pub message: Option<String>,
 }
 
-// =============================================================================
-// Layout
-// =============================================================================
-
-/// Layout hints for field rendering.
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+/// Layout hints for fields in a section.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldLayout {
-    /// Width of field (1-12 grid columns)
+    /// Grid column span (default = 1)
+    #[serde(default = "default_one")]
+    pub column_span: u8,
+    /// Alignment within grid cell
     #[serde(default)]
-    pub width: Option<u8>,
-    /// Whether to start a new row before this field
-    #[serde(default)]
-    pub new_row: bool,
-    /// CSS class to apply
-    #[serde(default)]
-    pub css_class: Option<String>,
-    /// Display order (lower = first)
-    #[serde(default)]
-    pub order: Option<i32>,
+    pub alignment: FieldAlignment,
+}
+
+fn default_one() -> u8 {
+    1
+}
+
+/// Alignment of field within its grid cell.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FieldAlignment {
+    #[default]
+    Left,
+    Center,
+    Right,
 }
 
 // =============================================================================
-// Character Creation
+// Character Creation Steps
 // =============================================================================
 
-/// A step in the character creation process.
+/// A step in character creation flow.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreationStep {
-    /// Step identifier
+    /// Unique identifier for the step
     pub id: String,
-    /// Step display name
+    /// Display label
     pub label: String,
-    /// Step description
-    pub description: String,
-    /// Sections included in this step
-    pub section_ids: Vec<String>,
-    /// Order of this step
-    pub order: u8,
-    /// Whether this step is required
-    #[serde(default = "default_true")]
-    pub required: bool,
-    /// Allocation system for this step (if applicable)
+    /// Description of what happens in this step
+    pub description: Option<String>,
+    /// Sections to show in this step
+    pub sections: Vec<String>,
+    /// Whether this step is optional
     #[serde(default)]
-    pub allocation: Option<AllocationSystem>,
+    pub optional: bool,
 }
 
 // =============================================================================
-// Allocation Systems
+// Point Buy / Allocation Systems
 // =============================================================================
 
-/// Allocation system for distributing points/values during character creation.
-///
-/// Different TTRPGs use different allocation mechanics for stats:
-/// - D&D 5e: Point Buy, Standard Array, or Rolling
-/// - PF2e: Ancestry/Background/Class boosts
-/// - CoC 7e: Rolling or Point Pool
-/// - FATE: Skill Pyramid
-/// - Blades: Dot Pool
-/// - PbtA: Stat Arrays per playbook
+/// Point allocation system (used in character creation)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "type")]
+#[serde(rename_all = "snake_case")]
 pub enum AllocationSystem {
-    /// Point buy system (D&D 5e style)
-    /// Players spend points to buy stat values
-    PointBuy {
-        /// Total points available to spend
-        total_points: u32,
-        /// Minimum stat value allowed
-        min_value: i32,
-        /// Maximum stat value allowed (before racial bonuses)
-        max_value: i32,
-        /// Default starting value for each stat
-        base_value: i32,
-        /// Cost table: value -> point cost
-        cost_table: Vec<PointCost>,
-        /// Fields this applies to
-        target_fields: Vec<String>,
-    },
-
-    /// Standard array selection (D&D 5e style)
-    /// Players assign predetermined values to stats
+    /// Fixed array of stats
     StandardArray {
-        /// The array of values to assign
-        values: Vec<i32>,
-        /// Fields to assign values to
+        /// Available arrays
+        arrays: Vec<Vec<i32>>,
         target_fields: Vec<String>,
-        /// Whether each value can only be used once
-        #[serde(default = "default_true")]
         unique_assignment: bool,
     },
-
-    /// Dice rolling for stats
-    /// Players roll dice to determine stat values
-    DiceRoll {
-        /// Dice formula (e.g., "4d6kh3" for 4d6 keep highest 3)
-        formula: String,
-        /// Human-readable description
-        description: String,
-        /// Number of rolls to generate
-        roll_count: u8,
-        /// Fields to assign rolled values to
-        target_fields: Vec<String>,
-        /// Whether to allow rerolling
-        #[serde(default)]
-        allow_reroll: bool,
-        /// Minimum total for all stats (reroll if below)
-        #[serde(default)]
-        minimum_total: Option<i32>,
-    },
-
-    /// Boost/Flaw system (PF2e style)
-    /// Players apply boosts (+2) and flaws (-2) from various sources
-    BoostFlaw {
-        /// Boost sources (ancestry, background, class, free)
-        boost_sources: Vec<BoostSource>,
-        /// Whether flaws are optional
-        #[serde(default)]
-        optional_flaws: bool,
-        /// Target fields for boosts
-        target_fields: Vec<String>,
-        /// Base value for all stats
-        base_value: i32,
-        /// Maximum value after boosts (at creation)
+    /// Point buy system
+    PointBuy {
+        /// Total points available
+        points: i32,
+        min_value: i32,
         max_value: i32,
-    },
-
-    /// Skill pyramid (FATE style)
-    /// Skills must form a pyramid shape (more at lower tiers)
-    Pyramid {
-        /// Maximum skill level (apex of pyramid)
-        apex: i32,
-        /// Minimum skill level
-        base: i32,
-        /// Target skill fields
+        base_value: i32,
+        /// Cost per stat value
+        cost_table: Vec<PointCost>,
         target_fields: Vec<String>,
-        /// Labels for each level
-        level_labels: Vec<LadderLabel>,
     },
-
-    /// Dot pool allocation (Blades in the Dark, World of Darkness)
-    /// Players distribute dots among actions/skills
+    /// Roll dice for stats
+    RollStats {
+        /// Dice formula (e.g., "4d6k3")
+        formula: String,
+    },
+    /// Manual entry
+    Manual,
+    /// Dot pool allocation (Blades)
     DotPool {
-        /// Total dots to distribute
         total_dots: u8,
-        /// Maximum dots per field
         max_per_field: u8,
-        /// Categories of fields with separate pools
         categories: Vec<DotPoolCategory>,
-        /// Starting dots (e.g., from playbook)
-        #[serde(default)]
         starting_dots: Vec<StartingDot>,
     },
-
-    /// Fixed array selection per playbook/archetype (PbtA style)
-    /// Players choose one of several predetermined stat arrays
-    StatArray {
-        /// Available arrays to choose from
-        arrays: Vec<StatArrayOption>,
-        /// Target stat fields
+    /// Dice roll allocation (legacy)
+    DiceRoll {
+        formula: String,
+        description: String,
+        roll_count: u8,
         target_fields: Vec<String>,
+        allow_reroll: bool,
+        minimum_total: Option<i32>,
     },
-
-    /// Percentile pool allocation (CoC 7e style)
-    /// Players distribute a pool of percentage points
+    /// Percentile pool allocation (CoC)
     PercentilePool {
-        /// Total points in the pool
-        total_points: u32,
-        /// Minimum value per skill
-        min_per_field: u8,
-        /// Maximum value per skill (at creation)
-        max_per_field: u8,
-        /// Categories with separate pools
+        total_points: i32,
+        min_per_field: i32,
+        max_per_field: i32,
         categories: Vec<PercentileCategory>,
     },
-
-    /// Free allocation with total constraint
-    /// Players distribute points freely up to a total
+    /// Free allocation (CoC quick-fire)
     FreeAllocation {
-        /// Total points to distribute
-        total_points: u32,
-        /// Minimum per field
+        total_points: i32,
         min_per_field: i32,
-        /// Maximum per field
         max_per_field: i32,
-        /// Target fields
         target_fields: Vec<String>,
     },
+    /// Stat array allocation
+    StatArray {
+        arrays: Vec<StatArrayOption>,
+        target_fields: Vec<String>,
+    },
+    /// Boost/flaw allocation (PF2e)
+    BoostFlaw {
+        boost_sources: Vec<BoostSource>,
+        optional_flaws: bool,
+        base_value: i32,
+        max_value: i32,
+        target_fields: Vec<String>,
+    },
+    /// Pyramid allocation (Fate)
+    Pyramid {
+        apex: i32,
+        base: i32,
+        rows: Vec<Vec<i32>>,
+        level_labels: Vec<LadderLabel>,
+        target_fields: Vec<String>,
+    },
+    /// Unknown for forward compatibility
+    #[serde(other)]
+    Unknown,
 }
 
-/// Point cost entry for point buy systems.
+/// Point cost for a stat value
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PointCost {
-    /// The stat value
     pub value: i32,
-    /// Point cost to achieve this value
-    pub cost: u32,
+    pub cost: i32,
 }
 
-/// Source of ability boosts for PF2e-style systems.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BoostSource {
-    /// Source identifier (e.g., "ancestry", "background", "class")
-    pub id: String,
-    /// Display name
-    pub label: String,
-    /// Number of free boosts (any stat)
-    pub free_boosts: u8,
-    /// Fixed boosts (specific stats)
-    #[serde(default)]
-    pub fixed_boosts: Vec<String>,
-    /// Number of flaws to apply
-    #[serde(default)]
-    pub flaws: u8,
-    /// Fixed flaws (specific stats)
-    #[serde(default)]
-    pub fixed_flaws: Vec<String>,
-    /// Whether this source has been applied
-    #[serde(default)]
-    pub applied: bool,
-}
-
-/// Category for dot pool allocation.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DotPoolCategory {
-    /// Category identifier
-    pub id: String,
-    /// Display name
-    pub label: String,
-    /// Dots available for this category
-    pub dots: u8,
-    /// Fields in this category
-    pub fields: Vec<String>,
-}
-
-/// Starting dots from playbook or archetype.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StartingDot {
-    /// Field to receive starting dots
-    pub field: String,
-    /// Number of starting dots
-    pub dots: u8,
-    /// Source (playbook name, etc.)
-    pub source: String,
-}
-
-/// Stat array option for PbtA-style selection.
+/// Stat array option for standard array allocation
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StatArrayOption {
-    /// Option identifier
     pub id: String,
-    /// Description (e.g., "Tough but not very bright")
-    #[serde(default)]
     pub description: Option<String>,
-    /// Values for each target field (in order)
     pub values: Vec<i32>,
 }
 
-/// Category for percentile pool allocation.
+/// Input type for character creation
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InputType {
+    /// Free text input
+    Text,
+    /// Selection from options
+    Select,
+    /// Numeric input
+    Number,
+    /// Boolean toggle
+    Boolean,
+    /// Multi-select
+    MultiSelect,
+}
+
+/// Field input default
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PercentileCategory {
-    /// Category identifier (e.g., "occupation", "personal")
+pub struct InputDefault {
+    /// Default value (if any)
+    pub value: SheetValue,
+}
+
+/// Trait indicating a field can be derived
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DerivationTypeLocation {
+    /// Derived from another field
+    Derived,
+    /// User-entered
+    Direct,
+}
+
+/// Field definition for character creation flow
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreationField {
+    /// Field identifier
     pub id: String,
-    /// Display name
+    /// Display label
     pub label: String,
-    /// Points available in this pool
-    pub points: u32,
-    /// Fields this pool can be applied to
-    pub fields: Vec<String>,
-    /// Formula for calculating points (e.g., "EDU * 4")
+    /// Input type
+    pub input_type: InputType,
+    /// Whether required
     #[serde(default)]
-    pub formula: Option<String>,
+    pub required: bool,
+    /// Default value
+    pub default_value: Option<InputDefault>,
+    /// Additional metadata for UI
+    #[serde(default)]
+    pub metadata: Option<SheetValue>,
 }
 
 // =============================================================================
-// Character Data Exchange
+// Field Validation
 // =============================================================================
 
-/// Character sheet response with schema and values for rendering.
-///
-/// Combines the schema with the character's current values.
+/// Validation for character creation fields
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CharacterSheetResponse {
-    /// Character ID
-    pub character_id: String,
-    /// Character name
-    pub name: String,
-    /// The schema to use for rendering
-    pub schema: CharacterSheetSchema,
-    /// Current field values (field_id -> value)
-    pub values: std::collections::HashMap<String, serde_json::Value>,
-    /// Calculated/derived values (field_id -> calculated value)
-    pub calculated: std::collections::HashMap<String, serde_json::Value>,
-}
-
-/// Update to a character sheet field.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FieldUpdate {
-    /// Field ID being updated
+pub struct FieldValidationRule {
+    /// Field to validate
     pub field_id: String,
-    /// New value
-    pub value: serde_json::Value,
-}
-
-/// Response after updating a field.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FieldUpdateResponse {
-    /// Whether the update was successful
-    pub success: bool,
-    /// Updated calculated values (if any derived fields changed)
-    #[serde(default)]
-    pub updated_calculated: std::collections::HashMap<String, serde_json::Value>,
-    /// Validation errors (if any)
-    #[serde(default)]
-    pub errors: Vec<ValidationError>,
-}
-
-/// Validation error for a field.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ValidationError {
-    /// Field ID with the error
-    pub field_id: String,
+    /// Validation rule type
+    pub rule_type: ValidationRuleType,
     /// Error message
     pub message: String,
 }
 
+/// Type of validation rule
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ValidationRuleType {
+    /// Required field
+    Required,
+    /// Numeric range
+    Range { min: i32, max: i32 },
+    /// String length
+    Length { min: usize, max: usize },
+    /// Regex pattern
+    Pattern { regex: String },
+    /// Custom validation (handled in engine)
+    Custom,
+}
+
 // =============================================================================
-// Character Sheet Data Storage
+// Field Layout Definitions
 // =============================================================================
 
-/// Character sheet data storage using JSON values for flexibility.
-///
-/// This struct stores the actual field values for a character, using JSON
-/// for flexible type handling across different game systems.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+/// Layout for character sheet sections
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CharacterSheetData {
-    /// Field values keyed by field ID
+pub struct SectionLayout {
+    /// Section type
+    pub section_type: SectionType,
+    /// Layout columns
+    pub columns: u8,
+    /// Optional section-specific metadata
     #[serde(default)]
-    pub values: std::collections::HashMap<String, serde_json::Value>,
+    pub metadata: Option<SheetValue>,
 }
 
-impl CharacterSheetData {
-    /// Create a new empty character sheet data
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Set a field value
-    pub fn set(&mut self, key: impl Into<String>, value: serde_json::Value) {
-        self.values.insert(key.into(), value);
-    }
-
-    /// Get a field value
-    pub fn get(&self, key: &str) -> Option<&serde_json::Value> {
-        self.values.get(key)
-    }
-
-    /// Get a field value as an integer (i64)
-    pub fn get_number(&self, key: &str) -> Option<i64> {
-        self.values.get(key).and_then(|v| v.as_i64())
-    }
-
-    /// Get a field value as an i32 (for stat/modifier values)
-    ///
-    /// This is the unified numeric extraction method that handles all field types:
-    /// - Number: direct value
-    /// - SkillEntry: bonus value
-    /// - DicePool: dice count (for Blades)
-    /// - Percentile: skill value (for CoC 7e)
-    /// - LadderRating: ladder position (for FATE)
-    pub fn get_numeric_value(&self, key: &str) -> Option<i32> {
-        self.values.get(key).and_then(|v| {
-            // Handle various JSON representations
-            if let Some(n) = v.as_i64() {
-                return i32::try_from(n).ok();
-            }
-            if let Some(n) = v.as_f64() {
-                // Check if float is finite and within i32 range
-                if n.is_finite() && n >= i32::MIN as f64 && n <= i32::MAX as f64 {
-                    return Some(n as i32);
-                }
-                return None;
-            }
-            // Handle object types like SkillEntry with a "bonus" or "value" field
-            if let Some(obj) = v.as_object() {
-                if let Some(bonus) = obj.get("bonus").and_then(|b| b.as_i64()) {
-                    return i32::try_from(bonus).ok();
-                }
-                if let Some(value) = obj.get("value").and_then(|b| b.as_i64()) {
-                    return i32::try_from(value).ok();
-                }
-                // For dice pool, use dice count
-                if let Some(dice) = obj.get("dice").and_then(|d| d.as_i64()) {
-                    return i32::try_from(dice).ok();
-                }
-            }
-            None
-        })
-    }
-
-    /// Get a field value as a float
-    pub fn get_float(&self, key: &str) -> Option<f64> {
-        self.values.get(key).and_then(|v| v.as_f64())
-    }
-
-    /// Get a field value as a string
-    pub fn get_string(&self, key: &str) -> Option<&str> {
-        self.values.get(key).and_then(|v| v.as_str())
-    }
-
-    /// Get a field value as a boolean
-    pub fn get_bool(&self, key: &str) -> Option<bool> {
-        self.values.get(key).and_then(|v| v.as_bool())
-    }
-
-    /// Check if a field exists
-    pub fn has(&self, key: &str) -> bool {
-        self.values.contains_key(key)
-    }
-
-    /// Remove a field value
-    pub fn remove(&mut self, key: &str) -> Option<serde_json::Value> {
-        self.values.remove(key)
-    }
-
-    /// Get all field keys
-    pub fn keys(&self) -> impl Iterator<Item = &String> {
-        self.values.keys()
-    }
-
-    /// Check if the sheet data is empty
-    pub fn is_empty(&self) -> bool {
-        self.values.is_empty()
-    }
+/// Definition of how a field should be laid out
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldLayoutDefinition {
+    pub field_id: String,
+    pub layout: FieldLayout,
 }
 
 // =============================================================================
-// Tests
+// Character Sheet Values
+// =============================================================================
+/// Field change payload
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CharacterSheetFieldChange {
+    pub field_id: String,
+    pub new_value: SheetValue,
+    pub actor_id: Option<String>,
+}
+
+/// Apply multiple field changes to a character sheet
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CharacterSheetUpdate {
+    pub character_id: String,
+    pub changes: Vec<CharacterSheetFieldChange>,
+}
+
+// =============================================================================
+// Derived Field Definitions
 // =============================================================================
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Derived field definition for schema generation
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DerivedFieldDefinition {
+    pub id: String,
+    pub derivation_type: DerivationType,
+    pub dependencies: Vec<String>,
+}
 
-    #[test]
-    fn test_field_type_serialization() {
-        let field = SchemaFieldType::AbilityScore {
-            min: Some(1),
-            max: Some(30),
-        };
-        let json = serde_json::to_string(&field).unwrap();
-        assert!(json.contains("ability_score"));
+/// Resource allocation configuration
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceAllocation {
+    pub system: AllocationSystem,
+    pub fields: Vec<String>,
+}
 
-        let parsed: SchemaFieldType = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed, field);
-    }
+/// Stats array definition for standard arrays
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatArray {
+    pub name: String,
+    pub values: Vec<i32>,
+}
 
-    #[test]
-    fn test_section_type_serialization() {
-        let section = SectionType::AbilityScores;
-        let json = serde_json::to_string(&section).unwrap();
-        assert_eq!(json, "\"ability_scores\"");
-    }
+/// User-configurable schema variant
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchemaVariantConfig {
+    pub variant_id: String,
+    pub display_name: String,
+    pub description: Option<String>,
+    pub base_schema_id: Option<String>,
+    pub overrides: Option<SheetValue>,
+}
 
-    #[test]
-    fn test_character_sheet_schema() {
-        let schema = CharacterSheetSchema {
-            system_id: "dnd5e".to_string(),
-            system_name: "D&D 5th Edition".to_string(),
-            sections: vec![SchemaSection {
-                id: "abilities".to_string(),
-                label: "Ability Scores".to_string(),
-                section_type: SectionType::AbilityScores,
-                fields: vec![FieldDefinition {
-                    id: "STR".to_string(),
-                    label: "Strength".to_string(),
-                    field_type: SchemaFieldType::AbilityScore {
-                        min: Some(1),
-                        max: Some(30),
-                    },
-                    editable: true,
-                    required: true,
-                    derived_from: None,
-                    validation: Some(FieldValidation {
-                        min: Some(1),
-                        max: Some(30),
-                        pattern: None,
-                        error_message: Some("Must be between 1 and 30".to_string()),
-                    }),
-                    layout: FieldLayout::default(),
-                    description: Some("Physical power and carrying capacity".to_string()),
-                    placeholder: None,
-                }],
-                collapsible: false,
-                collapsed_default: false,
-                description: None,
-            }],
-            creation_steps: vec![],
-        };
+/// Mapping between schema field IDs and domain stats
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchemaStatMapping {
+    pub field_id: String,
+    pub stat_name: String,
+}
 
-        let json = serde_json::to_string_pretty(&schema).unwrap();
-        assert!(json.contains("dnd5e"));
-        assert!(json.contains("Strength"));
-    }
+/// Field visibility rules
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldVisibilityRule {
+    pub field_id: String,
+    pub rule: VisibilityRule,
+}
+
+/// Visibility rule types
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VisibilityRule {
+    /// Always visible
+    Always,
+    /// Visible when a field has a specific value
+    FieldValue { field_id: String, value: SheetValue },
+    /// Visible when any of multiple values match
+    FieldValueAny {
+        field_id: String,
+        values: Vec<SheetValue>,
+    },
+    /// Visible when field is non-empty
+    FieldValuePresent { field_id: String },
+    /// Visible when a derived value meets a condition
+    DerivedValue {
+        field_id: String,
+        comparison: ComparisonOperator,
+        value: SheetValue,
+    },
+}
+
+/// Comparison operator for derived value checks
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ComparisonOperator {
+    Eq,
+    NotEq,
+    Gt,
+    Gte,
+    Lt,
+    Lte,
+}
+
+// =============================================================================
+// Utility Types
+// =============================================================================
+
+/// Source of boosts in character creation
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BoostSource {
+    pub source_type: String,
+    pub boosts: Vec<String>,
+}
+
+/// Boost definition for point buy systems
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BoostDefinition {
+    pub id: String,
+    pub label: String,
+    pub boosts: Vec<String>,
+}
+
+/// Dot pool category for Blades
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DotPoolCategory {
+    pub id: String,
+    pub label: String,
+    pub max: u8,
+    pub dots: u8,
+    pub fields: Vec<String>,
+}
+
+/// Definition of derived fields
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DerivedFieldDefinitionLegacy {
+    pub id: String,
+    pub derivation_type: DerivationType,
+    pub dependencies: Vec<String>,
+}
+
+/// Definition for derived values
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DerivedValueDefinition {
+    pub id: String,
+    pub derivation_type: DerivationType,
+    pub dependencies: Vec<String>,
+}
+
+/// Percentile allocation category (CoC)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PercentileCategory {
+    pub id: String,
+    pub label: String,
+    pub points: i32,
+    pub fields: Vec<String>,
+    #[serde(default)]
+    pub formula: Option<String>,
+}
+
+/// Starting dot allocation (Blades)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartingDot {
+    pub field: String,
+    pub dots: u8,
+    pub source: String,
+}
+
+/// Definition for character sheet asset prompts
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CharacterSheetAssetPrompt {
+    pub field_id: String,
+    pub prompt: String,
+}
+
+/// Rule system configuration (legacy)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuleSystemConfigLegacy {
+    pub name: String,
+    pub description: Option<String>,
+    pub variant: String,
+    pub metadata: Option<SheetValue>,
 }

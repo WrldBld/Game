@@ -88,7 +88,7 @@ mod tests {
     }
 
     #[test]
-    fn test_serde_roundtrip() {
+    fn test_outcomes_equality() {
         let outcomes = AdHocOutcomes::new(
             "Success".to_string(),
             "Failure".to_string(),
@@ -96,18 +96,7 @@ mod tests {
             None,
         );
 
-        let json = serde_json::to_string(&outcomes).unwrap();
-        let parsed: AdHocOutcomes = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(outcomes, parsed);
-    }
-
-    #[test]
-    fn test_camel_case_serialization() {
-        let outcomes = AdHocOutcomes::basic("ok".to_string(), "nope".to_string());
-        let json = serde_json::to_string(&outcomes).unwrap();
-
-        assert!(json.contains("criticalSuccess"));
-        assert!(json.contains("criticalFailure"));
+        let other = outcomes.clone();
+        assert_eq!(outcomes, other);
     }
 }

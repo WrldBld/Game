@@ -4,9 +4,9 @@
 
 use std::sync::Arc;
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
 use neo4rs::{query, Node, Row};
-use crate::infrastructure::neo4j::Neo4jGraph;
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_optional_typed_id, parse_typed_id, row_to_item, NodeExt};
@@ -53,7 +53,12 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             .map(|s| serde_json::to_string(s))
             .transpose()
             .map_err(|e| RepoError::Serialization(e.to_string()))?
-            .unwrap_or_else(|| "{}".to_string());
+            .unwrap_or_else(|| {
+                serde_json::to_string(
+                    &wrldbldr_protocol::character_sheet::CharacterSheetValues::default(),
+                )
+                .unwrap_or_else(|_| "{}".to_string())
+            });
 
         let current_region_id_str = pc
             .current_region_id()
@@ -417,12 +422,18 @@ fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
     let description = node.get_optional_string("description");
 
     // Parse sheet_data from JSON
-    let sheet_data_str = node.get_string_or("sheet_data", "{}");
-    let sheet_data = if sheet_data_str.is_empty() || sheet_data_str == "{}" {
+    let sheet_data_str = node.get_string_or("sheet_data", "");
+    let sheet_data = if sheet_data_str.is_empty() {
         None
     } else {
-        serde_json::from_str(&sheet_data_str)
-            .map_err(|e| RepoError::Serialization(format!("Invalid sheet_data: {}", e)))?
+        let parsed: wrldbldr_protocol::character_sheet::CharacterSheetValues =
+            serde_json::from_str(&sheet_data_str)
+                .map_err(|e| RepoError::Serialization(format!("Invalid sheet_data: {}", e)))?;
+        if parsed.values.is_empty() {
+            None
+        } else {
+            Some(parsed)
+        }
     };
 
     let current_location_id: LocationId = parse_typed_id(&node, "current_location_id")
@@ -453,7 +464,7 @@ fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
     let is_alive: bool = node.get("is_alive").unwrap_or(true);
     let is_active: bool = node.get("is_active").unwrap_or(true);
 
-    Ok(PlayerCharacter::new(
+    let mut pc = PlayerCharacter::new(
         user_id,
         world_id,
         wrldbldr_domain::CharacterName::new(&name)
@@ -465,9 +476,14 @@ fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
     .with_current_location(current_location_id)
     .with_current_region(current_region_id)
     .with_description(description.unwrap_or_default())
-    .with_sheet_data(sheet_data.unwrap_or_default())
     .with_sprite(sprite_asset.unwrap_or_default())
     .with_portrait(portrait_asset.unwrap_or_default())
     .with_state(CharacterState::from_legacy(is_alive, is_active))
-    .with_last_active_at(last_active_at))
+    .with_last_active_at(last_active_at);
+
+    if let Some(sheet_data) = sheet_data {
+        pc = pc.with_sheet_data(sheet_data);
+    }
+
+    Ok(pc)
 }

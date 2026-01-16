@@ -14,12 +14,16 @@
 //! 4. **No domain IDs** - use raw `uuid::Uuid` in DTOs
 
 pub mod app_events;
+pub mod character_sheet;
 pub mod dto;
+pub mod game_systems;
 pub mod messages;
 pub mod requests;
 pub mod responses;
 pub mod rule_system;
+pub mod settings;
 pub mod types;
+pub mod workflow;
 
 // =============================================================================
 // WebSocket Message Types
@@ -82,6 +86,30 @@ pub use messages::{
     WantTargetTypeData,
     WantVisibilityData,
 };
+
+// =============================================================================
+// Character Sheet Schema Types
+// =============================================================================
+
+pub use character_sheet::{
+    AllocationSystem, BoostDefinition, BoostSource, CharacterSheetAssetPrompt,
+    CharacterSheetFieldChange, CharacterSheetSchema, CharacterSheetUpdate, ComparisonOperator,
+    ConditionLevel, CreationField, CreationStep, DerivationType, DerivationTypeLocation,
+    DerivedField, DerivedFieldDefinition, DerivedFieldDefinitionLegacy, DerivedValueDefinition,
+    DotPoolCategory, EntityRefType, FieldAlignment, FieldDefinition, FieldLayout,
+    FieldLayoutDefinition, FieldValidation, FieldValidationRule, FieldVisibilityRule, LadderLabel,
+    PointCost, ProficiencyOption, ResourceAllocation, ResourceColor, SchemaFieldType,
+    SchemaSection, SchemaSelectOption, SchemaStatMapping, SchemaVariantConfig, SectionLayout,
+    SectionType, StatArray, StatArrayOption, ValidationRuleType, VisibilityRule,
+};
+
+pub use crate::game_systems::{FilterField, FilterFieldType, FilterSchema};
+pub use crate::workflow::{
+    analyze_workflow, auto_detect_prompt_mappings, find_nodes_by_type, validate_workflow,
+    InputDefault, InputType, PromptMapping, PromptMappingType, WorkflowAnalysis,
+    WorkflowConfiguration, WorkflowInput, WorkflowSlot,
+};
+pub use wrldbldr_domain::types::{CharacterSheetValues, SheetValue};
 
 // =============================================================================
 // App Events
@@ -305,31 +333,4 @@ pub use responses::{
     ResponseResult,
     // World connection types
     WorldRole,
-};
-
-// =============================================================================
-// Character Sheet Schema Types (re-exported from domain)
-// =============================================================================
-pub use wrldbldr_domain::{
-    // Schema types
-    CharacterSheetResponse,
-    CharacterSheetSchema,
-    ConditionLevel,
-    CreationStep,
-    DerivationType,
-    DerivedField,
-    EntityRefType,
-    FieldDefinition,
-    FieldLayout,
-    FieldUpdate,
-    FieldUpdateResponse,
-    FieldValidation,
-    LadderLabel,
-    ProficiencyOption,
-    ResourceColor,
-    SchemaFieldType,
-    SchemaSection,
-    SchemaSelectOption,
-    SectionType,
-    ValidationError,
 };

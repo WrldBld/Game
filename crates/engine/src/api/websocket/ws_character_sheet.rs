@@ -7,11 +7,13 @@ use super::*;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
-use wrldbldr_domain::{CharacterSheetProvider, CharacterSheetSchema, GameSystemRegistry};
-use wrldbldr_protocol::{CharacterSheetRequest, ErrorCode, ResponseResult};
+use wrldbldr_protocol::character_sheet::SheetValue;
+use wrldbldr_protocol::game_systems::CharacterSheetProvider;
+use wrldbldr_protocol::game_systems::GameSystemRegistry;
+use wrldbldr_protocol::{CharacterSheetRequest, CharacterSheetSchema, ErrorCode, ResponseResult};
 
 // Import all game systems that implement CharacterSheetProvider
-use wrldbldr_domain::game_systems::{
+use wrldbldr_protocol::game_systems::{
     BladesSystem, Coc7eSystem, Dnd5eSystem, FateCoreSystem, PbtaSystem, Pf2eSystem,
 };
 
@@ -64,8 +66,8 @@ fn get_provider_for_system(system_id: &str) -> Option<Box<dyn CharacterSheetProv
 }
 
 /// Convert a RuleSystemVariant to the corresponding system ID string.
-fn variant_to_system_id(variant: &wrldbldr_domain::RuleSystemVariant) -> String {
-    use wrldbldr_domain::RuleSystemVariant;
+fn variant_to_system_id(variant: &wrldbldr_protocol::RuleSystemVariant) -> String {
+    use wrldbldr_protocol::RuleSystemVariant;
     match variant {
         RuleSystemVariant::Dnd5e => "dnd5e".to_string(),
         RuleSystemVariant::Pathfinder2e => "pf2e".to_string(),
@@ -138,10 +140,7 @@ pub(super) async fn handle_character_sheet_request(
                     json!({
                         "id": id,
                         "name": name,
-                        "has_spellcasting": sys
-                            .as_ref()
-                            .map(|s| s.spellcasting_system().is_some())
-                            .unwrap_or(false),
+                        "has_spellcasting": false,
                         "has_sheet_schema": has_schema_for_system(id),
                     })
                 })
@@ -396,7 +395,7 @@ pub(super) async fn handle_character_sheet_request(
                     for field in &section.fields {
                         if field.required {
                             if !values.contains_key(&field.id)
-                                || values.get(&field.id) == Some(&serde_json::Value::Null)
+                                || values.get(&field.id) == Some(&SheetValue::Null)
                             {
                                 missing_required.push(field.id.clone());
                             }
@@ -840,15 +839,18 @@ pub(super) async fn handle_character_sheet_request(
 /// Extract character values into a HashMap for schema operations.
 fn get_character_values(
     character: &wrldbldr_domain::Character,
-) -> std::collections::HashMap<String, serde_json::Value> {
+) -> std::collections::HashMap<String, SheetValue> {
     let mut values = std::collections::HashMap::new();
 
     // Add character name
-    values.insert("NAME".to_string(), json!(character.name().to_string()));
+    values.insert(
+        "NAME".to_string(),
+        SheetValue::String(character.name().to_string()),
+    );
 
     // Add stats
     for (name, stat) in character.stats().get_all_stats() {
-        values.insert(name.to_string(), json!(stat.effective));
+        values.insert(name.to_string(), SheetValue::Integer(stat.effective));
     }
 
     values
@@ -858,7 +860,7 @@ fn get_character_values(
 fn update_character_field(
     character: &mut wrldbldr_domain::Character,
     field_id: &str,
-    value: &serde_json::Value,
+    value: &SheetValue,
 ) {
     match field_id {
         "NAME" => {

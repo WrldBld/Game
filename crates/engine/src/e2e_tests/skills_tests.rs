@@ -8,6 +8,7 @@
 use std::sync::Arc;
 
 use super::{create_test_player, E2EEventLog, E2ETestContext, TestOutcome};
+use wrldbldr_protocol::character_sheet::{CharacterSheetValues, SheetValue};
 
 /// Test listing world skills.
 #[tokio::test]
@@ -58,13 +59,38 @@ async fn test_pc_skills_from_sheet() {
     .expect("Player creation should succeed");
 
     // Create sheet data with skills
-    let sheet_data = serde_json::json!({
-        "skills": {
-            "athletics": {"level": 2, "proficient": true},
-            "perception": {"level": 1, "proficient": false},
-            "persuasion": {"level": 3, "proficient": true}
-        }
-    });
+    let mut values = std::collections::BTreeMap::new();
+    values.insert(
+        "skills".to_string(),
+        SheetValue::Object(std::collections::BTreeMap::from([
+            (
+                "athletics".to_string(),
+                SheetValue::Object(std::collections::BTreeMap::from([
+                    ("level".to_string(), SheetValue::Integer(2)),
+                    ("proficient".to_string(), SheetValue::Boolean(true)),
+                ])),
+            ),
+            (
+                "perception".to_string(),
+                SheetValue::Object(std::collections::BTreeMap::from([
+                    ("level".to_string(), SheetValue::Integer(1)),
+                    ("proficient".to_string(), SheetValue::Boolean(false)),
+                ])),
+            ),
+            (
+                "persuasion".to_string(),
+                SheetValue::Object(std::collections::BTreeMap::from([
+                    ("level".to_string(), SheetValue::Integer(3)),
+                    ("proficient".to_string(), SheetValue::Boolean(true)),
+                ])),
+            ),
+        ])),
+    );
+
+    let sheet_data = CharacterSheetValues {
+        values,
+        last_updated: None,
+    };
 
     // Update sheet with skills using the update method with sheet_data parameter
     let update_result = ctx

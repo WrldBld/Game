@@ -2,7 +2,9 @@
 
 use std::sync::Arc;
 
-use crate::infrastructure::ports::{TimeSuggestion, TimeSuggestionStore as TimeSuggestionStorePort};
+use crate::infrastructure::ports::{
+    TimeSuggestion, TimeSuggestionStore as TimeSuggestionStorePort,
+};
 
 /// Time suggestion store wrapper for use cases.
 pub struct TimeSuggestionStore {

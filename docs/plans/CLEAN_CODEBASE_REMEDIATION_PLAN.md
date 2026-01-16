@@ -2,7 +2,7 @@
 
 Status: Active
 Owner: Team
-Last updated: 2026-01-15
+Last updated: 2026-01-17
 
 Goal: remediate all findings from the latest full code review and establish a clean baseline with no new tech debt.
 
@@ -42,26 +42,26 @@ Goal: remediate all findings from the latest full code review and establish a cl
 ## Phase 1: Domain Purity + Error Types
 
 ### 1.1 Remove `serde_json` from domain dependencies
-- [ ] Audit all `serde_json` usage in `crates/domain` and classify:
-  - Data model dependency (needs redesign)
-  - Tests/fixtures (can move or gate)
-  - Serde roundtrip tests (can move or use `serde_json` only in tests)
-- [ ] Redesign plan for each `serde_json::Value` usage:
+- [~] Audit all `serde_json` usage in `crates/domain` and classify:
+  - [x] Data model dependency (needs redesign)
+  - [x] Tests/fixtures (can move or gate)
+  - [x] Serde roundtrip tests (can move or use `serde_json` only in tests)
+- [x] Redesign plan for each `serde_json::Value` usage:
   - Character sheet/value maps: move `serde_json::Value` payloads to `protocol` DTOs and keep domain as typed enums + newtypes only.
   - Workflow/config JSON blobs: move config storage to `engine` (infra or use-case layer), keep domain with IDs + metadata only.
   - Content/traits/spells JSON: move JSON serialization/fixtures to `protocol` or `engine` tests; domain should hold typed structs.
   - Any truly opaque blob required by domain: wrap as `OpaqueJson` value object in `engine`, not domain.
-- [ ] Replace domain fields accordingly:
+- [x] Replace domain fields accordingly:
   - Convert domain fields to typed structs/enums.
   - Add conversion layers in `protocol` and `engine` mapping code.
-- [ ] Move UI/schema and workflow config types out of domain:
-  - `crates/domain/src/character_sheet.rs` schema types -> `protocol` (wire format).
-  - `crates/domain/src/types/workflow.rs` + `crates/domain/src/entities/workflow_config.rs` -> `engine` (infra/use-case) + `protocol` DTOs.
-- [ ] Move non-domain UI/LLM metadata out of domain:
-  - `PromptTemplateMetadata` and prompt strings -> `engine` (LLM orchestration) or `protocol`.
-  - `SettingsFieldMetadata` (UI) -> `protocol` or `player`, keep domain with raw config only.
-- [ ] Update domain crate dependencies to remove `serde_json`.
-- [ ] Ensure domain still serializes/deserializes using `serde` only.
+- [x] Move UI/schema and workflow config types out of domain:
+  - [x] `crates/domain/src/character_sheet.rs` schema types -> `protocol` (wire format).
+  - [x] `crates/domain/src/types/workflow.rs` + `crates/domain/src/entities/workflow_config.rs` -> `engine` (infra/use-case) + `protocol` DTOs.
+- [x] Move non-domain UI/LLM metadata out of domain:
+  - [x] `PromptTemplateMetadata` and prompt strings -> `engine` (LLM orchestration) or `protocol`.
+  - [x] `SettingsFieldMetadata` (UI) -> `protocol` or `player`, keep domain with raw config only.
+- [x] Update domain crate dependencies to remove `serde_json`.
+- [x] Ensure domain still serializes/deserializes using `serde` only.
 
 Acceptance:
 - `crates/domain/Cargo.toml` has no `serde_json` dependency.
@@ -360,7 +360,7 @@ Acceptance:
 
 ## Progress Tracking Checklist
 
-- [ ] Phase 1.1 complete
+- [x] Phase 1.1 complete
 - [ ] Phase 1.2 complete
 - [ ] Phase 1.3 complete
 - [ ] Phase 1.4 complete

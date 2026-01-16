@@ -21,14 +21,9 @@ async fn test_create_observation() {
         .expect("Common Room should exist");
     let mira_id = ctx.world.npc("Mira Thornwood").expect("Mira should exist");
 
-    let (_, pc_id) = create_test_player(
-        ctx.graph(),
-        ctx.world.world_id,
-        common_room,
-        "Observer",
-    )
-    .await
-    .expect("Player creation should succeed");
+    let (_, pc_id) = create_test_player(ctx.graph(), ctx.world.world_id, common_room, "Observer")
+        .await
+        .expect("Player creation should succeed");
 
     // Create an observation using the management use case
     // ObservationType variants are: Direct, HeardAbout, Deduced
@@ -188,14 +183,10 @@ async fn test_observation_types() {
         .expect("Common Room should exist");
     let mira_id = ctx.world.npc("Mira Thornwood").expect("Mira should exist");
 
-    let (_, pc_id) = create_test_player(
-        ctx.graph(),
-        ctx.world.world_id,
-        common_room,
-        "Type Tester",
-    )
-    .await
-    .expect("Player creation should succeed");
+    let (_, pc_id) =
+        create_test_player(ctx.graph(), ctx.world.world_id, common_room, "Type Tester")
+            .await
+            .expect("Player creation should succeed");
 
     // Test different observation types
     // ObservationType variants are: Direct, HeardAbout, Deduced
@@ -251,8 +242,7 @@ async fn test_observation_count_trigger() {
 
     // Create event with ObservationCount trigger
     let event_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -276,8 +266,7 @@ async fn test_observation_count_trigger() {
 
     // Create ObservationCount trigger
     let trigger_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id})

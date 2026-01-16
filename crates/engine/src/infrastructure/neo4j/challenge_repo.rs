@@ -8,9 +8,9 @@
 //!
 //! Complex fields (outcomes, triggers, difficulty) are stored as JSON.
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
 use neo4rs::{query, Row};
-use crate::infrastructure::neo4j::Neo4jGraph;
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_typed_id, NodeExt};

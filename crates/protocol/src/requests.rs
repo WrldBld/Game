@@ -6,6 +6,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::CharacterSheetValues;
+
 fn default_true() -> bool {
     true
 }
@@ -421,7 +423,7 @@ pub struct CreatePlayerCharacterData {
     #[serde(default)]
     pub starting_region_id: Option<String>,
     #[serde(default)]
-    pub sheet_data: Option<serde_json::Value>,
+    pub sheet_data: Option<CharacterSheetValues>,
 }
 
 /// Data for updating a player character
@@ -430,7 +432,7 @@ pub struct UpdatePlayerCharacterData {
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]
-    pub sheet_data: Option<serde_json::Value>,
+    pub sheet_data: Option<CharacterSheetValues>,
 }
 
 /// Data for creating a relationship

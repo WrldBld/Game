@@ -27,7 +27,6 @@ mod spell;
 mod staging;
 mod story_event;
 mod want;
-mod workflow_config;
 mod world;
 
 pub use challenge::{
@@ -37,13 +36,12 @@ pub use challenge::{
 };
 // Note: Character is now exported from aggregates
 // StatBlock, StatModifier, StatValue are now exported from value_objects
-pub use character::{StatBlock, StatModifier, StatValue};
 pub use character_content::{
     AcquiredFeat, ActiveFeature, CharacterFeats, CharacterFeatures, CharacterIdentity,
     CharacterSpells, ClassLevel, KnownSpell, SpellSlotPool,
 };
 pub use class_feature::{BackgroundFeature, ClassFeature, FeatureUses, RacialTrait};
-pub use content_types::{ContentFilter, ContentItem, ContentSource, ContentType, SourceType};
+pub use content_types::{ContentFilter, ContentSource, ContentType, SourceType};
 pub use event_chain::{ChainStatus, EventChain};
 pub use feat::{AbilityUses, Feat, FeatBenefit, Prerequisite, RechargeType, UsesFormula};
 pub use gallery_asset::{AssetType, EntityType, GalleryAsset, GenerationMetadata};
@@ -62,9 +60,8 @@ pub use location_state::{LocationState, LocationStateSummary};
 pub use lore::{Lore, LoreCategory, LoreChunk, LoreDiscoverySource, LoreKnowledge};
 // Note: NarrativeEvent is now exported from aggregates
 pub use narrative_event::{
-    ChainedEvent, EventChainMembership, EventEffect, EventOutcome, FeaturedNpc,
-    NarrativeTrigger, NarrativeTriggerType, OutcomeCondition, TriggerContext, TriggerEvaluation,
-    TriggerLogic,
+    ChainedEvent, EventChainMembership, EventEffect, EventOutcome, FeaturedNpc, NarrativeTrigger,
+    NarrativeTriggerType, OutcomeCondition, TriggerContext, TriggerEvaluation, TriggerLogic,
 };
 pub use observation::{NpcObservation, ObservationSummary, ObservationType};
 // Note: PlayerCharacter is now exported from aggregates
@@ -86,9 +83,5 @@ pub use story_event::{
     InvolvedCharacter, ItemSource, MarkerImportance, StoryEvent, StoryEventType,
 };
 pub use want::{ActantialRole, ActantialView, CharacterWant, Want, WantTargetType, WantVisibility};
-pub use workflow_config::{
-    InputDefault, InputType, PromptMapping, PromptMappingType, WorkflowAnalysis,
-    WorkflowConfiguration, WorkflowInput, WorkflowSlot,
-};
 // Note: World is now exported from aggregates
 pub use world::{Act, MonomythStage, TimeAdvanceResult};

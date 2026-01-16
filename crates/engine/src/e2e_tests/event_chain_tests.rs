@@ -18,9 +18,7 @@
 use chrono::Utc;
 use neo4rs::query;
 use uuid::Uuid;
-use wrldbldr_domain::{
-    NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
-};
+use wrldbldr_domain::{NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType};
 
 use super::*;
 
@@ -86,12 +84,16 @@ async fn test_first_event_triggers_on_location_entry() {
         trigger_id: "enter-tavern".to_string(),
     };
 
-    let event = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Chain Event A - Tavern Entry").unwrap(), now)
-        .with_id(wrldbldr_domain::NarrativeEventId::from(event_id))
-        .with_description("First event in chain - triggers on location entry")
-        .with_scene_direction("The tavern buzzes with activity as you enter")
-        .with_trigger_condition(trigger)
-        .with_priority(10);
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Chain Event A - Tavern Entry").unwrap(),
+        now,
+    )
+    .with_id(wrldbldr_domain::NarrativeEventId::from(event_id))
+    .with_description("First event in chain - triggers on location entry")
+    .with_scene_direction("The tavern buzzes with activity as you enter")
+    .with_trigger_condition(trigger)
+    .with_priority(10);
 
     // Save the event via narrative repository
     ctx.app
@@ -102,8 +104,7 @@ async fn test_first_event_triggers_on_location_entry() {
         .expect("Failed to save narrative event");
 
     // Also tie the event to the location in Neo4j for trigger resolution
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -199,11 +200,15 @@ async fn test_subsequent_event_unlocks_after_completion() {
 
     // Create Event A (first in chain) - already triggered/completed
     let event_a_id = wrldbldr_domain::NarrativeEventId::new();
-    let event_a = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Chain Event A - Introduction").unwrap(), now)
-        .with_id(event_a_id)
-        .with_description("First event in chain")
-        .with_scene_direction("The stranger nods at you")
-        .with_triggered_state(true, Some(now), Some("default".to_string()), 1);
+    let event_a = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Chain Event A - Introduction").unwrap(),
+        now,
+    )
+    .with_id(event_a_id)
+    .with_description("First event in chain")
+    .with_scene_direction("The stranger nods at you")
+    .with_triggered_state(true, Some(now), Some("default".to_string()), 1);
 
     ctx.app
         .repositories
@@ -237,13 +242,17 @@ async fn test_subsequent_event_unlocks_after_completion() {
         trigger_id: "after-event-a".to_string(),
     };
 
-    let event_b = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Chain Event B - Follow Up").unwrap(), now)
-        .with_id(event_b_id)
-        .with_description("Second event in chain - triggers after Event A")
-        .with_scene_direction("The stranger approaches with more to say")
-        .with_trigger_condition(location_trigger)
-        .with_trigger_condition(event_completed_trigger)
-        .with_priority(10);
+    let event_b = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Chain Event B - Follow Up").unwrap(),
+        now,
+    )
+    .with_id(event_b_id)
+    .with_description("Second event in chain - triggers after Event A")
+    .with_scene_direction("The stranger approaches with more to say")
+    .with_trigger_condition(location_trigger)
+    .with_trigger_condition(event_completed_trigger)
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -253,8 +262,7 @@ async fn test_subsequent_event_unlocks_after_completion() {
         .expect("Failed to save Event B");
 
     // Tie Event B to location for trigger resolution
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -359,13 +367,17 @@ async fn test_event_condition_checks_player_flags() {
         trigger_id: "has-stranger-flag".to_string(),
     };
 
-    let event = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Secret Meeting").unwrap(), now)
-        .with_id(event_id)
-        .with_description("Secret event only for those who met the stranger")
-        .with_scene_direction("A hooded figure beckons you to a corner booth")
-        .with_trigger_condition(location_trigger)
-        .with_trigger_condition(flag_trigger)
-        .with_priority(10);
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Secret Meeting").unwrap(),
+        now,
+    )
+    .with_id(event_id)
+    .with_description("Secret event only for those who met the stranger")
+    .with_scene_direction("A hooded figure beckons you to a corner booth")
+    .with_trigger_condition(location_trigger)
+    .with_trigger_condition(flag_trigger)
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -375,8 +387,7 @@ async fn test_event_condition_checks_player_flags() {
         .expect("Failed to save narrative event");
 
     // Tie event to location for trigger resolution
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -521,13 +532,17 @@ async fn test_event_condition_checks_inventory() {
         trigger_id: "has-key".to_string(),
     };
 
-    let event = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("The Locked Door Opens").unwrap(), now)
-        .with_id(event_id)
-        .with_description("A secret passage reveals itself when you hold the key")
-        .with_scene_direction("The innkeeper notices the key in your possession and nods knowingly")
-        .with_trigger_condition(location_trigger)
-        .with_trigger_condition(inventory_trigger)
-        .with_priority(10);
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("The Locked Door Opens").unwrap(),
+        now,
+    )
+    .with_id(event_id)
+    .with_description("A secret passage reveals itself when you hold the key")
+    .with_scene_direction("The innkeeper notices the key in your possession and nods knowingly")
+    .with_trigger_condition(location_trigger)
+    .with_trigger_condition(inventory_trigger)
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -537,8 +552,7 @@ async fn test_event_condition_checks_inventory() {
         .expect("Failed to save narrative event");
 
     // Tie event to location for trigger resolution
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -701,13 +715,17 @@ async fn test_event_condition_checks_stats() {
         trigger_id: "old-tom-cha-check".to_string(),
     };
 
-    let event_low_cha = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Charismatic Old Tom").unwrap(), now)
-        .with_id(event_low_cha_id)
-        .with_description("Event requiring Old Tom to have high charisma")
-        .with_scene_direction("Old Tom captivates the room with his presence")
-        .with_trigger_condition(location_trigger_low)
-        .with_trigger_condition(stat_trigger_low)
-        .with_priority(10);
+    let event_low_cha = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Charismatic Old Tom").unwrap(),
+        now,
+    )
+    .with_id(event_low_cha_id)
+    .with_description("Event requiring Old Tom to have high charisma")
+    .with_scene_direction("Old Tom captivates the room with his presence")
+    .with_trigger_condition(location_trigger_low)
+    .with_trigger_condition(stat_trigger_low)
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -717,8 +735,7 @@ async fn test_event_condition_checks_stats() {
         .expect("Failed to save low CHA event");
 
     // Tie event to location
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -753,13 +770,17 @@ async fn test_event_condition_checks_stats() {
         trigger_id: "vera-cha-check".to_string(),
     };
 
-    let event_high_cha = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Charismatic Vera").unwrap(), now)
-        .with_id(event_high_cha_id)
-        .with_description("Event requiring Vera to have high charisma")
-        .with_scene_direction("Vera's magnetic presence draws everyone's attention")
-        .with_trigger_condition(location_trigger_high)
-        .with_trigger_condition(stat_trigger_high)
-        .with_priority(10);
+    let event_high_cha = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Charismatic Vera").unwrap(),
+        now,
+    )
+    .with_id(event_high_cha_id)
+    .with_description("Event requiring Vera to have high charisma")
+    .with_scene_direction("Vera's magnetic presence draws everyone's attention")
+    .with_trigger_condition(location_trigger_high)
+    .with_trigger_condition(stat_trigger_high)
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -769,8 +790,7 @@ async fn test_event_condition_checks_stats() {
         .expect("Failed to save high CHA event");
 
     // Tie event to location
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -889,12 +909,16 @@ async fn test_chain_completes_in_order() {
         trigger_id: "enter-tavern-a".to_string(),
     };
 
-    let event_a = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Chain Event A - The Introduction").unwrap(), now)
-        .with_id(event_a_id)
-        .with_description("First event in chain")
-        .with_scene_direction("A mysterious stranger catches your eye")
-        .with_trigger_condition(location_trigger_a)
-        .with_priority(10);
+    let event_a = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Chain Event A - The Introduction").unwrap(),
+        now,
+    )
+    .with_id(event_a_id)
+    .with_description("First event in chain")
+    .with_scene_direction("A mysterious stranger catches your eye")
+    .with_trigger_condition(location_trigger_a)
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -904,8 +928,7 @@ async fn test_chain_completes_in_order() {
         .expect("Failed to save Event A");
 
     // Tie Event A to location
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -939,13 +962,17 @@ async fn test_chain_completes_in_order() {
         trigger_id: "after-event-a".to_string(),
     };
 
-    let event_b = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Chain Event B - The Revelation").unwrap(), now)
-        .with_id(event_b_id)
-        .with_description("Second event in chain")
-        .with_scene_direction("The stranger reveals a dark secret")
-        .with_trigger_condition(location_trigger_b)
-        .with_trigger_condition(event_a_completed)
-        .with_priority(10);
+    let event_b = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Chain Event B - The Revelation").unwrap(),
+        now,
+    )
+    .with_id(event_b_id)
+    .with_description("Second event in chain")
+    .with_scene_direction("The stranger reveals a dark secret")
+    .with_trigger_condition(location_trigger_b)
+    .with_trigger_condition(event_a_completed)
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -955,8 +982,7 @@ async fn test_chain_completes_in_order() {
         .expect("Failed to save Event B");
 
     // Tie Event B to location
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -990,13 +1016,17 @@ async fn test_chain_completes_in_order() {
         trigger_id: "after-event-b".to_string(),
     };
 
-    let event_c = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Chain Event C - The Decision").unwrap(), now)
-        .with_id(event_c_id)
-        .with_description("Third event in chain")
-        .with_scene_direction("You must now make a fateful choice")
-        .with_trigger_condition(location_trigger_c)
-        .with_trigger_condition(event_b_completed)
-        .with_priority(10);
+    let event_c = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Chain Event C - The Decision").unwrap(),
+        now,
+    )
+    .with_id(event_c_id)
+    .with_description("Third event in chain")
+    .with_scene_direction("You must now make a fateful choice")
+    .with_trigger_condition(location_trigger_c)
+    .with_trigger_condition(event_b_completed)
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -1006,8 +1036,7 @@ async fn test_chain_completes_in_order() {
         .expect("Failed to save Event C");
 
     // Tie Event C to location
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -1221,12 +1250,16 @@ async fn test_chain_completion_triggers_final_effects() {
         trigger_id: "enter-tavern-a".to_string(),
     };
 
-    let event_a = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Quest Start - The Call").unwrap(), now)
-        .with_id(event_a_id)
-        .with_description("First event in quest chain")
-        .with_scene_direction("A desperate villager approaches you")
-        .with_trigger_condition(location_trigger_a)
-        .with_priority(10);
+    let event_a = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Quest Start - The Call").unwrap(),
+        now,
+    )
+    .with_id(event_a_id)
+    .with_description("First event in quest chain")
+    .with_scene_direction("A desperate villager approaches you")
+    .with_trigger_condition(location_trigger_a)
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -1236,8 +1269,7 @@ async fn test_chain_completion_triggers_final_effects() {
         .expect("Failed to save Event A");
 
     // Tie Event A to location
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -1271,14 +1303,17 @@ async fn test_chain_completion_triggers_final_effects() {
         trigger_id: "after-quest-start".to_string(),
     };
 
-    let event_final =
-        NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Quest Complete - The Reward").unwrap(), now)
-            .with_id(event_final_id)
-            .with_description("Final event granting completion reward")
-            .with_scene_direction("The villager returns with a reward for your heroism")
-            .with_trigger_condition(location_trigger_final)
-            .with_trigger_condition(event_a_completed)
-            .with_priority(10);
+    let event_final = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Quest Complete - The Reward").unwrap(),
+        now,
+    )
+    .with_id(event_final_id)
+    .with_description("Final event granting completion reward")
+    .with_scene_direction("The villager returns with a reward for your heroism")
+    .with_trigger_condition(location_trigger_final)
+    .with_trigger_condition(event_a_completed)
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -1288,8 +1323,7 @@ async fn test_chain_completion_triggers_final_effects() {
         .expect("Failed to save Final Event");
 
     // Tie Final Event to location
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -1477,20 +1511,24 @@ async fn test_partial_chain_persists_across_sessions() {
     let event_c_id = wrldbldr_domain::NarrativeEventId::new();
 
     // Event A: First in chain
-    let event_a = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Persistent Chain A").unwrap(), now)
-        .with_id(event_a_id)
-        .with_description("First event in persistent chain")
-        .with_scene_direction("The adventure begins")
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-                location_id,
-                location_name: "The Drowsy Dragon Inn".to_string(),
-            },
-            description: "Player enters tavern".to_string(),
-            is_required: true,
-            trigger_id: "enter-tavern".to_string(),
-        })
-        .with_priority(10);
+    let event_a = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Persistent Chain A").unwrap(),
+        now,
+    )
+    .with_id(event_a_id)
+    .with_description("First event in persistent chain")
+    .with_scene_direction("The adventure begins")
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+            location_id,
+            location_name: "The Drowsy Dragon Inn".to_string(),
+        },
+        description: "Player enters tavern".to_string(),
+        is_required: true,
+        trigger_id: "enter-tavern".to_string(),
+    })
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -1499,8 +1537,7 @@ async fn test_partial_chain_persists_across_sessions() {
         .await
         .expect("Failed to save Event A");
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -1513,30 +1550,34 @@ async fn test_partial_chain_persists_across_sessions() {
         .expect("Failed to tie Event A to location");
 
     // Event B: Requires Event A completion
-    let event_b = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Persistent Chain B").unwrap(), now)
-        .with_id(event_b_id)
-        .with_description("Second event in persistent chain")
-        .with_scene_direction("The plot thickens")
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-                location_id,
-                location_name: "The Drowsy Dragon Inn".to_string(),
-            },
-            description: "Player in tavern".to_string(),
-            is_required: true,
-            trigger_id: "in-tavern-b".to_string(),
-        })
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::EventCompleted {
-                event_id: event_a_id,
-                event_name: "Persistent Chain A".to_string(),
-                outcome_name: None,
-            },
-            description: "Event A completed".to_string(),
-            is_required: true,
-            trigger_id: "after-a".to_string(),
-        })
-        .with_priority(10);
+    let event_b = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Persistent Chain B").unwrap(),
+        now,
+    )
+    .with_id(event_b_id)
+    .with_description("Second event in persistent chain")
+    .with_scene_direction("The plot thickens")
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+            location_id,
+            location_name: "The Drowsy Dragon Inn".to_string(),
+        },
+        description: "Player in tavern".to_string(),
+        is_required: true,
+        trigger_id: "in-tavern-b".to_string(),
+    })
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::EventCompleted {
+            event_id: event_a_id,
+            event_name: "Persistent Chain A".to_string(),
+            outcome_name: None,
+        },
+        description: "Event A completed".to_string(),
+        is_required: true,
+        trigger_id: "after-a".to_string(),
+    })
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -1545,8 +1586,7 @@ async fn test_partial_chain_persists_across_sessions() {
         .await
         .expect("Failed to save Event B");
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -1559,30 +1599,34 @@ async fn test_partial_chain_persists_across_sessions() {
         .expect("Failed to tie Event B to location");
 
     // Event C: Requires Event B completion
-    let event_c = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Persistent Chain C").unwrap(), now)
-        .with_id(event_c_id)
-        .with_description("Third event in persistent chain")
-        .with_scene_direction("The conclusion")
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-                location_id,
-                location_name: "The Drowsy Dragon Inn".to_string(),
-            },
-            description: "Player in tavern".to_string(),
-            is_required: true,
-            trigger_id: "in-tavern-c".to_string(),
-        })
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::EventCompleted {
-                event_id: event_b_id,
-                event_name: "Persistent Chain B".to_string(),
-                outcome_name: None,
-            },
-            description: "Event B completed".to_string(),
-            is_required: true,
-            trigger_id: "after-b".to_string(),
-        })
-        .with_priority(10);
+    let event_c = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Persistent Chain C").unwrap(),
+        now,
+    )
+    .with_id(event_c_id)
+    .with_description("Third event in persistent chain")
+    .with_scene_direction("The conclusion")
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+            location_id,
+            location_name: "The Drowsy Dragon Inn".to_string(),
+        },
+        description: "Player in tavern".to_string(),
+        is_required: true,
+        trigger_id: "in-tavern-c".to_string(),
+    })
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::EventCompleted {
+            event_id: event_b_id,
+            event_name: "Persistent Chain B".to_string(),
+            outcome_name: None,
+        },
+        description: "Event B completed".to_string(),
+        is_required: true,
+        trigger_id: "after-b".to_string(),
+    })
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -1591,8 +1635,7 @@ async fn test_partial_chain_persists_across_sessions() {
         .await
         .expect("Failed to save Event C");
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -1815,20 +1858,24 @@ async fn test_chain_branch_based_on_outcome() {
     let event_c_id = wrldbldr_domain::NarrativeEventId::new();
 
     // Event A: Initial event with branching outcomes
-    let event_a = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Branching Event A - The Offer").unwrap(), now)
-        .with_id(event_a_id)
-        .with_description("Event with branching outcomes")
-        .with_scene_direction("A mysterious figure makes you an offer")
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-                location_id,
-                location_name: "The Drowsy Dragon Inn".to_string(),
-            },
-            description: "Player enters tavern".to_string(),
-            is_required: true,
-            trigger_id: "enter-tavern".to_string(),
-        })
-        .with_priority(10);
+    let event_a = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Branching Event A - The Offer").unwrap(),
+        now,
+    )
+    .with_id(event_a_id)
+    .with_description("Event with branching outcomes")
+    .with_scene_direction("A mysterious figure makes you an offer")
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+            location_id,
+            location_name: "The Drowsy Dragon Inn".to_string(),
+        },
+        description: "Player enters tavern".to_string(),
+        is_required: true,
+        trigger_id: "enter-tavern".to_string(),
+    })
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -1837,8 +1884,7 @@ async fn test_chain_branch_based_on_outcome() {
         .await
         .expect("Failed to save Event A");
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -1851,30 +1897,34 @@ async fn test_chain_branch_based_on_outcome() {
         .expect("Failed to tie Event A to location");
 
     // Event B: Accept path - requires Event A completed with "accept" outcome
-    let event_b = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Branch B - Accepted Quest").unwrap(), now)
-        .with_id(event_b_id)
-        .with_description("Quest accepted path")
-        .with_scene_direction("Having accepted the offer, you learn more details")
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-                location_id,
-                location_name: "The Drowsy Dragon Inn".to_string(),
-            },
-            description: "Player in tavern".to_string(),
-            is_required: true,
-            trigger_id: "in-tavern-b".to_string(),
-        })
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::EventCompleted {
-                event_id: event_a_id,
-                event_name: "Branching Event A - The Offer".to_string(),
-                outcome_name: Some("accept".to_string()), // Specific outcome required!
-            },
-            description: "Player accepted the offer".to_string(),
-            is_required: true,
-            trigger_id: "accepted-offer".to_string(),
-        })
-        .with_priority(10);
+    let event_b = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Branch B - Accepted Quest").unwrap(),
+        now,
+    )
+    .with_id(event_b_id)
+    .with_description("Quest accepted path")
+    .with_scene_direction("Having accepted the offer, you learn more details")
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+            location_id,
+            location_name: "The Drowsy Dragon Inn".to_string(),
+        },
+        description: "Player in tavern".to_string(),
+        is_required: true,
+        trigger_id: "in-tavern-b".to_string(),
+    })
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::EventCompleted {
+            event_id: event_a_id,
+            event_name: "Branching Event A - The Offer".to_string(),
+            outcome_name: Some("accept".to_string()), // Specific outcome required!
+        },
+        description: "Player accepted the offer".to_string(),
+        is_required: true,
+        trigger_id: "accepted-offer".to_string(),
+    })
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -1883,8 +1933,7 @@ async fn test_chain_branch_based_on_outcome() {
         .await
         .expect("Failed to save Event B");
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -1897,30 +1946,34 @@ async fn test_chain_branch_based_on_outcome() {
         .expect("Failed to tie Event B to location");
 
     // Event C: Refuse path - requires Event A completed with "refuse" outcome
-    let event_c = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Branch C - Refused Quest").unwrap(), now)
-        .with_id(event_c_id)
-        .with_description("Quest refused path")
-        .with_scene_direction("Having refused, the stranger becomes hostile")
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-                location_id,
-                location_name: "The Drowsy Dragon Inn".to_string(),
-            },
-            description: "Player in tavern".to_string(),
-            is_required: true,
-            trigger_id: "in-tavern-c".to_string(),
-        })
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::EventCompleted {
-                event_id: event_a_id,
-                event_name: "Branching Event A - The Offer".to_string(),
-                outcome_name: Some("refuse".to_string()), // Specific outcome required!
-            },
-            description: "Player refused the offer".to_string(),
-            is_required: true,
-            trigger_id: "refused-offer".to_string(),
-        })
-        .with_priority(10);
+    let event_c = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Branch C - Refused Quest").unwrap(),
+        now,
+    )
+    .with_id(event_c_id)
+    .with_description("Quest refused path")
+    .with_scene_direction("Having refused, the stranger becomes hostile")
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+            location_id,
+            location_name: "The Drowsy Dragon Inn".to_string(),
+        },
+        description: "Player in tavern".to_string(),
+        is_required: true,
+        trigger_id: "in-tavern-c".to_string(),
+    })
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::EventCompleted {
+            event_id: event_a_id,
+            event_name: "Branching Event A - The Offer".to_string(),
+            outcome_name: Some("refuse".to_string()), // Specific outcome required!
+        },
+        description: "Player refused the offer".to_string(),
+        is_required: true,
+        trigger_id: "refused-offer".to_string(),
+    })
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -1929,8 +1982,7 @@ async fn test_chain_branch_based_on_outcome() {
         .await
         .expect("Failed to save Event C");
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -2069,20 +2121,24 @@ async fn test_alternate_branch_path() {
     let event_c_id = wrldbldr_domain::NarrativeEventId::new();
 
     // Event A: Initial event
-    let event_a = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Alt Branch A - The Proposal").unwrap(), now)
-        .with_id(event_a_id)
-        .with_description("Event with branching outcomes")
-        .with_scene_direction("A shady character proposes a scheme")
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-                location_id,
-                location_name: "The Drowsy Dragon Inn".to_string(),
-            },
-            description: "Player enters tavern".to_string(),
-            is_required: true,
-            trigger_id: "enter-tavern".to_string(),
-        })
-        .with_priority(10);
+    let event_a = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Alt Branch A - The Proposal").unwrap(),
+        now,
+    )
+    .with_id(event_a_id)
+    .with_description("Event with branching outcomes")
+    .with_scene_direction("A shady character proposes a scheme")
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+            location_id,
+            location_name: "The Drowsy Dragon Inn".to_string(),
+        },
+        description: "Player enters tavern".to_string(),
+        is_required: true,
+        trigger_id: "enter-tavern".to_string(),
+    })
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -2091,8 +2147,7 @@ async fn test_alternate_branch_path() {
         .await
         .expect("Failed to save Event A");
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -2105,30 +2160,34 @@ async fn test_alternate_branch_path() {
         .expect("Failed to tie Event A to location");
 
     // Event B: Accept path (should NOT trigger in this test)
-    let event_b = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Alt Branch B - Joined Scheme").unwrap(), now)
-        .with_id(event_b_id)
-        .with_description("Joined the scheme path")
-        .with_scene_direction("You've thrown in your lot with the schemer")
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-                location_id,
-                location_name: "The Drowsy Dragon Inn".to_string(),
-            },
-            description: "Player in tavern".to_string(),
-            is_required: true,
-            trigger_id: "in-tavern-b".to_string(),
-        })
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::EventCompleted {
-                event_id: event_a_id,
-                event_name: "Alt Branch A - The Proposal".to_string(),
-                outcome_name: Some("accept".to_string()),
-            },
-            description: "Player joined the scheme".to_string(),
-            is_required: true,
-            trigger_id: "joined-scheme".to_string(),
-        })
-        .with_priority(10);
+    let event_b = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Alt Branch B - Joined Scheme").unwrap(),
+        now,
+    )
+    .with_id(event_b_id)
+    .with_description("Joined the scheme path")
+    .with_scene_direction("You've thrown in your lot with the schemer")
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+            location_id,
+            location_name: "The Drowsy Dragon Inn".to_string(),
+        },
+        description: "Player in tavern".to_string(),
+        is_required: true,
+        trigger_id: "in-tavern-b".to_string(),
+    })
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::EventCompleted {
+            event_id: event_a_id,
+            event_name: "Alt Branch A - The Proposal".to_string(),
+            outcome_name: Some("accept".to_string()),
+        },
+        description: "Player joined the scheme".to_string(),
+        is_required: true,
+        trigger_id: "joined-scheme".to_string(),
+    })
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -2137,8 +2196,7 @@ async fn test_alternate_branch_path() {
         .await
         .expect("Failed to save Event B");
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -2151,30 +2209,34 @@ async fn test_alternate_branch_path() {
         .expect("Failed to tie Event B to location");
 
     // Event C: Refuse path (should trigger in this test)
-    let event_c = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Alt Branch C - Rejected Scheme").unwrap(), now)
-        .with_id(event_c_id)
-        .with_description("Rejected the scheme path")
-        .with_scene_direction("You've made an enemy of the schemer")
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-                location_id,
-                location_name: "The Drowsy Dragon Inn".to_string(),
-            },
-            description: "Player in tavern".to_string(),
-            is_required: true,
-            trigger_id: "in-tavern-c".to_string(),
-        })
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::EventCompleted {
-                event_id: event_a_id,
-                event_name: "Alt Branch A - The Proposal".to_string(),
-                outcome_name: Some("refuse".to_string()),
-            },
-            description: "Player rejected the scheme".to_string(),
-            is_required: true,
-            trigger_id: "rejected-scheme".to_string(),
-        })
-        .with_priority(10);
+    let event_c = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Alt Branch C - Rejected Scheme").unwrap(),
+        now,
+    )
+    .with_id(event_c_id)
+    .with_description("Rejected the scheme path")
+    .with_scene_direction("You've made an enemy of the schemer")
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+            location_id,
+            location_name: "The Drowsy Dragon Inn".to_string(),
+        },
+        description: "Player in tavern".to_string(),
+        is_required: true,
+        trigger_id: "in-tavern-c".to_string(),
+    })
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::EventCompleted {
+            event_id: event_a_id,
+            event_name: "Alt Branch A - The Proposal".to_string(),
+            outcome_name: Some("refuse".to_string()),
+        },
+        description: "Player rejected the scheme".to_string(),
+        is_required: true,
+        trigger_id: "rejected-scheme".to_string(),
+    })
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -2183,8 +2245,7 @@ async fn test_alternate_branch_path() {
         .await
         .expect("Failed to save Event C");
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -2327,21 +2388,25 @@ async fn test_repeatable_chain_can_restart() {
     // Create a repeatable event (marked with is_repeatable)
     let event_id = wrldbldr_domain::NarrativeEventId::new();
 
-    let event = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("Repeatable Daily Quest").unwrap(), now)
-        .with_id(event_id)
-        .with_description("A daily quest that can be repeated")
-        .with_scene_direction("The innkeeper has another task for you")
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-                location_id,
-                location_name: "The Drowsy Dragon Inn".to_string(),
-            },
-            description: "Player enters tavern".to_string(),
-            is_required: true,
-            trigger_id: "enter-tavern".to_string(),
-        })
-        .with_repeatable(true) // Mark as repeatable!
-        .with_priority(10);
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Repeatable Daily Quest").unwrap(),
+        now,
+    )
+    .with_id(event_id)
+    .with_description("A daily quest that can be repeated")
+    .with_scene_direction("The innkeeper has another task for you")
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+            location_id,
+            location_name: "The Drowsy Dragon Inn".to_string(),
+        },
+        description: "Player enters tavern".to_string(),
+        is_required: true,
+        trigger_id: "enter-tavern".to_string(),
+    })
+    .with_repeatable(true) // Mark as repeatable!
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -2350,8 +2415,7 @@ async fn test_repeatable_chain_can_restart() {
         .await
         .expect("Failed to save event");
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
@@ -2564,21 +2628,25 @@ async fn test_one_time_chain_cannot_repeat() {
     // Create a one-time event (NOT repeatable - default behavior)
     let event_id = wrldbldr_domain::NarrativeEventId::new();
 
-    let event = NarrativeEvent::new(ctx.world.world_id, NarrativeEventName::new("One-Time Main Quest").unwrap(), now)
-        .with_id(event_id)
-        .with_description("A main quest that can only happen once")
-        .with_scene_direction("The ancient prophecy is revealed")
-        .with_trigger_condition(NarrativeTrigger {
-            trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-                location_id,
-                location_name: "The Drowsy Dragon Inn".to_string(),
-            },
-            description: "Player enters tavern".to_string(),
-            is_required: true,
-            trigger_id: "enter-tavern".to_string(),
-        })
-        // NOTE: NOT calling .with_repeatable(true) - defaults to one-time
-        .with_priority(10);
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("One-Time Main Quest").unwrap(),
+        now,
+    )
+    .with_id(event_id)
+    .with_description("A main quest that can only happen once")
+    .with_scene_direction("The ancient prophecy is revealed")
+    .with_trigger_condition(NarrativeTrigger {
+        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+            location_id,
+            location_name: "The Drowsy Dragon Inn".to_string(),
+        },
+        description: "Player enters tavern".to_string(),
+        is_required: true,
+        trigger_id: "enter-tavern".to_string(),
+    })
+    // NOTE: NOT calling .with_repeatable(true) - defaults to one-time
+    .with_priority(10);
 
     ctx.app
         .repositories
@@ -2587,8 +2655,7 @@ async fn test_one_time_chain_cannot_repeat() {
         .await
         .expect("Failed to save event");
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})

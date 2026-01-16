@@ -9,7 +9,9 @@ use wrldbldr_domain::{
     WantTarget, WantVisibility, WorldId,
 };
 
-use crate::infrastructure::ports::{ActantialViewRecord, GoalDetails, RepoError, WantDetails, WantTargetRef};
+use crate::infrastructure::ports::{
+    ActantialViewRecord, GoalDetails, RepoError, WantDetails, WantTargetRef,
+};
 use crate::repositories::character::Character;
 use crate::repositories::{Clock, Goal};
 use crate::use_cases::validation::{require_non_empty, ValidationError};

@@ -34,8 +34,7 @@ async fn test_flag_set_trigger_evaluation() {
     use uuid::Uuid;
     let event_id = Uuid::new_v4();
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -59,8 +58,7 @@ async fn test_flag_set_trigger_evaluation() {
 
     // Create trigger for the event
     let trigger_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id})
@@ -114,8 +112,7 @@ async fn test_item_acquired_trigger_type() {
     use uuid::Uuid;
     let event_id = Uuid::new_v4();
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -139,8 +136,7 @@ async fn test_item_acquired_trigger_type() {
 
     // Create ItemAcquired trigger
     let trigger_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id})
@@ -184,8 +180,7 @@ async fn test_relationship_threshold_trigger_type() {
     use uuid::Uuid;
     let event_id = Uuid::new_v4();
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -211,8 +206,7 @@ async fn test_relationship_threshold_trigger_type() {
     let trigger_id = Uuid::new_v4();
     let mira_id = ctx.world.npc("Mira Thornwood").expect("Mira should exist");
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id})
@@ -259,8 +253,7 @@ async fn test_challenge_completed_trigger_type() {
     use uuid::Uuid;
     let event_id = Uuid::new_v4();
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -289,8 +282,7 @@ async fn test_challenge_completed_trigger_type() {
         wrldbldr_domain::ChallengeId::from(Uuid::new_v4())
     });
 
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id})
@@ -340,8 +332,7 @@ async fn test_multiple_triggers_and_logic() {
     let event_id = Uuid::new_v4();
 
     // Create event with multiple trigger conditions
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -365,8 +356,7 @@ async fn test_multiple_triggers_and_logic() {
 
     // Create first trigger (FlagSet)
     let trigger1_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id})
@@ -385,8 +375,7 @@ async fn test_multiple_triggers_and_logic() {
 
     // Create second trigger (another FlagSet)
     let trigger2_id = Uuid::new_v4();
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $event_id})
@@ -441,8 +430,7 @@ async fn test_event_marked_as_triggered() {
     let event_id = Uuid::new_v4();
 
     // Create a simple event
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"CREATE (e:NarrativeEvent {
@@ -465,8 +453,7 @@ async fn test_event_marked_as_triggered() {
         .expect("Event creation should succeed");
 
     // Mark event as triggered directly
-    ctx
-        .graph()
+    ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $id})

@@ -391,9 +391,7 @@ impl TryFrom<TimeSuggestionDecision> for wrldbldr_domain::TimeSuggestionDecision
 
     fn try_from(decision: TimeSuggestionDecision) -> Result<Self, Self::Error> {
         match decision {
-            TimeSuggestionDecision::Approve => {
-                Ok(wrldbldr_domain::TimeSuggestionDecision::Approve)
-            }
+            TimeSuggestionDecision::Approve => Ok(wrldbldr_domain::TimeSuggestionDecision::Approve),
             TimeSuggestionDecision::Modify { minutes } => {
                 Ok(wrldbldr_domain::TimeSuggestionDecision::Modify { minutes })
             }

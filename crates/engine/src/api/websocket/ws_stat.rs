@@ -5,7 +5,7 @@ use super::*;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
-use wrldbldr_domain::entities::StatModifier;
+use wrldbldr_domain::value_objects::{StatModifier, StatValue};
 use wrldbldr_domain::{self as domain, CharacterId, RuleSystemConfig, RuleSystemVariant};
 use wrldbldr_protocol::{ErrorCode, ResponseResult, StatRequest};
 
@@ -400,7 +400,7 @@ fn character_stats_to_json(character: &domain::Character) -> serde_json::Value {
     let all_stats = character.stats().get_all_stats();
     let stats_json: serde_json::Map<String, serde_json::Value> = all_stats
         .iter()
-        .map(|(name, value): (&String, &domain::StatValue)| {
+        .map(|(name, value): (&String, &StatValue)| {
             (
                 name.clone(),
                 json!({
@@ -416,7 +416,7 @@ fn character_stats_to_json(character: &domain::Character) -> serde_json::Value {
         .stats()
         .modifiers()
         .iter()
-        .map(|(stat_name, mods): (&String, &Vec<domain::StatModifier>)| {
+        .map(|(stat_name, mods): (&String, &Vec<StatModifier>)| {
             (
                 stat_name.clone(),
                 json!(mods

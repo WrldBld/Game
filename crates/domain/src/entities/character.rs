@@ -9,6 +9,3 @@
 //! - Actantial views: `VIEWS_AS_HELPER`, `VIEWS_AS_OPPONENT`, etc.
 //!
 //! Archetype history remains as JSON (acceptable per ADR - complex nested non-relational)
-
-// Re-export from value_objects for backwards compatibility
-pub use crate::value_objects::{StatBlock, StatModifier, StatValue};

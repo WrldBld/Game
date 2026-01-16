@@ -3,9 +3,9 @@
 //! Tracks PC observations of NPC locations (fog of war for investigation gameplay).
 //! Observations are stored as edges: `(PlayerCharacter)-[:OBSERVED_NPC {...}]->(Character)`
 
-use async_trait::async_trait;
-use neo4rs::{query};
 use crate::infrastructure::neo4j::Neo4jGraph;
+use async_trait::async_trait;
+use neo4rs::query;
 use wrldbldr_domain::common::{parse_datetime_or, StringExt};
 use wrldbldr_domain::*;
 

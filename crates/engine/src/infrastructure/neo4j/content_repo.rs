@@ -3,9 +3,9 @@
 //! Skills are stored as nodes and linked to worlds:
 //! - `(World)-[:CONTAINS_SKILL]->(Skill)`
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
 use neo4rs::{query, Row};
-use crate::infrastructure::neo4j::Neo4jGraph;
 use wrldbldr_domain::{Skill, SkillCategory, SkillId, WorldId};
 
 use super::helpers::{parse_typed_id, NodeExt};

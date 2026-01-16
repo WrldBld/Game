@@ -702,10 +702,10 @@ fn lore_to_detail(lore: wrldbldr_domain::Lore) -> LoreDetail {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
     use crate::infrastructure::clock::FixedClock;
     use crate::infrastructure::ports::MockLoreRepo;
     use crate::repositories::Lore as LoreEntity;
+    use chrono::TimeZone;
     use std::sync::Arc;
 
     fn fixed_time() -> chrono::DateTime<chrono::Utc> {

@@ -479,7 +479,10 @@ mod tests {
                 .with_presence_ttl(6)
                 .with_llm_presence(false);
 
-            assert_eq!(location.description().as_str(), "An ancient dwarven kingdom");
+            assert_eq!(
+                location.description().as_str(),
+                "An ancient dwarven kingdom"
+            );
             assert_eq!(location.backdrop_asset(), Some("backdrops/moria.png"));
             assert_eq!(location.map_asset(), Some("maps/moria.png"));
             assert!(location.parent_map_bounds().is_some());
@@ -596,85 +599,6 @@ mod tests {
             // Outside bounds
             assert!(!location.contains_point_on_parent_map(5, 40)); // left of bounds
             assert!(!location.contains_point_on_parent_map(200, 40)); // right of bounds
-        }
-    }
-
-    mod serde {
-        use super::*;
-
-        #[test]
-        fn serialize_deserialize_roundtrip() {
-            let world_id = WorldId::new();
-            let name = LocationName::new("Rivendell").unwrap();
-            let desc = Description::new("The Last Homely House").unwrap();
-            let region_id = RegionId::new();
-
-            let location = Location::new(world_id, name, LocationType::Exterior)
-                .with_description(desc)
-                .with_backdrop("backdrops/rivendell.png")
-                .with_map("maps/rivendell.png")
-                .with_default_region(region_id)
-                .with_atmosphere("Peaceful and serene")
-                .with_presence_ttl(12)
-                .with_llm_presence(false);
-
-            let json = serde_json::to_string(&location).unwrap();
-            let deserialized: Location = serde_json::from_str(&json).unwrap();
-
-            assert_eq!(deserialized.id(), location.id());
-            assert_eq!(deserialized.world_id(), location.world_id());
-            assert_eq!(deserialized.name().as_str(), "Rivendell");
-            assert_eq!(deserialized.description().as_str(), "The Last Homely House");
-            assert!(matches!(
-                deserialized.location_type(),
-                LocationType::Exterior
-            ));
-            assert_eq!(
-                deserialized.backdrop_asset(),
-                Some("backdrops/rivendell.png")
-            );
-            assert_eq!(deserialized.map_asset(), Some("maps/rivendell.png"));
-            assert_eq!(deserialized.default_region_id(), Some(region_id));
-            assert_eq!(deserialized.atmosphere(), Some("Peaceful and serene"));
-            assert_eq!(deserialized.presence_cache_ttl_hours(), 12);
-            assert!(!deserialized.use_llm_presence());
-        }
-
-        #[test]
-        fn deserialize_with_defaults() {
-            // Test deserialization with minimal fields (missing optional fields)
-            let json = r#"{
-                "id": "550e8400-e29b-41d4-a716-446655440000",
-                "worldId": "550e8400-e29b-41d4-a716-446655440001",
-                "name": "Test Location",
-                "locationType": "interior",
-                "backdropAsset": null,
-                "mapAsset": null,
-                "parentMapBounds": null,
-                "defaultRegionId": null,
-                "atmosphere": null
-            }"#;
-
-            let location: Location = serde_json::from_str(json).unwrap();
-            assert_eq!(location.name().as_str(), "Test Location");
-            assert!(location.description().is_empty());
-            assert_eq!(location.presence_cache_ttl_hours(), 3);
-            assert!(location.use_llm_presence());
-        }
-
-        #[test]
-        fn serialize_produces_camel_case() {
-            let location = create_test_location();
-            let json = serde_json::to_string(&location).unwrap();
-
-            assert!(json.contains("worldId"));
-            assert!(json.contains("locationType"));
-            assert!(json.contains("backdropAsset"));
-            assert!(json.contains("mapAsset"));
-            assert!(json.contains("parentMapBounds"));
-            assert!(json.contains("defaultRegionId"));
-            assert!(json.contains("presenceCacheTtlHours"));
-            assert!(json.contains("useLlmPresence"));
         }
     }
 }

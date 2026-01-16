@@ -1,6 +1,7 @@
 //! Character Panel - Display and manage player character information
 
 use dioxus::prelude::*;
+use std::collections::HashMap;
 
 use crate::application::dto::CharacterSheetSchema;
 use crate::application::services::PlayerCharacterData;
@@ -30,10 +31,8 @@ pub fn CharacterPanel(props: CharacterPanelProps) -> Element {
             let svc = world_svc.clone();
             let world_id_clone = world_id.clone();
             spawn_task(async move {
-                if let Ok(schema_json) = svc.get_sheet_template(&world_id_clone).await {
-                    if let Ok(schema) = serde_json::from_value::<CharacterSheetSchema>(schema_json) {
-                        sheet_schema.set(Some(schema));
-                    }
+                if let Ok(schema) = svc.get_sheet_template(&world_id_clone).await {
+                    sheet_schema.set(Some(schema));
                 }
                 loading.set(false);
             });
@@ -92,7 +91,11 @@ pub fn CharacterPanel(props: CharacterPanelProps) -> Element {
                             CharacterSheetViewer {
                                 character_name: props.pc.name.clone(),
                                 schema: schema.clone(),
-                                values: sheet_data.values.clone(),
+                                values: sheet_data
+                                    .values
+                                    .iter()
+                                    .map(|(k, v)| (k.clone(), v.clone()))
+                                    .collect::<HashMap<_, _>>(),
                                 on_close: move |_| {},
                             }
                         }

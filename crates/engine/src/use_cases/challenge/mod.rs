@@ -17,8 +17,8 @@ use wrldbldr_domain::{
 };
 
 use crate::queue_types::{
-    ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency, ChallengeOutcomeData, LlmRequestData,
-    LlmRequestType, ProposedTool, SuggestionContext,
+    ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency, ChallengeOutcomeData,
+    LlmRequestData, LlmRequestType, ProposedTool, SuggestionContext,
 };
 
 mod crud;
@@ -32,7 +32,9 @@ pub use crud::{
 
 use crate::infrastructure::ports::RepoError;
 use crate::repositories::scene::Scene;
-use crate::repositories::{Challenge, Clock, Inventory, Observation, PlayerCharacter, Queue, Random};
+use crate::repositories::{
+    Challenge, Clock, Inventory, Observation, PlayerCharacter, Queue, Random,
+};
 
 /// Container for challenge use cases.
 pub struct ChallengeUseCases {

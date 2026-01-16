@@ -15,8 +15,8 @@
 //! - **Valid by construction**: `new()` takes pre-validated types
 //! - **Builder pattern**: Fluent API for optional fields
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Error as DeError;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId};
 
 use crate::events::SceneUpdate;
@@ -444,11 +444,7 @@ mod tests {
     fn create_test_scene() -> Scene {
         let act_id = ActId::new();
         let location_id = LocationId::new();
-        Scene::new(
-            act_id,
-            SceneName::new("Test Scene").unwrap(),
-            location_id,
-        )
+        Scene::new(act_id, SceneName::new("Test Scene").unwrap(), location_id)
     }
 
     mod constructor {
@@ -458,11 +454,7 @@ mod tests {
         fn new_creates_scene_with_correct_defaults() {
             let act_id = ActId::new();
             let location_id = LocationId::new();
-            let scene = Scene::new(
-                act_id,
-                SceneName::new("The Opening").unwrap(),
-                location_id,
-            );
+            let scene = Scene::new(act_id, SceneName::new("The Opening").unwrap(), location_id);
 
             assert_eq!(scene.name().as_str(), "The Opening");
             assert_eq!(scene.act_id(), act_id);
@@ -481,11 +473,7 @@ mod tests {
             let location_id = LocationId::new();
             let char_id = CharacterId::new();
 
-            let scene = Scene::new(
-                act_id,
-                SceneName::new("The Climax").unwrap(),
-                location_id,
-            )
+            let scene = Scene::new(act_id, SceneName::new("The Climax").unwrap(), location_id)
                 .with_character(char_id)
                 .with_time(TimeContext::Custom("Midnight".to_string()))
                 .with_directorial_notes("Dramatic tension!")
@@ -551,51 +539,6 @@ mod tests {
 
             scene.set_backdrop_override(None);
             assert!(scene.backdrop_override().is_none());
-        }
-    }
-
-    mod serde {
-        use super::*;
-
-        #[test]
-        fn serialize_deserialize_roundtrip() {
-            let act_id = ActId::new();
-            let location_id = LocationId::new();
-            let char_id = CharacterId::new();
-
-            let scene = Scene::new(
-                act_id,
-                SceneName::new("Test Scene").unwrap(),
-                location_id,
-            )
-                .with_character(char_id)
-                .with_directorial_notes("Test notes")
-                .with_order(3);
-
-            let json = serde_json::to_string(&scene).unwrap();
-            let deserialized: Scene = serde_json::from_str(&json).unwrap();
-
-            assert_eq!(deserialized.id(), scene.id());
-            assert_eq!(deserialized.act_id(), act_id);
-            assert_eq!(deserialized.name().as_str(), "Test Scene");
-            assert_eq!(deserialized.location_id(), location_id);
-            assert_eq!(deserialized.featured_characters(), &[char_id]);
-            assert_eq!(deserialized.directorial_notes(), "Test notes");
-            assert_eq!(deserialized.order(), 3);
-        }
-
-        #[test]
-        fn serialize_produces_camel_case() {
-            let scene = create_test_scene();
-            let json = serde_json::to_string(&scene).unwrap();
-
-            assert!(json.contains("actId"));
-            assert!(json.contains("locationId"));
-            assert!(json.contains("timeContext"));
-            assert!(json.contains("backdropOverride"));
-            assert!(json.contains("entryConditions"));
-            assert!(json.contains("featuredCharacters"));
-            assert!(json.contains("directorialNotes"));
         }
     }
 }

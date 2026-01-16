@@ -4,9 +4,11 @@ use std::collections::{HashMap, HashSet};
 
 use serde::Deserialize;
 
-use crate::infrastructure::ports::{ChatMessage, LlmRequest, NpcRegionRelationType, NpcWithRegionInfo};
-use crate::repositories::Llm;
+use crate::infrastructure::ports::{
+    ChatMessage, LlmRequest, NpcRegionRelationType, NpcWithRegionInfo,
+};
 use crate::repositories::staging::Staging;
+use crate::repositories::Llm;
 use wrldbldr_domain::{CharacterId, RegionId};
 
 use super::types::StagedNpc;
