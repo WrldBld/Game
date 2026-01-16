@@ -204,12 +204,12 @@ pub(super) async fn handle_location_request(
                         .into_iter()
                         .map(|c| {
                             serde_json::json!({
-                                "from_location_id": c.from_location().to_string(),
-                                "to_location_id": c.to_location().to_string(),
-                                "connection_type": c.connection_type(),
-                                "description": c.description().unwrap_or_default(),
-                                "bidirectional": c.bidirectional(),
-                                "travel_time": c.travel_time(),
+                                "from_location_id": c.from_location.to_string(),
+                                "to_location_id": c.to_location.to_string(),
+                                "connection_type": &c.connection_type,
+                                "description": c.description.as_deref().unwrap_or_default(),
+                                "bidirectional": c.bidirectional,
+                                "travel_time": &c.travel_time,
                             })
                         })
                         .collect();
@@ -311,10 +311,10 @@ pub(super) async fn handle_region_request(
                         .map(|r| {
                             let bounds = r.map_bounds().map(|b| {
                                 serde_json::json!({
-                                    "x": b.x(),
-                                    "y": b.y(),
-                                    "width": b.width(),
-                                    "height": b.height(),
+                                    "x": b.x,
+                                    "y": b.y,
+                                    "width": b.width,
+                                    "height": b.height,
                                 })
                             });
                             serde_json::json!({
@@ -356,10 +356,10 @@ pub(super) async fn handle_region_request(
                 Ok(Some(region)) => {
                     let bounds = region.map_bounds().map(|b| {
                         serde_json::json!({
-                            "x": b.x(),
-                            "y": b.y(),
-                            "width": b.width(),
-                            "height": b.height(),
+                            "x": b.x,
+                            "y": b.y,
+                            "width": b.width,
+                            "height": b.height,
                         })
                     });
                     Ok(ResponseResult::success(serde_json::json!({
@@ -416,10 +416,10 @@ pub(super) async fn handle_region_request(
                     "backdrop_asset": region.backdrop_asset(),
                     "atmosphere": region.atmosphere(),
                     "map_bounds": region.map_bounds().map(|b| serde_json::json!({
-                        "x": b.x(),
-                        "y": b.y(),
-                        "width": b.width(),
-                        "height": b.height(),
+                        "x": b.x,
+                        "y": b.y,
+                        "width": b.width,
+                        "height": b.height,
                     })),
                     "is_spawn_point": region.is_spawn_point(),
                     "order": region.order(),
@@ -465,10 +465,10 @@ pub(super) async fn handle_region_request(
                     "backdrop_asset": region.backdrop_asset(),
                     "atmosphere": region.atmosphere(),
                     "map_bounds": region.map_bounds().map(|b| serde_json::json!({
-                        "x": b.x(),
-                        "y": b.y(),
-                        "width": b.width(),
-                        "height": b.height(),
+                        "x": b.x,
+                        "y": b.y,
+                        "width": b.width,
+                        "height": b.height,
                     })),
                     "is_spawn_point": region.is_spawn_point(),
                     "order": region.order(),
@@ -534,12 +534,12 @@ pub(super) async fn handle_region_request(
                         .into_iter()
                         .map(|c| {
                             serde_json::json!({
-                                "from_region_id": c.from_region().to_string(),
-                                "to_region_id": c.to_region().to_string(),
-                                "description": c.description(),
-                                "bidirectional": c.bidirectional(),
-                                "is_locked": c.is_locked(),
-                                "lock_description": c.lock_description(),
+                                "from_region_id": c.from_region.to_string(),
+                                "to_region_id": c.to_region.to_string(),
+                                "description": c.description,
+                                "bidirectional": c.bidirectional,
+                                "is_locked": c.is_locked,
+                                "lock_description": c.lock_description,
                             })
                         })
                         .collect();
@@ -675,11 +675,11 @@ pub(super) async fn handle_region_request(
                         .into_iter()
                         .map(|e| {
                             serde_json::json!({
-                                "region_id": e.from_region().to_string(),
-                                "location_id": e.to_location().to_string(),
-                                "arrival_region_id": e.arrival_region_id().to_string(),
-                                "description": e.description(),
-                                "bidirectional": e.bidirectional(),
+                                "region_id": e.from_region.to_string(),
+                                "location_id": e.to_location.to_string(),
+                                "arrival_region_id": e.arrival_region_id.to_string(),
+                                "description": e.description,
+                                "bidirectional": e.bidirectional,
                             })
                         })
                         .collect();
@@ -798,10 +798,10 @@ pub(super) async fn handle_region_request(
                                 "backdrop_asset": r.backdrop_asset(),
                                 "atmosphere": r.atmosphere(),
                                 "map_bounds": r.map_bounds().map(|b| serde_json::json!({
-                                    "x": b.x(),
-                                    "y": b.y(),
-                                    "width": b.width(),
-                                    "height": b.height(),
+                                    "x": b.x,
+                                    "y": b.y,
+                                    "width": b.width,
+                                    "height": b.height,
                                 })),
                                 "is_spawn_point": r.is_spawn_point(),
                                 "order": r.order(),

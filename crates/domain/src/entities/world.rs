@@ -8,51 +8,18 @@ use crate::{GameTime, WorldId};
 pub use crate::types::MonomythStage;
 
 /// Result of advancing time
+///
+/// Simple data struct with public fields (ADR-008: no invariants to protect).
 #[derive(Debug, Clone)]
 pub struct TimeAdvanceResult {
     /// The previous game time
-    previous_time: GameTime,
+    pub previous_time: GameTime,
     /// The new game time
-    new_time: GameTime,
+    pub new_time: GameTime,
     /// Minutes that were advanced
-    minutes_advanced: u32,
+    pub minutes_advanced: u32,
     /// Whether the time period changed
-    period_changed: bool,
-}
-
-impl TimeAdvanceResult {
-    /// Create a new time advance result
-    pub fn new(
-        previous_time: GameTime,
-        new_time: GameTime,
-        minutes_advanced: u32,
-        period_changed: bool,
-    ) -> Self {
-        Self {
-            previous_time,
-            new_time,
-            minutes_advanced,
-            period_changed,
-        }
-    }
-
-    // Read-only accessors
-
-    pub fn previous_time(&self) -> &GameTime {
-        &self.previous_time
-    }
-
-    pub fn new_time(&self) -> &GameTime {
-        &self.new_time
-    }
-
-    pub fn minutes_advanced(&self) -> u32 {
-        self.minutes_advanced
-    }
-
-    pub fn period_changed(&self) -> bool {
-        self.period_changed
-    }
+    pub period_changed: bool,
 }
 
 /// A story arc within a world

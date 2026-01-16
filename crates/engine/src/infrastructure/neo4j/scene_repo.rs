@@ -512,12 +512,12 @@ impl SceneRepo for Neo4jSceneRepo {
         // Build parallel arrays for UNWIND
         let char_ids: Vec<String> = characters
             .iter()
-            .map(|sc| sc.character_id().to_string())
+            .map(|sc| sc.character_id.to_string())
             .collect();
-        let roles: Vec<String> = characters.iter().map(|sc| sc.role().to_string()).collect();
+        let roles: Vec<String> = characters.iter().map(|sc| sc.role.to_string()).collect();
         let entrance_cues: Vec<String> = characters
             .iter()
-            .map(|sc| sc.entrance_cue().unwrap_or_default().to_string())
+            .map(|sc| sc.entrance_cue.as_deref().unwrap_or_default().to_string())
             .collect();
 
         // Delete existing edges first

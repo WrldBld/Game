@@ -82,23 +82,24 @@ impl ConnectionType {
 /// A connection between two locations
 ///
 /// Stored as a `CONNECTED_TO` edge in Neo4j with properties.
+/// Simple data struct with public fields (ADR-008: no invariants to protect).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocationConnection {
-    from_location: LocationId,
-    to_location: LocationId,
+    pub from_location: LocationId,
+    pub to_location: LocationId,
     /// Type of connection (Door, Path, Stairs, Portal, Hidden, or Other)
-    connection_type: ConnectionType,
+    pub connection_type: ConnectionType,
     /// Description of the path/transition
-    description: Option<String>,
+    pub description: Option<String>,
     /// Whether this connection works both ways
-    bidirectional: bool,
+    pub bidirectional: bool,
     /// Travel time in game-time units (0 = instant)
-    travel_time: u32,
+    pub travel_time: u32,
     /// Whether this connection is currently locked
-    is_locked: bool,
+    pub is_locked: bool,
     /// Description of what's needed to unlock (if locked)
-    lock_description: Option<String>,
+    pub lock_description: Option<String>,
 }
 
 impl LocationConnection {
@@ -138,40 +139,6 @@ impl LocationConnection {
         }
     }
 
-    // Read-only accessors
-
-    pub fn from_location(&self) -> LocationId {
-        self.from_location
-    }
-
-    pub fn to_location(&self) -> LocationId {
-        self.to_location
-    }
-
-    pub fn connection_type(&self) -> ConnectionType {
-        self.connection_type
-    }
-
-    pub fn description(&self) -> Option<&str> {
-        self.description.as_deref()
-    }
-
-    pub fn bidirectional(&self) -> bool {
-        self.bidirectional
-    }
-
-    pub fn travel_time(&self) -> u32 {
-        self.travel_time
-    }
-
-    pub fn is_locked(&self) -> bool {
-        self.is_locked
-    }
-
-    pub fn lock_description(&self) -> Option<&str> {
-        self.lock_description.as_deref()
-    }
-
     // Factory methods
 
     /// Create a door connection
@@ -197,28 +164,5 @@ impl LocationConnection {
     /// Create a hidden/secret passage connection
     pub fn hidden(from: LocationId, to: LocationId) -> Self {
         Self::new(from, to, ConnectionType::Hidden)
-    }
-
-    // Builder methods
-
-    pub fn one_way(mut self) -> Self {
-        self.bidirectional = false;
-        self
-    }
-
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = Some(description.into());
-        self
-    }
-
-    pub fn with_travel_time(mut self, time: u32) -> Self {
-        self.travel_time = time;
-        self
-    }
-
-    pub fn locked(mut self, description: impl Into<String>) -> Self {
-        self.is_locked = true;
-        self.lock_description = Some(description.into());
-        self
     }
 }

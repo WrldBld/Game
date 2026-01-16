@@ -241,10 +241,11 @@ impl EnterRegion {
         };
 
         // Find connection to target region
-        match connections.iter().find(|c| c.to_region() == to_region_id) {
-            Some(connection) if connection.is_locked() => {
+        match connections.iter().find(|c| c.to_region == to_region_id) {
+            Some(connection) if connection.is_locked => {
                 let reason = connection
-                    .lock_description()
+                    .lock_description
+                    .as_ref()
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| "The way is blocked".to_string());
                 ConnectionCheckResult::Locked(reason)
@@ -605,9 +606,14 @@ mod tests {
             .withf(move |id| *id == to_region_id)
             .returning(move |_| Ok(Some(to_region_for_get.clone())));
 
-        let conn = RegionConnection::new(from_region_id, to_region_id)
-            .expect("test regions are distinct")
-            .locked("Locked");
+        let conn = RegionConnection {
+            from_region: from_region_id,
+            to_region: to_region_id,
+            description: None,
+            bidirectional: false,
+            is_locked: true,
+            lock_description: Some("Locked".to_string()),
+        };
         location_repo
             .expect_get_connections()
             .withf(move |id| *id == from_region_id)

@@ -204,14 +204,16 @@ impl LocationCrud {
         to_location: LocationId,
         bidirectional: bool,
     ) -> Result<(), ManagementError> {
-        let mut connection = wrldbldr_domain::LocationConnection::new(
+        let connection = wrldbldr_domain::LocationConnection {
             from_location,
             to_location,
-            wrldbldr_domain::ConnectionType::Other,
-        );
-        if !bidirectional {
-            connection = connection.one_way();
-        }
+            connection_type: wrldbldr_domain::ConnectionType::Other,
+            description: None,
+            bidirectional,
+            travel_time: 0,
+            is_locked: false,
+            lock_description: None,
+        };
 
         self.location.save_location_connection(&connection).await?;
         Ok(())
@@ -244,20 +246,24 @@ impl LocationCrud {
         locked: Option<bool>,
         lock_description: Option<String>,
     ) -> Result<(), ManagementError> {
-        let mut connection = wrldbldr_domain::RegionConnection::new(from_region, to_region)
-            .ok_or_else(|| {
-                ManagementError::InvalidInput("Cannot connect a region to itself".to_string())
-            })?;
-        if let Some(description) = description {
-            connection = connection.with_description(description);
+        if from_region == to_region {
+            return Err(ManagementError::InvalidInput(
+                "Cannot connect a region to itself".to_string(),
+            ));
         }
-        if bidirectional == Some(false) {
-            connection = connection.one_way();
-        }
-        if locked.unwrap_or(false) {
-            connection =
-                connection.locked(lock_description.unwrap_or_else(|| "Locked".to_string()));
-        }
+        let is_locked = locked.unwrap_or(false);
+        let connection = wrldbldr_domain::RegionConnection {
+            from_region,
+            to_region,
+            description,
+            bidirectional: bidirectional.unwrap_or(true),
+            is_locked,
+            lock_description: if is_locked {
+                Some(lock_description.unwrap_or_else(|| "Locked".to_string()))
+            } else {
+                None
+            },
+        };
 
         self.location.save_connection(&connection).await?;
         Ok(())
@@ -282,18 +288,18 @@ impl LocationCrud {
         let connections = self.location.get_connections(from_region).await?;
         let existing = connections
             .into_iter()
-            .find(|c| c.to_region() == to_region)
+            .find(|c| c.to_region == to_region)
             .ok_or(ManagementError::NotFound)?;
 
-        // Rebuild connection with updated lock state using from_parts
-        let updated = wrldbldr_domain::RegionConnection::from_parts(
-            existing.from_region(),
-            existing.to_region(),
-            existing.description().map(|s| s.to_string()),
-            existing.bidirectional(),
-            false, // is_locked = false (unlocking)
-            None,  // lock_description = None
-        );
+        // Rebuild connection with updated lock state
+        let updated = wrldbldr_domain::RegionConnection {
+            from_region: existing.from_region,
+            to_region: existing.to_region,
+            description: existing.description.clone(),
+            bidirectional: existing.bidirectional,
+            is_locked: false,
+            lock_description: None,
+        };
 
         self.location.save_connection(&updated).await?;
         Ok(())
@@ -371,13 +377,13 @@ impl LocationCrud {
             );
         }
 
-        let mut exit = wrldbldr_domain::RegionExit::new(region_id, location_id, arrival_region_id);
-        if let Some(desc) = description {
-            exit = exit.with_description(desc);
-        }
-        if !is_bidirectional {
-            exit = exit.one_way();
-        }
+        let exit = wrldbldr_domain::RegionExit {
+            from_region: region_id,
+            to_location: location_id,
+            arrival_region_id,
+            description,
+            bidirectional: is_bidirectional,
+        };
         self.location.save_region_exit(&exit).await?;
         Ok(())
     }

@@ -44,26 +44,20 @@ pub enum SceneCondition {
 }
 
 /// Data for the FEATURES_CHARACTER edge between Scene and Character
+///
+/// Simple data struct with public fields (ADR-008: no invariants to protect).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SceneCharacter {
     /// The character's ID
-    character_id: CharacterId,
+    pub character_id: CharacterId,
     /// The character's role in this scene
-    role: SceneCharacterRole,
+    pub role: SceneCharacterRole,
     /// When/how the character enters the scene
-    entrance_cue: Option<String>,
+    pub entrance_cue: Option<String>,
 }
 
 impl SceneCharacter {
-    pub fn new(character_id: CharacterId, role: SceneCharacterRole) -> Self {
-        Self {
-            character_id,
-            role,
-            entrance_cue: None,
-        }
-    }
-
     /// Create a scene character from parts (for reconstitution from storage)
     pub fn from_parts(
         character_id: CharacterId,
@@ -75,27 +69,6 @@ impl SceneCharacter {
             role,
             entrance_cue,
         }
-    }
-
-    // Read-only accessors
-
-    pub fn character_id(&self) -> CharacterId {
-        self.character_id
-    }
-
-    pub fn role(&self) -> SceneCharacterRole {
-        self.role
-    }
-
-    pub fn entrance_cue(&self) -> Option<&str> {
-        self.entrance_cue.as_deref()
-    }
-
-    // Builder methods
-
-    pub fn with_entrance_cue(mut self, cue: impl Into<String>) -> Self {
-        self.entrance_cue = Some(cue.into());
-        self
     }
 }
 

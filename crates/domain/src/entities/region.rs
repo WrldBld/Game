@@ -166,17 +166,19 @@ impl Region {
 }
 
 /// Bounds defining a rectangular area on a map image
+///
+/// Simple data struct with public fields (ADR-008: no invariants to protect).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MapBounds {
     /// X coordinate of the region's top-left corner
-    x: u32,
+    pub x: u32,
     /// Y coordinate of the region's top-left corner
-    y: u32,
+    pub y: u32,
     /// Width of the region
-    width: u32,
+    pub width: u32,
     /// Height of the region
-    height: u32,
+    pub height: u32,
 }
 
 impl MapBounds {
@@ -193,36 +195,6 @@ impl MapBounds {
             width,
             height,
         })
-    }
-
-    /// Create new map bounds without validation (for deserialization)
-    ///
-    /// Prefer `new()` for programmatic creation.
-    pub fn new_unchecked(x: u32, y: u32, width: u32, height: u32) -> Self {
-        Self {
-            x,
-            y,
-            width,
-            height,
-        }
-    }
-
-    // Read-only accessors
-
-    pub fn x(&self) -> u32 {
-        self.x
-    }
-
-    pub fn y(&self) -> u32 {
-        self.y
-    }
-
-    pub fn width(&self) -> u32 {
-        self.width
-    }
-
-    pub fn height(&self) -> u32 {
-        self.height
     }
 
     /// Check if a pixel position is within these bounds
@@ -244,39 +216,23 @@ impl MapBounds {
 /// A connection between two regions
 ///
 /// Stored as a `CONNECTED_TO_REGION` edge in Neo4j with properties.
+/// Simple data struct with public fields (ADR-008: no invariants to protect).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegionConnection {
-    from_region: RegionId,
-    to_region: RegionId,
+    pub from_region: RegionId,
+    pub to_region: RegionId,
     /// Description of the path/transition (e.g., "A door leads to...")
-    description: Option<String>,
+    pub description: Option<String>,
     /// Whether this connection works both ways
-    bidirectional: bool,
+    pub bidirectional: bool,
     /// Whether this connection is currently locked
-    is_locked: bool,
+    pub is_locked: bool,
     /// Description of what's needed to unlock (if locked)
-    lock_description: Option<String>,
+    pub lock_description: Option<String>,
 }
 
 impl RegionConnection {
-    /// Create a new connection between two regions
-    ///
-    /// Returns `None` if `from` and `to` are the same region (self-loop).
-    pub fn new(from: RegionId, to: RegionId) -> Option<Self> {
-        if from == to {
-            return None;
-        }
-        Some(Self {
-            from_region: from,
-            to_region: to,
-            description: None,
-            bidirectional: true,
-            is_locked: false,
-            lock_description: None,
-        })
-    }
-
     /// Create a connection from parts (for reconstitution from storage)
     pub fn from_parts(
         from_region: RegionId,
@@ -295,80 +251,27 @@ impl RegionConnection {
             lock_description,
         }
     }
-
-    // Read-only accessors
-
-    pub fn from_region(&self) -> RegionId {
-        self.from_region
-    }
-
-    pub fn to_region(&self) -> RegionId {
-        self.to_region
-    }
-
-    pub fn description(&self) -> Option<&str> {
-        self.description.as_deref()
-    }
-
-    pub fn bidirectional(&self) -> bool {
-        self.bidirectional
-    }
-
-    pub fn is_locked(&self) -> bool {
-        self.is_locked
-    }
-
-    pub fn lock_description(&self) -> Option<&str> {
-        self.lock_description.as_deref()
-    }
-
-    // Builder methods
-
-    pub fn one_way(mut self) -> Self {
-        self.bidirectional = false;
-        self
-    }
-
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = Some(description.into());
-        self
-    }
-
-    pub fn locked(mut self, description: impl Into<String>) -> Self {
-        self.is_locked = true;
-        self.lock_description = Some(description.into());
-        self
-    }
 }
 
 /// An exit from a region to another location
 ///
 /// Stored as an `EXITS_TO_LOCATION` edge in Neo4j with properties.
 /// Used when leaving a building/area to go to a parent or sibling location.
+/// Simple data struct with public fields (ADR-008: no invariants to protect).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegionExit {
-    from_region: RegionId,
-    to_location: LocationId,
+    pub from_region: RegionId,
+    pub to_location: LocationId,
     /// Which region in the target location the player arrives at
-    arrival_region_id: RegionId,
+    pub arrival_region_id: RegionId,
     /// Description of the exit (e.g., "Step outside into the market")
-    description: Option<String>,
+    pub description: Option<String>,
     /// Whether this exit works both ways (can enter from that location)
-    bidirectional: bool,
+    pub bidirectional: bool,
 }
 
 impl RegionExit {
-    pub fn new(from: RegionId, to_location: LocationId, arrival_region: RegionId) -> Self {
-        Self {
-            from_region: from,
-            to_location,
-            arrival_region_id: arrival_region,
-            description: None,
-            bidirectional: true,
-        }
-    }
-
     /// Create a region exit from parts (for reconstitution from storage)
     pub fn from_parts(
         from_region: RegionId,
@@ -384,40 +287,6 @@ impl RegionExit {
             description,
             bidirectional,
         }
-    }
-
-    // Read-only accessors
-
-    pub fn from_region(&self) -> RegionId {
-        self.from_region
-    }
-
-    pub fn to_location(&self) -> LocationId {
-        self.to_location
-    }
-
-    pub fn arrival_region_id(&self) -> RegionId {
-        self.arrival_region_id
-    }
-
-    pub fn description(&self) -> Option<&str> {
-        self.description.as_deref()
-    }
-
-    pub fn bidirectional(&self) -> bool {
-        self.bidirectional
-    }
-
-    // Builder methods
-
-    pub fn one_way(mut self) -> Self {
-        self.bidirectional = false;
-        self
-    }
-
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = Some(description.into());
-        self
     }
 }
 
@@ -447,7 +316,12 @@ mod tests {
     #[test]
     fn test_map_bounds_contains_near_max_values() {
         // Test with values near u32::MAX to verify saturating_add works
-        let bounds = MapBounds::new_unchecked(u32::MAX - 10, u32::MAX - 10, 100, 100);
+        let bounds = MapBounds {
+            x: u32::MAX - 10,
+            y: u32::MAX - 10,
+            width: 100,
+            height: 100,
+        };
 
         // Point at the origin of bounds should be contained
         assert!(bounds.contains(u32::MAX - 10, u32::MAX - 10));
@@ -469,7 +343,12 @@ mod tests {
     #[test]
     fn test_map_bounds_overflow_protection() {
         // Create bounds at MAX position with width that would overflow
-        let bounds = MapBounds::new_unchecked(u32::MAX, u32::MAX, 10, 10);
+        let bounds = MapBounds {
+            x: u32::MAX,
+            y: u32::MAX,
+            width: 10,
+            height: 10,
+        };
 
         // This should NOT panic due to overflow - saturating_add prevents it
         // Point at MAX is contained since x >= MAX and x < MAX.saturating_add(10) = MAX
@@ -502,60 +381,65 @@ mod tests {
         let bounds = MapBounds::new(10, 20, 100, 50);
         assert!(bounds.is_some());
         let bounds = bounds.unwrap();
-        assert_eq!(bounds.x(), 10);
-        assert_eq!(bounds.y(), 20);
-        assert_eq!(bounds.width(), 100);
-        assert_eq!(bounds.height(), 50);
+        assert_eq!(bounds.x, 10);
+        assert_eq!(bounds.y, 20);
+        assert_eq!(bounds.width, 100);
+        assert_eq!(bounds.height, 50);
     }
 
     #[test]
     fn test_map_bounds_contains_returns_false_for_zero_size() {
-        // Even if created via new_unchecked, contains should handle zero-size gracefully
-        let zero_width = MapBounds::new_unchecked(10, 20, 0, 50);
+        // Even with zero-size bounds, contains should handle gracefully
+        let zero_width = MapBounds {
+            x: 10,
+            y: 20,
+            width: 0,
+            height: 50,
+        };
         assert!(!zero_width.contains(10, 20));
 
-        let zero_height = MapBounds::new_unchecked(10, 20, 100, 0);
+        let zero_height = MapBounds {
+            x: 10,
+            y: 20,
+            width: 100,
+            height: 0,
+        };
         assert!(!zero_height.contains(10, 20));
 
-        let zero_both = MapBounds::new_unchecked(10, 20, 0, 0);
+        let zero_both = MapBounds {
+            x: 10,
+            y: 20,
+            width: 0,
+            height: 0,
+        };
         assert!(!zero_both.contains(10, 20));
     }
 
     // ==========================================================================
-    // Issue 6.8: Prevent Self-Loop Connections
+    // RegionConnection tests
     // ==========================================================================
 
     #[test]
-    fn test_region_connection_rejects_self_loop() {
-        let region_id = RegionId::new();
-        let connection = RegionConnection::new(region_id, region_id);
-        assert!(connection.is_none());
-    }
-
-    #[test]
-    fn test_region_connection_accepts_different_regions() {
+    fn test_region_connection_field_access() {
         let from_region = RegionId::new();
         let to_region = RegionId::new();
-        let connection = RegionConnection::new(from_region, to_region);
-        assert!(connection.is_some());
-        let connection = connection.unwrap();
-        assert_eq!(connection.from_region(), from_region);
-        assert_eq!(connection.to_region(), to_region);
-    }
+        let connection = RegionConnection {
+            from_region,
+            to_region,
+            description: Some("A narrow passage".to_string()),
+            bidirectional: false,
+            is_locked: true,
+            lock_description: Some("Requires a key".to_string()),
+        };
 
-    #[test]
-    fn test_region_connection_builder_methods() {
-        let from_region = RegionId::new();
-        let to_region = RegionId::new();
-        let connection = RegionConnection::new(from_region, to_region)
-            .unwrap()
-            .one_way()
-            .with_description("A narrow passage")
-            .locked("Requires a key");
-
-        assert!(!connection.bidirectional());
-        assert_eq!(connection.description(), Some("A narrow passage"));
-        assert!(connection.is_locked());
-        assert_eq!(connection.lock_description(), Some("Requires a key"));
+        assert_eq!(connection.from_region, from_region);
+        assert_eq!(connection.to_region, to_region);
+        assert!(!connection.bidirectional);
+        assert_eq!(connection.description.as_deref(), Some("A narrow passage"));
+        assert!(connection.is_locked);
+        assert_eq!(
+            connection.lock_description.as_deref(),
+            Some("Requires a key")
+        );
     }
 }

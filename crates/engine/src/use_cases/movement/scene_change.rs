@@ -148,15 +148,15 @@ impl SceneChangeBuilder {
         for connection in connections {
             let target_region = self
                 .location
-                .get_region(connection.to_region())
+                .get_region(connection.to_region)
                 .await?
-                .ok_or(SceneChangeError::RegionNotFound(connection.to_region()))?;
+                .ok_or(SceneChangeError::RegionNotFound(connection.to_region))?;
 
             connected_regions.push(NavigationTargetInfo {
-                region_id: connection.to_region().to_string(),
+                region_id: connection.to_region.to_string(),
                 name: target_region.name().to_string(),
-                is_locked: connection.is_locked(),
-                lock_description: connection.lock_description().map(|s| s.to_string()),
+                is_locked: connection.is_locked,
+                lock_description: connection.lock_description.map(|s| s.to_string()),
             });
         }
 

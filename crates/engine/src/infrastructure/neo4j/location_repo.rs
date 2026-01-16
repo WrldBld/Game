@@ -237,10 +237,10 @@ impl LocationRepo for Neo4jLocationRepo {
             .parent_map_bounds()
             .map(|b| {
                 serde_json::json!({
-                    "x": b.x(),
-                    "y": b.y(),
-                    "width": b.width(),
-                    "height": b.height()
+                    "x": b.x,
+                    "y": b.y,
+                    "width": b.width,
+                    "height": b.height
                 })
                 .to_string()
             })
@@ -375,10 +375,10 @@ impl LocationRepo for Neo4jLocationRepo {
             .map_bounds()
             .map(|b| {
                 serde_json::json!({
-                    "x": b.x(),
-                    "y": b.y(),
-                    "width": b.width(),
-                    "height": b.height()
+                    "x": b.x,
+                    "y": b.y,
+                    "width": b.width,
+                    "height": b.height
                 })
                 .to_string()
             })
@@ -516,18 +516,23 @@ impl LocationRepo for Neo4jLocationRepo {
                 rel.lock_description = $lock_description
             RETURN from.id as from_id",
         )
-        .param("from_id", connection.from_region().to_string())
-        .param("to_id", connection.to_region().to_string())
+        .param("from_id", connection.from_region.to_string())
+        .param("to_id", connection.to_region.to_string())
         .param(
             "description",
-            connection.description().unwrap_or_default().to_string(),
+            connection
+                .description
+                .as_deref()
+                .unwrap_or_default()
+                .to_string(),
         )
-        .param("bidirectional", connection.bidirectional())
-        .param("is_locked", connection.is_locked())
+        .param("bidirectional", connection.bidirectional)
+        .param("is_locked", connection.is_locked)
         .param(
             "lock_description",
             connection
-                .lock_description()
+                .lock_description
+                .as_deref()
                 .unwrap_or_default()
                 .to_string(),
         );
@@ -538,7 +543,7 @@ impl LocationRepo for Neo4jLocationRepo {
             .map_err(|e| RepoError::database("query", e))?;
 
         // If bidirectional, also create the reverse connection
-        if connection.bidirectional() {
+        if connection.bidirectional {
             let reverse_q = query(
                 "MATCH (from:Region {id: $to_id})
                 MATCH (to:Region {id: $from_id})
@@ -549,18 +554,23 @@ impl LocationRepo for Neo4jLocationRepo {
                     rel.lock_description = $lock_description
                 RETURN from.id as from_id",
             )
-            .param("from_id", connection.from_region().to_string())
-            .param("to_id", connection.to_region().to_string())
+            .param("from_id", connection.from_region.to_string())
+            .param("to_id", connection.to_region.to_string())
             .param(
                 "description",
-                connection.description().unwrap_or_default().to_string(),
+                connection
+                    .description
+                    .as_deref()
+                    .unwrap_or_default()
+                    .to_string(),
             )
-            .param("bidirectional", connection.bidirectional())
-            .param("is_locked", connection.is_locked())
+            .param("bidirectional", connection.bidirectional)
+            .param("is_locked", connection.is_locked)
             .param(
                 "lock_description",
                 connection
-                    .lock_description()
+                    .lock_description
+                    .as_deref()
                     .unwrap_or_default()
                     .to_string(),
             );
@@ -573,8 +583,8 @@ impl LocationRepo for Neo4jLocationRepo {
 
         tracing::debug!(
             "Saved connection from {} to {}",
-            connection.from_region(),
-            connection.to_region()
+            connection.from_region,
+            connection.to_region
         );
         Ok(())
     }
@@ -664,20 +674,25 @@ impl LocationRepo for Neo4jLocationRepo {
                 r.is_locked = $is_locked,
                 r.lock_description = $lock_description",
         )
-        .param("from_id", connection.from_location().to_string())
-        .param("to_id", connection.to_location().to_string())
-        .param("connection_type", connection.connection_type().as_str())
+        .param("from_id", connection.from_location.to_string())
+        .param("to_id", connection.to_location.to_string())
+        .param("connection_type", connection.connection_type.as_str())
         .param(
             "description",
-            connection.description().unwrap_or_default().to_string(),
+            connection
+                .description
+                .as_deref()
+                .unwrap_or_default()
+                .to_string(),
         )
-        .param("bidirectional", connection.bidirectional())
-        .param("travel_time", connection.travel_time() as i64)
-        .param("is_locked", connection.is_locked())
+        .param("bidirectional", connection.bidirectional)
+        .param("travel_time", connection.travel_time as i64)
+        .param("is_locked", connection.is_locked)
         .param(
             "lock_description",
             connection
-                .lock_description()
+                .lock_description
+                .as_deref()
                 .unwrap_or_default()
                 .to_string(),
         );
@@ -687,7 +702,7 @@ impl LocationRepo for Neo4jLocationRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
-        if connection.bidirectional() {
+        if connection.bidirectional {
             let reverse_q = query(
                 "MATCH (from:Location {id: $to_id})
                 MATCH (to:Location {id: $from_id})
@@ -699,20 +714,25 @@ impl LocationRepo for Neo4jLocationRepo {
                     r.is_locked = $is_locked,
                     r.lock_description = $lock_description",
             )
-            .param("from_id", connection.from_location().to_string())
-            .param("to_id", connection.to_location().to_string())
-            .param("connection_type", connection.connection_type().as_str())
+            .param("from_id", connection.from_location.to_string())
+            .param("to_id", connection.to_location.to_string())
+            .param("connection_type", connection.connection_type.as_str())
             .param(
                 "description",
-                connection.description().unwrap_or_default().to_string(),
+                connection
+                    .description
+                    .as_deref()
+                    .unwrap_or_default()
+                    .to_string(),
             )
-            .param("bidirectional", connection.bidirectional())
-            .param("travel_time", connection.travel_time() as i64)
-            .param("is_locked", connection.is_locked())
+            .param("bidirectional", connection.bidirectional)
+            .param("travel_time", connection.travel_time as i64)
+            .param("is_locked", connection.is_locked)
             .param(
                 "lock_description",
                 connection
-                    .lock_description()
+                    .lock_description
+                    .as_deref()
                     .unwrap_or_default()
                     .to_string(),
             );
@@ -824,18 +844,18 @@ impl LocationRepo for Neo4jLocationRepo {
                 r.description = $description,
                 r.bidirectional = $bidirectional",
         )
-        .param("from_id", exit.from_region().to_string())
-        .param("to_id", exit.to_location().to_string())
-        .param("arrival_region_id", exit.arrival_region_id().to_string())
-        .param("description", exit.description().unwrap_or_default().to_string())
-        .param("bidirectional", exit.bidirectional());
+        .param("from_id", exit.from_region.to_string())
+        .param("to_id", exit.to_location.to_string())
+        .param("arrival_region_id", exit.arrival_region_id.to_string())
+        .param("description", exit.description.as_deref().unwrap_or_default().to_string())
+        .param("bidirectional", exit.bidirectional);
 
         self.graph
             .run(q)
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
-        if exit.bidirectional() {
+        if exit.bidirectional {
             let reverse_q = query(
                 "MATCH (from:Region {id: $from_id})<-[:HAS_REGION]-(from_location:Location)
                 MATCH (to:Location {id: $to_id})-[:HAS_REGION]->(arrival_region:Region {id: $arrival_region_id})
@@ -844,11 +864,11 @@ impl LocationRepo for Neo4jLocationRepo {
                     r.description = $description,
                     r.bidirectional = $bidirectional",
             )
-            .param("from_id", exit.from_region().to_string())
-            .param("to_id", exit.to_location().to_string())
-            .param("arrival_region_id", exit.arrival_region_id().to_string())
-            .param("description", exit.description().unwrap_or_default().to_string())
-            .param("bidirectional", exit.bidirectional());
+            .param("from_id", exit.from_region.to_string())
+            .param("to_id", exit.to_location.to_string())
+            .param("arrival_region_id", exit.arrival_region_id.to_string())
+            .param("description", exit.description.as_deref().unwrap_or_default().to_string())
+            .param("bidirectional", exit.bidirectional);
 
             self.graph
                 .run(reverse_q)
@@ -861,9 +881,9 @@ impl LocationRepo for Neo4jLocationRepo {
                 OPTIONAL MATCH (arrival_region)-[r:EXITS_TO_LOCATION]->(from_location)
                 DELETE r",
             )
-            .param("from_id", exit.from_region().to_string())
-            .param("to_id", exit.to_location().to_string())
-            .param("arrival_region_id", exit.arrival_region_id().to_string());
+            .param("from_id", exit.from_region.to_string())
+            .param("to_id", exit.to_location.to_string())
+            .param("arrival_region_id", exit.arrival_region_id.to_string());
 
             self.graph
                 .run(cleanup_q)

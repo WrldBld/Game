@@ -269,12 +269,12 @@ impl World {
 
         let new_period = self.game_time.time_of_day();
 
-        TimeAdvanceResult::new(
+        TimeAdvanceResult {
             previous_time,
-            self.game_time.clone(),
-            minutes,
-            previous_period != new_period,
-        )
+            new_time: self.game_time.clone(),
+            minutes_advanced: minutes,
+            period_changed: previous_period != new_period,
+        }
     }
 
     /// Advance game time by a number of hours.
@@ -458,7 +458,7 @@ mod tests {
                 world.updated_at() + chrono::Duration::seconds(1),
             );
 
-            assert_eq!(result.minutes_advanced(), 60);
+            assert_eq!(result.minutes_advanced, 60);
         }
 
         #[test]
@@ -466,7 +466,7 @@ mod tests {
             let mut world = create_test_world();
             let result = world.advance_hours(2, world.updated_at() + chrono::Duration::seconds(1));
 
-            assert_eq!(result.minutes_advanced(), 120);
+            assert_eq!(result.minutes_advanced, 120);
         }
     }
 }
