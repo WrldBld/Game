@@ -259,15 +259,27 @@ impl ProcessPlayerAction {
             region_items: vec![],
         };
 
-        // Fetch NPC disposition toward PC (if both IDs exist)
+        // Fetch NPC disposition toward PC (if both IDs exist) - optional context for prompt
         let disposition = match (npc_id, action_data.pc_id) {
-            (Some(npc), Some(pc)) => self.character.get_disposition(npc, pc).await.ok().flatten(),
+            (Some(npc), Some(pc)) => match self.character.get_disposition(npc, pc).await {
+                Ok(d) => d,
+                Err(e) => {
+                    tracing::debug!(npc_id = %npc, pc_id = %pc, error = %e, "Failed to fetch NPC disposition for prompt context");
+                    None
+                }
+            },
             _ => None,
         };
 
-        // Fetch NPC wants (motivations)
+        // Fetch NPC wants (motivations) - optional context for prompt
         let wants = match npc_id {
-            Some(npc) => self.character.get_wants(npc).await.ok(),
+            Some(npc) => match self.character.get_wants(npc).await {
+                Ok(w) => Some(w),
+                Err(e) => {
+                    tracing::debug!(npc_id = %npc, error = %e, "Failed to fetch NPC wants for prompt context");
+                    None
+                }
+            },
             None => None,
         };
 

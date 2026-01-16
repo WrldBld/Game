@@ -581,7 +581,17 @@ impl NarrativeOps {
         // Get flags for this PC (both world and PC-scoped)
         let flags: HashMap<String, bool> = match self.flag_repo.get_world_flags(world_id).await {
             Ok(world_flags) => {
-                let pc_flags = self.flag_repo.get_pc_flags(pc_id).await.unwrap_or_default();
+                let pc_flags = match self.flag_repo.get_pc_flags(pc_id).await {
+                    Ok(flags) => flags,
+                    Err(e) => {
+                        tracing::warn!(
+                            pc_id = %pc_id,
+                            error = %e,
+                            "Failed to fetch PC flags for trigger evaluation"
+                        );
+                        vec![]
+                    }
+                };
                 // Combine world and PC flags into a HashMap<String, bool>
                 let mut flag_map = HashMap::new();
                 for flag in world_flags {

@@ -62,20 +62,26 @@ pub async fn generate_rule_based_suggestions(
     // Issue 4.3 fix: Use HashSet for O(1) lookup instead of O(n) iter().any()
     let existing_ids: HashSet<CharacterId> = suggestions.iter().map(|s| s.character_id).collect();
 
-    if let Ok(staged_npcs) = staging.get_staged_npcs(region_id).await {
-        for staged in staged_npcs {
-            if !existing_ids.contains(&staged.character_id) {
-                suggestions.push(StagedNpc {
-                    character_id: staged.character_id,
-                    name: staged.name.clone(),
-                    sprite_asset: staged.sprite_asset.clone(),
-                    portrait_asset: staged.portrait_asset.clone(),
-                    is_present: staged.is_present,
-                    reasoning: staged.reasoning.clone(),
-                    is_hidden_from_players: staged.is_hidden_from_players,
-                    mood: Some(staged.mood.to_string()),
-                });
+    // Add previously staged NPCs to suggestions (additive enhancement)
+    match staging.get_staged_npcs(region_id).await {
+        Ok(staged_npcs) => {
+            for staged in staged_npcs {
+                if !existing_ids.contains(&staged.character_id) {
+                    suggestions.push(StagedNpc {
+                        character_id: staged.character_id,
+                        name: staged.name.clone(),
+                        sprite_asset: staged.sprite_asset.clone(),
+                        portrait_asset: staged.portrait_asset.clone(),
+                        is_present: staged.is_present,
+                        reasoning: staged.reasoning.clone(),
+                        is_hidden_from_players: staged.is_hidden_from_players,
+                        mood: Some(staged.mood.to_string()),
+                    });
+                }
             }
+        }
+        Err(e) => {
+            tracing::warn!(region_id = %region_id, error = %e, "Failed to fetch previous staged NPCs, using only rule-based suggestions");
         }
     }
 

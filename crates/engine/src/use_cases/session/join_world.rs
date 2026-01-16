@@ -47,17 +47,9 @@ impl JoinWorld {
             .await?
             .ok_or(JoinWorldError::WorldNotFound)?;
 
-        let locations = self
-            .location
-            .list_in_world(world_id)
-            .await
-            .unwrap_or_default();
-        let characters = self
-            .character
-            .list_in_world(world_id)
-            .await
-            .unwrap_or_default();
-        let current_scene = self.scene.get_current(world_id).await.unwrap_or(None);
+        let locations = self.location.list_in_world(world_id).await?;
+        let characters = self.character.list_in_world(world_id).await?;
+        let current_scene = self.scene.get_current(world_id).await?;
 
         let current_scene_json = current_scene.as_ref().map(|scene| {
             let featured = scene
@@ -153,7 +145,10 @@ impl JoinWorld {
                 "current_region_id": pc.current_region_id().map(|id| id.to_string()),
             })),
             Ok(None) => None,
-            Err(_) => None,
+            Err(e) => {
+                tracing::warn!(pc_id = ?pc_id, error = %e, "Failed to load PC for session");
+                None
+            }
         }
     }
 }

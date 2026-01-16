@@ -57,12 +57,11 @@ impl AutoApproveStagingTimeout {
             get_settings_with_fallback(self.settings.as_ref(), pending.world_id, "auto-approval")
                 .await;
 
-        // Fetch NPCs for region once
+        // Fetch NPCs for region once - fail fast if we can't fetch NPCs
         let npcs_for_region = self
             .character
             .get_npcs_for_region(pending.region_id)
-            .await
-            .unwrap_or_default();
+            .await?;
 
         // Generate rule-based NPC suggestions
         let rule_based_npcs =

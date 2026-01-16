@@ -194,35 +194,46 @@ impl ApproveStagingRequest {
         let mut staged_npcs = Vec::new();
 
         for npc_info in approved_npcs {
-            let character = self
+            let (name, sprite_asset, portrait_asset, default_mood, has_incomplete_data) = match self
                 .character
                 .get(npc_info.character_id)
                 .await
-                .ok()
-                .flatten();
-            let (name, sprite_asset, portrait_asset, default_mood, has_incomplete_data) =
-                match character {
-                    Some(c) => (
-                        c.name().to_string(),
-                        c.sprite_asset().map(|s| s.to_string()),
-                        c.portrait_asset().map(|s| s.to_string()),
-                        c.default_mood().clone(),
-                        false,
-                    ),
-                    None => {
-                        tracing::warn!(
-                            character_id = %npc_info.character_id,
-                            "Character not found during staging approval, NPC will have incomplete data"
-                        );
-                        (
-                            String::new(),
-                            None,
-                            None,
-                            wrldbldr_domain::MoodState::default(),
-                            true,
-                        )
-                    }
-                };
+            {
+                Ok(Some(c)) => (
+                    c.name().to_string(),
+                    c.sprite_asset().map(|s| s.to_string()),
+                    c.portrait_asset().map(|s| s.to_string()),
+                    c.default_mood().clone(),
+                    false,
+                ),
+                Ok(None) => {
+                    tracing::warn!(
+                        character_id = %npc_info.character_id,
+                        "Character not found during staging approval, NPC will have incomplete data"
+                    );
+                    (
+                        String::new(),
+                        None,
+                        None,
+                        wrldbldr_domain::MoodState::default(),
+                        true,
+                    )
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        character_id = %npc_info.character_id,
+                        error = %e,
+                        "Failed to fetch character during staging approval, NPC will have incomplete data"
+                    );
+                    (
+                        String::new(),
+                        None,
+                        None,
+                        wrldbldr_domain::MoodState::default(),
+                        true,
+                    )
+                }
+            };
 
             let mood = npc_info
                 .mood
@@ -301,13 +312,20 @@ impl ApproveStagingRequest {
         location_id: LocationId,
         region_id: RegionId,
     ) -> Option<ResolvedVisualState> {
-        let location_state = self
-            .location_state
-            .get_active(location_id)
-            .await
-            .ok()
-            .flatten();
-        let region_state = self.region_state.get_active(region_id).await.ok().flatten();
+        let location_state = match self.location_state.get_active(location_id).await {
+            Ok(state) => state,
+            Err(e) => {
+                tracing::warn!(location_id = %location_id, error = %e, "Failed to fetch location state for staging");
+                None
+            }
+        };
+        let region_state = match self.region_state.get_active(region_id).await {
+            Ok(state) => state,
+            Err(e) => {
+                tracing::warn!(region_id = %region_id, error = %e, "Failed to fetch region state for staging");
+                None
+            }
+        };
 
         if location_state.is_none() && region_state.is_none() {
             return None;

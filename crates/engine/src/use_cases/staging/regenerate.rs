@@ -39,21 +39,20 @@ impl RegenerateStagingSuggestions {
             .await?
             .ok_or(StagingError::RegionNotFound)?;
 
-        let location_name = self
-            .location
-            .get(region.location_id())
-            .await
-            .ok()
-            .flatten()
-            .map(|l| l.name().to_string())
-            .unwrap_or_else(|| "Unknown Location".to_string());
+        let location_name = match self.location.get(region.location_id()).await {
+            Ok(Some(l)) => l.name().to_string(),
+            Ok(None) => {
+                tracing::warn!(location_id = %region.location_id(), "Location not found for staging regeneration");
+                "Unknown Location".to_string()
+            }
+            Err(e) => {
+                tracing::warn!(location_id = %region.location_id(), error = %e, "Failed to fetch location for staging regeneration");
+                "Unknown Location".to_string()
+            }
+        };
 
-        // Fetch NPCs for region once
-        let npcs_for_region = self
-            .character
-            .get_npcs_for_region(region_id)
-            .await
-            .unwrap_or_default();
+        // Fetch NPCs for region once - fail fast if we can't fetch NPCs
+        let npcs_for_region = self.character.get_npcs_for_region(region_id).await?;
 
         Ok(generate_llm_based_suggestions(
             &npcs_for_region,

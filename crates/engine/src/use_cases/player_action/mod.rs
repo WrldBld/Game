@@ -92,7 +92,7 @@ impl HandlePlayerAction {
             .queue
             .get_pending_count("player_action")
             .await
-            .unwrap_or(1);
+            .map_err(|e| PlayerActionError::Queue(format!("Failed to get queue depth: {}", e)))?;
 
         Ok(PlayerActionProcessed {
             action_id,

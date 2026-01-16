@@ -100,21 +100,24 @@ impl RequestStagingApproval {
         let settings =
             get_settings_with_fallback(self.settings.as_ref(), input.world_id, "staging").await;
 
-        let location_name = self
-            .location
-            .get(input.region.location_id())
-            .await
-            .ok()
-            .flatten()
-            .map(|l| l.name().to_string())
-            .unwrap_or_else(|| "Unknown Location".to_string());
+        let location_name = match self.location.get(input.region.location_id()).await {
+            Ok(Some(l)) => l.name().to_string(),
+            Ok(None) => {
+                tracing::warn!(location_id = %input.region.location_id(), "Location not found for staging request");
+                "Unknown Location".to_string()
+            }
+            Err(e) => {
+                tracing::warn!(location_id = %input.region.location_id(), error = %e, "Failed to fetch location for staging request");
+                "Unknown Location".to_string()
+            }
+        };
 
         // Issue 4.1 fix: Fetch NPCs once and pass to both suggestion functions
+        // Fail fast if we can't fetch NPCs - staging approval requires NPC list
         let npcs_for_region = self
             .character
             .get_npcs_for_region(input.region.id())
-            .await
-            .unwrap_or_default();
+            .await?;
 
         let rule_based_npcs =
             generate_rule_based_suggestions(&npcs_for_region, &self.staging, input.region.id())
@@ -214,11 +217,13 @@ impl RequestStagingApproval {
             _ => return (None, vec![], vec![]),
         };
 
-        let world_flags = self
-            .flag
-            .get_world_flags(world_id)
-            .await
-            .unwrap_or_default();
+        let world_flags = match self.flag.get_world_flags(world_id).await {
+            Ok(flags) => flags,
+            Err(e) => {
+                tracing::warn!(world_id = %world_id, error = %e, "Failed to fetch world flags for visual state, using empty flags");
+                vec![]
+            }
+        };
 
         let context =
             StateResolutionContext::new(world_id, game_time).with_world_flags(world_flags);

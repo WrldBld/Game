@@ -88,7 +88,14 @@ impl GenerateAsset {
         workflow: &str,
     ) -> Result<GenerateResult, GenerateError> {
         // Check if service is available
-        if !self.assets.check_health().await.unwrap_or(false) {
+        let is_healthy = match self.assets.check_health().await {
+            Ok(healthy) => healthy,
+            Err(e) => {
+                tracing::warn!(error = %e, "Asset generation health check failed, treating as unavailable");
+                false
+            }
+        };
+        if !is_healthy {
             return Err(GenerateError::Unavailable);
         }
 

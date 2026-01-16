@@ -68,14 +68,17 @@ impl NpcDisposition {
         let state = state.updating_disposition(disposition, reason.clone(), now);
         self.character.save_disposition(&state).await?;
 
-        let npc_name = self
-            .character
-            .get(npc_id)
-            .await
-            .ok()
-            .flatten()
-            .map(|npc| npc.name().to_string())
-            .unwrap_or_else(|| "Unknown NPC".to_string());
+        let npc_name = match self.character.get(npc_id).await {
+            Ok(Some(npc)) => npc.name().to_string(),
+            Ok(None) => {
+                tracing::warn!(npc_id = %npc_id, "NPC not found when updating disposition");
+                "Unknown NPC".to_string()
+            }
+            Err(e) => {
+                tracing::warn!(npc_id = %npc_id, error = %e, "Failed to fetch NPC name for disposition update");
+                "Unknown NPC".to_string()
+            }
+        };
 
         Ok(NpcDispositionUpdate {
             npc_id,
@@ -102,14 +105,17 @@ impl NpcDisposition {
         let state = state.updating_relationship(relationship, now);
         self.character.save_disposition(&state).await?;
 
-        let npc_name = self
-            .character
-            .get(npc_id)
-            .await
-            .ok()
-            .flatten()
-            .map(|npc| npc.name().to_string())
-            .unwrap_or_else(|| "Unknown NPC".to_string());
+        let npc_name = match self.character.get(npc_id).await {
+            Ok(Some(npc)) => npc.name().to_string(),
+            Ok(None) => {
+                tracing::warn!(npc_id = %npc_id, "NPC not found when updating relationship");
+                "Unknown NPC".to_string()
+            }
+            Err(e) => {
+                tracing::warn!(npc_id = %npc_id, error = %e, "Failed to fetch NPC name for relationship update");
+                "Unknown NPC".to_string()
+            }
+        };
 
         Ok(NpcDispositionUpdate {
             npc_id,
@@ -129,14 +135,17 @@ impl NpcDisposition {
         let mut response = Vec::with_capacity(dispositions.len());
 
         for disposition in dispositions {
-            let npc_name = self
-                .character
-                .get(disposition.npc_id())
-                .await
-                .ok()
-                .flatten()
-                .map(|npc| npc.name().to_string())
-                .unwrap_or_else(|| "Unknown NPC".to_string());
+            let npc_name = match self.character.get(disposition.npc_id()).await {
+                Ok(Some(npc)) => npc.name().to_string(),
+                Ok(None) => {
+                    tracing::warn!(npc_id = %disposition.npc_id(), "NPC not found when listing dispositions");
+                    "Unknown NPC".to_string()
+                }
+                Err(e) => {
+                    tracing::warn!(npc_id = %disposition.npc_id(), error = %e, "Failed to fetch NPC name for disposition list");
+                    "Unknown NPC".to_string()
+                }
+            };
 
             response.push(NpcDispositionInfo {
                 npc_id: disposition.npc_id().to_string(),
@@ -172,16 +181,16 @@ impl NpcMood {
         let npc = self
             .character
             .get(npc_id)
-            .await
-            .ok()
-            .flatten()
+            .await?
             .ok_or(NpcError::NotFound)?;
 
-        let old_mood = self
-            .staging
-            .get_npc_mood(region_id, npc_id)
-            .await
-            .unwrap_or(npc.default_mood().clone());
+        let old_mood = match self.staging.get_npc_mood(region_id, npc_id).await {
+            Ok(mood) => mood,
+            Err(e) => {
+                tracing::debug!(region_id = %region_id, npc_id = %npc_id, error = %e, "Failed to get staged mood, using default");
+                npc.default_mood().clone()
+            }
+        };
 
         self.staging.set_npc_mood(region_id, npc_id, mood).await?;
 
