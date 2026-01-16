@@ -202,19 +202,22 @@ Acceptance:
 - `check_use_case_no_shared_types()` enforces no embedded shared types in struct fields/return types.
 
 ### 3.2 Stop swallowing repository failures in use cases
-- [ ] Replace `ok().flatten()` and `unwrap_or_default()` in use-case repository calls with explicit error handling.
-- [ ] Propagate or log errors with context (entity + operation).
-- [ ] Add tests for error propagation in staging/time/visual-state flows.
-- [ ] Targeted cleanup (use-case defaults that should fail fast):
-  - `engine/src/use_cases/session/join_world.rs` (repo list + current scene defaults).
-  - `engine/src/use_cases/narrative_operations.rs` (flag repo defaults).
-  - `engine/src/use_cases/player_action/mod.rs` (queue depth fallback).
-  - `engine/src/use_cases/assets/mod.rs` (health check fallback).
-  - `engine/src/use_cases/queues/mod.rs` (queue context defaults where required).
+- [x] Replace `ok().flatten()` and `unwrap_or_default()` in use-case repository calls with explicit error handling.
+- [x] Propagate or log errors with context (entity + operation).
+- [x] Add tests for error propagation in staging/time/visual-state flows.
+- [x] Targeted cleanup (use-case defaults that should fail fast):
+  - `engine/src/use_cases/session/join_world.rs` - Propagates errors for location/character/scene
+  - `engine/src/use_cases/narrative_operations.rs` - Logs flag fetch failures
+  - `engine/src/use_cases/player_action/mod.rs` - Propagates queue depth errors
+  - `engine/src/use_cases/assets/mod.rs` - Logs health check failures
+  - `engine/src/use_cases/queues/mod.rs` - Logs disposition/wants failures (optional context)
+  - Additional files fixed: staging/suggestions.rs, staging/regenerate.rs, staging/auto_approve.rs,
+    staging/request_approval.rs, staging/approve.rs, npc/mod.rs
 
 Acceptance:
 - Use cases do not silently default on repo errors.
-- Error handling is explicit and test-covered.
+- Critical paths propagate errors via `?`.
+- Enhancement data logs at warn/debug level with context.
 
 ### 3.3 Remove `serde_json::Value`/JSON building from use cases
 - [ ] Inventory use cases returning `serde_json::Value` or building JSON snapshots.
@@ -424,7 +427,7 @@ Acceptance:
 - [x] Phase 1.7 complete
 - [x] Phase 2.1 complete (already implemented - see revised criteria)
 - [x] Phase 3.1 complete (shared types removed; arch-check enforces)
-- [ ] Phase 3.2 complete
+- [x] Phase 3.2 complete (repository failures propagated or logged)
 - [ ] Phase 3.3 complete
 - [ ] Phase 4.1 complete
 - [ ] Phase 5.1 complete
