@@ -85,20 +85,20 @@ impl ConnectionType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocationConnection {
-    pub from_location: LocationId,
-    pub to_location: LocationId,
+    from_location: LocationId,
+    to_location: LocationId,
     /// Type of connection (Door, Path, Stairs, Portal, Hidden, or Other)
-    pub connection_type: ConnectionType,
+    connection_type: ConnectionType,
     /// Description of the path/transition
-    pub description: Option<String>,
+    description: Option<String>,
     /// Whether this connection works both ways
-    pub bidirectional: bool,
+    bidirectional: bool,
     /// Travel time in game-time units (0 = instant)
-    pub travel_time: u32,
+    travel_time: u32,
     /// Whether this connection is currently locked
-    pub is_locked: bool,
+    is_locked: bool,
     /// Description of what's needed to unlock (if locked)
-    pub lock_description: Option<String>,
+    lock_description: Option<String>,
 }
 
 impl LocationConnection {
@@ -114,6 +114,65 @@ impl LocationConnection {
             lock_description: None,
         }
     }
+
+    /// Create a connection from parts (for reconstitution from storage)
+    pub fn from_parts(
+        from_location: LocationId,
+        to_location: LocationId,
+        connection_type: ConnectionType,
+        description: Option<String>,
+        bidirectional: bool,
+        travel_time: u32,
+        is_locked: bool,
+        lock_description: Option<String>,
+    ) -> Self {
+        Self {
+            from_location,
+            to_location,
+            connection_type,
+            description,
+            bidirectional,
+            travel_time,
+            is_locked,
+            lock_description,
+        }
+    }
+
+    // Read-only accessors
+
+    pub fn from_location(&self) -> LocationId {
+        self.from_location
+    }
+
+    pub fn to_location(&self) -> LocationId {
+        self.to_location
+    }
+
+    pub fn connection_type(&self) -> ConnectionType {
+        self.connection_type
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    pub fn bidirectional(&self) -> bool {
+        self.bidirectional
+    }
+
+    pub fn travel_time(&self) -> u32 {
+        self.travel_time
+    }
+
+    pub fn is_locked(&self) -> bool {
+        self.is_locked
+    }
+
+    pub fn lock_description(&self) -> Option<&str> {
+        self.lock_description.as_deref()
+    }
+
+    // Factory methods
 
     /// Create a door connection
     pub fn door(from: LocationId, to: LocationId) -> Self {
@@ -139,6 +198,8 @@ impl LocationConnection {
     pub fn hidden(from: LocationId, to: LocationId) -> Self {
         Self::new(from, to, ConnectionType::Hidden)
     }
+
+    // Builder methods
 
     pub fn one_way(mut self) -> Self {
         self.bidirectional = false;

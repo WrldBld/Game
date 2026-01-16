@@ -29,8 +29,17 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     .with_description(wrldbldr_domain::Description::new("desc").unwrap())
     .with_id(location_id);
 
-    let mut region = wrldbldr_domain::Region::new(location_id, "Region");
-    region.id = region_id;
+    let region = wrldbldr_domain::Region::from_parts(
+        region_id,
+        location_id,
+        "Region".to_string(),
+        String::new(),
+        None,
+        None,
+        None,
+        false,
+        0,
+    );
 
     let pc = wrldbldr_domain::PlayerCharacter::new(
         "player-1",
@@ -206,7 +215,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         .returning(move |rid, _now| {
             let guard = shared_for_get_active.lock().unwrap();
             if guard.activated {
-                Ok(guard.pending.clone().filter(|s| s.region_id == rid))
+                Ok(guard.pending.clone().filter(|s| s.region_id() == rid))
             } else {
                 Ok(None)
             }

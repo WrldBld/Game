@@ -303,7 +303,7 @@ impl NpcLocationSharing {
             .location
             .get_region(region_id)
             .await?
-            .map(|region| region.name)
+            .map(|region| region.name().to_string())
             .unwrap_or_else(|| "Unknown".to_string());
 
         let now = self.clock.now();

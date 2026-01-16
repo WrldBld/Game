@@ -347,12 +347,12 @@ pub(super) async fn handle_interaction_request(
 
 fn act_to_json(act: &domain::Act) -> serde_json::Value {
     json!({
-        "id": act.id.to_string(),
-        "world_id": act.world_id.to_string(),
-        "name": act.name,
-        "stage": act.stage.to_string(),
-        "description": act.description,
-        "order": act.order,
+        "id": act.id().to_string(),
+        "world_id": act.world_id().to_string(),
+        "name": act.name(),
+        "stage": act.stage().to_string(),
+        "description": act.description(),
+        "order": act.order(),
     })
 }
 
@@ -378,24 +378,24 @@ fn scene_to_json(scene: &domain::Scene) -> serde_json::Value {
 }
 
 fn interaction_to_json(interaction: &domain::InteractionTemplate) -> serde_json::Value {
-    let interaction_type = interaction_type_to_string(&interaction.interaction_type);
-    let target_name = interaction_target_name(&interaction.target);
+    let interaction_type = interaction_type_to_string(interaction.interaction_type());
+    let target_name = interaction_target_name(interaction.target());
     let conditions = interaction
-        .conditions
+        .conditions()
         .iter()
         .map(|condition| format!("{:?}", condition))
         .collect::<Vec<_>>();
 
     json!({
-        "id": interaction.id.to_string(),
-        "scene_id": interaction.scene_id.to_string(),
-        "name": interaction.name,
+        "id": interaction.id().to_string(),
+        "scene_id": interaction.scene_id().to_string(),
+        "name": interaction.name(),
         "interaction_type": interaction_type,
         "target_name": target_name,
-        "is_available": interaction.is_available,
-        "prompt_hints": if interaction.prompt_hints.is_empty() { None } else { Some(interaction.prompt_hints.clone()) },
+        "is_available": interaction.is_available(),
+        "prompt_hints": if interaction.prompt_hints().is_empty() { None } else { Some(interaction.prompt_hints().to_string()) },
         "conditions": conditions,
-        "order": interaction.order,
+        "order": interaction.order(),
     })
 }
 

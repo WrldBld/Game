@@ -48,11 +48,11 @@ pub enum SceneCondition {
 #[serde(rename_all = "camelCase")]
 pub struct SceneCharacter {
     /// The character's ID
-    pub character_id: CharacterId,
+    character_id: CharacterId,
     /// The character's role in this scene
-    pub role: SceneCharacterRole,
+    role: SceneCharacterRole,
     /// When/how the character enters the scene
-    pub entrance_cue: Option<String>,
+    entrance_cue: Option<String>,
 }
 
 impl SceneCharacter {
@@ -63,6 +63,35 @@ impl SceneCharacter {
             entrance_cue: None,
         }
     }
+
+    /// Create a scene character from parts (for reconstitution from storage)
+    pub fn from_parts(
+        character_id: CharacterId,
+        role: SceneCharacterRole,
+        entrance_cue: Option<String>,
+    ) -> Self {
+        Self {
+            character_id,
+            role,
+            entrance_cue,
+        }
+    }
+
+    // Read-only accessors
+
+    pub fn character_id(&self) -> CharacterId {
+        self.character_id
+    }
+
+    pub fn role(&self) -> SceneCharacterRole {
+        self.role
+    }
+
+    pub fn entrance_cue(&self) -> Option<&str> {
+        self.entrance_cue.as_deref()
+    }
+
+    // Builder methods
 
     pub fn with_entrance_cue(mut self, cue: impl Into<String>) -> Self {
         self.entrance_cue = Some(cue.into());

@@ -23,25 +23,25 @@ use wrldbldr_domain::{LocationId, RegionId};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Region {
-    pub id: RegionId,
-    pub location_id: LocationId,
-    pub name: String,
-    pub description: String,
+    id: RegionId,
+    location_id: LocationId,
+    name: String,
+    description: String,
 
     // Scene display (visual novel view)
     /// Path to backdrop image for this region's scene
-    pub backdrop_asset: Option<String>,
+    backdrop_asset: Option<String>,
     /// Sensory/emotional description of the region's atmosphere
-    pub atmosphere: Option<String>,
+    atmosphere: Option<String>,
 
     // Position on parent location's map (clickable area)
     /// Bounds defining where this region is on the parent location's map
-    pub map_bounds: Option<MapBounds>,
+    map_bounds: Option<MapBounds>,
 
     /// Whether players can spawn here when creating a new PC
-    pub is_spawn_point: bool,
+    is_spawn_point: bool,
     /// Display order within the location
-    pub order: u32,
+    order: u32,
 }
 
 impl Region {
@@ -59,6 +59,71 @@ impl Region {
             order: 0,
         }
     }
+
+    /// Create a region with a specific ID (for reconstitution from storage)
+    pub fn from_parts(
+        id: RegionId,
+        location_id: LocationId,
+        name: String,
+        description: String,
+        backdrop_asset: Option<String>,
+        atmosphere: Option<String>,
+        map_bounds: Option<MapBounds>,
+        is_spawn_point: bool,
+        order: u32,
+    ) -> Self {
+        Self {
+            id,
+            location_id,
+            name,
+            description,
+            backdrop_asset,
+            atmosphere,
+            map_bounds,
+            is_spawn_point,
+            order,
+        }
+    }
+
+    // Read-only accessors
+
+    pub fn id(&self) -> RegionId {
+        self.id
+    }
+
+    pub fn location_id(&self) -> LocationId {
+        self.location_id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn backdrop_asset(&self) -> Option<&str> {
+        self.backdrop_asset.as_deref()
+    }
+
+    pub fn atmosphere(&self) -> Option<&str> {
+        self.atmosphere.as_deref()
+    }
+
+    pub fn map_bounds(&self) -> Option<&MapBounds> {
+        self.map_bounds.as_ref()
+    }
+
+    pub fn is_spawn_point(&self) -> bool {
+        self.is_spawn_point
+    }
+
+    pub fn order(&self) -> u32 {
+        self.order
+    }
+
+    // Builder methods
 
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = description.into();
@@ -105,13 +170,13 @@ impl Region {
 #[serde(rename_all = "camelCase")]
 pub struct MapBounds {
     /// X coordinate of the region's top-left corner
-    pub x: u32,
+    x: u32,
     /// Y coordinate of the region's top-left corner
-    pub y: u32,
+    y: u32,
     /// Width of the region
-    pub width: u32,
+    width: u32,
     /// Height of the region
-    pub height: u32,
+    height: u32,
 }
 
 impl MapBounds {
@@ -142,6 +207,24 @@ impl MapBounds {
         }
     }
 
+    // Read-only accessors
+
+    pub fn x(&self) -> u32 {
+        self.x
+    }
+
+    pub fn y(&self) -> u32 {
+        self.y
+    }
+
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
     /// Check if a pixel position is within these bounds
     ///
     /// Uses saturating arithmetic to prevent integer overflow.
@@ -164,16 +247,16 @@ impl MapBounds {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegionConnection {
-    pub from_region: RegionId,
-    pub to_region: RegionId,
+    from_region: RegionId,
+    to_region: RegionId,
     /// Description of the path/transition (e.g., "A door leads to...")
-    pub description: Option<String>,
+    description: Option<String>,
     /// Whether this connection works both ways
-    pub bidirectional: bool,
+    bidirectional: bool,
     /// Whether this connection is currently locked
-    pub is_locked: bool,
+    is_locked: bool,
     /// Description of what's needed to unlock (if locked)
-    pub lock_description: Option<String>,
+    lock_description: Option<String>,
 }
 
 impl RegionConnection {
@@ -193,6 +276,53 @@ impl RegionConnection {
             lock_description: None,
         })
     }
+
+    /// Create a connection from parts (for reconstitution from storage)
+    pub fn from_parts(
+        from_region: RegionId,
+        to_region: RegionId,
+        description: Option<String>,
+        bidirectional: bool,
+        is_locked: bool,
+        lock_description: Option<String>,
+    ) -> Self {
+        Self {
+            from_region,
+            to_region,
+            description,
+            bidirectional,
+            is_locked,
+            lock_description,
+        }
+    }
+
+    // Read-only accessors
+
+    pub fn from_region(&self) -> RegionId {
+        self.from_region
+    }
+
+    pub fn to_region(&self) -> RegionId {
+        self.to_region
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    pub fn bidirectional(&self) -> bool {
+        self.bidirectional
+    }
+
+    pub fn is_locked(&self) -> bool {
+        self.is_locked
+    }
+
+    pub fn lock_description(&self) -> Option<&str> {
+        self.lock_description.as_deref()
+    }
+
+    // Builder methods
 
     pub fn one_way(mut self) -> Self {
         self.bidirectional = false;
@@ -218,14 +348,14 @@ impl RegionConnection {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegionExit {
-    pub from_region: RegionId,
-    pub to_location: LocationId,
+    from_region: RegionId,
+    to_location: LocationId,
     /// Which region in the target location the player arrives at
-    pub arrival_region_id: RegionId,
+    arrival_region_id: RegionId,
     /// Description of the exit (e.g., "Step outside into the market")
-    pub description: Option<String>,
+    description: Option<String>,
     /// Whether this exit works both ways (can enter from that location)
-    pub bidirectional: bool,
+    bidirectional: bool,
 }
 
 impl RegionExit {
@@ -238,6 +368,47 @@ impl RegionExit {
             bidirectional: true,
         }
     }
+
+    /// Create a region exit from parts (for reconstitution from storage)
+    pub fn from_parts(
+        from_region: RegionId,
+        to_location: LocationId,
+        arrival_region_id: RegionId,
+        description: Option<String>,
+        bidirectional: bool,
+    ) -> Self {
+        Self {
+            from_region,
+            to_location,
+            arrival_region_id,
+            description,
+            bidirectional,
+        }
+    }
+
+    // Read-only accessors
+
+    pub fn from_region(&self) -> RegionId {
+        self.from_region
+    }
+
+    pub fn to_location(&self) -> LocationId {
+        self.to_location
+    }
+
+    pub fn arrival_region_id(&self) -> RegionId {
+        self.arrival_region_id
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    pub fn bidirectional(&self) -> bool {
+        self.bidirectional
+    }
+
+    // Builder methods
 
     pub fn one_way(mut self) -> Self {
         self.bidirectional = false;
@@ -331,10 +502,10 @@ mod tests {
         let bounds = MapBounds::new(10, 20, 100, 50);
         assert!(bounds.is_some());
         let bounds = bounds.unwrap();
-        assert_eq!(bounds.x, 10);
-        assert_eq!(bounds.y, 20);
-        assert_eq!(bounds.width, 100);
-        assert_eq!(bounds.height, 50);
+        assert_eq!(bounds.x(), 10);
+        assert_eq!(bounds.y(), 20);
+        assert_eq!(bounds.width(), 100);
+        assert_eq!(bounds.height(), 50);
     }
 
     #[test]
@@ -368,8 +539,8 @@ mod tests {
         let connection = RegionConnection::new(from_region, to_region);
         assert!(connection.is_some());
         let connection = connection.unwrap();
-        assert_eq!(connection.from_region, from_region);
-        assert_eq!(connection.to_region, to_region);
+        assert_eq!(connection.from_region(), from_region);
+        assert_eq!(connection.to_region(), to_region);
     }
 
     #[test]
@@ -382,12 +553,9 @@ mod tests {
             .with_description("A narrow passage")
             .locked("Requires a key");
 
-        assert!(!connection.bidirectional);
-        assert_eq!(connection.description, Some("A narrow passage".to_string()));
-        assert!(connection.is_locked);
-        assert_eq!(
-            connection.lock_description,
-            Some("Requires a key".to_string())
-        );
+        assert!(!connection.bidirectional());
+        assert_eq!(connection.description(), Some("A narrow passage"));
+        assert!(connection.is_locked());
+        assert_eq!(connection.lock_description(), Some("Requires a key"));
     }
 }

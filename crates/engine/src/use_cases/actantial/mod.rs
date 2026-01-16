@@ -106,18 +106,26 @@ impl GoalOps {
             .await?
             .ok_or(ActantialError::NotFound)?;
 
-        if let Some(name) = name {
+        // Rebuild the goal with updated values using from_parts
+        let new_name = if let Some(name) = name {
             require_non_empty(&name, "Goal name")?;
-            details.goal.name = name;
-        }
+            name
+        } else {
+            details.goal.name().to_string()
+        };
 
-        if let Some(description) = description {
-            if description.trim().is_empty() {
-                details.goal.description = None;
-            } else {
-                details.goal.description = Some(description);
-            }
-        }
+        let new_description = match description {
+            Some(desc) if desc.trim().is_empty() => None,
+            Some(desc) => Some(desc),
+            None => details.goal.description().map(|s| s.to_string()),
+        };
+
+        details.goal = wrldbldr_domain::Goal::from_parts(
+            details.goal.id(),
+            details.goal.world_id(),
+            new_name,
+            new_description,
+        );
 
         self.goal.save(&details.goal).await?;
         Ok(details)
@@ -180,7 +188,7 @@ impl WantOps {
             }
         }
 
-        want.tells = tells;
+        want = want.with_tells(tells);
 
         self.character
             .save_want(character_id, &want, priority)
@@ -210,30 +218,36 @@ impl WantOps {
             .await?
             .ok_or(ActantialError::NotFound)?;
 
-        if let Some(description) = description {
+        // Rebuild the want with updated values
+        let new_description = if let Some(description) = description {
             require_non_empty(&description, "Want description")?;
-            details.want.description = description;
-        }
+            description
+        } else {
+            details.want.description().to_string()
+        };
 
-        if let Some(intensity) = intensity {
-            details.want = details.want.with_intensity(intensity);
-        }
+        let new_intensity = intensity.unwrap_or_else(|| details.want.intensity());
+        let new_visibility = visibility.unwrap_or_else(|| details.want.visibility());
+        let new_tells = tells.unwrap_or_else(|| details.want.tells().to_vec());
 
-        if let Some(visibility) = visibility {
-            details.want = details.want.with_visibility(visibility);
-        }
+        // Rebuild the want using builder pattern
+        let mut updated_want = Want::new(new_description, details.want.created_at())
+            .with_id(details.want.id())
+            .with_intensity(new_intensity)
+            .with_visibility(new_visibility)
+            .with_tells(new_tells);
 
-        if let Some(deflection_behavior) = deflection_behavior {
-            if deflection_behavior.trim().is_empty() {
-                details.want.deflection_behavior = None;
-            } else {
-                details.want.deflection_behavior = Some(deflection_behavior);
+        // Handle deflection behavior - if explicitly provided, use it; otherwise keep existing
+        if let Some(deflection) = deflection_behavior {
+            if !deflection.trim().is_empty() {
+                updated_want = updated_want.with_deflection(deflection);
             }
+            // If empty string provided, leave deflection as None (cleared)
+        } else if let Some(existing_deflection) = details.want.deflection_behavior() {
+            updated_want = updated_want.with_deflection(existing_deflection);
         }
 
-        if let Some(tells) = tells {
-            details.want.tells = tells;
-        }
+        details.want = updated_want;
 
         if let Some(priority) = priority {
             details.priority = priority.max(1);

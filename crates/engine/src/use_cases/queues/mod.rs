@@ -282,7 +282,7 @@ impl ProcessPlayerAction {
                 for want_details in want_list {
                     let want = &want_details.want;
                     let priority = want_details.priority;
-                    let intensity = match want.intensity {
+                    let intensity = match want.intensity() {
                         i if i >= 0.8 => "Obsessive",
                         i if i >= 0.6 => "Strong",
                         i if i >= 0.4 => "Moderate",
@@ -290,10 +290,10 @@ impl ProcessPlayerAction {
                     }
                     .to_string();
 
-                    match want.visibility {
+                    match want.visibility() {
                         WantVisibility::Known => {
                             known.push(MotivationEntry {
-                                description: want.description.clone(),
+                                description: want.description().to_string(),
                                 priority,
                                 intensity,
                                 target: want_details.target.as_ref().map(|t| format!("{:?}", t)),
@@ -303,7 +303,7 @@ impl ProcessPlayerAction {
                         }
                         WantVisibility::Suspected => {
                             suspected.push(MotivationEntry {
-                                description: want.description.clone(),
+                                description: want.description().to_string(),
                                 priority,
                                 intensity,
                                 target: want_details.target.as_ref().map(|t| format!("{:?}", t)),
@@ -313,7 +313,7 @@ impl ProcessPlayerAction {
                         }
                         WantVisibility::Hidden => {
                             secret.push(SecretMotivationEntry {
-                                description: want.description.clone(),
+                                description: want.description().to_string(),
                                 priority,
                                 intensity,
                                 target: want_details.target.as_ref().map(|t| format!("{:?}", t)),
@@ -322,12 +322,12 @@ impl ProcessPlayerAction {
                                 sender: None,
                                 receiver: None,
                                 deflection_behavior: want
-                                    .deflection_behavior
-                                    .clone()
+                                    .deflection_behavior()
+                                    .map(|s| s.to_string())
                                     .unwrap_or_else(|| {
                                         "Change the subject or become evasive".to_string()
                                     }),
-                                tells: want.tells.clone(),
+                                tells: want.tells().to_vec(),
                             });
                         }
                     }
@@ -406,13 +406,13 @@ impl ProcessPlayerAction {
                 vec![]
             })
             .into_iter()
-            .filter(|c| c.active)
+            .filter(|c| c.active())
             .map(|c| {
                 // Extract trigger hints from trigger conditions
                 let trigger_hints: Vec<String> = c
-                    .trigger_conditions
+                    .trigger_conditions()
                     .iter()
-                    .flat_map(|tc| match &tc.condition_type {
+                    .flat_map(|tc| match tc.condition_type() {
                         wrldbldr_domain::TriggerType::DialogueTopic { topic_keywords } => {
                             topic_keywords.clone()
                         }
@@ -427,11 +427,14 @@ impl ProcessPlayerAction {
                     .collect();
 
                 ActiveChallengeContext {
-                    id: c.id.to_string(),
-                    name: c.name,
-                    description: c.description,
-                    skill_name: c.check_stat.unwrap_or_else(|| "General".to_string()),
-                    difficulty_display: c.difficulty.display(),
+                    id: c.id().to_string(),
+                    name: c.name().to_string(),
+                    description: c.description().to_string(),
+                    skill_name: c
+                        .check_stat()
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "General".to_string()),
+                    difficulty_display: c.difficulty().display(),
                     trigger_hints,
                 }
             })

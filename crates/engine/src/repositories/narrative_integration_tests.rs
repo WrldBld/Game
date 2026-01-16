@@ -27,7 +27,7 @@ fn test_has_class_trigger_fires_with_fighter() {
     // Assert: Trigger should match (Fighter 5 >= 3)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered,
+        eval.is_triggered(),
         "Fighter 5 should match HasClass(fighter, 3)"
     );
 }
@@ -45,7 +45,7 @@ fn test_has_class_trigger_fails_below_min_level() {
     // Assert: Trigger should NOT match (Fighter 5 < 10)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered,
+        !eval.is_triggered(),
         "Fighter 5 should NOT match HasClass(fighter, 10)"
     );
 }
@@ -63,7 +63,7 @@ fn test_has_class_trigger_without_min_level() {
     // Assert: Trigger should match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered,
+        eval.is_triggered(),
         "Wizard 3 should match HasClass(wizard, None)"
     );
 }
@@ -81,7 +81,7 @@ fn test_has_class_trigger_multiclass_fighter() {
     // Assert: Trigger should match (Fighter 3 >= 3)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered,
+        eval.is_triggered(),
         "Multiclass with Fighter 3 should match HasClass(fighter, 3)"
     );
 }
@@ -99,7 +99,7 @@ fn test_has_class_trigger_multiclass_wizard() {
     // Assert: Trigger should NOT match (Wizard 2 < 3)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered,
+        !eval.is_triggered(),
         "Multiclass with Wizard 2 should NOT match HasClass(wizard, 3)"
     );
 }
@@ -117,7 +117,7 @@ fn test_has_class_trigger_fighter_does_not_match_wizard_character() {
     // Assert: Trigger should NOT match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered,
+        !eval.is_triggered(),
         "Wizard should NOT match HasClass(fighter)"
     );
 }
@@ -138,7 +138,10 @@ fn test_has_origin_trigger_fires_with_elf() {
 
     // Assert: Trigger should match
     let eval = event.evaluate_triggers(&ctx);
-    assert!(eval.is_triggered, "Elf wizard should match HasOrigin(elf)");
+    assert!(
+        eval.is_triggered(),
+        "Elf wizard should match HasOrigin(elf)"
+    );
 }
 
 #[test]
@@ -154,7 +157,7 @@ fn test_has_origin_trigger_fires_with_human() {
     // Assert: Trigger should match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered,
+        eval.is_triggered(),
         "Human fighter should match HasOrigin(human)"
     );
 }
@@ -172,7 +175,7 @@ fn test_has_origin_trigger_fails_with_wrong_race() {
     // Assert: Trigger should NOT match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered,
+        !eval.is_triggered(),
         "Human fighter should NOT match HasOrigin(dwarf)"
     );
 }
@@ -194,7 +197,7 @@ fn test_knows_spell_trigger_fires_with_fireball() {
     // Assert: Trigger should match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered,
+        eval.is_triggered(),
         "Wizard should match KnowsSpell(fireball)"
     );
 }
@@ -212,7 +215,7 @@ fn test_knows_spell_trigger_fires_with_shield() {
     // Assert: Trigger should match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered,
+        eval.is_triggered(),
         "Multiclass should match KnowsSpell(shield)"
     );
 }
@@ -230,7 +233,7 @@ fn test_knows_spell_trigger_fails_with_unknown_spell() {
     // Assert: Trigger should NOT match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered,
+        !eval.is_triggered(),
         "Wizard should NOT match KnowsSpell(wish)"
     );
 }
@@ -248,7 +251,7 @@ fn test_knows_spell_trigger_fails_for_non_caster() {
     // Assert: Trigger should NOT match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered,
+        !eval.is_triggered(),
         "Fighter should NOT match KnowsSpell(magic_missile)"
     );
 }
@@ -270,7 +273,7 @@ fn test_has_feat_trigger_fires_with_great_weapon_master() {
     // Assert: Trigger should match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered,
+        eval.is_triggered(),
         "Fighter should match HasFeat(great_weapon_master)"
     );
 }
@@ -288,7 +291,7 @@ fn test_has_feat_trigger_fires_with_war_caster() {
     // Assert: Trigger should match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered,
+        eval.is_triggered(),
         "Multiclass should match HasFeat(war_caster)"
     );
 }
@@ -306,7 +309,7 @@ fn test_has_feat_trigger_fails_without_feat() {
     // Assert: Trigger should NOT match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered,
+        !eval.is_triggered(),
         "Wizard should NOT match HasFeat(sentinel)"
     );
 }
@@ -332,7 +335,7 @@ fn test_trigger_context_case_insensitive_class_matching() {
     // Assert: Trigger should match (case insensitive)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered,
+        eval.is_triggered(),
         "HasClass matching should be case insensitive"
     );
 }
@@ -353,7 +356,7 @@ fn test_trigger_context_case_insensitive_origin_matching() {
     // Assert: Trigger should match (case insensitive)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered,
+        eval.is_triggered(),
         "HasOrigin matching should be case insensitive"
     );
 }
@@ -374,7 +377,7 @@ fn test_trigger_context_case_insensitive_spell_matching() {
     // Assert: Trigger should match (case insensitive)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered,
+        eval.is_triggered(),
         "KnowsSpell matching should be case insensitive"
     );
 }
@@ -403,10 +406,10 @@ fn test_multiple_triggers_all_logic() {
     // Assert: All triggers should match
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        eval.is_triggered,
+        eval.is_triggered(),
         "Wizard should match all: class + origin + spell"
     );
-    assert_eq!(eval.matched_triggers.len(), 3);
+    assert_eq!(eval.matched_triggers().len(), 3);
 }
 
 #[test]
@@ -428,8 +431,11 @@ fn test_multiple_triggers_any_logic() {
 
     // Assert: Event should trigger (one match with ANY logic)
     let eval = event.evaluate_triggers(&ctx);
-    assert!(eval.is_triggered, "Fighter should match ANY with GWM feat");
-    assert_eq!(eval.matched_triggers.len(), 1);
+    assert!(
+        eval.is_triggered(),
+        "Fighter should match ANY with GWM feat"
+    );
+    assert_eq!(eval.matched_triggers().len(), 1);
 }
 
 #[test]
@@ -451,11 +457,11 @@ fn test_multiple_triggers_all_logic_partial_match() {
     // Assert: Event should NOT trigger (partial match with ALL logic)
     let eval = event.evaluate_triggers(&ctx);
     assert!(
-        !eval.is_triggered,
+        !eval.is_triggered(),
         "Fighter should NOT match ALL with Elf origin"
     );
-    assert_eq!(eval.matched_triggers.len(), 1);
-    assert_eq!(eval.unmatched_triggers.len(), 1);
+    assert_eq!(eval.matched_triggers().len(), 1);
+    assert_eq!(eval.unmatched_triggers().len(), 1);
 }
 
 // =============================================================================
@@ -469,25 +475,25 @@ fn test_extract_compendium_context_populates_all_fields() {
     let ctx = trigger_context_from_pc(&pc);
 
     // Assert: All fields should be populated
-    assert!(ctx.origin_id.is_some(), "origin_id should be populated");
-    assert_eq!(ctx.origin_id.as_ref().unwrap(), "elf");
+    assert!(ctx.origin_id().is_some(), "origin_id should be populated");
+    assert_eq!(ctx.origin_id().unwrap(), "elf");
 
     assert!(
-        !ctx.class_levels.is_empty(),
+        !ctx.class_levels().is_empty(),
         "class_levels should be populated"
     );
-    assert_eq!(ctx.class_levels.get("wizard"), Some(&3));
+    assert_eq!(ctx.class_levels().get("wizard"), Some(&3));
 
     assert!(
-        !ctx.known_spells.is_empty(),
+        !ctx.known_spells().is_empty(),
         "known_spells should be populated"
     );
-    assert!(ctx.known_spells.contains(&"fireball".to_string()));
-    assert!(ctx.known_spells.contains(&"magic_missile".to_string()));
+    assert!(ctx.known_spells().contains(&"fireball".to_string()));
+    assert!(ctx.known_spells().contains(&"magic_missile".to_string()));
 
     // Wizard doesn't have feats
     assert!(
-        ctx.character_feats.is_empty(),
+        ctx.character_feats().is_empty(),
         "Wizard should have no feats"
     );
 }
@@ -499,12 +505,12 @@ fn test_extract_compendium_context_handles_multiclass() {
     let ctx = trigger_context_from_pc(&pc);
 
     // Assert: Both classes should be present
-    assert_eq!(ctx.class_levels.len(), 2);
-    assert_eq!(ctx.class_levels.get("fighter"), Some(&3));
-    assert_eq!(ctx.class_levels.get("wizard"), Some(&2));
+    assert_eq!(ctx.class_levels().len(), 2);
+    assert_eq!(ctx.class_levels().get("fighter"), Some(&3));
+    assert_eq!(ctx.class_levels().get("wizard"), Some(&2));
 
     // Should have feat
-    assert!(ctx.character_feats.contains(&"war_caster".to_string()));
+    assert!(ctx.character_feats().contains(&"war_caster".to_string()));
 }
 
 #[test]
@@ -521,10 +527,10 @@ fn test_extract_compendium_context_handles_empty_sheet() {
     let ctx = trigger_context_from_pc(&pc);
 
     // Assert: All fields should be empty/None
-    assert!(ctx.origin_id.is_none());
-    assert!(ctx.class_levels.is_empty());
-    assert!(ctx.known_spells.is_empty());
-    assert!(ctx.character_feats.is_empty());
+    assert!(ctx.origin_id().is_none());
+    assert!(ctx.class_levels().is_empty());
+    assert!(ctx.known_spells().is_empty());
+    assert!(ctx.character_feats().is_empty());
 }
 
 // =============================================================================
@@ -543,11 +549,8 @@ fn create_test_event_with_triggers(
     let conditions: Vec<NarrativeTrigger> = trigger_types
         .into_iter()
         .enumerate()
-        .map(|(i, t)| NarrativeTrigger {
-            trigger_id: format!("trigger_{}", i),
-            trigger_type: t,
-            description: format!("Test trigger {}", i),
-            is_required: false,
+        .map(|(i, t)| {
+            NarrativeTrigger::new(t, format!("Test trigger {}", i), format!("trigger_{}", i))
         })
         .collect();
 

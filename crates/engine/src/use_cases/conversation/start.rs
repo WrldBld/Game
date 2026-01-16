@@ -118,7 +118,7 @@ impl StartConversation {
             .await?;
         let npc_in_region = staged_npcs
             .iter()
-            .any(|staged| staged.character_id == npc_id);
+            .any(|staged| staged.character_id() == npc_id);
 
         if !npc_in_region {
             return Err(ConversationError::NpcNotInRegion);
@@ -496,17 +496,8 @@ mod tests {
             .withf(move |id| *id == world_id)
             .returning(move |_| Ok(Some(world_for_get.clone())));
 
-        let staged_npc = StagedNpc {
-            character_id: npc_id,
-            name: npc.name().to_string(),
-            sprite_asset: None,
-            portrait_asset: None,
-            is_present: true,
-            is_hidden_from_players: false,
-            reasoning: "here".to_string(),
-            mood: MoodState::Calm,
-            has_incomplete_data: false,
-        };
+        let staged_npc =
+            StagedNpc::new(npc_id, npc.name().to_string(), true, "here").with_mood(MoodState::Calm);
         let staging = Staging::new(
             region_id,
             location_id,

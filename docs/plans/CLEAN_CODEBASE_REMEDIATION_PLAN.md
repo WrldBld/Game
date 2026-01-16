@@ -105,10 +105,10 @@ Acceptance:
 - Typed IDs are used throughout domain value objects.
 
 ### 1.6 Encapsulate domain entities (non-aggregate structs)
-- [ ] Inventory `crates/domain/src/entities` for public fields.
-- [ ] Convert entities to private fields with read-only accessors and builder-style constructors.
-- [ ] Replace stringly-typed IDs and labels in entities with value objects or typed IDs where applicable.
-- [ ] Replace boolean state flags with enums where they represent mutually exclusive states.
+- [x] Inventory `crates/domain/src/entities` for public fields.
+- [x] Convert entities to private fields with read-only accessors and builder-style constructors.
+- [x] Replace stringly-typed IDs and labels in entities with value objects or typed IDs where applicable.
+- [x] Replace boolean state flags with enums where they represent mutually exclusive states.
 
 Acceptance:
 - Domain entities no longer expose public fields.
@@ -379,7 +379,7 @@ Acceptance:
 - [x] Phase 1.3 complete
 - [x] Phase 1.4 complete
 - [x] Phase 1.5 complete
-- [ ] Phase 1.6 complete
+- [x] Phase 1.6 complete
 - [ ] Phase 1.7 complete
 - [ ] Phase 2.1 complete
 - [ ] Phase 3.1 complete

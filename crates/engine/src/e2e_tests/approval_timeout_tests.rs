@@ -117,7 +117,7 @@ async fn test_staging_auto_approves_after_timeout() {
 
     let staging = active_staging.unwrap();
     assert_eq!(
-        staging.source,
+        staging.source(),
         StagingSource::AutoApproved,
         "Active staging should have AutoApproved source"
     );
@@ -186,7 +186,7 @@ async fn test_staging_timeout_uses_rule_based_npcs() {
 
     let staging = active_staging.unwrap();
     assert_eq!(
-        staging.source,
+        staging.source(),
         StagingSource::AutoApproved,
         "Source should be AutoApproved for timeout"
     );
@@ -203,13 +203,13 @@ async fn test_staging_timeout_uses_rule_based_npcs() {
     // All staged NPCs should have auto-approved reasoning
     for npc in &staged_npcs {
         assert!(
-            npc.reasoning.contains("[Auto-approved]")
-                || npc.reasoning.contains("Lives here")
-                || npc.reasoning.contains("Works here")
-                || npc.reasoning.contains("Frequents"),
+            npc.reasoning().contains("[Auto-approved]")
+                || npc.reasoning().contains("Lives here")
+                || npc.reasoning().contains("Works here")
+                || npc.reasoning().contains("Frequents"),
             "Staged NPC {} should have rule-based reasoning, got: {}",
-            npc.name,
-            npc.reasoning
+            npc.name(),
+            npc.reasoning()
         );
     }
 }
@@ -310,7 +310,7 @@ async fn test_player_can_interact_after_auto_staging() {
 
         let staging = active_staging.unwrap();
         assert_eq!(
-            staging.source,
+            staging.source(),
             StagingSource::AutoApproved,
             "Staging source should be AutoApproved"
         );
@@ -330,7 +330,7 @@ async fn test_player_can_interact_after_auto_staging() {
         );
 
         // Get the first available NPC for conversation
-        let npc_id = staged_npcs[0].character_id;
+        let npc_id = staged_npcs[0].character_id();
 
         // Start conversation with the auto-staged NPC
         let (conversation_id, response) = start_conversation_with_npc(
@@ -442,7 +442,7 @@ async fn test_dm_can_still_modify_after_auto_approve() {
         .expect("Should have active staging after auto-approve");
 
     assert_eq!(
-        initial_staging.source,
+        initial_staging.source(),
         StagingSource::AutoApproved,
         "Initial staging should be AutoApproved"
     );
@@ -516,7 +516,7 @@ async fn test_dm_can_still_modify_after_auto_approve() {
         .expect("Should have active staging after DM approval");
 
     assert_eq!(
-        updated_staging.source,
+        updated_staging.source(),
         StagingSource::DmCustomized,
         "Staging source should now be DmCustomized"
     );
@@ -533,14 +533,15 @@ async fn test_dm_can_still_modify_after_auto_approve() {
     assert!(
         updated_staged_npcs
             .iter()
-            .any(|npc| npc.character_id == mira_id),
+            .any(|npc| npc.character_id() == mira_id),
         "Mira should be in the updated staging"
     );
 
     // Verify the staging was actually updated (not just the same as before)
     // The DM approval should have created a new staging
     assert_ne!(
-        updated_staging.id, initial_staging.id,
+        updated_staging.id(),
+        initial_staging.id(),
         "DM approval should create a new staging record"
     );
 
@@ -548,7 +549,7 @@ async fn test_dm_can_still_modify_after_auto_approve() {
     assert!(
         updated_staged_npcs
             .iter()
-            .any(|npc| npc.reasoning.contains("DM added Mira")),
+            .any(|npc| npc.reasoning().contains("DM added Mira")),
         "Staging should contain DM's reasoning for Mira"
     );
 }

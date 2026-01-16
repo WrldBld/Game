@@ -138,22 +138,33 @@ impl LocationCrud {
         description: Option<String>,
         is_spawn_point: Option<bool>,
     ) -> Result<wrldbldr_domain::Region, ManagementError> {
-        let mut region = self
+        let region = self
             .location
             .get_region(region_id)
             .await?
             .ok_or(ManagementError::NotFound)?;
 
-        if let Some(name) = name {
+        // Regions are immutable - rebuild with updated values using from_parts
+        let new_name = if let Some(name) = name {
             require_non_empty(&name, "Region name")?;
-            region.name = name;
-        }
-        if let Some(description) = description {
-            region.description = description;
-        }
-        if let Some(is_spawn_point) = is_spawn_point {
-            region.is_spawn_point = is_spawn_point;
-        }
+            name
+        } else {
+            region.name().to_string()
+        };
+        let new_description = description.unwrap_or_else(|| region.description().to_string());
+        let new_is_spawn_point = is_spawn_point.unwrap_or_else(|| region.is_spawn_point());
+
+        let region = wrldbldr_domain::Region::from_parts(
+            region.id(),
+            region.location_id(),
+            new_name,
+            new_description,
+            region.backdrop_asset().map(|s| s.to_string()),
+            region.atmosphere().map(|s| s.to_string()),
+            region.map_bounds().cloned(),
+            new_is_spawn_point,
+            region.order(),
+        );
 
         self.location.save_region(&region).await?;
         Ok(region)
@@ -175,7 +186,7 @@ impl LocationCrud {
                 .location
                 .list_regions_in_location(location.id())
                 .await?;
-            spawn_points.extend(regions.into_iter().filter(|r| r.is_spawn_point));
+            spawn_points.extend(regions.into_iter().filter(|r| r.is_spawn_point()));
         }
         Ok(spawn_points)
     }
@@ -193,16 +204,14 @@ impl LocationCrud {
         to_location: LocationId,
         bidirectional: bool,
     ) -> Result<(), ManagementError> {
-        let connection = wrldbldr_domain::LocationConnection {
+        let mut connection = wrldbldr_domain::LocationConnection::new(
             from_location,
             to_location,
-            connection_type: wrldbldr_domain::ConnectionType::Other,
-            description: None,
-            bidirectional,
-            travel_time: 0,
-            is_locked: false,
-            lock_description: None,
-        };
+            wrldbldr_domain::ConnectionType::Other,
+        );
+        if !bidirectional {
+            connection = connection.one_way();
+        }
 
         self.location.save_location_connection(&connection).await?;
         Ok(())
@@ -273,18 +282,18 @@ impl LocationCrud {
         let connections = self.location.get_connections(from_region).await?;
         let existing = connections
             .into_iter()
-            .find(|c| c.to_region == to_region)
+            .find(|c| c.to_region() == to_region)
             .ok_or(ManagementError::NotFound)?;
 
-        let mut updated =
-            wrldbldr_domain::RegionConnection::new(existing.from_region, existing.to_region)
-                .ok_or_else(|| {
-                    ManagementError::InvalidInput("Cannot connect a region to itself".to_string())
-                })?;
-        updated.description = existing.description;
-        updated.bidirectional = existing.bidirectional;
-        updated.is_locked = false;
-        updated.lock_description = None;
+        // Rebuild connection with updated lock state using from_parts
+        let updated = wrldbldr_domain::RegionConnection::from_parts(
+            existing.from_region(),
+            existing.to_region(),
+            existing.description().map(|s| s.to_string()),
+            existing.bidirectional(),
+            false, // is_locked = false (unlocking)
+            None,  // lock_description = None
+        );
 
         self.location.save_connection(&updated).await?;
         Ok(())
@@ -329,12 +338,12 @@ impl LocationCrud {
                 ))
             })?;
 
-        if arrival_region.location_id != location_id {
+        if arrival_region.location_id() != location_id {
             return Err(ManagementError::InvalidInput(format!(
                 "Arrival region {} is not in target location {} (it's in {})",
                 arrival_region_id,
                 target_location.name().as_str(),
-                arrival_region.location_id
+                arrival_region.location_id()
             )));
         }
 
@@ -344,31 +353,31 @@ impl LocationCrud {
             // We need to ensure source_region's location exists (should always be true if source_region exists)
             let source_location = self
                 .location
-                .get(source_region.location_id)
+                .get(source_region.location_id())
                 .await?
                 .ok_or_else(|| {
                     ManagementError::InvalidInput(format!(
                         "Source region's location {} does not exist (data integrity issue)",
-                        source_region.location_id
+                        source_region.location_id()
                     ))
                 })?;
 
             tracing::debug!(
                 from_region = %region_id,
                 to_location = %target_location.name().as_str(),
-                arrival_region = %arrival_region.name,
+                arrival_region = %arrival_region.name(),
                 return_location = %source_location.name().as_str(),
                 "Creating bidirectional exit with validated return path"
             );
         }
 
-        let exit = wrldbldr_domain::RegionExit {
-            from_region: region_id,
-            to_location: location_id,
-            arrival_region_id,
-            description,
-            bidirectional: is_bidirectional,
-        };
+        let mut exit = wrldbldr_domain::RegionExit::new(region_id, location_id, arrival_region_id);
+        if let Some(desc) = description {
+            exit = exit.with_description(desc);
+        }
+        if !is_bidirectional {
+            exit = exit.one_way();
+        }
         self.location.save_region_exit(&exit).await?;
         Ok(())
     }

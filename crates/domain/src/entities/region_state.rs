@@ -18,38 +18,38 @@ use crate::value_objects::{ActivationLogic, ActivationRule};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegionState {
-    pub id: RegionStateId,
-    pub region_id: RegionId,
+    id: RegionStateId,
+    region_id: RegionId,
     /// Denormalized for efficient queries
-    pub location_id: LocationId,
-    pub world_id: WorldId,
+    location_id: LocationId,
+    world_id: WorldId,
 
     /// Name of this state (e.g., "Tavern Morning", "Post-Explosion")
-    pub name: String,
+    name: String,
     /// Description for DM reference
-    pub description: String,
+    description: String,
 
     // Visual Configuration
     /// Override the region's default backdrop
-    pub backdrop_override: Option<String>,
+    backdrop_override: Option<String>,
     /// Override the region's atmosphere text
-    pub atmosphere_override: Option<String>,
+    atmosphere_override: Option<String>,
     /// Ambient sound asset path
-    pub ambient_sound: Option<String>,
+    ambient_sound: Option<String>,
 
     // Activation Rules
     /// Rules that determine when this state is active
-    pub activation_rules: Vec<ActivationRule>,
+    activation_rules: Vec<ActivationRule>,
     /// How rules are combined
-    pub activation_logic: ActivationLogic,
+    activation_logic: ActivationLogic,
 
     /// Priority when multiple states match (higher = preferred)
-    pub priority: i32,
+    priority: i32,
     /// If true, use when no other state matches
-    pub is_default: bool,
+    is_default: bool,
 
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
 }
 
 impl RegionState {
@@ -94,6 +94,108 @@ impl RegionState {
         }
     }
 
+    /// Reconstruct from stored data
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_parts(
+        id: RegionStateId,
+        region_id: RegionId,
+        location_id: LocationId,
+        world_id: WorldId,
+        name: String,
+        description: String,
+        backdrop_override: Option<String>,
+        atmosphere_override: Option<String>,
+        ambient_sound: Option<String>,
+        activation_rules: Vec<ActivationRule>,
+        activation_logic: ActivationLogic,
+        priority: i32,
+        is_default: bool,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            id,
+            region_id,
+            location_id,
+            world_id,
+            name,
+            description,
+            backdrop_override,
+            atmosphere_override,
+            ambient_sound,
+            activation_rules,
+            activation_logic,
+            priority,
+            is_default,
+            created_at,
+            updated_at,
+        }
+    }
+
+    // Read-only accessors
+
+    pub fn id(&self) -> RegionStateId {
+        self.id
+    }
+
+    pub fn region_id(&self) -> RegionId {
+        self.region_id
+    }
+
+    pub fn location_id(&self) -> LocationId {
+        self.location_id
+    }
+
+    pub fn world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn backdrop_override(&self) -> Option<&str> {
+        self.backdrop_override.as_deref()
+    }
+
+    pub fn atmosphere_override(&self) -> Option<&str> {
+        self.atmosphere_override.as_deref()
+    }
+
+    pub fn ambient_sound(&self) -> Option<&str> {
+        self.ambient_sound.as_deref()
+    }
+
+    pub fn activation_rules(&self) -> &[ActivationRule] {
+        &self.activation_rules
+    }
+
+    pub fn activation_logic(&self) -> ActivationLogic {
+        self.activation_logic
+    }
+
+    pub fn priority(&self) -> i32 {
+        self.priority
+    }
+
+    pub fn is_default(&self) -> bool {
+        self.is_default
+    }
+
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
+    }
+
+    // Builder-style methods
+
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = description.into();
         self
@@ -130,6 +232,11 @@ impl RegionState {
         self
     }
 
+    pub fn with_is_default(mut self, is_default: bool) -> Self {
+        self.is_default = is_default;
+        self
+    }
+
     /// Check if this state has any soft rules requiring LLM evaluation
     pub fn has_soft_rules(&self) -> bool {
         self.activation_rules.iter().any(|r| r.is_soft_rule())
@@ -153,15 +260,15 @@ impl RegionState {
 
     /// Get a summary of this state for display
     pub fn summary(&self) -> RegionStateSummary {
-        RegionStateSummary {
-            id: self.id,
-            name: self.name.clone(),
-            backdrop_override: self.backdrop_override.clone(),
-            atmosphere_override: self.atmosphere_override.clone(),
-            ambient_sound: self.ambient_sound.clone(),
-            priority: self.priority,
-            is_default: self.is_default,
-        }
+        RegionStateSummary::new(
+            self.id,
+            self.name.clone(),
+            self.backdrop_override.clone(),
+            self.atmosphere_override.clone(),
+            self.ambient_sound.clone(),
+            self.priority,
+            self.is_default,
+        )
     }
 }
 
@@ -169,13 +276,65 @@ impl RegionState {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegionStateSummary {
-    pub id: RegionStateId,
-    pub name: String,
-    pub backdrop_override: Option<String>,
-    pub atmosphere_override: Option<String>,
-    pub ambient_sound: Option<String>,
-    pub priority: i32,
-    pub is_default: bool,
+    id: RegionStateId,
+    name: String,
+    backdrop_override: Option<String>,
+    atmosphere_override: Option<String>,
+    ambient_sound: Option<String>,
+    priority: i32,
+    is_default: bool,
+}
+
+impl RegionStateSummary {
+    pub fn new(
+        id: RegionStateId,
+        name: String,
+        backdrop_override: Option<String>,
+        atmosphere_override: Option<String>,
+        ambient_sound: Option<String>,
+        priority: i32,
+        is_default: bool,
+    ) -> Self {
+        Self {
+            id,
+            name,
+            backdrop_override,
+            atmosphere_override,
+            ambient_sound,
+            priority,
+            is_default,
+        }
+    }
+
+    // Read-only accessors
+
+    pub fn id(&self) -> RegionStateId {
+        self.id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn backdrop_override(&self) -> Option<&str> {
+        self.backdrop_override.as_deref()
+    }
+
+    pub fn atmosphere_override(&self) -> Option<&str> {
+        self.atmosphere_override.as_deref()
+    }
+
+    pub fn ambient_sound(&self) -> Option<&str> {
+        self.ambient_sound.as_deref()
+    }
+
+    pub fn priority(&self) -> i32 {
+        self.priority
+    }
+
+    pub fn is_default(&self) -> bool {
+        self.is_default
+    }
 }
 
 #[cfg(test)]
@@ -206,11 +365,11 @@ mod tests {
         })
         .with_priority(10);
 
-        assert_eq!(state.name, "Evening");
-        assert!(state.backdrop_override.is_some());
-        assert_eq!(state.priority, 10);
-        assert!(!state.is_default);
-        assert_eq!(state.activation_rules.len(), 1);
+        assert_eq!(state.name(), "Evening");
+        assert!(state.backdrop_override().is_some());
+        assert_eq!(state.priority(), 10);
+        assert!(!state.is_default());
+        assert_eq!(state.activation_rules().len(), 1);
     }
 
     #[test]
@@ -224,15 +383,18 @@ mod tests {
             now,
         );
 
-        assert!(state.is_default);
-        assert_eq!(state.activation_rules.len(), 1);
-        assert!(matches!(state.activation_rules[0], ActivationRule::Always));
+        assert!(state.is_default());
+        assert_eq!(state.activation_rules().len(), 1);
+        assert!(matches!(
+            state.activation_rules()[0],
+            ActivationRule::Always
+        ));
     }
 
     #[test]
     fn test_soft_rules_detection() {
         let now = fixed_time();
-        let mut state = RegionState::new(
+        let state = RegionState::new(
             RegionId::new(),
             LocationId::new(),
             WorldId::new(),
@@ -244,13 +406,13 @@ mod tests {
         assert!(!state.has_soft_rules());
 
         // Add hard rule
-        state.activation_rules.push(ActivationRule::TimeOfDay {
+        let state = state.with_rule(ActivationRule::TimeOfDay {
             period: TimeOfDay::Morning,
         });
         assert!(!state.has_soft_rules());
 
         // Add soft rule
-        state.activation_rules.push(ActivationRule::Custom {
+        let state = state.with_rule(ActivationRule::Custom {
             description: "When the party is celebrating".to_string(),
             llm_prompt: None,
         });
@@ -273,11 +435,11 @@ mod tests {
         .with_priority(10);
 
         let summary = state.summary();
-        assert_eq!(summary.name, "Morning");
+        assert_eq!(summary.name(), "Morning");
         assert_eq!(
-            summary.backdrop_override,
-            Some("/assets/tavern_morning.png".to_string())
+            summary.backdrop_override(),
+            Some("/assets/tavern_morning.png")
         );
-        assert_eq!(summary.priority, 10);
+        assert_eq!(summary.priority(), 10);
     }
 }

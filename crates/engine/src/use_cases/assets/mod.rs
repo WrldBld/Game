@@ -123,7 +123,7 @@ impl GenerateAsset {
             now,
         );
 
-        let asset_id = asset.id;
+        let asset_id = asset.id();
 
         self.assets
             .save(&asset)

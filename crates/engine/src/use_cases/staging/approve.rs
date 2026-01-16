@@ -85,7 +85,7 @@ impl ApproveStagingRequest {
                     .get_region(input.region_id)
                     .await?
                     .ok_or(StagingError::RegionNotFound)?;
-                region.location_id
+                region.location_id()
             }
         };
 
@@ -108,7 +108,7 @@ impl ApproveStagingRequest {
 
         self.staging.save_pending(&staging).await?;
         self.staging
-            .activate_staging(staging.id, input.region_id)
+            .activate_staging(staging.id(), input.region_id)
             .await?;
 
         if let Some(loc_state_str) = &input.location_state_id {
@@ -230,17 +230,22 @@ impl ApproveStagingRequest {
                 .and_then(|m| m.parse::<wrldbldr_domain::MoodState>().ok())
                 .unwrap_or(default_mood);
 
-            staged_npcs.push(wrldbldr_domain::StagedNpc {
-                character_id: npc_info.character_id,
+            let mut staged_npc = wrldbldr_domain::StagedNpc::new(
+                npc_info.character_id,
                 name,
-                sprite_asset,
-                portrait_asset,
-                is_present: npc_info.is_present,
-                is_hidden_from_players: npc_info.is_hidden_from_players,
-                reasoning: npc_info.reasoning.clone().unwrap_or_default(),
-                mood,
-                has_incomplete_data,
-            });
+                npc_info.is_present,
+                npc_info.reasoning.clone().unwrap_or_default(),
+            )
+            .with_mood(mood)
+            .with_hidden_from_players(npc_info.is_hidden_from_players)
+            .with_incomplete_data(has_incomplete_data);
+            if let Some(sprite) = sprite_asset {
+                staged_npc = staged_npc.with_sprite(sprite);
+            }
+            if let Some(portrait) = portrait_asset {
+                staged_npc = staged_npc.with_portrait(portrait);
+            }
+            staged_npcs.push(staged_npc);
         }
 
         staged_npcs
@@ -311,19 +316,19 @@ impl ApproveStagingRequest {
         Some(wrldbldr_protocol::types::ResolvedVisualStateData {
             location_state: location_state.map(|s| {
                 wrldbldr_protocol::types::ResolvedStateInfoData {
-                    id: s.id.to_string(),
-                    name: s.name,
-                    backdrop_override: s.backdrop_override,
-                    atmosphere_override: s.atmosphere_override,
-                    ambient_sound: s.ambient_sound,
+                    id: s.id().to_string(),
+                    name: s.name().to_string(),
+                    backdrop_override: s.backdrop_override().map(|s| s.to_string()),
+                    atmosphere_override: s.atmosphere_override().map(|s| s.to_string()),
+                    ambient_sound: s.ambient_sound().map(|s| s.to_string()),
                 }
             }),
             region_state: region_state.map(|s| wrldbldr_protocol::types::ResolvedStateInfoData {
-                id: s.id.to_string(),
-                name: s.name,
-                backdrop_override: s.backdrop_override,
-                atmosphere_override: s.atmosphere_override,
-                ambient_sound: s.ambient_sound,
+                id: s.id().to_string(),
+                name: s.name().to_string(),
+                backdrop_override: s.backdrop_override().map(|s| s.to_string()),
+                atmosphere_override: s.atmosphere_override().map(|s| s.to_string()),
+                ambient_sound: s.ambient_sound().map(|s| s.to_string()),
             }),
         })
     }

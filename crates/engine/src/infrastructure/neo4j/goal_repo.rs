@@ -52,12 +52,7 @@ impl GoalRepo for Neo4jGoalRepo {
             let usage_count: i64 = row.get("usage_count").unwrap_or(0);
 
             Ok(Some(GoalDetails {
-                goal: Goal {
-                    id: goal_id,
-                    world_id,
-                    name,
-                    description,
-                },
+                goal: Goal::from_parts(goal_id, world_id, name, description),
                 usage_count: usage_count.max(0) as u32,
             }))
         } else {
@@ -75,10 +70,13 @@ impl GoalRepo for Neo4jGoalRepo {
             MATCH (w:World {id: $world_id})
             MERGE (w)-[:CONTAINS_GOAL]->(g)",
         )
-        .param("id", goal.id.to_string())
-        .param("world_id", goal.world_id.to_string())
-        .param("name", goal.name.clone())
-        .param("description", goal.description.clone().unwrap_or_default());
+        .param("id", goal.id().to_string())
+        .param("world_id", goal.world_id().to_string())
+        .param("name", goal.name().to_string())
+        .param(
+            "description",
+            goal.description().unwrap_or_default().to_string(),
+        );
 
         self.graph
             .run(q)
@@ -136,12 +134,7 @@ impl GoalRepo for Neo4jGoalRepo {
             let usage_count: i64 = row.get("usage_count").unwrap_or(0);
 
             goals.push(GoalDetails {
-                goal: Goal {
-                    id: goal_id,
-                    world_id,
-                    name,
-                    description,
-                },
+                goal: Goal::from_parts(goal_id, world_id, name, description),
                 usage_count: usage_count.max(0) as u32,
             });
         }

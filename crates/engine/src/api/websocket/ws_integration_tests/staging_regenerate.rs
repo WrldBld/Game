@@ -26,8 +26,17 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
     .with_description(wrldbldr_domain::Description::new("desc").unwrap())
     .with_id(location_id);
 
-    let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");
-    region.id = region_id;
+    let region = wrldbldr_domain::Region::from_parts(
+        region_id,
+        location_id,
+        "Test Region".to_string(),
+        String::new(),
+        None,
+        None,
+        None,
+        false,
+        0,
+    );
 
     let mut world_repo = MockWorldRepo::new();
     let world_for_get = world.clone();

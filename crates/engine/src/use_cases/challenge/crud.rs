@@ -54,12 +54,14 @@ impl ChallengeOps {
 
         // Note: Difficulty::parse never fails - invalid formats become Difficulty::Custom(string)
         // This is intentional to support freeform difficulty descriptions
-        let mut challenge =
-            domain::Challenge::new(world_id, &input.name, Difficulty::parse(&input.difficulty));
-        challenge.description = input.description.unwrap_or_default();
-        challenge.outcomes.success.description = input.success_outcome.unwrap_or_default();
-        challenge.outcomes.failure.description = input.failure_outcome.unwrap_or_default();
-        challenge.order = 0;
+        let challenge =
+            domain::Challenge::new(world_id, &input.name, Difficulty::parse(&input.difficulty))
+                .with_description(input.description.unwrap_or_default())
+                .with_outcomes(domain::ChallengeOutcomes::simple(
+                    input.success_outcome.unwrap_or_default(),
+                    input.failure_outcome.unwrap_or_default(),
+                ))
+                .with_order(0);
 
         // Validate triggers before saving
         let trigger_errors = challenge.validate_triggers();
@@ -85,24 +87,44 @@ impl ChallengeOps {
             .await?
             .ok_or(ChallengeError::NotFound)?;
 
-        if let Some(name) = input.name {
-            require_non_empty(&name, "Challenge name")?;
-            challenge.name = name;
-        }
-        if let Some(description) = input.description {
-            challenge.description = description;
-        }
-        if let Some(difficulty) = input.difficulty {
+        // Since Challenge has private fields, we need to rebuild with updated values
+        // Use accessors to get current values, then rebuild with builder pattern
+        let name = if let Some(new_name) = input.name {
+            require_non_empty(&new_name, "Challenge name")?;
+            new_name
+        } else {
+            challenge.name().to_string()
+        };
+
+        let description = input
+            .description
+            .unwrap_or_else(|| challenge.description().to_string());
+
+        let difficulty = if let Some(diff_str) = input.difficulty {
             // Note: Difficulty::parse never fails - invalid formats become Difficulty::Custom(string)
             // This is intentional to support freeform difficulty descriptions
-            challenge.difficulty = Difficulty::parse(&difficulty);
-        }
-        if let Some(success) = input.success_outcome {
-            challenge.outcomes.success.description = success;
-        }
-        if let Some(failure) = input.failure_outcome {
-            challenge.outcomes.failure.description = failure;
-        }
+            Difficulty::parse(&diff_str)
+        } else {
+            challenge.difficulty().clone()
+        };
+
+        // For outcomes, we need to preserve existing and update what's provided
+        let success_desc = input
+            .success_outcome
+            .unwrap_or_else(|| challenge.outcomes().success().description().to_string());
+        let failure_desc = input
+            .failure_outcome
+            .unwrap_or_else(|| challenge.outcomes().failure().description().to_string());
+        let outcomes = domain::ChallengeOutcomes::simple(success_desc, failure_desc);
+
+        // Rebuild the challenge with updated values
+        challenge = domain::Challenge::new(challenge.world_id(), name, difficulty)
+            .with_id(challenge.id())
+            .with_description(description)
+            .with_outcomes(outcomes)
+            .with_active(challenge.active())
+            .with_order(challenge.order())
+            .with_is_favorite(challenge.is_favorite());
 
         // Validate triggers before saving
         let trigger_errors = challenge.validate_triggers();
@@ -127,12 +149,23 @@ impl ChallengeOps {
         challenge_id: ChallengeId,
         active: bool,
     ) -> Result<(), ChallengeError> {
-        let mut challenge = self
+        let challenge = self
             .challenge
             .get(challenge_id)
             .await?
             .ok_or(ChallengeError::NotFound)?;
-        challenge.active = active;
+        // Rebuild challenge with updated active status
+        let challenge = domain::Challenge::new(
+            challenge.world_id(),
+            challenge.name(),
+            challenge.difficulty().clone(),
+        )
+        .with_id(challenge.id())
+        .with_description(challenge.description())
+        .with_outcomes(challenge.outcomes().clone())
+        .with_active(active)
+        .with_order(challenge.order())
+        .with_is_favorite(challenge.is_favorite());
         self.challenge.save(&challenge).await?;
         Ok(())
     }
@@ -142,12 +175,23 @@ impl ChallengeOps {
         challenge_id: ChallengeId,
         favorite: bool,
     ) -> Result<(), ChallengeError> {
-        let mut challenge = self
+        let challenge = self
             .challenge
             .get(challenge_id)
             .await?
             .ok_or(ChallengeError::NotFound)?;
-        challenge.is_favorite = favorite;
+        // Rebuild challenge with updated favorite status
+        let challenge = domain::Challenge::new(
+            challenge.world_id(),
+            challenge.name(),
+            challenge.difficulty().clone(),
+        )
+        .with_id(challenge.id())
+        .with_description(challenge.description())
+        .with_outcomes(challenge.outcomes().clone())
+        .with_active(challenge.active())
+        .with_order(challenge.order())
+        .with_is_favorite(favorite);
         self.challenge.save(&challenge).await?;
         Ok(())
     }
@@ -171,51 +215,48 @@ impl From<ValidationError> for ChallengeError {
 
 fn challenge_to_json(challenge: &domain::Challenge) -> Value {
     serde_json::json!({
-        "id": challenge.id.to_string(),
-        "world_id": challenge.world_id.to_string(),
+        "id": challenge.id().to_string(),
+        "world_id": challenge.world_id().to_string(),
         "scene_id": serde_json::Value::Null,
-        "name": challenge.name,
-        "description": challenge.description,
-        "challenge_type": challenge_type_to_str(&challenge.challenge_type),
+        "name": challenge.name(),
+        "description": challenge.description(),
+        "challenge_type": challenge_type_to_str(&challenge.challenge_type()),
         "skill_id": "",
-        "difficulty": difficulty_to_json(&challenge.difficulty),
+        "difficulty": difficulty_to_json(challenge.difficulty()),
         "outcomes": {
-            "success": outcome_to_json(&challenge.outcomes.success),
-            "failure": outcome_to_json(&challenge.outcomes.failure),
+            "success": outcome_to_json(challenge.outcomes().success()),
+            "failure": outcome_to_json(challenge.outcomes().failure()),
             "partial": challenge
-                .outcomes
-                .partial
-                .as_ref()
+                .outcomes()
+                .partial()
                 .map(outcome_to_json),
             "critical_success": challenge
-                .outcomes
-                .critical_success
-                .as_ref()
+                .outcomes()
+                .critical_success()
                 .map(outcome_to_json),
             "critical_failure": challenge
-                .outcomes
-                .critical_failure
-                .as_ref()
+                .outcomes()
+                .critical_failure()
                 .map(outcome_to_json),
         },
         "trigger_conditions": challenge
-            .trigger_conditions
+            .trigger_conditions()
             .iter()
             .map(trigger_condition_to_json)
             .collect::<Vec<_>>(),
         "prerequisite_challenges": Vec::<String>::new(),
-        "active": challenge.active,
-        "order": challenge.order,
-        "is_favorite": challenge.is_favorite,
-        "tags": challenge.tags,
+        "active": challenge.active(),
+        "order": challenge.order(),
+        "is_favorite": challenge.is_favorite(),
+        "tags": challenge.tags(),
     })
 }
 
 fn outcome_to_json(outcome: &domain::Outcome) -> Value {
     serde_json::json!({
-        "description": outcome.description,
+        "description": outcome.description(),
         "triggers": outcome
-            .triggers
+            .triggers()
             .iter()
             .map(outcome_trigger_to_json)
             .collect::<Vec<_>>(),
@@ -263,9 +304,9 @@ fn outcome_trigger_to_json(trigger: &domain::OutcomeTrigger) -> Value {
 
 fn trigger_condition_to_json(condition: &domain::TriggerCondition) -> Value {
     serde_json::json!({
-        "condition_type": trigger_type_to_json(&condition.condition_type),
-        "description": condition.description,
-        "required": condition.required,
+        "condition_type": trigger_type_to_json(condition.condition_type()),
+        "description": condition.description(),
+        "required": condition.required(),
     })
 }
 

@@ -60,9 +60,10 @@ pub async fn resolve_staging_for_region(
         Some(s) => {
             // Valid staging exists - resolve NPCs visible to players
             let visible_npcs: Vec<StagedNpc> = s
-                .npcs
-                .into_iter()
+                .npcs()
+                .iter()
                 .filter(|npc| npc.is_visible_to_players())
+                .cloned()
                 .collect();
             Ok((visible_npcs, StagingStatus::Ready))
         }
@@ -86,7 +87,7 @@ pub async fn resolve_staging_for_region(
                     )
                     .with_npcs(npcs)
                 })
-                .filter(|s| !s.npcs.is_empty());
+                .filter(|s| !s.npcs().is_empty());
 
             Ok((
                 vec![],
@@ -229,20 +230,25 @@ pub async fn resolve_scene_for_region_with_evaluator(
     let flags = flag.get_all_flags_for_pc(world_id, pc_id).await?;
 
     // Extract item names and flag names for LLM context
-    let inventory_names: Vec<String> = inventory_items.iter().map(|i| i.name.clone()).collect();
+    let inventory_names: Vec<String> = inventory_items
+        .iter()
+        .map(|i| i.name().to_string())
+        .collect();
     // LIMITATION: We use character IDs (UUIDs) instead of names because NpcObservation
     // only stores IDs. Fetching names would require an additional repository call per
     // character. This is acceptable for now as the LLM can still match conditions like
     // "has met the blacksmith" if the ID is consistent. Future improvement: batch fetch
     // character names via a dedicated method on the Character entity.
-    let known_character_ids: Vec<String> =
-        observations.iter().map(|o| o.npc_id.to_string()).collect();
+    let known_character_ids: Vec<String> = observations
+        .iter()
+        .map(|o| o.npc_id().to_string())
+        .collect();
     let flag_names: Vec<String> = flags.clone();
 
     let mut context = SceneResolutionContext::new(time_of_day)
         .with_completed_scenes(completed_scenes)
-        .with_inventory(inventory_items.into_iter().map(|item| item.id))
-        .with_known_characters(observations.into_iter().map(|obs| obs.npc_id))
+        .with_inventory(inventory_items.into_iter().map(|item| item.id()))
+        .with_known_characters(observations.into_iter().map(|obs| obs.npc_id()))
         .with_flags(flags);
 
     // If custom evaluator is provided, pre-evaluate custom conditions via LLM

@@ -122,7 +122,7 @@ impl EnterRegion {
             .ok_or(EnterRegionError::RegionNotFound)?;
 
         // 3. Verify region is in the same location (for move_to_region)
-        if region.location_id != pc.current_location_id() {
+        if region.location_id() != pc.current_location_id() {
             return Err(EnterRegionError::RegionNotInCurrentLocation);
         }
 
@@ -157,7 +157,7 @@ impl EnterRegion {
         let (npcs, staging_status) = resolve_staging_for_region(
             &self.staging,
             region_id,
-            region.location_id,
+            region.location_id(),
             pc.world_id(),
             current_game_time,
         )
@@ -209,7 +209,7 @@ impl EnterRegion {
             pc_id,
             pc.name().to_string(),
             "travel_region",
-            &region.name,
+            region.name(),
         )
         .await;
 
@@ -241,11 +241,11 @@ impl EnterRegion {
         };
 
         // Find connection to target region
-        match connections.iter().find(|c| c.to_region == to_region_id) {
-            Some(connection) if connection.is_locked => {
+        match connections.iter().find(|c| c.to_region() == to_region_id) {
+            Some(connection) if connection.is_locked() => {
                 let reason = connection
-                    .lock_description
-                    .clone()
+                    .lock_description()
+                    .map(|s| s.to_string())
                     .unwrap_or_else(|| "The way is blocked".to_string());
                 ConnectionCheckResult::Locked(reason)
             }
@@ -461,12 +461,18 @@ mod tests {
             pc_location_id,
             now,
         );
-        let region = {
-            let mut r = Region::new(other_location_id, "Target");
-            r.id = RegionId::new();
-            r
-        };
-        let region_id = region.id;
+        let region_id = RegionId::new();
+        let region = Region::from_parts(
+            region_id,
+            other_location_id,
+            "Target".to_string(),
+            String::new(),
+            None,
+            None,
+            None,
+            false,
+            0,
+        );
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -504,12 +510,18 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
 
         let from_region_id = RegionId::new();
-        let to_region = {
-            let mut r = Region::new(location_id, "Target");
-            r.id = RegionId::new();
-            r
-        };
-        let to_region_id = to_region.id;
+        let to_region_id = RegionId::new();
+        let to_region = Region::from_parts(
+            to_region_id,
+            location_id,
+            "Target".to_string(),
+            String::new(),
+            None,
+            None,
+            None,
+            false,
+            0,
+        );
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
             "user",
@@ -557,12 +569,18 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
 
         let from_region_id = RegionId::new();
-        let to_region = {
-            let mut r = Region::new(location_id, "Target");
-            r.id = RegionId::new();
-            r
-        };
-        let to_region_id = to_region.id;
+        let to_region_id = RegionId::new();
+        let to_region = Region::from_parts(
+            to_region_id,
+            location_id,
+            "Target".to_string(),
+            String::new(),
+            None,
+            None,
+            None,
+            false,
+            0,
+        );
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
             "user",
@@ -616,12 +634,18 @@ mod tests {
         let location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
 
-        let region = {
-            let mut r = Region::new(location_id, "Target");
-            r.id = RegionId::new();
-            r
-        };
-        let region_id = region.id;
+        let region_id = RegionId::new();
+        let region = Region::from_parts(
+            region_id,
+            location_id,
+            "Target".to_string(),
+            String::new(),
+            None,
+            None,
+            None,
+            false,
+            0,
+        );
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
             "user",

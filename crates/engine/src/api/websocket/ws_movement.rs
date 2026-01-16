@@ -530,7 +530,7 @@ async fn build_scene_update(
         backdrop_asset: scene
             .backdrop_override()
             .map(|s| s.to_string())
-            .or_else(|| region.backdrop_asset.clone()),
+            .or_else(|| region.backdrop_asset().map(|s| s.to_string())),
         time_context,
         directorial_notes: scene.directorial_notes().to_string(),
     };
@@ -555,14 +555,14 @@ async fn build_scene_update(
         };
 
         characters.push(CharacterData {
-            id: npc.character_id.to_string(),
-            name: npc.name.clone(),
-            sprite_asset: npc.sprite_asset.clone(),
-            portrait_asset: npc.portrait_asset.clone(),
+            id: npc.character_id().to_string(),
+            name: npc.name().to_string(),
+            sprite_asset: npc.sprite_asset().map(|s| s.to_string()),
+            portrait_asset: npc.portrait_asset().map(|s| s.to_string()),
             position,
             is_speaking: false,
             expression: None,
-            mood: Some(npc.mood.to_string()),
+            mood: Some(npc.mood().to_string()),
         });
     }
 
@@ -583,15 +583,15 @@ async fn build_scene_update(
     let mut interaction_data = Vec::with_capacity(interactions.len());
     for interaction in interactions {
         let (target_id, target_type, target_name) =
-            resolve_interaction_target(state, &interaction.target).await;
+            resolve_interaction_target(state, interaction.target()).await;
         interaction_data.push(InteractionData {
-            id: interaction.id.to_string(),
-            name: interaction.name,
-            interaction_type: interaction_type_to_str(&interaction.interaction_type).to_string(),
+            id: interaction.id().to_string(),
+            name: interaction.name().to_string(),
+            interaction_type: interaction_type_to_str(interaction.interaction_type()).to_string(),
             target_name,
             target_id,
             target_type,
-            is_available: interaction.is_available,
+            is_available: interaction.is_available(),
         });
     }
 
@@ -621,15 +621,15 @@ async fn send_triggered_events(
 
 fn resolve_event_outcome_description(event: &wrldbldr_domain::NarrativeEvent) -> String {
     if let Some(default_name) = event.default_outcome() {
-        if let Some(outcome) = event.outcomes().iter().find(|o| &o.name == default_name) {
-            return outcome.description.clone();
+        if let Some(outcome) = event.outcomes().iter().find(|o| o.name() == default_name) {
+            return outcome.description().to_string();
         }
     }
 
     event
         .outcomes()
         .first()
-        .map(|outcome| outcome.description.clone())
+        .map(|outcome| outcome.description().to_string())
         .unwrap_or_default()
 }
 
@@ -672,7 +672,7 @@ async fn resolve_interaction_target(
                 .await
                 .ok()
                 .flatten()
-                .map(|item| item.name);
+                .map(|item| item.name().to_string());
             (Some(id.to_string()), Some("item".to_string()), name)
         }
         wrldbldr_domain::InteractionTarget::Environment(label) => {

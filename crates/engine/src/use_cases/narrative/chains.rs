@@ -108,19 +108,23 @@ impl EventChainOps {
         let mut chain = EventChain::new(world_id, &input.name, now);
 
         if let Some(description) = input.description {
-            chain.description = description;
+            chain.set_description(description, now);
         }
         if let Some(tags) = input.tags {
-            chain.tags = tags;
+            chain.set_tags(tags, now);
         }
         if let Some(color) = input.color {
-            chain.color = Some(color);
+            chain.set_color(Some(color), now);
         }
         if let Some(active) = input.is_active {
-            chain.is_active = active;
+            if active {
+                chain.activate(now);
+            } else {
+                chain.deactivate(now);
+            }
         }
         if let Some(act_id) = act_id {
-            chain.act_id = Some(act_id);
+            chain.set_act_id(Some(act_id), now);
         }
         if let Some(events) = events {
             for event_id in events {
@@ -145,26 +149,31 @@ impl EventChainOps {
             .await?
             .ok_or(EventChainError::NotFound)?;
 
+        let now = self.narrative.now();
         if let Some(name) = input.name {
-            chain.name = name;
+            chain.set_name(name, now);
         }
         if let Some(description) = input.description {
-            chain.description = description;
+            chain.set_description(description, now);
         }
         if let Some(tags) = input.tags {
-            chain.tags = tags;
+            chain.set_tags(tags, now);
         }
         if let Some(color) = input.color {
-            chain.color = Some(color);
+            chain.set_color(Some(color), now);
         }
         if let Some(active) = input.is_active {
-            chain.is_active = active;
+            if active {
+                chain.activate(now);
+            } else {
+                chain.deactivate(now);
+            }
         }
         if let Some(act_id) = act_id {
-            chain.act_id = Some(act_id);
+            chain.set_act_id(Some(act_id), now);
         }
         if let Some(events) = events {
-            chain.reorder_events(events, self.narrative.now());
+            chain.reorder_events(events, now);
         }
 
         self.narrative.save_chain(&chain).await?;
@@ -208,7 +217,7 @@ impl EventChainOps {
             .get_chain(chain_id)
             .await?
             .ok_or(EventChainError::NotFound)?;
-        chain.is_favorite = favorite;
+        chain.set_favorite(favorite, self.narrative.now());
         self.narrative.save_chain(&chain).await?;
         Ok(())
     }
@@ -304,39 +313,39 @@ pub enum EventChainError {
 
 fn event_chain_to_summary(chain: &EventChain) -> EventChainSummary {
     EventChainSummary {
-        id: chain.id.to_string(),
-        world_id: chain.world_id.to_string(),
-        name: chain.name.clone(),
-        description: chain.description.clone(),
-        events: chain.events.iter().map(|id| id.to_string()).collect(),
-        is_active: chain.is_active,
-        current_position: chain.current_position,
+        id: chain.id().to_string(),
+        world_id: chain.world_id().to_string(),
+        name: chain.name().to_string(),
+        description: chain.description().to_string(),
+        events: chain.events().iter().map(|id| id.to_string()).collect(),
+        is_active: chain.is_active(),
+        current_position: chain.current_position(),
         completed_events: chain
-            .completed_events
+            .completed_events()
             .iter()
             .map(|id| id.to_string())
             .collect(),
-        act_id: chain.act_id.map(|id| id.to_string()),
-        tags: chain.tags.clone(),
-        color: chain.color.clone(),
-        is_favorite: chain.is_favorite,
+        act_id: chain.act_id().map(|id| id.to_string()),
+        tags: chain.tags().to_vec(),
+        color: chain.color().map(|s| s.to_string()),
+        is_favorite: chain.is_favorite(),
         progress_percent: (chain.progress() * 100.0) as u32,
         is_complete: chain.is_complete(),
         remaining_events: chain.remaining_events(),
-        created_at: chain.created_at.to_rfc3339(),
-        updated_at: chain.updated_at.to_rfc3339(),
+        created_at: chain.created_at().to_rfc3339(),
+        updated_at: chain.updated_at().to_rfc3339(),
     }
 }
 
 fn chain_status_to_summary(status: &domain::ChainStatus) -> ChainStatusSummary {
     ChainStatusSummary {
-        chain_id: status.chain_id.to_string(),
-        chain_name: status.chain_name.clone(),
-        is_active: status.is_active,
-        is_complete: status.is_complete,
-        total_events: status.total_events,
-        completed_events: status.completed_events,
-        progress_percent: status.progress_percent,
-        current_event_id: status.current_event_id.map(|id| id.to_string()),
+        chain_id: status.chain_id().to_string(),
+        chain_name: status.chain_name().to_string(),
+        is_active: status.is_active(),
+        is_complete: status.is_complete(),
+        total_events: status.total_events(),
+        completed_events: status.completed_events(),
+        progress_percent: status.progress_percent(),
+        current_event_id: status.current_event_id().map(|id| id.to_string()),
     }
 }

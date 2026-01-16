@@ -82,8 +82,8 @@ impl RequestStagingApproval {
             .insert(
                 request_id.clone(),
                 PendingStagingRequest {
-                    region_id: input.region.id,
-                    location_id: input.region.location_id,
+                    region_id: input.region.id(),
+                    location_id: input.region.location_id(),
                     world_id: input.world_id,
                     created_at: self.world.now(),
                 },
@@ -102,7 +102,7 @@ impl RequestStagingApproval {
 
         let location_name = self
             .location
-            .get(input.region.location_id)
+            .get(input.region.location_id())
             .await
             .ok()
             .flatten()
@@ -112,41 +112,46 @@ impl RequestStagingApproval {
         // Issue 4.1 fix: Fetch NPCs once and pass to both suggestion functions
         let npcs_for_region = self
             .character
-            .get_npcs_for_region(input.region.id)
+            .get_npcs_for_region(input.region.id())
             .await
             .unwrap_or_default();
 
         let rule_based_npcs =
-            generate_rule_based_suggestions(&npcs_for_region, &self.staging, input.region.id).await;
+            generate_rule_based_suggestions(&npcs_for_region, &self.staging, input.region.id())
+                .await;
         let llm_based_npcs = generate_llm_based_suggestions(
             &npcs_for_region,
             self.llm.as_ref(),
-            &input.region.name,
+            input.region.name(),
             &location_name,
             input.guidance.as_deref(),
         )
         .await;
 
         let (resolved_visual_state, available_location_states, available_region_states) = self
-            .resolve_visual_states(input.world_id, input.region.location_id, input.region.id)
+            .resolve_visual_states(
+                input.world_id,
+                input.region.location_id(),
+                input.region.id(),
+            )
             .await;
 
         // Convert previous staging to domain type
         let previous_staging = input.previous_staging.map(|s| PreviousStagingData {
-            staging_id: s.id.into(),
-            approved_at: s.approved_at,
+            staging_id: s.id().into(),
+            approved_at: s.approved_at(),
             npcs: s
-                .npcs
-                .into_iter()
+                .npcs()
+                .iter()
                 .map(|n| StagedNpc {
-                    character_id: n.character_id,
-                    name: n.name,
-                    sprite_asset: n.sprite_asset,
-                    portrait_asset: n.portrait_asset,
-                    is_present: n.is_present,
-                    reasoning: n.reasoning,
-                    is_hidden_from_players: n.is_hidden_from_players,
-                    mood: Some(n.mood.to_string()),
+                    character_id: n.character_id(),
+                    name: n.name().to_string(),
+                    sprite_asset: n.sprite_asset().map(|s| s.to_string()),
+                    portrait_asset: n.portrait_asset().map(|s| s.to_string()),
+                    is_present: n.is_present(),
+                    reasoning: n.reasoning().to_string(),
+                    is_hidden_from_players: n.is_hidden_from_players(),
+                    mood: Some(n.mood().to_string()),
                 })
                 .collect(),
         });
@@ -161,15 +166,15 @@ impl RequestStagingApproval {
         // Build domain result - API layer will convert to protocol and notify DMs
         Ok(StagingRequestResult {
             pending: StagingPendingData {
-                region_id: input.region.id,
-                region_name: input.region.name.clone(),
+                region_id: input.region.id(),
+                region_name: input.region.name().to_string(),
                 timeout_seconds: DEFAULT_STAGING_TIMEOUT_SECONDS,
             },
             approval: StagingApprovalData {
                 request_id,
-                region_id: input.region.id,
-                region_name: input.region.name,
-                location_id: input.region.location_id,
+                region_id: input.region.id(),
+                region_name: input.region.name().to_string(),
+                location_id: input.region.location_id(),
                 location_name,
                 game_time: GameTimeData {
                     day: now.ordinal() as u32,

@@ -207,18 +207,18 @@ impl NarrativeEventOps {
             .selected_outcome()
             .map(|s| s.to_string())
             .or_else(|| event.default_outcome().map(|s| s.to_string()))
-            .or_else(|| event.outcomes().first().map(|o| o.name.clone()))
+            .or_else(|| event.outcomes().first().map(|o| o.name().to_string()))
             .unwrap_or_default();
 
         let now = self.clock.now();
         event.trigger(Some(outcome_name.clone()), now);
-        let maybe_outcome = event.outcomes().iter().find(|o| o.name == outcome_name);
+        let maybe_outcome = event.outcomes().iter().find(|o| o.name() == outcome_name);
         self.narrative.save_event(&event).await?;
 
         let mut effects_summary = None;
         let effects_present = maybe_outcome
             .as_ref()
-            .map(|outcome| !outcome.effects.is_empty())
+            .map(|outcome| !outcome.effects().is_empty())
             .unwrap_or(false);
         if let (Some(outcome), Some(pc_id)) = (maybe_outcome, pc_id) {
             if effects_present {
@@ -230,14 +230,19 @@ impl NarrativeEventOps {
 
                 let summary = self
                     .execute_effects
-                    .execute(event.id(), outcome.name.clone(), &outcome.effects, &context)
+                    .execute(
+                        event.id(),
+                        outcome.name().to_string(),
+                        outcome.effects(),
+                        &context,
+                    )
                     .await;
                 effects_summary = Some(summary);
             }
         }
 
         let outcome_description = maybe_outcome
-            .map(|o| o.description.clone())
+            .map(|o| o.description().to_string())
             .unwrap_or_default();
 
         Ok(TriggeredNarrativeEvent {

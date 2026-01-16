@@ -80,25 +80,17 @@ async fn narrative_triggers_fallback_is_bounded_to_500() {
     let test_graph = super::Neo4jGraph::new(graph.clone());
     let repo = super::Neo4jNarrativeRepo::new(test_graph, clock);
 
-    let trigger = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+    let trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::PlayerEntersLocation {
             location_id,
             location_name: "Test Region".to_string(),
         },
-        description: "enter test region".to_string(),
-        is_required: true,
-        trigger_id: "t1".to_string(),
-    };
+        "enter test region",
+        "t1",
+    )
+    .with_required(true);
 
-    let outcome = EventOutcome {
-        name: "default".to_string(),
-        label: "Default".to_string(),
-        description: "noop".to_string(),
-        condition: None,
-        effects: vec![],
-        chain_events: vec![],
-        timeline_summary: None,
-    };
+    let outcome = EventOutcome::new("default", "Default", "noop");
 
     for i in 0..600 {
         let event = NarrativeEvent::new(
@@ -172,42 +164,13 @@ async fn save_pending_staging_creates_includes_npc_edges_for_all_npcs() {
         24,
         now,
     );
-    staging.is_active = false;
-    staging.npcs = vec![
-        StagedNpc {
-            character_id: npc_ids[0].into(),
-            name: "NPC 0".to_string(),
-            sprite_asset: None,
-            portrait_asset: None,
-            is_present: true,
-            is_hidden_from_players: false,
-            reasoning: "r0".to_string(),
-            mood: MoodState::Calm,
-            has_incomplete_data: false,
-        },
-        StagedNpc {
-            character_id: npc_ids[1].into(),
-            name: "NPC 1".to_string(),
-            sprite_asset: None,
-            portrait_asset: None,
-            is_present: true,
-            is_hidden_from_players: true,
-            reasoning: "r1".to_string(),
-            mood: MoodState::Nervous,
-            has_incomplete_data: false,
-        },
-        StagedNpc {
-            character_id: npc_ids[2].into(),
-            name: "NPC 2".to_string(),
-            sprite_asset: None,
-            portrait_asset: None,
-            is_present: false,
-            is_hidden_from_players: false,
-            reasoning: "r2".to_string(),
-            mood: MoodState::Happy,
-            has_incomplete_data: false,
-        },
-    ];
+    let staging = staging.with_active(false).with_npcs(vec![
+        StagedNpc::new(npc_ids[0].into(), "NPC 0", true, "r0").with_mood(MoodState::Calm),
+        StagedNpc::new(npc_ids[1].into(), "NPC 1", true, "r1")
+            .with_hidden_from_players(true)
+            .with_mood(MoodState::Nervous),
+        StagedNpc::new(npc_ids[2].into(), "NPC 2", false, "r2").with_mood(MoodState::Happy),
+    ]);
 
     repo.save_pending_staging(&staging)
         .await
@@ -224,7 +187,7 @@ async fn save_pending_staging_creates_includes_npc_edges_for_all_npcs() {
                         r.mood as mood\
                  ORDER BY name",
             )
-            .param("id", staging.id.to_string()),
+            .param("id", staging.id().to_string()),
         )
         .await
         .expect("query includes_npc edges");

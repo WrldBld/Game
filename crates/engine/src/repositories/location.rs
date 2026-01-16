@@ -183,23 +183,23 @@ impl Location {
         if !region_exits.is_empty() {
             let mut result = RegionExitsResult::default();
             for exit in region_exits {
-                if let Some(target_location) = self.repo.get_location(exit.to_location).await? {
+                if let Some(target_location) = self.repo.get_location(exit.to_location()).await? {
                     result.exits.push(RegionExit {
-                        location_id: exit.to_location,
+                        location_id: exit.to_location(),
                         location_name: target_location.name().to_string(),
-                        arrival_region_id: exit.arrival_region_id,
-                        description: exit.description,
+                        arrival_region_id: exit.arrival_region_id(),
+                        description: exit.description().map(|s| s.to_string()),
                     });
                 } else {
                     let reason = "Target location not found".to_string();
                     tracing::error!(
                         from_region = %region_id,
-                        to_location = %exit.to_location,
+                        to_location = %exit.to_location(),
                         reason = %reason,
                         "Navigation exit skipped due to data integrity issue"
                     );
                     result.skipped.push(SkippedExit {
-                        to_location: exit.to_location,
+                        to_location: exit.to_location(),
                         reason,
                     });
                 }
@@ -215,21 +215,24 @@ impl Location {
         };
 
         // Get exits from this location
-        let location_exits = self.repo.get_location_exits(region.location_id).await?;
+        let location_exits = self.repo.get_location_exits(region.location_id()).await?;
 
         let mut result = RegionExitsResult::default();
         for exit in location_exits {
             // Get the target location details
-            if let Some(target_location) = self.repo.get_location(exit.to_location).await? {
+            if let Some(target_location) = self.repo.get_location(exit.to_location()).await? {
                 // Determine arrival region
                 let arrival_region_id =
                     if let Some(default_region) = target_location.default_region_id() {
                         default_region
                     } else {
                         // Try to find a spawn point in the target location
-                        let regions = self.repo.list_regions_in_location(exit.to_location).await?;
-                        match regions.into_iter().find(|r| r.is_spawn_point) {
-                            Some(r) => r.id,
+                        let regions = self
+                            .repo
+                            .list_regions_in_location(exit.to_location())
+                            .await?;
+                        match regions.into_iter().find(|r| r.is_spawn_point()) {
+                            Some(r) => r.id(),
                             None => {
                                 let reason = format!(
                                     "Target location '{}' has no default region and no spawn point",
@@ -237,13 +240,13 @@ impl Location {
                                 );
                                 tracing::error!(
                                     from_region = %region_id,
-                                    to_location = %exit.to_location,
+                                    to_location = %exit.to_location(),
                                     target_location_name = %target_location.name().as_str(),
                                     reason = %reason,
                                     "Navigation exit skipped due to data integrity issue"
                                 );
                                 result.skipped.push(SkippedExit {
-                                    to_location: exit.to_location,
+                                    to_location: exit.to_location(),
                                     reason,
                                 });
                                 continue;
@@ -252,10 +255,10 @@ impl Location {
                     };
 
                 result.exits.push(RegionExit {
-                    location_id: exit.to_location,
+                    location_id: exit.to_location(),
                     location_name: target_location.name().to_string(),
                     arrival_region_id,
-                    description: exit.description,
+                    description: exit.description().map(|s| s.to_string()),
                 });
             }
         }
@@ -272,6 +275,6 @@ impl Location {
         let connections = self.get_connections(from).await?;
         Ok(connections
             .iter()
-            .any(|c| c.to_region == to && !c.is_locked))
+            .any(|c| c.to_region() == to && !c.is_locked()))
     }
 }

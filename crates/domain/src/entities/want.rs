@@ -65,24 +65,24 @@ impl WantVisibility {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Want {
-    pub id: WantId,
+    id: WantId,
     /// Description of what the character wants
-    pub description: String,
+    description: String,
     /// Intensity of the want (0.0 = mild interest, 1.0 = obsession)
-    pub intensity: f32,
+    intensity: f32,
     /// How much the player knows about this want
-    pub visibility: WantVisibility,
+    visibility: WantVisibility,
     /// When this want was created
-    pub created_at: DateTime<Utc>,
+    created_at: DateTime<Utc>,
 
     // === Behavioral Guidance for Secret Wants ===
     /// How the NPC should behave when probed about this want (for Hidden/Suspected)
     /// Example: "Deflect with a sad smile; change subject to present dangers"
-    pub deflection_behavior: Option<String>,
+    deflection_behavior: Option<String>,
 
     /// Subtle behavioral tells that hint at this want
     /// Example: ["Avoids eye contact when past is mentioned", "Tenses at the word 'village'"]
-    pub tells: Vec<String>,
+    tells: Vec<String>,
 }
 
 impl Want {
@@ -134,6 +134,38 @@ impl Want {
         Self::new_with_intensity(description, 0.5, now)
     }
 
+    // === Accessors ===
+
+    pub fn id(&self) -> WantId {
+        self.id
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn intensity(&self) -> f32 {
+        self.intensity
+    }
+
+    pub fn visibility(&self) -> WantVisibility {
+        self.visibility
+    }
+
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+
+    pub fn deflection_behavior(&self) -> Option<&str> {
+        self.deflection_behavior.as_deref()
+    }
+
+    pub fn tells(&self) -> &[String] {
+        &self.tells
+    }
+
+    // === Builder Methods ===
+
     /// Set the intensity of this want using builder pattern.
     ///
     /// The intensity is clamped to 0.0..=1.0.
@@ -174,6 +206,24 @@ impl Want {
         self
     }
 
+    /// Set the ID of this want (for reconstitution from storage).
+    pub fn with_id(mut self, id: WantId) -> Self {
+        self.id = id;
+        self
+    }
+
+    /// Set the description of this want.
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = description.into();
+        self
+    }
+
+    /// Set the created_at timestamp (for reconstitution from storage).
+    pub fn with_created_at(mut self, created_at: DateTime<Utc>) -> Self {
+        self.created_at = created_at;
+        self
+    }
+
     /// Generate default deflection behavior based on intensity
     pub fn default_deflection(&self) -> String {
         if self.intensity > 0.8 {
@@ -198,11 +248,11 @@ impl Want {
 #[serde(rename_all = "camelCase")]
 pub struct CharacterWant {
     /// The want node
-    pub want: Want,
+    want: Want,
     /// Priority (1 = primary want, 2 = secondary, etc.)
-    pub priority: u32,
+    priority: u32,
     /// When this want was acquired
-    pub acquired_at: DateTime<Utc>,
+    acquired_at: DateTime<Utc>,
 }
 
 impl CharacterWant {
@@ -214,14 +264,35 @@ impl CharacterWant {
         }
     }
 
+    // === Accessors ===
+
+    pub fn want(&self) -> &Want {
+        &self.want
+    }
+
+    pub fn priority(&self) -> u32 {
+        self.priority
+    }
+
+    pub fn acquired_at(&self) -> DateTime<Utc> {
+        self.acquired_at
+    }
+
+    // === Builder Methods ===
+
+    pub fn with_priority(mut self, priority: u32) -> Self {
+        self.priority = priority;
+        self
+    }
+
     /// Check if this want is visible to player
     pub fn is_known(&self) -> bool {
-        self.want.visibility.is_known()
+        self.want.visibility().is_known()
     }
 
     /// Check if player has some awareness
     pub fn is_at_least_suspected(&self) -> bool {
-        self.want.visibility.is_at_least_suspected()
+        self.want.visibility().is_at_least_suspected()
     }
 }
 
@@ -259,11 +330,11 @@ pub enum ActantialRole {
 #[serde(rename_all = "camelCase")]
 pub struct ActantialView {
     /// Which want this relates to
-    pub want_id: WantId,
+    want_id: WantId,
     /// Why the character views the target this way
-    pub reason: String,
+    reason: String,
     /// When this view was assigned
-    pub assigned_at: DateTime<Utc>,
+    assigned_at: DateTime<Utc>,
 }
 
 impl ActantialView {
@@ -273,5 +344,26 @@ impl ActantialView {
             reason: reason.into(),
             assigned_at: now,
         }
+    }
+
+    // === Accessors ===
+
+    pub fn want_id(&self) -> WantId {
+        self.want_id
+    }
+
+    pub fn reason(&self) -> &str {
+        &self.reason
+    }
+
+    pub fn assigned_at(&self) -> DateTime<Utc> {
+        self.assigned_at
+    }
+
+    // === Builder Methods ===
+
+    pub fn with_reason(mut self, reason: impl Into<String>) -> Self {
+        self.reason = reason.into();
+        self
     }
 }

@@ -254,7 +254,8 @@ async fn test_player_movement_broadcast_to_others() {
 
         // Verify move result
         assert_eq!(
-            move_result.region.id, tavern_bar,
+            move_result.region.id(),
+            tavern_bar,
             "Move result should show Tavern Bar"
         );
         assert_eq!(

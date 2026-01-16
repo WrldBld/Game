@@ -18,12 +18,12 @@ use wrldbldr_domain::{GoalId, WorldId};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Goal {
-    pub id: GoalId,
-    pub world_id: WorldId,
+    id: GoalId,
+    world_id: WorldId,
     /// Name of the goal (e.g., "Power", "Revenge", "Peace")
-    pub name: String,
+    name: String,
     /// Optional description of what this goal means
-    pub description: Option<String>,
+    description: Option<String>,
 }
 
 impl Goal {
@@ -36,8 +36,48 @@ impl Goal {
         }
     }
 
+    // === Accessors ===
+
+    pub fn id(&self) -> GoalId {
+        self.id
+    }
+
+    pub fn world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    // === Builder Methods ===
+
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
         self
+    }
+
+    pub fn with_id(mut self, id: GoalId) -> Self {
+        self.id = id;
+        self
+    }
+
+    /// Reconstruct a Goal from parts (for repository deserialization or updates).
+    pub fn from_parts(
+        id: GoalId,
+        world_id: WorldId,
+        name: String,
+        description: Option<String>,
+    ) -> Self {
+        Self {
+            id,
+            world_id,
+            name,
+            description,
+        }
     }
 }

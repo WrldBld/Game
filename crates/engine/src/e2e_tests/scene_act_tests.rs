@@ -30,7 +30,7 @@ async fn test_acts_loaded_from_world() {
 
     // Verify act structure
     for act in &acts {
-        println!("Act: {} - {}", act.name, act.description);
+        println!("Act: {} - {}", act.name(), act.description());
     }
 }
 
@@ -55,11 +55,11 @@ async fn test_scenes_loaded_for_act() {
             .app
             .repositories
             .scene
-            .list_for_act(first_act.id)
+            .list_for_act(first_act.id())
             .await
             .expect("Should list scenes");
 
-        println!("Act '{}' has {} scenes", first_act.name, scenes.len());
+        println!("Act '{}' has {} scenes", first_act.name(), scenes.len());
 
         for scene in &scenes {
             println!(
@@ -129,7 +129,7 @@ async fn test_scene_directorial_notes() {
             .app
             .repositories
             .scene
-            .list_for_act(act.id)
+            .list_for_act(act.id())
             .await
             .expect("Should list scenes");
 

@@ -69,18 +69,25 @@ impl ActCrud {
             .await?
             .ok_or(ManagementError::NotFound)?;
 
-        if let Some(name) = name {
+        // Rebuild act with updated values using from_parts
+        let new_name = if let Some(name) = name {
             require_non_empty(&name, "Act name")?;
-            act.name = name;
-        }
+            name
+        } else {
+            act.name().to_string()
+        };
 
-        if let Some(description) = description {
-            act.description = description;
-        }
+        let new_description = description.unwrap_or_else(|| act.description().to_string());
+        let new_order = order.unwrap_or_else(|| act.order());
 
-        if let Some(order) = order {
-            act.order = order;
-        }
+        act = wrldbldr_domain::Act::from_parts(
+            act.id(),
+            act.world_id(),
+            new_name,
+            act.stage(),
+            new_description,
+            new_order,
+        );
 
         self.act.save(&act).await?;
         Ok(act)

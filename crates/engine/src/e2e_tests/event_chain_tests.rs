@@ -74,15 +74,15 @@ async fn test_first_event_triggers_on_location_entry() {
     let now = Utc::now();
 
     // Create the event with a PlayerEntersLocation trigger
-    let trigger = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+    let trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::PlayerEntersLocation {
             location_id,
             location_name: "The Drowsy Dragon Inn".to_string(),
         },
-        description: "Player enters the tavern".to_string(),
-        is_required: true,
-        trigger_id: "enter-tavern".to_string(),
-    };
+        "Player enters the tavern",
+        "enter-tavern",
+    )
+    .with_required(true);
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
@@ -221,26 +221,26 @@ async fn test_subsequent_event_unlocks_after_completion() {
     let event_b_id = wrldbldr_domain::NarrativeEventId::new();
 
     // Event B has two triggers: location entry AND Event A completed
-    let location_trigger = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+    let location_trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::PlayerEntersLocation {
             location_id,
             location_name: "The Drowsy Dragon Inn".to_string(),
         },
-        description: "Player is in tavern".to_string(),
-        is_required: true,
-        trigger_id: "in-tavern".to_string(),
-    };
+        "Player is in tavern",
+        "in-tavern",
+    )
+    .with_required(true);
 
-    let event_completed_trigger = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::EventCompleted {
+    let event_completed_trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::EventCompleted {
             event_id: event_a_id,
             event_name: "Chain Event A - Introduction".to_string(),
             outcome_name: None, // Any outcome
         },
-        description: "Event A must be completed".to_string(),
-        is_required: true,
-        trigger_id: "after-event-a".to_string(),
-    };
+        "Event A must be completed",
+        "after-event-a",
+    )
+    .with_required(true);
 
     let event_b = NarrativeEvent::new(
         ctx.world.world_id,
@@ -348,24 +348,24 @@ async fn test_event_condition_checks_player_flags() {
     // Create event with flag condition: requires "met_mysterious_stranger" flag
     let event_id = wrldbldr_domain::NarrativeEventId::new();
 
-    let location_trigger = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+    let location_trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::PlayerEntersLocation {
             location_id,
             location_name: "The Drowsy Dragon Inn".to_string(),
         },
-        description: "Player is in tavern".to_string(),
-        is_required: true,
-        trigger_id: "in-tavern".to_string(),
-    };
+        "Player is in tavern",
+        "in-tavern",
+    )
+    .with_required(true);
 
-    let flag_trigger = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::FlagSet {
+    let flag_trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::FlagSet {
             flag_name: "met_mysterious_stranger".to_string(),
         },
-        description: "Player must have met the mysterious stranger".to_string(),
-        is_required: true,
-        trigger_id: "has-stranger-flag".to_string(),
-    };
+        "Player must have met the mysterious stranger",
+        "has-stranger-flag",
+    )
+    .with_required(true);
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
@@ -512,25 +512,25 @@ async fn test_event_condition_checks_inventory() {
     // Create event with inventory condition: requires "Mysterious Key"
     let event_id = wrldbldr_domain::NarrativeEventId::new();
 
-    let location_trigger = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+    let location_trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::PlayerEntersLocation {
             location_id,
             location_name: "The Drowsy Dragon Inn".to_string(),
         },
-        description: "Player is in tavern".to_string(),
-        is_required: true,
-        trigger_id: "in-tavern".to_string(),
-    };
+        "Player is in tavern",
+        "in-tavern",
+    )
+    .with_required(true);
 
-    let inventory_trigger = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::HasItem {
+    let inventory_trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::HasItem {
             item_name: "Mysterious Key".to_string(),
             quantity: None,
         },
-        description: "Player must have the mysterious key".to_string(),
-        is_required: true,
-        trigger_id: "has-key".to_string(),
-    };
+        "Player must have the mysterious key",
+        "has-key",
+    )
+    .with_required(true);
 
     let event = NarrativeEvent::new(
         ctx.world.world_id,
@@ -693,27 +693,27 @@ async fn test_event_condition_checks_stats() {
     let event_high_cha_id = wrldbldr_domain::NarrativeEventId::new();
 
     // Event that checks Old Tom's charisma (should NOT trigger since CHA=6 < 14)
-    let location_trigger_low = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+    let location_trigger_low = NarrativeTrigger::new(
+        NarrativeTriggerType::PlayerEntersLocation {
             location_id,
             location_name: "The Drowsy Dragon Inn".to_string(),
         },
-        description: "Player is in tavern".to_string(),
-        is_required: true,
-        trigger_id: "in-tavern-low".to_string(),
-    };
+        "Player is in tavern",
+        "in-tavern-low",
+    )
+    .with_required(true);
 
-    let stat_trigger_low = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::StatThreshold {
+    let stat_trigger_low = NarrativeTrigger::new(
+        NarrativeTriggerType::StatThreshold {
             character_id: old_tom_id,
             stat_name: "CHA".to_string(),
             min_value: Some(14),
             max_value: None,
         },
-        description: "Old Tom must have charisma >= 14".to_string(),
-        is_required: true,
-        trigger_id: "old-tom-cha-check".to_string(),
-    };
+        "Old Tom must have charisma >= 14",
+        "old-tom-cha-check",
+    )
+    .with_required(true);
 
     let event_low_cha = NarrativeEvent::new(
         ctx.world.world_id,
@@ -748,27 +748,27 @@ async fn test_event_condition_checks_stats() {
         .expect("Failed to create TIED_TO_LOCATION edge for low CHA event");
 
     // Event that checks Vera's charisma (should trigger since CHA=17 >= 14)
-    let location_trigger_high = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+    let location_trigger_high = NarrativeTrigger::new(
+        NarrativeTriggerType::PlayerEntersLocation {
             location_id,
             location_name: "The Drowsy Dragon Inn".to_string(),
         },
-        description: "Player is in tavern".to_string(),
-        is_required: true,
-        trigger_id: "in-tavern-high".to_string(),
-    };
+        "Player is in tavern",
+        "in-tavern-high",
+    )
+    .with_required(true);
 
-    let stat_trigger_high = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::StatThreshold {
+    let stat_trigger_high = NarrativeTrigger::new(
+        NarrativeTriggerType::StatThreshold {
             character_id: vera_id,
             stat_name: "CHA".to_string(),
             min_value: Some(14),
             max_value: None,
         },
-        description: "Vera must have charisma >= 14".to_string(),
-        is_required: true,
-        trigger_id: "vera-cha-check".to_string(),
-    };
+        "Vera must have charisma >= 14",
+        "vera-cha-check",
+    )
+    .with_required(true);
 
     let event_high_cha = NarrativeEvent::new(
         ctx.world.world_id,
@@ -899,15 +899,15 @@ async fn test_chain_completes_in_order() {
     let event_c_id = wrldbldr_domain::NarrativeEventId::new();
 
     // Event A: Triggers on location entry (first in chain)
-    let location_trigger_a = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+    let location_trigger_a = NarrativeTrigger::new(
+        NarrativeTriggerType::PlayerEntersLocation {
             location_id,
             location_name: "The Drowsy Dragon Inn".to_string(),
         },
-        description: "Player enters tavern".to_string(),
-        is_required: true,
-        trigger_id: "enter-tavern-a".to_string(),
-    };
+        "Player enters tavern",
+        "enter-tavern-a",
+    )
+    .with_required(true);
 
     let event_a = NarrativeEvent::new(
         ctx.world.world_id,
@@ -941,26 +941,26 @@ async fn test_chain_completes_in_order() {
         .expect("Failed to create TIED_TO_LOCATION edge for Event A");
 
     // Event B: Triggers after Event A completes (second in chain)
-    let location_trigger_b = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+    let location_trigger_b = NarrativeTrigger::new(
+        NarrativeTriggerType::PlayerEntersLocation {
             location_id,
             location_name: "The Drowsy Dragon Inn".to_string(),
         },
-        description: "Player is in tavern".to_string(),
-        is_required: true,
-        trigger_id: "in-tavern-b".to_string(),
-    };
+        "Player is in tavern",
+        "in-tavern-b",
+    )
+    .with_required(true);
 
-    let event_a_completed = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::EventCompleted {
+    let event_a_completed = NarrativeTrigger::new(
+        NarrativeTriggerType::EventCompleted {
             event_id: event_a_id,
             event_name: "Chain Event A - The Introduction".to_string(),
             outcome_name: None,
         },
-        description: "Event A must be completed".to_string(),
-        is_required: true,
-        trigger_id: "after-event-a".to_string(),
-    };
+        "Event A must be completed",
+        "after-event-a",
+    )
+    .with_required(true);
 
     let event_b = NarrativeEvent::new(
         ctx.world.world_id,
@@ -995,26 +995,26 @@ async fn test_chain_completes_in_order() {
         .expect("Failed to create TIED_TO_LOCATION edge for Event B");
 
     // Event C: Triggers after Event B completes (third in chain)
-    let location_trigger_c = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+    let location_trigger_c = NarrativeTrigger::new(
+        NarrativeTriggerType::PlayerEntersLocation {
             location_id,
             location_name: "The Drowsy Dragon Inn".to_string(),
         },
-        description: "Player is in tavern".to_string(),
-        is_required: true,
-        trigger_id: "in-tavern-c".to_string(),
-    };
+        "Player is in tavern",
+        "in-tavern-c",
+    )
+    .with_required(true);
 
-    let event_b_completed = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::EventCompleted {
+    let event_b_completed = NarrativeTrigger::new(
+        NarrativeTriggerType::EventCompleted {
             event_id: event_b_id,
             event_name: "Chain Event B - The Revelation".to_string(),
             outcome_name: None,
         },
-        description: "Event B must be completed".to_string(),
-        is_required: true,
-        trigger_id: "after-event-b".to_string(),
-    };
+        "Event B must be completed",
+        "after-event-b",
+    )
+    .with_required(true);
 
     let event_c = NarrativeEvent::new(
         ctx.world.world_id,
@@ -1240,15 +1240,15 @@ async fn test_chain_completion_triggers_final_effects() {
     let event_final_id = wrldbldr_domain::NarrativeEventId::new();
 
     // Event A: First event in chain
-    let location_trigger_a = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+    let location_trigger_a = NarrativeTrigger::new(
+        NarrativeTriggerType::PlayerEntersLocation {
             location_id,
             location_name: "The Drowsy Dragon Inn".to_string(),
         },
-        description: "Player enters tavern".to_string(),
-        is_required: true,
-        trigger_id: "enter-tavern-a".to_string(),
-    };
+        "Player enters tavern",
+        "enter-tavern-a",
+    )
+    .with_required(true);
 
     let event_a = NarrativeEvent::new(
         ctx.world.world_id,
@@ -1282,26 +1282,26 @@ async fn test_chain_completion_triggers_final_effects() {
         .expect("Failed to create TIED_TO_LOCATION edge for Event A");
 
     // Final Event: Triggers after Event A, represents quest completion
-    let location_trigger_final = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
+    let location_trigger_final = NarrativeTrigger::new(
+        NarrativeTriggerType::PlayerEntersLocation {
             location_id,
             location_name: "The Drowsy Dragon Inn".to_string(),
         },
-        description: "Player is in tavern".to_string(),
-        is_required: true,
-        trigger_id: "in-tavern-final".to_string(),
-    };
+        "Player is in tavern",
+        "in-tavern-final",
+    )
+    .with_required(true);
 
-    let event_a_completed = NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::EventCompleted {
+    let event_a_completed = NarrativeTrigger::new(
+        NarrativeTriggerType::EventCompleted {
             event_id: event_a_id,
             event_name: "Quest Start - The Call".to_string(),
             outcome_name: None,
         },
-        description: "Quest start event must be completed".to_string(),
-        is_required: true,
-        trigger_id: "after-quest-start".to_string(),
-    };
+        "Quest start event must be completed",
+        "after-quest-start",
+    )
+    .with_required(true);
 
     let event_final = NarrativeEvent::new(
         ctx.world.world_id,
@@ -1519,15 +1519,17 @@ async fn test_partial_chain_persists_across_sessions() {
     .with_id(event_a_id)
     .with_description("First event in persistent chain")
     .with_scene_direction("The adventure begins")
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-            location_id,
-            location_name: "The Drowsy Dragon Inn".to_string(),
-        },
-        description: "Player enters tavern".to_string(),
-        is_required: true,
-        trigger_id: "enter-tavern".to_string(),
-    })
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::PlayerEntersLocation {
+                location_id,
+                location_name: "The Drowsy Dragon Inn".to_string(),
+            },
+            "Player enters tavern",
+            "enter-tavern",
+        )
+        .with_required(true),
+    )
     .with_priority(10);
 
     ctx.app
@@ -1558,25 +1560,29 @@ async fn test_partial_chain_persists_across_sessions() {
     .with_id(event_b_id)
     .with_description("Second event in persistent chain")
     .with_scene_direction("The plot thickens")
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-            location_id,
-            location_name: "The Drowsy Dragon Inn".to_string(),
-        },
-        description: "Player in tavern".to_string(),
-        is_required: true,
-        trigger_id: "in-tavern-b".to_string(),
-    })
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::EventCompleted {
-            event_id: event_a_id,
-            event_name: "Persistent Chain A".to_string(),
-            outcome_name: None,
-        },
-        description: "Event A completed".to_string(),
-        is_required: true,
-        trigger_id: "after-a".to_string(),
-    })
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::PlayerEntersLocation {
+                location_id,
+                location_name: "The Drowsy Dragon Inn".to_string(),
+            },
+            "Player in tavern",
+            "in-tavern-b",
+        )
+        .with_required(true),
+    )
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::EventCompleted {
+                event_id: event_a_id,
+                event_name: "Persistent Chain A".to_string(),
+                outcome_name: None,
+            },
+            "Event A completed",
+            "after-a",
+        )
+        .with_required(true),
+    )
     .with_priority(10);
 
     ctx.app
@@ -1607,25 +1613,29 @@ async fn test_partial_chain_persists_across_sessions() {
     .with_id(event_c_id)
     .with_description("Third event in persistent chain")
     .with_scene_direction("The conclusion")
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-            location_id,
-            location_name: "The Drowsy Dragon Inn".to_string(),
-        },
-        description: "Player in tavern".to_string(),
-        is_required: true,
-        trigger_id: "in-tavern-c".to_string(),
-    })
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::EventCompleted {
-            event_id: event_b_id,
-            event_name: "Persistent Chain B".to_string(),
-            outcome_name: None,
-        },
-        description: "Event B completed".to_string(),
-        is_required: true,
-        trigger_id: "after-b".to_string(),
-    })
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::PlayerEntersLocation {
+                location_id,
+                location_name: "The Drowsy Dragon Inn".to_string(),
+            },
+            "Player in tavern",
+            "in-tavern-c",
+        )
+        .with_required(true),
+    )
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::EventCompleted {
+                event_id: event_b_id,
+                event_name: "Persistent Chain B".to_string(),
+                outcome_name: None,
+            },
+            "Event B completed",
+            "after-b",
+        )
+        .with_required(true),
+    )
     .with_priority(10);
 
     ctx.app
@@ -1866,15 +1876,17 @@ async fn test_chain_branch_based_on_outcome() {
     .with_id(event_a_id)
     .with_description("Event with branching outcomes")
     .with_scene_direction("A mysterious figure makes you an offer")
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-            location_id,
-            location_name: "The Drowsy Dragon Inn".to_string(),
-        },
-        description: "Player enters tavern".to_string(),
-        is_required: true,
-        trigger_id: "enter-tavern".to_string(),
-    })
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::PlayerEntersLocation {
+                location_id,
+                location_name: "The Drowsy Dragon Inn".to_string(),
+            },
+            "Player enters tavern",
+            "enter-tavern",
+        )
+        .with_required(true),
+    )
     .with_priority(10);
 
     ctx.app
@@ -1905,25 +1917,29 @@ async fn test_chain_branch_based_on_outcome() {
     .with_id(event_b_id)
     .with_description("Quest accepted path")
     .with_scene_direction("Having accepted the offer, you learn more details")
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-            location_id,
-            location_name: "The Drowsy Dragon Inn".to_string(),
-        },
-        description: "Player in tavern".to_string(),
-        is_required: true,
-        trigger_id: "in-tavern-b".to_string(),
-    })
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::EventCompleted {
-            event_id: event_a_id,
-            event_name: "Branching Event A - The Offer".to_string(),
-            outcome_name: Some("accept".to_string()), // Specific outcome required!
-        },
-        description: "Player accepted the offer".to_string(),
-        is_required: true,
-        trigger_id: "accepted-offer".to_string(),
-    })
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::PlayerEntersLocation {
+                location_id,
+                location_name: "The Drowsy Dragon Inn".to_string(),
+            },
+            "Player in tavern",
+            "in-tavern-b",
+        )
+        .with_required(true),
+    )
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::EventCompleted {
+                event_id: event_a_id,
+                event_name: "Branching Event A - The Offer".to_string(),
+                outcome_name: Some("accept".to_string()), // Specific outcome required!
+            },
+            "Player accepted the offer",
+            "accepted-offer",
+        )
+        .with_required(true),
+    )
     .with_priority(10);
 
     ctx.app
@@ -1954,25 +1970,29 @@ async fn test_chain_branch_based_on_outcome() {
     .with_id(event_c_id)
     .with_description("Quest refused path")
     .with_scene_direction("Having refused, the stranger becomes hostile")
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-            location_id,
-            location_name: "The Drowsy Dragon Inn".to_string(),
-        },
-        description: "Player in tavern".to_string(),
-        is_required: true,
-        trigger_id: "in-tavern-c".to_string(),
-    })
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::EventCompleted {
-            event_id: event_a_id,
-            event_name: "Branching Event A - The Offer".to_string(),
-            outcome_name: Some("refuse".to_string()), // Specific outcome required!
-        },
-        description: "Player refused the offer".to_string(),
-        is_required: true,
-        trigger_id: "refused-offer".to_string(),
-    })
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::PlayerEntersLocation {
+                location_id,
+                location_name: "The Drowsy Dragon Inn".to_string(),
+            },
+            "Player in tavern",
+            "in-tavern-c",
+        )
+        .with_required(true),
+    )
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::EventCompleted {
+                event_id: event_a_id,
+                event_name: "Branching Event A - The Offer".to_string(),
+                outcome_name: Some("refuse".to_string()), // Specific outcome required!
+            },
+            "Player refused the offer",
+            "refused-offer",
+        )
+        .with_required(true),
+    )
     .with_priority(10);
 
     ctx.app
@@ -2129,15 +2149,17 @@ async fn test_alternate_branch_path() {
     .with_id(event_a_id)
     .with_description("Event with branching outcomes")
     .with_scene_direction("A shady character proposes a scheme")
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-            location_id,
-            location_name: "The Drowsy Dragon Inn".to_string(),
-        },
-        description: "Player enters tavern".to_string(),
-        is_required: true,
-        trigger_id: "enter-tavern".to_string(),
-    })
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::PlayerEntersLocation {
+                location_id,
+                location_name: "The Drowsy Dragon Inn".to_string(),
+            },
+            "Player enters tavern",
+            "enter-tavern",
+        )
+        .with_required(true),
+    )
     .with_priority(10);
 
     ctx.app
@@ -2168,25 +2190,29 @@ async fn test_alternate_branch_path() {
     .with_id(event_b_id)
     .with_description("Joined the scheme path")
     .with_scene_direction("You've thrown in your lot with the schemer")
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-            location_id,
-            location_name: "The Drowsy Dragon Inn".to_string(),
-        },
-        description: "Player in tavern".to_string(),
-        is_required: true,
-        trigger_id: "in-tavern-b".to_string(),
-    })
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::EventCompleted {
-            event_id: event_a_id,
-            event_name: "Alt Branch A - The Proposal".to_string(),
-            outcome_name: Some("accept".to_string()),
-        },
-        description: "Player joined the scheme".to_string(),
-        is_required: true,
-        trigger_id: "joined-scheme".to_string(),
-    })
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::PlayerEntersLocation {
+                location_id,
+                location_name: "The Drowsy Dragon Inn".to_string(),
+            },
+            "Player in tavern",
+            "in-tavern-b",
+        )
+        .with_required(true),
+    )
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::EventCompleted {
+                event_id: event_a_id,
+                event_name: "Alt Branch A - The Proposal".to_string(),
+                outcome_name: Some("accept".to_string()),
+            },
+            "Player joined the scheme",
+            "joined-scheme",
+        )
+        .with_required(true),
+    )
     .with_priority(10);
 
     ctx.app
@@ -2217,25 +2243,29 @@ async fn test_alternate_branch_path() {
     .with_id(event_c_id)
     .with_description("Rejected the scheme path")
     .with_scene_direction("You've made an enemy of the schemer")
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-            location_id,
-            location_name: "The Drowsy Dragon Inn".to_string(),
-        },
-        description: "Player in tavern".to_string(),
-        is_required: true,
-        trigger_id: "in-tavern-c".to_string(),
-    })
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::EventCompleted {
-            event_id: event_a_id,
-            event_name: "Alt Branch A - The Proposal".to_string(),
-            outcome_name: Some("refuse".to_string()),
-        },
-        description: "Player rejected the scheme".to_string(),
-        is_required: true,
-        trigger_id: "rejected-scheme".to_string(),
-    })
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::PlayerEntersLocation {
+                location_id,
+                location_name: "The Drowsy Dragon Inn".to_string(),
+            },
+            "Player in tavern",
+            "in-tavern-c",
+        )
+        .with_required(true),
+    )
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::EventCompleted {
+                event_id: event_a_id,
+                event_name: "Alt Branch A - The Proposal".to_string(),
+                outcome_name: Some("refuse".to_string()),
+            },
+            "Player rejected the scheme",
+            "rejected-scheme",
+        )
+        .with_required(true),
+    )
     .with_priority(10);
 
     ctx.app
@@ -2396,15 +2426,17 @@ async fn test_repeatable_chain_can_restart() {
     .with_id(event_id)
     .with_description("A daily quest that can be repeated")
     .with_scene_direction("The innkeeper has another task for you")
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-            location_id,
-            location_name: "The Drowsy Dragon Inn".to_string(),
-        },
-        description: "Player enters tavern".to_string(),
-        is_required: true,
-        trigger_id: "enter-tavern".to_string(),
-    })
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::PlayerEntersLocation {
+                location_id,
+                location_name: "The Drowsy Dragon Inn".to_string(),
+            },
+            "Player enters tavern",
+            "enter-tavern",
+        )
+        .with_required(true),
+    )
     .with_repeatable(true) // Mark as repeatable!
     .with_priority(10);
 
@@ -2636,15 +2668,17 @@ async fn test_one_time_chain_cannot_repeat() {
     .with_id(event_id)
     .with_description("A main quest that can only happen once")
     .with_scene_direction("The ancient prophecy is revealed")
-    .with_trigger_condition(NarrativeTrigger {
-        trigger_type: NarrativeTriggerType::PlayerEntersLocation {
-            location_id,
-            location_name: "The Drowsy Dragon Inn".to_string(),
-        },
-        description: "Player enters tavern".to_string(),
-        is_required: true,
-        trigger_id: "enter-tavern".to_string(),
-    })
+    .with_trigger_condition(
+        NarrativeTrigger::new(
+            NarrativeTriggerType::PlayerEntersLocation {
+                location_id,
+                location_name: "The Drowsy Dragon Inn".to_string(),
+            },
+            "Player enters tavern",
+            "enter-tavern",
+        )
+        .with_required(true),
+    )
     // NOTE: NOT calling .with_repeatable(true) - defaults to one-time
     .with_priority(10);
 

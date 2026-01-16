@@ -234,9 +234,9 @@ pub(super) async fn handle_perform_interaction(
         }
     };
 
-    if matches!(interaction.interaction_type, InteractionType::Dialogue) {
-        let npc_id = match interaction.target {
-            InteractionTarget::Character(id) => id,
+    if matches!(interaction.interaction_type(), InteractionType::Dialogue) {
+        let npc_id = match interaction.target() {
+            InteractionTarget::Character(id) => *id,
             _ => {
                 return Some(error_response(
                     "INVALID_TARGET",
@@ -286,8 +286,8 @@ pub(super) async fn handle_perform_interaction(
         });
     }
 
-    let target = interaction_target_label(&interaction.target);
-    let action_type = interaction_action_type(&interaction.interaction_type);
+    let target = interaction_target_label(&interaction.target());
+    let action_type = interaction_action_type(&interaction.interaction_type());
 
     let action_data = PlayerActionData {
         world_id,

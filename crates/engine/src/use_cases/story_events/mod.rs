@@ -80,18 +80,26 @@ impl StoryEventOps {
         summary: Option<String>,
         tags: Option<Vec<String>>,
     ) -> Result<StoryEventSummary, StoryEventError> {
-        let mut event = self
+        let event = self
             .narrative
             .get_story_event(event_id)
             .await?
             .ok_or(StoryEventError::NotFound)?;
 
-        if let Some(summary) = summary {
-            event.summary = summary;
-        }
-        if let Some(tags) = tags {
-            event.tags = tags;
-        }
+        // Rebuild event with updated fields using from_parts
+        let new_summary = summary.unwrap_or_else(|| event.summary().to_string());
+        let new_tags = tags.unwrap_or_else(|| event.tags().to_vec());
+
+        let event = wrldbldr_domain::StoryEvent::from_parts(
+            event.id(),
+            event.world_id(),
+            event.event_type().clone(),
+            event.timestamp(),
+            event.game_time().map(|s| s.to_string()),
+            new_summary,
+            event.is_hidden(),
+            new_tags,
+        );
 
         self.narrative.save_story_event(&event).await?;
         Ok(story_event_to_summary(event))
@@ -104,24 +112,20 @@ impl StoryEventOps {
         content: Option<String>,
     ) -> Result<Uuid, StoryEventError> {
         let now = self.narrative.now();
-        let event = wrldbldr_domain::StoryEvent {
-            id: StoryEventId::new(),
+        let event = wrldbldr_domain::StoryEvent::new(
             world_id,
-            event_type: StoryEventType::DmMarker {
+            StoryEventType::DmMarker {
                 title: title.clone(),
                 note: content.unwrap_or_default(),
                 importance: wrldbldr_domain::MarkerImportance::Notable,
                 marker_type: wrldbldr_domain::DmMarkerType::Note,
             },
-            timestamp: now,
-            game_time: None,
-            summary: "DM Marker".to_string(),
-            is_hidden: false,
-            tags: Vec::new(),
-        };
+            now,
+        )
+        .with_summary("DM Marker");
 
         self.narrative.save_story_event(&event).await?;
-        Ok(Uuid::from(event.id))
+        Ok(Uuid::from(event.id()))
     }
 
     pub async fn set_visibility(
@@ -129,12 +133,24 @@ impl StoryEventOps {
         event_id: StoryEventId,
         visible: bool,
     ) -> Result<StoryEventSummary, StoryEventError> {
-        let mut event = self
+        let event = self
             .narrative
             .get_story_event(event_id)
             .await?
             .ok_or(StoryEventError::NotFound)?;
-        event.is_hidden = !visible;
+
+        // Rebuild event with updated visibility using from_parts
+        let event = wrldbldr_domain::StoryEvent::from_parts(
+            event.id(),
+            event.world_id(),
+            event.event_type().clone(),
+            event.timestamp(),
+            event.game_time().map(|s| s.to_string()),
+            event.summary().to_string(),
+            !visible, // is_hidden = !visible
+            event.tags().to_vec(),
+        );
+
         self.narrative.save_story_event(&event).await?;
         Ok(story_event_to_summary(event))
     }
@@ -151,17 +167,17 @@ pub enum StoryEventError {
 fn story_event_to_summary(event: wrldbldr_domain::StoryEvent) -> StoryEventSummary {
     let type_name = event.type_name().to_string();
     StoryEventSummary {
-        id: event.id.to_string(),
-        world_id: event.world_id.to_string(),
+        id: event.id().to_string(),
+        world_id: event.world_id().to_string(),
         scene_id: None,
         location_id: None,
-        event_type: event.event_type,
-        timestamp: event.timestamp.to_rfc3339(),
-        game_time: event.game_time,
-        summary: event.summary,
+        event_type: event.event_type().clone(),
+        timestamp: event.timestamp().to_rfc3339(),
+        game_time: event.game_time().map(|s| s.to_string()),
+        summary: event.summary().to_string(),
         involved_characters: Vec::new(),
-        is_hidden: event.is_hidden,
-        tags: event.tags,
+        is_hidden: event.is_hidden(),
+        tags: event.tags().to_vec(),
         triggered_by: None,
         type_name,
     }

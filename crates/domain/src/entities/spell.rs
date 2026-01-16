@@ -14,40 +14,190 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct Spell {
     /// Unique identifier for this spell
-    pub id: String,
+    id: String,
     /// Which game system this spell belongs to (e.g., "dnd5e", "pf2e")
-    pub system_id: String,
+    system_id: String,
     /// Display name of the spell
-    pub name: String,
+    name: String,
     /// Spell level (cantrip = 0 for D&D-like systems)
-    pub level: SpellLevel,
+    level: SpellLevel,
     /// School of magic (e.g., "Evocation", "Necromancy")
-    pub school: Option<String>,
+    school: Option<String>,
     /// How long it takes to cast
-    pub casting_time: CastingTime,
+    casting_time: CastingTime,
     /// Range of the spell
-    pub range: SpellRange,
+    range: SpellRange,
     /// Required components (verbal, somatic, material)
-    pub components: SpellComponents,
+    components: SpellComponents,
     /// How long the spell lasts
-    pub duration: SpellDuration,
+    duration: SpellDuration,
     /// Full description of the spell's effects
-    pub description: String,
+    description: String,
     /// Description of effects when cast at higher levels
-    pub higher_levels: Option<String>,
+    higher_levels: Option<String>,
     /// Classes that can learn this spell
-    pub classes: Vec<String>,
+    classes: Vec<String>,
     /// Source book reference (e.g., "PHB p.211")
-    pub source: String,
+    source: String,
     /// Tags for filtering and categorization
     #[serde(default)]
-    pub tags: Vec<String>,
+    tags: Vec<String>,
     /// Whether this spell can be cast as a ritual
     #[serde(default)]
-    pub ritual: bool,
+    ritual: bool,
     /// Whether this spell requires concentration
     #[serde(default)]
-    pub concentration: bool,
+    concentration: bool,
+}
+
+impl Spell {
+    /// Create a new spell with required fields.
+    pub fn new(
+        id: impl Into<String>,
+        system_id: impl Into<String>,
+        name: impl Into<String>,
+        level: SpellLevel,
+        casting_time: CastingTime,
+        range: SpellRange,
+        components: SpellComponents,
+        duration: SpellDuration,
+        description: impl Into<String>,
+        classes: Vec<String>,
+        source: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            system_id: system_id.into(),
+            name: name.into(),
+            level,
+            school: None,
+            casting_time,
+            range,
+            components,
+            duration,
+            description: description.into(),
+            higher_levels: None,
+            classes,
+            source: source.into(),
+            tags: Vec::new(),
+            ritual: false,
+            concentration: false,
+        }
+    }
+
+    // Read-only accessors
+
+    /// Get the spell's unique identifier.
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Get the system ID this spell belongs to.
+    pub fn system_id(&self) -> &str {
+        &self.system_id
+    }
+
+    /// Get the spell's display name.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Get the spell's level.
+    pub fn level(&self) -> SpellLevel {
+        self.level
+    }
+
+    /// Get the school of magic.
+    pub fn school(&self) -> Option<&str> {
+        self.school.as_deref()
+    }
+
+    /// Get the casting time.
+    pub fn casting_time(&self) -> &CastingTime {
+        &self.casting_time
+    }
+
+    /// Get the spell's range.
+    pub fn range(&self) -> &SpellRange {
+        &self.range
+    }
+
+    /// Get the required components.
+    pub fn components(&self) -> &SpellComponents {
+        &self.components
+    }
+
+    /// Get the spell's duration.
+    pub fn duration(&self) -> &SpellDuration {
+        &self.duration
+    }
+
+    /// Get the spell's description.
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    /// Get the higher levels description.
+    pub fn higher_levels(&self) -> Option<&str> {
+        self.higher_levels.as_deref()
+    }
+
+    /// Get the classes that can learn this spell.
+    pub fn classes(&self) -> &[String] {
+        &self.classes
+    }
+
+    /// Get the source book reference.
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+
+    /// Get the tags for filtering.
+    pub fn tags(&self) -> &[String] {
+        &self.tags
+    }
+
+    /// Check if this spell can be cast as a ritual.
+    pub fn ritual(&self) -> bool {
+        self.ritual
+    }
+
+    /// Check if this spell requires concentration.
+    pub fn concentration(&self) -> bool {
+        self.concentration
+    }
+
+    // Builder-style methods for optional fields
+
+    /// Set the school of magic.
+    pub fn with_school(mut self, school: impl Into<String>) -> Self {
+        self.school = Some(school.into());
+        self
+    }
+
+    /// Set the higher levels description.
+    pub fn with_higher_levels(mut self, higher_levels: impl Into<String>) -> Self {
+        self.higher_levels = Some(higher_levels.into());
+        self
+    }
+
+    /// Set the tags.
+    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+        self.tags = tags;
+        self
+    }
+
+    /// Set whether the spell is a ritual.
+    pub fn with_ritual(mut self, ritual: bool) -> Self {
+        self.ritual = ritual;
+        self
+    }
+
+    /// Set whether the spell requires concentration.
+    pub fn with_concentration(mut self, concentration: bool) -> Self {
+        self.concentration = concentration;
+        self
+    }
 }
 
 /// Spell level representation.
@@ -90,27 +240,44 @@ impl From<u8> for SpellLevel {
 #[serde(rename_all = "camelCase")]
 pub struct CastingTime {
     /// The amount of time
-    pub amount: u32,
+    amount: u32,
     /// The unit of time
-    pub unit: CastingTimeUnit,
+    unit: CastingTimeUnit,
     /// Additional condition (e.g., "which you take when..." for reactions)
-    pub condition: Option<String>,
-}
-
-/// Unit of time for casting.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum CastingTimeUnit {
-    Action,
-    BonusAction,
-    Reaction,
-    Minute,
-    Hour,
-    /// Special timing (e.g., "special", "see text")
-    Special,
+    condition: Option<String>,
 }
 
 impl CastingTime {
+    /// Create a new casting time.
+    pub fn new(amount: u32, unit: CastingTimeUnit) -> Self {
+        Self {
+            amount,
+            unit,
+            condition: None,
+        }
+    }
+
+    /// Get the amount of time.
+    pub fn amount(&self) -> u32 {
+        self.amount
+    }
+
+    /// Get the unit of time.
+    pub fn unit(&self) -> CastingTimeUnit {
+        self.unit
+    }
+
+    /// Get the additional condition.
+    pub fn condition(&self) -> Option<&str> {
+        self.condition.as_deref()
+    }
+
+    /// Set a condition for the casting time.
+    pub fn with_condition(mut self, condition: impl Into<String>) -> Self {
+        self.condition = Some(condition.into());
+        self
+    }
+
     /// Create a standard action casting time.
     pub fn action() -> Self {
         Self {
@@ -155,6 +322,19 @@ impl CastingTime {
             condition: None,
         }
     }
+}
+
+/// Unit of time for casting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CastingTimeUnit {
+    Action,
+    BonusAction,
+    Reaction,
+    Minute,
+    Hour,
+    /// Special timing (e.g., "special", "see text")
+    Special,
 }
 
 /// Range of a spell.
@@ -211,17 +391,55 @@ impl SpellRange {
 pub struct SpellComponents {
     /// Requires verbal component
     #[serde(default)]
-    pub verbal: bool,
+    verbal: bool,
     /// Requires somatic component
     #[serde(default)]
-    pub somatic: bool,
+    somatic: bool,
     /// Material component details
-    pub material: Option<MaterialComponent>,
+    material: Option<MaterialComponent>,
 }
 
 impl SpellComponents {
+    /// Create empty spell components.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Check if verbal component is required.
+    pub fn verbal(&self) -> bool {
+        self.verbal
+    }
+
+    /// Check if somatic component is required.
+    pub fn somatic(&self) -> bool {
+        self.somatic
+    }
+
+    /// Get the material component details.
+    pub fn material(&self) -> Option<&MaterialComponent> {
+        self.material.as_ref()
+    }
+
+    /// Set the verbal component requirement.
+    pub fn with_verbal(mut self, verbal: bool) -> Self {
+        self.verbal = verbal;
+        self
+    }
+
+    /// Set the somatic component requirement.
+    pub fn with_somatic(mut self, somatic: bool) -> Self {
+        self.somatic = somatic;
+        self
+    }
+
+    /// Set the material component.
+    pub fn with_material(mut self, material: MaterialComponent) -> Self {
+        self.material = Some(material);
+        self
+    }
+
     /// Create components with just verbal.
-    pub fn verbal() -> Self {
+    pub fn verbal_only() -> Self {
         Self {
             verbal: true,
             somatic: false,
@@ -243,11 +461,7 @@ impl SpellComponents {
         Self {
             verbal: true,
             somatic: true,
-            material: Some(MaterialComponent {
-                description: material.into(),
-                consumed: false,
-                cost: None,
-            }),
+            material: Some(MaterialComponent::new(material)),
         }
     }
 }
@@ -257,12 +471,50 @@ impl SpellComponents {
 #[serde(rename_all = "camelCase")]
 pub struct MaterialComponent {
     /// Description of the material
-    pub description: String,
+    description: String,
     /// Whether the material is consumed by the spell
     #[serde(default)]
-    pub consumed: bool,
+    consumed: bool,
     /// Cost in gold pieces (if any)
-    pub cost: Option<u32>,
+    cost: Option<u32>,
+}
+
+impl MaterialComponent {
+    /// Create a new material component.
+    pub fn new(description: impl Into<String>) -> Self {
+        Self {
+            description: description.into(),
+            consumed: false,
+            cost: None,
+        }
+    }
+
+    /// Get the material description.
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    /// Check if the material is consumed.
+    pub fn consumed(&self) -> bool {
+        self.consumed
+    }
+
+    /// Get the cost in gold pieces.
+    pub fn cost(&self) -> Option<u32> {
+        self.cost
+    }
+
+    /// Set whether the material is consumed.
+    pub fn with_consumed(mut self, consumed: bool) -> Self {
+        self.consumed = consumed;
+        self
+    }
+
+    /// Set the cost in gold pieces.
+    pub fn with_cost(mut self, cost: u32) -> Self {
+        self.cost = Some(cost);
+        self
+    }
 }
 
 /// How long a spell's effects last.
@@ -369,37 +621,61 @@ mod tests {
 
     #[test]
     fn spell_equality() {
-        let spell = Spell {
-            id: "dnd5e_fireball".into(),
-            system_id: "dnd5e".into(),
-            name: "Fireball".into(),
-            level: SpellLevel::Level(3),
-            school: Some("Evocation".into()),
-            casting_time: CastingTime::action(),
-            range: SpellRange::feet(150),
-            components: SpellComponents::all("a tiny ball of bat guano and sulfur"),
-            duration: SpellDuration::instantaneous(),
-            description: "A bright streak flashes...".into(),
-            higher_levels: Some("When cast at 4th level or higher...".into()),
-            classes: vec!["sorcerer".into(), "wizard".into()],
-            source: "PHB p.241".into(),
-            tags: vec!["damage".into(), "fire".into()],
-            ritual: false,
-            concentration: false,
-        };
+        let spell = Spell::new(
+            "dnd5e_fireball",
+            "dnd5e",
+            "Fireball",
+            SpellLevel::Level(3),
+            CastingTime::action(),
+            SpellRange::feet(150),
+            SpellComponents::all("a tiny ball of bat guano and sulfur"),
+            SpellDuration::instantaneous(),
+            "A bright streak flashes...",
+            vec!["sorcerer".into(), "wizard".into()],
+            "PHB p.241",
+        )
+        .with_school("Evocation")
+        .with_higher_levels("When cast at 4th level or higher...")
+        .with_tags(vec!["damage".into(), "fire".into()]);
 
         let other = spell.clone();
         assert_eq!(spell, other);
     }
 
     #[test]
+    fn spell_accessors() {
+        let spell = Spell::new(
+            "test_spell",
+            "test_system",
+            "Test Spell",
+            SpellLevel::Level(1),
+            CastingTime::action(),
+            SpellRange::touch(),
+            SpellComponents::verbal_somatic(),
+            SpellDuration::minutes(10),
+            "Test description",
+            vec!["wizard".into()],
+            "Test Source",
+        )
+        .with_ritual(true)
+        .with_concentration(true);
+
+        assert_eq!(spell.id(), "test_spell");
+        assert_eq!(spell.system_id(), "test_system");
+        assert_eq!(spell.name(), "Test Spell");
+        assert_eq!(spell.level(), SpellLevel::Level(1));
+        assert!(spell.ritual());
+        assert!(spell.concentration());
+    }
+
+    #[test]
     fn casting_time_constructors() {
-        assert_eq!(CastingTime::action().unit, CastingTimeUnit::Action);
+        assert_eq!(CastingTime::action().unit(), CastingTimeUnit::Action);
         assert_eq!(
-            CastingTime::bonus_action().unit,
+            CastingTime::bonus_action().unit(),
             CastingTimeUnit::BonusAction
         );
-        assert_eq!(CastingTime::minutes(10).amount, 10);
+        assert_eq!(CastingTime::minutes(10).amount(), 10);
     }
 
     #[test]
@@ -413,5 +689,24 @@ mod tests {
             SpellRange::feet(60),
             SpellRange::Feet { distance: 60 }
         ));
+    }
+
+    #[test]
+    fn spell_components_accessors() {
+        let components = SpellComponents::all("diamond dust worth 100 gp");
+        assert!(components.verbal());
+        assert!(components.somatic());
+        assert!(components.material().is_some());
+    }
+
+    #[test]
+    fn material_component_builder() {
+        let material = MaterialComponent::new("diamond")
+            .with_consumed(true)
+            .with_cost(500);
+
+        assert_eq!(material.description(), "diamond");
+        assert!(material.consumed());
+        assert_eq!(material.cost(), Some(500));
     }
 }

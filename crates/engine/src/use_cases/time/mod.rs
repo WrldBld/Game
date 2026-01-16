@@ -239,9 +239,9 @@ impl TimeControl {
         let result = self.world.advance_time(world_id, minutes, reason).await?;
 
         Ok(TimeAdvanceOutcome {
-            previous_time: result.previous_time,
-            new_time: result.new_time,
-            minutes_advanced: result.minutes_advanced,
+            previous_time: result.previous_time().clone(),
+            new_time: result.new_time().clone(),
+            minutes_advanced: result.minutes_advanced(),
         })
     }
 

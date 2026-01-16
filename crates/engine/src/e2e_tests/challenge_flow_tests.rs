@@ -699,14 +699,14 @@ async fn test_active_challenges_in_prompt_context() {
         assert!(!challenges.is_empty(), "Should have seeded challenges");
 
         // Check that at least one is active
-        let active_count = challenges.iter().filter(|c| c.active).count();
+        let active_count = challenges.iter().filter(|c| c.active()).count();
         assert!(active_count > 0, "Should have active challenges");
 
         // Verify challenge has required fields populated
         for challenge in &challenges {
-            assert!(!challenge.name.is_empty(), "Challenge should have name");
+            assert!(!challenge.name().is_empty(), "Challenge should have name");
             assert!(
-                !challenge.description.is_empty(),
+                !challenge.description().is_empty(),
                 "Challenge should have description"
             );
         }

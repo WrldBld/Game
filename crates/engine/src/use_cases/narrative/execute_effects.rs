@@ -469,8 +469,8 @@ impl ExecuteEffects {
         // Find the item in PC's inventory by name
         match self.inventory.get_pc_inventory(pc_id).await {
             Ok(inventory) => {
-                if let Some(item) = inventory.iter().find(|i| i.name == item_name) {
-                    let item_id = item.id;
+                if let Some(item) = inventory.iter().find(|i| i.name() == item_name) {
+                    let item_id = item.id();
                     // For now, just drop it (removes from inventory)
                     match self.inventory.drop_item(pc_id, item_id, quantity).await {
                         Ok(_) => EffectExecutionResult {

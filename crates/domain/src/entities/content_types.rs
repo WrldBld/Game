@@ -39,13 +39,13 @@ impl SourceType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContentSource {
     /// Short code (e.g., "PHB", "XGE", "TCE", "Homebrew")
-    pub code: String,
+    code: String,
     /// Full name (e.g., "Player's Handbook", "Xanathar's Guide to Everything")
-    pub name: String,
+    name: String,
     /// Source type for categorization
-    pub source_type: SourceType,
+    source_type: SourceType,
     /// Page reference (optional)
-    pub page: Option<u32>,
+    page: Option<u32>,
 }
 
 impl ContentSource {
@@ -102,9 +102,32 @@ impl ContentSource {
         }
     }
 
+    // Read accessors
+    pub fn code(&self) -> &str {
+        &self.code
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn source_type(&self) -> &SourceType {
+        &self.source_type
+    }
+
+    pub fn page(&self) -> Option<u32> {
+        self.page
+    }
+
+    // Builder methods
     /// Add a page reference.
     pub fn with_page(mut self, page: u32) -> Self {
         self.page = Some(page);
+        self
+    }
+
+    pub fn with_source_type(mut self, source_type: SourceType) -> Self {
+        self.source_type = source_type;
         self
     }
 
@@ -122,9 +145,9 @@ impl ContentSource {
 /// Generic content types across all game systems.
 ///
 /// Each game system maps its specific content to these abstract types:
-/// - D&D: Race → CharacterOrigin, Class → CharacterClass
-/// - PF2e: Ancestry → CharacterOrigin, Class → CharacterClass
-/// - Blades: Playbook → CharacterClass
+/// - D&D: Race -> CharacterOrigin, Class -> CharacterClass
+/// - PF2e: Ancestry -> CharacterOrigin, Class -> CharacterClass
+/// - Blades: Playbook -> CharacterClass
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ContentType {

@@ -302,8 +302,8 @@ impl LoreOps {
         self.lore.save(&lore).await?;
 
         Ok(CreateLoreResult {
-            id: lore.id.to_string(),
-            title: lore.title,
+            id: lore.id().to_string(),
+            title: lore.title().to_string(),
         })
     }
 
@@ -312,32 +312,48 @@ impl LoreOps {
         lore_id: LoreId,
         input: UpdateLoreInput,
     ) -> Result<UpdateLoreResult, LoreError> {
-        let mut lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
+        let lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
-        if let Some(title) = input.title.as_ref() {
-            lore.title = title.clone();
-        }
-        if let Some(summary) = input.summary.as_ref() {
-            lore.summary = summary.clone();
-        }
-        if let Some(category_str) = input.category.as_ref() {
-            lore.category = category_str.parse::<LoreCategory>().map_err(
+        // Parse category if provided
+        let new_category = if let Some(category_str) = input.category.as_ref() {
+            Some(category_str.parse::<LoreCategory>().map_err(
                 |e: wrldbldr_domain::DomainError| LoreError::InvalidCategory(e.to_string()),
-            )?;
-        }
-        if let Some(tags) = input.tags.as_ref() {
-            lore.tags = tags.clone();
-        }
-        if let Some(is_common) = input.is_common_knowledge {
-            lore.is_common_knowledge = is_common;
-        }
-        lore.updated_at = self.lore.now();
+            )?)
+        } else {
+            None
+        };
 
-        self.lore.save(&lore).await?;
+        // Build updated lore using builder pattern
+        let now = self.lore.now();
+        let mut updated_lore = wrldbldr_domain::Lore::new(
+            lore.world_id(),
+            input.title.as_ref().unwrap_or(&lore.title().to_string()),
+            new_category.unwrap_or(lore.category()),
+            lore.created_at(),
+        )
+        .with_id(lore.id())
+        .with_summary(
+            input
+                .summary
+                .as_ref()
+                .unwrap_or(&lore.summary().to_string()),
+        )
+        .with_chunks(lore.chunks().to_vec())
+        .with_tags(input.tags.clone().unwrap_or_else(|| lore.tags().to_vec()))
+        .with_timestamps(lore.created_at(), now);
+
+        if input
+            .is_common_knowledge
+            .unwrap_or(lore.is_common_knowledge())
+        {
+            updated_lore = updated_lore.as_common_knowledge();
+        }
+
+        self.lore.save(&updated_lore).await?;
 
         Ok(UpdateLoreResult {
-            id: lore.id.to_string(),
-            title: lore.title,
+            id: updated_lore.id().to_string(),
+            title: updated_lore.title().to_string(),
         })
     }
 
@@ -359,22 +375,22 @@ impl LoreOps {
         lore_id: LoreId,
         input: CreateLoreChunkInput,
     ) -> Result<AddChunkResult, LoreError> {
-        let mut lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
+        let lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
         // Determine the order: use provided order or auto-assign next sequential
         let order = match input.order {
             Some(provided_order) => {
                 // Validate that the provided order is unique
-                if lore.chunks.iter().any(|c| c.order == provided_order) {
+                if lore.chunks().iter().any(|c| c.order() == provided_order) {
                     return Err(LoreError::DuplicateChunkOrder(provided_order));
                 }
                 provided_order
             }
             None => {
                 // Auto-assign next sequential order
-                lore.chunks
+                lore.chunks()
                     .iter()
-                    .map(|c| c.order)
+                    .map(|c| c.order())
                     .max()
                     .map_or(0, |max| max + 1)
             }
@@ -388,11 +404,30 @@ impl LoreOps {
             chunk = chunk.with_discovery_hint(hint);
         }
 
-        let chunk_id = chunk.id.to_string();
-        lore.chunks.push(chunk);
-        lore.updated_at = self.lore.now();
+        let chunk_id = chunk.id().to_string();
 
-        self.lore.save(&lore).await?;
+        // Rebuild lore with new chunk
+        let now = self.lore.now();
+        let mut chunks = lore.chunks().to_vec();
+        chunks.push(chunk);
+
+        let mut updated_lore = wrldbldr_domain::Lore::new(
+            lore.world_id(),
+            lore.title(),
+            lore.category(),
+            lore.created_at(),
+        )
+        .with_id(lore.id())
+        .with_summary(lore.summary())
+        .with_chunks(chunks)
+        .with_tags(lore.tags().to_vec())
+        .with_timestamps(lore.created_at(), now);
+
+        if lore.is_common_knowledge() {
+            updated_lore = updated_lore.as_common_knowledge();
+        }
+
+        self.lore.save(&updated_lore).await?;
 
         Ok(AddChunkResult { chunk_id })
     }
@@ -403,49 +438,85 @@ impl LoreOps {
         chunk_id: LoreChunkId,
         input: UpdateLoreChunkInput,
     ) -> Result<UpdateChunkResult, LoreError> {
-        let mut lore = self
+        let lore = self
             .lore
             .list_for_world(world_id)
             .await?
             .into_iter()
-            .find(|l| l.chunks.iter().any(|c| c.id == chunk_id))
+            .find(|l| l.chunks().iter().any(|c| c.id() == chunk_id))
             .ok_or(LoreError::ChunkNotFound)?;
 
         // Validate that new order doesn't conflict with other chunks
         if let Some(new_order) = input.order {
             let conflicts = lore
-                .chunks
+                .chunks()
                 .iter()
-                .any(|c| c.id != chunk_id && c.order == new_order);
+                .any(|c| c.id() != chunk_id && c.order() == new_order);
             if conflicts {
                 return Err(LoreError::DuplicateChunkOrder(new_order));
             }
         }
 
-        let chunk = lore
-            .chunks
-            .iter_mut()
-            .find(|c| c.id == chunk_id)
+        let old_chunk = lore
+            .chunks()
+            .iter()
+            .find(|c| c.id() == chunk_id)
             .ok_or(LoreError::ChunkNotFound)?;
 
+        // Build updated chunk
+        let content = input
+            .content
+            .as_ref()
+            .map(|s| s.as_str())
+            .unwrap_or(old_chunk.content());
+        let mut new_chunk = wrldbldr_domain::LoreChunk::new(content)
+            .with_id(chunk_id)
+            .with_order(input.order.unwrap_or(old_chunk.order()));
+
+        // Apply title - use input if provided, otherwise keep existing
         if let Some(title) = input.title.as_ref() {
-            chunk.title = Some(title.clone());
-        }
-        if let Some(content) = input.content.as_ref() {
-            chunk.content = content.clone();
-        }
-        if let Some(order) = input.order {
-            chunk.order = order;
-        }
-        if let Some(hint) = input.discovery_hint.as_ref() {
-            chunk.discovery_hint = Some(hint.clone());
+            new_chunk = new_chunk.with_title(title);
+        } else if let Some(existing_title) = old_chunk.title() {
+            new_chunk = new_chunk.with_title(existing_title);
         }
 
-        lore.updated_at = self.lore.now();
-        self.lore.save(&lore).await?;
+        // Apply discovery hint - use input if provided, otherwise keep existing
+        if let Some(hint) = input.discovery_hint.as_ref() {
+            new_chunk = new_chunk.with_discovery_hint(hint);
+        } else if let Some(existing_hint) = old_chunk.discovery_hint() {
+            new_chunk = new_chunk.with_discovery_hint(existing_hint);
+        }
+
+        // Rebuild chunks list with updated chunk
+        let mut chunks: Vec<_> = lore
+            .chunks()
+            .iter()
+            .filter(|c| c.id() != chunk_id)
+            .cloned()
+            .collect();
+        chunks.push(new_chunk);
+
+        let now = self.lore.now();
+        let mut updated_lore = wrldbldr_domain::Lore::new(
+            lore.world_id(),
+            lore.title(),
+            lore.category(),
+            lore.created_at(),
+        )
+        .with_id(lore.id())
+        .with_summary(lore.summary())
+        .with_chunks(chunks)
+        .with_tags(lore.tags().to_vec())
+        .with_timestamps(lore.created_at(), now);
+
+        if lore.is_common_knowledge() {
+            updated_lore = updated_lore.as_common_knowledge();
+        }
+
+        self.lore.save(&updated_lore).await?;
 
         Ok(UpdateChunkResult {
-            lore_id: lore.id.to_string(),
+            lore_id: lore.id().to_string(),
             chunk_id: chunk_id.to_string(),
         })
     }
@@ -455,32 +526,78 @@ impl LoreOps {
         world_id: WorldId,
         chunk_id: LoreChunkId,
     ) -> Result<DeleteChunkResult, LoreError> {
-        let mut lore = self
+        let lore = self
             .lore
             .list_for_world(world_id)
             .await?
             .into_iter()
-            .find(|l| l.chunks.iter().any(|c| c.id == chunk_id))
+            .find(|l| l.chunks().iter().any(|c| c.id() == chunk_id))
             .ok_or(LoreError::ChunkNotFound)?;
 
-        let before = lore.chunks.len();
-        lore.chunks.retain(|c| c.id != chunk_id);
-        if lore.chunks.len() == before {
+        let before = lore.chunks().len();
+        let mut remaining_chunks: Vec<_> = lore
+            .chunks()
+            .iter()
+            .filter(|c| c.id() != chunk_id)
+            .cloned()
+            .collect();
+        if remaining_chunks.len() == before {
             return Err(LoreError::ChunkNotFound);
         }
 
         // Re-index remaining chunks to maintain sequential order (0, 1, 2, ...)
-        lore.chunks.sort_by_key(|c| c.order);
-        for (i, chunk) in lore.chunks.iter_mut().enumerate() {
-            chunk.order = i as u32;
+        remaining_chunks.sort_by_key(|c| c.order());
+        let reindexed_chunks: Vec<_> = remaining_chunks
+            .into_iter()
+            .enumerate()
+            .map(|(i, c)| {
+                wrldbldr_domain::LoreChunk::new(c.content())
+                    .with_id(c.id())
+                    .with_order(i as u32)
+                    .with_title(c.title().unwrap_or(""))
+                    .with_discovery_hint(c.discovery_hint().unwrap_or(""))
+            })
+            .map(|c| {
+                // Remove empty title/hint
+                let mut chunk = wrldbldr_domain::LoreChunk::new(c.content())
+                    .with_id(c.id())
+                    .with_order(c.order());
+                if let Some(title) = c.title() {
+                    if !title.is_empty() {
+                        chunk = chunk.with_title(title);
+                    }
+                }
+                if let Some(hint) = c.discovery_hint() {
+                    if !hint.is_empty() {
+                        chunk = chunk.with_discovery_hint(hint);
+                    }
+                }
+                chunk
+            })
+            .collect();
+
+        let now = self.lore.now();
+        let mut updated_lore = wrldbldr_domain::Lore::new(
+            lore.world_id(),
+            lore.title(),
+            lore.category(),
+            lore.created_at(),
+        )
+        .with_id(lore.id())
+        .with_summary(lore.summary())
+        .with_chunks(reindexed_chunks)
+        .with_tags(lore.tags().to_vec())
+        .with_timestamps(lore.created_at(), now);
+
+        if lore.is_common_knowledge() {
+            updated_lore = updated_lore.as_common_knowledge();
         }
 
-        lore.updated_at = self.lore.now();
-        self.lore.save(&lore).await?;
+        self.lore.save(&updated_lore).await?;
 
         Ok(DeleteChunkResult {
             deleted: true,
-            lore_id: lore.id.to_string(),
+            lore_id: lore.id().to_string(),
             chunk_id: chunk_id.to_string(),
         })
     }
@@ -498,7 +615,7 @@ impl LoreOps {
         // If chunk_ids are provided, validate they exist in the lore
         if let Some(ref ids) = chunk_ids {
             let valid_chunk_ids: std::collections::HashSet<_> =
-                lore.chunks.iter().map(|c| c.id).collect();
+                lore.chunks().iter().map(|c| c.id()).collect();
             let invalid_ids: Vec<_> = ids
                 .iter()
                 .filter(|id| !valid_chunk_ids.contains(id))
@@ -538,7 +655,7 @@ impl LoreOps {
                 let lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
                 let valid_chunk_ids: std::collections::HashSet<_> =
-                    lore.chunks.iter().map(|c| c.id).collect();
+                    lore.chunks().iter().map(|c| c.id()).collect();
                 let invalid_ids: Vec<_> = ids
                     .iter()
                     .filter(|id| !valid_chunk_ids.contains(id))
@@ -583,11 +700,15 @@ impl LoreOps {
         Ok(knowledge_list
             .into_iter()
             .map(|k| CharacterLoreInfo {
-                lore_id: k.lore_id.to_string(),
-                character_id: k.character_id.to_string(),
-                known_chunk_ids: k.known_chunk_ids.iter().map(|id| id.to_string()).collect(),
-                discovered_at: k.discovered_at.to_rfc3339(),
-                notes: k.notes,
+                lore_id: k.lore_id().to_string(),
+                character_id: k.character_id().to_string(),
+                known_chunk_ids: k
+                    .known_chunk_ids()
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect(),
+                discovered_at: k.discovered_at().to_rfc3339(),
+                notes: k.notes().map(|s| s.to_string()),
             })
             .collect())
     }
@@ -600,9 +721,13 @@ impl LoreOps {
         Ok(knowledge_list
             .into_iter()
             .map(|k| LoreKnowerInfo {
-                character_id: k.character_id.to_string(),
-                known_chunk_ids: k.known_chunk_ids.iter().map(|id| id.to_string()).collect(),
-                discovered_at: k.discovered_at.to_rfc3339(),
+                character_id: k.character_id().to_string(),
+                known_chunk_ids: k
+                    .known_chunk_ids()
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect(),
+                discovered_at: k.discovered_at().to_rfc3339(),
             })
             .collect())
     }
@@ -663,43 +788,43 @@ fn lore_discovery_source(
 
 fn lore_to_summary(lore: wrldbldr_domain::Lore) -> LoreSummary {
     LoreSummary {
-        id: lore.id.to_string(),
-        world_id: lore.world_id.to_string(),
-        title: lore.title,
-        summary: lore.summary,
-        category: format!("{}", lore.category),
-        is_common_knowledge: lore.is_common_knowledge,
-        tags: lore.tags,
-        chunk_count: lore.chunks.len(),
-        created_at: lore.created_at.to_rfc3339(),
-        updated_at: lore.updated_at.to_rfc3339(),
+        id: lore.id().to_string(),
+        world_id: lore.world_id().to_string(),
+        title: lore.title().to_string(),
+        summary: lore.summary().to_string(),
+        category: format!("{}", lore.category()),
+        is_common_knowledge: lore.is_common_knowledge(),
+        tags: lore.tags().to_vec(),
+        chunk_count: lore.chunks().len(),
+        created_at: lore.created_at().to_rfc3339(),
+        updated_at: lore.updated_at().to_rfc3339(),
     }
 }
 
 fn lore_to_detail(lore: wrldbldr_domain::Lore) -> LoreDetail {
     let chunks: Vec<LoreChunkDetail> = lore
-        .chunks
+        .chunks()
         .iter()
         .map(|c| LoreChunkDetail {
-            id: c.id.to_string(),
-            order: c.order,
-            title: c.title.clone(),
-            content: c.content.clone(),
-            discovery_hint: c.discovery_hint.clone(),
+            id: c.id().to_string(),
+            order: c.order(),
+            title: c.title().map(|s| s.to_string()),
+            content: c.content().to_string(),
+            discovery_hint: c.discovery_hint().map(|s| s.to_string()),
         })
         .collect();
 
     LoreDetail {
-        id: lore.id.to_string(),
-        world_id: lore.world_id.to_string(),
-        title: lore.title,
-        summary: lore.summary,
-        category: format!("{}", lore.category),
-        is_common_knowledge: lore.is_common_knowledge,
-        tags: lore.tags,
+        id: lore.id().to_string(),
+        world_id: lore.world_id().to_string(),
+        title: lore.title().to_string(),
+        summary: lore.summary().to_string(),
+        category: format!("{}", lore.category()),
+        is_common_knowledge: lore.is_common_knowledge(),
+        tags: lore.tags().to_vec(),
         chunks,
-        created_at: lore.created_at.to_rfc3339(),
-        updated_at: lore.updated_at.to_rfc3339(),
+        created_at: lore.created_at().to_rfc3339(),
+        updated_at: lore.updated_at().to_rfc3339(),
     }
 }
 
@@ -724,13 +849,14 @@ mod tests {
         world_id: WorldId,
         chunk_orders: &[u32],
     ) -> wrldbldr_domain::Lore {
-        let mut lore = create_test_lore(world_id);
-        for &order in chunk_orders {
-            let chunk =
-                wrldbldr_domain::LoreChunk::new(&format!("Content {}", order)).with_order(order);
-            lore.chunks.push(chunk);
-        }
-        lore
+        let lore = create_test_lore(world_id);
+        let chunks: Vec<_> = chunk_orders
+            .iter()
+            .map(|&order| {
+                wrldbldr_domain::LoreChunk::new(&format!("Content {}", order)).with_order(order)
+            })
+            .collect();
+        lore.with_chunks(chunks)
     }
 
     // ==========================================================================
@@ -741,7 +867,7 @@ mod tests {
     async fn add_chunk_rejects_duplicate_order() {
         let world_id = WorldId::new();
         let lore = create_test_lore_with_chunks(world_id, &[0, 1, 2]);
-        let lore_id = lore.id;
+        let lore_id = lore.id();
 
         let mut mock_repo = MockLoreRepo::new();
         mock_repo
@@ -769,7 +895,7 @@ mod tests {
     async fn add_chunk_auto_assigns_next_order() {
         let world_id = WorldId::new();
         let lore = create_test_lore_with_chunks(world_id, &[0, 1, 2]);
-        let lore_id = lore.id;
+        let lore_id = lore.id();
 
         let mut mock_repo = MockLoreRepo::new();
         mock_repo
@@ -778,8 +904,8 @@ mod tests {
             .returning(move |_| Ok(Some(lore.clone())));
         mock_repo.expect_save().returning(|saved_lore| {
             // Verify the new chunk has order 3 (next after 0,1,2)
-            let new_chunk = saved_lore.chunks.last().unwrap();
-            assert_eq!(new_chunk.order, 3);
+            let new_chunk = saved_lore.chunks().last().unwrap();
+            assert_eq!(new_chunk.order(), 3);
             Ok(())
         });
 
@@ -802,7 +928,7 @@ mod tests {
     async fn update_chunk_rejects_conflicting_order() {
         let world_id = WorldId::new();
         let lore = create_test_lore_with_chunks(world_id, &[0, 1, 2]);
-        let chunk_id = lore.chunks[2].id; // Chunk with order 2
+        let chunk_id = lore.chunks()[2].id(); // Chunk with order 2
 
         let mut mock_repo = MockLoreRepo::new();
         mock_repo
@@ -829,7 +955,7 @@ mod tests {
     async fn delete_chunk_reindexes_remaining() {
         let world_id = WorldId::new();
         let lore = create_test_lore_with_chunks(world_id, &[0, 1, 2]);
-        let chunk_to_delete = lore.chunks[1].id; // Delete middle chunk (order 1)
+        let chunk_to_delete = lore.chunks()[1].id(); // Delete middle chunk (order 1)
 
         let mut mock_repo = MockLoreRepo::new();
         mock_repo
@@ -837,9 +963,9 @@ mod tests {
             .returning(move |_| Ok(vec![lore.clone()]));
         mock_repo.expect_save().returning(|saved_lore| {
             // After deleting chunk with order 1, remaining should be reindexed to 0, 1
-            assert_eq!(saved_lore.chunks.len(), 2);
-            assert_eq!(saved_lore.chunks[0].order, 0);
-            assert_eq!(saved_lore.chunks[1].order, 1);
+            assert_eq!(saved_lore.chunks().len(), 2);
+            assert_eq!(saved_lore.chunks()[0].order(), 0);
+            assert_eq!(saved_lore.chunks()[1].order(), 1);
             Ok(())
         });
 
@@ -859,7 +985,7 @@ mod tests {
     async fn revoke_with_empty_chunk_list_fails() {
         let world_id = WorldId::new();
         let lore = create_test_lore(world_id);
-        let lore_id = lore.id;
+        let lore_id = lore.id();
         let character_id = CharacterId::new();
 
         let mock_repo = MockLoreRepo::new();
@@ -879,7 +1005,7 @@ mod tests {
     async fn revoke_with_none_does_full_revocation() {
         let world_id = WorldId::new();
         let lore = create_test_lore(world_id);
-        let lore_id = lore.id;
+        let lore_id = lore.id();
         let character_id = CharacterId::new();
 
         let mut mock_repo = MockLoreRepo::new();
@@ -908,7 +1034,7 @@ mod tests {
     async fn revoke_with_invalid_chunk_ids_fails() {
         let world_id = WorldId::new();
         let lore = create_test_lore_with_chunks(world_id, &[0, 1]);
-        let lore_id = lore.id;
+        let lore_id = lore.id();
         let character_id = CharacterId::new();
         let invalid_chunk_id = LoreChunkId::new();
 
@@ -976,10 +1102,10 @@ mod tests {
         let mut mock_repo = MockLoreRepo::new();
         mock_repo.expect_save().returning(|saved_lore| {
             // Verify auto-assigned orders are sequential starting from 0
-            assert_eq!(saved_lore.chunks.len(), 3);
-            assert_eq!(saved_lore.chunks[0].order, 0);
-            assert_eq!(saved_lore.chunks[1].order, 1);
-            assert_eq!(saved_lore.chunks[2].order, 2);
+            assert_eq!(saved_lore.chunks().len(), 3);
+            assert_eq!(saved_lore.chunks()[0].order(), 0);
+            assert_eq!(saved_lore.chunks()[1].order(), 1);
+            assert_eq!(saved_lore.chunks()[2].order(), 2);
             Ok(())
         });
 
@@ -1028,10 +1154,10 @@ mod tests {
             // First chunk: explicit order 5
             // Second chunk: auto-assign (should get 0, first available)
             // Third chunk: explicit order 2
-            assert_eq!(saved_lore.chunks.len(), 3);
-            assert_eq!(saved_lore.chunks[0].order, 5);
-            assert_eq!(saved_lore.chunks[1].order, 0);
-            assert_eq!(saved_lore.chunks[2].order, 2);
+            assert_eq!(saved_lore.chunks().len(), 3);
+            assert_eq!(saved_lore.chunks()[0].order(), 5);
+            assert_eq!(saved_lore.chunks()[1].order(), 0);
+            assert_eq!(saved_lore.chunks()[2].order(), 2);
             Ok(())
         });
 

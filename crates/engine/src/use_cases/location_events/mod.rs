@@ -42,7 +42,7 @@ impl TriggerLocationEvent {
 
         Ok(LocationEventResult {
             region_id,
-            region_name: region.name,
+            region_name: region.name().to_string(),
             description,
         })
     }

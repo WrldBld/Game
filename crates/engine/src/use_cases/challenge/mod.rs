@@ -128,13 +128,13 @@ impl TriggerChallengePrompt {
             .ok_or(ChallengeError::NotFound)?;
 
         // Use the built-in display() method for consistent formatting
-        let difficulty_display = challenge.difficulty.display();
+        let difficulty_display = challenge.difficulty().display();
 
         Ok(ChallengePromptData {
             challenge_id,
-            challenge_name: challenge.name.clone(),
+            challenge_name: challenge.name().to_string(),
             difficulty_display,
-            description: challenge.description.clone(),
+            description: challenge.description().to_string(),
             skill_name: String::new(),
             character_modifier: 0,
             suggested_dice: Some("1d20".to_string()),
@@ -200,10 +200,10 @@ impl RollChallenge {
             .ok_or(ChallengeError::NotFound)?;
 
         // 2. Validate challenge ownership and status (defense in depth - also validated at handler)
-        if challenge.world_id != world_id {
+        if challenge.world_id() != world_id {
             return Err(ChallengeError::InvalidWorld);
         }
-        if !challenge.active {
+        if !challenge.active() {
             return Err(ChallengeError::ChallengeInactive);
         }
 
@@ -219,7 +219,7 @@ impl RollChallenge {
             r
         } else {
             // Server-side roll based on difficulty type
-            match &challenge.difficulty {
+            match challenge.difficulty() {
                 wrldbldr_domain::Difficulty::DC(_) => self.random.gen_range(1, 20),
                 wrldbldr_domain::Difficulty::Percentage(_) => self.random.gen_range(1, 100),
                 _ => self.random.gen_range(1, 20), // Default to d20
@@ -235,8 +235,8 @@ impl RollChallenge {
             resolution_id: uuid::Uuid::new_v4().to_string(),
             world_id,
             challenge_id: challenge_id.to_string(),
-            challenge_name: challenge.name.clone(),
-            challenge_description: challenge.description.clone(),
+            challenge_name: challenge.name().to_string(),
+            challenge_description: challenge.description().to_string(),
             skill_name: None, // Would need to fetch from edge
             character_id: wrldbldr_domain::CharacterId::from_uuid(*pc_id.as_uuid()), // Use same UUID
             character_name: pc.name().to_string(),
@@ -244,9 +244,9 @@ impl RollChallenge {
             modifier,
             total,
             outcome_type: outcome_type.to_string(),
-            outcome_description: outcome.description.clone(),
+            outcome_description: outcome.description().to_string(),
             outcome_triggers: outcome
-                .triggers
+                .triggers()
                 .iter()
                 .map(|t| ProposedTool {
                     id: uuid::Uuid::new_v4().to_string(),
@@ -273,10 +273,14 @@ impl RollChallenge {
             pc_id: Some(pc_id),
             npc_id: None,
             npc_name: String::new(),
-            proposed_dialogue: outcome.description.clone(),
+            proposed_dialogue: outcome.description().to_string(),
             internal_reasoning: format!(
                 "Challenge '{}' - Roll: {} + {} = {} -> {}",
-                challenge.name, roll, modifier, total, outcome_type
+                challenge.name(),
+                roll,
+                modifier,
+                total,
+                outcome_type
             ),
             proposed_tools: outcome_data.outcome_triggers.clone(),
             retry_count: 0,
@@ -302,11 +306,11 @@ impl RollChallenge {
             modifier,
             total,
             outcome_type,
-            outcome_description: outcome.description.clone(),
+            outcome_description: outcome.description().to_string(),
             requires_approval: true,
             approval_queue_id: Some(approval_queue_id),
             challenge_id,
-            challenge_name: challenge.name.clone(),
+            challenge_name: challenge.name().to_string(),
             character_id: pc_id,
             character_name: pc.name().to_string(),
             outcome_triggers: outcome_data.outcome_triggers,
@@ -381,38 +385,36 @@ impl ResolveOutcome {
             .ok_or(ChallengeError::NotFound)?;
 
         // Find the matching outcome based on outcome_type
+        let outcomes = challenge.outcomes();
         let outcome = match outcome_type {
-            OutcomeType::CriticalSuccess => challenge
-                .outcomes
-                .critical_success
-                .as_ref()
-                .unwrap_or(&challenge.outcomes.success),
-            OutcomeType::Success => &challenge.outcomes.success,
-            OutcomeType::Partial => challenge
-                .outcomes
-                .partial
-                .as_ref()
-                .unwrap_or(&challenge.outcomes.success),
-            OutcomeType::Failure => &challenge.outcomes.failure,
-            OutcomeType::CriticalFailure => challenge
-                .outcomes
-                .critical_failure
-                .as_ref()
-                .unwrap_or(&challenge.outcomes.failure),
+            OutcomeType::CriticalSuccess => {
+                outcomes.critical_success().unwrap_or(outcomes.success())
+            }
+            OutcomeType::Success => outcomes.success(),
+            OutcomeType::Partial => outcomes.partial().unwrap_or(outcomes.success()),
+            OutcomeType::Failure => outcomes.failure(),
+            OutcomeType::CriticalFailure => {
+                outcomes.critical_failure().unwrap_or(outcomes.failure())
+            }
         };
 
         // Execute each trigger in the outcome
-        for trigger in &outcome.triggers {
-            self.execute_trigger(trigger, &challenge.name, challenge.world_id, target_pc_id)
-                .await
-                .map_err(|e| {
-                    tracing::error!(
-                        challenge = %challenge.name,
-                        error = %e,
-                        "Failed to execute trigger"
-                    );
-                    ChallengeError::TriggerExecutionFailed(e.to_string())
-                })?;
+        for trigger in outcome.triggers() {
+            self.execute_trigger(
+                trigger,
+                challenge.name(),
+                challenge.world_id(),
+                target_pc_id,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    challenge = %challenge.name(),
+                    error = %e,
+                    "Failed to execute trigger"
+                );
+                ChallengeError::TriggerExecutionFailed(e.to_string())
+            })?;
         }
 
         // Mark the challenge as resolved
@@ -831,6 +833,7 @@ mod tests {
             now,
         );
 
+        // Build success outcome with triggers using builder pattern
         let success_outcome = Outcome::new("success")
             .with_trigger(OutcomeTrigger::reveal_persistent("secret"))
             .with_trigger(OutcomeTrigger::GiveItem {
@@ -840,12 +843,18 @@ mod tests {
             .with_trigger(OutcomeTrigger::modify_stat("hp", -1))
             .with_trigger(OutcomeTrigger::scene(scene_id));
 
-        let outcomes = ChallengeOutcomes {
-            success: success_outcome,
-            failure: Outcome::new("failure"),
-            partial: None,
-            critical_success: None,
-            critical_failure: None,
+        // ChallengeOutcomes doesn't have a constructor that takes Outcome objects directly,
+        // so we use serde roundtrip to construct it with our custom success outcome.
+        let failure_outcome = Outcome::new("failure");
+        let outcomes: ChallengeOutcomes = {
+            let json = serde_json::json!({
+                "success": serde_json::to_value(&success_outcome).unwrap(),
+                "failure": serde_json::to_value(&failure_outcome).unwrap(),
+                "partial": null,
+                "criticalSuccess": null,
+                "criticalFailure": null
+            });
+            serde_json::from_value(json).expect("valid outcomes json")
         };
 
         let challenge = DomainChallenge::new(world_id, "Test Challenge", Difficulty::DC(10))
@@ -882,10 +891,10 @@ mod tests {
         let mut item_repo = MockItemRepo::new();
         item_repo
             .expect_save()
-            .withf(|item| item.name == "Key" && item.description.as_deref() == Some("Rusty"))
+            .withf(|item| item.name() == "Key" && item.description() == Some("Rusty"))
             .returning(move |item| {
                 let expected_item_id_for_save = expected_item_id_for_save.clone();
-                let item_id = item.id;
+                let item_id = item.id();
                 *expected_item_id_for_save.lock().unwrap() = Some(item_id);
                 Ok(())
             });

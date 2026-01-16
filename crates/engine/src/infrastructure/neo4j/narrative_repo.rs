@@ -243,13 +243,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     }
 
     async fn save_chain(&self, chain: &EventChain) -> Result<(), RepoError> {
-        let events_json: Vec<String> = chain.events.iter().map(|id| id.to_string()).collect();
+        let events_json: Vec<String> = chain.events().iter().map(|id| id.to_string()).collect();
         let completed_json: Vec<String> = chain
-            .completed_events
+            .completed_events()
             .iter()
             .map(|id| id.to_string())
             .collect();
-        let tags_json = serde_json::to_string(&chain.tags)
+        let tags_json = serde_json::to_string(&chain.tags())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let q = query(
@@ -284,23 +284,26 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             MATCH (w:World {id: $world_id})
             MERGE (w)-[:HAS_EVENT_CHAIN]->(c)",
         )
-        .param("id", chain.id.to_string())
-        .param("world_id", chain.world_id.to_string())
-        .param("name", chain.name.clone())
-        .param("description", chain.description.clone())
+        .param("id", chain.id().to_string())
+        .param("world_id", chain.world_id().to_string())
+        .param("name", chain.name().to_string())
+        .param("description", chain.description().to_string())
         .param("events", events_json)
-        .param("is_active", chain.is_active)
-        .param("current_position", chain.current_position as i64)
+        .param("is_active", chain.is_active())
+        .param("current_position", chain.current_position() as i64)
         .param("completed_events", completed_json)
         .param(
             "act_id",
-            chain.act_id.map(|a| a.to_string()).unwrap_or_default(),
+            chain.act_id().map(|a| a.to_string()).unwrap_or_default(),
         )
         .param("tags_json", tags_json)
-        .param("color", chain.color.clone().unwrap_or_default())
-        .param("is_favorite", chain.is_favorite)
-        .param("created_at", chain.created_at.to_rfc3339())
-        .param("updated_at", chain.updated_at.to_rfc3339());
+        .param(
+            "color",
+            chain.color().map(|s| s.to_string()).unwrap_or_default(),
+        )
+        .param("is_favorite", chain.is_favorite())
+        .param("created_at", chain.created_at().to_rfc3339())
+        .param("updated_at", chain.updated_at().to_rfc3339());
 
         self.graph
             .run(q)
@@ -377,10 +380,10 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
     }
 
     async fn save_story_event(&self, event: &StoryEvent) -> Result<(), RepoError> {
-        let stored_event_type: StoredStoryEventType = (&event.event_type).into();
+        let stored_event_type: StoredStoryEventType = event.event_type().into();
         let event_type_json = serde_json::to_string(&stored_event_type)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let tags_json = serde_json::to_string(&event.tags)
+        let tags_json = serde_json::to_string(&event.tags())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let q = query(
@@ -404,13 +407,16 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             MATCH (w:World {id: $world_id})
             MERGE (w)-[:HAS_STORY_EVENT]->(e)",
         )
-        .param("id", event.id.to_string())
-        .param("world_id", event.world_id.to_string())
+        .param("id", event.id().to_string())
+        .param("world_id", event.world_id().to_string())
         .param("event_type_json", event_type_json)
-        .param("timestamp", event.timestamp.to_rfc3339())
-        .param("game_time", event.game_time.clone().unwrap_or_default())
-        .param("summary", event.summary.clone())
-        .param("is_hidden", event.is_hidden)
+        .param("timestamp", event.timestamp().to_rfc3339())
+        .param(
+            "game_time",
+            event.game_time().map(|s| s.to_string()).unwrap_or_default(),
+        )
+        .param("summary", event.summary().to_string())
+        .param("is_hidden", event.is_hidden())
         .param("tags_json", tags_json);
 
         self.graph
@@ -548,7 +554,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 event
                     .trigger_conditions()
                     .iter()
-                    .any(|t| match &t.trigger_type {
+                    .any(|t| match t.trigger_type() {
                         NarrativeTriggerType::PlayerEntersLocation { location_id, .. } => {
                             location_id.to_string() == region_id_str
                         }
@@ -1392,14 +1398,14 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
         .filter_map(|s| Uuid::parse_str(s).ok().map(NarrativeEventId::from))
         .collect();
 
-    Ok(EventChain {
+    Ok(EventChain::from_parts(
         id,
         world_id,
         name,
         description,
         events,
         is_active,
-        current_position: current_position as u32,
+        current_position as u32,
         completed_events,
         act_id,
         tags,
@@ -1407,7 +1413,7 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
         is_favorite,
         created_at,
         updated_at,
-    })
+    ))
 }
 
 fn row_to_story_event(row: Row, fallback: DateTime<Utc>) -> Result<StoryEvent, RepoError> {
@@ -1432,16 +1438,9 @@ fn row_to_story_event(row: Row, fallback: DateTime<Utc>) -> Result<StoryEvent, R
         .map_err(|e| RepoError::Serialization(e.to_string()))?;
     let event_type: StoryEventType = stored_event_type.into();
 
-    Ok(StoryEvent {
-        id,
-        world_id,
-        event_type,
-        timestamp,
-        game_time,
-        summary,
-        is_hidden,
-        tags,
-    })
+    Ok(StoryEvent::from_parts(
+        id, world_id, event_type, timestamp, game_time, summary, is_hidden, tags,
+    ))
 }
 
 // =============================================================================
@@ -1903,10 +1902,10 @@ enum StoredDmMarkerType {
 impl From<&NarrativeTrigger> for StoredNarrativeTrigger {
     fn from(t: &NarrativeTrigger) -> Self {
         Self {
-            trigger_type: StoredNarrativeTriggerType::from(&t.trigger_type),
-            description: t.description.clone(),
-            is_required: t.is_required,
-            trigger_id: t.trigger_id.clone(),
+            trigger_type: StoredNarrativeTriggerType::from(t.trigger_type()),
+            description: t.description().to_string(),
+            is_required: t.is_required(),
+            trigger_id: t.trigger_id().to_string(),
         }
     }
 }
@@ -2078,17 +2077,17 @@ impl From<&NarrativeTriggerType> for StoredNarrativeTriggerType {
 impl From<&EventOutcome> for StoredEventOutcome {
     fn from(o: &EventOutcome) -> Self {
         Self {
-            name: o.name.clone(),
-            label: o.label.clone(),
-            description: o.description.clone(),
-            condition: o.condition.as_ref().map(StoredOutcomeCondition::from),
-            effects: o.effects.iter().map(StoredEventEffect::from).collect(),
+            name: o.name().to_string(),
+            label: o.label().to_string(),
+            description: o.description().to_string(),
+            condition: o.condition().map(StoredOutcomeCondition::from),
+            effects: o.effects().iter().map(StoredEventEffect::from).collect(),
             chain_events: o
-                .chain_events
+                .chain_events()
                 .iter()
                 .map(StoredChainedEvent::from)
                 .collect(),
-            timeline_summary: o.timeline_summary.clone(),
+            timeline_summary: o.timeline_summary().map(|s| s.to_string()),
         }
     }
 }
@@ -2256,14 +2255,13 @@ impl From<&EventEffect> for StoredEventEffect {
 impl From<&ChainedEvent> for StoredChainedEvent {
     fn from(c: &ChainedEvent) -> Self {
         Self {
-            event_id: c.event_id.to_string(),
-            event_name: c.event_name.clone(),
-            delay_turns: c.delay_turns,
+            event_id: c.event_id().to_string(),
+            event_name: c.event_name().to_string(),
+            delay_turns: c.delay_turns(),
             additional_trigger: c
-                .additional_trigger
-                .as_ref()
+                .additional_trigger()
                 .map(|t| Box::new(StoredNarrativeTriggerType::from(t))),
-            chain_reason: c.chain_reason.clone(),
+            chain_reason: c.chain_reason().map(|s| s.to_string()),
         }
     }
 }
@@ -2623,12 +2621,12 @@ impl From<DmMarkerType> for StoredDmMarkerType {
 
 impl From<StoredNarrativeTrigger> for NarrativeTrigger {
     fn from(s: StoredNarrativeTrigger) -> Self {
-        Self {
-            trigger_type: NarrativeTriggerType::from(s.trigger_type),
-            description: s.description,
-            is_required: s.is_required,
-            trigger_id: s.trigger_id,
-        }
+        NarrativeTrigger::new(
+            NarrativeTriggerType::from(s.trigger_type),
+            s.description,
+            s.trigger_id,
+        )
+        .with_required(s.is_required)
     }
 }
 
@@ -2796,15 +2794,17 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
 
 impl From<StoredEventOutcome> for EventOutcome {
     fn from(s: StoredEventOutcome) -> Self {
-        Self {
-            name: s.name,
-            label: s.label,
-            description: s.description,
-            condition: s.condition.map(OutcomeCondition::from),
-            effects: s.effects.into_iter().map(EventEffect::from).collect(),
-            chain_events: s.chain_events.into_iter().map(ChainedEvent::from).collect(),
-            timeline_summary: s.timeline_summary,
+        let mut outcome = EventOutcome::new(s.name, s.label, s.description)
+            .with_effects(s.effects.into_iter().map(EventEffect::from).collect())
+            .with_chain_events(s.chain_events.into_iter().map(ChainedEvent::from).collect());
+
+        if let Some(condition) = s.condition {
+            outcome = outcome.with_condition(OutcomeCondition::from(condition));
         }
+        if let Some(summary) = s.timeline_summary {
+            outcome = outcome.with_timeline_summary(summary);
+        }
+        outcome
     }
 }
 
@@ -2970,13 +2970,19 @@ impl From<StoredEventEffect> for EventEffect {
 
 impl From<StoredChainedEvent> for ChainedEvent {
     fn from(s: StoredChainedEvent) -> Self {
-        Self {
-            event_id: NarrativeEventId::from(parse_uuid_or_nil(&s.event_id, "event_id")),
-            event_name: s.event_name,
-            delay_turns: s.delay_turns,
-            additional_trigger: s.additional_trigger.map(|t| NarrativeTriggerType::from(*t)),
-            chain_reason: s.chain_reason,
+        let mut chained = ChainedEvent::new(
+            NarrativeEventId::from(parse_uuid_or_nil(&s.event_id, "event_id")),
+            s.event_name,
+        )
+        .with_delay_turns(s.delay_turns);
+
+        if let Some(trigger) = s.additional_trigger {
+            chained = chained.with_additional_trigger(NarrativeTriggerType::from(*trigger));
         }
+        if let Some(reason) = s.chain_reason {
+            chained = chained.with_chain_reason(reason);
+        }
+        chained
     }
 }
 

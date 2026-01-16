@@ -148,10 +148,11 @@ pub fn trigger_context_from_pc(pc: &PlayerCharacter) -> TriggerContext {
 
     // Extract origin (race)
     if let Some(race) = sheet_data.get_string("RACE") {
-        ctx.origin_id = Some(race.to_lowercase());
+        ctx = ctx.with_origin_id(race.to_lowercase());
     }
 
     // Try to extract multiclass info from character_identity.classes first
+    let mut class_levels: HashMap<String, u8> = HashMap::new();
     let mut found_classes = false;
     if let Some(wrldbldr_domain::types::SheetValue::Object(identity_obj)) =
         sheet_data.get("character_identity")
@@ -168,7 +169,7 @@ pub fn trigger_context_from_pc(pc: &PlayerCharacter) -> TriggerContext {
                     let level = class_obj.get("level").and_then(|v| v.as_i64());
 
                     if let (Some(class_id), Some(level)) = (class_id, level) {
-                        ctx.class_levels.insert(class_id, level as u8);
+                        class_levels.insert(class_id, level as u8);
                         found_classes = true;
                     }
                 }
@@ -180,20 +181,22 @@ pub fn trigger_context_from_pc(pc: &PlayerCharacter) -> TriggerContext {
     if !found_classes {
         if let Some(class_name) = sheet_data.get_string("CLASS") {
             let level = sheet_data.get_number("LEVEL").unwrap_or(1) as u8;
-            ctx.class_levels.insert(class_name.to_lowercase(), level);
+            class_levels.insert(class_name.to_lowercase(), level);
         }
     }
+    ctx = ctx.with_class_levels(class_levels);
 
     let known_spells_key = sheet_data
         .get("KNOWN_SPELLS")
         .and_then(|value| value.as_str())
         .unwrap_or_default();
     if !known_spells_key.is_empty() {
-        ctx.known_spells = known_spells_key
+        let known_spells: Vec<String> = known_spells_key
             .split(',')
             .map(|spell| spell.trim().to_lowercase())
             .filter(|spell| !spell.is_empty())
             .collect();
+        ctx = ctx.with_known_spells(known_spells);
     }
 
     let feats_key = sheet_data
@@ -201,11 +204,12 @@ pub fn trigger_context_from_pc(pc: &PlayerCharacter) -> TriggerContext {
         .and_then(|value| value.as_str())
         .unwrap_or_default();
     if !feats_key.is_empty() {
-        ctx.character_feats = feats_key
+        let character_feats: Vec<String> = feats_key
             .split(',')
             .map(|feat| feat.trim().to_lowercase())
             .filter(|feat| !feat.is_empty())
             .collect();
+        ctx = ctx.with_character_feats(character_feats);
     }
 
     ctx
@@ -317,29 +321,29 @@ impl SheetDataBuilder {
     }
 
     pub fn with_identity(mut self, identity: wrldbldr_domain::CharacterIdentity) -> Self {
-        if let Some(ref race) = identity.race {
+        if let Some(race) = identity.race() {
             self.values
-                .insert("RACE".to_string(), SheetValue::String(race.clone()));
+                .insert("RACE".to_string(), SheetValue::String(race.to_string()));
         }
         if let Some(primary) = identity.primary_class() {
             self.values.insert(
                 "CLASS".to_string(),
-                SheetValue::String(primary.class_id.clone()),
+                SheetValue::String(primary.class_id().to_string()),
             );
             self.values.insert(
                 "LEVEL".to_string(),
-                SheetValue::Integer(primary.level as i32),
+                SheetValue::Integer(primary.level() as i32),
             );
         }
         self
     }
 
     pub fn with_spells(mut self, spells: wrldbldr_domain::CharacterSpells) -> Self {
-        if !spells.known.is_empty() {
+        if !spells.known().is_empty() {
             let known = spells
-                .known
+                .known()
                 .iter()
-                .map(|spell| spell.spell_id.as_str())
+                .map(|spell| spell.spell_id())
                 .collect::<Vec<_>>()
                 .join(", ");
             self.values
@@ -349,11 +353,11 @@ impl SheetDataBuilder {
     }
 
     pub fn with_feats(mut self, feats: wrldbldr_domain::CharacterFeats) -> Self {
-        if !feats.feats.is_empty() {
+        if !feats.feats().is_empty() {
             let feat_list = feats
-                .feats
+                .feats()
                 .iter()
-                .map(|feat| feat.feat_id.as_str())
+                .map(|feat| feat.feat_id())
                 .collect::<Vec<_>>()
                 .join(", ");
             self.values
@@ -410,11 +414,11 @@ mod tests {
         let pc = characters::fighter_5();
         let ctx = trigger_context_from_pc(&pc);
 
-        assert_eq!(ctx.origin_id, Some("human".to_string()));
-        assert_eq!(ctx.class_levels.get("fighter"), Some(&5));
-        assert!(ctx.known_spells.is_empty());
+        assert_eq!(ctx.origin_id(), Some("human"));
+        assert_eq!(ctx.class_levels().get("fighter"), Some(&5));
+        assert!(ctx.known_spells().is_empty());
         assert!(ctx
-            .character_feats
+            .character_feats()
             .contains(&"great_weapon_master".to_string()));
     }
 
@@ -423,11 +427,11 @@ mod tests {
         let pc = characters::wizard_3();
         let ctx = trigger_context_from_pc(&pc);
 
-        assert_eq!(ctx.origin_id, Some("elf".to_string()));
-        assert_eq!(ctx.class_levels.get("wizard"), Some(&3));
-        assert!(ctx.known_spells.contains(&"fireball".to_string()));
-        assert!(ctx.known_spells.contains(&"magic_missile".to_string()));
-        assert!(ctx.character_feats.is_empty());
+        assert_eq!(ctx.origin_id(), Some("elf"));
+        assert_eq!(ctx.class_levels().get("wizard"), Some(&3));
+        assert!(ctx.known_spells().contains(&"fireball".to_string()));
+        assert!(ctx.known_spells().contains(&"magic_missile".to_string()));
+        assert!(ctx.character_feats().is_empty());
     }
 
     #[test]
@@ -435,11 +439,11 @@ mod tests {
         let pc = characters::multiclass();
         let ctx = trigger_context_from_pc(&pc);
 
-        assert_eq!(ctx.origin_id, Some("human".to_string()));
-        assert_eq!(ctx.class_levels.get("fighter"), Some(&3));
-        assert_eq!(ctx.class_levels.get("wizard"), Some(&2));
-        assert!(ctx.known_spells.contains(&"shield".to_string()));
-        assert!(ctx.character_feats.contains(&"war_caster".to_string()));
+        assert_eq!(ctx.origin_id(), Some("human"));
+        assert_eq!(ctx.class_levels().get("fighter"), Some(&3));
+        assert_eq!(ctx.class_levels().get("wizard"), Some(&2));
+        assert!(ctx.known_spells().contains(&"shield".to_string()));
+        assert!(ctx.character_feats().contains(&"war_caster".to_string()));
     }
 
     #[test]

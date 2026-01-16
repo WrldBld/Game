@@ -63,9 +63,9 @@ pub(super) async fn handle_goal_request(
                     let data: Vec<GoalResponse> = goals
                         .into_iter()
                         .map(|details| GoalResponse {
-                            id: details.goal.id.to_string(),
-                            name: details.goal.name,
-                            description: details.goal.description,
+                            id: details.goal.id().to_string(),
+                            name: details.goal.name().to_string(),
+                            description: details.goal.description().map(|s| s.to_string()),
                         })
                         .collect();
                     Ok(ResponseResult::success(data))
@@ -89,9 +89,9 @@ pub(super) async fn handle_goal_request(
 
             match state.app.use_cases.actantial.goals.get(goal_id_typed).await {
                 Ok(Some(details)) => Ok(ResponseResult::success(GoalResponse {
-                    id: details.goal.id.to_string(),
-                    name: details.goal.name,
-                    description: details.goal.description,
+                    id: details.goal.id().to_string(),
+                    name: details.goal.name().to_string(),
+                    description: details.goal.description().map(|s| s.to_string()),
                 })),
                 Ok(None) => Ok(ResponseResult::error(ErrorCode::NotFound, "Goal not found")),
                 Err(e) => Ok(ResponseResult::error(
@@ -129,9 +129,9 @@ pub(super) async fn handle_goal_request(
                     }
 
                     Ok(ResponseResult::success(GoalResponse {
-                        id: details.goal.id.to_string(),
-                        name: details.goal.name,
-                        description: details.goal.description,
+                        id: details.goal.id().to_string(),
+                        name: details.goal.name().to_string(),
+                        description: details.goal.description().map(|s| s.to_string()),
                     }))
                 }
                 Err(crate::use_cases::actantial::ActantialError::InvalidInput(msg)) => {
@@ -171,9 +171,9 @@ pub(super) async fn handle_goal_request(
                     }
 
                     Ok(ResponseResult::success(GoalResponse {
-                        id: details.goal.id.to_string(),
-                        name: details.goal.name,
-                        description: details.goal.description,
+                        id: details.goal.id().to_string(),
+                        name: details.goal.name().to_string(),
+                        description: details.goal.description().map(|s| s.to_string()),
                     }))
                 }
                 Err(crate::use_cases::actantial::ActantialError::NotFound) => {
@@ -307,7 +307,7 @@ pub(super) async fn handle_want_request(
                 Ok(Some(context)) => context
                     .wants()
                     .iter()
-                    .find(|want| want.want_id() == WantId::from_uuid(details.want.id.into()))
+                    .find(|want| want.want_id() == WantId::from_uuid(details.want.id().into()))
                     .map(want_context_to_response)
                     .unwrap_or_else(|| want_details_to_response(&details)),
                 _ => want_details_to_response(&details),
@@ -364,7 +364,7 @@ pub(super) async fn handle_want_request(
                         .use_cases
                         .actantial
                         .wants
-                        .set_target(details.want.id, target_ref)
+                        .set_target(details.want.id(), target_ref)
                         .await
                     {
                         Ok(target) => details.target = Some(target),
@@ -386,7 +386,7 @@ pub(super) async fn handle_want_request(
             }
 
             if let Some(world_id) = conn_info.world_id {
-                let want_data = resolve_want_data(state, details.character_id, details.want.id)
+                let want_data = resolve_want_data(state, details.character_id, details.want.id())
                     .await
                     .unwrap_or_else(|| want_details_to_data(&details));
                 let msg = ServerMessage::NpcWantCreated {
@@ -443,7 +443,7 @@ pub(super) async fn handle_want_request(
             };
 
             if let Some(world_id) = conn_info.world_id {
-                let want_data = resolve_want_data(state, details.character_id, details.want.id)
+                let want_data = resolve_want_data(state, details.character_id, details.want.id())
                     .await
                     .unwrap_or_else(|| want_details_to_data(&details));
                 let msg = ServerMessage::NpcWantUpdated {
@@ -745,14 +745,14 @@ pub(super) async fn handle_actantial_request(
 
 fn want_details_to_response(details: &crate::infrastructure::ports::WantDetails) -> WantResponse {
     WantResponse {
-        id: details.want.id.to_string(),
-        description: details.want.description.clone(),
-        intensity: details.want.intensity,
+        id: details.want.id().to_string(),
+        description: details.want.description().to_string(),
+        intensity: details.want.intensity(),
         priority: details.priority,
-        visibility: map_visibility_data(details.want.visibility),
+        visibility: map_visibility_data(details.want.visibility()),
         target: details.target.as_ref().map(want_target_to_data),
-        deflection_behavior: details.want.deflection_behavior.clone(),
-        tells: details.want.tells.first().cloned(),
+        deflection_behavior: details.want.deflection_behavior().map(|s| s.to_string()),
+        tells: details.want.tells().first().cloned(),
     }
 }
 
@@ -771,14 +771,14 @@ fn want_context_to_response(want: &wrldbldr_domain::WantContext) -> WantResponse
 
 fn want_details_to_data(details: &crate::infrastructure::ports::WantDetails) -> WantData {
     WantData {
-        id: details.want.id.to_string(),
-        description: details.want.description.clone(),
-        intensity: details.want.intensity,
+        id: details.want.id().to_string(),
+        description: details.want.description().to_string(),
+        intensity: details.want.intensity(),
         priority: details.priority,
-        visibility: map_visibility_data(details.want.visibility),
+        visibility: map_visibility_data(details.want.visibility()),
         target: details.target.as_ref().map(want_target_to_data),
-        deflection_behavior: details.want.deflection_behavior.clone(),
-        tells: details.want.tells.clone(),
+        deflection_behavior: details.want.deflection_behavior().map(|s| s.to_string()),
+        tells: details.want.tells().to_vec(),
         helpers: Vec::new(),
         opponents: Vec::new(),
         sender: None,
@@ -880,9 +880,9 @@ fn actantial_context_to_data(context: &ActantialContext) -> NpcActantialContextD
 
 fn goal_details_to_data(details: &crate::infrastructure::ports::GoalDetails) -> GoalData {
     GoalData {
-        id: details.goal.id.to_string(),
-        name: details.goal.name.clone(),
-        description: details.goal.description.clone(),
+        id: details.goal.id().to_string(),
+        name: details.goal.name().to_string(),
+        description: details.goal.description().map(|s| s.to_string()),
         usage_count: details.usage_count,
     }
 }

@@ -131,9 +131,10 @@ impl Staging {
             Some(s) => {
                 // Filter to only present, visible NPCs
                 let visible_npcs: Vec<StagedNpc> = s
-                    .npcs
-                    .into_iter()
-                    .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
+                    .npcs()
+                    .iter()
+                    .filter(|npc| npc.is_present() && !npc.is_hidden_from_players())
+                    .cloned()
                     .collect();
                 Ok(visible_npcs)
             }
@@ -157,7 +158,7 @@ impl Staging {
         // Filter to only present NPCs (including hidden ones)
         let present_npcs: Vec<StagedNpc> = all_staged
             .into_iter()
-            .filter(|npc| npc.is_present)
+            .filter(|npc| npc.is_present())
             .collect();
 
         Ok(present_npcs)

@@ -19,68 +19,150 @@ use wrldbldr_domain::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Staging {
-    pub id: StagingId,
-    pub region_id: RegionId,
-    pub location_id: LocationId,
-    pub world_id: WorldId,
+    id: StagingId,
+    region_id: RegionId,
+    location_id: LocationId,
+    world_id: WorldId,
     /// NPCs included in this staging with their presence status
-    pub npcs: Vec<StagedNpc>,
+    npcs: Vec<StagedNpc>,
     /// Game time when this staging was approved
-    pub game_time: DateTime<Utc>,
+    game_time: DateTime<Utc>,
     /// Real time when DM approved
-    pub approved_at: DateTime<Utc>,
+    approved_at: DateTime<Utc>,
     /// How long valid in game hours
-    pub ttl_hours: i32,
+    ttl_hours: i32,
     /// Client ID of approving DM
-    pub approved_by: String,
+    approved_by: String,
     /// How this staging was created
-    pub source: StagingSource,
+    source: StagingSource,
     /// Optional DM guidance for LLM regeneration
-    pub dm_guidance: Option<String>,
+    dm_guidance: Option<String>,
     /// Whether this is the current active staging
-    pub is_active: bool,
+    is_active: bool,
 
     // Visual State
     /// Resolved location state for this staging (if any)
-    pub location_state_id: Option<LocationStateId>,
+    location_state_id: Option<LocationStateId>,
     /// Resolved region state for this staging (if any)
-    pub region_state_id: Option<RegionStateId>,
+    region_state_id: Option<RegionStateId>,
     /// How the visual state was resolved
-    pub visual_state_source: VisualStateSource,
+    visual_state_source: VisualStateSource,
     /// LLM reasoning for soft rule evaluation (if any)
-    pub visual_state_reasoning: Option<String>,
+    visual_state_reasoning: Option<String>,
 }
 
 /// An NPC with presence status in a staging
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StagedNpc {
-    pub character_id: CharacterId,
+    character_id: CharacterId,
     /// Denormalized for display
-    pub name: String,
-    pub sprite_asset: Option<String>,
-    pub portrait_asset: Option<String>,
+    name: String,
+    sprite_asset: Option<String>,
+    portrait_asset: Option<String>,
     /// Whether NPC is present in this staging
-    pub is_present: bool,
+    is_present: bool,
     /// When true, NPC is present but hidden from players
-    pub is_hidden_from_players: bool,
+    is_hidden_from_players: bool,
     /// Reasoning for presence/absence (from rules or LLM)
-    pub reasoning: String,
+    reasoning: String,
     /// NPC's current mood for this staging (Tier 2 of emotional model)
     /// Affects default expression and dialogue tone
     /// Set by DM during staging approval, or defaults to character's default_mood
-    pub mood: MoodState,
+    mood: MoodState,
     /// When true, character data was not found during staging approval.
     /// This NPC was included with empty defaults and may need attention.
     #[serde(default)]
-    pub has_incomplete_data: bool,
+    has_incomplete_data: bool,
 }
 
 impl StagedNpc {
+    pub fn new(
+        character_id: CharacterId,
+        name: impl Into<String>,
+        is_present: bool,
+        reasoning: impl Into<String>,
+    ) -> Self {
+        Self {
+            character_id,
+            name: name.into(),
+            sprite_asset: None,
+            portrait_asset: None,
+            is_present,
+            is_hidden_from_players: false,
+            reasoning: reasoning.into(),
+            mood: MoodState::default(),
+            has_incomplete_data: false,
+        }
+    }
+
+    // Read accessors
+    pub fn character_id(&self) -> CharacterId {
+        self.character_id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn sprite_asset(&self) -> Option<&str> {
+        self.sprite_asset.as_deref()
+    }
+
+    pub fn portrait_asset(&self) -> Option<&str> {
+        self.portrait_asset.as_deref()
+    }
+
+    pub fn is_present(&self) -> bool {
+        self.is_present
+    }
+
+    pub fn is_hidden_from_players(&self) -> bool {
+        self.is_hidden_from_players
+    }
+
+    pub fn reasoning(&self) -> &str {
+        &self.reasoning
+    }
+
+    pub fn mood(&self) -> MoodState {
+        self.mood
+    }
+
+    pub fn has_incomplete_data(&self) -> bool {
+        self.has_incomplete_data
+    }
+
     /// Returns true if this NPC should be visible to players.
     /// An NPC is visible when present and not hidden from players.
     pub fn is_visible_to_players(&self) -> bool {
         self.is_present && !self.is_hidden_from_players
+    }
+
+    // Builder methods
+    pub fn with_incomplete_data(mut self, incomplete: bool) -> Self {
+        self.has_incomplete_data = incomplete;
+        self
+    }
+
+    pub fn with_sprite(mut self, asset: impl Into<String>) -> Self {
+        self.sprite_asset = Some(asset.into());
+        self
+    }
+
+    pub fn with_portrait(mut self, asset: impl Into<String>) -> Self {
+        self.portrait_asset = Some(asset.into());
+        self
+    }
+
+    pub fn with_mood(mut self, mood: MoodState) -> Self {
+        self.mood = mood;
+        self
+    }
+
+    pub fn with_hidden_from_players(mut self, hidden: bool) -> Self {
+        self.is_hidden_from_players = hidden;
+        self
     }
 }
 
@@ -122,19 +204,19 @@ pub enum VisualStateSource {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolvedVisualState {
-    pub location_state: Option<ResolvedStateInfo>,
-    pub region_state: Option<ResolvedStateInfo>,
+    location_state: Option<ResolvedStateInfo>,
+    region_state: Option<ResolvedStateInfo>,
 }
 
 /// Info about a resolved state for display
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolvedStateInfo {
-    pub id: String,
-    pub name: String,
-    pub backdrop_override: Option<String>,
-    pub atmosphere_override: Option<String>,
-    pub ambient_sound: Option<String>,
+    id: String,
+    name: String,
+    backdrop_override: Option<String>,
+    atmosphere_override: Option<String>,
+    ambient_sound: Option<String>,
 }
 
 impl Staging {
@@ -169,6 +251,112 @@ impl Staging {
         }
     }
 
+    /// Reconstruct a Staging from stored data (e.g., database)
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_stored(
+        id: StagingId,
+        region_id: RegionId,
+        location_id: LocationId,
+        world_id: WorldId,
+        npcs: Vec<StagedNpc>,
+        game_time: DateTime<Utc>,
+        approved_at: DateTime<Utc>,
+        ttl_hours: i32,
+        approved_by: String,
+        source: StagingSource,
+        dm_guidance: Option<String>,
+        is_active: bool,
+        location_state_id: Option<LocationStateId>,
+        region_state_id: Option<RegionStateId>,
+        visual_state_source: VisualStateSource,
+        visual_state_reasoning: Option<String>,
+    ) -> Self {
+        Self {
+            id,
+            region_id,
+            location_id,
+            world_id,
+            npcs,
+            game_time,
+            approved_at,
+            ttl_hours,
+            approved_by,
+            source,
+            dm_guidance,
+            is_active,
+            location_state_id,
+            region_state_id,
+            visual_state_source,
+            visual_state_reasoning,
+        }
+    }
+
+    // Read accessors
+    pub fn id(&self) -> StagingId {
+        self.id
+    }
+
+    pub fn region_id(&self) -> RegionId {
+        self.region_id
+    }
+
+    pub fn location_id(&self) -> LocationId {
+        self.location_id
+    }
+
+    pub fn world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    pub fn npcs(&self) -> &[StagedNpc] {
+        &self.npcs
+    }
+
+    pub fn game_time(&self) -> DateTime<Utc> {
+        self.game_time
+    }
+
+    pub fn approved_at(&self) -> DateTime<Utc> {
+        self.approved_at
+    }
+
+    pub fn ttl_hours(&self) -> i32 {
+        self.ttl_hours
+    }
+
+    pub fn approved_by(&self) -> &str {
+        &self.approved_by
+    }
+
+    pub fn source(&self) -> StagingSource {
+        self.source
+    }
+
+    pub fn dm_guidance(&self) -> Option<&str> {
+        self.dm_guidance.as_deref()
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.is_active
+    }
+
+    pub fn location_state_id(&self) -> Option<LocationStateId> {
+        self.location_state_id
+    }
+
+    pub fn region_state_id(&self) -> Option<RegionStateId> {
+        self.region_state_id
+    }
+
+    pub fn visual_state_source(&self) -> VisualStateSource {
+        self.visual_state_source
+    }
+
+    pub fn visual_state_reasoning(&self) -> Option<&str> {
+        self.visual_state_reasoning.as_deref()
+    }
+
+    // Builder methods
     pub fn with_npcs(mut self, npcs: Vec<StagedNpc>) -> Self {
         self.npcs = npcs;
         self
@@ -199,6 +387,11 @@ impl Staging {
         self
     }
 
+    pub fn with_active(mut self, active: bool) -> Self {
+        self.is_active = active;
+        self
+    }
+
     /// Check if this staging has any visual state configured
     pub fn has_visual_state(&self) -> bool {
         self.location_state_id.is_some() || self.region_state_id.is_some()
@@ -221,47 +414,6 @@ impl Staging {
             .iter()
             .filter(|n| n.is_present && !n.is_hidden_from_players)
             .collect()
-    }
-}
-
-impl StagedNpc {
-    pub fn new(
-        character_id: CharacterId,
-        name: impl Into<String>,
-        is_present: bool,
-        reasoning: impl Into<String>,
-    ) -> Self {
-        Self {
-            character_id,
-            name: name.into(),
-            sprite_asset: None,
-            portrait_asset: None,
-            is_present,
-            is_hidden_from_players: false,
-            reasoning: reasoning.into(),
-            mood: MoodState::default(),
-            has_incomplete_data: false,
-        }
-    }
-
-    pub fn with_incomplete_data(mut self, incomplete: bool) -> Self {
-        self.has_incomplete_data = incomplete;
-        self
-    }
-
-    pub fn with_sprite(mut self, asset: impl Into<String>) -> Self {
-        self.sprite_asset = Some(asset.into());
-        self
-    }
-
-    pub fn with_portrait(mut self, asset: impl Into<String>) -> Self {
-        self.portrait_asset = Some(asset.into());
-        self
-    }
-
-    pub fn with_mood(mut self, mood: MoodState) -> Self {
-        self.mood = mood;
-        self
     }
 }
 
@@ -339,6 +491,16 @@ impl ResolvedVisualState {
         }
     }
 
+    // Read accessors
+    pub fn location_state(&self) -> Option<&ResolvedStateInfo> {
+        self.location_state.as_ref()
+    }
+
+    pub fn region_state(&self) -> Option<&ResolvedStateInfo> {
+        self.region_state.as_ref()
+    }
+
+    // Builder methods
     pub fn with_location_state(mut self, info: ResolvedStateInfo) -> Self {
         self.location_state = Some(info);
         self
@@ -371,6 +533,28 @@ impl ResolvedStateInfo {
         }
     }
 
+    // Read accessors
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn backdrop_override(&self) -> Option<&str> {
+        self.backdrop_override.as_deref()
+    }
+
+    pub fn atmosphere_override(&self) -> Option<&str> {
+        self.atmosphere_override.as_deref()
+    }
+
+    pub fn ambient_sound(&self) -> Option<&str> {
+        self.ambient_sound.as_deref()
+    }
+
+    // Builder methods
     pub fn with_backdrop(mut self, path: impl Into<String>) -> Self {
         self.backdrop_override = Some(path.into());
         self

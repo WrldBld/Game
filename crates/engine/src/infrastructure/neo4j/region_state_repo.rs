@@ -58,7 +58,7 @@ impl Neo4jRegionStateRepo {
         let created_at = node.get_datetime_or("created_at", fallback);
         let updated_at = node.get_datetime_or("updated_at", fallback);
 
-        Ok(RegionState {
+        Ok(RegionState::from_parts(
             id,
             region_id,
             location_id,
@@ -74,7 +74,7 @@ impl Neo4jRegionStateRepo {
             is_default,
             created_at,
             updated_at,
-        })
+        ))
     }
 }
 
@@ -101,9 +101,9 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
     }
 
     async fn save(&self, state: &RegionState) -> Result<(), RepoError> {
-        let activation_rules_json = serde_json::to_string(&state.activation_rules)
+        let activation_rules_json = serde_json::to_string(state.activation_rules())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let activation_logic_json = serde_json::to_string(&state.activation_logic)
+        let activation_logic_json = serde_json::to_string(&state.activation_logic())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let q = query(
@@ -127,37 +127,37 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
             MERGE (r)-[:HAS_STATE]->(s)
             RETURN s.id as id",
         )
-        .param("id", state.id.to_string())
-        .param("region_id", state.region_id.to_string())
-        .param("location_id", state.location_id.to_string())
-        .param("world_id", state.world_id.to_string())
-        .param("name", state.name.clone())
-        .param("description", state.description.clone())
+        .param("id", state.id().to_string())
+        .param("region_id", state.region_id().to_string())
+        .param("location_id", state.location_id().to_string())
+        .param("world_id", state.world_id().to_string())
+        .param("name", state.name().to_string())
+        .param("description", state.description().to_string())
         .param(
             "backdrop_override",
-            state.backdrop_override.clone().unwrap_or_default(),
+            state.backdrop_override().unwrap_or_default().to_string(),
         )
         .param(
             "atmosphere_override",
-            state.atmosphere_override.clone().unwrap_or_default(),
+            state.atmosphere_override().unwrap_or_default().to_string(),
         )
         .param(
             "ambient_sound",
-            state.ambient_sound.clone().unwrap_or_default(),
+            state.ambient_sound().unwrap_or_default().to_string(),
         )
         .param("activation_rules", activation_rules_json)
         .param("activation_logic", activation_logic_json)
-        .param("priority", state.priority as i64)
-        .param("is_default", state.is_default)
-        .param("created_at", state.created_at.to_rfc3339())
-        .param("updated_at", state.updated_at.to_rfc3339());
+        .param("priority", state.priority() as i64)
+        .param("is_default", state.is_default())
+        .param("created_at", state.created_at().to_rfc3339())
+        .param("updated_at", state.updated_at().to_rfc3339());
 
         self.graph
             .run(q)
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
-        tracing::debug!("Saved region state: {}", state.name);
+        tracing::debug!("Saved region state: {}", state.name());
         Ok(())
     }
 

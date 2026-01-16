@@ -71,17 +71,26 @@ impl ItemRepo for Neo4jItemRepo {
             MATCH (w:World {id: $world_id})
             MERGE (w)-[:CONTAINS_ITEM]->(i)",
         )
-        .param("id", item.id.to_string())
-        .param("world_id", item.world_id.to_string())
-        .param("name", item.name.clone())
-        .param("description", item.description.clone().unwrap_or_default())
-        .param("item_type", item.item_type.clone().unwrap_or_default())
-        .param("is_unique", item.is_unique)
-        .param("properties", item.properties.clone().unwrap_or_default())
-        .param("can_contain_items", item.can_contain_items)
+        .param("id", item.id().to_string())
+        .param("world_id", item.world_id().to_string())
+        .param("name", item.name().to_string())
+        .param(
+            "description",
+            item.description().unwrap_or_default().to_string(),
+        )
+        .param(
+            "item_type",
+            item.item_type().unwrap_or_default().to_string(),
+        )
+        .param("is_unique", item.is_unique())
+        .param(
+            "properties",
+            item.properties().unwrap_or_default().to_string(),
+        )
+        .param("can_contain_items", item.can_contain_items())
         .param(
             "container_limit",
-            item.container_limit.map(|l| l as i64).unwrap_or(-1),
+            item.container_limit().map(|l| l as i64).unwrap_or(-1),
         );
 
         self.graph

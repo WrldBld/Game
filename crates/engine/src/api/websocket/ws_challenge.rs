@@ -206,14 +206,14 @@ pub(super) async fn handle_challenge_roll(
         }
     };
 
-    if challenge.world_id != world_id {
+    if challenge.world_id() != world_id {
         return Some(error_response(
             "INVALID_WORLD",
             "Challenge does not belong to this world",
         ));
     }
 
-    if !challenge.active {
+    if !challenge.active() {
         return Some(error_response(
             "CHALLENGE_INACTIVE",
             "Challenge is not currently active",
@@ -228,7 +228,7 @@ pub(super) async fn handle_challenge_roll(
     // - Percentile: skill value (for CoC 7e)
     // - LadderRating: ladder position (for FATE)
     // - Resource: current value
-    let skill_modifier = if let Some(ref stat_name) = challenge.check_stat {
+    let skill_modifier = if let Some(stat_name) = challenge.check_stat() {
         // Get the PC's sheet_data to look up stats
         match state.app.repositories.player_character.get(pc_id).await {
             Ok(Some(pc)) => {
@@ -247,7 +247,7 @@ pub(super) async fn handle_challenge_roll(
 
     tracing::debug!(
         challenge_id = %challenge_id,
-        check_stat = ?challenge.check_stat,
+        check_stat = ?challenge.check_stat(),
         skill_modifier = skill_modifier,
         "Challenge roll with modifier"
     );

@@ -83,27 +83,27 @@ struct OutcomesStored {
     critical_failure: Option<OutcomeStored>,
 }
 
-impl From<ChallengeOutcomes> for OutcomesStored {
-    fn from(value: ChallengeOutcomes) -> Self {
+impl From<&ChallengeOutcomes> for OutcomesStored {
+    fn from(value: &ChallengeOutcomes) -> Self {
         Self {
-            success: value.success.into(),
-            failure: value.failure.into(),
-            partial: value.partial.map(Into::into),
-            critical_success: value.critical_success.map(Into::into),
-            critical_failure: value.critical_failure.map(Into::into),
+            success: value.success().into(),
+            failure: value.failure().into(),
+            partial: value.partial().map(Into::into),
+            critical_success: value.critical_success().map(Into::into),
+            critical_failure: value.critical_failure().map(Into::into),
         }
     }
 }
 
 impl From<OutcomesStored> for ChallengeOutcomes {
     fn from(value: OutcomesStored) -> Self {
-        Self {
-            success: value.success.into(),
-            failure: value.failure.into(),
-            partial: value.partial.map(Into::into),
-            critical_success: value.critical_success.map(Into::into),
-            critical_failure: value.critical_failure.map(Into::into),
-        }
+        ChallengeOutcomes::from_parts(
+            value.success.into(),
+            value.failure.into(),
+            value.partial.map(Into::into),
+            value.critical_success.map(Into::into),
+            value.critical_failure.map(Into::into),
+        )
     }
 }
 
@@ -115,25 +115,26 @@ struct OutcomeStored {
     triggers_json: Option<String>,
 }
 
-impl From<Outcome> for OutcomeStored {
-    fn from(value: Outcome) -> Self {
+impl From<&Outcome> for OutcomeStored {
+    fn from(value: &Outcome) -> Self {
         Self {
-            description: value.description,
-            triggers_json: serde_json::to_string(&value.triggers).ok(),
+            description: value.description().to_string(),
+            triggers_json: serde_json::to_string(value.triggers()).ok(),
         }
     }
 }
 
 impl From<OutcomeStored> for Outcome {
     fn from(value: OutcomeStored) -> Self {
-        let triggers = value
+        let triggers: Vec<OutcomeTrigger> = value
             .triggers_json
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
-        Self {
-            description: value.description,
-            triggers,
+        let mut outcome = Outcome::new(value.description);
+        for trigger in triggers {
+            outcome = outcome.with_trigger(trigger);
         }
+        outcome
     }
 }
 
@@ -146,12 +147,12 @@ struct TriggerConditionStored {
     required: bool,
 }
 
-impl From<TriggerCondition> for TriggerConditionStored {
-    fn from(value: TriggerCondition) -> Self {
+impl From<&TriggerCondition> for TriggerConditionStored {
+    fn from(value: &TriggerCondition) -> Self {
         Self {
-            condition_type_json: serde_json::to_string(&value.condition_type).unwrap_or_default(),
-            description: value.description,
-            required: value.required,
+            condition_type_json: serde_json::to_string(value.condition_type()).unwrap_or_default(),
+            description: value.description().to_string(),
+            required: value.required(),
         }
     }
 }
@@ -162,11 +163,7 @@ impl From<TriggerConditionStored> for TriggerCondition {
             serde_json::from_str(&value.condition_type_json).unwrap_or(TriggerType::Custom {
                 description: value.description.clone(),
             });
-        Self {
-            condition_type,
-            description: value.description,
-            required: value.required,
-        }
+        TriggerCondition::new(condition_type, value.description).with_required(value.required)
     }
 }
 
@@ -228,21 +225,26 @@ impl Neo4jChallengeRepo {
         let tags: Vec<String> = node.get_json_or_default("tags_json");
         let check_stat: Option<String> = node.get_optional_string("check_stat");
 
-        Ok(Challenge {
-            id,
-            world_id,
-            name,
-            description,
-            challenge_type,
-            difficulty,
-            outcomes,
-            trigger_conditions,
-            active,
-            order,
-            is_favorite,
-            tags,
-            check_stat,
-        })
+        let mut challenge = Challenge::new(world_id, name, difficulty)
+            .with_id(id)
+            .with_description(description)
+            .with_challenge_type(challenge_type)
+            .with_outcomes(outcomes)
+            .with_active(active)
+            .with_order(order)
+            .with_is_favorite(is_favorite);
+
+        for condition in trigger_conditions {
+            challenge = challenge.with_trigger(condition);
+        }
+        for tag in tags {
+            challenge = challenge.with_tag(tag);
+        }
+        if let Some(stat) = check_stat {
+            challenge = challenge.with_check_stat(stat);
+        }
+
+        Ok(challenge)
     }
 }
 
@@ -270,21 +272,19 @@ impl ChallengeRepo for Neo4jChallengeRepo {
 
     async fn save(&self, challenge: &Challenge) -> Result<(), RepoError> {
         let difficulty_json =
-            serde_json::to_string(&DifficultyStored::from(challenge.difficulty.clone()))
+            serde_json::to_string(&DifficultyStored::from(challenge.difficulty().clone()))
                 .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let outcomes_json =
-            serde_json::to_string(&OutcomesStored::from(challenge.outcomes.clone()))
-                .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let outcomes_json = serde_json::to_string(&OutcomesStored::from(challenge.outcomes()))
+            .map_err(|e| RepoError::Serialization(e.to_string()))?;
         let triggers_json = serde_json::to_string(
             &challenge
-                .trigger_conditions
+                .trigger_conditions()
                 .iter()
-                .cloned()
                 .map(TriggerConditionStored::from)
                 .collect::<Vec<_>>(),
         )
         .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let tags_json = serde_json::to_string(&challenge.tags)
+        let tags_json = serde_json::to_string(challenge.tags())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         // MERGE for upsert behavior
@@ -306,21 +306,24 @@ impl ChallengeRepo for Neo4jChallengeRepo {
             MERGE (w)-[:CONTAINS_CHALLENGE]->(c)
             RETURN c.id as id",
         )
-        .param("id", challenge.id.to_string())
-        .param("world_id", challenge.world_id.to_string())
-        .param("name", challenge.name.clone())
-        .param("description", challenge.description.clone())
-        .param("challenge_type", format!("{:?}", challenge.challenge_type))
+        .param("id", challenge.id().to_string())
+        .param("world_id", challenge.world_id().to_string())
+        .param("name", challenge.name().to_string())
+        .param("description", challenge.description().to_string())
+        .param(
+            "challenge_type",
+            format!("{:?}", challenge.challenge_type()),
+        )
         .param("difficulty_json", difficulty_json)
         .param("outcomes_json", outcomes_json)
         .param("triggers_json", triggers_json)
-        .param("active", challenge.active)
-        .param("challenge_order", challenge.order as i64)
-        .param("is_favorite", challenge.is_favorite)
+        .param("active", challenge.active())
+        .param("challenge_order", challenge.order() as i64)
+        .param("is_favorite", challenge.is_favorite())
         .param("tags_json", tags_json)
         .param(
             "check_stat",
-            challenge.check_stat.clone().unwrap_or_default(),
+            challenge.check_stat().unwrap_or_default().to_string(),
         );
 
         self.graph
@@ -328,7 +331,7 @@ impl ChallengeRepo for Neo4jChallengeRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
-        tracing::debug!("Saved challenge: {}", challenge.name);
+        tracing::debug!("Saved challenge: {}", challenge.name());
         Ok(())
     }
 

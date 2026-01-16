@@ -102,17 +102,17 @@ impl SceneChangeBuilder {
     ) -> Result<SceneChangeData, SceneChangeError> {
         let location = self
             .location
-            .get(region.location_id)
+            .get(region.location_id())
             .await?
-            .ok_or(SceneChangeError::LocationNotFound(region.location_id))?;
+            .ok_or(SceneChangeError::LocationNotFound(region.location_id()))?;
 
         let region_data = RegionInfo {
-            id: region.id.to_string(),
-            name: region.name.clone(),
-            location_id: region.location_id.to_string(),
+            id: region.id().to_string(),
+            name: region.name().to_string(),
+            location_id: region.location_id().to_string(),
             location_name: location.name().to_string(),
-            backdrop_asset: region.backdrop_asset.clone(),
-            atmosphere: region.atmosphere.clone(),
+            backdrop_asset: region.backdrop_asset().map(|s| s.to_string()),
+            atmosphere: region.atmosphere().map(|s| s.to_string()),
             map_asset: None,
         };
 
@@ -120,15 +120,15 @@ impl SceneChangeBuilder {
             .into_iter()
             .filter(|npc| include_hidden_npcs || npc.is_visible_to_players())
             .map(|npc| NpcPresenceInfo {
-                character_id: npc.character_id.to_string(),
-                name: npc.name,
-                sprite_asset: npc.sprite_asset,
-                portrait_asset: npc.portrait_asset,
+                character_id: npc.character_id().to_string(),
+                name: npc.name().to_string(),
+                sprite_asset: npc.sprite_asset().map(|s| s.to_string()),
+                portrait_asset: npc.portrait_asset().map(|s| s.to_string()),
             })
             .collect();
 
-        let navigation = self.build_navigation_data(region.id).await?;
-        let region_items = self.build_region_items(region.id).await;
+        let navigation = self.build_navigation_data(region.id()).await?;
+        let region_items = self.build_region_items(region.id()).await;
 
         Ok(SceneChangeData {
             region: region_data,
@@ -148,15 +148,15 @@ impl SceneChangeBuilder {
         for connection in connections {
             let target_region = self
                 .location
-                .get_region(connection.to_region)
+                .get_region(connection.to_region())
                 .await?
-                .ok_or(SceneChangeError::RegionNotFound(connection.to_region))?;
+                .ok_or(SceneChangeError::RegionNotFound(connection.to_region()))?;
 
             connected_regions.push(NavigationTargetInfo {
-                region_id: connection.to_region.to_string(),
-                name: target_region.name,
-                is_locked: connection.is_locked,
-                lock_description: connection.lock_description,
+                region_id: connection.to_region().to_string(),
+                name: target_region.name().to_string(),
+                is_locked: connection.is_locked(),
+                lock_description: connection.lock_description().map(|s| s.to_string()),
             });
         }
 
@@ -193,10 +193,10 @@ impl SceneChangeBuilder {
             Ok(items) => items
                 .into_iter()
                 .map(|item| RegionItemInfo {
-                    id: item.id.to_string(),
-                    name: item.name,
-                    description: item.description,
-                    item_type: item.item_type,
+                    id: item.id().to_string(),
+                    name: item.name().to_string(),
+                    description: item.description().map(|s| s.to_string()),
+                    item_type: item.item_type().map(|s| s.to_string()),
                 })
                 .collect(),
             Err(e) => {

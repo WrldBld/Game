@@ -37,14 +37,14 @@ impl Neo4jActRepo {
         let description: String = node.get_string_or("description", "");
         let order_num = node.get_i64_or("order_num", 0);
 
-        Ok(Act {
+        Ok(Act::from_parts(
             id,
             world_id,
             name,
             stage,
             description,
-            order: order_num as u32,
-        })
+            order_num as u32,
+        ))
     }
 }
 
@@ -83,19 +83,19 @@ impl ActRepo for Neo4jActRepo {
             MERGE (w)-[:CONTAINS_ACT]->(a)
             RETURN a.id as id",
         )
-        .param("id", act.id.to_string())
-        .param("world_id", act.world_id.to_string())
-        .param("name", act.name.clone())
-        .param("stage", act.stage.to_string())
-        .param("description", act.description.clone())
-        .param("order_num", act.order as i64);
+        .param("id", act.id().to_string())
+        .param("world_id", act.world_id().to_string())
+        .param("name", act.name().to_string())
+        .param("stage", act.stage().to_string())
+        .param("description", act.description().to_string())
+        .param("order_num", act.order() as i64);
 
         self.graph
             .run(q)
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
-        tracing::debug!("Saved act: {}", act.name);
+        tracing::debug!("Saved act: {}", act.name());
         Ok(())
     }
 

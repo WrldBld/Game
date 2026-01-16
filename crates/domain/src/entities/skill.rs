@@ -13,20 +13,20 @@ use wrldbldr_domain::{DomainError, SkillId, WorldId};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Skill {
-    pub id: SkillId,
-    pub world_id: WorldId,
-    pub name: String,
-    pub description: String,
+    id: SkillId,
+    world_id: WorldId,
+    name: String,
+    description: String,
     /// Category for UI grouping (e.g., "Physical", "Mental", "Social")
-    pub category: SkillCategory,
+    category: SkillCategory,
     /// The base attribute this skill derives from (e.g., "DEX", "INT")
-    pub base_attribute: Option<String>,
+    base_attribute: Option<String>,
     /// Whether this is a custom skill (not from the preset)
-    pub is_custom: bool,
+    is_custom: bool,
     /// Whether to hide this skill from players
-    pub is_hidden: bool,
+    is_hidden: bool,
     /// Display order within category
-    pub order: u32,
+    order: u32,
 }
 
 impl Skill {
@@ -50,6 +50,46 @@ impl Skill {
         skill
     }
 
+    // === Accessors ===
+
+    pub fn id(&self) -> SkillId {
+        self.id
+    }
+
+    pub fn world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn category(&self) -> SkillCategory {
+        self.category
+    }
+
+    pub fn base_attribute(&self) -> Option<&str> {
+        self.base_attribute.as_deref()
+    }
+
+    pub fn is_custom(&self) -> bool {
+        self.is_custom
+    }
+
+    pub fn is_hidden(&self) -> bool {
+        self.is_hidden
+    }
+
+    pub fn order(&self) -> u32 {
+        self.order
+    }
+
+    // === Builder Methods ===
+
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = description.into();
         self
@@ -63,6 +103,63 @@ impl Skill {
     pub fn with_order(mut self, order: u32) -> Self {
         self.order = order;
         self
+    }
+
+    pub fn with_is_custom(mut self, is_custom: bool) -> Self {
+        self.is_custom = is_custom;
+        self
+    }
+
+    pub fn with_is_hidden(mut self, is_hidden: bool) -> Self {
+        self.is_hidden = is_hidden;
+        self
+    }
+
+    pub fn with_id(mut self, id: SkillId) -> Self {
+        self.id = id;
+        self
+    }
+
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    pub fn with_category(mut self, category: SkillCategory) -> Self {
+        self.category = category;
+        self
+    }
+
+    /// Clear the base attribute (set to None).
+    pub fn without_base_attribute(mut self) -> Self {
+        self.base_attribute = None;
+        self
+    }
+
+    /// Reconstruct a Skill from storage parts.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_parts(
+        id: SkillId,
+        world_id: WorldId,
+        name: String,
+        description: String,
+        category: SkillCategory,
+        base_attribute: Option<String>,
+        is_custom: bool,
+        is_hidden: bool,
+        order: u32,
+    ) -> Self {
+        Self {
+            id,
+            world_id,
+            name,
+            description,
+            category,
+            base_attribute,
+            is_custom,
+            is_hidden,
+            order,
+        }
     }
 }
 

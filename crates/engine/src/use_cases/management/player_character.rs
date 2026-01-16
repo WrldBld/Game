@@ -128,7 +128,7 @@ impl PlayerCharacterCrud {
             .ok_or(ManagementError::NotFound)?;
 
         self.player_character
-            .update_position(pc_id, region.location_id, region_id)
+            .update_position(pc_id, region.location_id(), region_id)
             .await?;
         Ok(())
     }
@@ -149,7 +149,7 @@ impl PlayerCharacterCrud {
                 .get_region(region_id)
                 .await?
                 .ok_or(ManagementError::NotFound)?;
-            return Ok((region.location_id, Some(region.id)));
+            return Ok((region.location_id(), Some(region.id())));
         }
 
         let locations = self.location.list_in_world(world_id).await?;
@@ -158,8 +158,8 @@ impl PlayerCharacterCrud {
                 .location
                 .list_regions_in_location(location.id())
                 .await?;
-            if let Some(spawn) = regions.iter().find(|r| r.is_spawn_point) {
-                return Ok((location.id(), Some(spawn.id)));
+            if let Some(spawn) = regions.iter().find(|r| r.is_spawn_point()) {
+                return Ok((location.id(), Some(spawn.id())));
             }
         }
 
@@ -174,6 +174,6 @@ impl PlayerCharacterCrud {
             .first()
             .ok_or_else(|| ManagementError::InvalidInput("No regions in world".to_string()))?;
 
-        Ok((fallback_location.id(), Some(region.id)))
+        Ok((fallback_location.id(), Some(region.id())))
     }
 }

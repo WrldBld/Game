@@ -103,7 +103,7 @@ impl Inventory {
 
         // Verify the item is in the PC's inventory
         let inventory = self.pc_repo.get_inventory(pc_id).await?;
-        if !inventory.iter().any(|i| i.id == item_id) {
+        if !inventory.iter().any(|i| i.id() == item_id) {
             return Err(InventoryError::ItemNotInInventory);
         }
 
@@ -111,7 +111,7 @@ impl Inventory {
         self.item_repo.set_equipped(pc_id, item_id).await?;
 
         Ok(InventoryActionResult {
-            item_name: item.name,
+            item_name: item.name().to_string(),
             quantity: 1,
         })
     }
@@ -133,7 +133,7 @@ impl Inventory {
 
         // Verify the item is in the PC's inventory
         let inventory = self.pc_repo.get_inventory(pc_id).await?;
-        if !inventory.iter().any(|i| i.id == item_id) {
+        if !inventory.iter().any(|i| i.id() == item_id) {
             return Err(InventoryError::ItemNotInInventory);
         }
 
@@ -141,7 +141,7 @@ impl Inventory {
         self.item_repo.set_unequipped(pc_id, item_id).await?;
 
         Ok(InventoryActionResult {
-            item_name: item.name,
+            item_name: item.name().to_string(),
             quantity: 1,
         })
     }
@@ -171,7 +171,7 @@ impl Inventory {
 
         // Verify the item is in the PC's inventory
         let inventory = self.pc_repo.get_inventory(pc_id).await?;
-        if !inventory.iter().any(|i| i.id == item_id) {
+        if !inventory.iter().any(|i| i.id() == item_id) {
             return Err(InventoryError::ItemNotInInventory);
         }
 
@@ -190,7 +190,7 @@ impl Inventory {
             .await?;
 
         Ok(InventoryActionResult {
-            item_name: item.name,
+            item_name: item.name().to_string(),
             quantity,
         })
     }
@@ -222,11 +222,11 @@ impl Inventory {
         self.item_repo.save(&item).await?;
 
         // Add to PC's inventory
-        self.pc_repo.add_to_inventory(pc_id, item.id).await?;
+        self.pc_repo.add_to_inventory(pc_id, item.id()).await?;
 
         tracing::info!(
             pc_id = %pc_id,
-            item_id = %item.id,
+            item_id = %item.id(),
             item_name = %item_name,
             "Item given to player character"
         );
@@ -262,7 +262,7 @@ impl Inventory {
         // Verify the item is in the PC's current region
         let pc_region = pc.current_region_id().ok_or(InventoryError::NotInRegion)?;
         let items_in_region = self.item_repo.list_in_region(pc_region).await?;
-        if !items_in_region.iter().any(|i| i.id == item_id) {
+        if !items_in_region.iter().any(|i| i.id() == item_id) {
             return Err(InventoryError::ItemNotInRegion);
         }
 
@@ -273,7 +273,7 @@ impl Inventory {
         self.pc_repo.add_to_inventory(pc_id, item_id).await?;
 
         Ok(InventoryActionResult {
-            item_name: item.name,
+            item_name: item.name().to_string(),
             quantity: 1,
         })
     }
@@ -317,8 +317,8 @@ impl Inventory {
         item: domain::Item,
         region_id: RegionId,
     ) -> Result<ItemId, InventoryError> {
-        let item_id = item.id;
-        let item_name = item.name.clone();
+        let item_id = item.id();
+        let item_name = item.name().to_string();
 
         // Save the item
         self.item_repo.save(&item).await?;

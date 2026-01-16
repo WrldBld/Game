@@ -103,7 +103,7 @@ impl ExitLocation {
             .ok_or(ExitLocationError::RegionNotFound)?;
 
         // Verify region belongs to target location
-        if region.location_id != location.id() {
+        if region.location_id() != location.id() {
             return Err(ExitLocationError::RegionLocationMismatch);
         }
 
@@ -131,7 +131,7 @@ impl ExitLocation {
         let (npcs, staging_status) = resolve_staging_for_region(
             &self.staging,
             region_id,
-            region.location_id,
+            region.location_id(),
             pc.world_id(),
             current_game_time,
         )
@@ -207,7 +207,7 @@ impl ExitLocation {
                 .await?
                 .ok_or(ExitLocationError::RegionNotFound)?;
 
-            if region.location_id != location_id {
+            if region.location_id() != location_id {
                 return Err(ExitLocationError::RegionLocationMismatch);
             }
 
@@ -232,8 +232,8 @@ impl ExitLocation {
 
         regions
             .into_iter()
-            .find(|r| r.is_spawn_point)
-            .map(|r| r.id)
+            .find(|r| r.is_spawn_point())
+            .map(|r| r.id())
             .ok_or(ExitLocationError::NoArrivalRegion)
     }
 }
@@ -452,9 +452,18 @@ mod tests {
                 .with_description(Description::new("Desc").unwrap())
                 .with_id(target_location_id);
 
-        let mut arrival_region = Region::new(other_location_id, "Arrival");
-        arrival_region.id = RegionId::new();
-        let arrival_region_id = arrival_region.id;
+        let arrival_region_id = RegionId::new();
+        let arrival_region = Region::from_parts(
+            arrival_region_id,
+            other_location_id,
+            "Arrival".to_string(),
+            String::new(),
+            None,
+            None,
+            None,
+            false,
+            0,
+        );
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -571,9 +580,18 @@ mod tests {
                 .with_description(Description::new("Desc").unwrap())
                 .with_id(target_location_id);
 
-        let mut arrival_region = Region::new(target_location_id, "Arrival");
-        arrival_region.id = RegionId::new();
-        let arrival_region_id = arrival_region.id;
+        let arrival_region_id = RegionId::new();
+        let arrival_region = Region::from_parts(
+            arrival_region_id,
+            target_location_id,
+            "Arrival".to_string(),
+            String::new(),
+            None,
+            None,
+            None,
+            false,
+            0,
+        );
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
             "user",

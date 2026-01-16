@@ -50,9 +50,8 @@ impl AssetRepo for Neo4jAssetRepo {
     /// Save an asset (upsert) and create relationship to owning entity
     async fn save(&self, asset: &GalleryAsset) -> Result<(), RepoError> {
         let generation_metadata_json = asset
-            .generation_metadata
-            .as_ref()
-            .map(|m| serde_json::to_string(&GenerationMetadataStored::from(m.clone())))
+            .generation_metadata()
+            .map(|m| serde_json::to_string(&GenerationMetadataStored::from_metadata(m)))
             .transpose()
             .map_err(|e| RepoError::Serialization(e.to_string()))?
             .unwrap_or_default();
@@ -78,15 +77,15 @@ impl AssetRepo for Neo4jAssetRepo {
                 a.label = $label,
                 a.generation_metadata = $generation_metadata",
         )
-        .param("id", asset.id.to_string())
-        .param("entity_type", asset.entity_type.to_string())
-        .param("entity_id", asset.entity_id.clone())
-        .param("asset_type", asset.asset_type.to_string())
-        .param("file_path", asset.file_path.clone())
-        .param("is_active", asset.is_active)
-        .param("label", asset.label.clone().unwrap_or_default())
+        .param("id", asset.id().to_string())
+        .param("entity_type", asset.entity_type().to_string())
+        .param("entity_id", asset.entity_id().to_string())
+        .param("asset_type", asset.asset_type().to_string())
+        .param("file_path", asset.file_path().to_string())
+        .param("is_active", asset.is_active())
+        .param("label", asset.label().unwrap_or_default().to_string())
         .param("generation_metadata", generation_metadata_json)
-        .param("created_at", asset.created_at.to_rfc3339());
+        .param("created_at", asset.created_at().to_rfc3339());
 
         self.graph
             .run(q)
@@ -95,8 +94,8 @@ impl AssetRepo for Neo4jAssetRepo {
 
         // Create relationship to owning entity based on entity_type
         // Only create relationship if asset can have assets
-        if asset.entity_type.has_assets() {
-            let relationship_query = match asset.entity_type {
+        if asset.entity_type().has_assets() {
+            let relationship_query = match asset.entity_type() {
                 EntityType::Character => query(
                     "MATCH (e:Character {id: $entity_id}), (a:GalleryAsset {id: $asset_id})
                     MERGE (e)-[:HAS_ASSET]->(a)",
@@ -115,8 +114,8 @@ impl AssetRepo for Neo4jAssetRepo {
             self.graph
                 .run(
                     relationship_query
-                        .param("entity_id", asset.entity_id.clone())
-                        .param("asset_id", asset.id.to_string()),
+                        .param("entity_id", asset.entity_id().to_string())
+                        .param("asset_id", asset.id().to_string()),
                 )
                 .await
                 .map_err(|e| RepoError::database("query", e))?;
@@ -197,7 +196,7 @@ impl AssetRepo for Neo4jAssetRepo {
         )
         .param("entity_type", entity_type)
         .param("entity_id", entity_id.to_string())
-        .param("asset_type", asset.asset_type.to_string());
+        .param("asset_type", asset.asset_type().to_string());
 
         self.graph
             .run(deactivate_q)
@@ -255,7 +254,7 @@ fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset, RepoError> {
         .map_err(|e| RepoError::database("query", format!("Invalid datetime: {}", e)))?
         .with_timezone(&chrono::Utc);
 
-    Ok(GalleryAsset {
+    Ok(GalleryAsset::reconstruct(
         id,
         entity_type,
         entity_id,
@@ -265,7 +264,7 @@ fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset, RepoError> {
         label,
         generation_metadata,
         created_at,
-    })
+    ))
 }
 
 fn parse_entity_type(s: &str) -> EntityType {
@@ -291,15 +290,15 @@ struct GenerationMetadataStored {
     pub batch_id: String,
 }
 
-impl From<GenerationMetadata> for GenerationMetadataStored {
-    fn from(value: GenerationMetadata) -> Self {
+impl GenerationMetadataStored {
+    fn from_metadata(value: &GenerationMetadata) -> Self {
         Self {
-            workflow: value.workflow,
-            prompt: value.prompt,
-            negative_prompt: value.negative_prompt,
-            seed: value.seed,
-            style_reference_id: value.style_reference_id.map(|id| id.to_string()),
-            batch_id: value.batch_id.to_string(),
+            workflow: value.workflow().to_string(),
+            prompt: value.prompt().to_string(),
+            negative_prompt: value.negative_prompt().map(|s| s.to_string()),
+            seed: value.seed(),
+            style_reference_id: value.style_reference_id().map(|id| id.to_string()),
+            batch_id: value.batch_id().to_string(),
         }
     }
 }
@@ -315,13 +314,13 @@ impl From<GenerationMetadataStored> for GenerationMetadata {
             .map(BatchId::from_uuid)
             .unwrap_or_default();
 
-        Self {
-            workflow: value.workflow,
-            prompt: value.prompt,
-            negative_prompt: value.negative_prompt,
-            seed: value.seed,
+        GenerationMetadata::reconstruct(
+            value.workflow,
+            value.prompt,
+            value.negative_prompt,
+            value.seed,
             style_reference_id,
             batch_id,
-        }
+        )
     }
 }

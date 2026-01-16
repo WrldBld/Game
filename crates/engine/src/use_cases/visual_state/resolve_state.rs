@@ -178,11 +178,11 @@ impl ResolveVisualState {
 
         for state in &location_states {
             let (eval, soft_rules) = self.evaluate_rules(
-                &state.activation_rules,
-                state.activation_logic,
+                state.activation_rules(),
+                state.activation_logic(),
                 context,
-                &state.id.to_string(),
-                &state.name,
+                &state.id().to_string(),
+                state.name(),
             );
 
             for soft in soft_rules {
@@ -197,11 +197,11 @@ impl ResolveVisualState {
 
         for state in &region_states {
             let (eval, soft_rules) = self.evaluate_rules(
-                &state.activation_rules,
-                state.activation_logic,
+                state.activation_rules(),
+                state.activation_logic(),
                 context,
-                &state.id.to_string(),
-                &state.name,
+                &state.id().to_string(),
+                state.name(),
             );
 
             for soft in soft_rules {
@@ -215,13 +215,13 @@ impl ResolveVisualState {
         let available_location_states: Vec<ResolvedStateInfo> = location_evaluations
             .iter()
             .map(|(state, eval)| ResolvedStateInfo {
-                id: state.id.to_string(),
-                name: state.name.clone(),
-                backdrop_override: state.backdrop_override.clone(),
-                atmosphere_override: state.atmosphere_override.clone(),
-                ambient_sound: state.ambient_sound.clone(),
-                priority: state.priority,
-                is_default: state.is_default,
+                id: state.id().to_string(),
+                name: state.name().to_string(),
+                backdrop_override: state.backdrop_override().map(|s| s.to_string()),
+                atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
+                ambient_sound: state.ambient_sound().map(|s| s.to_string()),
+                priority: state.priority(),
+                is_default: state.is_default(),
                 evaluation: eval.clone(),
             })
             .collect();
@@ -229,13 +229,13 @@ impl ResolveVisualState {
         let available_region_states: Vec<ResolvedStateInfo> = region_evaluations
             .iter()
             .map(|(state, eval)| ResolvedStateInfo {
-                id: state.id.to_string(),
-                name: state.name.clone(),
-                backdrop_override: state.backdrop_override.clone(),
-                atmosphere_override: state.atmosphere_override.clone(),
-                ambient_sound: state.ambient_sound.clone(),
-                priority: state.priority,
-                is_default: state.is_default,
+                id: state.id().to_string(),
+                name: state.name().to_string(),
+                backdrop_override: state.backdrop_override().map(|s| s.to_string()),
+                atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
+                ambient_sound: state.ambient_sound().map(|s| s.to_string()),
+                priority: state.priority(),
+                is_default: state.is_default(),
                 evaluation: eval.clone(),
             })
             .collect();
@@ -273,11 +273,11 @@ impl ResolveVisualState {
 
         for state in &location_states {
             let (eval, _) = self.evaluate_rules(
-                &state.activation_rules,
-                state.activation_logic,
+                state.activation_rules(),
+                state.activation_logic(),
                 context,
-                &state.id.to_string(),
-                &state.name,
+                &state.id().to_string(),
+                state.name(),
             );
             evaluations.push((state.clone(), eval));
         }
@@ -297,11 +297,11 @@ impl ResolveVisualState {
 
         for state in &region_states {
             let (eval, _) = self.evaluate_rules(
-                &state.activation_rules,
-                state.activation_logic,
+                state.activation_rules(),
+                state.activation_logic(),
                 context,
-                &state.id.to_string(),
-                &state.name,
+                &state.id().to_string(),
+                state.name(),
             );
             evaluations.push((state.clone(), eval));
         }
@@ -526,17 +526,17 @@ impl ResolveVisualState {
         let active_state = evaluations
             .iter()
             .filter(|(_, eval)| eval.is_active())
-            .max_by_key(|(state, _)| state.priority);
+            .max_by_key(|(state, _)| state.priority());
 
         if let Some((state, eval)) = active_state {
             return Some(ResolvedStateInfo {
-                id: state.id.to_string(),
-                name: state.name.clone(),
-                backdrop_override: state.backdrop_override.clone(),
-                atmosphere_override: state.atmosphere_override.clone(),
-                ambient_sound: state.ambient_sound.clone(),
-                priority: state.priority,
-                is_default: state.is_default,
+                id: state.id().to_string(),
+                name: state.name().to_string(),
+                backdrop_override: state.backdrop_override().map(|s| s.to_string()),
+                atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
+                ambient_sound: state.ambient_sound().map(|s| s.to_string()),
+                priority: state.priority(),
+                is_default: state.is_default(),
                 evaluation: eval.clone(),
             });
         }
@@ -544,15 +544,15 @@ impl ResolveVisualState {
         // Fall back to the default state if no active states found
         evaluations
             .iter()
-            .find(|(state, _)| state.is_default)
+            .find(|(state, _)| state.is_default())
             .map(|(state, eval)| ResolvedStateInfo {
-                id: state.id.to_string(),
-                name: state.name.clone(),
-                backdrop_override: state.backdrop_override.clone(),
-                atmosphere_override: state.atmosphere_override.clone(),
-                ambient_sound: state.ambient_sound.clone(),
-                priority: state.priority,
-                is_default: state.is_default,
+                id: state.id().to_string(),
+                name: state.name().to_string(),
+                backdrop_override: state.backdrop_override().map(|s| s.to_string()),
+                atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
+                ambient_sound: state.ambient_sound().map(|s| s.to_string()),
+                priority: state.priority(),
+                is_default: state.is_default(),
                 evaluation: eval.clone(),
             })
     }
@@ -567,17 +567,17 @@ impl ResolveVisualState {
         let active_state = evaluations
             .iter()
             .filter(|(_, eval)| eval.is_active())
-            .max_by_key(|(state, _)| state.priority);
+            .max_by_key(|(state, _)| state.priority());
 
         if let Some((state, eval)) = active_state {
             return Some(ResolvedStateInfo {
-                id: state.id.to_string(),
-                name: state.name.clone(),
-                backdrop_override: state.backdrop_override.clone(),
-                atmosphere_override: state.atmosphere_override.clone(),
-                ambient_sound: state.ambient_sound.clone(),
-                priority: state.priority,
-                is_default: state.is_default,
+                id: state.id().to_string(),
+                name: state.name().to_string(),
+                backdrop_override: state.backdrop_override().map(|s| s.to_string()),
+                atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
+                ambient_sound: state.ambient_sound().map(|s| s.to_string()),
+                priority: state.priority(),
+                is_default: state.is_default(),
                 evaluation: eval.clone(),
             });
         }
@@ -585,15 +585,15 @@ impl ResolveVisualState {
         // Fall back to the default state if no active states found
         evaluations
             .iter()
-            .find(|(state, _)| state.is_default)
+            .find(|(state, _)| state.is_default())
             .map(|(state, eval)| ResolvedStateInfo {
-                id: state.id.to_string(),
-                name: state.name.clone(),
-                backdrop_override: state.backdrop_override.clone(),
-                atmosphere_override: state.atmosphere_override.clone(),
-                ambient_sound: state.ambient_sound.clone(),
-                priority: state.priority,
-                is_default: state.is_default,
+                id: state.id().to_string(),
+                name: state.name().to_string(),
+                backdrop_override: state.backdrop_override().map(|s| s.to_string()),
+                atmosphere_override: state.atmosphere_override().map(|s| s.to_string()),
+                ambient_sound: state.ambient_sound().map(|s| s.to_string()),
+                priority: state.priority(),
+                is_default: state.is_default(),
                 evaluation: eval.clone(),
             })
     }

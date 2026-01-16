@@ -508,12 +508,12 @@ pub(super) async fn handle_character_request(
                 .into_iter()
                 .map(|item| {
                     serde_json::json!({
-                        "id": item.id,
-                        "name": item.name,
-                        "description": item.description,
-                        "item_type": item.item_type,
-                        "is_unique": item.is_unique,
-                        "properties": item.properties,
+                        "id": item.id(),
+                        "name": item.name(),
+                        "description": item.description(),
+                        "item_type": item.item_type(),
+                        "is_unique": item.is_unique(),
+                        "properties": item.properties(),
                     })
                 })
                 .collect();

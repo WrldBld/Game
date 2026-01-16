@@ -641,24 +641,31 @@ impl FiveToolsImporter {
             tags.extend(conditions);
         }
 
-        Some(Spell {
+        let mut spell = Spell::new(
             id,
-            system_id: "dnd5e".to_string(),
-            name: raw.name,
+            "dnd5e",
+            raw.name,
             level,
-            school,
             casting_time,
             range,
             components,
             duration,
             description,
-            higher_levels,
             classes,
             source,
-            tags,
-            ritual,
-            concentration,
-        })
+        )
+        .with_tags(tags)
+        .with_ritual(ritual)
+        .with_concentration(concentration);
+
+        if let Some(school_name) = school {
+            spell = spell.with_school(school_name);
+        }
+        if let Some(higher) = higher_levels {
+            spell = spell.with_higher_levels(higher);
+        }
+
+        Some(spell)
     }
 
     fn slugify(&self, value: &str) -> String {
@@ -695,10 +702,11 @@ impl FiveToolsImporter {
                     _ => CastingTimeUnit::Special,
                 };
 
-                CastingTime {
-                    amount: t.number.unwrap_or(1),
-                    unit,
-                    condition: t.condition.clone(),
+                let ct = CastingTime::new(t.number.unwrap_or(1), unit);
+                if let Some(cond) = &t.condition {
+                    ct.with_condition(cond.clone())
+                } else {
+                    ct
                 }
             }
             None => CastingTime::action(),
@@ -752,30 +760,27 @@ impl FiveToolsImporter {
         match components {
             Some(c) => {
                 let material = c.m.as_ref().map(|m| match m {
-                    FiveToolsMaterial::Simple(s) => MaterialComponent {
-                        description: s.clone(),
-                        consumed: false,
-                        cost: None,
-                    },
+                    FiveToolsMaterial::Simple(s) => MaterialComponent::new(s.clone()),
                     FiveToolsMaterial::Detailed(d) => {
                         let consumed = match &d.consume {
                             Some(FiveToolsConsume::Bool(b)) => *b,
                             Some(FiveToolsConsume::String(_)) => true,
                             None => false,
                         };
-                        MaterialComponent {
-                            description: d.text.clone(),
-                            consumed,
-                            cost: d.cost,
+                        let mut mat =
+                            MaterialComponent::new(d.text.clone()).with_consumed(consumed);
+                        if let Some(cost) = d.cost {
+                            mat = mat.with_cost(cost);
                         }
+                        mat
                     }
                 });
 
-                SpellComponents {
-                    verbal: c.v,
-                    somatic: c.s,
-                    material,
+                let mut components = SpellComponents::new().with_verbal(c.v).with_somatic(c.s);
+                if let Some(mat) = material {
+                    components = components.with_material(mat);
                 }
+                components
             }
             None => SpellComponents::default(),
         }
@@ -853,18 +858,17 @@ impl FiveToolsImporter {
             raw.page.map(|p| p.to_string()).unwrap_or_default()
         );
 
-        Some(Feat {
-            id,
-            system_id: "dnd5e".to_string(),
-            name: raw.name,
-            description,
-            prerequisites,
-            benefits,
-            source,
-            category: raw.category,
-            repeatable: false,
-            tags: Vec::new(),
-        })
+        let mut feat = Feat::new(id, "dnd5e", raw.name, description, source)
+            .with_prerequisites(prerequisites)
+            .with_benefits(benefits)
+            .with_repeatable(false)
+            .with_tags(Vec::new());
+
+        if let Some(cat) = raw.category {
+            feat = feat.with_category(cat);
+        }
+
+        Some(feat)
     }
 
     fn convert_prerequisites(&self, prereq: FiveToolsPrerequisite) -> Vec<Prerequisite> {
@@ -1984,54 +1988,54 @@ impl Dnd5eContentProvider {
 
     fn spell_to_content_item(spell: &Spell) -> ContentItem {
         let data = serde_json::json!({
-            "level": spell.level,
-            "school": spell.school,
-            "casting_time": spell.casting_time,
-            "range": spell.range,
-            "components": spell.components,
-            "duration": spell.duration,
-            "higher_levels": spell.higher_levels,
-            "classes": spell.classes,
-            "ritual": spell.ritual,
-            "concentration": spell.concentration,
+            "level": spell.level(),
+            "school": spell.school(),
+            "casting_time": spell.casting_time(),
+            "range": spell.range(),
+            "components": spell.components(),
+            "duration": spell.duration(),
+            "higher_levels": spell.higher_levels(),
+            "classes": spell.classes(),
+            "ritual": spell.ritual(),
+            "concentration": spell.concentration(),
         });
 
-        let mut tags = spell.tags.clone();
+        let mut tags = spell.tags().to_vec();
         tags.push("spell".to_string());
-        tags.push(spell.source.clone());
-        if let Some(school) = &spell.school {
+        tags.push(spell.source().to_string());
+        if let Some(school) = spell.school() {
             tags.push(school.to_lowercase());
         }
-        if spell.ritual {
+        if spell.ritual() {
             tags.push("ritual".to_string());
         }
-        if spell.concentration {
+        if spell.concentration() {
             tags.push("concentration".to_string());
         }
 
-        ContentItem::new(&spell.id, ContentType::Spell, &spell.name, &spell.source)
-            .with_description(&spell.description)
+        ContentItem::new(spell.id(), ContentType::Spell, spell.name(), spell.source())
+            .with_description(spell.description())
             .with_data(data)
             .with_tags(tags)
     }
 
     fn feat_to_content_item(feat: &Feat) -> ContentItem {
         let data = serde_json::json!({
-            "prerequisites": feat.prerequisites,
-            "benefits": feat.benefits,
-            "category": feat.category,
-            "repeatable": feat.repeatable,
+            "prerequisites": feat.prerequisites(),
+            "benefits": feat.benefits(),
+            "category": feat.category(),
+            "repeatable": feat.repeatable(),
         });
 
-        let mut tags = feat.tags.clone();
+        let mut tags = feat.tags().to_vec();
         tags.push("feat".to_string());
-        tags.push(feat.source.clone());
-        if let Some(cat) = &feat.category {
+        tags.push(feat.source().to_string());
+        if let Some(cat) = feat.category() {
             tags.push(cat.to_lowercase());
         }
 
-        ContentItem::new(&feat.id, ContentType::Feat, &feat.name, &feat.source)
-            .with_description(&feat.description)
+        ContentItem::new(feat.id(), ContentType::Feat, feat.name(), feat.source())
+            .with_description(feat.description())
             .with_data(data)
             .with_tags(tags)
     }
@@ -2380,8 +2384,8 @@ mod tests {
             condition: None,
         }];
         let result = importer.convert_casting_time(&times);
-        assert_eq!(result.unit, CastingTimeUnit::Action);
-        assert_eq!(result.amount, 1);
+        assert_eq!(result.unit(), CastingTimeUnit::Action);
+        assert_eq!(result.amount(), 1);
 
         let times = vec![FiveToolsTime {
             number: Some(10),
@@ -2389,8 +2393,8 @@ mod tests {
             condition: None,
         }];
         let result = importer.convert_casting_time(&times);
-        assert_eq!(result.unit, CastingTimeUnit::Minute);
-        assert_eq!(result.amount, 10);
+        assert_eq!(result.unit(), CastingTimeUnit::Minute);
+        assert_eq!(result.amount(), 10);
     }
 
     #[test]
@@ -2576,21 +2580,25 @@ mod tests {
             println!("Imported {} spells", spells.len());
 
             // Check a known spell exists
-            let fireball = spells.iter().find(|s| s.name == "Fireball");
+            let fireball = spells.iter().find(|s| s.name() == "Fireball");
             assert!(fireball.is_some(), "Fireball spell should exist");
 
             if let Some(fireball) = fireball {
-                assert_eq!(fireball.level, SpellLevel::Level(3), "Fireball is level 3");
+                assert_eq!(
+                    fireball.level(),
+                    SpellLevel::Level(3),
+                    "Fireball is level 3"
+                );
                 // Note: Class associations are stored separately in sources.json,
                 // not directly on spells. The importer may have empty classes list.
             }
 
             // Check a cantrip
-            let fire_bolt = spells.iter().find(|s| s.name == "Fire Bolt");
+            let fire_bolt = spells.iter().find(|s| s.name() == "Fire Bolt");
             assert!(fire_bolt.is_some(), "Fire Bolt cantrip should exist");
             if let Some(fire_bolt) = fire_bolt {
                 assert_eq!(
-                    fire_bolt.level,
+                    fire_bolt.level(),
                     SpellLevel::Cantrip,
                     "Fire Bolt is a cantrip"
                 );
@@ -2614,7 +2622,7 @@ mod tests {
                     println!("Imported {} feats", feats.len());
 
                     // Check a known feat exists
-                    let gwm = feats.iter().find(|f| f.name == "Great Weapon Master");
+                    let gwm = feats.iter().find(|f| f.name() == "Great Weapon Master");
                     assert!(gwm.is_some(), "Great Weapon Master feat should exist");
                 }
                 Err(e) => {

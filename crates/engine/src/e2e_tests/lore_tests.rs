@@ -27,7 +27,7 @@ async fn test_list_world_lore() {
     println!("World has {} lore entries", lore.len());
 
     for entry in &lore {
-        println!("  Lore: {} - {:?}", entry.title, entry.category);
+        println!("  Lore: {} - {:?}", entry.title(), entry.category());
     }
 }
 
@@ -71,7 +71,7 @@ async fn test_create_lore_entry() {
         .expect("Should list lore");
 
     assert!(
-        lore.iter().any(|l| l.title == "Ancient Legend"),
+        lore.iter().any(|l| l.title() == "Ancient Legend"),
         "Created lore should exist"
     );
 }

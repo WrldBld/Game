@@ -5,11 +5,11 @@
 //!
 //! # Graph Relationships (stored as Neo4j edges, not embedded fields)
 //!
-//! - `TIED_TO_SCENE` → Scene: Optional scene this event is tied to
-//! - `TIED_TO_LOCATION` → Location: Optional location this event is tied to
-//! - `BELONGS_TO_ACT` → Act: Optional act for Monomyth integration
-//! - `FEATURES_NPC` → Character: NPCs that should be featured in this event
-//! - `CONTAINS_EVENT` ← EventChain: Chain membership (edge stored on EventChain side)
+//! - `TIED_TO_SCENE` -> Scene: Optional scene this event is tied to
+//! - `TIED_TO_LOCATION` -> Location: Optional location this event is tied to
+//! - `BELONGS_TO_ACT` -> Act: Optional act for Monomyth integration
+//! - `FEATURES_NPC` -> Character: NPCs that should be featured in this event
+//! - `CONTAINS_EVENT` <- EventChain: Chain membership (edge stored on EventChain side)
 //!
 //! Note: `trigger_conditions` and `outcomes` remain as JSON fields because they contain
 //! complex nested structures with non-entity data (keywords, descriptions, effects).
@@ -39,13 +39,51 @@ pub enum TriggerLogic {
 #[serde(rename_all = "camelCase")]
 pub struct NarrativeTrigger {
     /// The type and parameters of this trigger
-    pub trigger_type: NarrativeTriggerType,
+    trigger_type: NarrativeTriggerType,
     /// Human-readable description for DM
-    pub description: String,
+    description: String,
     /// Whether this specific condition must be met (for AtLeast logic)
-    pub is_required: bool,
+    is_required: bool,
     /// Unique identifier for this trigger within the event
-    pub trigger_id: String,
+    trigger_id: String,
+}
+
+impl NarrativeTrigger {
+    pub fn new(
+        trigger_type: NarrativeTriggerType,
+        description: impl Into<String>,
+        trigger_id: impl Into<String>,
+    ) -> Self {
+        Self {
+            trigger_type,
+            description: description.into(),
+            is_required: false,
+            trigger_id: trigger_id.into(),
+        }
+    }
+
+    // Read accessors
+    pub fn trigger_type(&self) -> &NarrativeTriggerType {
+        &self.trigger_type
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn is_required(&self) -> bool {
+        self.is_required
+    }
+
+    pub fn trigger_id(&self) -> &str {
+        &self.trigger_id
+    }
+
+    // Builder methods
+    pub fn with_required(mut self, is_required: bool) -> Self {
+        self.is_required = is_required;
+        self
+    }
 }
 
 /// Types of triggers for narrative events
@@ -209,19 +247,87 @@ pub enum NarrativeTriggerType {
 #[serde(rename_all = "camelCase")]
 pub struct EventOutcome {
     /// Unique identifier for this outcome within the event
-    pub name: String,
+    name: String,
     /// Display label for DM
-    pub label: String,
+    label: String,
     /// Description of what happens in this outcome
-    pub description: String,
+    description: String,
     /// Conditions for this outcome (how does player reach this?)
-    pub condition: Option<OutcomeCondition>,
+    condition: Option<OutcomeCondition>,
     /// Effects that occur when this outcome happens
-    pub effects: Vec<EventEffect>,
+    effects: Vec<EventEffect>,
     /// Narrative events to chain to after this outcome
-    pub chain_events: Vec<ChainedEvent>,
+    chain_events: Vec<ChainedEvent>,
     /// Narrative summary to add to timeline
-    pub timeline_summary: Option<String>,
+    timeline_summary: Option<String>,
+}
+
+impl EventOutcome {
+    pub fn new(
+        name: impl Into<String>,
+        label: impl Into<String>,
+        description: impl Into<String>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            label: label.into(),
+            description: description.into(),
+            condition: None,
+            effects: Vec::new(),
+            chain_events: Vec::new(),
+            timeline_summary: None,
+        }
+    }
+
+    // Read accessors
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn condition(&self) -> Option<&OutcomeCondition> {
+        self.condition.as_ref()
+    }
+
+    pub fn effects(&self) -> &[EventEffect] {
+        &self.effects
+    }
+
+    pub fn chain_events(&self) -> &[ChainedEvent] {
+        &self.chain_events
+    }
+
+    pub fn timeline_summary(&self) -> Option<&str> {
+        self.timeline_summary.as_deref()
+    }
+
+    // Builder methods
+    pub fn with_condition(mut self, condition: OutcomeCondition) -> Self {
+        self.condition = Some(condition);
+        self
+    }
+
+    pub fn with_effects(mut self, effects: Vec<EventEffect>) -> Self {
+        self.effects = effects;
+        self
+    }
+
+    pub fn with_chain_events(mut self, chain_events: Vec<ChainedEvent>) -> Self {
+        self.chain_events = chain_events;
+        self
+    }
+
+    pub fn with_timeline_summary(mut self, summary: impl Into<String>) -> Self {
+        self.timeline_summary = Some(summary.into());
+        self
+    }
 }
 
 /// Condition for an outcome branch
@@ -352,76 +458,301 @@ pub enum EventEffect {
 #[serde(rename_all = "camelCase")]
 pub struct ChainedEvent {
     /// Event to chain to
-    pub event_id: NarrativeEventId,
+    event_id: NarrativeEventId,
     /// Name for display
-    pub event_name: String,
+    event_name: String,
     /// Delay before chain activates (turns)
-    pub delay_turns: u32,
+    delay_turns: u32,
     /// Additional trigger condition for chain (beyond just completing parent)
-    pub additional_trigger: Option<NarrativeTriggerType>,
+    additional_trigger: Option<NarrativeTriggerType>,
     /// Description of why this chains
-    pub chain_reason: Option<String>,
+    chain_reason: Option<String>,
+}
+
+impl ChainedEvent {
+    pub fn new(event_id: NarrativeEventId, event_name: impl Into<String>) -> Self {
+        Self {
+            event_id,
+            event_name: event_name.into(),
+            delay_turns: 0,
+            additional_trigger: None,
+            chain_reason: None,
+        }
+    }
+
+    // Read accessors
+    pub fn event_id(&self) -> NarrativeEventId {
+        self.event_id
+    }
+
+    pub fn event_name(&self) -> &str {
+        &self.event_name
+    }
+
+    pub fn delay_turns(&self) -> u32 {
+        self.delay_turns
+    }
+
+    pub fn additional_trigger(&self) -> Option<&NarrativeTriggerType> {
+        self.additional_trigger.as_ref()
+    }
+
+    pub fn chain_reason(&self) -> Option<&str> {
+        self.chain_reason.as_deref()
+    }
+
+    // Builder methods
+    pub fn with_delay_turns(mut self, delay_turns: u32) -> Self {
+        self.delay_turns = delay_turns;
+        self
+    }
+
+    pub fn with_additional_trigger(mut self, trigger: NarrativeTriggerType) -> Self {
+        self.additional_trigger = Some(trigger);
+        self
+    }
+
+    pub fn with_chain_reason(mut self, reason: impl Into<String>) -> Self {
+        self.chain_reason = Some(reason.into());
+        self
+    }
 }
 
 /// Context for evaluating triggers
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TriggerContext {
-    pub current_location: Option<LocationId>,
-    pub current_scene: Option<SceneId>,
-    pub time_context: Option<String>,
-    pub flags: HashMap<String, bool>,
-    pub inventory: Vec<String>,
-    pub completed_events: Vec<NarrativeEventId>,
-    pub event_outcomes: HashMap<NarrativeEventId, String>,
-    pub turns_since_event: HashMap<NarrativeEventId, u32>,
-    pub completed_challenges: Vec<ChallengeId>,
-    pub challenge_successes: HashMap<ChallengeId, bool>,
-    pub turn_count: u32,
-    pub recent_dialogue_topics: Vec<String>,
-    pub recent_player_action: Option<String>,
+    current_location: Option<LocationId>,
+    current_scene: Option<SceneId>,
+    time_context: Option<String>,
+    flags: HashMap<String, bool>,
+    inventory: Vec<String>,
+    completed_events: Vec<NarrativeEventId>,
+    event_outcomes: HashMap<NarrativeEventId, String>,
+    turns_since_event: HashMap<NarrativeEventId, u32>,
+    completed_challenges: Vec<ChallengeId>,
+    challenge_successes: HashMap<ChallengeId, bool>,
+    turn_count: u32,
+    recent_dialogue_topics: Vec<String>,
+    recent_player_action: Option<String>,
     /// Pre-evaluated custom trigger results.
     /// Key is the trigger description, value is whether the trigger is met.
     /// If a custom trigger is not in this map, it will be treated as not triggered.
-    pub custom_trigger_results: HashMap<String, bool>,
+    custom_trigger_results: HashMap<String, bool>,
     /// Relationship sentiment values between characters.
     /// Outer key is the character whose feelings we're checking (e.g., NPC).
     /// Inner key is the character they have feelings toward (e.g., PC).
     /// Value is sentiment from -1.0 (hatred) to 1.0 (love).
     #[serde(default)]
-    pub relationships: HashMap<CharacterId, HashMap<CharacterId, f32>>,
+    relationships: HashMap<CharacterId, HashMap<CharacterId, f32>>,
     /// Character stat values for StatThreshold trigger evaluation.
     /// Outer key is the CharacterId, inner key is the stat name.
     /// Value is the effective stat value (base + active modifiers).
     #[serde(default)]
-    pub character_stats: HashMap<CharacterId, HashMap<String, i32>>,
+    character_stats: HashMap<CharacterId, HashMap<String, i32>>,
 
     // === Compendium-based trigger context ===
     /// Player character's known spells (spell IDs from compendium).
     #[serde(default)]
-    pub known_spells: Vec<String>,
+    known_spells: Vec<String>,
 
     /// Player character's acquired feats (feat IDs from compendium).
     #[serde(default)]
-    pub character_feats: Vec<String>,
+    character_feats: Vec<String>,
 
     /// Player character's class levels (class_id -> level).
     #[serde(default)]
-    pub class_levels: HashMap<String, u8>,
+    class_levels: HashMap<String, u8>,
 
     /// Player character's origin/race ID (from compendium).
     #[serde(default)]
-    pub origin_id: Option<String>,
+    origin_id: Option<String>,
 
     /// Creatures the player character knows about (creature IDs).
     #[serde(default)]
-    pub known_creatures: Vec<String>,
+    known_creatures: Vec<String>,
 }
 
 impl TriggerContext {
     /// Create a new empty trigger context.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    // Read accessors
+    pub fn current_location(&self) -> Option<LocationId> {
+        self.current_location
+    }
+
+    pub fn current_scene(&self) -> Option<SceneId> {
+        self.current_scene
+    }
+
+    pub fn time_context(&self) -> Option<&str> {
+        self.time_context.as_deref()
+    }
+
+    pub fn flags(&self) -> &HashMap<String, bool> {
+        &self.flags
+    }
+
+    pub fn inventory(&self) -> &[String] {
+        &self.inventory
+    }
+
+    pub fn completed_events(&self) -> &[NarrativeEventId] {
+        &self.completed_events
+    }
+
+    pub fn event_outcomes(&self) -> &HashMap<NarrativeEventId, String> {
+        &self.event_outcomes
+    }
+
+    pub fn turns_since_event(&self) -> &HashMap<NarrativeEventId, u32> {
+        &self.turns_since_event
+    }
+
+    pub fn completed_challenges(&self) -> &[ChallengeId] {
+        &self.completed_challenges
+    }
+
+    pub fn challenge_successes(&self) -> &HashMap<ChallengeId, bool> {
+        &self.challenge_successes
+    }
+
+    pub fn turn_count(&self) -> u32 {
+        self.turn_count
+    }
+
+    pub fn recent_dialogue_topics(&self) -> &[String] {
+        &self.recent_dialogue_topics
+    }
+
+    pub fn recent_player_action(&self) -> Option<&str> {
+        self.recent_player_action.as_deref()
+    }
+
+    pub fn custom_trigger_results(&self) -> &HashMap<String, bool> {
+        &self.custom_trigger_results
+    }
+
+    pub fn relationships(&self) -> &HashMap<CharacterId, HashMap<CharacterId, f32>> {
+        &self.relationships
+    }
+
+    pub fn character_stats(&self) -> &HashMap<CharacterId, HashMap<String, i32>> {
+        &self.character_stats
+    }
+
+    pub fn known_spells(&self) -> &[String] {
+        &self.known_spells
+    }
+
+    pub fn character_feats(&self) -> &[String] {
+        &self.character_feats
+    }
+
+    pub fn class_levels(&self) -> &HashMap<String, u8> {
+        &self.class_levels
+    }
+
+    pub fn origin_id(&self) -> Option<&str> {
+        self.origin_id.as_deref()
+    }
+
+    pub fn known_creatures(&self) -> &[String] {
+        &self.known_creatures
+    }
+
+    // Builder methods
+    pub fn with_current_location(mut self, location_id: LocationId) -> Self {
+        self.current_location = Some(location_id);
+        self
+    }
+
+    pub fn with_current_scene(mut self, scene_id: SceneId) -> Self {
+        self.current_scene = Some(scene_id);
+        self
+    }
+
+    pub fn with_time_context(mut self, time_context: impl Into<String>) -> Self {
+        self.time_context = Some(time_context.into());
+        self
+    }
+
+    pub fn with_flags(mut self, flags: HashMap<String, bool>) -> Self {
+        self.flags = flags;
+        self
+    }
+
+    pub fn with_inventory(mut self, inventory: Vec<String>) -> Self {
+        self.inventory = inventory;
+        self
+    }
+
+    pub fn with_completed_events(mut self, events: Vec<NarrativeEventId>) -> Self {
+        self.completed_events = events;
+        self
+    }
+
+    pub fn with_event_outcomes(mut self, outcomes: HashMap<NarrativeEventId, String>) -> Self {
+        self.event_outcomes = outcomes;
+        self
+    }
+
+    pub fn with_turns_since_event(mut self, turns: HashMap<NarrativeEventId, u32>) -> Self {
+        self.turns_since_event = turns;
+        self
+    }
+
+    pub fn with_completed_challenges(mut self, challenges: Vec<ChallengeId>) -> Self {
+        self.completed_challenges = challenges;
+        self
+    }
+
+    pub fn with_challenge_successes(mut self, successes: HashMap<ChallengeId, bool>) -> Self {
+        self.challenge_successes = successes;
+        self
+    }
+
+    pub fn with_turn_count(mut self, turn_count: u32) -> Self {
+        self.turn_count = turn_count;
+        self
+    }
+
+    pub fn with_recent_dialogue_topics(mut self, topics: Vec<String>) -> Self {
+        self.recent_dialogue_topics = topics;
+        self
+    }
+
+    pub fn with_recent_player_action(mut self, action: impl Into<String>) -> Self {
+        self.recent_player_action = Some(action.into());
+        self
+    }
+
+    pub fn with_known_spells(mut self, spells: Vec<String>) -> Self {
+        self.known_spells = spells;
+        self
+    }
+
+    pub fn with_character_feats(mut self, feats: Vec<String>) -> Self {
+        self.character_feats = feats;
+        self
+    }
+
+    pub fn with_class_levels(mut self, levels: HashMap<String, u8>) -> Self {
+        self.class_levels = levels;
+        self
+    }
+
+    pub fn with_origin_id(mut self, origin_id: impl Into<String>) -> Self {
+        self.origin_id = Some(origin_id.into());
+        self
+    }
+
+    pub fn with_known_creatures(mut self, creatures: Vec<String>) -> Self {
+        self.known_creatures = creatures;
+        self
     }
 
     /// Add a pre-evaluated custom trigger result.
@@ -512,14 +843,51 @@ impl TriggerContext {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TriggerEvaluation {
-    pub is_triggered: bool,
-    pub matched_triggers: Vec<String>,
-    pub unmatched_triggers: Vec<String>,
-    pub total_triggers: usize,
-    pub confidence: f32,
+    is_triggered: bool,
+    matched_triggers: Vec<String>,
+    unmatched_triggers: Vec<String>,
+    total_triggers: usize,
+    confidence: f32,
 }
 
 impl TriggerEvaluation {
+    pub fn new(
+        is_triggered: bool,
+        matched_triggers: Vec<String>,
+        unmatched_triggers: Vec<String>,
+        total_triggers: usize,
+        confidence: f32,
+    ) -> Self {
+        Self {
+            is_triggered,
+            matched_triggers,
+            unmatched_triggers,
+            total_triggers,
+            confidence,
+        }
+    }
+
+    // Read accessors
+    pub fn is_triggered(&self) -> bool {
+        self.is_triggered
+    }
+
+    pub fn matched_triggers(&self) -> &[String] {
+        &self.matched_triggers
+    }
+
+    pub fn unmatched_triggers(&self) -> &[String] {
+        &self.unmatched_triggers
+    }
+
+    pub fn total_triggers(&self) -> usize {
+        self.total_triggers
+    }
+
+    pub fn confidence(&self) -> f32 {
+        self.confidence
+    }
+
     /// Get a human-readable summary
     pub fn summary(&self) -> String {
         format!(
@@ -540,9 +908,9 @@ impl TriggerEvaluation {
 #[serde(rename_all = "camelCase")]
 pub struct FeaturedNpc {
     /// The character ID of the featured NPC
-    pub character_id: CharacterId,
+    character_id: CharacterId,
     /// Optional role description for this NPC in the event
-    pub role: Option<String>,
+    role: Option<String>,
 }
 
 impl FeaturedNpc {
@@ -559,21 +927,30 @@ impl FeaturedNpc {
             role: Some(role.into()),
         }
     }
+
+    // Read accessors
+    pub fn character_id(&self) -> CharacterId {
+        self.character_id
+    }
+
+    pub fn role(&self) -> Option<&str> {
+        self.role.as_deref()
+    }
 }
 
 /// Represents an event's membership in an EventChain (via CONTAINS_EVENT edge)
 ///
-/// Note: This edge is stored from EventChain → NarrativeEvent, so this struct
+/// Note: This edge is stored from EventChain -> NarrativeEvent, so this struct
 /// is used when querying chain membership from the event's perspective.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventChainMembership {
     /// The chain this event belongs to
-    pub chain_id: EventChainId,
+    chain_id: EventChainId,
     /// Position in the chain (0-indexed)
-    pub position: u32,
+    position: u32,
     /// Whether this event has been completed in the chain
-    pub is_completed: bool,
+    is_completed: bool,
 }
 
 impl EventChainMembership {
@@ -583,5 +960,24 @@ impl EventChainMembership {
             position,
             is_completed: false,
         }
+    }
+
+    // Read accessors
+    pub fn chain_id(&self) -> EventChainId {
+        self.chain_id
+    }
+
+    pub fn position(&self) -> u32 {
+        self.position
+    }
+
+    pub fn is_completed(&self) -> bool {
+        self.is_completed
+    }
+
+    // Builder methods
+    pub fn with_completed(mut self, is_completed: bool) -> Self {
+        self.is_completed = is_completed;
+        self
     }
 }

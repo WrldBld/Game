@@ -11,25 +11,60 @@ pub use crate::types::MonomythStage;
 #[derive(Debug, Clone)]
 pub struct TimeAdvanceResult {
     /// The previous game time
-    pub previous_time: GameTime,
+    previous_time: GameTime,
     /// The new game time
-    pub new_time: GameTime,
+    new_time: GameTime,
     /// Minutes that were advanced
-    pub minutes_advanced: u32,
+    minutes_advanced: u32,
     /// Whether the time period changed
-    pub period_changed: bool,
+    period_changed: bool,
+}
+
+impl TimeAdvanceResult {
+    /// Create a new time advance result
+    pub fn new(
+        previous_time: GameTime,
+        new_time: GameTime,
+        minutes_advanced: u32,
+        period_changed: bool,
+    ) -> Self {
+        Self {
+            previous_time,
+            new_time,
+            minutes_advanced,
+            period_changed,
+        }
+    }
+
+    // Read-only accessors
+
+    pub fn previous_time(&self) -> &GameTime {
+        &self.previous_time
+    }
+
+    pub fn new_time(&self) -> &GameTime {
+        &self.new_time
+    }
+
+    pub fn minutes_advanced(&self) -> u32 {
+        self.minutes_advanced
+    }
+
+    pub fn period_changed(&self) -> bool {
+        self.period_changed
+    }
 }
 
 /// A story arc within a world
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Act {
-    pub id: wrldbldr_domain::ActId,
-    pub world_id: WorldId,
-    pub name: String,
-    pub stage: MonomythStage,
-    pub description: String,
-    pub order: u32,
+    id: wrldbldr_domain::ActId,
+    world_id: WorldId,
+    name: String,
+    stage: MonomythStage,
+    description: String,
+    order: u32,
 }
 
 impl Act {
@@ -48,6 +83,53 @@ impl Act {
             order,
         }
     }
+
+    /// Create an act from parts (for reconstitution from storage)
+    pub fn from_parts(
+        id: wrldbldr_domain::ActId,
+        world_id: WorldId,
+        name: String,
+        stage: MonomythStage,
+        description: String,
+        order: u32,
+    ) -> Self {
+        Self {
+            id,
+            world_id,
+            name,
+            stage,
+            description,
+            order,
+        }
+    }
+
+    // Read-only accessors
+
+    pub fn id(&self) -> wrldbldr_domain::ActId {
+        self.id
+    }
+
+    pub fn world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn stage(&self) -> MonomythStage {
+        self.stage
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn order(&self) -> u32 {
+        self.order
+    }
+
+    // Builder methods
 
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = description.into();

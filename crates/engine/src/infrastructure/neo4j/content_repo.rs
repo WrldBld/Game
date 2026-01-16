@@ -41,17 +41,16 @@ impl Neo4jContentRepo {
         let is_hidden = node.get_bool_or("is_hidden", false);
         let order_num = node.get_i64_or("order_num", 0);
 
-        Ok(Skill {
-            id,
-            world_id,
-            name,
-            description,
-            category,
-            base_attribute,
-            is_custom,
-            is_hidden,
-            order: order_num as u32,
-        })
+        let mut skill = Skill::new(world_id, name, category)
+            .with_id(id)
+            .with_description(description)
+            .with_is_custom(is_custom)
+            .with_is_hidden(is_hidden)
+            .with_order(order_num as u32);
+        if let Some(attr) = base_attribute {
+            skill = skill.with_base_attribute(attr);
+        }
+        Ok(skill)
     }
 }
 
@@ -93,25 +92,25 @@ impl ContentRepo for Neo4jContentRepo {
             MERGE (w)-[:CONTAINS_SKILL]->(s)
             RETURN s.id as id",
         )
-        .param("id", skill.id.to_string())
-        .param("world_id", skill.world_id.to_string())
-        .param("name", skill.name.clone())
-        .param("description", skill.description.clone())
-        .param("category", skill.category.to_string())
+        .param("id", skill.id().to_string())
+        .param("world_id", skill.world_id().to_string())
+        .param("name", skill.name().to_string())
+        .param("description", skill.description().to_string())
+        .param("category", skill.category().to_string())
         .param(
             "base_attribute",
-            skill.base_attribute.clone().unwrap_or_default(),
+            skill.base_attribute().unwrap_or_default().to_string(),
         )
-        .param("is_custom", skill.is_custom)
-        .param("is_hidden", skill.is_hidden)
-        .param("order_num", skill.order as i64);
+        .param("is_custom", skill.is_custom())
+        .param("is_hidden", skill.is_hidden())
+        .param("order_num", skill.order() as i64);
 
         self.graph
             .run(q)
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
-        tracing::debug!("Saved skill: {}", skill.name);
+        tracing::debug!("Saved skill: {}", skill.name());
         Ok(())
     }
 

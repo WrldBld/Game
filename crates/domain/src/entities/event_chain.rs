@@ -12,38 +12,38 @@ use wrldbldr_domain::{ActId, EventChainId, NarrativeEventId, WorldId};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventChain {
-    pub id: EventChainId,
-    pub world_id: WorldId,
+    id: EventChainId,
+    world_id: WorldId,
 
     /// Name of this story arc/chain
-    pub name: String,
+    name: String,
     /// Description of what this chain represents narratively
-    pub description: String,
+    description: String,
 
     /// IDs of events in this chain (ordered by chain_position)
-    pub events: Vec<NarrativeEventId>,
+    events: Vec<NarrativeEventId>,
 
     /// Whether this chain is currently active
-    pub is_active: bool,
+    is_active: bool,
     /// Current position in the chain (index of next event)
-    pub current_position: u32,
+    current_position: u32,
     /// Events that have been completed in this chain
-    pub completed_events: Vec<NarrativeEventId>,
+    completed_events: Vec<NarrativeEventId>,
 
     /// Optional: Act this chain belongs to
-    pub act_id: Option<ActId>,
+    act_id: Option<ActId>,
 
     /// Tags for organization
-    pub tags: Vec<String>,
+    tags: Vec<String>,
 
     /// Color for visualization (hex)
-    pub color: Option<String>,
+    color: Option<String>,
 
     /// Is this a favorite for quick access
-    pub is_favorite: bool,
+    is_favorite: bool,
 
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
 }
 
 impl EventChain {
@@ -63,6 +63,163 @@ impl EventChain {
             is_favorite: false,
             created_at: now,
             updated_at: now,
+        }
+    }
+
+    // Read accessors
+    pub fn id(&self) -> EventChainId {
+        self.id
+    }
+
+    pub fn world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn events(&self) -> &[NarrativeEventId] {
+        &self.events
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.is_active
+    }
+
+    pub fn current_position(&self) -> u32 {
+        self.current_position
+    }
+
+    pub fn completed_events(&self) -> &[NarrativeEventId] {
+        &self.completed_events
+    }
+
+    pub fn act_id(&self) -> Option<ActId> {
+        self.act_id
+    }
+
+    pub fn tags(&self) -> &[String] {
+        &self.tags
+    }
+
+    pub fn color(&self) -> Option<&str> {
+        self.color.as_deref()
+    }
+
+    pub fn is_favorite(&self) -> bool {
+        self.is_favorite
+    }
+
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
+    }
+
+    // Builder methods
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = description.into();
+        self
+    }
+
+    pub fn with_act_id(mut self, act_id: ActId) -> Self {
+        self.act_id = Some(act_id);
+        self
+    }
+
+    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+        self.tags = tags;
+        self
+    }
+
+    pub fn with_color(mut self, color: impl Into<String>) -> Self {
+        self.color = Some(color.into());
+        self
+    }
+
+    pub fn with_favorite(mut self, is_favorite: bool) -> Self {
+        self.is_favorite = is_favorite;
+        self
+    }
+
+    pub fn with_active(mut self, is_active: bool) -> Self {
+        self.is_active = is_active;
+        self
+    }
+
+    // Setter methods for updating existing chains
+    pub fn set_name(&mut self, name: impl Into<String>, now: DateTime<Utc>) {
+        self.name = name.into();
+        self.updated_at = now;
+    }
+
+    pub fn set_description(&mut self, description: impl Into<String>, now: DateTime<Utc>) {
+        self.description = description.into();
+        self.updated_at = now;
+    }
+
+    pub fn set_tags(&mut self, tags: Vec<String>, now: DateTime<Utc>) {
+        self.tags = tags;
+        self.updated_at = now;
+    }
+
+    pub fn set_color(&mut self, color: Option<String>, now: DateTime<Utc>) {
+        self.color = color;
+        self.updated_at = now;
+    }
+
+    pub fn set_favorite(&mut self, is_favorite: bool, now: DateTime<Utc>) {
+        self.is_favorite = is_favorite;
+        self.updated_at = now;
+    }
+
+    pub fn set_act_id(&mut self, act_id: Option<ActId>, now: DateTime<Utc>) {
+        self.act_id = act_id;
+        self.updated_at = now;
+    }
+
+    /// Reconstruct an EventChain from stored parts (for repository deserialization).
+    ///
+    /// This bypasses normal validation since we trust the stored data.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_parts(
+        id: EventChainId,
+        world_id: WorldId,
+        name: String,
+        description: String,
+        events: Vec<NarrativeEventId>,
+        is_active: bool,
+        current_position: u32,
+        completed_events: Vec<NarrativeEventId>,
+        act_id: Option<ActId>,
+        tags: Vec<String>,
+        color: Option<String>,
+        is_favorite: bool,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            id,
+            world_id,
+            name,
+            description,
+            events,
+            is_active,
+            current_position,
+            completed_events,
+            act_id,
+            tags,
+            color,
+            is_favorite,
+            created_at,
+            updated_at,
         }
     }
 
@@ -221,25 +378,82 @@ impl EventChain {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChainStatus {
-    pub chain_id: EventChainId,
-    pub chain_name: String,
-    pub is_active: bool,
-    pub is_complete: bool,
-    pub total_events: usize,
-    pub completed_events: usize,
-    pub progress_percent: u32,
-    pub current_event_id: Option<NarrativeEventId>,
+    chain_id: EventChainId,
+    chain_name: String,
+    is_active: bool,
+    is_complete: bool,
+    total_events: usize,
+    completed_events: usize,
+    progress_percent: u32,
+    current_event_id: Option<NarrativeEventId>,
+}
+
+impl ChainStatus {
+    pub fn new(
+        chain_id: EventChainId,
+        chain_name: impl Into<String>,
+        is_active: bool,
+        is_complete: bool,
+        total_events: usize,
+        completed_events: usize,
+        progress_percent: u32,
+        current_event_id: Option<NarrativeEventId>,
+    ) -> Self {
+        Self {
+            chain_id,
+            chain_name: chain_name.into(),
+            is_active,
+            is_complete,
+            total_events,
+            completed_events,
+            progress_percent,
+            current_event_id,
+        }
+    }
+
+    // Read accessors
+    pub fn chain_id(&self) -> EventChainId {
+        self.chain_id
+    }
+
+    pub fn chain_name(&self) -> &str {
+        &self.chain_name
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.is_active
+    }
+
+    pub fn is_complete(&self) -> bool {
+        self.is_complete
+    }
+
+    pub fn total_events(&self) -> usize {
+        self.total_events
+    }
+
+    pub fn completed_events(&self) -> usize {
+        self.completed_events
+    }
+
+    pub fn progress_percent(&self) -> u32 {
+        self.progress_percent
+    }
+
+    pub fn current_event_id(&self) -> Option<NarrativeEventId> {
+        self.current_event_id
+    }
 }
 
 impl From<&EventChain> for ChainStatus {
     fn from(chain: &EventChain) -> Self {
         Self {
-            chain_id: chain.id,
-            chain_name: chain.name.clone(),
-            is_active: chain.is_active,
+            chain_id: chain.id(),
+            chain_name: chain.name().to_string(),
+            is_active: chain.is_active(),
             is_complete: chain.is_complete(),
-            total_events: chain.events.len(),
-            completed_events: chain.completed_events.len(),
+            total_events: chain.events().len(),
+            completed_events: chain.completed_events().len(),
             progress_percent: (chain.progress() * 100.0) as u32,
             current_event_id: chain.current_event().copied(),
         }
@@ -274,14 +488,14 @@ mod tests {
         let now = test_now();
         let chain = EventChain::new(world_id, "Test Chain", now);
 
-        assert_eq!(chain.name, "Test Chain");
-        assert_eq!(chain.world_id, world_id);
-        assert!(chain.is_active);
-        assert_eq!(chain.current_position, 0);
-        assert!(chain.events.is_empty());
-        assert!(chain.completed_events.is_empty());
-        assert_eq!(chain.created_at, now);
-        assert_eq!(chain.updated_at, now);
+        assert_eq!(chain.name(), "Test Chain");
+        assert_eq!(chain.world_id(), world_id);
+        assert!(chain.is_active());
+        assert_eq!(chain.current_position(), 0);
+        assert!(chain.events().is_empty());
+        assert!(chain.completed_events().is_empty());
+        assert_eq!(chain.created_at(), now);
+        assert_eq!(chain.updated_at(), now);
     }
 
     #[test]
@@ -294,13 +508,13 @@ mod tests {
 
         let later = now + chrono::Duration::seconds(1);
         chain.add_event(event1, later);
-        assert_eq!(chain.events.len(), 1);
-        assert_eq!(chain.events[0], event1);
-        assert_eq!(chain.updated_at, later);
+        assert_eq!(chain.events().len(), 1);
+        assert_eq!(chain.events()[0], event1);
+        assert_eq!(chain.updated_at(), later);
 
         chain.add_event(event2, later);
-        assert_eq!(chain.events.len(), 2);
-        assert_eq!(chain.events[1], event2);
+        assert_eq!(chain.events().len(), 2);
+        assert_eq!(chain.events()[1], event2);
     }
 
     #[test]
@@ -322,13 +536,13 @@ mod tests {
         // Insert X at position 0: [X, A, B, C]
         chain.insert_event(0, event_x, now);
 
-        assert_eq!(chain.events.len(), 4);
-        assert_eq!(chain.events[0], event_x);
-        assert_eq!(chain.events[1], event_a);
-        assert_eq!(chain.events[2], event_b);
-        assert_eq!(chain.events[3], event_c);
+        assert_eq!(chain.events().len(), 4);
+        assert_eq!(chain.events()[0], event_x);
+        assert_eq!(chain.events()[1], event_a);
+        assert_eq!(chain.events()[2], event_b);
+        assert_eq!(chain.events()[3], event_c);
         // current_position should be adjusted to 2 (still pointing to B)
-        assert_eq!(chain.current_position, 2);
+        assert_eq!(chain.current_position(), 2);
     }
 
     #[test]
@@ -350,13 +564,13 @@ mod tests {
         // Insert X at position 1: [A, X, B, C]
         chain.insert_event(1, event_x, now);
 
-        assert_eq!(chain.events.len(), 4);
-        assert_eq!(chain.events[0], event_a);
-        assert_eq!(chain.events[1], event_x);
-        assert_eq!(chain.events[2], event_b);
-        assert_eq!(chain.events[3], event_c);
+        assert_eq!(chain.events().len(), 4);
+        assert_eq!(chain.events()[0], event_a);
+        assert_eq!(chain.events()[1], event_x);
+        assert_eq!(chain.events()[2], event_b);
+        assert_eq!(chain.events()[3], event_c);
         // current_position should be adjusted to 2 (still pointing to B)
-        assert_eq!(chain.current_position, 2);
+        assert_eq!(chain.current_position(), 2);
     }
 
     #[test]
@@ -378,13 +592,13 @@ mod tests {
         // Insert X at position 2: [A, B, X, C]
         chain.insert_event(2, event_x, now);
 
-        assert_eq!(chain.events.len(), 4);
-        assert_eq!(chain.events[0], event_a);
-        assert_eq!(chain.events[1], event_b);
-        assert_eq!(chain.events[2], event_x);
-        assert_eq!(chain.events[3], event_c);
+        assert_eq!(chain.events().len(), 4);
+        assert_eq!(chain.events()[0], event_a);
+        assert_eq!(chain.events()[1], event_b);
+        assert_eq!(chain.events()[2], event_x);
+        assert_eq!(chain.events()[3], event_c);
         // current_position should remain 1 (still pointing to B)
-        assert_eq!(chain.current_position, 1);
+        assert_eq!(chain.current_position(), 1);
     }
 
     #[test]
@@ -404,10 +618,10 @@ mod tests {
         // Insert X at end: [A, B, X]
         chain.insert_event(2, event_x, now);
 
-        assert_eq!(chain.events.len(), 3);
-        assert_eq!(chain.events[2], event_x);
+        assert_eq!(chain.events().len(), 3);
+        assert_eq!(chain.events()[2], event_x);
         // current_position should remain 0 (still pointing to A)
-        assert_eq!(chain.current_position, 0);
+        assert_eq!(chain.current_position(), 0);
     }
 
     #[test]
@@ -419,13 +633,13 @@ mod tests {
         let event_x = test_event_id(10);
 
         chain.add_event(event_a, now);
-        let original_len = chain.events.len();
+        let original_len = chain.events().len();
 
         // Try to insert beyond bounds
         chain.insert_event(10, event_x, now);
 
         // Should not insert
-        assert_eq!(chain.events.len(), original_len);
+        assert_eq!(chain.events().len(), original_len);
     }
 
     #[test]
@@ -445,11 +659,11 @@ mod tests {
         let removed = chain.remove_event(&event_b, later);
 
         assert!(removed);
-        assert_eq!(chain.events.len(), 2);
-        assert_eq!(chain.events[0], event_a);
-        assert_eq!(chain.events[1], event_c);
+        assert_eq!(chain.events().len(), 2);
+        assert_eq!(chain.events()[0], event_a);
+        assert_eq!(chain.events()[1], event_c);
         assert!(!chain.contains_event(&event_b));
-        assert_eq!(chain.updated_at, later);
+        assert_eq!(chain.updated_at(), later);
     }
 
     #[test]
@@ -461,13 +675,13 @@ mod tests {
         let event_b = test_event_id(2);
 
         chain.add_event(event_a, now);
-        let original_updated = chain.updated_at;
+        let original_updated = chain.updated_at();
 
         let removed = chain.remove_event(&event_b, now);
 
         assert!(!removed);
-        assert_eq!(chain.events.len(), 1);
-        assert_eq!(chain.updated_at, original_updated);
+        assert_eq!(chain.events().len(), 1);
+        assert_eq!(chain.updated_at(), original_updated);
     }
 
     #[test]
@@ -480,11 +694,11 @@ mod tests {
 
         chain.add_event(event_a, now);
         chain.add_event(event_b, now);
-        chain.completed_events.push(event_b);
+        chain.complete_event(event_b, now);
 
         chain.remove_event(&event_b, now);
 
-        assert!(!chain.completed_events.contains(&event_b));
+        assert!(!chain.completed_events().contains(&event_b));
     }
 
     #[test]
@@ -505,11 +719,11 @@ mod tests {
         // Remove A at position 0: [B, C]
         chain.remove_event(&event_a, now);
 
-        assert_eq!(chain.events.len(), 2);
-        assert_eq!(chain.events[0], event_b);
-        assert_eq!(chain.events[1], event_c);
+        assert_eq!(chain.events().len(), 2);
+        assert_eq!(chain.events()[0], event_b);
+        assert_eq!(chain.events()[1], event_c);
         // current_position should be adjusted to 1 (still pointing to C)
-        assert_eq!(chain.current_position, 1);
+        assert_eq!(chain.current_position(), 1);
     }
 
     #[test]
@@ -530,11 +744,11 @@ mod tests {
         // Remove B at position 1: [A, C]
         chain.remove_event(&event_b, now);
 
-        assert_eq!(chain.events.len(), 2);
-        assert_eq!(chain.events[0], event_a);
-        assert_eq!(chain.events[1], event_c);
+        assert_eq!(chain.events().len(), 2);
+        assert_eq!(chain.events()[0], event_a);
+        assert_eq!(chain.events()[1], event_c);
         // current_position should stay at 1 (now pointing to C, which moved into that position)
-        assert_eq!(chain.current_position, 1);
+        assert_eq!(chain.current_position(), 1);
     }
 
     #[test]
@@ -555,11 +769,11 @@ mod tests {
         // Remove C at position 2: [A, B]
         chain.remove_event(&event_c, now);
 
-        assert_eq!(chain.events.len(), 2);
-        assert_eq!(chain.events[0], event_a);
-        assert_eq!(chain.events[1], event_b);
+        assert_eq!(chain.events().len(), 2);
+        assert_eq!(chain.events()[0], event_a);
+        assert_eq!(chain.events()[1], event_b);
         // current_position should remain 0 (still pointing to A)
-        assert_eq!(chain.current_position, 0);
+        assert_eq!(chain.current_position(), 0);
     }
 
     #[test]
@@ -578,11 +792,11 @@ mod tests {
         let later = now + chrono::Duration::seconds(1);
         chain.reorder_events(vec![event_c, event_a, event_b], later);
 
-        assert_eq!(chain.events.len(), 3);
-        assert_eq!(chain.events[0], event_c);
-        assert_eq!(chain.events[1], event_a);
-        assert_eq!(chain.events[2], event_b);
-        assert_eq!(chain.updated_at, later);
+        assert_eq!(chain.events().len(), 3);
+        assert_eq!(chain.events()[0], event_c);
+        assert_eq!(chain.events()[1], event_a);
+        assert_eq!(chain.events()[2], event_b);
+        assert_eq!(chain.updated_at(), later);
     }
 
     #[test]
@@ -601,7 +815,7 @@ mod tests {
         chain.reorder_events(vec![event_b], now);
 
         // current_position should be clamped to valid range (0 for 1-element list)
-        assert_eq!(chain.current_position, 0);
+        assert_eq!(chain.current_position(), 0);
     }
 
     #[test]
@@ -618,8 +832,8 @@ mod tests {
         chain.reorder_events(vec![], now);
 
         // current_position should be clamped to 0
-        assert_eq!(chain.current_position, 0);
-        assert!(chain.events.is_empty());
+        assert_eq!(chain.current_position(), 0);
+        assert!(chain.events().is_empty());
     }
 
     #[test]
@@ -639,9 +853,9 @@ mod tests {
         let later = now + chrono::Duration::seconds(1);
         chain.complete_event(event_b, later);
 
-        assert!(chain.completed_events.contains(&event_b));
-        assert_eq!(chain.current_position, 2); // Should advance to C
-        assert_eq!(chain.updated_at, later);
+        assert!(chain.completed_events().contains(&event_b));
+        assert_eq!(chain.current_position(), 2); // Should advance to C
+        assert_eq!(chain.updated_at(), later);
     }
 
     #[test]
@@ -660,8 +874,8 @@ mod tests {
 
         chain.complete_event(event_a, now);
 
-        assert!(chain.completed_events.contains(&event_a));
-        assert_eq!(chain.current_position, 1); // Should not change
+        assert!(chain.completed_events().contains(&event_a));
+        assert_eq!(chain.current_position(), 1); // Should not change
     }
 
     #[test]
@@ -672,13 +886,13 @@ mod tests {
         let event_a = test_event_id(1);
 
         chain.add_event(event_a, now);
-        chain.completed_events.push(event_a);
+        chain.complete_event(event_a, now);
 
-        let completed_count = chain.completed_events.len();
+        let completed_count = chain.completed_events().len();
         chain.complete_event(event_a, now);
 
         // Should not add duplicate
-        assert_eq!(chain.completed_events.len(), completed_count);
+        assert_eq!(chain.completed_events().len(), completed_count);
     }
 
     #[test]
@@ -773,13 +987,13 @@ mod tests {
 
         assert_eq!(chain.progress(), 0.0);
 
-        chain.completed_events.push(event_a);
+        chain.complete_event(event_a, now);
         assert_eq!(chain.progress(), 1.0 / 3.0);
 
-        chain.completed_events.push(event_b);
+        chain.complete_event(event_b, now);
         assert_eq!(chain.progress(), 2.0 / 3.0);
 
-        chain.completed_events.push(event_c);
+        chain.complete_event(event_c, now);
         assert_eq!(chain.progress(), 1.0);
     }
 
@@ -802,7 +1016,7 @@ mod tests {
 
         chain.add_event(event_a, now);
         chain.add_event(event_b, now);
-        chain.completed_events.push(event_a);
+        chain.complete_event(event_a, now);
 
         assert_eq!(chain.progress_string(), "50%");
     }
@@ -822,7 +1036,7 @@ mod tests {
 
         assert_eq!(chain.remaining_events(), 3);
 
-        chain.completed_events.push(event_a);
+        chain.complete_event(event_a, now);
         assert_eq!(chain.remaining_events(), 2);
     }
 
@@ -837,15 +1051,15 @@ mod tests {
         chain.add_event(event_a, now);
         chain.add_event(event_b, now);
         chain.current_position = 2;
-        chain.completed_events.push(event_a);
-        chain.completed_events.push(event_b);
+        chain.complete_event(event_a, now);
+        chain.complete_event(event_b, now);
 
         let later = now + chrono::Duration::seconds(1);
         chain.reset(later);
 
-        assert_eq!(chain.current_position, 0);
-        assert!(chain.completed_events.is_empty());
-        assert_eq!(chain.updated_at, later);
+        assert_eq!(chain.current_position(), 0);
+        assert!(chain.completed_events().is_empty());
+        assert_eq!(chain.updated_at(), later);
     }
 
     #[test]
@@ -854,17 +1068,17 @@ mod tests {
         let now = test_now();
         let mut chain = EventChain::new(world_id, "Test", now);
 
-        assert!(chain.is_active);
+        assert!(chain.is_active());
 
         let later = now + chrono::Duration::seconds(1);
         chain.deactivate(later);
-        assert!(!chain.is_active);
-        assert_eq!(chain.updated_at, later);
+        assert!(!chain.is_active());
+        assert_eq!(chain.updated_at(), later);
 
         let later2 = later + chrono::Duration::seconds(1);
         chain.activate(later2);
-        assert!(chain.is_active);
-        assert_eq!(chain.updated_at, later2);
+        assert!(chain.is_active());
+        assert_eq!(chain.updated_at(), later2);
     }
 
     #[test]
@@ -912,7 +1126,7 @@ mod tests {
 
         chain.add_event(event_a, now);
         chain.add_event(event_b, now);
-        chain.completed_events.push(event_a);
+        chain.complete_event(event_a, now);
 
         assert!(chain.is_event_completed(&event_a));
         assert!(!chain.is_event_completed(&event_b));
@@ -929,18 +1143,18 @@ mod tests {
         chain.add_event(event_a, now);
         chain.add_event(event_b, now);
         chain.current_position = 1;
-        chain.completed_events.push(event_a);
+        chain.complete_event(event_a, now);
 
         let status = ChainStatus::from(&chain);
 
-        assert_eq!(status.chain_id, chain.id);
-        assert_eq!(status.chain_name, "Test Chain");
-        assert!(status.is_active);
-        assert!(!status.is_complete);
-        assert_eq!(status.total_events, 2);
-        assert_eq!(status.completed_events, 1);
-        assert_eq!(status.progress_percent, 50);
-        assert_eq!(status.current_event_id, Some(event_b));
+        assert_eq!(status.chain_id(), chain.id());
+        assert_eq!(status.chain_name(), "Test Chain");
+        assert!(status.is_active());
+        assert!(!status.is_complete());
+        assert_eq!(status.total_events(), 2);
+        assert_eq!(status.completed_events(), 1);
+        assert_eq!(status.progress_percent(), 50);
+        assert_eq!(status.current_event_id(), Some(event_b));
     }
 
     #[test]
@@ -955,7 +1169,7 @@ mod tests {
 
         let status = ChainStatus::from(&chain);
 
-        assert!(status.is_complete);
-        assert_eq!(status.current_event_id, None);
+        assert!(status.is_complete());
+        assert_eq!(status.current_event_id(), None);
     }
 }

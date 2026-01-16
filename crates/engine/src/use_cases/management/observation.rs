@@ -53,11 +53,11 @@ impl ObservationCrud {
         let mut summaries = Vec::new();
 
         for observation in observations {
-            let npc = self.character.get(observation.npc_id).await?;
-            let region = self.location.get_region(observation.region_id).await?;
-            let location = self.location.get(observation.location_id).await?;
+            let npc = self.character.get(observation.npc_id()).await?;
+            let region = self.location.get_region(observation.region_id()).await?;
+            let location = self.location.get(observation.location_id()).await?;
 
-            let (npc_name, npc_portrait) = if observation.is_revealed_to_player {
+            let (npc_name, npc_portrait) = if observation.is_revealed_to_player() {
                 (
                     npc.as_ref()
                         .map(|n| n.name().to_string())
@@ -75,25 +75,25 @@ impl ObservationCrud {
                 .unwrap_or_else(|| "Unknown Location".to_string());
             let region_name = region
                 .as_ref()
-                .map(|r| r.name.clone())
+                .map(|r| r.name().to_string())
                 .unwrap_or_else(|| "Unknown Region".to_string());
 
-            let (obs_type, obs_icon) = match observation.observation_type {
+            let (obs_type, obs_icon) = match observation.observation_type() {
                 wrldbldr_domain::ObservationType::Direct => ("direct", "eye"),
                 wrldbldr_domain::ObservationType::HeardAbout => ("heard_about", "ear"),
                 wrldbldr_domain::ObservationType::Deduced => ("deduced", "brain"),
             };
 
             summaries.push(ObservationSummaryData {
-                npc_id: observation.npc_id.to_string(),
+                npc_id: observation.npc_id().to_string(),
                 npc_name,
                 npc_portrait,
                 location_name,
                 region_name,
-                game_time: observation.game_time.to_rfc3339(),
+                game_time: observation.game_time().to_rfc3339(),
                 observation_type: obs_type.to_string(),
                 observation_type_icon: obs_icon.to_string(),
-                notes: observation.notes.clone(),
+                notes: observation.notes().map(|s| s.to_string()),
             });
         }
 
@@ -190,7 +190,7 @@ impl ObservationCrud {
                     .get_region(region_id)
                     .await?
                     .ok_or(ManagementError::NotFound)?;
-                Ok((region.location_id, region_id))
+                Ok((region.location_id(), region_id))
             }
             _ => Err(ManagementError::InvalidInput(
                 "location_id and/or region_id required".to_string(),

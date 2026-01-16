@@ -5,12 +5,12 @@
 //!
 //! # Graph Relationships (stored as Neo4j edges, not embedded fields)
 //!
-//! - `OCCURRED_IN_SESSION` → Session: The session where this event occurred
-//! - `OCCURRED_AT` → Location: Optional location where the event occurred
-//! - `OCCURRED_IN_SCENE` → Scene: Optional scene where the event occurred
-//! - `INVOLVES` → Character/PlayerCharacter: Characters involved in the event (with role)
-//! - `TRIGGERED_BY_NARRATIVE` → NarrativeEvent: Optional causative narrative event
-//! - `RECORDS_CHALLENGE` → Challenge: Optional challenge this event records
+//! - `OCCURRED_IN_SESSION` -> Session: The session where this event occurred
+//! - `OCCURRED_AT` -> Location: Optional location where the event occurred
+//! - `OCCURRED_IN_SCENE` -> Scene: Optional scene where the event occurred
+//! - `INVOLVES` -> Character/PlayerCharacter: Characters involved in the event (with role)
+//! - `TRIGGERED_BY_NARRATIVE` -> NarrativeEvent: Optional causative narrative event
+//! - `RECORDS_CHALLENGE` -> Challenge: Optional challenge this event records
 //!
 //! Note: `event_type` (StoryEventType) remains as JSON because it contains complex
 //! discriminated union data that doesn't represent entity relationships.
@@ -36,25 +36,255 @@ use wrldbldr_domain::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StoryEvent {
-    pub id: StoryEventId,
-    pub world_id: WorldId,
+    id: StoryEventId,
+    world_id: WorldId,
     // NOTE: scene_id stored as OCCURRED_IN_SCENE edge
     // NOTE: location_id stored as OCCURRED_AT edge
     /// The type and details of the event
     /// (Kept as JSON - contains complex discriminated union data)
-    pub event_type: StoryEventType,
+    event_type: StoryEventType,
     /// When this event occurred (real-world timestamp)
-    pub timestamp: DateTime<Utc>,
+    timestamp: DateTime<Utc>,
     /// In-game time context (optional, e.g., "Day 3, Evening")
-    pub game_time: Option<String>,
+    game_time: Option<String>,
     /// Narrative summary (auto-generated or DM-edited)
-    pub summary: String,
+    summary: String,
     // NOTE: involved_characters moved to INVOLVES edges
     /// Whether this event is hidden from timeline UI (but still tracked)
-    pub is_hidden: bool,
+    is_hidden: bool,
     /// Tags for filtering/searching
-    pub tags: Vec<String>,
+    tags: Vec<String>,
     // NOTE: triggered_by moved to TRIGGERED_BY_NARRATIVE edge
+}
+
+impl StoryEvent {
+    /// Create a new story event
+    ///
+    /// NOTE: Session, location, scene, and character associations are now stored as
+    /// graph edges and must be created separately using the edge methods:
+    /// - `set_session()` for OCCURRED_IN_SESSION edge
+    /// - `set_location()` for OCCURRED_AT edge
+    /// - `set_scene()` for OCCURRED_IN_SCENE edge
+    /// - `add_involved_character()` for INVOLVES edges
+    /// - `set_triggered_by()` for TRIGGERED_BY_NARRATIVE edge
+    /// - `set_recorded_challenge()` for RECORDS_CHALLENGE edge
+    pub fn new(world_id: WorldId, event_type: StoryEventType, now: DateTime<Utc>) -> Self {
+        Self {
+            id: StoryEventId::new(),
+            world_id,
+            // NOTE: scene_id stored as OCCURRED_IN_SCENE edge
+            // NOTE: location_id stored as OCCURRED_AT edge
+            event_type,
+            timestamp: now,
+            game_time: None,
+            summary: String::new(),
+            // NOTE: involved_characters now stored as INVOLVES edges
+            is_hidden: false,
+            tags: Vec::new(),
+            // NOTE: triggered_by now stored as TRIGGERED_BY_NARRATIVE edge
+        }
+    }
+
+    // Read accessors
+    pub fn id(&self) -> StoryEventId {
+        self.id
+    }
+
+    pub fn world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    pub fn event_type(&self) -> &StoryEventType {
+        &self.event_type
+    }
+
+    pub fn timestamp(&self) -> DateTime<Utc> {
+        self.timestamp
+    }
+
+    pub fn game_time(&self) -> Option<&str> {
+        self.game_time.as_deref()
+    }
+
+    pub fn summary(&self) -> &str {
+        &self.summary
+    }
+
+    pub fn is_hidden(&self) -> bool {
+        self.is_hidden
+    }
+
+    pub fn tags(&self) -> &[String] {
+        &self.tags
+    }
+
+    // NOTE: with_scene() removed - use repository edge method set_scene()
+    // NOTE: with_location() removed - use repository edge method set_location()
+
+    // Builder methods
+    pub fn with_game_time(mut self, game_time: impl Into<String>) -> Self {
+        self.game_time = Some(game_time.into());
+        self
+    }
+
+    pub fn with_summary(mut self, summary: impl Into<String>) -> Self {
+        self.summary = summary.into();
+        self
+    }
+
+    // NOTE: with_characters() removed - use repository edge method add_involved_character()
+
+    pub fn with_tag(mut self, tag: impl Into<String>) -> Self {
+        self.tags.push(tag.into());
+        self
+    }
+
+    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+        self.tags = tags;
+        self
+    }
+
+    pub fn hidden(mut self) -> Self {
+        self.is_hidden = true;
+        self
+    }
+
+    // NOTE: triggered_by() removed - use repository edge method set_triggered_by()
+
+    /// Reconstruct a StoryEvent from stored parts (for repository deserialization).
+    ///
+    /// This bypasses normal validation since we trust the stored data.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_parts(
+        id: StoryEventId,
+        world_id: WorldId,
+        event_type: StoryEventType,
+        timestamp: DateTime<Utc>,
+        game_time: Option<String>,
+        summary: String,
+        is_hidden: bool,
+        tags: Vec<String>,
+    ) -> Self {
+        Self {
+            id,
+            world_id,
+            event_type,
+            timestamp,
+            game_time,
+            summary,
+            is_hidden,
+            tags,
+        }
+    }
+
+    /// Generate an automatic summary based on event type
+    pub fn auto_summarize(&mut self) {
+        self.summary = match &self.event_type {
+            StoryEventType::LocationChange { .. } => "Traveled to a new location".to_string(),
+            StoryEventType::DialogueExchange { npc_name, .. } => {
+                format!("Spoke with {}", npc_name)
+            }
+            StoryEventType::CombatEvent {
+                combat_type,
+                outcome,
+                ..
+            } => match (combat_type, outcome) {
+                (CombatEventType::Started, _) => "Combat began".to_string(),
+                (CombatEventType::Ended, Some(CombatOutcome::Victory)) => {
+                    "Won the battle".to_string()
+                }
+                (CombatEventType::Ended, Some(CombatOutcome::Defeat)) => {
+                    "Lost the battle".to_string()
+                }
+                (CombatEventType::Ended, Some(CombatOutcome::Fled)) => {
+                    "Fled from combat".to_string()
+                }
+                (CombatEventType::Ended, Some(CombatOutcome::Negotiated)) => {
+                    "Combat ended through negotiation".to_string()
+                }
+                (CombatEventType::Ended, Some(CombatOutcome::Draw)) => {
+                    "Combat ended in a draw".to_string()
+                }
+                (CombatEventType::Ended, Some(CombatOutcome::Interrupted)) => {
+                    "Combat was interrupted".to_string()
+                }
+                (CombatEventType::Ended, None) => "Combat ended".to_string(),
+                (CombatEventType::RoundCompleted, _) => "Combat round completed".to_string(),
+                (CombatEventType::CharacterDefeated, _) => {
+                    "Character defeated in combat".to_string()
+                }
+                (CombatEventType::CharacterFled, _) => "Character fled from combat".to_string(),
+            },
+            StoryEventType::ChallengeAttempted {
+                challenge_name,
+                outcome,
+                ..
+            } => format!("{}: {:?}", challenge_name, outcome),
+            StoryEventType::ItemAcquired { item_name, .. } => format!("Acquired {}", item_name),
+            StoryEventType::ItemTransferred { item_name, .. } => {
+                format!("Transferred {}", item_name)
+            }
+            StoryEventType::ItemUsed { item_name, .. } => format!("Used {}", item_name),
+            StoryEventType::RelationshipChanged { reason, .. } => reason.clone(),
+            StoryEventType::SceneTransition { to_scene_name, .. } => {
+                format!("Entered: {}", to_scene_name)
+            }
+            StoryEventType::InformationRevealed { title, .. } => {
+                format!("Discovered: {}", title)
+            }
+            StoryEventType::NpcAction {
+                npc_name,
+                action_type,
+                ..
+            } => format!("{} performed {}", npc_name, action_type),
+            StoryEventType::DmMarker { title, .. } => title.clone(),
+            StoryEventType::NarrativeEventTriggered {
+                narrative_event_name,
+                ..
+            } => format!("Event: {}", narrative_event_name),
+            StoryEventType::StatModified {
+                stat_name, reason, ..
+            } => format!("{} changed: {}", stat_name, reason),
+            StoryEventType::FlagChanged {
+                flag_name,
+                new_value,
+                ..
+            } => format!(
+                "Flag {}: {}",
+                flag_name,
+                if *new_value { "set" } else { "unset" }
+            ),
+            StoryEventType::SessionStarted { session_number, .. } => {
+                format!("Session {} started", session_number)
+            }
+            StoryEventType::SessionEnded { summary, .. } => summary.clone(),
+            StoryEventType::Custom { title, .. } => title.clone(),
+        };
+    }
+
+    /// Get a display-friendly type name
+    pub fn type_name(&self) -> &'static str {
+        match &self.event_type {
+            StoryEventType::LocationChange { .. } => "Location Change",
+            StoryEventType::DialogueExchange { .. } => "Dialogue",
+            StoryEventType::CombatEvent { .. } => "Combat",
+            StoryEventType::ChallengeAttempted { .. } => "Challenge",
+            StoryEventType::ItemAcquired { .. } => "Item Acquired",
+            StoryEventType::ItemTransferred { .. } => "Item Transfer",
+            StoryEventType::ItemUsed { .. } => "Item Used",
+            StoryEventType::RelationshipChanged { .. } => "Relationship",
+            StoryEventType::SceneTransition { .. } => "Scene Transition",
+            StoryEventType::InformationRevealed { .. } => "Information",
+            StoryEventType::NpcAction { .. } => "NPC Action",
+            StoryEventType::DmMarker { .. } => "DM Marker",
+            StoryEventType::NarrativeEventTriggered { .. } => "Narrative Event",
+            StoryEventType::StatModified { .. } => "Stat Modified",
+            StoryEventType::FlagChanged { .. } => "Flag Changed",
+            StoryEventType::SessionStarted { .. } => "Session Start",
+            StoryEventType::SessionEnded { .. } => "Session End",
+            StoryEventType::Custom { .. } => "Custom",
+        }
+    }
 }
 
 /// Categories of story events that occurred during gameplay
@@ -316,171 +546,6 @@ pub enum DmMarkerType {
     Custom,
 }
 
-impl StoryEvent {
-    /// Create a new story event
-    ///
-    /// NOTE: Session, location, scene, and character associations are now stored as
-    /// graph edges and must be created separately using the edge methods:
-    /// - `set_session()` for OCCURRED_IN_SESSION edge
-    /// - `set_location()` for OCCURRED_AT edge
-    /// - `set_scene()` for OCCURRED_IN_SCENE edge
-    /// - `add_involved_character()` for INVOLVES edges
-    /// - `set_triggered_by()` for TRIGGERED_BY_NARRATIVE edge
-    /// - `set_recorded_challenge()` for RECORDS_CHALLENGE edge
-    pub fn new(world_id: WorldId, event_type: StoryEventType, now: DateTime<Utc>) -> Self {
-        Self {
-            id: StoryEventId::new(),
-            world_id,
-            // NOTE: scene_id stored as OCCURRED_IN_SCENE edge
-            // NOTE: location_id stored as OCCURRED_AT edge
-            event_type,
-            timestamp: now,
-            game_time: None,
-            summary: String::new(),
-            // NOTE: involved_characters now stored as INVOLVES edges
-            is_hidden: false,
-            tags: Vec::new(),
-            // NOTE: triggered_by now stored as TRIGGERED_BY_NARRATIVE edge
-        }
-    }
-
-    // NOTE: with_scene() removed - use repository edge method set_scene()
-    // NOTE: with_location() removed - use repository edge method set_location()
-
-    pub fn with_game_time(mut self, game_time: impl Into<String>) -> Self {
-        self.game_time = Some(game_time.into());
-        self
-    }
-
-    pub fn with_summary(mut self, summary: impl Into<String>) -> Self {
-        self.summary = summary.into();
-        self
-    }
-
-    // NOTE: with_characters() removed - use repository edge method add_involved_character()
-
-    pub fn with_tag(mut self, tag: impl Into<String>) -> Self {
-        self.tags.push(tag.into());
-        self
-    }
-
-    pub fn hidden(mut self) -> Self {
-        self.is_hidden = true;
-        self
-    }
-
-    // NOTE: triggered_by() removed - use repository edge method set_triggered_by()
-
-    /// Generate an automatic summary based on event type
-    pub fn auto_summarize(&mut self) {
-        self.summary = match &self.event_type {
-            StoryEventType::LocationChange { .. } => "Traveled to a new location".to_string(),
-            StoryEventType::DialogueExchange { npc_name, .. } => {
-                format!("Spoke with {}", npc_name)
-            }
-            StoryEventType::CombatEvent {
-                combat_type,
-                outcome,
-                ..
-            } => match (combat_type, outcome) {
-                (CombatEventType::Started, _) => "Combat began".to_string(),
-                (CombatEventType::Ended, Some(CombatOutcome::Victory)) => {
-                    "Won the battle".to_string()
-                }
-                (CombatEventType::Ended, Some(CombatOutcome::Defeat)) => {
-                    "Lost the battle".to_string()
-                }
-                (CombatEventType::Ended, Some(CombatOutcome::Fled)) => {
-                    "Fled from combat".to_string()
-                }
-                (CombatEventType::Ended, Some(CombatOutcome::Negotiated)) => {
-                    "Combat ended through negotiation".to_string()
-                }
-                (CombatEventType::Ended, Some(CombatOutcome::Draw)) => {
-                    "Combat ended in a draw".to_string()
-                }
-                (CombatEventType::Ended, Some(CombatOutcome::Interrupted)) => {
-                    "Combat was interrupted".to_string()
-                }
-                (CombatEventType::Ended, None) => "Combat ended".to_string(),
-                (CombatEventType::RoundCompleted, _) => "Combat round completed".to_string(),
-                (CombatEventType::CharacterDefeated, _) => {
-                    "Character defeated in combat".to_string()
-                }
-                (CombatEventType::CharacterFled, _) => "Character fled from combat".to_string(),
-            },
-            StoryEventType::ChallengeAttempted {
-                challenge_name,
-                outcome,
-                ..
-            } => format!("{}: {:?}", challenge_name, outcome),
-            StoryEventType::ItemAcquired { item_name, .. } => format!("Acquired {}", item_name),
-            StoryEventType::ItemTransferred { item_name, .. } => {
-                format!("Transferred {}", item_name)
-            }
-            StoryEventType::ItemUsed { item_name, .. } => format!("Used {}", item_name),
-            StoryEventType::RelationshipChanged { reason, .. } => reason.clone(),
-            StoryEventType::SceneTransition { to_scene_name, .. } => {
-                format!("Entered: {}", to_scene_name)
-            }
-            StoryEventType::InformationRevealed { title, .. } => {
-                format!("Discovered: {}", title)
-            }
-            StoryEventType::NpcAction {
-                npc_name,
-                action_type,
-                ..
-            } => format!("{} performed {}", npc_name, action_type),
-            StoryEventType::DmMarker { title, .. } => title.clone(),
-            StoryEventType::NarrativeEventTriggered {
-                narrative_event_name,
-                ..
-            } => format!("Event: {}", narrative_event_name),
-            StoryEventType::StatModified {
-                stat_name, reason, ..
-            } => format!("{} changed: {}", stat_name, reason),
-            StoryEventType::FlagChanged {
-                flag_name,
-                new_value,
-                ..
-            } => format!(
-                "Flag {}: {}",
-                flag_name,
-                if *new_value { "set" } else { "unset" }
-            ),
-            StoryEventType::SessionStarted { session_number, .. } => {
-                format!("Session {} started", session_number)
-            }
-            StoryEventType::SessionEnded { summary, .. } => summary.clone(),
-            StoryEventType::Custom { title, .. } => title.clone(),
-        };
-    }
-
-    /// Get a display-friendly type name
-    pub fn type_name(&self) -> &'static str {
-        match &self.event_type {
-            StoryEventType::LocationChange { .. } => "Location Change",
-            StoryEventType::DialogueExchange { .. } => "Dialogue",
-            StoryEventType::CombatEvent { .. } => "Combat",
-            StoryEventType::ChallengeAttempted { .. } => "Challenge",
-            StoryEventType::ItemAcquired { .. } => "Item Acquired",
-            StoryEventType::ItemTransferred { .. } => "Item Transfer",
-            StoryEventType::ItemUsed { .. } => "Item Used",
-            StoryEventType::RelationshipChanged { .. } => "Relationship",
-            StoryEventType::SceneTransition { .. } => "Scene Transition",
-            StoryEventType::InformationRevealed { .. } => "Information",
-            StoryEventType::NpcAction { .. } => "NPC Action",
-            StoryEventType::DmMarker { .. } => "DM Marker",
-            StoryEventType::NarrativeEventTriggered { .. } => "Narrative Event",
-            StoryEventType::StatModified { .. } => "Stat Modified",
-            StoryEventType::FlagChanged { .. } => "Flag Changed",
-            StoryEventType::SessionStarted { .. } => "Session Start",
-            StoryEventType::SessionEnded { .. } => "Session End",
-            StoryEventType::Custom { .. } => "Custom",
-        }
-    }
-}
-
 // =============================================================================
 // Edge Support Structs
 // =============================================================================
@@ -490,9 +555,9 @@ impl StoryEvent {
 #[serde(rename_all = "camelCase")]
 pub struct InvolvedCharacter {
     /// The character ID
-    pub character_id: CharacterId,
+    character_id: CharacterId,
     /// Role in the event (e.g., "Speaker", "Target", "Witness", "Actor")
-    pub role: String,
+    role: String,
 }
 
 impl InvolvedCharacter {
@@ -501,6 +566,15 @@ impl InvolvedCharacter {
             character_id,
             role: role.into(),
         }
+    }
+
+    // Read accessors
+    pub fn character_id(&self) -> CharacterId {
+        self.character_id
+    }
+
+    pub fn role(&self) -> &str {
+        &self.role
     }
 
     /// Create an involved character with the "Actor" role

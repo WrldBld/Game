@@ -802,12 +802,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
         want: &Want,
         priority: u32,
     ) -> Result<(), RepoError> {
-        let visibility_str = match want.visibility {
+        let visibility_str = match want.visibility() {
             WantVisibility::Known => "Known",
             WantVisibility::Suspected => "Suspected",
             WantVisibility::Hidden => "Hidden",
         };
-        let tells_json = serde_json::to_string(&want.tells)
+        let tells_json = serde_json::to_string(want.tells())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let q = query(
@@ -823,14 +823,14 @@ impl CharacterRepo for Neo4jCharacterRepo {
             SET r.priority = $priority",
         )
         .param("character_id", character_id.to_string())
-        .param("want_id", want.id.to_string())
-        .param("description", want.description.clone())
-        .param("intensity", want.intensity as f64)
+        .param("want_id", want.id().to_string())
+        .param("description", want.description().to_string())
+        .param("intensity", want.intensity() as f64)
         .param("visibility", visibility_str)
-        .param("created_at", want.created_at.to_rfc3339())
+        .param("created_at", want.created_at().to_rfc3339())
         .param(
             "deflection_behavior",
-            want.deflection_behavior.clone().unwrap_or_default(),
+            want.deflection_behavior().unwrap_or_default().to_string(),
         )
         .param("tells", tells_json)
         .param("priority", i64::from(priority.max(1)));
@@ -840,7 +840,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
-        tracing::debug!("Saved want {} for character {}", want.id, character_id);
+        tracing::debug!("Saved want {} for character {}", want.id(), character_id);
         Ok(())
     }
 
@@ -1142,23 +1142,23 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
         for details in wants {
             let mut want_ctx = WantContext::new(
-                details.want.id,
-                details.want.description.clone(),
-                details.want.intensity,
+                details.want.id(),
+                details.want.description().to_string(),
+                details.want.intensity(),
                 details.priority,
             )
-            .with_visibility(details.want.visibility)
-            .with_tells(details.want.tells.clone());
+            .with_visibility(details.want.visibility())
+            .with_tells(details.want.tells().to_vec());
 
             if let Some(target) = details.target {
                 want_ctx = want_ctx.with_target(target);
             }
-            if let Some(deflection) = details.want.deflection_behavior.as_ref() {
-                want_ctx = want_ctx.with_deflection_behavior(deflection.clone());
+            if let Some(deflection) = details.want.deflection_behavior() {
+                want_ctx = want_ctx.with_deflection_behavior(deflection.to_string());
             }
 
             let idx = wants_builder.len();
-            want_index.insert(details.want.id, idx);
+            want_index.insert(details.want.id(), idx);
             wants_builder.push(want_ctx);
         }
 
@@ -1785,15 +1785,15 @@ fn node_to_want(node: &neo4rs::Node) -> Result<Want, RepoError> {
         _ => WantVisibility::Hidden,
     };
 
-    Ok(Want {
-        id: want_id,
-        description,
-        intensity: intensity as f32,
-        visibility,
-        created_at,
-        deflection_behavior,
-        tells,
-    })
+    let mut want = Want::new_with_intensity(description, intensity as f32, created_at)
+        .with_id(want_id)
+        .with_visibility(visibility)
+        .with_tells(tells)
+        .with_created_at(created_at);
+    if let Some(deflection) = deflection_behavior {
+        want = want.with_deflection(deflection);
+    }
+    Ok(want)
 }
 
 fn parse_want_target_from_row(row: &Row) -> Result<Option<WantTarget>, RepoError> {

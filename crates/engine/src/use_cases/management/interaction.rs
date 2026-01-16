@@ -74,30 +74,43 @@ impl InteractionCrud {
         trigger: Option<String>,
         available: Option<bool>,
     ) -> Result<wrldbldr_domain::InteractionTemplate, ManagementError> {
-        let mut interaction = self
+        let existing = self
             .interaction
             .get(interaction_id)
             .await?
             .ok_or(ManagementError::NotFound)?;
 
-        if let Some(name) = name {
-            require_non_empty(&name, "Interaction name")?;
-            interaction.name = name;
-        }
-        if let Some(description) = description {
-            interaction.prompt_hints = description;
-        }
-        if let Some(trigger) = trigger {
-            if trigger.trim().is_empty() {
-                interaction.conditions.clear();
-            } else {
-                interaction.conditions =
-                    vec![wrldbldr_domain::InteractionCondition::Custom(trigger)];
+        // Rebuild the interaction with updated values
+        let updated_name = match name {
+            Some(ref n) => {
+                require_non_empty(n, "Interaction name")?;
+                n.clone()
             }
-        }
-        if let Some(available) = available {
-            interaction.is_available = available;
-        }
+            None => existing.name().to_string(),
+        };
+
+        let updated_hints = description.unwrap_or_else(|| existing.prompt_hints().to_string());
+
+        let updated_conditions = match trigger {
+            Some(t) if t.trim().is_empty() => Vec::new(),
+            Some(t) => vec![wrldbldr_domain::InteractionCondition::Custom(t)],
+            None => existing.conditions().to_vec(),
+        };
+
+        let updated_available = available.unwrap_or_else(|| existing.is_available());
+
+        let interaction = wrldbldr_domain::InteractionTemplate::from_stored(
+            existing.id(),
+            existing.scene_id(),
+            updated_name,
+            existing.interaction_type().clone(),
+            existing.target().clone(),
+            updated_hints,
+            existing.allowed_tools().to_vec(),
+            updated_conditions,
+            updated_available,
+            existing.order(),
+        );
 
         self.interaction.save(&interaction).await?;
         Ok(interaction)

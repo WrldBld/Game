@@ -41,7 +41,7 @@ impl RegenerateStagingSuggestions {
 
         let location_name = self
             .location
-            .get(region.location_id)
+            .get(region.location_id())
             .await
             .ok()
             .flatten()
@@ -58,7 +58,7 @@ impl RegenerateStagingSuggestions {
         Ok(generate_llm_based_suggestions(
             &npcs_for_region,
             self.llm.as_ref(),
-            &region.name,
+            region.name(),
             &location_name,
             guidance,
         )

@@ -74,28 +74,28 @@ impl ObservationRepo for Neo4jObservationRepo {
                 .get("created_at")
                 .map_err(|e| RepoError::database("query", e))?;
 
-            let observation = NpcObservation {
+            let observation = NpcObservation::from_stored(
                 pc_id,
-                npc_id: CharacterId::from_uuid(
+                CharacterId::from_uuid(
                     uuid::Uuid::parse_str(&npc_id_str)
                         .map_err(|e| RepoError::database("query", e))?,
                 ),
-                location_id: LocationId::from_uuid(
+                LocationId::from_uuid(
                     uuid::Uuid::parse_str(&location_id_str)
                         .map_err(|e| RepoError::database("query", e))?,
                 ),
-                region_id: RegionId::from_uuid(
+                RegionId::from_uuid(
                     uuid::Uuid::parse_str(&region_id_str)
                         .map_err(|e| RepoError::database("query", e))?,
                 ),
-                game_time: parse_datetime_or(&game_time_str, now),
-                observation_type: observation_type_str
+                parse_datetime_or(&game_time_str, now),
+                observation_type_str
                     .parse()
                     .unwrap_or(ObservationType::Direct),
                 is_revealed_to_player,
-                notes: notes.into_option(),
-                created_at: parse_datetime_or(&created_at_str, now),
-            };
+                notes.into_option(),
+                parse_datetime_or(&created_at_str, now),
+            );
 
             observations.push(observation);
         }
@@ -137,15 +137,18 @@ impl ObservationRepo for Neo4jObservationRepo {
                 r.notes = $notes,
                 r.created_at = $created_at",
         )
-        .param("pc_id", observation.pc_id.to_string())
-        .param("npc_id", observation.npc_id.to_string())
-        .param("location_id", observation.location_id.to_string())
-        .param("region_id", observation.region_id.to_string())
-        .param("game_time", observation.game_time.to_rfc3339())
-        .param("observation_type", observation.observation_type.to_string())
-        .param("is_revealed_to_player", observation.is_revealed_to_player)
-        .param("notes", observation.notes.clone().unwrap_or_default())
-        .param("created_at", observation.created_at.to_rfc3339());
+        .param("pc_id", observation.pc_id().to_string())
+        .param("npc_id", observation.npc_id().to_string())
+        .param("location_id", observation.location_id().to_string())
+        .param("region_id", observation.region_id().to_string())
+        .param("game_time", observation.game_time().to_rfc3339())
+        .param(
+            "observation_type",
+            observation.observation_type().to_string(),
+        )
+        .param("is_revealed_to_player", observation.is_revealed_to_player())
+        .param("notes", observation.notes().unwrap_or_default().to_string())
+        .param("created_at", observation.created_at().to_rfc3339());
 
         self.graph
             .run(q)

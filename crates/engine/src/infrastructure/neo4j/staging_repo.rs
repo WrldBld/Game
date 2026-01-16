@@ -199,20 +199,31 @@ impl StagingRepo for Neo4jStagingRepo {
     /// Creates the staging node first, then adds NPC relationships separately (no APOC dependency).
     async fn save_pending_staging(&self, staging: &Staging) -> Result<(), RepoError> {
         let npc_character_ids: Vec<String> = staging
-            .npcs
+            .npcs()
             .iter()
-            .map(|n| n.character_id.to_string())
+            .map(|n| n.character_id().to_string())
             .collect();
-        let npc_is_present: Vec<bool> = staging.npcs.iter().map(|n| n.is_present).collect();
+        let npc_is_present: Vec<bool> = staging.npcs().iter().map(|n| n.is_present()).collect();
         let npc_is_hidden_from_players: Vec<bool> = staging
-            .npcs
+            .npcs()
             .iter()
-            .map(|n| n.is_hidden_from_players)
+            .map(|n| n.is_hidden_from_players())
             .collect();
-        let npc_reasoning: Vec<String> = staging.npcs.iter().map(|n| n.reasoning.clone()).collect();
-        let npc_mood: Vec<String> = staging.npcs.iter().map(|n| n.mood.to_string()).collect();
-        let npc_has_incomplete_data: Vec<bool> =
-            staging.npcs.iter().map(|n| n.has_incomplete_data).collect();
+        let npc_reasoning: Vec<String> = staging
+            .npcs()
+            .iter()
+            .map(|n| n.reasoning().to_string())
+            .collect();
+        let npc_mood: Vec<String> = staging
+            .npcs()
+            .iter()
+            .map(|n| n.mood().to_string())
+            .collect();
+        let npc_has_incomplete_data: Vec<bool> = staging
+            .npcs()
+            .iter()
+            .map(|n| n.has_incomplete_data())
+            .collect();
 
         // Create staging and all NPC relationships in one query (no APOC)
         let q = query(
@@ -242,20 +253,20 @@ impl StagingRepo for Neo4jStagingRepo {
                 has_incomplete_data: $npc_has_incomplete_data[i]
             }]->(c)",
         )
-        .param("id", staging.id.to_string())
-        .param("region_id", staging.region_id.to_string())
-        .param("location_id", staging.location_id.to_string())
-        .param("world_id", staging.world_id.to_string())
-        .param("game_time", staging.game_time.to_rfc3339())
-        .param("approved_at", staging.approved_at.to_rfc3339())
-        .param("ttl_hours", staging.ttl_hours as i64)
-        .param("approved_by", staging.approved_by.clone())
-        .param("source", staging.source.to_string())
+        .param("id", staging.id().to_string())
+        .param("region_id", staging.region_id().to_string())
+        .param("location_id", staging.location_id().to_string())
+        .param("world_id", staging.world_id().to_string())
+        .param("game_time", staging.game_time().to_rfc3339())
+        .param("approved_at", staging.approved_at().to_rfc3339())
+        .param("ttl_hours", staging.ttl_hours() as i64)
+        .param("approved_by", staging.approved_by().to_string())
+        .param("source", staging.source().to_string())
         .param(
             "dm_guidance",
-            staging.dm_guidance.clone().unwrap_or_default(),
+            staging.dm_guidance().unwrap_or_default().to_string(),
         )
-        .param("is_active", staging.is_active)
+        .param("is_active", staging.is_active())
         .param("npc_character_ids", npc_character_ids)
         .param("npc_is_present", npc_is_present)
         .param("npc_is_hidden_from_players", npc_is_hidden_from_players)
@@ -586,17 +597,17 @@ fn row_to_staged_npc(row: Row) -> Result<StagedNpc, RepoError> {
     // Parse has_incomplete_data flag - defaults to false for existing data
     let has_incomplete_data: bool = row.get("has_incomplete_data").unwrap_or(false);
 
-    Ok(StagedNpc {
-        character_id,
-        name,
-        sprite_asset,
-        portrait_asset,
-        is_present,
-        is_hidden_from_players,
-        reasoning,
-        mood,
-        has_incomplete_data,
-    })
+    let mut npc = StagedNpc::new(character_id, name, is_present, reasoning)
+        .with_mood(mood)
+        .with_hidden_from_players(is_hidden_from_players)
+        .with_incomplete_data(has_incomplete_data);
+    if let Some(sprite) = sprite_asset {
+        npc = npc.with_sprite(sprite);
+    }
+    if let Some(portrait) = portrait_asset {
+        npc = npc.with_portrait(portrait);
+    }
+    Ok(npc)
 }
 
 /// Parse a staging row that includes collected NPCs
@@ -632,7 +643,7 @@ fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging
     // Parse collected NPCs from the row
     let npcs = parse_collected_npcs(&row)?;
 
-    Ok(Staging {
+    Ok(Staging::from_stored(
         id,
         region_id,
         location_id,
@@ -640,16 +651,16 @@ fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging
         npcs,
         game_time,
         approved_at,
-        ttl_hours: ttl_hours as i32,
+        ttl_hours as i32,
         approved_by,
         source,
         dm_guidance,
         is_active,
-        location_state_id: None,
-        region_state_id: None,
-        visual_state_source: VisualStateSource::default(),
-        visual_state_reasoning: None,
-    })
+        None, // location_state_id
+        None, // region_state_id
+        VisualStateSource::default(),
+        None, // visual_state_reasoning
+    ))
 }
 
 /// Parse NPCs from a COLLECT result
@@ -688,17 +699,17 @@ fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
         let mood: MoodState = mood_str.parse().unwrap_or(MoodState::Calm);
         let has_incomplete_data: bool = npc_map.get("has_incomplete_data").unwrap_or(false);
 
-        npcs.push(StagedNpc {
-            character_id,
-            name,
-            sprite_asset,
-            portrait_asset,
-            is_present,
-            is_hidden_from_players,
-            reasoning,
-            mood,
-            has_incomplete_data,
-        });
+        let mut npc = StagedNpc::new(character_id, name, is_present, reasoning)
+            .with_mood(mood)
+            .with_hidden_from_players(is_hidden_from_players)
+            .with_incomplete_data(has_incomplete_data);
+        if let Some(sprite) = sprite_asset {
+            npc = npc.with_sprite(sprite);
+        }
+        if let Some(portrait) = portrait_asset {
+            npc = npc.with_portrait(portrait);
+        }
+        npcs.push(npc);
     }
 
     Ok(npcs)
@@ -734,23 +745,22 @@ fn row_to_staging(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoErro
     let source = source_str.parse().unwrap_or(StagingSource::RuleBased);
     let dm_guidance = node.get_optional_string("dm_guidance");
 
-    Ok(Staging {
+    Ok(Staging::from_stored(
         id,
         region_id,
         location_id,
         world_id,
-        npcs: Vec::new(), // Loaded separately
+        Vec::new(), // NPCs loaded separately
         game_time,
         approved_at,
-        ttl_hours: ttl_hours as i32,
+        ttl_hours as i32,
         approved_by,
         source,
         dm_guidance,
         is_active,
-        // Visual state fields - will be loaded from edges in future
-        location_state_id: None,
-        region_state_id: None,
-        visual_state_source: VisualStateSource::default(),
-        visual_state_reasoning: None,
-    })
+        None, // location_state_id - will be loaded from edges in future
+        None, // region_state_id
+        VisualStateSource::default(),
+        None, // visual_state_reasoning
+    ))
 }

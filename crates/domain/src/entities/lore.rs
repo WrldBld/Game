@@ -21,42 +21,42 @@ use crate::ids::{CharacterId, LoreChunkId, LoreId, WorldId};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Lore {
-    pub id: LoreId,
-    pub world_id: WorldId,
+    id: LoreId,
+    world_id: WorldId,
 
     /// Title of the lore entry (e.g., "The Fall of House Valeren")
-    pub title: String,
+    title: String,
     /// Brief summary for DM reference
-    pub summary: String,
+    summary: String,
     /// Category of knowledge
-    pub category: LoreCategory,
+    category: LoreCategory,
 
     /// Discoverable pieces of this lore
-    pub chunks: Vec<LoreChunk>,
+    chunks: Vec<LoreChunk>,
 
     /// If true, all characters in the world know this lore
-    pub is_common_knowledge: bool,
+    is_common_knowledge: bool,
 
     /// Tags for filtering/searching
-    pub tags: Vec<String>,
+    tags: Vec<String>,
 
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
 }
 
 /// A discoverable piece of lore
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoreChunk {
-    pub id: LoreChunkId,
+    id: LoreChunkId,
     /// Display order within the lore entry
-    pub order: u32,
+    order: u32,
     /// Optional title for this chunk
-    pub title: Option<String>,
+    title: Option<String>,
     /// The actual lore content
-    pub content: String,
+    content: String,
     /// Hint for DM about how this can be discovered
-    pub discovery_hint: Option<String>,
+    discovery_hint: Option<String>,
 }
 
 /// Category of lore
@@ -88,17 +88,17 @@ pub enum LoreCategory {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoreKnowledge {
-    pub lore_id: LoreId,
+    lore_id: LoreId,
     /// Can be PC or NPC (uses CharacterId for both)
-    pub character_id: CharacterId,
+    character_id: CharacterId,
     /// Which chunks they know (empty = all chunks)
-    pub known_chunk_ids: Vec<LoreChunkId>,
+    known_chunk_ids: Vec<LoreChunkId>,
     /// How they discovered it
-    pub discovery_source: LoreDiscoverySource,
+    discovery_source: LoreDiscoverySource,
     /// When discovered (game time)
-    pub discovered_at: DateTime<Utc>,
+    discovered_at: DateTime<Utc>,
     /// Optional notes about the discovery
-    pub notes: Option<String>,
+    notes: Option<String>,
 }
 
 /// How lore was discovered
@@ -143,6 +143,53 @@ impl Lore {
         }
     }
 
+    // Read accessors
+    pub fn id(&self) -> LoreId {
+        self.id
+    }
+
+    pub fn world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    pub fn summary(&self) -> &str {
+        &self.summary
+    }
+
+    pub fn category(&self) -> LoreCategory {
+        self.category
+    }
+
+    pub fn chunks(&self) -> &[LoreChunk] {
+        &self.chunks
+    }
+
+    pub fn is_common_knowledge(&self) -> bool {
+        self.is_common_knowledge
+    }
+
+    pub fn tags(&self) -> &[String] {
+        &self.tags
+    }
+
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
+    }
+
+    // Builder methods
+    pub fn with_id(mut self, id: LoreId) -> Self {
+        self.id = id;
+        self
+    }
+
     pub fn with_summary(mut self, summary: impl Into<String>) -> Self {
         self.summary = summary.into();
         self
@@ -175,11 +222,17 @@ impl Lore {
         self
     }
 
+    pub fn with_timestamps(mut self, created_at: DateTime<Utc>, updated_at: DateTime<Utc>) -> Self {
+        self.created_at = created_at;
+        self.updated_at = updated_at;
+        self
+    }
+
     /// Get the full lore text (all chunks combined)
     pub fn full_text(&self) -> String {
         self.chunks
             .iter()
-            .map(|c| c.content.as_str())
+            .map(|c| c.content())
             .collect::<Vec<_>>()
             .join("\n\n")
     }
@@ -188,20 +241,20 @@ impl Lore {
     pub fn text_for_chunks(&self, chunk_ids: &[LoreChunkId]) -> String {
         self.chunks
             .iter()
-            .filter(|c| chunk_ids.contains(&c.id))
-            .map(|c| c.content.as_str())
+            .filter(|c| chunk_ids.contains(&c.id()))
+            .map(|c| c.content())
             .collect::<Vec<_>>()
             .join("\n\n")
     }
 
     /// Get chunk by ID
     pub fn get_chunk(&self, chunk_id: LoreChunkId) -> Option<&LoreChunk> {
-        self.chunks.iter().find(|c| c.id == chunk_id)
+        self.chunks.iter().find(|c| c.id() == chunk_id)
     }
 
     /// Get all chunk IDs
     pub fn chunk_ids(&self) -> Vec<LoreChunkId> {
-        self.chunks.iter().map(|c| c.id).collect()
+        self.chunks.iter().map(|c| c.id()).collect()
     }
 }
 
@@ -214,6 +267,33 @@ impl LoreChunk {
             content: content.into(),
             discovery_hint: None,
         }
+    }
+
+    // Read accessors
+    pub fn id(&self) -> LoreChunkId {
+        self.id
+    }
+
+    pub fn order(&self) -> u32 {
+        self.order
+    }
+
+    pub fn title(&self) -> Option<&str> {
+        self.title.as_deref()
+    }
+
+    pub fn content(&self) -> &str {
+        &self.content
+    }
+
+    pub fn discovery_hint(&self) -> Option<&str> {
+        self.discovery_hint.as_deref()
+    }
+
+    // Builder methods
+    pub fn with_id(mut self, id: LoreChunkId) -> Self {
+        self.id = id;
+        self
     }
 
     pub fn with_title(mut self, title: impl Into<String>) -> Self {
@@ -268,6 +348,32 @@ impl LoreKnowledge {
         }
     }
 
+    // Read accessors
+    pub fn lore_id(&self) -> LoreId {
+        self.lore_id
+    }
+
+    pub fn character_id(&self) -> CharacterId {
+        self.character_id
+    }
+
+    pub fn known_chunk_ids(&self) -> &[LoreChunkId] {
+        &self.known_chunk_ids
+    }
+
+    pub fn discovery_source(&self) -> &LoreDiscoverySource {
+        &self.discovery_source
+    }
+
+    pub fn discovered_at(&self) -> DateTime<Utc> {
+        self.discovered_at
+    }
+
+    pub fn notes(&self) -> Option<&str> {
+        self.notes.as_deref()
+    }
+
+    // Builder methods
     pub fn with_notes(mut self, notes: impl Into<String>) -> Self {
         self.notes = Some(notes.into());
         self
@@ -373,12 +479,12 @@ mod tests {
             .with_chunk("Second chunk of content")
             .with_tags(vec!["test".to_string(), "history".to_string()]);
 
-        assert_eq!(lore.title, "Test Lore");
-        assert_eq!(lore.summary, "A test lore entry");
-        assert_eq!(lore.chunks.len(), 2);
-        assert_eq!(lore.chunks[0].order, 0);
-        assert_eq!(lore.chunks[1].order, 1);
-        assert_eq!(lore.tags.len(), 2);
+        assert_eq!(lore.title(), "Test Lore");
+        assert_eq!(lore.summary(), "A test lore entry");
+        assert_eq!(lore.chunks().len(), 2);
+        assert_eq!(lore.chunks()[0].order(), 0);
+        assert_eq!(lore.chunks()[1].order(), 1);
+        assert_eq!(lore.tags().len(), 2);
     }
 
     #[test]
@@ -417,7 +523,7 @@ mod tests {
         );
 
         assert!(!knowledge.knows_all());
-        assert_eq!(knowledge.known_chunk_ids.len(), 1);
+        assert_eq!(knowledge.known_chunk_ids().len(), 1);
     }
 
     #[test]

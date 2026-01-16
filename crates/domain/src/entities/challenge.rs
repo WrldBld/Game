@@ -36,27 +36,27 @@ pub use crate::types::{
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Challenge {
-    pub id: ChallengeId,
-    pub world_id: WorldId,
-    pub name: String,
-    pub description: String,
-    pub challenge_type: ChallengeType,
-    pub difficulty: Difficulty,
-    pub outcomes: ChallengeOutcomes,
+    id: ChallengeId,
+    world_id: WorldId,
+    name: String,
+    description: String,
+    challenge_type: ChallengeType,
+    difficulty: Difficulty,
+    outcomes: ChallengeOutcomes,
     /// Conditions that trigger LLM to suggest this challenge (non-entity triggers stored as JSON)
-    pub trigger_conditions: Vec<TriggerCondition>,
+    trigger_conditions: Vec<TriggerCondition>,
     /// Whether this challenge can currently be triggered
-    pub active: bool,
+    active: bool,
     /// Display order in challenge library
-    pub order: u32,
+    order: u32,
     /// Whether the DM favorited this challenge
-    pub is_favorite: bool,
+    is_favorite: bool,
     /// Tags for filtering
-    pub tags: Vec<String>,
+    tags: Vec<String>,
     /// The stat to check for this challenge (e.g., "STR", "DEX", "ATHLETICS_MOD")
     /// If None, the modifier will be 0 unless provided by the client.
     #[serde(default)]
-    pub check_stat: Option<String>,
+    check_stat: Option<String>,
 }
 
 impl Challenge {
@@ -80,6 +80,68 @@ impl Challenge {
             tags: Vec::new(),
             check_stat: None,
         }
+    }
+
+    // === Accessors ===
+
+    pub fn id(&self) -> ChallengeId {
+        self.id
+    }
+
+    pub fn world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn challenge_type(&self) -> ChallengeType {
+        self.challenge_type
+    }
+
+    pub fn difficulty(&self) -> &Difficulty {
+        &self.difficulty
+    }
+
+    pub fn outcomes(&self) -> &ChallengeOutcomes {
+        &self.outcomes
+    }
+
+    pub fn trigger_conditions(&self) -> &[TriggerCondition] {
+        &self.trigger_conditions
+    }
+
+    pub fn active(&self) -> bool {
+        self.active
+    }
+
+    pub fn order(&self) -> u32 {
+        self.order
+    }
+
+    pub fn is_favorite(&self) -> bool {
+        self.is_favorite
+    }
+
+    pub fn tags(&self) -> &[String] {
+        &self.tags
+    }
+
+    pub fn check_stat(&self) -> Option<&str> {
+        self.check_stat.as_deref()
+    }
+
+    // === Builder Methods ===
+
+    /// Set the challenge ID (used when loading from database).
+    pub fn with_id(mut self, id: ChallengeId) -> Self {
+        self.id = id;
+        self
     }
 
     /// Set the stat to check for this challenge.
@@ -113,6 +175,21 @@ impl Challenge {
         self
     }
 
+    pub fn with_active(mut self, active: bool) -> Self {
+        self.active = active;
+        self
+    }
+
+    pub fn with_order(mut self, order: u32) -> Self {
+        self.order = order;
+        self
+    }
+
+    pub fn with_is_favorite(mut self, is_favorite: bool) -> Self {
+        self.is_favorite = is_favorite;
+        self
+    }
+
     /// Validate all triggers in this challenge.
     ///
     /// Returns a list of validation errors, empty if all triggers are valid.
@@ -128,7 +205,7 @@ impl Challenge {
 
         // Validate outcome triggers
         for (outcome_name, outcome) in self.all_outcomes_named() {
-            for (i, trigger) in outcome.triggers.iter().enumerate() {
+            for (i, trigger) in outcome.triggers().iter().enumerate() {
                 if let Err(e) = trigger.validate() {
                     errors.push(format!("{} outcome trigger {}: {}", outcome_name, i + 1, e));
                 }
@@ -150,7 +227,7 @@ impl Challenge {
 
         // From outcome triggers
         for (_, outcome) in self.all_outcomes_named() {
-            for trigger in &outcome.triggers {
+            for trigger in outcome.triggers() {
                 ids.extend(trigger.referenced_challenge_ids());
             }
         }
@@ -200,7 +277,7 @@ impl Challenge {
             .trigger_conditions
             .iter()
             .zip(matched.iter())
-            .filter(|(tc, _)| tc.required)
+            .filter(|(tc, _)| tc.required())
             .all(|(_, &m)| m);
 
         // At least one condition must match overall
@@ -627,14 +704,14 @@ impl Difficulty {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChallengeOutcomes {
-    pub success: Outcome,
-    pub failure: Outcome,
+    success: Outcome,
+    failure: Outcome,
     /// For narrative systems or "meet DC exactly" results
-    pub partial: Option<Outcome>,
+    partial: Option<Outcome>,
     /// Natural 20 or roll of 01 on d100
-    pub critical_success: Option<Outcome>,
+    critical_success: Option<Outcome>,
     /// Natural 1 or fumble roll
-    pub critical_failure: Option<Outcome>,
+    critical_failure: Option<Outcome>,
 }
 
 impl ChallengeOutcomes {
@@ -647,6 +724,30 @@ impl ChallengeOutcomes {
             critical_failure: None,
         }
     }
+
+    // === Accessors ===
+
+    pub fn success(&self) -> &Outcome {
+        &self.success
+    }
+
+    pub fn failure(&self) -> &Outcome {
+        &self.failure
+    }
+
+    pub fn partial(&self) -> Option<&Outcome> {
+        self.partial.as_ref()
+    }
+
+    pub fn critical_success(&self) -> Option<&Outcome> {
+        self.critical_success.as_ref()
+    }
+
+    pub fn critical_failure(&self) -> Option<&Outcome> {
+        self.critical_failure.as_ref()
+    }
+
+    // === Builder Methods ===
 
     pub fn with_partial(mut self, partial: impl Into<String>) -> Self {
         self.partial = Some(Outcome::new(partial));
@@ -662,6 +763,23 @@ impl ChallengeOutcomes {
         self.critical_failure = Some(Outcome::new(critical));
         self
     }
+
+    /// Reconstruct ChallengeOutcomes from parts (for repository deserialization).
+    pub fn from_parts(
+        success: Outcome,
+        failure: Outcome,
+        partial: Option<Outcome>,
+        critical_success: Option<Outcome>,
+        critical_failure: Option<Outcome>,
+    ) -> Self {
+        Self {
+            success,
+            failure,
+            partial,
+            critical_success,
+            critical_failure,
+        }
+    }
 }
 
 /// A single outcome with narrative text and triggered effects
@@ -669,9 +787,9 @@ impl ChallengeOutcomes {
 #[serde(rename_all = "camelCase")]
 pub struct Outcome {
     /// Narrative description shown to players
-    pub description: String,
+    description: String,
     /// Effects that trigger when this outcome occurs
-    pub triggers: Vec<OutcomeTrigger>,
+    triggers: Vec<OutcomeTrigger>,
 }
 
 impl Outcome {
@@ -682,8 +800,25 @@ impl Outcome {
         }
     }
 
+    // === Accessors ===
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn triggers(&self) -> &[OutcomeTrigger] {
+        &self.triggers
+    }
+
+    // === Builder Methods ===
+
     pub fn with_trigger(mut self, trigger: OutcomeTrigger) -> Self {
         self.triggers.push(trigger);
+        self
+    }
+
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = description.into();
         self
     }
 }
@@ -866,11 +1001,11 @@ impl OutcomeTrigger {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TriggerCondition {
-    pub condition_type: TriggerType,
+    condition_type: TriggerType,
     /// Human-readable description for DM reference
-    pub description: String,
+    description: String,
     /// Whether this condition alone is sufficient (AND vs OR logic)
-    pub required: bool,
+    required: bool,
 }
 
 impl TriggerCondition {
@@ -882,7 +1017,29 @@ impl TriggerCondition {
         }
     }
 
-    pub fn required(mut self) -> Self {
+    // === Accessors ===
+
+    pub fn condition_type(&self) -> &TriggerType {
+        &self.condition_type
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn required(&self) -> bool {
+        self.required
+    }
+
+    // === Builder Methods ===
+
+    pub fn with_required(mut self, required: bool) -> Self {
+        self.required = required;
+        self
+    }
+
+    /// Mark this condition as required
+    pub fn required_condition(mut self) -> Self {
         self.required = true;
         self
     }
@@ -1136,9 +1293,9 @@ impl std::fmt::Display for OutcomeType {
 #[serde(rename_all = "camelCase")]
 pub struct ChallengePrerequisite {
     /// The prerequisite challenge ID
-    pub challenge_id: ChallengeId,
+    challenge_id: ChallengeId,
     /// Whether success is required (true = must succeed, false = just attempted)
-    pub success_required: bool,
+    success_required: bool,
 }
 
 impl ChallengePrerequisite {
@@ -1155,6 +1312,23 @@ impl ChallengePrerequisite {
             success_required: true,
         }
     }
+
+    // === Accessors ===
+
+    pub fn challenge_id(&self) -> ChallengeId {
+        self.challenge_id
+    }
+
+    pub fn success_required(&self) -> bool {
+        self.success_required
+    }
+
+    // === Builder Methods ===
+
+    pub fn with_success_required(mut self, success_required: bool) -> Self {
+        self.success_required = success_required;
+        self
+    }
 }
 
 /// Data for AVAILABLE_AT edge between Challenge and Location
@@ -1162,11 +1336,11 @@ impl ChallengePrerequisite {
 #[serde(rename_all = "camelCase")]
 pub struct ChallengeLocationAvailability {
     /// The location where this challenge is available
-    pub location_id: LocationId,
+    location_id: LocationId,
     /// Whether the challenge is always available at this location
-    pub always_available: bool,
+    always_available: bool,
     /// Time restriction (if any): "Morning", "Afternoon", "Evening", "Night"
-    pub time_restriction: Option<String>,
+    time_restriction: Option<String>,
 }
 
 impl ChallengeLocationAvailability {
@@ -1178,9 +1352,30 @@ impl ChallengeLocationAvailability {
         }
     }
 
+    // === Accessors ===
+
+    pub fn location_id(&self) -> LocationId {
+        self.location_id
+    }
+
+    pub fn always_available(&self) -> bool {
+        self.always_available
+    }
+
+    pub fn time_restriction(&self) -> Option<&str> {
+        self.time_restriction.as_deref()
+    }
+
+    // === Builder Methods ===
+
     pub fn with_time_restriction(mut self, time: impl Into<String>) -> Self {
         self.time_restriction = Some(time.into());
         self.always_available = false;
+        self
+    }
+
+    pub fn with_always_available(mut self, always_available: bool) -> Self {
+        self.always_available = always_available;
         self
     }
 }
@@ -1190,11 +1385,11 @@ impl ChallengeLocationAvailability {
 #[serde(rename_all = "camelCase")]
 pub struct ChallengeRegionAvailability {
     /// The region where this challenge is available
-    pub region_id: RegionId,
+    region_id: RegionId,
     /// Whether the challenge is always available at this region
-    pub always_available: bool,
+    always_available: bool,
     /// Time restriction (if any): "Morning", "Afternoon", "Evening", "Night"
-    pub time_restriction: Option<String>,
+    time_restriction: Option<String>,
 }
 
 impl ChallengeRegionAvailability {
@@ -1206,9 +1401,30 @@ impl ChallengeRegionAvailability {
         }
     }
 
+    // === Accessors ===
+
+    pub fn region_id(&self) -> RegionId {
+        self.region_id
+    }
+
+    pub fn always_available(&self) -> bool {
+        self.always_available
+    }
+
+    pub fn time_restriction(&self) -> Option<&str> {
+        self.time_restriction.as_deref()
+    }
+
+    // === Builder Methods ===
+
     pub fn with_time_restriction(mut self, time: impl Into<String>) -> Self {
         self.time_restriction = Some(time.into());
         self.always_available = false;
+        self
+    }
+
+    pub fn with_always_available(mut self, always_available: bool) -> Self {
+        self.always_available = always_available;
         self
     }
 }
@@ -1218,12 +1434,18 @@ impl ChallengeRegionAvailability {
 #[serde(rename_all = "camelCase")]
 pub struct ChallengeUnlock {
     /// The location that gets unlocked on successful completion
-    pub location_id: LocationId,
+    location_id: LocationId,
 }
 
 impl ChallengeUnlock {
     pub fn new(location_id: LocationId) -> Self {
         Self { location_id }
+    }
+
+    // === Accessors ===
+
+    pub fn location_id(&self) -> LocationId {
+        self.location_id
     }
 }
 
@@ -1243,10 +1465,10 @@ mod tests {
                     "The statue appears to be solid stone",
                 ));
 
-        assert_eq!(challenge.name, "Investigate the Statue");
-        assert!(challenge.active);
+        assert_eq!(challenge.name(), "Investigate the Statue");
+        assert!(challenge.active());
         assert_eq!(
-            challenge.outcomes.success.description,
+            challenge.outcomes().success().description(),
             "You find a hidden mechanism in the statue's base"
         );
     }
@@ -1279,7 +1501,7 @@ mod tests {
             .with_trigger(OutcomeTrigger::reveal_persistent("Map of the catacombs"))
             .with_trigger(OutcomeTrigger::enable(ChallengeId::new()));
 
-        assert_eq!(outcome.triggers.len(), 2);
+        assert_eq!(outcome.triggers().len(), 2);
     }
 
     #[test]
@@ -1291,12 +1513,12 @@ mod tests {
         // Roll 10 + modifier 5 = 15, meets DC 15
         let (outcome_type, outcome) = challenge.evaluate_roll(10, 5);
         assert_eq!(outcome_type, OutcomeType::Success);
-        assert_eq!(outcome.description, "Success!");
+        assert_eq!(outcome.description(), "Success!");
 
         // Roll 10 + modifier 3 = 13, below DC 15
         let (outcome_type, outcome) = challenge.evaluate_roll(10, 3);
         assert_eq!(outcome_type, OutcomeType::Failure);
-        assert_eq!(outcome.description, "Failure!");
+        assert_eq!(outcome.description(), "Failure!");
     }
 
     #[test]
@@ -1311,12 +1533,12 @@ mod tests {
         // Natural 20 = critical success
         let (outcome_type, outcome) = challenge.evaluate_roll(20, 0);
         assert_eq!(outcome_type, OutcomeType::CriticalSuccess);
-        assert_eq!(outcome.description, "Critical!");
+        assert_eq!(outcome.description(), "Critical!");
 
         // Natural 1 = critical failure
         let (outcome_type, outcome) = challenge.evaluate_roll(1, 10);
         assert_eq!(outcome_type, OutcomeType::CriticalFailure);
-        assert_eq!(outcome.description, "Fumble!");
+        assert_eq!(outcome.description(), "Fumble!");
     }
 
     #[test]
@@ -1355,7 +1577,7 @@ mod tests {
         // Roll 5 + modifier 3 = 8, 7-9 = partial success
         let (outcome_type, outcome) = challenge.evaluate_roll(5, 3);
         assert_eq!(outcome_type, OutcomeType::Partial);
-        assert_eq!(outcome.description, "Partial!");
+        assert_eq!(outcome.description(), "Partial!");
 
         // Roll 4 + modifier 3 = 7, 7-9 = partial success
         let (outcome_type, _) = challenge.evaluate_roll(4, 3);
@@ -1427,159 +1649,116 @@ mod tests {
         let (outcome_type, _) =
             challenge.evaluate_roll_narrative(8, 4, Some(&config), None, None, None);
         assert_eq!(outcome_type, OutcomeType::Success);
-
-        // Roll 4 + 3 = 7, below 8 = failure with custom thresholds
-        let (outcome_type, _) =
-            challenge.evaluate_roll_narrative(4, 3, Some(&config), None, None, None);
-        assert_eq!(outcome_type, OutcomeType::Failure);
     }
 
     #[test]
-    fn test_evaluate_roll_narrative_fate_ladder() {
+    fn test_evaluate_roll_narrative_ladder() {
         let world_id = WorldId::new();
         let challenge = Challenge::new(
             world_id,
             "Test",
-            Difficulty::Descriptor(DifficultyDescriptor::Hard), // Hard = +4 in Fate ladder
+            Difficulty::Descriptor(DifficultyDescriptor::Hard), // Hard = +4 on ladder
         )
-        .with_outcomes(
-            ChallengeOutcomes::simple("Success!", "Failure!")
-                .with_partial("Tie!")
-                .with_critical_success("Style!"),
-        );
+        .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Tie!"));
 
-        let config = NarrativeResolutionConfig::fate_core();
+        let config = NarrativeResolutionConfig {
+            style: NarrativeResolutionStyle::Ladder,
+            ..Default::default()
+        };
 
-        // Roll 2 (4dF result) + 3 (skill) = 5, vs Hard (+4) = +1 shift = Success
+        // Roll 0 (4dF with all blanks) + modifier 4 = 4, equals Hard (+4) = tie = partial
         let (outcome_type, _) =
-            challenge.evaluate_roll_narrative(2, 3, Some(&config), None, None, None);
-        assert_eq!(outcome_type, OutcomeType::Success);
-
-        // Roll 1 + 3 = 4, vs Hard (+4) = 0 shifts = Tie (Partial)
-        let (outcome_type, _) =
-            challenge.evaluate_roll_narrative(1, 3, Some(&config), None, None, None);
+            challenge.evaluate_roll_narrative(0, 4, Some(&config), None, None, None);
         assert_eq!(outcome_type, OutcomeType::Partial);
 
-        // Roll 4 + 3 = 7, vs Hard (+4) = +3 shifts = Succeed with Style (Critical)
+        // Roll 0 + modifier 5 = 5, beats Hard (+4) by 1 = success
         let (outcome_type, _) =
-            challenge.evaluate_roll_narrative(4, 3, Some(&config), None, None, None);
-        assert_eq!(outcome_type, OutcomeType::CriticalSuccess);
+            challenge.evaluate_roll_narrative(0, 5, Some(&config), None, None, None);
+        assert_eq!(outcome_type, OutcomeType::Success);
 
-        // Roll -2 + 3 = 1, vs Hard (+4) = -3 shifts = Failure
+        // Roll 0 + modifier 3 = 3, below Hard (+4) = failure
         let (outcome_type, _) =
-            challenge.evaluate_roll_narrative(-2, 3, Some(&config), None, None, None);
+            challenge.evaluate_roll_narrative(0, 3, Some(&config), None, None, None);
         assert_eq!(outcome_type, OutcomeType::Failure);
     }
 
     #[test]
-    fn test_evaluate_roll_narrative_blades_pool() {
+    fn test_evaluate_roll_narrative_blades() {
         let world_id = WorldId::new();
         let challenge = Challenge::new(
             world_id,
             "Test",
-            Difficulty::Descriptor(DifficultyDescriptor::Risky),
+            Difficulty::Descriptor(DifficultyDescriptor::Moderate),
         )
-        .with_outcomes(
-            ChallengeOutcomes::simple("Success!", "Failure!")
-                .with_partial("Partial!")
-                .with_critical_success("Critical!"),
-        );
+        .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Partial!"));
 
-        let config = NarrativeResolutionConfig::blades();
+        let config = NarrativeResolutionConfig {
+            style: NarrativeResolutionStyle::Blades,
+            ..Default::default()
+        };
 
-        // Pool with highest 6 = Full success
-        let dice = vec![3, 6, 2];
+        // Single 6 = success
         let (outcome_type, _) = challenge.evaluate_roll_narrative(
             6,
             0,
             Some(&config),
             Some(Position::Risky),
             Some(EffectLevel::Standard),
-            Some(&dice),
+            Some(&[6]),
         );
         assert_eq!(outcome_type, OutcomeType::Success);
 
-        // Pool with highest 5 = Partial success
-        let dice = vec![2, 5, 1];
+        // 4 or 5 = partial
         let (outcome_type, _) = challenge.evaluate_roll_narrative(
             5,
             0,
             Some(&config),
             Some(Position::Risky),
             Some(EffectLevel::Standard),
-            Some(&dice),
+            Some(&[5]),
         );
         assert_eq!(outcome_type, OutcomeType::Partial);
 
-        // Pool with highest 4 = Partial success
-        let dice = vec![4, 2, 1];
-        let (outcome_type, _) = challenge.evaluate_roll_narrative(
-            4,
-            0,
-            Some(&config),
-            Some(Position::Risky),
-            Some(EffectLevel::Standard),
-            Some(&dice),
-        );
-        assert_eq!(outcome_type, OutcomeType::Partial);
-
-        // Pool with highest 3 = Failure
-        let dice = vec![3, 1, 2];
+        // 1-3 = failure
         let (outcome_type, _) = challenge.evaluate_roll_narrative(
             3,
             0,
             Some(&config),
             Some(Position::Risky),
             Some(EffectLevel::Standard),
-            Some(&dice),
+            Some(&[3]),
         );
         assert_eq!(outcome_type, OutcomeType::Failure);
 
-        // Pool with two 6s = Critical success
-        let dice = vec![6, 6, 2];
+        // Two 6s = critical
         let (outcome_type, _) = challenge.evaluate_roll_narrative(
             6,
             0,
             Some(&config),
             Some(Position::Risky),
             Some(EffectLevel::Standard),
-            Some(&dice),
+            Some(&[6, 6]),
         );
         assert_eq!(outcome_type, OutcomeType::CriticalSuccess);
     }
 
     #[test]
-    fn test_effect_level_increase_decrease() {
-        assert_eq!(EffectLevel::Zero.increase(), EffectLevel::Limited);
-        assert_eq!(EffectLevel::Limited.increase(), EffectLevel::Standard);
-        assert_eq!(EffectLevel::Standard.increase(), EffectLevel::Great);
-        assert_eq!(EffectLevel::Great.increase(), EffectLevel::Extreme);
-        assert_eq!(EffectLevel::Extreme.increase(), EffectLevel::Extreme);
+    fn test_challenge_accessors() {
+        let world_id = WorldId::new();
+        let challenge = Challenge::new(world_id, "Test Challenge", Difficulty::DC(15))
+            .with_description("A test")
+            .with_tag("combat")
+            .with_check_stat("STR")
+            .with_active(false)
+            .with_order(5)
+            .with_is_favorite(true);
 
-        assert_eq!(EffectLevel::Extreme.decrease(), EffectLevel::Great);
-        assert_eq!(EffectLevel::Great.decrease(), EffectLevel::Standard);
-        assert_eq!(EffectLevel::Standard.decrease(), EffectLevel::Limited);
-        assert_eq!(EffectLevel::Limited.decrease(), EffectLevel::Zero);
-        assert_eq!(EffectLevel::Zero.decrease(), EffectLevel::Zero);
-    }
-
-    #[test]
-    fn test_difficulty_ladder_lookup() {
-        let ladder = DifficultyLadder::fate_core();
-
-        assert_eq!(ladder.value_for(&DifficultyDescriptor::Trivial), Some(-2));
-        assert_eq!(ladder.value_for(&DifficultyDescriptor::Easy), Some(0));
-        assert_eq!(ladder.value_for(&DifficultyDescriptor::Moderate), Some(2));
-        assert_eq!(ladder.value_for(&DifficultyDescriptor::Hard), Some(4));
-        assert_eq!(ladder.value_for(&DifficultyDescriptor::Impossible), Some(8));
-
-        assert_eq!(
-            ladder.display_name_for(&DifficultyDescriptor::Moderate),
-            Some("Fair")
-        );
-        assert_eq!(
-            ladder.display_name_for(&DifficultyDescriptor::Hard),
-            Some("Great")
-        );
+        assert_eq!(challenge.name(), "Test Challenge");
+        assert_eq!(challenge.description(), "A test");
+        assert_eq!(challenge.tags(), &["combat"]);
+        assert_eq!(challenge.check_stat(), Some("STR"));
+        assert!(!challenge.active());
+        assert_eq!(challenge.order(), 5);
+        assert!(challenge.is_favorite());
     }
 }

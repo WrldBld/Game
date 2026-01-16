@@ -388,10 +388,10 @@ pub(super) async fn handle_observation_request(
                 .await
             {
                 Ok(observation) => Ok(ResponseResult::success(serde_json::json!({
-                    "npc_id": observation.npc_id.to_string(),
-                    "location_id": observation.location_id.to_string(),
-                    "region_id": observation.region_id.to_string(),
-                    "observation_type": format!("{:?}", observation.observation_type),
+                    "npc_id": observation.npc_id().to_string(),
+                    "location_id": observation.location_id().to_string(),
+                    "region_id": observation.region_id().to_string(),
+                    "observation_type": format!("{:?}", observation.observation_type()),
                 }))),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))

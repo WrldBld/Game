@@ -32,8 +32,17 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     .with_description(wrldbldr_domain::Description::new("desc").unwrap())
     .with_id(location_id);
 
-    let mut region = wrldbldr_domain::Region::new(location_id, "Unstaged Region");
-    region.id = region_id;
+    let region = wrldbldr_domain::Region::from_parts(
+        region_id,
+        location_id,
+        "Unstaged Region".to_string(),
+        String::new(),
+        None,
+        None,
+        None,
+        false,
+        0,
+    );
 
     let pc = wrldbldr_domain::PlayerCharacter::new(
         "player-1",
@@ -207,19 +216,19 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         .staging_repo
         .expect_save_pending_staging()
         .withf(move |s| {
-            s.region_id == region_id_for_staging
-                && s.location_id == location_id_for_staging
-                && s.world_id == world_id_for_staging
-                && s.ttl_hours == 24 // DM-specified TTL (overrides default from settings)
-                && s.npcs.iter().any(|n| {
-                    n.character_id == visible_npc_id_for_staging
-                        && n.is_present
-                        && !n.is_hidden_from_players
+            s.region_id() == region_id_for_staging
+                && s.location_id() == location_id_for_staging
+                && s.world_id() == world_id_for_staging
+                && s.ttl_hours() == 24 // DM-specified TTL (overrides default from settings)
+                && s.npcs().iter().any(|n| {
+                    n.character_id() == visible_npc_id_for_staging
+                        && n.is_present()
+                        && !n.is_hidden_from_players()
                 })
-                && s.npcs.iter().any(|n| {
-                    n.character_id == hidden_npc_id_for_staging
-                        && n.is_present
-                        && n.is_hidden_from_players
+                && s.npcs().iter().any(|n| {
+                    n.character_id() == hidden_npc_id_for_staging
+                        && n.is_present()
+                        && n.is_hidden_from_players()
                 })
         })
         .returning(|_| Ok(()));
@@ -414,8 +423,17 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
     .with_description(wrldbldr_domain::Description::new("desc").unwrap())
     .with_id(location_id);
 
-    let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");
-    region.id = region_id;
+    let region = wrldbldr_domain::Region::from_parts(
+        region_id,
+        location_id,
+        "Test Region".to_string(),
+        String::new(),
+        None,
+        None,
+        None,
+        false,
+        0,
+    );
 
     // Custom settings with non-default TTL (7 hours instead of default 3)
     let custom_settings =
@@ -469,11 +487,11 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
         .staging_repo
         .expect_save_pending_staging()
         .withf(move |s| {
-            s.region_id == region_id_for_staging
-                && s.location_id == location_id_for_staging
-                && s.world_id == world_id_for_staging
-                && s.ttl_hours == 7 // Custom TTL from settings (not default 3)
-                && s.source == wrldbldr_domain::StagingSource::AutoApproved
+            s.region_id() == region_id_for_staging
+                && s.location_id() == location_id_for_staging
+                && s.world_id() == world_id_for_staging
+                && s.ttl_hours() == 7 // Custom TTL from settings (not default 3)
+                && s.source() == wrldbldr_domain::StagingSource::AutoApproved
         })
         .returning(|_| Ok(()));
 
@@ -553,8 +571,17 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
     .with_description(wrldbldr_domain::Description::new("desc").unwrap())
     .with_id(location_id);
 
-    let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");
-    region.id = region_id;
+    let region = wrldbldr_domain::Region::from_parts(
+        region_id,
+        location_id,
+        "Test Region".to_string(),
+        String::new(),
+        None,
+        None,
+        None,
+        false,
+        0,
+    );
 
     // World repo
     let mut world_repo = MockWorldRepo::new();
@@ -605,11 +632,11 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
         .staging_repo
         .expect_save_pending_staging()
         .withf(move |s| {
-            s.region_id == region_id_for_staging
-                && s.location_id == location_id_for_staging
-                && s.world_id == world_id_for_staging
-                && s.ttl_hours == 3 // Default TTL (settings fetch failed)
-                && s.source == wrldbldr_domain::StagingSource::AutoApproved
+            s.region_id() == region_id_for_staging
+                && s.location_id() == location_id_for_staging
+                && s.world_id() == world_id_for_staging
+                && s.ttl_hours() == 3 // Default TTL (settings fetch failed)
+                && s.source() == wrldbldr_domain::StagingSource::AutoApproved
         })
         .returning(|_| Ok(()));
 

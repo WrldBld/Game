@@ -65,13 +65,14 @@ impl Neo4jLoreRepo {
         let title: Option<String> = node.get_optional_string("title");
         let discovery_hint: Option<String> = node.get_optional_string("discovery_hint");
 
-        Ok(LoreChunk {
-            id,
-            order: order as u32,
-            title,
-            content,
-            discovery_hint,
-        })
+        let mut chunk = LoreChunk::new(content).with_id(id).with_order(order as u32);
+        if let Some(t) = title {
+            chunk = chunk.with_title(t);
+        }
+        if let Some(hint) = discovery_hint {
+            chunk = chunk.with_discovery_hint(hint);
+        }
+        Ok(chunk)
     }
 
     fn row_to_lore_without_chunks(&self, row: Row) -> Result<Lore, RepoError> {
@@ -98,24 +99,21 @@ impl Neo4jLoreRepo {
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
 
-        Ok(Lore {
-            id,
-            world_id,
-            title,
-            summary,
-            category,
-            chunks: Vec::new(), // Will be populated separately
-            is_common_knowledge,
-            tags,
-            created_at,
-            updated_at,
-        })
+        let mut lore = Lore::new(world_id, title, category, created_at)
+            .with_id(id)
+            .with_summary(summary)
+            .with_tags(tags)
+            .with_timestamps(created_at, updated_at);
+        if is_common_knowledge {
+            lore = lore.as_common_knowledge();
+        }
+        Ok(lore)
     }
 
     async fn row_to_lore(&self, row: Row) -> Result<Lore, RepoError> {
-        let mut lore = self.row_to_lore_without_chunks(row)?;
-        lore.chunks = self.fetch_chunks(lore.id).await?;
-        Ok(lore)
+        let lore = self.row_to_lore_without_chunks(row)?;
+        let chunks = self.fetch_chunks(lore.id()).await?;
+        Ok(lore.with_chunks(chunks))
     }
 
     fn row_to_knowledge(&self, row: Row) -> Result<LoreKnowledge, RepoError> {
@@ -152,14 +150,17 @@ impl Neo4jLoreRepo {
             .map(|dt| dt.with_timezone(&chrono::Utc))
             .unwrap_or_else(|_| self.clock.now());
 
-        Ok(LoreKnowledge {
+        let mut knowledge = LoreKnowledge::partial(
             lore_id,
             character_id,
             known_chunk_ids,
             discovery_source,
             discovered_at,
-            notes,
-        })
+        );
+        if let Some(n) = notes {
+            knowledge = knowledge.with_notes(n);
+        }
+        Ok(knowledge)
     }
 
     /// Create composite key for chunk order uniqueness constraint.
@@ -191,7 +192,7 @@ impl LoreRepo for Neo4jLoreRepo {
     }
 
     async fn save(&self, lore: &Lore) -> Result<(), RepoError> {
-        let tags_json = serde_json::to_string(&lore.tags)
+        let tags_json = serde_json::to_string(lore.tags())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         // Save the Lore node (without chunks - they're separate nodes now)
@@ -210,15 +211,15 @@ impl LoreRepo for Neo4jLoreRepo {
             MERGE (w)-[:HAS_LORE]->(l)
             RETURN l.id as id",
         )
-        .param("id", lore.id.to_string())
-        .param("world_id", lore.world_id.to_string())
-        .param("title", lore.title.clone())
-        .param("summary", lore.summary.clone())
-        .param("category", lore.category.to_string())
-        .param("is_common_knowledge", lore.is_common_knowledge)
+        .param("id", lore.id().to_string())
+        .param("world_id", lore.world_id().to_string())
+        .param("title", lore.title().to_string())
+        .param("summary", lore.summary().to_string())
+        .param("category", lore.category().to_string())
+        .param("is_common_knowledge", lore.is_common_knowledge())
         .param("tags", tags_json)
-        .param("created_at", lore.created_at.to_rfc3339())
-        .param("updated_at", lore.updated_at.to_rfc3339());
+        .param("created_at", lore.created_at().to_rfc3339())
+        .param("updated_at", lore.updated_at().to_rfc3339());
 
         self.graph
             .run(q)
@@ -226,10 +227,10 @@ impl LoreRepo for Neo4jLoreRepo {
             .map_err(|e| RepoError::database("query", e))?;
 
         // Get existing chunk IDs to determine what to delete
-        let existing_chunks = self.fetch_chunks(lore.id).await?;
+        let existing_chunks = self.fetch_chunks(lore.id()).await?;
         let existing_ids: std::collections::HashSet<_> =
-            existing_chunks.iter().map(|c| c.id).collect();
-        let new_ids: std::collections::HashSet<_> = lore.chunks.iter().map(|c| c.id).collect();
+            existing_chunks.iter().map(|c| c.id()).collect();
+        let new_ids: std::collections::HashSet<_> = lore.chunks().iter().map(|c| c.id()).collect();
 
         // Delete chunks that are no longer in the lore
         let to_delete: Vec<_> = existing_ids.difference(&new_ids).collect();
@@ -247,8 +248,8 @@ impl LoreRepo for Neo4jLoreRepo {
         }
 
         // Upsert each chunk as a separate node
-        for chunk in &lore.chunks {
-            let lore_order_key = Self::make_lore_order_key(&lore.id, chunk.order);
+        for chunk in lore.chunks() {
+            let lore_order_key = Self::make_lore_order_key(&lore.id(), chunk.order());
 
             let chunk_q = query(
                 "MATCH (l:Lore {id: $lore_id})
@@ -262,15 +263,15 @@ impl LoreRepo for Neo4jLoreRepo {
                  MERGE (l)-[:HAS_CHUNK]->(c)
                  RETURN c.id as id",
             )
-            .param("lore_id", lore.id.to_string())
-            .param("chunk_id", chunk.id.to_string())
-            .param("order", chunk.order as i64)
+            .param("lore_id", lore.id().to_string())
+            .param("chunk_id", chunk.id().to_string())
+            .param("order", chunk.order() as i64)
             .param("lore_order_key", lore_order_key)
-            .param("title", chunk.title.clone().unwrap_or_default())
-            .param("content", chunk.content.clone())
+            .param("title", chunk.title().unwrap_or_default().to_string())
+            .param("content", chunk.content().to_string())
             .param(
                 "discovery_hint",
-                chunk.discovery_hint.clone().unwrap_or_default(),
+                chunk.discovery_hint().unwrap_or_default().to_string(),
             );
 
             self.graph.run(chunk_q).await.map_err(|e| {
@@ -279,7 +280,8 @@ impl LoreRepo for Neo4jLoreRepo {
                 if msg.contains("already exists") || msg.contains("ConstraintValidation") {
                     RepoError::ConstraintViolation(format!(
                         "Duplicate chunk order {} for lore {}",
-                        chunk.order, lore.id
+                        chunk.order(),
+                        lore.id()
                     ))
                 } else {
                     RepoError::database("save_lore", msg)
@@ -289,8 +291,8 @@ impl LoreRepo for Neo4jLoreRepo {
 
         tracing::debug!(
             "Saved lore: {} with {} chunks",
-            lore.title,
-            lore.chunks.len()
+            lore.title(),
+            lore.chunks().len()
         );
         Ok(())
     }
@@ -457,9 +459,9 @@ impl LoreRepo for Neo4jLoreRepo {
     }
 
     async fn grant_knowledge(&self, knowledge: &LoreKnowledge) -> Result<(), RepoError> {
-        let known_chunk_ids_json = serde_json::to_string(&knowledge.known_chunk_ids)
+        let known_chunk_ids_json = serde_json::to_string(knowledge.known_chunk_ids())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let discovery_source_json = serde_json::to_string(&knowledge.discovery_source)
+        let discovery_source_json = serde_json::to_string(knowledge.discovery_source())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let q = query(
@@ -472,12 +474,12 @@ impl LoreRepo for Neo4jLoreRepo {
                 k.notes = $notes
             RETURN c.id as character_id",
         )
-        .param("character_id", knowledge.character_id.to_string())
-        .param("lore_id", knowledge.lore_id.to_string())
+        .param("character_id", knowledge.character_id().to_string())
+        .param("lore_id", knowledge.lore_id().to_string())
         .param("known_chunk_ids", known_chunk_ids_json)
         .param("discovery_source", discovery_source_json)
-        .param("discovered_at", knowledge.discovered_at.to_rfc3339())
-        .param("notes", knowledge.notes.clone().unwrap_or_default());
+        .param("discovered_at", knowledge.discovered_at().to_rfc3339())
+        .param("notes", knowledge.notes().unwrap_or_default().to_string());
 
         self.graph
             .run(q)
@@ -486,8 +488,8 @@ impl LoreRepo for Neo4jLoreRepo {
 
         tracing::debug!(
             "Granted lore {} to character {}",
-            knowledge.lore_id,
-            knowledge.character_id
+            knowledge.lore_id(),
+            knowledge.character_id()
         );
         Ok(())
     }

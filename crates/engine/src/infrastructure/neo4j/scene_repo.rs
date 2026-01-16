@@ -498,11 +498,7 @@ impl SceneRepo for Neo4jSceneRepo {
                 },
             );
 
-            characters.push(SceneCharacter {
-                character_id: char_id,
-                role,
-                entrance_cue,
-            });
+            characters.push(SceneCharacter::from_parts(char_id, role, entrance_cue));
         }
 
         Ok(characters)
@@ -516,12 +512,12 @@ impl SceneRepo for Neo4jSceneRepo {
         // Build parallel arrays for UNWIND
         let char_ids: Vec<String> = characters
             .iter()
-            .map(|sc| sc.character_id.to_string())
+            .map(|sc| sc.character_id().to_string())
             .collect();
-        let roles: Vec<String> = characters.iter().map(|sc| sc.role.to_string()).collect();
+        let roles: Vec<String> = characters.iter().map(|sc| sc.role().to_string()).collect();
         let entrance_cues: Vec<String> = characters
             .iter()
-            .map(|sc| sc.entrance_cue.clone().unwrap_or_default())
+            .map(|sc| sc.entrance_cue().unwrap_or_default().to_string())
             .collect();
 
         // Delete existing edges first

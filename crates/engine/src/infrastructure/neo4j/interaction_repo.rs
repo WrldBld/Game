@@ -58,7 +58,7 @@ impl Neo4jInteractionRepo {
             .and_then(|value| serde_json::from_str::<Vec<InteractionCondition>>(&value).ok())
             .unwrap_or_default();
 
-        Ok(InteractionTemplate {
+        Ok(InteractionTemplate::from_stored(
             id,
             scene_id,
             name,
@@ -68,8 +68,8 @@ impl Neo4jInteractionRepo {
             allowed_tools,
             conditions,
             is_available,
-            order: order_num as u32,
-        })
+            order_num as u32,
+        ))
     }
 }
 
@@ -97,13 +97,13 @@ impl InteractionRepo for Neo4jInteractionRepo {
     }
 
     async fn save(&self, interaction: &InteractionTemplate) -> Result<(), RepoError> {
-        let interaction_type_json = serde_json::to_string(&interaction.interaction_type)
+        let interaction_type_json = serde_json::to_string(interaction.interaction_type())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let target_json = serde_json::to_string(&interaction.target)
+        let target_json = serde_json::to_string(interaction.target())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let allowed_tools_json = serde_json::to_string(&interaction.allowed_tools)
+        let allowed_tools_json = serde_json::to_string(interaction.allowed_tools())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let conditions_json = serde_json::to_string(&interaction.conditions)
+        let conditions_json = serde_json::to_string(interaction.conditions())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let q = query(
@@ -121,23 +121,23 @@ impl InteractionRepo for Neo4jInteractionRepo {
             MERGE (i)-[:BELONGS_TO_SCENE]->(s)
             RETURN i.id as id",
         )
-        .param("id", interaction.id.to_string())
-        .param("scene_id", interaction.scene_id.to_string())
-        .param("name", interaction.name.clone())
+        .param("id", interaction.id().to_string())
+        .param("scene_id", interaction.scene_id().to_string())
+        .param("name", interaction.name().to_string())
         .param("interaction_type", interaction_type_json)
         .param("target", target_json)
-        .param("prompt_hints", interaction.prompt_hints.clone())
+        .param("prompt_hints", interaction.prompt_hints().to_string())
         .param("allowed_tools", allowed_tools_json)
         .param("conditions", conditions_json)
-        .param("is_available", interaction.is_available)
-        .param("order_num", interaction.order as i64);
+        .param("is_available", interaction.is_available())
+        .param("order_num", interaction.order() as i64);
 
         self.graph
             .run(q)
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
-        tracing::debug!("Saved interaction: {}", interaction.name);
+        tracing::debug!("Saved interaction: {}", interaction.name());
         Ok(())
     }
 

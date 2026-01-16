@@ -25,20 +25,20 @@ use wrldbldr_domain::{ItemId, WorldId};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Item {
-    pub id: ItemId,
-    pub world_id: WorldId,
-    pub name: String,
-    pub description: Option<String>,
+    id: ItemId,
+    world_id: WorldId,
+    name: String,
+    description: Option<String>,
     /// Type of item (e.g., "Weapon", "Consumable", "Key", "Quest")
-    pub item_type: Option<String>,
+    item_type: Option<String>,
     /// Whether only one of this item can exist
-    pub is_unique: bool,
+    is_unique: bool,
     /// Item-specific properties (JSON - acceptable per ADR)
-    pub properties: Option<String>,
+    properties: Option<String>,
     /// Whether this item can contain other items (bag, chest, etc.)
-    pub can_contain_items: bool,
+    can_contain_items: bool,
     /// Maximum number of items this container can hold (None = unlimited)
-    pub container_limit: Option<u32>,
+    container_limit: Option<u32>,
 }
 
 impl Item {
@@ -54,6 +54,49 @@ impl Item {
             can_contain_items: false,
             container_limit: None,
         }
+    }
+
+    // Read accessors
+    pub fn id(&self) -> ItemId {
+        self.id
+    }
+
+    pub fn world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    pub fn item_type(&self) -> Option<&str> {
+        self.item_type.as_deref()
+    }
+
+    pub fn is_unique(&self) -> bool {
+        self.is_unique
+    }
+
+    pub fn properties(&self) -> Option<&str> {
+        self.properties.as_deref()
+    }
+
+    pub fn can_contain_items(&self) -> bool {
+        self.can_contain_items
+    }
+
+    pub fn container_limit(&self) -> Option<u32> {
+        self.container_limit
+    }
+
+    // Builder methods
+    pub fn with_id(mut self, id: ItemId) -> Self {
+        self.id = id;
+        self
     }
 
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
@@ -95,15 +138,15 @@ impl Item {
 #[serde(rename_all = "camelCase")]
 pub struct InventoryItem {
     /// The item being possessed
-    pub item: Item,
+    item: Item,
     /// How many of this item the character has
-    pub quantity: u32,
+    quantity: u32,
     /// Whether the item is currently equipped/held
-    pub equipped: bool,
+    equipped: bool,
     /// When the item was acquired
-    pub acquired_at: DateTime<Utc>,
+    acquired_at: DateTime<Utc>,
     /// How the item was acquired
-    pub acquisition_method: Option<AcquisitionMethod>,
+    acquisition_method: Option<AcquisitionMethod>,
 }
 
 impl InventoryItem {
@@ -117,6 +160,28 @@ impl InventoryItem {
         }
     }
 
+    // Read accessors
+    pub fn item(&self) -> &Item {
+        &self.item
+    }
+
+    pub fn quantity(&self) -> u32 {
+        self.quantity
+    }
+
+    pub fn is_equipped(&self) -> bool {
+        self.equipped
+    }
+
+    pub fn acquired_at(&self) -> DateTime<Utc> {
+        self.acquired_at
+    }
+
+    pub fn acquisition_method(&self) -> Option<AcquisitionMethod> {
+        self.acquisition_method
+    }
+
+    // Builder methods
     pub fn equipped(mut self) -> Self {
         self.equipped = true;
         self
@@ -124,6 +189,11 @@ impl InventoryItem {
 
     pub fn with_acquisition(mut self, method: AcquisitionMethod) -> Self {
         self.acquisition_method = Some(method);
+        self
+    }
+
+    pub fn with_quantity(mut self, quantity: u32) -> Self {
+        self.quantity = quantity;
         self
     }
 }

@@ -76,26 +76,40 @@ impl SkillCrud {
             .await?
             .ok_or(ManagementError::NotFound)?;
 
-        if let Some(name) = name {
+        // Rebuild skill with updated values
+        let new_name = if let Some(name) = name {
             require_non_empty(&name, "Skill name")?;
-            skill.name = name;
-        }
-        if let Some(description) = description {
-            skill.description = description;
-        }
-        if let Some(category) = category {
-            skill.category = category.parse::<SkillCategory>()?;
-        }
-        if let Some(attribute) = attribute {
-            if attribute.trim().is_empty() {
-                skill.base_attribute = None;
-            } else {
-                skill.base_attribute = Some(attribute);
-            }
-        }
-        if let Some(is_hidden) = is_hidden {
-            skill.is_hidden = is_hidden;
-        }
+            name
+        } else {
+            skill.name().to_string()
+        };
+
+        let new_description = description.unwrap_or_else(|| skill.description().to_string());
+        let new_category = if let Some(category) = category {
+            category.parse::<SkillCategory>()?
+        } else {
+            skill.category()
+        };
+
+        let new_base_attribute = match attribute {
+            Some(attr) if attr.trim().is_empty() => None,
+            Some(attr) => Some(attr),
+            None => skill.base_attribute().map(|s| s.to_string()),
+        };
+
+        let new_is_hidden = is_hidden.unwrap_or_else(|| skill.is_hidden());
+
+        skill = wrldbldr_domain::Skill::from_parts(
+            skill.id(),
+            skill.world_id(),
+            new_name,
+            new_description,
+            new_category,
+            new_base_attribute,
+            skill.is_custom(),
+            new_is_hidden,
+            skill.order(),
+        );
 
         self.content.save_skill(&skill).await?;
         Ok(skill)

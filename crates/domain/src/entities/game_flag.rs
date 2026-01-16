@@ -23,11 +23,11 @@ use wrldbldr_domain::{PlayerCharacterId, WorldId};
 #[serde(rename_all = "camelCase")]
 pub struct GameFlag {
     /// The flag name (unique within scope)
-    pub name: String,
+    name: String,
     /// The flag value (true = set, false = unset)
-    pub value: bool,
+    value: bool,
     /// When the flag was last modified
-    pub updated_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
 }
 
 impl GameFlag {
@@ -49,6 +49,30 @@ impl GameFlag {
     pub fn unset(name: impl Into<String>, now: DateTime<Utc>) -> Self {
         Self::new(name, false, now)
     }
+
+    // Read accessors
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn value(&self) -> bool {
+        self.value
+    }
+
+    pub fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
+    }
+
+    // Builder methods
+    pub fn with_value(mut self, value: bool) -> Self {
+        self.value = value;
+        self
+    }
+
+    pub fn with_updated_at(mut self, updated_at: DateTime<Utc>) -> Self {
+        self.updated_at = updated_at;
+        self
+    }
 }
 
 /// Scope for a game flag
@@ -59,4 +83,32 @@ pub enum FlagScope {
     World(WorldId),
     /// PC-scoped flag (specific to one player character)
     PlayerCharacter(PlayerCharacterId),
+}
+
+impl FlagScope {
+    /// Returns the WorldId if this is a World scope
+    pub fn world_id(&self) -> Option<WorldId> {
+        match self {
+            FlagScope::World(id) => Some(*id),
+            FlagScope::PlayerCharacter(_) => None,
+        }
+    }
+
+    /// Returns the PlayerCharacterId if this is a PlayerCharacter scope
+    pub fn player_character_id(&self) -> Option<PlayerCharacterId> {
+        match self {
+            FlagScope::World(_) => None,
+            FlagScope::PlayerCharacter(id) => Some(*id),
+        }
+    }
+
+    /// Returns true if this is a world-scoped flag
+    pub fn is_world(&self) -> bool {
+        matches!(self, FlagScope::World(_))
+    }
+
+    /// Returns true if this is a player-character-scoped flag
+    pub fn is_player_character(&self) -> bool {
+        matches!(self, FlagScope::PlayerCharacter(_))
+    }
 }

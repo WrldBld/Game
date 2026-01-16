@@ -44,7 +44,7 @@ async fn test_create_observation() {
 
     match observation_result {
         Ok(obs) => {
-            println!("Created observation for NPC: {}", obs.npc_id);
+            println!("Created observation for NPC: {}", obs.npc_id());
         }
         Err(e) => {
             println!("Observation creation failed: {:?}", e);
@@ -222,7 +222,7 @@ async fn test_observation_types() {
 
         match result {
             Ok(obs) => {
-                println!("Created {} observation for NPC: {}", type_str, obs.npc_id);
+                println!("Created {} observation for NPC: {}", type_str, obs.npc_id());
             }
             Err(e) => {
                 println!("Failed to create {} observation: {:?}", type_str, e);

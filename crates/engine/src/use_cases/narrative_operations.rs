@@ -371,10 +371,10 @@ impl NarrativeOps {
 
         let fallback_game_time = world_game_time.as_ref().map(|gt| gt.display_date());
 
-        let event = StoryEvent {
-            id: event_id,
+        let event = StoryEvent::from_parts(
+            event_id,
             world_id,
-            event_type: StoryEventType::DialogueExchange {
+            StoryEventType::DialogueExchange {
                 npc_id,
                 npc_name: npc_name.clone(),
                 player_dialogue,
@@ -383,11 +383,11 @@ impl NarrativeOps {
                 tone: None,
             },
             timestamp,
-            game_time: game_time.or(fallback_game_time),
+            game_time.or(fallback_game_time),
             summary,
-            is_hidden: false,
-            tags: vec!["dialogue".to_string()],
-        };
+            false, // is_hidden
+            vec!["dialogue".to_string()],
+        );
 
         // Save the story event
         self.narrative.save_story_event(&event).await?;
@@ -452,7 +452,7 @@ impl NarrativeOps {
                 if let NarrativeTriggerType::Custom {
                     description,
                     llm_evaluation: true,
-                } = &trigger.trigger_type
+                } = trigger.trigger_type()
                 {
                     triggers.insert(description.clone());
                 }
@@ -517,11 +517,14 @@ impl NarrativeOps {
             .location_repo
             .get_region(region_id)
             .await?
-            .map(|region| region.location_id);
+            .map(|region| region.location_id());
 
         // Get PC's inventory (item names for trigger matching)
         let inventory: Vec<String> = match self.player_character_repo.get_inventory(pc_id).await {
-            Ok(items) => items.into_iter().map(|item| item.name).collect(),
+            Ok(items) => items
+                .into_iter()
+                .map(|item| item.name().to_string())
+                .collect(),
             Err(e) => {
                 tracing::warn!(
                     pc_id = %pc_id,
@@ -642,7 +645,7 @@ impl NarrativeOps {
             for event in &candidates {
                 for trigger in event.trigger_conditions() {
                     if let NarrativeTriggerType::RelationshipThreshold { character_id, .. } =
-                        &trigger.trigger_type
+                        trigger.trigger_type()
                     {
                         npc_ids.insert(*character_id);
                     }
@@ -691,7 +694,7 @@ impl NarrativeOps {
             for event in &candidates {
                 for trigger in event.trigger_conditions() {
                     if let NarrativeTriggerType::StatThreshold { character_id, .. } =
-                        &trigger.trigger_type
+                        trigger.trigger_type()
                     {
                         char_ids.insert(*character_id);
                     }
@@ -735,41 +738,53 @@ impl NarrativeOps {
             stats_map
         };
 
-        // Build trigger context with enriched PC state
+        // Build trigger context with enriched PC state using builder pattern
         // NOTE: event_outcomes, challenge_successes, turns_since_event, turn_count
         // are caller-specific context that cannot be determined here.
         // These should be passed in by callers that have this information.
-        let context = TriggerContext {
-            current_location: location_id,
-            current_scene,
-            time_context: time_context_string,
-            flags,
-            inventory,
-            completed_events,
-            event_outcomes: HashMap::new(), // Caller responsibility - not stored in DB
-            turns_since_event: HashMap::new(), // Caller responsibility - session state
-            completed_challenges,
-            challenge_successes: HashMap::new(), // TODO: Could query from ChallengeRepo if needed
-            turn_count: 0,                       // Caller responsibility - session state
-            recent_dialogue_topics: Vec::new(),  // Caller responsibility - session state
-            recent_player_action: None,          // Caller responsibility - session state
-            custom_trigger_results,              // Pre-evaluated LLM results for Custom triggers
-            relationships,                       // NPC disposition sentiments toward this PC
-            character_stats,                     // Character stat values for StatThreshold triggers
-            // Compendium-based trigger context (populated from PC sheet data)
-            known_spells,
-            character_feats,
-            class_levels,
-            origin_id,
-            known_creatures: Vec::new(), // TODO: Populate from LoreKnowledge when implemented
-        };
+        let mut context = TriggerContext::new()
+            .with_flags(flags)
+            .with_inventory(inventory)
+            .with_completed_events(completed_events)
+            .with_completed_challenges(completed_challenges)
+            .with_custom_trigger_results(custom_trigger_results)
+            .with_known_spells(known_spells)
+            .with_character_feats(character_feats)
+            .with_class_levels(class_levels);
+
+        if let Some(loc_id) = location_id {
+            context = context.with_current_location(loc_id);
+        }
+        if let Some(scene_id) = current_scene {
+            context = context.with_current_scene(scene_id);
+        }
+        if let Some(time_ctx) = time_context_string {
+            context = context.with_time_context(time_ctx);
+        }
+        if let Some(origin) = origin_id {
+            context = context.with_origin_id(origin);
+        }
+
+        // Add relationships to context
+        for (from_char, sentiments) in relationships {
+            for (to_char, sentiment) in sentiments {
+                context.add_relationship(from_char, to_char, sentiment);
+            }
+        }
+
+        // Add character stats to context
+        for (char_id, stats) in character_stats {
+            for (stat_name, stat_value) in stats {
+                context.add_character_stat(char_id, stat_name, stat_value);
+            }
+        }
 
         // Evaluate each candidate and collect triggered events
         let mut triggered: Vec<domain::NarrativeEvent> = candidates
             .into_iter()
             .filter(|event| {
                 let eval = event.evaluate_triggers(&context);
-                eval.is_triggered
+                eval.is_triggered()
             })
             .collect();
 

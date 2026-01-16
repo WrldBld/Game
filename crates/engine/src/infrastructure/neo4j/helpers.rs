@@ -291,15 +291,24 @@ pub fn row_to_item(row: Row) -> Result<Item, RepoError> {
         Some(container_limit_raw as u32)
     };
 
-    Ok(Item {
-        id,
-        world_id,
-        name,
-        description,
-        item_type,
-        is_unique,
-        properties,
-        can_contain_items,
-        container_limit,
-    })
+    let mut item = Item::new(world_id, name).with_id(id);
+    if let Some(desc) = description {
+        item = item.with_description(desc);
+    }
+    if let Some(t) = item_type {
+        item = item.with_type(t);
+    }
+    if is_unique {
+        item = item.unique();
+    }
+    if let Some(props) = properties {
+        item = item.with_properties(props);
+    }
+    if can_contain_items {
+        item = item.as_container();
+    }
+    if let Some(limit) = container_limit {
+        item = item.with_container_limit(limit);
+    }
+    Ok(item)
 }
