@@ -12,8 +12,8 @@ use crate::application::dto::requests::{
 use crate::application::dto::InventoryItemData;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
-use wrldbldr_protocol::character_sheet::CharacterSheetValues;
-use wrldbldr_protocol::{CharacterRequest, RequestPayload};
+use wrldbldr_shared::character_sheet::CharacterSheetValues;
+use wrldbldr_shared::{CharacterRequest, RequestPayload};
 
 /// Character summary for list views
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

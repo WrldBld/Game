@@ -8,7 +8,7 @@ use dashmap::DashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
-use wrldbldr_protocol::game_systems::{
+use wrldbldr_shared::game_systems::{
     CompendiumProvider, ContentFilter as DomainContentFilter, ContentItem, ContentType,
 };
 
@@ -228,7 +228,7 @@ pub fn create_content_service(config: ContentServiceConfig) -> Arc<ContentServic
 mod tests {
     use super::*;
     use std::sync::Arc;
-    use wrldbldr_protocol::game_systems::{
+    use wrldbldr_shared::game_systems::{
         CompendiumProvider, ContentError as DomainContentError, ContentItem,
     };
 
@@ -276,7 +276,7 @@ mod tests {
         fn filter_schema(
             &self,
             _content_type: &ContentType,
-        ) -> Option<wrldbldr_protocol::game_systems::FilterSchema> {
+        ) -> Option<wrldbldr_shared::game_systems::FilterSchema> {
             None
         }
     }

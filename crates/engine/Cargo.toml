@@ -9,7 +9,7 @@ description = "WrldBldr Engine - All server-side code"
 [dependencies]
 # Internal crates
 wrldbldr-domain = { workspace = true }
-wrldbldr-protocol = { workspace = true }
+wrldbldr-shared = { workspace = true }
 
 # Web framework
 axum = { workspace = true }

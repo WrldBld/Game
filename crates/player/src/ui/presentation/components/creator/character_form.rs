@@ -16,8 +16,8 @@ use crate::presentation::components::schema_character_sheet::SchemaCharacterShee
 use crate::presentation::services::{use_character_service, use_world_service};
 use crate::use_platform;
 use wrldbldr_domain::{ExpressionConfig, MoodState};
-use wrldbldr_protocol::character_sheet::CharacterSheetValues;
-use wrldbldr_protocol::character_sheet::SheetValue;
+use wrldbldr_shared::character_sheet::CharacterSheetValues;
+use wrldbldr_shared::character_sheet::SheetValue;
 
 /// Character archetypes
 const ARCHETYPES: &[&str] = &[

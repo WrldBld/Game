@@ -9,7 +9,7 @@ use wrldbldr_domain::{
     CharacterId, EventEffect, NarrativeEventId, PlayerCharacterId, RelationshipEvent,
     RelationshipType, SceneId, WorldId,
 };
-use wrldbldr_protocol::character_sheet::SheetValue;
+use wrldbldr_shared::character_sheet::SheetValue;
 
 use crate::repositories::character::Character;
 use crate::repositories::scene::Scene;

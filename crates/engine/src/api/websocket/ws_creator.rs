@@ -9,7 +9,7 @@ use wrldbldr_domain::WorldId;
 
 use crate::queue_types::LlmRequestType;
 
-use wrldbldr_protocol::{ActantialRoleData, AiRequest, ExpressionRequest, GenerationRequest};
+use wrldbldr_shared::{ActantialRoleData, AiRequest, ExpressionRequest, GenerationRequest};
 
 /// Convert protocol ActantialRoleData to domain ActantialRole.
 fn proto_role_to_domain(role: ActantialRoleData) -> ActantialRole {

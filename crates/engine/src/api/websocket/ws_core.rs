@@ -5,7 +5,7 @@ use chrono::Timelike;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 
-use wrldbldr_protocol::{CharacterRequest, ItemsRequest, NpcRequest, TimeRequest, WorldRequest};
+use wrldbldr_shared::{CharacterRequest, ItemsRequest, NpcRequest, TimeRequest, WorldRequest};
 
 pub(super) async fn handle_world_request(
     state: &WsState,
@@ -203,11 +203,11 @@ pub(super) async fn handle_world_request(
             };
 
             // Get the schema based on the world's rule system
-            use wrldbldr_protocol::game_systems::{
+            use wrldbldr_shared::game_systems::{
                 BladesSystem, CharacterSheetProvider, Coc7eSystem, Dnd5eSystem, FateCoreSystem,
                 PbtaSystem, Pf2eSystem,
             };
-            use wrldbldr_protocol::RuleSystemVariant;
+            use wrldbldr_shared::RuleSystemVariant;
 
             let schema = match &world.rule_system().variant {
                 RuleSystemVariant::Dnd5e => Some(Dnd5eSystem::new().character_sheet_schema()),
@@ -303,7 +303,7 @@ pub(super) async fn handle_character_request(
                     "archetype": Some(character.current_archetype().to_string()),
                     "sprite_asset": character.sprite_asset(),
                     "portrait_asset": character.portrait_asset(),
-                    "sheet_data": None::<wrldbldr_protocol::character_sheet::CharacterSheetValues>,
+                    "sheet_data": None::<wrldbldr_shared::character_sheet::CharacterSheetValues>,
                 }))),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
@@ -348,7 +348,7 @@ pub(super) async fn handle_character_request(
                     "archetype": Some(character.current_archetype().to_string()),
                     "sprite_asset": character.sprite_asset(),
                     "portrait_asset": character.portrait_asset(),
-                    "sheet_data": None::<wrldbldr_protocol::character_sheet::CharacterSheetValues>,
+                    "sheet_data": None::<wrldbldr_shared::character_sheet::CharacterSheetValues>,
                 }))),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
@@ -393,7 +393,7 @@ pub(super) async fn handle_character_request(
                     "archetype": Some(character.current_archetype().to_string()),
                     "sprite_asset": character.sprite_asset(),
                     "portrait_asset": character.portrait_asset(),
-                    "sheet_data": None::<wrldbldr_protocol::character_sheet::CharacterSheetValues>,
+                    "sheet_data": None::<wrldbldr_shared::character_sheet::CharacterSheetValues>,
                 }))),
                 Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Character not found"),
@@ -1097,7 +1097,7 @@ pub(super) async fn handle_npc_request(
             // Convert domain types to protocol types
             let dispositions = domain_data
                 .into_iter()
-                .map(|d| wrldbldr_protocol::NpcDispositionData {
+                .map(|d| wrldbldr_shared::NpcDispositionData {
                     npc_id: d.npc_id,
                     npc_name: d.npc_name,
                     disposition: d.disposition,

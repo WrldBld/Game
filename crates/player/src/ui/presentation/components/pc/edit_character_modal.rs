@@ -8,7 +8,7 @@ use crate::application::services::{PlayerCharacterData, UpdatePlayerCharacterReq
 use crate::infrastructure::spawn_task;
 use crate::presentation::components::schema_character_sheet::SchemaCharacterSheet;
 use crate::presentation::services::{use_player_character_service, use_world_service};
-use wrldbldr_protocol::character_sheet::{CharacterSheetValues, SheetValue};
+use wrldbldr_shared::character_sheet::{CharacterSheetValues, SheetValue};
 
 /// Props for EditCharacterModal
 #[derive(Props, Clone, PartialEq)]

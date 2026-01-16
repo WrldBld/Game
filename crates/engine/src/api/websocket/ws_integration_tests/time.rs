@@ -109,7 +109,7 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
         &mut dm_ws,
         &ClientMessage::RespondToTimeSuggestion {
             suggestion_id: suggestion_id.to_string(),
-            decision: wrldbldr_protocol::types::TimeSuggestionDecision::Approve,
+            decision: wrldbldr_shared::types::TimeSuggestionDecision::Approve,
         },
     )
     .await;

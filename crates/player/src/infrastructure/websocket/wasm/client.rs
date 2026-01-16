@@ -12,7 +12,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{MessageEvent, WebSocket};
 
-use wrldbldr_protocol::{
+use wrldbldr_shared::{
     ClientMessage, ParticipantRole, RequestError, RequestPayload, ResponseResult, ServerMessage,
 };
 

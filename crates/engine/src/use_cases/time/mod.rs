@@ -315,7 +315,7 @@ impl TimeControl {
     pub async fn get_time_config(
         &self,
         world_id: WorldId,
-    ) -> Result<wrldbldr_protocol::types::GameTimeConfig, TimeControlError> {
+    ) -> Result<wrldbldr_shared::types::GameTimeConfig, TimeControlError> {
         let world = self
             .world
             .get(world_id)
@@ -328,7 +328,7 @@ impl TimeControl {
     pub async fn update_time_config(
         &self,
         world_id: WorldId,
-        config: wrldbldr_protocol::types::GameTimeConfig,
+        config: wrldbldr_shared::types::GameTimeConfig,
     ) -> Result<TimeConfigUpdate, TimeControlError> {
         let mut world = self
             .world
@@ -363,7 +363,7 @@ pub struct TimeAdvanceOutcome {
 #[derive(Debug, Clone)]
 pub struct TimeConfigUpdate {
     pub world_id: WorldId,
-    pub normalized_config: wrldbldr_protocol::types::GameTimeConfig,
+    pub normalized_config: wrldbldr_shared::types::GameTimeConfig,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -443,7 +443,7 @@ pub struct TimeSuggestionResolution {
     pub world_id: WorldId,
     pub suggestion_id: Uuid,
     pub minutes_advanced: u32,
-    pub advance_data: wrldbldr_protocol::types::TimeAdvanceData,
+    pub advance_data: wrldbldr_shared::types::TimeAdvanceData,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -490,25 +490,25 @@ pub enum TimeSuggestionError {
 ///
 /// See: https://github.com/WrldBldr/Game/issues/XXX (replace with actual tracking issue)
 fn normalize_protocol_time_config(
-    mut config: wrldbldr_protocol::types::GameTimeConfig,
-) -> wrldbldr_protocol::types::GameTimeConfig {
-    if matches!(config.mode, wrldbldr_protocol::types::TimeMode::Auto) {
+    mut config: wrldbldr_shared::types::GameTimeConfig,
+) -> wrldbldr_shared::types::GameTimeConfig {
+    if matches!(config.mode, wrldbldr_shared::types::TimeMode::Auto) {
         tracing::warn!(
             "TimeMode::Auto is not fully implemented - normalizing to TimeMode::Suggested. \
              Time suggestions will still require DM approval."
         );
-        config.mode = wrldbldr_protocol::types::TimeMode::Suggested;
+        config.mode = wrldbldr_shared::types::TimeMode::Suggested;
     }
     config
 }
 
 fn protocol_time_config_to_domain(
-    config: &wrldbldr_protocol::types::GameTimeConfig,
+    config: &wrldbldr_shared::types::GameTimeConfig,
 ) -> wrldbldr_domain::GameTimeConfig {
     let mode = match config.mode {
-        wrldbldr_protocol::types::TimeMode::Manual => wrldbldr_domain::TimeMode::Manual,
-        wrldbldr_protocol::types::TimeMode::Suggested => wrldbldr_domain::TimeMode::Suggested,
-        wrldbldr_protocol::types::TimeMode::Auto => wrldbldr_domain::TimeMode::Suggested,
+        wrldbldr_shared::types::TimeMode::Manual => wrldbldr_domain::TimeMode::Manual,
+        wrldbldr_shared::types::TimeMode::Suggested => wrldbldr_domain::TimeMode::Suggested,
+        wrldbldr_shared::types::TimeMode::Auto => wrldbldr_domain::TimeMode::Suggested,
     };
 
     let time_costs = wrldbldr_domain::TimeCostConfig {
@@ -531,14 +531,14 @@ fn protocol_time_config_to_domain(
 
 fn domain_time_config_to_protocol(
     config: &wrldbldr_domain::GameTimeConfig,
-) -> wrldbldr_protocol::types::GameTimeConfig {
-    wrldbldr_protocol::types::GameTimeConfig {
+) -> wrldbldr_shared::types::GameTimeConfig {
+    wrldbldr_shared::types::GameTimeConfig {
         mode: match config.mode {
-            wrldbldr_domain::TimeMode::Manual => wrldbldr_protocol::types::TimeMode::Manual,
-            wrldbldr_domain::TimeMode::Suggested => wrldbldr_protocol::types::TimeMode::Suggested,
-            wrldbldr_domain::TimeMode::Auto => wrldbldr_protocol::types::TimeMode::Suggested,
+            wrldbldr_domain::TimeMode::Manual => wrldbldr_shared::types::TimeMode::Manual,
+            wrldbldr_domain::TimeMode::Suggested => wrldbldr_shared::types::TimeMode::Suggested,
+            wrldbldr_domain::TimeMode::Auto => wrldbldr_shared::types::TimeMode::Suggested,
         },
-        time_costs: wrldbldr_protocol::types::TimeCostConfig {
+        time_costs: wrldbldr_shared::types::TimeCostConfig {
             travel_location: config.time_costs.travel_location,
             travel_region: config.time_costs.travel_region,
             rest_short: config.time_costs.rest_short,
@@ -548,7 +548,7 @@ fn domain_time_config_to_protocol(
             scene_transition: config.time_costs.scene_transition,
         },
         show_time_to_players: config.show_time_to_players,
-        time_format: wrldbldr_protocol::types::TimeFormat::TwelveHour,
+        time_format: wrldbldr_shared::types::TimeFormat::TwelveHour,
     }
 }
 
@@ -558,8 +558,8 @@ fn domain_time_config_to_protocol(
 
 impl TimeSuggestion {
     /// Convert to protocol type for sending to client.
-    pub fn to_protocol(&self) -> wrldbldr_protocol::types::TimeSuggestionData {
-        wrldbldr_protocol::types::TimeSuggestionData {
+    pub fn to_protocol(&self) -> wrldbldr_shared::types::TimeSuggestionData {
+        wrldbldr_shared::types::TimeSuggestionData {
             suggestion_id: self.id.to_string(),
             pc_id: self.pc_id.to_string(),
             pc_name: self.pc_name.clone(),
@@ -579,8 +579,8 @@ impl TimeSuggestion {
 }
 
 /// Convert domain GameTime to protocol GameTime.
-pub fn game_time_to_protocol(gt: &GameTime) -> wrldbldr_protocol::types::GameTime {
-    wrldbldr_protocol::types::GameTime {
+pub fn game_time_to_protocol(gt: &GameTime) -> wrldbldr_shared::types::GameTime {
+    wrldbldr_shared::types::GameTime {
         day: gt.day(),
         hour: gt.hour(),
         minute: gt.minute(),
@@ -594,12 +594,12 @@ pub fn build_time_advance_data(
     new: &GameTime,
     minutes: u32,
     reason: &TimeAdvanceReason,
-) -> wrldbldr_protocol::types::TimeAdvanceData {
+) -> wrldbldr_shared::types::TimeAdvanceData {
     let previous_period = previous.time_of_day();
     let new_period = new.time_of_day();
     let period_changed = previous_period != new_period;
 
-    wrldbldr_protocol::types::TimeAdvanceData {
+    wrldbldr_shared::types::TimeAdvanceData {
         previous_time: game_time_to_protocol(previous),
         new_time: game_time_to_protocol(new),
         minutes_advanced: minutes,

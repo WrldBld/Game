@@ -205,9 +205,9 @@ impl RequestStagingApproval {
         location_id: LocationId,
         region_id: RegionId,
     ) -> (
-        Option<wrldbldr_protocol::types::ResolvedVisualStateData>,
-        Vec<wrldbldr_protocol::types::StateOptionData>,
-        Vec<wrldbldr_protocol::types::StateOptionData>,
+        Option<wrldbldr_shared::types::ResolvedVisualStateData>,
+        Vec<wrldbldr_shared::types::StateOptionData>,
+        Vec<wrldbldr_shared::types::StateOptionData>,
     ) {
         let game_time = match self.world.get(world_id).await {
             Ok(Some(w)) => w.game_time().clone(),
@@ -236,9 +236,9 @@ impl RequestStagingApproval {
         };
 
         let resolved = if resolution.is_complete {
-            Some(wrldbldr_protocol::types::ResolvedVisualStateData {
+            Some(wrldbldr_shared::types::ResolvedVisualStateData {
                 location_state: resolution.location_state.as_ref().map(|s| {
-                    wrldbldr_protocol::types::ResolvedStateInfoData {
+                    wrldbldr_shared::types::ResolvedStateInfoData {
                         id: s.id.clone(),
                         name: s.name.clone(),
                         backdrop_override: s.backdrop_override.clone(),
@@ -247,7 +247,7 @@ impl RequestStagingApproval {
                     }
                 }),
                 region_state: resolution.region_state.as_ref().map(|s| {
-                    wrldbldr_protocol::types::ResolvedStateInfoData {
+                    wrldbldr_shared::types::ResolvedStateInfoData {
                         id: s.id.clone(),
                         name: s.name.clone(),
                         backdrop_override: s.backdrop_override.clone(),
@@ -269,7 +269,7 @@ impl RequestStagingApproval {
                 } else {
                     None
                 };
-                wrldbldr_protocol::types::StateOptionData {
+                wrldbldr_shared::types::StateOptionData {
                     id: s.id.clone(),
                     name: s.name.clone(),
                     priority: s.priority,
@@ -288,7 +288,7 @@ impl RequestStagingApproval {
                 } else {
                     None
                 };
-                wrldbldr_protocol::types::StateOptionData {
+                wrldbldr_shared::types::StateOptionData {
                     id: s.id.clone(),
                     name: s.name.clone(),
                     priority: s.priority,

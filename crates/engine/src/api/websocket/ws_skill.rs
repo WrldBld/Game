@@ -4,7 +4,7 @@ use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
 use wrldbldr_domain as domain;
-use wrldbldr_protocol::{ErrorCode, ResponseResult, SkillRequest};
+use wrldbldr_shared::{ErrorCode, ResponseResult, SkillRequest};
 
 pub(super) async fn handle_skill_request(
     state: &WsState,

@@ -60,7 +60,7 @@ impl PlayerCharacterCrud {
         name: String,
         user_id: Option<String>,
         starting_region_id: Option<RegionId>,
-        sheet_data: Option<wrldbldr_protocol::character_sheet::CharacterSheetValues>,
+        sheet_data: Option<wrldbldr_shared::character_sheet::CharacterSheetValues>,
     ) -> Result<wrldbldr_domain::PlayerCharacter, ManagementError> {
         let character_name: wrldbldr_domain::CharacterName = name
             .try_into()
@@ -93,7 +93,7 @@ impl PlayerCharacterCrud {
         &self,
         pc_id: PlayerCharacterId,
         name: Option<String>,
-        sheet_data: Option<wrldbldr_protocol::character_sheet::CharacterSheetValues>,
+        sheet_data: Option<wrldbldr_shared::character_sheet::CharacterSheetValues>,
     ) -> Result<wrldbldr_domain::PlayerCharacter, ManagementError> {
         let mut pc = self
             .player_character

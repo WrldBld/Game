@@ -176,7 +176,7 @@ async fn main() -> anyhow::Result<()> {
                                     request_id,
                                 } => {
                                     let msg =
-                                        wrldbldr_protocol::ServerMessage::SuggestionProgress {
+                                        wrldbldr_shared::ServerMessage::SuggestionProgress {
                                             request_id,
                                             status: "processing".to_string(),
                                         };
@@ -203,7 +203,7 @@ async fn main() -> anyhow::Result<()> {
                                 suggestions,
                             } => {
                                 let msg =
-                                    wrldbldr_protocol::ServerMessage::OutcomeSuggestionReady {
+                                    wrldbldr_shared::ServerMessage::OutcomeSuggestionReady {
                                         resolution_id: resolution_id.to_string(),
                                         suggestions,
                                     };
@@ -221,7 +221,7 @@ async fn main() -> anyhow::Result<()> {
                             } => {
                                 // This shouldn't happen anymore (progress is now immediate)
                                 // but handle it for safety
-                                let msg = wrldbldr_protocol::ServerMessage::SuggestionProgress {
+                                let msg = wrldbldr_shared::ServerMessage::SuggestionProgress {
                                     request_id,
                                     status: "processing".to_string(),
                                 };
@@ -234,7 +234,7 @@ async fn main() -> anyhow::Result<()> {
                                 request_id,
                                 suggestions,
                             } => {
-                                let msg = wrldbldr_protocol::ServerMessage::SuggestionComplete {
+                                let msg = wrldbldr_shared::ServerMessage::SuggestionComplete {
                                     request_id,
                                     suggestions,
                                 };
@@ -255,10 +255,10 @@ async fn main() -> anyhow::Result<()> {
                 Ok(Some(item)) => {
                     if let infrastructure::ports::QueueItemData::DmApproval(data) = item.data {
                         // Convert domain types to protocol types
-                        let proposed_tools: Vec<wrldbldr_protocol::ProposedToolInfo> = data
+                        let proposed_tools: Vec<wrldbldr_shared::ProposedToolInfo> = data
                             .proposed_tools
                             .into_iter()
-                            .map(|t| wrldbldr_protocol::ProposedToolInfo {
+                            .map(|t| wrldbldr_shared::ProposedToolInfo {
                                 id: t.id,
                                 name: t.name,
                                 description: t.description,
@@ -267,7 +267,7 @@ async fn main() -> anyhow::Result<()> {
                             .collect();
 
                         let challenge_suggestion = data.challenge_suggestion.map(|cs| {
-                            wrldbldr_protocol::ChallengeSuggestionInfo {
+                            wrldbldr_shared::ChallengeSuggestionInfo {
                                 challenge_id: cs.challenge_id,
                                 challenge_name: cs.challenge_name,
                                 skill_name: cs.skill_name,
@@ -276,7 +276,7 @@ async fn main() -> anyhow::Result<()> {
                                 reasoning: cs.reasoning,
                                 target_pc_id: cs.target_pc_id.map(|id| id.to_string()),
                                 outcomes: cs.outcomes.map(|o| {
-                                    wrldbldr_protocol::ChallengeSuggestionOutcomes {
+                                    wrldbldr_shared::ChallengeSuggestionOutcomes {
                                         success: o.success,
                                         failure: o.failure,
                                         critical_success: o.critical_success,
@@ -288,7 +288,7 @@ async fn main() -> anyhow::Result<()> {
 
                         let narrative_event_suggestion =
                             data.narrative_event_suggestion.map(|nes| {
-                                wrldbldr_protocol::NarrativeEventSuggestionInfo {
+                                wrldbldr_shared::NarrativeEventSuggestionInfo {
                                     event_id: nes.event_id,
                                     event_name: nes.event_name,
                                     description: nes.description,
@@ -301,7 +301,7 @@ async fn main() -> anyhow::Result<()> {
                             });
 
                         // Build and broadcast ApprovalRequired message to DMs
-                        let msg = wrldbldr_protocol::ServerMessage::ApprovalRequired {
+                        let msg = wrldbldr_shared::ServerMessage::ApprovalRequired {
                             request_id: item.id.to_string(),
                             npc_name: data.npc_name,
                             proposed_dialogue: data.proposed_dialogue,
@@ -383,7 +383,7 @@ async fn main() -> anyhow::Result<()> {
                 {
                     Ok(payload) => {
                         // Convert domain types to protocol types
-                        let npcs_present_proto: Vec<wrldbldr_protocol::NpcPresentInfo> = payload
+                        let npcs_present_proto: Vec<wrldbldr_shared::NpcPresentInfo> = payload
                             .npcs_present
                             .iter()
                             .map(|n| n.to_protocol())
@@ -394,7 +394,7 @@ async fn main() -> anyhow::Result<()> {
                             .connections
                             .broadcast_to_world(
                                 world_id,
-                                wrldbldr_protocol::ServerMessage::StagingReady {
+                                wrldbldr_shared::ServerMessage::StagingReady {
                                     region_id: payload.region_id.to_string(),
                                     npcs_present: npcs_present_proto,
                                     visual_state: payload.visual_state,

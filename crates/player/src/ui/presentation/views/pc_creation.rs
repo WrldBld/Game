@@ -14,7 +14,7 @@ use crate::presentation::services::{
     use_world_service,
 };
 use crate::presentation::state::use_session_state;
-use wrldbldr_protocol::character_sheet::{CharacterSheetValues, SheetValue};
+use wrldbldr_shared::character_sheet::{CharacterSheetValues, SheetValue};
 
 /// Wizard step enum
 #[derive(Clone, Copy, PartialEq, Eq, Default)]

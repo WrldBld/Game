@@ -140,13 +140,13 @@ pub use player_events::{
 // for all 9 types would require 18+ From impls with no benefit. The protocol types
 // are stable and serialization-ready.
 // See: docs/plans/HEXAGONAL_GAP_REMEDIATION_PLAN.md Appendix B
-pub use wrldbldr_protocol::{
+pub use wrldbldr_shared::{
     ActantialActorData, ActantialRoleData, ActorTypeData, GoalData, NpcActantialContextData,
     SocialRelationData, WantData, WantTargetTypeData, WantVisibilityData,
 };
 
 // Re-export Lore types from protocol (same facade pattern)
-pub use wrldbldr_protocol::types::{
+pub use wrldbldr_shared::types::{
     LoreCategoryData, LoreChunkData, LoreData, LoreDiscoverySourceData, LoreKnowledgeData,
     LoreSummaryData,
 };

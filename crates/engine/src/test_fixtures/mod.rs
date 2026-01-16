@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
 use wrldbldr_domain::{NarrativeTriggerType, PlayerCharacter, TriggerContext, World};
-use wrldbldr_protocol::character_sheet::{CharacterSheetValues, SheetValue};
+use wrldbldr_shared::character_sheet::{CharacterSheetValues, SheetValue};
 
 // =============================================================================
 // Fixture Loading

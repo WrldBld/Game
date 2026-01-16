@@ -48,7 +48,7 @@ use uuid::Uuid;
 // =============================================================================
 
 // Wire-format types with exact field matches - no translation needed
-pub use wrldbldr_protocol::{
+pub use wrldbldr_shared::{
     // Suggestion types (already re-exported, kept for backward compatibility)
     ChallengeSuggestionInfo,
     ChallengeSuggestionOutcomes,
@@ -520,9 +520,9 @@ pub enum PlayerEvent {
     /// Character discovered lore
     LoreDiscovered {
         character_id: String,
-        lore: wrldbldr_protocol::types::LoreData,
+        lore: wrldbldr_shared::types::LoreData,
         discovered_chunk_ids: Vec<String>,
-        discovery_source: wrldbldr_protocol::types::LoreDiscoverySourceData,
+        discovery_source: wrldbldr_shared::types::LoreDiscoverySourceData,
     },
 
     /// Lore was revoked from a character
@@ -533,13 +533,13 @@ pub enum PlayerEvent {
 
     /// Lore entry was updated (DM only)
     LoreUpdated {
-        lore: wrldbldr_protocol::types::LoreData,
+        lore: wrldbldr_shared::types::LoreData,
     },
 
     /// Response to GetCharacterLore request
     CharacterLoreResponse {
         character_id: String,
-        known_lore: Vec<wrldbldr_protocol::types::LoreSummaryData>,
+        known_lore: Vec<wrldbldr_shared::types::LoreSummaryData>,
     },
 
     // =========================================================================

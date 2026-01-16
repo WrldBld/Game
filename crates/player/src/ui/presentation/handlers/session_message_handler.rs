@@ -1570,7 +1570,7 @@ pub fn handle_server_message(
                 discovery_source
             );
             // Create knowledge metadata for the discovery
-            let knowledge = wrldbldr_protocol::types::LoreKnowledgeData {
+            let knowledge = wrldbldr_shared::types::LoreKnowledgeData {
                 lore_id: lore.id.clone(),
                 character_id: character_id.clone(),
                 known_chunk_ids: discovered_chunk_ids,
@@ -1638,7 +1638,7 @@ mod tests {
         pin::Pin,
         sync::{Arc, Mutex},
     };
-    use wrldbldr_protocol::types::GameTime;
+    use wrldbldr_shared::types::GameTime;
 
     struct TestPlatform {
         storage: Mutex<HashMap<String, String>>,

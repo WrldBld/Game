@@ -114,7 +114,7 @@ async fn when_dm_accepts_approval_suggestion_then_marks_complete_and_broadcasts_
         &mut dm_ws,
         &ClientMessage::ApprovalDecision {
             request_id: approval_id.to_string(),
-            decision: wrldbldr_protocol::ApprovalDecision::Accept,
+            decision: wrldbldr_shared::ApprovalDecision::Accept,
         },
     )
     .await;
@@ -267,7 +267,7 @@ async fn when_dm_rejects_approval_suggestion_then_marks_failed_and_does_not_broa
         &mut dm_ws,
         &ClientMessage::ApprovalDecision {
             request_id: approval_id.to_string(),
-            decision: wrldbldr_protocol::ApprovalDecision::Reject {
+            decision: wrldbldr_shared::ApprovalDecision::Reject {
                 feedback: "no".to_string(),
             },
         },
@@ -401,7 +401,7 @@ async fn when_dm_modifies_approval_suggestion_then_marks_complete_and_broadcasts
         &mut dm_ws,
         &ClientMessage::ApprovalDecision {
             request_id: approval_id.to_string(),
-            decision: wrldbldr_protocol::ApprovalDecision::AcceptWithModification {
+            decision: wrldbldr_shared::ApprovalDecision::AcceptWithModification {
                 modified_dialogue: modified_dialogue.clone(),
                 approved_tools: approved_tools.clone(),
                 rejected_tools: vec![],

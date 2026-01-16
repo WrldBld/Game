@@ -5,7 +5,7 @@ use crate::use_cases::movement::scene_change::{
     RegionItemInfo,
 };
 use crate::use_cases::movement::{EnterRegionError, StagingStatus};
-use wrldbldr_protocol::{
+use wrldbldr_shared::{
     CharacterData, CharacterPosition, InteractionData, NavigationData, NavigationExit,
     NavigationTarget, NpcPresenceData, RegionData, RegionItemData, SceneData,
 };

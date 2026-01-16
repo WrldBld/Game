@@ -7,7 +7,7 @@ use crate::use_cases::lore::{
     UpdateLoreInput,
 };
 
-use wrldbldr_protocol::{LoreDiscoverySourceData, LoreRequest};
+use wrldbldr_shared::{LoreDiscoverySourceData, LoreRequest};
 
 /// Convert protocol discovery source to domain input type.
 fn proto_discovery_source_to_domain(source: LoreDiscoverySourceData) -> LoreDiscoverySourceInput {

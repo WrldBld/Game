@@ -183,7 +183,7 @@ Acceptance:
 ## Phase 3: Layer Responsibility Cleanup
 
 ### 3.1 Remove protocol types from use cases
-- [ ] Inventory `wrldbldr_protocol` usage in `crates/engine/src/use_cases`.
+- [ ] Inventory `wrldbldr_shared` usage in `crates/engine/src/use_cases`.
 - [ ] Move protocol conversions into API/websocket/http layers.
 - [ ] Adjust use cases to return domain types or use-case-specific DTOs (domain-only).
 - [ ] Update tests to reflect domain-type outputs.
@@ -196,7 +196,7 @@ Acceptance:
   - `engine/src/use_cases/staging/types.rs`
 
 Acceptance:
-- `rg "wrldbldr_protocol" crates/engine/src/use_cases` returns zero hits.
+- `rg "wrldbldr_shared" crates/engine/src/use_cases` returns zero hits.
 
 ### 3.2 Stop swallowing repository failures in use cases
 - [ ] Replace `ok().flatten()` and `unwrap_or_default()` in use-case repository calls with explicit error handling.

@@ -291,7 +291,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         &mut dm_ws,
         &ClientMessage::PreStageRegion {
             region_id: region_id.to_string(),
-            npcs: vec![wrldbldr_protocol::ApprovedNpcInfo {
+            npcs: vec![wrldbldr_shared::ApprovedNpcInfo {
                 character_id: npc_id.to_string(),
                 is_present: true,
                 reasoning: Some("pre-staged".to_string()),

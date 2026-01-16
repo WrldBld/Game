@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use crate::application::dto::CharacterSheetSchema;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
-use wrldbldr_protocol::character_sheet::SheetValue;
-use wrldbldr_protocol::{CharacterSheetRequest, RequestPayload};
+use wrldbldr_shared::character_sheet::SheetValue;
+use wrldbldr_shared::{CharacterSheetRequest, RequestPayload};
 
 /// Info about a game system
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

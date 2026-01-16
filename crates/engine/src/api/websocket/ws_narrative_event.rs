@@ -4,7 +4,7 @@ use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::use_cases::narrative::decision::NarrativeDecisionError;
 use serde_json::json;
 use wrldbldr_domain::{self as domain, NarrativeTrigger};
-use wrldbldr_protocol::{ErrorCode, NarrativeEventRequest, ResponseResult, TriggerSchema};
+use wrldbldr_shared::{ErrorCode, NarrativeEventRequest, ResponseResult, TriggerSchema};
 
 pub(super) async fn handle_narrative_event_request(
     state: &WsState,

@@ -22,7 +22,7 @@ use crate::ports::outbound::player_events::{
 };
 // Note: Types like SceneData, CharacterData, GameTime, etc. are now re-exported from
 // protocol in player-ports, so no translation is needed - they're the same type.
-use wrldbldr_protocol::ServerMessage;
+use wrldbldr_shared::ServerMessage;
 
 /// Translate a ServerMessage into a PlayerEvent
 ///
@@ -887,7 +887,7 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
 // Only types that intentionally differ between protocol and player-ports need
 // translation. Types with exact field matches are passed through directly.
 
-fn translate_connected_user(u: wrldbldr_protocol::responses::ConnectedUser) -> ConnectedUser {
+fn translate_connected_user(u: wrldbldr_shared::responses::ConnectedUser) -> ConnectedUser {
     ConnectedUser {
         user_id: u.user_id,
         username: u.username,
@@ -897,7 +897,7 @@ fn translate_connected_user(u: wrldbldr_protocol::responses::ConnectedUser) -> C
     }
 }
 
-fn translate_want_data(w: wrldbldr_protocol::WantData) -> WantData {
+fn translate_want_data(w: wrldbldr_shared::WantData) -> WantData {
     WantData {
         id: w.id,
         description: w.description,
@@ -910,7 +910,7 @@ fn translate_want_data(w: wrldbldr_protocol::WantData) -> WantData {
     }
 }
 
-fn translate_want_target_data(t: wrldbldr_protocol::WantTargetData) -> WantTargetData {
+fn translate_want_target_data(t: wrldbldr_shared::WantTargetData) -> WantTargetData {
     WantTargetData {
         id: t.id,
         name: t.name,
@@ -919,7 +919,7 @@ fn translate_want_target_data(t: wrldbldr_protocol::WantTargetData) -> WantTarge
     }
 }
 
-fn translate_actantial_view_data(v: wrldbldr_protocol::ActantialViewData) -> ActantialViewData {
+fn translate_actantial_view_data(v: wrldbldr_shared::ActantialViewData) -> ActantialViewData {
     ActantialViewData {
         want_id: v.want_id,
         target_id: v.target_id,
@@ -930,16 +930,16 @@ fn translate_actantial_view_data(v: wrldbldr_protocol::ActantialViewData) -> Act
     }
 }
 
-fn translate_response_result(r: wrldbldr_protocol::responses::ResponseResult) -> ResponseResult {
+fn translate_response_result(r: wrldbldr_shared::responses::ResponseResult) -> ResponseResult {
     match r {
-        wrldbldr_protocol::responses::ResponseResult::Success { data } => ResponseResult {
+        wrldbldr_shared::responses::ResponseResult::Success { data } => ResponseResult {
             success: true,
             data,
             error_code: None,
             error_message: None,
             error_details: None,
         },
-        wrldbldr_protocol::responses::ResponseResult::Error {
+        wrldbldr_shared::responses::ResponseResult::Error {
             code,
             message,
             details,
@@ -950,7 +950,7 @@ fn translate_response_result(r: wrldbldr_protocol::responses::ResponseResult) ->
             error_message: Some(message),
             error_details: details,
         },
-        wrldbldr_protocol::responses::ResponseResult::Unknown => ResponseResult {
+        wrldbldr_shared::responses::ResponseResult::Unknown => ResponseResult {
             success: false,
             data: None,
             error_code: Some("UNKNOWN".to_string()),
@@ -961,7 +961,7 @@ fn translate_response_result(r: wrldbldr_protocol::responses::ResponseResult) ->
 }
 
 fn translate_entity_changed_data(
-    e: wrldbldr_protocol::responses::EntityChangedData,
+    e: wrldbldr_shared::responses::EntityChangedData,
 ) -> EntityChangedData {
     EntityChangedData {
         entity_type: format!("{:?}", e.entity_type),
@@ -975,7 +975,7 @@ fn translate_entity_changed_data(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_protocol::types::{GameTime, TimeAdvanceData, TimeSuggestionData};
+    use wrldbldr_shared::types::{GameTime, TimeAdvanceData, TimeSuggestionData};
 
     #[test]
     fn test_translate_pong() {
@@ -1121,7 +1121,7 @@ mod tests {
 
         let ready = ServerMessage::StagingReady {
             region_id: "region-1".to_string(),
-            npcs_present: vec![wrldbldr_protocol::NpcPresentInfo {
+            npcs_present: vec![wrldbldr_shared::NpcPresentInfo {
                 character_id: "npc-1".to_string(),
                 name: "Bob".to_string(),
                 sprite_asset: Some("/sprite.png".to_string()),

@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use wrldbldr_protocol::{ClientMessage, RequestError, RequestPayload, ResponseResult};
+use wrldbldr_shared::{ClientMessage, RequestError, RequestPayload, ResponseResult};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;

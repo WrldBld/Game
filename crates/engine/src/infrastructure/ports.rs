@@ -1407,7 +1407,7 @@ pub trait RandomPort: Send + Sync {
 #[async_trait]
 pub trait DmNotificationPort: Send + Sync {
     /// Broadcast a message to all DMs in a world.
-    async fn notify_dms(&self, world_id: WorldId, message: wrldbldr_protocol::ServerMessage);
+    async fn notify_dms(&self, world_id: WorldId, message: wrldbldr_shared::ServerMessage);
 }
 
 /// Port for managing world session state (join/leave/query connections).

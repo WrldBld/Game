@@ -55,7 +55,7 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             .map_err(|e| RepoError::Serialization(e.to_string()))?
             .unwrap_or_else(|| {
                 serde_json::to_string(
-                    &wrldbldr_protocol::character_sheet::CharacterSheetValues::default(),
+                    &wrldbldr_shared::character_sheet::CharacterSheetValues::default(),
                 )
                 .unwrap_or_else(|_| "{}".to_string())
             });
@@ -426,7 +426,7 @@ fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
     let sheet_data = if sheet_data_str.is_empty() {
         None
     } else {
-        let parsed: wrldbldr_protocol::character_sheet::CharacterSheetValues =
+        let parsed: wrldbldr_shared::character_sheet::CharacterSheetValues =
             serde_json::from_str(&sheet_data_str)
                 .map_err(|e| RepoError::Serialization(format!("Invalid sheet_data: {}", e)))?;
         if parsed.values.is_empty() {

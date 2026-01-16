@@ -10,7 +10,7 @@
 //! ```
 
 use serde::{Deserialize, Serialize};
-use wrldbldr_protocol::{
+use wrldbldr_shared::{
     AdHocOutcomes as ProtoAdHocOutcomes, ApprovedNpcInfo as ProtoApprovedNpcInfo,
     ChallengeOutcomeDecisionData as ProtoChallengeOutcomeDecisionData,
     DiceInputType as ProtoDiceInputType, DirectorialContext as ProtoDirectorialContext,
@@ -22,7 +22,7 @@ use wrldbldr_protocol::{
 // for wire-format types. This avoids duplication and ensures serialization consistency
 // between engine and player. The Unknown variant with #[serde(other)] provides forward
 // compatibility - callers should handle Unknown by converting to Reject at boundaries.
-pub use wrldbldr_protocol::ApprovalDecision;
+pub use wrldbldr_shared::ApprovalDecision;
 
 /// Role of a participant in a game session
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

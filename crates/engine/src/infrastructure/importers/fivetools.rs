@@ -1543,7 +1543,7 @@ impl FiveToolsImporter {
 
 use std::sync::Arc;
 use tokio::sync::OnceCell;
-use wrldbldr_protocol::game_systems::{
+use wrldbldr_shared::game_systems::{
     CompendiumProvider, ContentError, ContentFilter, ContentItem, ContentType, FilterField,
     FilterFieldType, FilterSchema,
 };

@@ -5,7 +5,7 @@ use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 pub(super) async fn handle_directorial_update(
     state: &WsState,
     connection_id: Uuid,
-    context: wrldbldr_protocol::DirectorialContext,
+    context: wrldbldr_shared::DirectorialContext,
 ) -> Option<ServerMessage> {
     // Get connection info - only DMs can update directorial context
     let conn_info = match state.connections.get(connection_id).await {

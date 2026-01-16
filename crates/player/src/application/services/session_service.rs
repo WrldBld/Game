@@ -155,7 +155,7 @@ impl SessionService {
             // If already connected, send JoinWorld immediately
             if last_state == ConnectionState::Connected {
                 if let Ok(world_uuid) = uuid::Uuid::parse_str(&world_id) {
-                    let proto_role: wrldbldr_protocol::ParticipantRole = role.into();
+                    let proto_role: wrldbldr_shared::ParticipantRole = role.into();
                     let world_role = participant_role_to_world_role(proto_role);
                     tracing::info!(
                         ?role,
@@ -184,7 +184,7 @@ impl SessionService {
                     // Auto-join when connected (if not already sent)
                     if current_state == ConnectionState::Connected && !join_sent {
                         if let Ok(world_uuid) = uuid::Uuid::parse_str(&world_id) {
-                            let proto_role: wrldbldr_protocol::ParticipantRole = role.into();
+                            let proto_role: wrldbldr_shared::ParticipantRole = role.into();
                             let world_role = participant_role_to_world_role(proto_role);
                             tracing::info!(
                                 ?role,
@@ -255,7 +255,7 @@ impl SessionService {
             // If already connected, send JoinWorld immediately
             if last_state == ConnectionState::Connected {
                 if let Ok(world_uuid) = uuid::Uuid::parse_str(&world_id) {
-                    let proto_role: wrldbldr_protocol::ParticipantRole = role.into();
+                    let proto_role: wrldbldr_shared::ParticipantRole = role.into();
                     let world_role = participant_role_to_world_role(proto_role);
                     tracing::info!(
                         ?role,
@@ -284,7 +284,7 @@ impl SessionService {
                     // Auto-join when connected (if not already sent)
                     if current_state == ConnectionState::Connected && !join_sent {
                         if let Ok(world_uuid) = uuid::Uuid::parse_str(&world_id) {
-                            let proto_role: wrldbldr_protocol::ParticipantRole = role.into();
+                            let proto_role: wrldbldr_shared::ParticipantRole = role.into();
                             let world_role = participant_role_to_world_role(proto_role);
                             tracing::info!(
                                 ?role,

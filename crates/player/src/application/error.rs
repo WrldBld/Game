@@ -4,7 +4,7 @@
 //! abstracting over transport-specific errors (REST/WebSocket).
 
 use serde::de::DeserializeOwned;
-use wrldbldr_protocol::{ErrorCode, RequestError, ResponseResult};
+use wrldbldr_shared::{ErrorCode, RequestError, ResponseResult};
 
 /// Errors that can occur in service operations
 #[derive(Debug, Clone)]

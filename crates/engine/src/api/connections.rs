@@ -13,7 +13,7 @@ use uuid::Uuid;
 const CRITICAL_SEND_TIMEOUT: Duration = Duration::from_secs(5);
 
 use wrldbldr_domain::{PlayerCharacterId, WorldId, WorldRole};
-use wrldbldr_protocol::ServerMessage;
+use wrldbldr_shared::ServerMessage;
 
 use crate::infrastructure::ports::{
     ConnectionInfo as PortConnectionInfo, DirectorialContext, DirectorialContextPort,

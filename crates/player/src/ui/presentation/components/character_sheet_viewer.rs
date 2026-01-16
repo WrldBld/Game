@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use crate::application::dto::CharacterSheetSchema;
 use crate::presentation::components::schema_character_sheet::SchemaCharacterSheet;
-use wrldbldr_protocol::character_sheet::SheetValue;
+use wrldbldr_shared::character_sheet::SheetValue;
 
 /// Props for the character sheet viewer
 #[derive(Props, Clone, PartialEq)]

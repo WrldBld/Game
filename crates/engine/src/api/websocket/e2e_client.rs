@@ -27,7 +27,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage, MaybeT
 use uuid::Uuid;
 
 use wrldbldr_domain::{CharacterId, PlayerCharacterId, RegionId, WorldId};
-use wrldbldr_protocol::{
+use wrldbldr_shared::{
     ClientMessage, RequestPayload, ResponseResult, ServerMessage, WorldRole as ProtoWorldRole,
 };
 

@@ -232,7 +232,7 @@ pub fn LocationStagingPanel(props: LocationStagingPanelProps) -> Element {
                                     region_id, data.approved.len(), data.ttl_hours);
 
                                 // Send pre-stage request to engine via CommandBus
-                                let npcs: Vec<wrldbldr_protocol::ApprovedNpcInfo> = data.approved
+                                let npcs: Vec<wrldbldr_shared::ApprovedNpcInfo> = data.approved
                                     .into_iter()
                                     .filter(|(_, is_present, _)| *is_present)
                                     .map(|(character_id, is_present, is_hidden_from_players)| {

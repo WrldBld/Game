@@ -1111,12 +1111,12 @@ fn check_no_cross_crate_shims() -> anyhow::Result<()> {
     let reexport_re = regex_lite::Regex::new(r"(?m)^\s*pub(?:\s*\([^)]*\))?\s+use\s+::?wrldbldr_")
         .context("compiling re-export shim regex")?;
 
-    // Ban crate-alias shims like: `use wrldbldr_protocol as messages;`
+    // Ban crate-alias shims like: `use wrldbldr_shared as messages;`
     let crate_alias_re =
         regex_lite::Regex::new(r"(?m)^\s*use\s+::?wrldbldr_[A-Za-z0-9_]+\s+as\s+[A-Za-z0-9_]+\s*;")
             .context("compiling crate-alias shim regex")?;
 
-    // Ban crate-alias shims like: `extern crate wrldbldr_protocol as messages;`
+    // Ban crate-alias shims like: `extern crate wrldbldr_shared as messages;`
     let extern_crate_alias_re = regex_lite::Regex::new(
         r"(?m)^\s*extern\s+crate\s+::?wrldbldr_[A-Za-z0-9_]+\s+as\s+[A-Za-z0-9_]+\s*;",
     )
@@ -1299,11 +1299,11 @@ fn check_use_case_layer() -> anyhow::Result<()> {
 
     // Forbidden: importing ServerMessage in use cases (except errors.rs which converts to it)
     let forbidden_server_message =
-        regex_lite::Regex::new(r"use\s+wrldbldr_protocol::[^;]*ServerMessage")?;
+        regex_lite::Regex::new(r"use\s+wrldbldr_shared::[^;]*ServerMessage")?;
 
     // Forbidden: importing ClientMessage (use cases are server-side only)
     let forbidden_client_message =
-        regex_lite::Regex::new(r"use\s+wrldbldr_protocol::[^;]*ClientMessage")?;
+        regex_lite::Regex::new(r"use\s+wrldbldr_shared::[^;]*ClientMessage")?;
 
     // Files exempt from protocol import checks
     let exempt_files: HashSet<&str> = ["mod.rs"].into_iter().collect();
@@ -1350,10 +1350,10 @@ fn check_use_case_layer() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Check that engine internal layers don't import `wrldbldr_protocol` directly.
+/// Check that engine internal layers don't import `wrldbldr_shared` directly.
 ///
 /// The protocol crate is a wire format; only the API boundary should use it.
-/// Concretely: forbid `wrldbldr_protocol` usage in `crates/engine/src/{entities,use_cases,infrastructure}`.
+/// Concretely: forbid `wrldbldr_shared` usage in `crates/engine/src/{entities,use_cases,infrastructure}`.
 fn check_engine_protocol_isolation() -> anyhow::Result<()> {
     let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -1369,8 +1369,8 @@ fn check_engine_protocol_isolation() -> anyhow::Result<()> {
     let check_dirs = ["entities", "use_cases", "infrastructure"];
 
     // Patterns that indicate protocol usage
-    let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_protocol::")?;
-    let fqn_protocol_re = regex_lite::Regex::new(r"wrldbldr_protocol::")?;
+    let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_shared::")?;
+    let fqn_protocol_re = regex_lite::Regex::new(r"wrldbldr_shared::")?;
 
     let mut violations = Vec::new();
 
@@ -1406,7 +1406,7 @@ fn check_engine_protocol_isolation() -> anyhow::Result<()> {
 
                 if use_protocol_re.is_match(line) || fqn_protocol_re.is_match(line) {
                     violations.push(format!(
-                        "{}:{}: uses wrldbldr_protocol - application layer must use domain types\n    {}",
+                        "{}:{}: uses wrldbldr_shared - application layer must use domain types\n    {}",
                         entry.display(),
                         line_idx + 1,
                         trimmed
@@ -1428,7 +1428,7 @@ fn check_engine_protocol_isolation() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Check that engine-ports doesn't import wrldbldr_protocol directly (except request_handler.rs).
+/// Check that engine-ports doesn't import wrldbldr_shared directly (except request_handler.rs).
 ///
 /// The ports layer defines interfaces and should not depend on protocol types.
 /// The request_handler.rs is exempt as it's the documented API boundary.
@@ -1445,8 +1445,8 @@ fn check_engine_ports_protocol_isolation() -> anyhow::Result<()> {
     }
 
     // Patterns that indicate protocol usage
-    let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_protocol::")?;
-    let fqn_protocol_re = regex_lite::Regex::new(r"wrldbldr_protocol::")?;
+    let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_shared::")?;
+    let fqn_protocol_re = regex_lite::Regex::new(r"wrldbldr_shared::")?;
 
     let mut violations = Vec::new();
 
@@ -1485,7 +1485,7 @@ fn check_engine_ports_protocol_isolation() -> anyhow::Result<()> {
 
             if use_protocol_re.is_match(line) || fqn_protocol_re.is_match(line) {
                 violations.push(format!(
-                    "{}:{}: uses wrldbldr_protocol - ports layer must use domain types\n    {}",
+                    "{}:{}: uses wrldbldr_shared - ports layer must use domain types\n    {}",
                     entry.display(),
                     line_idx + 1,
                     trimmed
@@ -1506,7 +1506,7 @@ fn check_engine_ports_protocol_isolation() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Check that the player application layer doesn't import wrldbldr_protocol directly.
+/// Check that the player application layer doesn't import wrldbldr_shared directly.
 ///
 /// The application layer (services, dto) should work with domain types or app-local DTOs,
 /// not protocol types.
@@ -1527,8 +1527,8 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
     let check_dirs = ["services", "dto"];
 
     // Patterns that indicate protocol usage
-    let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_protocol::")?;
-    let fqn_protocol_re = regex_lite::Regex::new(r"wrldbldr_protocol::")?;
+    let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_shared::")?;
+    let fqn_protocol_re = regex_lite::Regex::new(r"wrldbldr_shared::")?;
 
     // Files exempt from protocol import checks (with justification)
     let exempt_files: HashSet<&str> = [
@@ -1591,7 +1591,7 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
 
                 if use_protocol_re.is_match(line) || fqn_protocol_re.is_match(line) {
                     violations.push(format!(
-                        "{}:{}: uses wrldbldr_protocol - application layer should use domain types\n    {}",
+                        "{}:{}: uses wrldbldr_shared - application layer should use domain types\n    {}",
                         entry.display(),
                         line_idx + 1,
                         trimmed
@@ -1616,7 +1616,7 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
 
             if use_protocol_re.is_match(line) || fqn_protocol_re.is_match(line) {
                 violations.push(format!(
-                    "{}:{}: uses wrldbldr_protocol - application layer should use domain types\n    {}",
+                    "{}:{}: uses wrldbldr_shared - application layer should use domain types\n    {}",
                     error_file.display(),
                     line_idx + 1,
                     trimmed
@@ -1640,7 +1640,7 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Check that player ports don't import wrldbldr_protocol directly (with Shared Kernel exceptions).
+/// Check that player ports don't import wrldbldr_shared directly (with Shared Kernel exceptions).
 ///
 /// The ports layer defines interfaces and should generally use domain types, not protocol types.
 /// However, the Shared Kernel pattern allows specific port files to use protocol types when
@@ -1651,7 +1651,7 @@ fn check_player_app_protocol_isolation() -> anyhow::Result<()> {
 /// - game_connection_port.rs: WebSocket connection port uses protocol message types
 /// - mock_game_connection.rs: Testing infrastructure that mirrors the connection port
 ///
-/// Any other files in player-ports should NOT use wrldbldr_protocol directly.
+/// Any other files in player-ports should NOT use wrldbldr_shared directly.
 fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
     let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -1665,8 +1665,8 @@ fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
     }
 
     // Patterns that indicate protocol usage
-    let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_protocol::")?;
-    let fqn_protocol_re = regex_lite::Regex::new(r"wrldbldr_protocol::")?;
+    let use_protocol_re = regex_lite::Regex::new(r"use\s+wrldbldr_shared::")?;
+    let fqn_protocol_re = regex_lite::Regex::new(r"wrldbldr_shared::")?;
 
     // Shared Kernel whitelist: files that legitimately use protocol types at the boundary
     let shared_kernel_files: HashSet<&str> = [
@@ -1703,7 +1703,7 @@ fn check_player_ports_protocol_isolation() -> anyhow::Result<()> {
 
             if use_protocol_re.is_match(line) || fqn_protocol_re.is_match(line) {
                 violations.push(format!(
-                    "{}:{}: uses wrldbldr_protocol - only Shared Kernel files may use protocol types\n    {}\n    (Shared Kernel files: {})",
+                    "{}:{}: uses wrldbldr_shared - only Shared Kernel files may use protocol types\n    {}\n    (Shared Kernel files: {})",
                     entry.display(),
                     line_idx + 1,
                     trimmed,
@@ -1832,16 +1832,16 @@ fn allowed_internal_deps() -> HashMap<&'static str, HashSet<&'static str>> {
         // Zero internal dependencies (innermost layer)
         ("wrldbldr-domain", HashSet::from([])),
         // Protocol (API contract) depends on domain for shared vocabulary
-        ("wrldbldr-protocol", HashSet::from(["wrldbldr-domain"])),
+        ("wrldbldr-shared", HashSet::from(["wrldbldr-domain"])),
         // Engine is monolithic (entities/use_cases/infrastructure/api) and only
         // depends on domain + protocol.
         (
             "wrldbldr-engine",
-            HashSet::from(["wrldbldr-domain", "wrldbldr-protocol"]),
+            HashSet::from(["wrldbldr-domain", "wrldbldr-shared"]),
         ),
         (
             "wrldbldr-player",
-            HashSet::from(["wrldbldr-domain", "wrldbldr-protocol"]),
+            HashSet::from(["wrldbldr-domain", "wrldbldr-shared"]),
         ),
         ("xtask", HashSet::from([])),
     ])

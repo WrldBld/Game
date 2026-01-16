@@ -20,8 +20,8 @@ pub struct StagedNpc {
 
 impl StagedNpc {
     /// Convert to protocol type for wire transmission.
-    pub fn to_protocol(&self) -> wrldbldr_protocol::StagedNpcInfo {
-        wrldbldr_protocol::StagedNpcInfo {
+    pub fn to_protocol(&self) -> wrldbldr_shared::StagedNpcInfo {
+        wrldbldr_shared::StagedNpcInfo {
             character_id: self.character_id.to_string(),
             name: self.name.clone(),
             sprite_asset: self.sprite_asset.clone(),
@@ -46,7 +46,7 @@ pub struct ApprovedNpc {
 
 impl ApprovedNpc {
     /// Convert from protocol type.
-    pub fn from_protocol(info: &wrldbldr_protocol::ApprovedNpcInfo) -> Result<Self, StagingError> {
+    pub fn from_protocol(info: &wrldbldr_shared::ApprovedNpcInfo) -> Result<Self, StagingError> {
         let character_id = info
             .character_id
             .parse::<uuid::Uuid>()
@@ -72,8 +72,8 @@ pub struct WaitingPc {
 
 impl WaitingPc {
     /// Convert to protocol type for wire transmission.
-    pub fn to_protocol(&self) -> wrldbldr_protocol::WaitingPcInfo {
-        wrldbldr_protocol::WaitingPcInfo {
+    pub fn to_protocol(&self) -> wrldbldr_shared::WaitingPcInfo {
+        wrldbldr_shared::WaitingPcInfo {
             pc_id: self.pc_id.to_string(),
             pc_name: self.pc_name.clone(),
             player_id: self.player_id.clone(),
@@ -94,8 +94,8 @@ pub struct NpcPresent {
 
 impl NpcPresent {
     /// Convert to protocol type for wire transmission.
-    pub fn to_protocol(&self) -> wrldbldr_protocol::NpcPresentInfo {
-        wrldbldr_protocol::NpcPresentInfo {
+    pub fn to_protocol(&self) -> wrldbldr_shared::NpcPresentInfo {
+        wrldbldr_shared::NpcPresentInfo {
             character_id: self.character_id.to_string(),
             name: self.name.clone(),
             sprite_asset: self.sprite_asset.clone(),
@@ -116,8 +116,8 @@ pub struct PreviousStagingData {
 
 impl PreviousStagingData {
     /// Convert to protocol type for wire transmission.
-    pub fn to_protocol(&self) -> wrldbldr_protocol::PreviousStagingInfo {
-        wrldbldr_protocol::PreviousStagingInfo {
+    pub fn to_protocol(&self) -> wrldbldr_shared::PreviousStagingInfo {
+        wrldbldr_shared::PreviousStagingInfo {
             staging_id: self.staging_id.to_string(),
             approved_at: self.approved_at.to_rfc3339(),
             npcs: self.npcs.iter().map(|n| n.to_protocol()).collect(),
@@ -136,8 +136,8 @@ pub struct GameTimeData {
 
 impl GameTimeData {
     /// Convert to protocol type for wire transmission.
-    pub fn to_protocol(&self) -> wrldbldr_protocol::types::GameTime {
-        wrldbldr_protocol::types::GameTime {
+    pub fn to_protocol(&self) -> wrldbldr_shared::types::GameTime {
+        wrldbldr_shared::types::GameTime {
             day: self.day,
             hour: self.hour,
             minute: self.minute,
@@ -161,9 +161,9 @@ pub struct StagingApprovalData {
     pub default_ttl_hours: i32,
     pub waiting_pcs: Vec<WaitingPc>,
     // Visual state data (kept as protocol types for now)
-    pub resolved_visual_state: Option<wrldbldr_protocol::types::ResolvedVisualStateData>,
-    pub available_location_states: Vec<wrldbldr_protocol::types::StateOptionData>,
-    pub available_region_states: Vec<wrldbldr_protocol::types::StateOptionData>,
+    pub resolved_visual_state: Option<wrldbldr_shared::types::ResolvedVisualStateData>,
+    pub available_location_states: Vec<wrldbldr_shared::types::StateOptionData>,
+    pub available_region_states: Vec<wrldbldr_shared::types::StateOptionData>,
 }
 
 /// Result of staging request use case.

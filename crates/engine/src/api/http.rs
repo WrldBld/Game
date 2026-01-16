@@ -139,7 +139,7 @@ async fn reset_settings(State(app): State<Arc<App>>) -> Result<Json<AppSettings>
 
 async fn get_settings_metadata(
     State(app): State<Arc<App>>,
-) -> Result<Json<Vec<wrldbldr_protocol::settings::SettingsFieldMetadata>>, ApiError> {
+) -> Result<Json<Vec<wrldbldr_shared::settings::SettingsFieldMetadata>>, ApiError> {
     Ok(Json(app.use_cases.settings.metadata()))
 }
 
@@ -372,7 +372,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), axum::http::StatusCode::OK);
-        let metadata: Vec<wrldbldr_protocol::settings::SettingsFieldMetadata> =
+        let metadata: Vec<wrldbldr_shared::settings::SettingsFieldMetadata> =
             read_body_json(response).await;
         assert!(!metadata.is_empty());
     }

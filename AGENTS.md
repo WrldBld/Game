@@ -110,10 +110,17 @@ See [ADR-008](docs/architecture/ADR-008-tiered-encapsulation.md) for rationale.
 ```
 crates/
   domain/       # Pure business types (aggregates, value objects, typed IDs, events)
-  protocol/     # Wire format for Engine <-> Player communication
+  shared/       # Shared contracts: wire format, game system traits, content types
   engine/       # All server-side code
   player/       # All client-side code (Dioxus UI + platform adapters)
 ```
+
+**Why `shared` not `protocol`?** The crate contains more than wire format:
+- Wire format types (WebSocket messages, DTOs)
+- Game system traits (`GameSystem`, `CompendiumProvider`, `CalculationEngine`)
+- Content types (`ContentItem`, `ContentType`) for spells, feats, races, etc.
+
+These must be shared because Player needs them for UI rendering and character creation.
 
 ### What Gets Abstracted (Port Traits)
 

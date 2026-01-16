@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use wrldbldr_domain::{value_objects::RuleSystemConfig, WorldId};
-use wrldbldr_protocol::{
+use wrldbldr_shared::{
     ClientMessage, RequestPayload, ResponseResult, ServerMessage, WorldRequest,
 };
 

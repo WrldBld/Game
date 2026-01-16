@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 
 use crate::application::services::location_service::{ConnectionData, LocationFormData};
 use crate::infrastructure::spawn_task;
-use wrldbldr_protocol::RegionListItemData;
+use wrldbldr_shared::RegionListItemData;
 
 use crate::presentation::services::use_location_service;
 

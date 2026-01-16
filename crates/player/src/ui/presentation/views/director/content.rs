@@ -628,7 +628,7 @@ pub fn DirectorModeContent() -> Element {
                                     result.request_id, result.approved_npcs.len(), result.ttl_hours);
 
                                 // Send approval to engine
-                                let approved_npcs: Vec<wrldbldr_protocol::ApprovedNpcInfo> = result.approved_npcs
+                                let approved_npcs: Vec<wrldbldr_shared::ApprovedNpcInfo> = result.approved_npcs
                                     .into_iter()
                                     .map(|(character_id, is_present, is_hidden_from_players)| {
                                         let local = ApprovedNpcInfo {

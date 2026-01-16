@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "crates/domain",
-    "crates/protocol",
+    "crates/shared",
     "crates/engine",
     "crates/player",
     "crates/xtask",
@@ -21,7 +21,7 @@ repository = "https://github.com/WrldBld/Game"
 # Internal crates - Simplified 4-crate architecture
 # See AGENTS.md for architecture details
 wrldbldr-domain = { path = "crates/domain", version = "0.1.0" }
-wrldbldr-protocol = { path = "crates/protocol", version = "0.1.0" }
+wrldbldr-shared = { path = "crates/shared", version = "0.1.0" }
 wrldbldr-engine = { path = "crates/engine", version = "0.1.0" }
 
 # Player crates (to be simplified in Phase 5)

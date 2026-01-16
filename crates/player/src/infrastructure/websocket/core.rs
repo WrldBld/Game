@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use wrldbldr_protocol::ResponseResult;
+use wrldbldr_shared::ResponseResult;
 
 use super::shared::{
     BACKOFF_MULTIPLIER, INITIAL_RETRY_DELAY_MS, MAX_RETRY_ATTEMPTS, MAX_RETRY_DELAY_MS,

@@ -4,7 +4,7 @@ use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::use_cases::narrative::{CreateEventChainInput, UpdateEventChainInput};
 use serde_json::json;
 use wrldbldr_domain::{ActId, NarrativeEventId};
-use wrldbldr_protocol::{ErrorCode, EventChainRequest, ResponseResult};
+use wrldbldr_shared::{ErrorCode, EventChainRequest, ResponseResult};
 
 pub(super) async fn handle_event_chain_request(
     state: &WsState,

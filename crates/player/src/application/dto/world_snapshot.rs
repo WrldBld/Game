@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use wrldbldr_protocol::character_sheet::SheetValue;
+use wrldbldr_shared::character_sheet::SheetValue;
 
 // Import rule system types from domain (canonical source)
 // These have serde derives and are re-exported for player-app consumers

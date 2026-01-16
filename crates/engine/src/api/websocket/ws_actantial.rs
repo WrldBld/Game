@@ -6,7 +6,7 @@ use wrldbldr_domain::{
     ActantialActor, ActantialContext, ActantialRole, ActantialTarget, CharacterId, GoalId, WantId,
     WantTarget, WantVisibility,
 };
-use wrldbldr_protocol::{
+use wrldbldr_shared::{
     messages::{
         ActantialActorData, ActantialRoleData, ActorTypeData, GoalData, NpcActantialContextData,
         SocialRelationData, SocialViewsData, WantData, WantTargetData, WantTargetTypeData,
@@ -889,8 +889,8 @@ fn goal_details_to_data(details: &crate::infrastructure::ports::GoalDetails) -> 
 
 fn actantial_view_record_to_data(
     record: &crate::infrastructure::ports::ActantialViewRecord,
-) -> wrldbldr_protocol::messages::ActantialViewData {
-    wrldbldr_protocol::messages::ActantialViewData {
+) -> wrldbldr_shared::messages::ActantialViewData {
+    wrldbldr_shared::messages::ActantialViewData {
         want_id: record.want_id.to_string(),
         target_id: record.target.id_string(),
         target_name: record.target_name.clone(),

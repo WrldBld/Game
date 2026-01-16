@@ -47,7 +47,7 @@ use wrldbldr_domain::{
     MoodState, NarrativeEventId, PlayerCharacterId, RegionId, SceneId, SkillId, StagingSource,
     WantId, WorldId,
 };
-use wrldbldr_protocol::{
+use wrldbldr_shared::{
     ClientMessage, ErrorCode, RequestPayload, ResponseResult, ServerMessage,
     WorldRole as ProtoWorldRole,
 };
@@ -1840,7 +1840,7 @@ mod ws_integration_tests_inline {
         ws: &mut tokio_tungstenite::WebSocketStream<
             tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
         >,
-        msg: &wrldbldr_protocol::ClientMessage,
+        msg: &wrldbldr_shared::ClientMessage,
     ) {
         let json = serde_json::to_string(msg).unwrap();
         ws.send(WsMessage::Text(json.into())).await.unwrap();
@@ -1850,17 +1850,17 @@ mod ws_integration_tests_inline {
         ws: &mut tokio_tungstenite::WebSocketStream<
             tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
         >,
-    ) -> wrldbldr_protocol::ServerMessage {
+    ) -> wrldbldr_shared::ServerMessage {
         loop {
             let msg = ws.next().await.unwrap().unwrap();
             match msg {
                 WsMessage::Text(text) => {
-                    return serde_json::from_str::<wrldbldr_protocol::ServerMessage>(&text)
+                    return serde_json::from_str::<wrldbldr_shared::ServerMessage>(&text)
                         .unwrap();
                 }
                 WsMessage::Binary(bin) => {
                     let text = String::from_utf8(bin).unwrap();
-                    return serde_json::from_str::<wrldbldr_protocol::ServerMessage>(&text)
+                    return serde_json::from_str::<wrldbldr_shared::ServerMessage>(&text)
                         .unwrap();
                 }
                 _ => {}
@@ -1874,9 +1874,9 @@ mod ws_integration_tests_inline {
         >,
         timeout: Duration,
         mut predicate: F,
-    ) -> wrldbldr_protocol::ServerMessage
+    ) -> wrldbldr_shared::ServerMessage
     where
-        F: FnMut(&wrldbldr_protocol::ServerMessage) -> bool,
+        F: FnMut(&wrldbldr_shared::ServerMessage) -> bool,
     {
         tokio::time::timeout(timeout, async {
             loop {
@@ -1897,7 +1897,7 @@ mod ws_integration_tests_inline {
         timeout: Duration,
         mut predicate: F,
     ) where
-        F: FnMut(&wrldbldr_protocol::ServerMessage) -> bool,
+        F: FnMut(&wrldbldr_shared::ServerMessage) -> bool,
     {
         let result = tokio::time::timeout(timeout, async {
             loop {
@@ -2020,7 +2020,7 @@ mod ws_integration_tests_inline {
             &mut dm_ws,
             &ClientMessage::RespondToTimeSuggestion {
                 suggestion_id: suggestion_id.to_string(),
-                decision: wrldbldr_protocol::types::TimeSuggestionDecision::Approve,
+                decision: wrldbldr_shared::types::TimeSuggestionDecision::Approve,
             },
         )
         .await;
@@ -2367,14 +2367,14 @@ mod ws_integration_tests_inline {
             &ClientMessage::StagingApprovalResponse {
                 request_id: approval_request_id,
                 approved_npcs: vec![
-                    wrldbldr_protocol::ApprovedNpcInfo {
+                    wrldbldr_shared::ApprovedNpcInfo {
                         character_id: visible_npc_id.to_string(),
                         is_present: true,
                         reasoning: None,
                         is_hidden_from_players: false,
                         mood: None,
                     },
-                    wrldbldr_protocol::ApprovedNpcInfo {
+                    wrldbldr_shared::ApprovedNpcInfo {
                         character_id: hidden_npc_id.to_string(),
                         is_present: true,
                         reasoning: None,
@@ -2528,7 +2528,7 @@ mod ws_integration_tests_inline {
             &mut dm_ws,
             &ClientMessage::ApprovalDecision {
                 request_id: approval_id.to_string(),
-                decision: wrldbldr_protocol::ApprovalDecision::Accept,
+                decision: wrldbldr_shared::ApprovalDecision::Accept,
             },
         )
         .await;
@@ -2680,7 +2680,7 @@ mod ws_integration_tests_inline {
             &mut dm_ws,
             &ClientMessage::ApprovalDecision {
                 request_id: approval_id.to_string(),
-                decision: wrldbldr_protocol::ApprovalDecision::Reject {
+                decision: wrldbldr_shared::ApprovalDecision::Reject {
                     feedback: "no".to_string(),
                 },
             },
@@ -2812,7 +2812,7 @@ mod ws_integration_tests_inline {
             &mut dm_ws,
             &ClientMessage::ApprovalDecision {
                 request_id: approval_id.to_string(),
-                decision: wrldbldr_protocol::ApprovalDecision::AcceptWithModification {
+                decision: wrldbldr_shared::ApprovalDecision::AcceptWithModification {
                     modified_dialogue: modified_dialogue.clone(),
                     approved_tools: approved_tools.clone(),
                     rejected_tools: vec![],
@@ -3120,7 +3120,7 @@ mod ws_integration_tests_inline {
             &mut dm_ws,
             &ClientMessage::PreStageRegion {
                 region_id: region_id.to_string(),
-                npcs: vec![wrldbldr_protocol::ApprovedNpcInfo {
+                npcs: vec![wrldbldr_shared::ApprovedNpcInfo {
                     character_id: npc_id.to_string(),
                     is_present: true,
                     reasoning: Some("pre-staged".to_string()),

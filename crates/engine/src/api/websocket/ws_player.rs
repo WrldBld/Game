@@ -2,8 +2,8 @@ use super::*;
 
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
-use wrldbldr_protocol::character_sheet::CharacterSheetValues;
-use wrldbldr_protocol::{ObservationRequest, PlayerCharacterRequest, RelationshipRequest};
+use wrldbldr_shared::character_sheet::CharacterSheetValues;
+use wrldbldr_shared::{ObservationRequest, PlayerCharacterRequest, RelationshipRequest};
 
 pub(super) async fn handle_player_character_request(
     state: &WsState,

@@ -3,7 +3,7 @@ use super::*;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 
-use wrldbldr_protocol::StoryEventRequest;
+use wrldbldr_shared::StoryEventRequest;
 
 pub(super) async fn handle_story_event_request(
     state: &WsState,

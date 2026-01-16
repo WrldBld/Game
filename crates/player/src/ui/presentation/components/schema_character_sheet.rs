@@ -10,7 +10,7 @@ use crate::application::dto::{
     CharacterSheetSchema, SchemaFieldDefinition, SchemaFieldType, SchemaResourceColor,
     SchemaSection as SchemaSectionDto, SchemaSectionType,
 };
-use wrldbldr_protocol::character_sheet::SheetValue;
+use wrldbldr_shared::character_sheet::SheetValue;
 
 /// Schema-based character sheet form
 ///

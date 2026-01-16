@@ -6,7 +6,7 @@ pub(super) async fn handle_approval_decision(
     state: &WsState,
     connection_id: Uuid,
     request_id: String,
-    decision: wrldbldr_protocol::ApprovalDecision,
+    decision: wrldbldr_shared::ApprovalDecision,
 ) -> Option<ServerMessage> {
     // Get connection info - only DMs can make approval decisions
     let conn_info = match state.connections.get(connection_id).await {
@@ -26,16 +26,16 @@ pub(super) async fn handle_approval_decision(
 
     // Convert protocol decision to domain decision
     let domain_decision = match decision {
-        wrldbldr_protocol::ApprovalDecision::Accept => {
+        wrldbldr_shared::ApprovalDecision::Accept => {
             crate::queue_types::DmApprovalDecision::Accept
         }
-        wrldbldr_protocol::ApprovalDecision::AcceptWithRecipients { item_recipients } => {
+        wrldbldr_shared::ApprovalDecision::AcceptWithRecipients { item_recipients } => {
             crate::queue_types::DmApprovalDecision::AcceptWithRecipients { item_recipients }
         }
-        wrldbldr_protocol::ApprovalDecision::Reject { feedback } => {
+        wrldbldr_shared::ApprovalDecision::Reject { feedback } => {
             crate::queue_types::DmApprovalDecision::Reject { feedback }
         }
-        wrldbldr_protocol::ApprovalDecision::AcceptWithModification {
+        wrldbldr_shared::ApprovalDecision::AcceptWithModification {
             modified_dialogue,
             approved_tools,
             rejected_tools,
@@ -46,10 +46,10 @@ pub(super) async fn handle_approval_decision(
             rejected_tools,
             item_recipients,
         },
-        wrldbldr_protocol::ApprovalDecision::TakeOver { dm_response } => {
+        wrldbldr_shared::ApprovalDecision::TakeOver { dm_response } => {
             crate::queue_types::DmApprovalDecision::TakeOver { dm_response }
         }
-        wrldbldr_protocol::ApprovalDecision::Unknown => {
+        wrldbldr_shared::ApprovalDecision::Unknown => {
             return Some(error_response(
                 "INVALID_DECISION",
                 "Unknown approval decision type",

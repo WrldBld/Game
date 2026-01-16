@@ -19,7 +19,7 @@ impl DirectorialUpdateInput {
     /// Create input from protocol types (API layer conversion helper).
     pub fn from_protocol(
         world_id: WorldId,
-        proto_context: wrldbldr_protocol::DirectorialContext,
+        proto_context: wrldbldr_shared::DirectorialContext,
     ) -> Self {
         Self {
             world_id,

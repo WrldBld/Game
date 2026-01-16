@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 use crate::application::dto::CharacterSheetSchema;
 use crate::infrastructure::messaging::CommandBus;
 use crate::ports::outbound::{ApiError, RawApiPort};
-use wrldbldr_protocol::ErrorCode;
-use wrldbldr_protocol::{RequestPayload, WorldRequest};
+use wrldbldr_shared::ErrorCode;
+use wrldbldr_shared::{RequestPayload, WorldRequest};
 
 use crate::application::dto::requests::CreateWorldRequest;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};

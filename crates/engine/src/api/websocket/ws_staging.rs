@@ -30,7 +30,7 @@ pub(super) async fn handle_staging_approval(
     state: &WsState,
     connection_id: Uuid,
     request_id: String,
-    approved_npcs: Vec<wrldbldr_protocol::ApprovedNpcInfo>,
+    approved_npcs: Vec<wrldbldr_shared::ApprovedNpcInfo>,
     ttl_hours: i32,
     source: String,
     location_state_id: Option<String>,
@@ -130,7 +130,7 @@ pub(super) async fn handle_staging_approval(
     };
 
     // Convert domain types to protocol types for the response
-    let npcs_present_proto: Vec<wrldbldr_protocol::NpcPresentInfo> = payload
+    let npcs_present_proto: Vec<wrldbldr_shared::NpcPresentInfo> = payload
         .npcs_present
         .iter()
         .map(|n| n.to_protocol())
@@ -214,7 +214,7 @@ pub(super) async fn handle_staging_regenerate(
     };
 
     // Convert domain types to protocol types for the response
-    let llm_based_npcs_proto: Vec<wrldbldr_protocol::StagedNpcInfo> =
+    let llm_based_npcs_proto: Vec<wrldbldr_shared::StagedNpcInfo> =
         llm_based_npcs.iter().map(|n| n.to_protocol()).collect();
 
     Some(ServerMessage::StagingRegenerated {
@@ -227,7 +227,7 @@ pub(super) async fn handle_pre_stage_region(
     state: &WsState,
     connection_id: Uuid,
     region_id: String,
-    npcs: Vec<wrldbldr_protocol::ApprovedNpcInfo>,
+    npcs: Vec<wrldbldr_shared::ApprovedNpcInfo>,
     ttl_hours: i32,
     location_state_id: Option<String>,
     region_state_id: Option<String>,

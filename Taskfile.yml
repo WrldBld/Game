@@ -119,7 +119,7 @@ tasks:
   check:protocol:
     desc: Check Protocol crate
     cmds:
-      - cargo check -p wrldbldr-protocol
+      - cargo check -p wrldbldr-shared
 
   test:
     desc: Run all tests
@@ -139,7 +139,7 @@ tasks:
   test:protocol:
     desc: Run Protocol tests
     cmds:
-      - cargo test -p wrldbldr-protocol
+      - cargo test -p wrldbldr-shared
 
   # ===========================================================================
   # E2E Tests (require Docker for testcontainers)

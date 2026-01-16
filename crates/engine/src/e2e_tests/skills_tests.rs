@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use super::{create_test_player, E2EEventLog, E2ETestContext, TestOutcome};
-use wrldbldr_protocol::character_sheet::{CharacterSheetValues, SheetValue};
+use wrldbldr_shared::character_sheet::{CharacterSheetValues, SheetValue};
 
 /// Test listing world skills.
 #[tokio::test]
@@ -174,7 +174,7 @@ async fn test_skill_proficiency_levels() {
 
     // Test proficiency level enum/values
     // ProficiencyLevel variants are: None, Half, Proficient, Expert
-    use wrldbldr_protocol::game_systems::ProficiencyLevel;
+    use wrldbldr_shared::game_systems::ProficiencyLevel;
 
     let levels = [
         ProficiencyLevel::None,

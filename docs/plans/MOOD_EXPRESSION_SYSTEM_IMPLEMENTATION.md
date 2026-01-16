@@ -1063,7 +1063,7 @@ rg "NpcMotivationData.*mood" --type rust  # Should find emotional_guidance inste
 **Verification**:
 ```bash
 cargo check -p wrldbldr-domain
-cargo check -p wrldbldr-protocol
+cargo check -p wrldbldr-shared
 cargo test -p wrldbldr-domain
 ```
 

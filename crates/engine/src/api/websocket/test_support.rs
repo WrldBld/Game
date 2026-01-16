@@ -963,7 +963,7 @@ pub(crate) async fn ws_send_client(
     ws: &mut tokio_tungstenite::WebSocketStream<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
-    msg: &wrldbldr_protocol::ClientMessage,
+    msg: &wrldbldr_shared::ClientMessage,
 ) {
     let json = serde_json::to_string(msg).unwrap();
     ws.send(WsMessage::Text(json.into())).await.unwrap();
@@ -973,16 +973,16 @@ pub(crate) async fn ws_recv_server(
     ws: &mut tokio_tungstenite::WebSocketStream<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
     >,
-) -> wrldbldr_protocol::ServerMessage {
+) -> wrldbldr_shared::ServerMessage {
     loop {
         let msg = ws.next().await.unwrap().unwrap();
         match msg {
             WsMessage::Text(text) => {
-                return serde_json::from_str::<wrldbldr_protocol::ServerMessage>(&text).unwrap();
+                return serde_json::from_str::<wrldbldr_shared::ServerMessage>(&text).unwrap();
             }
             WsMessage::Binary(bin) => {
                 let text = String::from_utf8(bin).unwrap();
-                return serde_json::from_str::<wrldbldr_protocol::ServerMessage>(&text).unwrap();
+                return serde_json::from_str::<wrldbldr_shared::ServerMessage>(&text).unwrap();
             }
             _ => {}
         }
@@ -995,9 +995,9 @@ pub(crate) async fn ws_expect_message<F>(
     >,
     timeout: Duration,
     mut predicate: F,
-) -> wrldbldr_protocol::ServerMessage
+) -> wrldbldr_shared::ServerMessage
 where
-    F: FnMut(&wrldbldr_protocol::ServerMessage) -> bool,
+    F: FnMut(&wrldbldr_shared::ServerMessage) -> bool,
 {
     tokio::time::timeout(timeout, async {
         loop {
@@ -1018,7 +1018,7 @@ pub(crate) async fn ws_expect_no_message_matching<F>(
     timeout: Duration,
     mut predicate: F,
 ) where
-    F: FnMut(&wrldbldr_protocol::ServerMessage) -> bool,
+    F: FnMut(&wrldbldr_shared::ServerMessage) -> bool,
 {
     let result = tokio::time::timeout(timeout, async {
         loop {

@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
-use wrldbldr_protocol::character_sheet::CharacterSheetValues;
-use wrldbldr_protocol::{PlayerCharacterRequest, RequestPayload};
+use wrldbldr_shared::character_sheet::CharacterSheetValues;
+use wrldbldr_shared::{PlayerCharacterRequest, RequestPayload};
 
 /// Full player character data
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -63,7 +63,7 @@ pub struct UpdateLocationResponse {
 }
 
 // From impls for protocol conversion at the boundary
-impl From<&CreatePlayerCharacterRequest> for wrldbldr_protocol::CreatePlayerCharacterData {
+impl From<&CreatePlayerCharacterRequest> for wrldbldr_shared::CreatePlayerCharacterData {
     fn from(req: &CreatePlayerCharacterRequest) -> Self {
         Self {
             name: req.name.clone(),
@@ -74,7 +74,7 @@ impl From<&CreatePlayerCharacterRequest> for wrldbldr_protocol::CreatePlayerChar
     }
 }
 
-impl From<&UpdatePlayerCharacterRequest> for wrldbldr_protocol::UpdatePlayerCharacterData {
+impl From<&UpdatePlayerCharacterRequest> for wrldbldr_shared::UpdatePlayerCharacterData {
     fn from(req: &UpdatePlayerCharacterRequest) -> Self {
         Self {
             name: req.name.clone(),

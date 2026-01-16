@@ -8,9 +8,9 @@ use super::*;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
-use wrldbldr_protocol::game_systems::{ContentFilter, ContentType};
-use wrldbldr_protocol::requests::content::ContentRequest;
-use wrldbldr_protocol::{ErrorCode, ResponseResult};
+use wrldbldr_shared::game_systems::{ContentFilter, ContentType};
+use wrldbldr_shared::requests::content::ContentRequest;
+use wrldbldr_shared::{ErrorCode, ResponseResult};
 
 // Input validation limits to prevent DoS attacks
 const MAX_QUERY_LENGTH: usize = 1024;
@@ -46,7 +46,7 @@ fn parse_content_type(content_type: &str) -> Option<ContentType> {
 
 /// Validate filter inputs to prevent DoS attacks.
 fn validate_filter(
-    filter: &wrldbldr_protocol::requests::content::ContentFilterRequest,
+    filter: &wrldbldr_shared::requests::content::ContentFilterRequest,
 ) -> Result<(), String> {
     if let Some(ref search) = filter.search {
         if search.len() > MAX_QUERY_LENGTH {

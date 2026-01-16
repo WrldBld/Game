@@ -3,7 +3,7 @@
 //! This module is intentionally runtime-agnostic (no tokio, no web-sys) so it can
 //! be used by both the desktop and WASM implementations.
 
-use wrldbldr_protocol::{ResponseResult, ServerMessage};
+use wrldbldr_shared::{ResponseResult, ServerMessage};
 
 // Reconnection constants (kept here so desktop + wasm stay in sync)
 pub const INITIAL_RETRY_DELAY_MS: u64 = 1_000;

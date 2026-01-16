@@ -7,7 +7,7 @@ use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
 use wrldbldr_domain::value_objects::{StatModifier, StatValue};
 use wrldbldr_domain::{self as domain, CharacterId, RuleSystemConfig, RuleSystemVariant};
-use wrldbldr_protocol::{ErrorCode, ResponseResult, StatRequest};
+use wrldbldr_shared::{ErrorCode, ResponseResult, StatRequest};
 
 /// Helper to fetch a character or return an appropriate error response.
 async fn get_character_or_error(

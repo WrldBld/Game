@@ -7377,7 +7377,7 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "wrldbldr-domain",
- "wrldbldr-protocol",
+ "wrldbldr-shared",
 ]
 
 [[package]]
@@ -7413,11 +7413,11 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "wrldbldr-domain",
- "wrldbldr-protocol",
+ "wrldbldr-shared",
 ]
 
 [[package]]
-name = "wrldbldr-protocol"
+name = "wrldbldr-shared"
 version = "0.1.0"
 dependencies = [
  "serde",

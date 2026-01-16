@@ -35,7 +35,7 @@ impl JoinWorldInput {
     pub fn from_protocol(
         connection_id: Uuid,
         world_id: WorldId,
-        role: wrldbldr_protocol::WorldRole,
+        role: wrldbldr_shared::WorldRole,
         user_id: String,
         pc_id: Option<PlayerCharacterId>,
     ) -> Self {

@@ -1,7 +1,7 @@
 use super::*;
 
 use wrldbldr_domain::{value_objects::RuleSystemConfig, WorldId};
-use wrldbldr_protocol::{
+use wrldbldr_shared::{
     ClientMessage, ErrorCode, RequestPayload, ResponseResult, ServerMessage, WorldRequest,
 };
 

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::application::dto::StoryEventData;
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
-use wrldbldr_protocol::{RequestPayload, StoryEventRequest};
+use wrldbldr_shared::{RequestPayload, StoryEventRequest};
 
 /// Paginated response wrapper from Engine
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,7 +31,7 @@ pub struct CreateDmMarkerRequest {
 }
 
 // From impl for protocol conversion at the boundary
-impl From<&CreateDmMarkerRequest> for wrldbldr_protocol::requests::CreateDmMarkerData {
+impl From<&CreateDmMarkerRequest> for wrldbldr_shared::requests::CreateDmMarkerData {
     fn from(req: &CreateDmMarkerRequest) -> Self {
         Self {
             title: req.title.clone(),

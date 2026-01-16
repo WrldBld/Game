@@ -346,14 +346,14 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         &ClientMessage::StagingApprovalResponse {
             request_id: approval_request_id,
             approved_npcs: vec![
-                wrldbldr_protocol::ApprovedNpcInfo {
+                wrldbldr_shared::ApprovedNpcInfo {
                     character_id: visible_npc_id.to_string(),
                     is_present: true,
                     reasoning: None,
                     is_hidden_from_players: false,
                     mood: None,
                 },
-                wrldbldr_protocol::ApprovedNpcInfo {
+                wrldbldr_shared::ApprovedNpcInfo {
                     character_id: hidden_npc_id.to_string(),
                     is_present: true,
                     reasoning: None,

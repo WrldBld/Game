@@ -7,13 +7,13 @@ use super::*;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
-use wrldbldr_protocol::character_sheet::SheetValue;
-use wrldbldr_protocol::game_systems::CharacterSheetProvider;
-use wrldbldr_protocol::game_systems::GameSystemRegistry;
-use wrldbldr_protocol::{CharacterSheetRequest, CharacterSheetSchema, ErrorCode, ResponseResult};
+use wrldbldr_shared::character_sheet::SheetValue;
+use wrldbldr_shared::game_systems::CharacterSheetProvider;
+use wrldbldr_shared::game_systems::GameSystemRegistry;
+use wrldbldr_shared::{CharacterSheetRequest, CharacterSheetSchema, ErrorCode, ResponseResult};
 
 // Import all game systems that implement CharacterSheetProvider
-use wrldbldr_protocol::game_systems::{
+use wrldbldr_shared::game_systems::{
     BladesSystem, Coc7eSystem, Dnd5eSystem, FateCoreSystem, PbtaSystem, Pf2eSystem,
 };
 
@@ -66,8 +66,8 @@ fn get_provider_for_system(system_id: &str) -> Option<Box<dyn CharacterSheetProv
 }
 
 /// Convert a RuleSystemVariant to the corresponding system ID string.
-fn variant_to_system_id(variant: &wrldbldr_protocol::RuleSystemVariant) -> String {
-    use wrldbldr_protocol::RuleSystemVariant;
+fn variant_to_system_id(variant: &wrldbldr_shared::RuleSystemVariant) -> String {
+    use wrldbldr_shared::RuleSystemVariant;
     match variant {
         RuleSystemVariant::Dnd5e => "dnd5e".to_string(),
         RuleSystemVariant::Pathfinder2e => "pf2e".to_string(),

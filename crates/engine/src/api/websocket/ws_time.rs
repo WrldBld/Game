@@ -189,7 +189,7 @@ pub(super) async fn handle_set_time_mode(
     state: &WsState,
     connection_id: Uuid,
     world_id: String,
-    mode: wrldbldr_protocol::types::TimeMode,
+    mode: wrldbldr_shared::types::TimeMode,
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
@@ -263,7 +263,7 @@ pub(super) async fn handle_set_time_costs(
     state: &WsState,
     connection_id: Uuid,
     world_id: String,
-    costs: wrldbldr_protocol::types::TimeCostConfig,
+    costs: wrldbldr_shared::types::TimeCostConfig,
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
@@ -337,7 +337,7 @@ pub(super) async fn handle_respond_to_time_suggestion(
     state: &WsState,
     connection_id: Uuid,
     suggestion_id: String,
-    decision: wrldbldr_protocol::types::TimeSuggestionDecision,
+    decision: wrldbldr_shared::types::TimeSuggestionDecision,
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,

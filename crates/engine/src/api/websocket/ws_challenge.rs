@@ -3,8 +3,8 @@ use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
 use wrldbldr_domain::{DiceRollInput, OutcomeType};
-use wrldbldr_protocol::types::ProposedToolInfo;
-use wrldbldr_protocol::{ChallengeRequest, ErrorCode, ResponseResult};
+use wrldbldr_shared::types::ProposedToolInfo;
+use wrldbldr_shared::{ChallengeRequest, ErrorCode, ResponseResult};
 
 pub(super) async fn handle_challenge_request(
     state: &WsState,
@@ -346,7 +346,7 @@ pub(super) async fn handle_challenge_roll_input(
     state: &WsState,
     connection_id: Uuid,
     challenge_id: String,
-    input_type: wrldbldr_protocol::DiceInputType,
+    input_type: wrldbldr_shared::DiceInputType,
 ) -> Option<ServerMessage> {
     // Parse challenge ID
     let challenge_uuid = match parse_challenge_id(&challenge_id) {
@@ -371,9 +371,9 @@ pub(super) async fn handle_challenge_roll_input(
     };
 
     let input = match input_type {
-        wrldbldr_protocol::DiceInputType::Formula(formula) => DiceRollInput::Formula(formula),
-        wrldbldr_protocol::DiceInputType::Manual(value) => DiceRollInput::ManualResult(value),
-        wrldbldr_protocol::DiceInputType::Unknown => {
+        wrldbldr_shared::DiceInputType::Formula(formula) => DiceRollInput::Formula(formula),
+        wrldbldr_shared::DiceInputType::Manual(value) => DiceRollInput::ManualResult(value),
+        wrldbldr_shared::DiceInputType::Unknown => {
             return Some(error_response(
                 "INVALID_DICE_INPUT",
                 "Unknown dice input type",
@@ -585,7 +585,7 @@ pub(super) async fn handle_challenge_outcome_decision(
     state: &WsState,
     connection_id: Uuid,
     resolution_id: String,
-    decision: wrldbldr_protocol::ChallengeOutcomeDecisionData,
+    decision: wrldbldr_shared::ChallengeOutcomeDecisionData,
 ) -> Option<ServerMessage> {
     // Only DMs can approve challenge outcomes
     let conn_info = match state.connections.get(connection_id).await {

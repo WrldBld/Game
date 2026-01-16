@@ -2,7 +2,7 @@ use super::*;
 
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
-use wrldbldr_protocol::{LocationRequest, RegionRequest};
+use wrldbldr_shared::{LocationRequest, RegionRequest};
 
 pub(super) async fn handle_location_request(
     state: &WsState,

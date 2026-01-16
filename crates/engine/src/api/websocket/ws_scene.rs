@@ -4,7 +4,7 @@ use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
 use wrldbldr_domain::{self as domain, InteractionTarget, InteractionType};
-use wrldbldr_protocol::{ActRequest, ErrorCode, InteractionRequest, ResponseResult, SceneRequest};
+use wrldbldr_shared::{ActRequest, ErrorCode, InteractionRequest, ResponseResult, SceneRequest};
 
 pub(super) async fn handle_act_request(
     state: &WsState,

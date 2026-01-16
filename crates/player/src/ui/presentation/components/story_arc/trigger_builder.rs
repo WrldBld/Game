@@ -11,7 +11,7 @@ use serde_json::Value as JsonValue;
 use crate::infrastructure::spawn_task;
 use crate::presentation::components::common::CharacterPicker;
 use crate::presentation::Services;
-use wrldbldr_protocol::{NarrativeEventRequest, RequestPayload};
+use wrldbldr_shared::{NarrativeEventRequest, RequestPayload};
 
 // =============================================================================
 // Schema Types (mirrors protocol types for local use)
@@ -160,7 +160,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                     RequestPayload::NarrativeEvent(NarrativeEventRequest::GetTriggerSchema);
                 match commands.request(payload).await {
                     Ok(response) => match response {
-                        wrldbldr_protocol::ResponseResult::Success { data } => {
+                        wrldbldr_shared::ResponseResult::Success { data } => {
                             if let Some(json_data) = data {
                                 match serde_json::from_value::<TriggerSchema>(json_data) {
                                     Ok(s) => schema.set(Some(s)),
@@ -171,10 +171,10 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                                 schema_error.set(Some("Empty response".to_string()));
                             }
                         }
-                        wrldbldr_protocol::ResponseResult::Error { message, .. } => {
+                        wrldbldr_shared::ResponseResult::Error { message, .. } => {
                             schema_error.set(Some(message));
                         }
-                        wrldbldr_protocol::ResponseResult::Unknown => {
+                        wrldbldr_shared::ResponseResult::Unknown => {
                             schema_error.set(Some("Unknown response type".to_string()));
                         }
                     },

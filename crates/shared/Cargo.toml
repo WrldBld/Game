@@ -1,10 +1,10 @@
 [package]
-name = "wrldbldr-protocol"
+name = "wrldbldr-shared"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "WrldBldr Protocol - Shared types for Engine and Player communication"
+description = "WrldBldr Shared - Shared types, contracts, and game systems for Engine and Player"
 
 [dependencies]
 # Domain types - protocol uses vocabulary types from domain::types

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
-use wrldbldr_protocol::{EventChainRequest, RequestPayload};
+use wrldbldr_shared::{EventChainRequest, RequestPayload};
 
 /// Event chain data from engine
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -90,7 +90,7 @@ pub struct ChainStatusData {
 }
 
 // From impls for protocol conversion at the boundary
-impl From<&CreateEventChainRequest> for wrldbldr_protocol::requests::CreateEventChainData {
+impl From<&CreateEventChainRequest> for wrldbldr_shared::requests::CreateEventChainData {
     fn from(req: &CreateEventChainRequest) -> Self {
         Self {
             name: req.name.clone(),
@@ -116,7 +116,7 @@ impl From<&CreateEventChainRequest> for wrldbldr_protocol::requests::CreateEvent
     }
 }
 
-impl From<&UpdateEventChainRequest> for wrldbldr_protocol::requests::UpdateEventChainData {
+impl From<&UpdateEventChainRequest> for wrldbldr_shared::requests::UpdateEventChainData {
     fn from(req: &UpdateEventChainRequest) -> Self {
         Self {
             name: req.name.clone(),

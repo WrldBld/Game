@@ -3,16 +3,16 @@ use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::infrastructure::ports::JoinWorldError as PortJoinWorldError;
 
 /// Convert domain JoinWorldError to protocol JoinError.
-fn to_proto_join_error(err: PortJoinWorldError) -> wrldbldr_protocol::JoinError {
+fn to_proto_join_error(err: PortJoinWorldError) -> wrldbldr_shared::JoinError {
     match err {
         PortJoinWorldError::DmAlreadyConnected { existing_user_id } => {
-            wrldbldr_protocol::JoinError::DmAlreadyConnected { existing_user_id }
+            wrldbldr_shared::JoinError::DmAlreadyConnected { existing_user_id }
         }
         PortJoinWorldError::PcNotFound { world_id, pc_id } => {
             tracing::warn!(world_id = %world_id, pc_id = %pc_id, "Player character not found");
-            wrldbldr_protocol::JoinError::Unknown
+            wrldbldr_shared::JoinError::Unknown
         }
-        PortJoinWorldError::Unknown => wrldbldr_protocol::JoinError::Unknown,
+        PortJoinWorldError::Unknown => wrldbldr_shared::JoinError::Unknown,
     }
 }
 
@@ -50,7 +50,7 @@ pub(super) async fn handle_join_world(
         Err(crate::use_cases::session::JoinWorldFlowError::WorldNotFound) => {
             return Some(ServerMessage::WorldJoinFailed {
                 world_id,
-                error: wrldbldr_protocol::JoinError::WorldNotFound,
+                error: wrldbldr_shared::JoinError::WorldNotFound,
             })
         }
         Err(crate::use_cases::session::JoinWorldFlowError::JoinError(e)) => {
@@ -64,7 +64,7 @@ pub(super) async fn handle_join_world(
             let _ = sanitize_repo_error(&e, "building world snapshot");
             return Some(ServerMessage::WorldJoinFailed {
                 world_id,
-                error: wrldbldr_protocol::JoinError::Unknown,
+                error: wrldbldr_shared::JoinError::Unknown,
             });
         }
     };
@@ -87,7 +87,7 @@ pub(super) async fn handle_join_world(
     let connected_users = join_result
         .connected_users
         .into_iter()
-        .map(|u| wrldbldr_protocol::ConnectedUser {
+        .map(|u| wrldbldr_shared::ConnectedUser {
             user_id: u.user_id,
             username: u.username,
             role: u.role.into(), // Uses From<domain::WorldRole> for protocol::WorldRole

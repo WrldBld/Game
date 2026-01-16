@@ -4,7 +4,7 @@
 
 use dioxus::prelude::*;
 use std::collections::HashMap;
-use wrldbldr_protocol::types::{LoreData, LoreKnowledgeData, LoreSummaryData};
+use wrldbldr_shared::types::{LoreData, LoreKnowledgeData, LoreSummaryData};
 
 /// Lore state for tracking player knowledge
 #[derive(Clone)]

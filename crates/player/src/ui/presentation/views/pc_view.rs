@@ -34,7 +34,7 @@ use crate::presentation::state::{
     use_dialogue_state, use_game_state, use_session_state, use_typewriter_effect,
     RollSubmissionStatus,
 };
-use wrldbldr_protocol::character_sheet::SheetValue;
+use wrldbldr_shared::character_sheet::SheetValue;
 
 /// Player Character View - visual novel gameplay interface
 ///

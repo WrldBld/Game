@@ -9,7 +9,7 @@
 use std::sync::Arc;
 
 use super::{create_test_player, E2EEventLog, E2ETestContext, TestOutcome};
-use wrldbldr_protocol::character_sheet::{CharacterSheetValues, SheetValue};
+use wrldbldr_shared::character_sheet::{CharacterSheetValues, SheetValue};
 
 /// Test that NPC stats are loaded.
 #[tokio::test]

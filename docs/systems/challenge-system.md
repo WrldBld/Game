@@ -17,7 +17,7 @@ The Challenge System handles skill checks, ability tests, and other dice-based r
 
 ## WebSocket Coverage
 
-- The Engine now routes `wrldbldr_protocol::ChallengeRequest` through `crates/engine/src/api/websocket/ws_challenge.rs`, returning the same shape expected by `ChallengeData`.
+- The Engine now routes `wrldbldr_shared::ChallengeRequest` through `crates/engine/src/api/websocket/ws_challenge.rs`, returning the same shape expected by `ChallengeData`.
 - Supported operations: list/get/create/update/delete challenges plus `SetChallengeActive` and `SetChallengeFavorite`.
 - Responses include serialized outcomes, trigger conditions, and metadata so the Player app can keep the DM library and favorites dashboard in sync.
 
