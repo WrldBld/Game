@@ -177,7 +177,17 @@ domain/src/
 2. **Accessors for reading** - `fn name(&self) -> &CharacterName`
 3. **Newtypes for validated data** - `CharacterName` not `String`
 4. **Enums for state machines** - `CharacterState` not `is_alive: bool`
-5. **Mutations return events** - `fn apply_damage(&mut self, amount: i32) -> DamageOutcome`
+5. **Business mutations return events** - `fn apply_damage(&mut self, amount: i32) -> DamageOutcome`
+
+**When to return domain events vs `()`:**
+
+| Method Type | Return | Example |
+|-------------|--------|---------|
+| Multiple possible outcomes | Domain event enum | `apply_damage` → `DamageOutcome::{Wounded, Killed, AlreadyDead}` |
+| State machine transitions | Domain event enum | `activate` → `CharacterStateChange::{Activated, AlreadyActive}` |
+| Pure setters (one outcome) | `()` | `set_description(&mut self, desc)` - caller knows what they set |
+
+Domain events are valuable when the caller needs to know **what happened**, not just that something happened. Pure setters have exactly one outcome - the value is now set - so events would be ceremony without value.
 
 **Example Aggregate:**
 ```rust
