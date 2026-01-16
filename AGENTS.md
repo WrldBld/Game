@@ -20,6 +20,91 @@ Instead of porting Java/C# DDD patterns, we leverage Rust's strengths:
 | Factory pattern | `::new()` + builder pattern |
 | Domain Events | Return enums from mutations |
 
+### Tiered Encapsulation (ADR-008)
+
+Not all domain types need the same level of encapsulation. Use the right tool for the job:
+
+| Type Category | Encapsulation Level | When to Use |
+|---------------|---------------------|-------------|
+| **Aggregates** | Private fields + accessors + mutation methods | Types with invariants to protect (e.g., `Character`, `Challenge`, `StatBlock`) |
+| **Validated Newtypes** | Newtype wrapper with `::new()` validation | Strings/values with rules (e.g., `CharacterName`, `Description`, `Tag`) |
+| **Typed IDs** | Newtype wrapper (always) | All identifiers (e.g., `CharacterId`, `LocationId`) |
+| **Simple Data Structs** | Public fields | No invariants, just data grouping (e.g., `MapBounds`, `TimeAdvanceResult`, DTOs) |
+| **Enums** | Public variants | State machines, outcomes, choices |
+
+**Decision criteria for encapsulation:**
+
+1. **Does it have invariants?** (e.g., "name cannot be empty", "hp cannot exceed max_hp")
+   - Yes → Private fields + validation in constructor
+   - No → Public fields are fine
+
+2. **Can invalid states be constructed?**
+   - Yes → Encapsulate to prevent
+   - No → Public fields are fine
+
+3. **Is it just grouping related data?** (coordinates, results, snapshots)
+   - Yes → Public fields, derive `Debug, Clone, Serialize, Deserialize`
+
+**Examples:**
+
+```rust
+// AGGREGATE: Has invariants (hp <= max_hp, name validated)
+pub struct Character {
+    id: CharacterId,        // Private
+    name: CharacterName,    // Private, validated newtype
+    current_hp: i32,        // Private, constrained by max_hp
+    max_hp: i32,
+}
+
+// SIMPLE DATA STRUCT: No invariants, just coordinates
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MapBounds {
+    pub x: f64,             // Public - no invalid states
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+// RESULT/DTO: No invariants, just carries data
+#[derive(Debug, Clone)]
+pub struct TimeAdvanceResult {
+    pub new_time: GameTime,
+    pub events_triggered: Vec<NarrativeEvent>,
+}
+
+// VALIDATED NEWTYPE: Has rules (non-empty, max length)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "String")]
+pub struct CharacterName(String);
+
+impl CharacterName {
+    pub fn new(s: impl Into<String>) -> Result<Self, DomainError> { ... }
+}
+```
+
+**Anti-pattern: Over-encapsulation**
+
+```rust
+// WRONG: Pointless encapsulation for a coordinate struct
+pub struct MapBounds {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+impl MapBounds {
+    pub fn x(&self) -> f64 { self.x }
+    pub fn y(&self) -> f64 { self.y }
+    pub fn width(&self) -> f64 { self.width }
+    pub fn height(&self) -> f64 { self.height }
+    pub fn with_x(mut self, x: f64) -> Self { self.x = x; self }
+    // ... 50 lines of boilerplate for no benefit
+}
+```
+
+See [ADR-008](docs/architecture/ADR-008-tiered-encapsulation.md) for rationale.
+
 ### Crate Structure (4 crates)
 
 ```

@@ -85,15 +85,32 @@ Acceptance:
 - Domain error enums do not depend on `std::io` or `serde_json` error types.
 - `crates/domain` compiles without IO/JSON error variants.
 
-### 1.4 Enforce value object immutability + private fields
-- [ ] Inventory value objects with public fields or `&mut self` setters.
-- [ ] Convert public fields to private with read-only accessors.
-- [ ] Replace setters with builder-style `with_*` methods that consume `self`.
-- [ ] Ensure all value objects are valid by construction (constructor validates).
+### 1.4 Enforce value object immutability + tiered encapsulation (ADR-008)
+
+**Important:** Not all types need private fields. Apply tiered encapsulation per ADR-008:
+
+| Type | Encapsulation | Example |
+|------|---------------|---------|
+| Aggregates with invariants | Private fields + accessors | `Character`, `Challenge` |
+| Validated strings/values | Newtype + `::new()` validation | `CharacterName`, `Description` |
+| Typed IDs | Newtype wrapper | `CharacterId`, `LocationId` |
+| Simple data structs | **Public fields OK** | `MapBounds`, `TimeAdvanceResult`, DTOs |
+| Enums | Public variants | `DamageOutcome`, `CharacterState` |
+
+**Criteria for encapsulation:**
+1. Does it have invariants? (e.g., "hp cannot exceed max_hp") → Private fields
+2. Can invalid states be constructed? → Encapsulate
+3. Is it just grouping data? → Public fields are fine
+
+- [x] Inventory value objects with `&mut self` setters (mutation violates immutability).
+- [x] Replace setters with builder-style `with_*` methods that consume `self`.
+- [x] Ensure validated newtypes are valid by construction (constructor validates).
+- [x] Simple data structs (coordinates, results, DTOs) can keep public fields.
 
 Acceptance:
-- No public fields in value objects.
-- No `&mut self` mutation methods on value objects (builder patterns only).
+- Validated newtypes use `::new()` with validation returning `Result`.
+- No `&mut self` mutation methods on immutable value objects.
+- Simple data structs without invariants may use public fields (no accessors required).
 
 ### 1.5 Replace raw Uuid usage in domain value objects
 - [x] Inventory `Uuid` usage in domain value objects.
@@ -104,16 +121,23 @@ Acceptance:
 - Domain value objects do not expose raw `Uuid` fields.
 - Typed IDs are used throughout domain value objects.
 
-### 1.6 Encapsulate domain entities (non-aggregate structs)
-- [x] Inventory `crates/domain/src/entities` for public fields.
-- [x] Convert entities to private fields with read-only accessors and builder-style constructors.
-- [x] Replace stringly-typed IDs and labels in entities with value objects or typed IDs where applicable.
+### 1.6 Encapsulate domain entities with tiered approach (ADR-008)
+
+**Important:** Apply tiered encapsulation per ADR-008. Not all entities need private fields.
+
+- [x] Inventory `crates/domain/src/entities` for encapsulation needs.
+- [x] **Aggregates with invariants**: Convert to private fields with accessors.
+- [x] **Simple data structs**: Public fields are acceptable if no invariants exist.
+- [x] Replace stringly-typed IDs with typed IDs (`CharacterId`, etc.).
 - [x] Replace boolean state flags with enums where they represent mutually exclusive states.
 
+**Note:** Phase 1.6 was completed with uniform encapsulation before ADR-008. Some simple data structs have accessors that could be simplified to public fields. This is low-priority tech debt - the code is correct, just verbose.
+
 Acceptance:
-- Domain entities no longer expose public fields.
-- Domain entities use typed IDs or value objects for identifiers and validated strings.
+- Aggregates with invariants use private fields + accessors.
+- Typed IDs are used for all identifiers.
 - State machine flags are expressed as enums, not multiple booleans.
+- Simple data structs may use public fields (per ADR-008).
 
 ### 1.7 Move infrastructure settings out of domain
 - [x] Move `AppSettings` from `domain/src/value_objects/settings.rs` to `engine/src/infrastructure/settings.rs`.
