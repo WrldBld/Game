@@ -118,7 +118,7 @@ impl ContinueConversation {
             .await?;
         let npc_in_region = staged_npcs
             .iter()
-            .any(|staged| staged.character_id() == npc_id);
+            .any(|staged| staged.character_id == npc_id);
 
         if !npc_in_region {
             // NPC left the region - conversation is over

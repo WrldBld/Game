@@ -23,11 +23,11 @@ use wrldbldr_domain::{PlayerCharacterId, WorldId};
 #[serde(rename_all = "camelCase")]
 pub struct GameFlag {
     /// The flag name (unique within scope)
-    name: String,
+    pub name: String,
     /// The flag value (true = set, false = unset)
-    value: bool,
+    pub value: bool,
     /// When the flag was last modified
-    updated_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 impl GameFlag {
@@ -48,30 +48,6 @@ impl GameFlag {
     /// Create an unset flag
     pub fn unset(name: impl Into<String>, now: DateTime<Utc>) -> Self {
         Self::new(name, false, now)
-    }
-
-    // Read accessors
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn value(&self) -> bool {
-        self.value
-    }
-
-    pub fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
-    }
-
-    // Builder methods
-    pub fn with_value(mut self, value: bool) -> Self {
-        self.value = value;
-        self
-    }
-
-    pub fn with_updated_at(mut self, updated_at: DateTime<Utc>) -> Self {
-        self.updated_at = updated_at;
-        self
     }
 }
 

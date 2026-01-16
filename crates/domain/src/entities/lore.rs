@@ -48,15 +48,15 @@ pub struct Lore {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoreChunk {
-    id: LoreChunkId,
+    pub id: LoreChunkId,
     /// Display order within the lore entry
-    order: u32,
+    pub order: u32,
     /// Optional title for this chunk
-    title: Option<String>,
+    pub title: Option<String>,
     /// The actual lore content
-    content: String,
+    pub content: String,
     /// Hint for DM about how this can be discovered
-    discovery_hint: Option<String>,
+    pub discovery_hint: Option<String>,
 }
 
 /// Category of lore
@@ -88,17 +88,17 @@ pub enum LoreCategory {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoreKnowledge {
-    lore_id: LoreId,
+    pub lore_id: LoreId,
     /// Can be PC or NPC (uses CharacterId for both)
-    character_id: CharacterId,
+    pub character_id: CharacterId,
     /// Which chunks they know (empty = all chunks)
-    known_chunk_ids: Vec<LoreChunkId>,
+    pub known_chunk_ids: Vec<LoreChunkId>,
     /// How they discovered it
-    discovery_source: LoreDiscoverySource,
+    pub discovery_source: LoreDiscoverySource,
     /// When discovered (game time)
-    discovered_at: DateTime<Utc>,
+    pub discovered_at: DateTime<Utc>,
     /// Optional notes about the discovery
-    notes: Option<String>,
+    pub notes: Option<String>,
 }
 
 /// How lore was discovered
@@ -232,7 +232,7 @@ impl Lore {
     pub fn full_text(&self) -> String {
         self.chunks
             .iter()
-            .map(|c| c.content())
+            .map(|c| c.content.as_str())
             .collect::<Vec<_>>()
             .join("\n\n")
     }
@@ -241,20 +241,20 @@ impl Lore {
     pub fn text_for_chunks(&self, chunk_ids: &[LoreChunkId]) -> String {
         self.chunks
             .iter()
-            .filter(|c| chunk_ids.contains(&c.id()))
-            .map(|c| c.content())
+            .filter(|c| chunk_ids.contains(&c.id))
+            .map(|c| c.content.as_str())
             .collect::<Vec<_>>()
             .join("\n\n")
     }
 
     /// Get chunk by ID
     pub fn get_chunk(&self, chunk_id: LoreChunkId) -> Option<&LoreChunk> {
-        self.chunks.iter().find(|c| c.id() == chunk_id)
+        self.chunks.iter().find(|c| c.id == chunk_id)
     }
 
     /// Get all chunk IDs
     pub fn chunk_ids(&self) -> Vec<LoreChunkId> {
-        self.chunks.iter().map(|c| c.id()).collect()
+        self.chunks.iter().map(|c| c.id).collect()
     }
 }
 
@@ -267,27 +267,6 @@ impl LoreChunk {
             content: content.into(),
             discovery_hint: None,
         }
-    }
-
-    // Read accessors
-    pub fn id(&self) -> LoreChunkId {
-        self.id
-    }
-
-    pub fn order(&self) -> u32 {
-        self.order
-    }
-
-    pub fn title(&self) -> Option<&str> {
-        self.title.as_deref()
-    }
-
-    pub fn content(&self) -> &str {
-        &self.content
-    }
-
-    pub fn discovery_hint(&self) -> Option<&str> {
-        self.discovery_hint.as_deref()
     }
 
     // Builder methods
@@ -346,31 +325,6 @@ impl LoreKnowledge {
             discovered_at: game_time,
             notes: None,
         }
-    }
-
-    // Read accessors
-    pub fn lore_id(&self) -> LoreId {
-        self.lore_id
-    }
-
-    pub fn character_id(&self) -> CharacterId {
-        self.character_id
-    }
-
-    pub fn known_chunk_ids(&self) -> &[LoreChunkId] {
-        &self.known_chunk_ids
-    }
-
-    pub fn discovery_source(&self) -> &LoreDiscoverySource {
-        &self.discovery_source
-    }
-
-    pub fn discovered_at(&self) -> DateTime<Utc> {
-        self.discovered_at
-    }
-
-    pub fn notes(&self) -> Option<&str> {
-        self.notes.as_deref()
     }
 
     // Builder methods
@@ -482,8 +436,8 @@ mod tests {
         assert_eq!(lore.title(), "Test Lore");
         assert_eq!(lore.summary(), "A test lore entry");
         assert_eq!(lore.chunks().len(), 2);
-        assert_eq!(lore.chunks()[0].order(), 0);
-        assert_eq!(lore.chunks()[1].order(), 1);
+        assert_eq!(lore.chunks()[0].order, 0);
+        assert_eq!(lore.chunks()[1].order, 1);
         assert_eq!(lore.tags().len(), 2);
     }
 
@@ -523,7 +477,7 @@ mod tests {
         );
 
         assert!(!knowledge.knows_all());
-        assert_eq!(knowledge.known_chunk_ids().len(), 1);
+        assert_eq!(knowledge.known_chunk_ids.len(), 1);
     }
 
     #[test]

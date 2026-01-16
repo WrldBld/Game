@@ -340,25 +340,15 @@ fn default_one() -> u8 {
 #[serde(rename_all = "camelCase")]
 pub struct AbilityUses {
     /// Maximum uses
-    max: UsesFormula,
+    pub max: UsesFormula,
     /// When uses are restored
-    recharge: RechargeType,
+    pub recharge: RechargeType,
 }
 
 impl AbilityUses {
     /// Create new ability uses.
     pub fn new(max: UsesFormula, recharge: RechargeType) -> Self {
         Self { max, recharge }
-    }
-
-    /// Get the maximum uses formula.
-    pub fn max(&self) -> &UsesFormula {
-        &self.max
-    }
-
-    /// Get the recharge type.
-    pub fn recharge(&self) -> RechargeType {
-        self.recharge
     }
 }
 
@@ -527,7 +517,7 @@ mod tests {
     #[test]
     fn ability_uses_accessors() {
         let uses = AbilityUses::new(UsesFormula::fixed(2), RechargeType::LongRest);
-        assert!(matches!(uses.max(), UsesFormula::Fixed { value: 2 }));
-        assert_eq!(uses.recharge(), RechargeType::LongRest);
+        assert!(matches!(uses.max, UsesFormula::Fixed { value: 2 }));
+        assert_eq!(uses.recharge, RechargeType::LongRest);
     }
 }

@@ -293,12 +293,12 @@ struct GenerationMetadataStored {
 impl GenerationMetadataStored {
     fn from_metadata(value: &GenerationMetadata) -> Self {
         Self {
-            workflow: value.workflow().to_string(),
-            prompt: value.prompt().to_string(),
-            negative_prompt: value.negative_prompt().map(|s| s.to_string()),
-            seed: value.seed(),
-            style_reference_id: value.style_reference_id().map(|id| id.to_string()),
-            batch_id: value.batch_id().to_string(),
+            workflow: value.workflow.clone(),
+            prompt: value.prompt.clone(),
+            negative_prompt: value.negative_prompt.clone(),
+            seed: value.seed,
+            style_reference_id: value.style_reference_id.map(|id| id.to_string()),
+            batch_id: value.batch_id.to_string(),
         }
     }
 }
@@ -314,13 +314,13 @@ impl From<GenerationMetadataStored> for GenerationMetadata {
             .map(BatchId::from_uuid)
             .unwrap_or_default();
 
-        GenerationMetadata::reconstruct(
-            value.workflow,
-            value.prompt,
-            value.negative_prompt,
-            value.seed,
+        GenerationMetadata {
+            workflow: value.workflow,
+            prompt: value.prompt,
+            negative_prompt: value.negative_prompt,
+            seed: value.seed,
             style_reference_id,
             batch_id,
-        )
+        }
     }
 }

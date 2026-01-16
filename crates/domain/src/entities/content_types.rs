@@ -39,13 +39,13 @@ impl SourceType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContentSource {
     /// Short code (e.g., "PHB", "XGE", "TCE", "Homebrew")
-    code: String,
+    pub code: String,
     /// Full name (e.g., "Player's Handbook", "Xanathar's Guide to Everything")
-    name: String,
+    pub name: String,
     /// Source type for categorization
-    source_type: SourceType,
+    pub source_type: SourceType,
     /// Page reference (optional)
-    page: Option<u32>,
+    pub page: Option<u32>,
 }
 
 impl ContentSource {
@@ -100,23 +100,6 @@ impl ContentSource {
             source_type,
             page: None,
         }
-    }
-
-    // Read accessors
-    pub fn code(&self) -> &str {
-        &self.code
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn source_type(&self) -> &SourceType {
-        &self.source_type
-    }
-
-    pub fn page(&self) -> Option<u32> {
-        self.page
     }
 
     // Builder methods

@@ -240,11 +240,11 @@ impl From<u8> for SpellLevel {
 #[serde(rename_all = "camelCase")]
 pub struct CastingTime {
     /// The amount of time
-    amount: u32,
+    pub amount: u32,
     /// The unit of time
-    unit: CastingTimeUnit,
+    pub unit: CastingTimeUnit,
     /// Additional condition (e.g., "which you take when..." for reactions)
-    condition: Option<String>,
+    pub condition: Option<String>,
 }
 
 impl CastingTime {
@@ -255,21 +255,6 @@ impl CastingTime {
             unit,
             condition: None,
         }
-    }
-
-    /// Get the amount of time.
-    pub fn amount(&self) -> u32 {
-        self.amount
-    }
-
-    /// Get the unit of time.
-    pub fn unit(&self) -> CastingTimeUnit {
-        self.unit
-    }
-
-    /// Get the additional condition.
-    pub fn condition(&self) -> Option<&str> {
-        self.condition.as_deref()
     }
 
     /// Set a condition for the casting time.
@@ -391,33 +376,18 @@ impl SpellRange {
 pub struct SpellComponents {
     /// Requires verbal component
     #[serde(default)]
-    verbal: bool,
+    pub verbal: bool,
     /// Requires somatic component
     #[serde(default)]
-    somatic: bool,
+    pub somatic: bool,
     /// Material component details
-    material: Option<MaterialComponent>,
+    pub material: Option<MaterialComponent>,
 }
 
 impl SpellComponents {
     /// Create empty spell components.
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Check if verbal component is required.
-    pub fn verbal(&self) -> bool {
-        self.verbal
-    }
-
-    /// Check if somatic component is required.
-    pub fn somatic(&self) -> bool {
-        self.somatic
-    }
-
-    /// Get the material component details.
-    pub fn material(&self) -> Option<&MaterialComponent> {
-        self.material.as_ref()
     }
 
     /// Set the verbal component requirement.
@@ -471,12 +441,12 @@ impl SpellComponents {
 #[serde(rename_all = "camelCase")]
 pub struct MaterialComponent {
     /// Description of the material
-    description: String,
+    pub description: String,
     /// Whether the material is consumed by the spell
     #[serde(default)]
-    consumed: bool,
+    pub consumed: bool,
     /// Cost in gold pieces (if any)
-    cost: Option<u32>,
+    pub cost: Option<u32>,
 }
 
 impl MaterialComponent {
@@ -487,21 +457,6 @@ impl MaterialComponent {
             consumed: false,
             cost: None,
         }
-    }
-
-    /// Get the material description.
-    pub fn description(&self) -> &str {
-        &self.description
-    }
-
-    /// Check if the material is consumed.
-    pub fn consumed(&self) -> bool {
-        self.consumed
-    }
-
-    /// Get the cost in gold pieces.
-    pub fn cost(&self) -> Option<u32> {
-        self.cost
     }
 
     /// Set whether the material is consumed.
@@ -670,12 +625,12 @@ mod tests {
 
     #[test]
     fn casting_time_constructors() {
-        assert_eq!(CastingTime::action().unit(), CastingTimeUnit::Action);
+        assert_eq!(CastingTime::action().unit, CastingTimeUnit::Action);
         assert_eq!(
-            CastingTime::bonus_action().unit(),
+            CastingTime::bonus_action().unit,
             CastingTimeUnit::BonusAction
         );
-        assert_eq!(CastingTime::minutes(10).amount(), 10);
+        assert_eq!(CastingTime::minutes(10).amount, 10);
     }
 
     #[test]
@@ -694,9 +649,9 @@ mod tests {
     #[test]
     fn spell_components_accessors() {
         let components = SpellComponents::all("diamond dust worth 100 gp");
-        assert!(components.verbal());
-        assert!(components.somatic());
-        assert!(components.material().is_some());
+        assert!(components.verbal);
+        assert!(components.somatic);
+        assert!(components.material.is_some());
     }
 
     #[test]
@@ -705,8 +660,8 @@ mod tests {
             .with_consumed(true)
             .with_cost(500);
 
-        assert_eq!(material.description(), "diamond");
-        assert!(material.consumed());
-        assert_eq!(material.cost(), Some(500));
+        assert_eq!(material.description, "diamond");
+        assert!(material.consumed);
+        assert_eq!(material.cost, Some(500));
     }
 }

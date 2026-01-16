@@ -264,25 +264,25 @@ impl NpcObservation {
 #[serde(rename_all = "camelCase")]
 pub struct ObservationSummary {
     /// The NPC's ID
-    npc_id: String,
+    pub npc_id: String,
     /// The NPC's name
-    npc_name: String,
+    pub npc_name: String,
     /// The NPC's portrait asset (if any)
-    npc_portrait: Option<String>,
+    pub npc_portrait: Option<String>,
     /// Whether the NPC's identity is revealed to the player
-    is_revealed_to_player: bool,
+    pub is_revealed_to_player: bool,
     /// The location name where they were observed
-    location_name: String,
+    pub location_name: String,
     /// The region name where they were observed
-    region_name: String,
+    pub region_name: String,
     /// When (game time)
-    game_time: DateTime<Utc>,
+    pub game_time: DateTime<Utc>,
     /// How the PC knows this
-    observation_type: ObservationType,
+    pub observation_type: ObservationType,
     /// Any notes
-    notes: Option<String>,
+    pub notes: Option<String>,
     /// How long ago in game time (for display)
-    time_ago_description: Option<String>,
+    pub time_ago_description: Option<String>,
 }
 
 impl ObservationSummary {
@@ -308,47 +308,6 @@ impl ObservationSummary {
             notes: None,
             time_ago_description: None,
         }
-    }
-
-    // Read accessors
-    pub fn npc_id(&self) -> &str {
-        &self.npc_id
-    }
-
-    pub fn npc_name(&self) -> &str {
-        &self.npc_name
-    }
-
-    pub fn npc_portrait(&self) -> Option<&str> {
-        self.npc_portrait.as_deref()
-    }
-
-    pub fn is_revealed_to_player(&self) -> bool {
-        self.is_revealed_to_player
-    }
-
-    pub fn location_name(&self) -> &str {
-        &self.location_name
-    }
-
-    pub fn region_name(&self) -> &str {
-        &self.region_name
-    }
-
-    pub fn game_time(&self) -> DateTime<Utc> {
-        self.game_time
-    }
-
-    pub fn observation_type(&self) -> ObservationType {
-        self.observation_type
-    }
-
-    pub fn notes(&self) -> Option<&str> {
-        self.notes.as_deref()
-    }
-
-    pub fn time_ago_description(&self) -> Option<&str> {
-        self.time_ago_description.as_deref()
     }
 
     // Builder methods

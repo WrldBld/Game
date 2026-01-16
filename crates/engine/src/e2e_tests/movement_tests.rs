@@ -178,7 +178,7 @@ async fn test_movement_changes_npc_context() {
         .await
         .expect("Should get staged NPCs");
     assert!(
-        staged_before.iter().any(|s| s.character_id() == mira_id),
+        staged_before.iter().any(|s| s.character_id == mira_id),
         "Mira should be staged in Common Room"
     );
 
@@ -200,7 +200,7 @@ async fn test_movement_changes_npc_context() {
         .await
         .expect("Should get staged NPCs");
     assert!(
-        staged_after.iter().any(|s| s.character_id() == marcus_id),
+        staged_after.iter().any(|s| s.character_id == marcus_id),
         "Marcus should be staged in Tavern Bar"
     );
 }

@@ -249,12 +249,11 @@ pub enum InteractionCondition {
 }
 
 /// Data for interaction requirement edges
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-#[derive(Default)]
 pub struct InteractionRequirement {
     /// Whether the required item is consumed when the interaction is used
-    consumed: bool,
+    pub consumed: bool,
 }
 
 impl InteractionRequirement {
@@ -264,16 +263,5 @@ impl InteractionRequirement {
 
     pub fn from_stored(consumed: bool) -> Self {
         Self { consumed }
-    }
-
-    // Read accessor
-    pub fn consumed(&self) -> bool {
-        self.consumed
-    }
-
-    // Builder method
-    pub fn with_consumed(mut self, consumed: bool) -> Self {
-        self.consumed = consumed;
-        self
     }
 }

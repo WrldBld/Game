@@ -2384,8 +2384,8 @@ mod tests {
             condition: None,
         }];
         let result = importer.convert_casting_time(&times);
-        assert_eq!(result.unit(), CastingTimeUnit::Action);
-        assert_eq!(result.amount(), 1);
+        assert_eq!(result.unit, CastingTimeUnit::Action);
+        assert_eq!(result.amount, 1);
 
         let times = vec![FiveToolsTime {
             number: Some(10),
@@ -2393,8 +2393,8 @@ mod tests {
             condition: None,
         }];
         let result = importer.convert_casting_time(&times);
-        assert_eq!(result.unit(), CastingTimeUnit::Minute);
-        assert_eq!(result.amount(), 10);
+        assert_eq!(result.unit, CastingTimeUnit::Minute);
+        assert_eq!(result.amount, 10);
     }
 
     #[test]

@@ -381,7 +381,7 @@ impl LoreOps {
         let order = match input.order {
             Some(provided_order) => {
                 // Validate that the provided order is unique
-                if lore.chunks().iter().any(|c| c.order() == provided_order) {
+                if lore.chunks().iter().any(|c| c.order == provided_order) {
                     return Err(LoreError::DuplicateChunkOrder(provided_order));
                 }
                 provided_order
@@ -390,7 +390,7 @@ impl LoreOps {
                 // Auto-assign next sequential order
                 lore.chunks()
                     .iter()
-                    .map(|c| c.order())
+                    .map(|c| c.order)
                     .max()
                     .map_or(0, |max| max + 1)
             }
@@ -404,7 +404,7 @@ impl LoreOps {
             chunk = chunk.with_discovery_hint(hint);
         }
 
-        let chunk_id = chunk.id().to_string();
+        let chunk_id = chunk.id.to_string();
 
         // Rebuild lore with new chunk
         let now = self.lore.now();
@@ -443,7 +443,7 @@ impl LoreOps {
             .list_for_world(world_id)
             .await?
             .into_iter()
-            .find(|l| l.chunks().iter().any(|c| c.id() == chunk_id))
+            .find(|l| l.chunks().iter().any(|c| c.id == chunk_id))
             .ok_or(LoreError::ChunkNotFound)?;
 
         // Validate that new order doesn't conflict with other chunks
@@ -451,7 +451,7 @@ impl LoreOps {
             let conflicts = lore
                 .chunks()
                 .iter()
-                .any(|c| c.id() != chunk_id && c.order() == new_order);
+                .any(|c| c.id != chunk_id && c.order == new_order);
             if conflicts {
                 return Err(LoreError::DuplicateChunkOrder(new_order));
             }
@@ -460,7 +460,7 @@ impl LoreOps {
         let old_chunk = lore
             .chunks()
             .iter()
-            .find(|c| c.id() == chunk_id)
+            .find(|c| c.id == chunk_id)
             .ok_or(LoreError::ChunkNotFound)?;
 
         // Build updated chunk
@@ -468,22 +468,22 @@ impl LoreOps {
             .content
             .as_ref()
             .map(|s| s.as_str())
-            .unwrap_or(old_chunk.content());
+            .unwrap_or(&old_chunk.content);
         let mut new_chunk = wrldbldr_domain::LoreChunk::new(content)
             .with_id(chunk_id)
-            .with_order(input.order.unwrap_or(old_chunk.order()));
+            .with_order(input.order.unwrap_or(old_chunk.order));
 
         // Apply title - use input if provided, otherwise keep existing
         if let Some(title) = input.title.as_ref() {
             new_chunk = new_chunk.with_title(title);
-        } else if let Some(existing_title) = old_chunk.title() {
+        } else if let Some(existing_title) = old_chunk.title.as_ref() {
             new_chunk = new_chunk.with_title(existing_title);
         }
 
         // Apply discovery hint - use input if provided, otherwise keep existing
         if let Some(hint) = input.discovery_hint.as_ref() {
             new_chunk = new_chunk.with_discovery_hint(hint);
-        } else if let Some(existing_hint) = old_chunk.discovery_hint() {
+        } else if let Some(existing_hint) = old_chunk.discovery_hint.as_ref() {
             new_chunk = new_chunk.with_discovery_hint(existing_hint);
         }
 
@@ -491,7 +491,7 @@ impl LoreOps {
         let mut chunks: Vec<_> = lore
             .chunks()
             .iter()
-            .filter(|c| c.id() != chunk_id)
+            .filter(|c| c.id != chunk_id)
             .cloned()
             .collect();
         chunks.push(new_chunk);
@@ -531,14 +531,14 @@ impl LoreOps {
             .list_for_world(world_id)
             .await?
             .into_iter()
-            .find(|l| l.chunks().iter().any(|c| c.id() == chunk_id))
+            .find(|l| l.chunks().iter().any(|c| c.id == chunk_id))
             .ok_or(LoreError::ChunkNotFound)?;
 
         let before = lore.chunks().len();
         let mut remaining_chunks: Vec<_> = lore
             .chunks()
             .iter()
-            .filter(|c| c.id() != chunk_id)
+            .filter(|c| c.id != chunk_id)
             .cloned()
             .collect();
         if remaining_chunks.len() == before {
@@ -546,28 +546,20 @@ impl LoreOps {
         }
 
         // Re-index remaining chunks to maintain sequential order (0, 1, 2, ...)
-        remaining_chunks.sort_by_key(|c| c.order());
+        remaining_chunks.sort_by_key(|c| c.order);
         let reindexed_chunks: Vec<_> = remaining_chunks
             .into_iter()
             .enumerate()
             .map(|(i, c)| {
-                wrldbldr_domain::LoreChunk::new(c.content())
-                    .with_id(c.id())
-                    .with_order(i as u32)
-                    .with_title(c.title().unwrap_or(""))
-                    .with_discovery_hint(c.discovery_hint().unwrap_or(""))
-            })
-            .map(|c| {
-                // Remove empty title/hint
-                let mut chunk = wrldbldr_domain::LoreChunk::new(c.content())
-                    .with_id(c.id())
-                    .with_order(c.order());
-                if let Some(title) = c.title() {
+                let mut chunk = wrldbldr_domain::LoreChunk::new(&c.content)
+                    .with_id(c.id)
+                    .with_order(i as u32);
+                if let Some(title) = c.title.as_ref() {
                     if !title.is_empty() {
                         chunk = chunk.with_title(title);
                     }
                 }
-                if let Some(hint) = c.discovery_hint() {
+                if let Some(hint) = c.discovery_hint.as_ref() {
                     if !hint.is_empty() {
                         chunk = chunk.with_discovery_hint(hint);
                     }
@@ -615,7 +607,7 @@ impl LoreOps {
         // If chunk_ids are provided, validate they exist in the lore
         if let Some(ref ids) = chunk_ids {
             let valid_chunk_ids: std::collections::HashSet<_> =
-                lore.chunks().iter().map(|c| c.id()).collect();
+                lore.chunks().iter().map(|c| c.id).collect();
             let invalid_ids: Vec<_> = ids
                 .iter()
                 .filter(|id| !valid_chunk_ids.contains(id))
@@ -655,7 +647,7 @@ impl LoreOps {
                 let lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;
 
                 let valid_chunk_ids: std::collections::HashSet<_> =
-                    lore.chunks().iter().map(|c| c.id()).collect();
+                    lore.chunks().iter().map(|c| c.id).collect();
                 let invalid_ids: Vec<_> = ids
                     .iter()
                     .filter(|id| !valid_chunk_ids.contains(id))
@@ -700,15 +692,11 @@ impl LoreOps {
         Ok(knowledge_list
             .into_iter()
             .map(|k| CharacterLoreInfo {
-                lore_id: k.lore_id().to_string(),
-                character_id: k.character_id().to_string(),
-                known_chunk_ids: k
-                    .known_chunk_ids()
-                    .iter()
-                    .map(|id| id.to_string())
-                    .collect(),
-                discovered_at: k.discovered_at().to_rfc3339(),
-                notes: k.notes().map(|s| s.to_string()),
+                lore_id: k.lore_id.to_string(),
+                character_id: k.character_id.to_string(),
+                known_chunk_ids: k.known_chunk_ids.iter().map(|id| id.to_string()).collect(),
+                discovered_at: k.discovered_at.to_rfc3339(),
+                notes: k.notes.clone(),
             })
             .collect())
     }
@@ -721,13 +709,9 @@ impl LoreOps {
         Ok(knowledge_list
             .into_iter()
             .map(|k| LoreKnowerInfo {
-                character_id: k.character_id().to_string(),
-                known_chunk_ids: k
-                    .known_chunk_ids()
-                    .iter()
-                    .map(|id| id.to_string())
-                    .collect(),
-                discovered_at: k.discovered_at().to_rfc3339(),
+                character_id: k.character_id.to_string(),
+                known_chunk_ids: k.known_chunk_ids.iter().map(|id| id.to_string()).collect(),
+                discovered_at: k.discovered_at.to_rfc3339(),
             })
             .collect())
     }
@@ -806,11 +790,11 @@ fn lore_to_detail(lore: wrldbldr_domain::Lore) -> LoreDetail {
         .chunks()
         .iter()
         .map(|c| LoreChunkDetail {
-            id: c.id().to_string(),
-            order: c.order(),
-            title: c.title().map(|s| s.to_string()),
-            content: c.content().to_string(),
-            discovery_hint: c.discovery_hint().map(|s| s.to_string()),
+            id: c.id.to_string(),
+            order: c.order,
+            title: c.title.clone(),
+            content: c.content.clone(),
+            discovery_hint: c.discovery_hint.clone(),
         })
         .collect();
 
@@ -905,7 +889,7 @@ mod tests {
         mock_repo.expect_save().returning(|saved_lore| {
             // Verify the new chunk has order 3 (next after 0,1,2)
             let new_chunk = saved_lore.chunks().last().unwrap();
-            assert_eq!(new_chunk.order(), 3);
+            assert_eq!(new_chunk.order, 3);
             Ok(())
         });
 
@@ -928,7 +912,7 @@ mod tests {
     async fn update_chunk_rejects_conflicting_order() {
         let world_id = WorldId::new();
         let lore = create_test_lore_with_chunks(world_id, &[0, 1, 2]);
-        let chunk_id = lore.chunks()[2].id(); // Chunk with order 2
+        let chunk_id = lore.chunks()[2].id; // Chunk with order 2
 
         let mut mock_repo = MockLoreRepo::new();
         mock_repo
@@ -955,7 +939,7 @@ mod tests {
     async fn delete_chunk_reindexes_remaining() {
         let world_id = WorldId::new();
         let lore = create_test_lore_with_chunks(world_id, &[0, 1, 2]);
-        let chunk_to_delete = lore.chunks()[1].id(); // Delete middle chunk (order 1)
+        let chunk_to_delete = lore.chunks()[1].id; // Delete middle chunk (order 1)
 
         let mut mock_repo = MockLoreRepo::new();
         mock_repo
@@ -964,8 +948,8 @@ mod tests {
         mock_repo.expect_save().returning(|saved_lore| {
             // After deleting chunk with order 1, remaining should be reindexed to 0, 1
             assert_eq!(saved_lore.chunks().len(), 2);
-            assert_eq!(saved_lore.chunks()[0].order(), 0);
-            assert_eq!(saved_lore.chunks()[1].order(), 1);
+            assert_eq!(saved_lore.chunks()[0].order, 0);
+            assert_eq!(saved_lore.chunks()[1].order, 1);
             Ok(())
         });
 
@@ -1103,9 +1087,9 @@ mod tests {
         mock_repo.expect_save().returning(|saved_lore| {
             // Verify auto-assigned orders are sequential starting from 0
             assert_eq!(saved_lore.chunks().len(), 3);
-            assert_eq!(saved_lore.chunks()[0].order(), 0);
-            assert_eq!(saved_lore.chunks()[1].order(), 1);
-            assert_eq!(saved_lore.chunks()[2].order(), 2);
+            assert_eq!(saved_lore.chunks()[0].order, 0);
+            assert_eq!(saved_lore.chunks()[1].order, 1);
+            assert_eq!(saved_lore.chunks()[2].order, 2);
             Ok(())
         });
 
@@ -1155,9 +1139,9 @@ mod tests {
             // Second chunk: auto-assign (should get 0, first available)
             // Third chunk: explicit order 2
             assert_eq!(saved_lore.chunks().len(), 3);
-            assert_eq!(saved_lore.chunks()[0].order(), 5);
-            assert_eq!(saved_lore.chunks()[1].order(), 0);
-            assert_eq!(saved_lore.chunks()[2].order(), 2);
+            assert_eq!(saved_lore.chunks()[0].order, 5);
+            assert_eq!(saved_lore.chunks()[1].order, 0);
+            assert_eq!(saved_lore.chunks()[2].order, 2);
             Ok(())
         });
 

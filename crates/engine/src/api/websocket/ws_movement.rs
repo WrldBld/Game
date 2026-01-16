@@ -555,14 +555,14 @@ async fn build_scene_update(
         };
 
         characters.push(CharacterData {
-            id: npc.character_id().to_string(),
-            name: npc.name().to_string(),
-            sprite_asset: npc.sprite_asset().map(|s| s.to_string()),
-            portrait_asset: npc.portrait_asset().map(|s| s.to_string()),
+            id: npc.character_id.to_string(),
+            name: npc.name.clone(),
+            sprite_asset: npc.sprite_asset.clone(),
+            portrait_asset: npc.portrait_asset.clone(),
             position,
             is_speaking: false,
             expression: None,
-            mood: Some(npc.mood().to_string()),
+            mood: Some(npc.mood.to_string()),
         });
     }
 

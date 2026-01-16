@@ -260,15 +260,15 @@ impl RegionState {
 
     /// Get a summary of this state for display
     pub fn summary(&self) -> RegionStateSummary {
-        RegionStateSummary::new(
-            self.id,
-            self.name.clone(),
-            self.backdrop_override.clone(),
-            self.atmosphere_override.clone(),
-            self.ambient_sound.clone(),
-            self.priority,
-            self.is_default,
-        )
+        RegionStateSummary {
+            id: self.id,
+            name: self.name.clone(),
+            backdrop_override: self.backdrop_override.clone(),
+            atmosphere_override: self.atmosphere_override.clone(),
+            ambient_sound: self.ambient_sound.clone(),
+            priority: self.priority,
+            is_default: self.is_default,
+        }
     }
 }
 
@@ -276,65 +276,13 @@ impl RegionState {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegionStateSummary {
-    id: RegionStateId,
-    name: String,
-    backdrop_override: Option<String>,
-    atmosphere_override: Option<String>,
-    ambient_sound: Option<String>,
-    priority: i32,
-    is_default: bool,
-}
-
-impl RegionStateSummary {
-    pub fn new(
-        id: RegionStateId,
-        name: String,
-        backdrop_override: Option<String>,
-        atmosphere_override: Option<String>,
-        ambient_sound: Option<String>,
-        priority: i32,
-        is_default: bool,
-    ) -> Self {
-        Self {
-            id,
-            name,
-            backdrop_override,
-            atmosphere_override,
-            ambient_sound,
-            priority,
-            is_default,
-        }
-    }
-
-    // Read-only accessors
-
-    pub fn id(&self) -> RegionStateId {
-        self.id
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn backdrop_override(&self) -> Option<&str> {
-        self.backdrop_override.as_deref()
-    }
-
-    pub fn atmosphere_override(&self) -> Option<&str> {
-        self.atmosphere_override.as_deref()
-    }
-
-    pub fn ambient_sound(&self) -> Option<&str> {
-        self.ambient_sound.as_deref()
-    }
-
-    pub fn priority(&self) -> i32 {
-        self.priority
-    }
-
-    pub fn is_default(&self) -> bool {
-        self.is_default
-    }
+    pub id: RegionStateId,
+    pub name: String,
+    pub backdrop_override: Option<String>,
+    pub atmosphere_override: Option<String>,
+    pub ambient_sound: Option<String>,
+    pub priority: i32,
+    pub is_default: bool,
 }
 
 #[cfg(test)]
@@ -435,11 +383,11 @@ mod tests {
         .with_priority(10);
 
         let summary = state.summary();
-        assert_eq!(summary.name(), "Morning");
+        assert_eq!(summary.name, "Morning");
         assert_eq!(
-            summary.backdrop_override(),
+            summary.backdrop_override.as_deref(),
             Some("/assets/tavern_morning.png")
         );
-        assert_eq!(summary.priority(), 10);
+        assert_eq!(summary.priority, 10);
     }
 }

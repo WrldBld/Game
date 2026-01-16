@@ -120,10 +120,10 @@ impl SceneChangeBuilder {
             .into_iter()
             .filter(|npc| include_hidden_npcs || npc.is_visible_to_players())
             .map(|npc| NpcPresenceInfo {
-                character_id: npc.character_id().to_string(),
-                name: npc.name().to_string(),
-                sprite_asset: npc.sprite_asset().map(|s| s.to_string()),
-                portrait_asset: npc.portrait_asset().map(|s| s.to_string()),
+                character_id: npc.character_id.to_string(),
+                name: npc.name.clone(),
+                sprite_asset: npc.sprite_asset.clone(),
+                portrait_asset: npc.portrait_asset.clone(),
             })
             .collect();
 

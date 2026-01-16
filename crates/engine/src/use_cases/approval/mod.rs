@@ -87,7 +87,7 @@ impl ApproveStaging {
         let current = self.staging.get_staged_npcs(region_id).await?;
         for npc in current {
             self.staging
-                .unstage_npc(region_id, npc.character_id())
+                .unstage_npc(region_id, npc.character_id)
                 .await?;
         }
         Ok(())

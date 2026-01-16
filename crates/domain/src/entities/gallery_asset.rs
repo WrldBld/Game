@@ -13,92 +13,17 @@ pub use crate::types::{AssetType, EntityType};
 #[serde(rename_all = "camelCase")]
 pub struct GenerationMetadata {
     /// ComfyUI workflow used
-    workflow: String,
+    pub workflow: String,
     /// Prompt used for generation
-    prompt: String,
+    pub prompt: String,
     /// Negative prompt (if any)
-    negative_prompt: Option<String>,
+    pub negative_prompt: Option<String>,
     /// Seed used for reproducibility
-    seed: i64,
+    pub seed: i64,
     /// Style reference asset (if any)
-    style_reference_id: Option<AssetId>,
+    pub style_reference_id: Option<AssetId>,
     /// Batch this asset was generated in
-    batch_id: BatchId,
-}
-
-impl GenerationMetadata {
-    pub fn new(
-        workflow: impl Into<String>,
-        prompt: impl Into<String>,
-        seed: i64,
-        batch_id: BatchId,
-    ) -> Self {
-        Self {
-            workflow: workflow.into(),
-            prompt: prompt.into(),
-            negative_prompt: None,
-            seed,
-            style_reference_id: None,
-            batch_id,
-        }
-    }
-
-    /// Reconstruct from stored data (e.g., database)
-    pub fn reconstruct(
-        workflow: String,
-        prompt: String,
-        negative_prompt: Option<String>,
-        seed: i64,
-        style_reference_id: Option<AssetId>,
-        batch_id: BatchId,
-    ) -> Self {
-        Self {
-            workflow,
-            prompt,
-            negative_prompt,
-            seed,
-            style_reference_id,
-            batch_id,
-        }
-    }
-
-    // --- Accessors ---
-
-    pub fn workflow(&self) -> &str {
-        &self.workflow
-    }
-
-    pub fn prompt(&self) -> &str {
-        &self.prompt
-    }
-
-    pub fn negative_prompt(&self) -> Option<&str> {
-        self.negative_prompt.as_deref()
-    }
-
-    pub fn seed(&self) -> i64 {
-        self.seed
-    }
-
-    pub fn style_reference_id(&self) -> Option<AssetId> {
-        self.style_reference_id
-    }
-
-    pub fn batch_id(&self) -> BatchId {
-        self.batch_id
-    }
-
-    // --- Builder methods ---
-
-    pub fn with_negative_prompt(mut self, negative_prompt: impl Into<String>) -> Self {
-        self.negative_prompt = Some(negative_prompt.into());
-        self
-    }
-
-    pub fn with_style_reference(mut self, style_reference_id: AssetId) -> Self {
-        self.style_reference_id = Some(style_reference_id);
-        self
-    }
+    pub batch_id: BatchId,
 }
 
 /// An asset stored in an entity's gallery

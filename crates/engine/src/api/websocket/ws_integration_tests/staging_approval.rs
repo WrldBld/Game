@@ -222,14 +222,14 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
                 && s.world_id() == world_id_for_staging
                 && s.ttl_hours() == 24 // DM-specified TTL (overrides default from settings)
                 && s.npcs().iter().any(|n| {
-                    n.character_id() == visible_npc_id_for_staging
-                        && n.is_present()
-                        && !n.is_hidden_from_players()
+                    n.character_id == visible_npc_id_for_staging
+                        && n.is_present
+                        && !n.is_hidden_from_players
                 })
                 && s.npcs().iter().any(|n| {
-                    n.character_id() == hidden_npc_id_for_staging
-                        && n.is_present()
-                        && n.is_hidden_from_players()
+                    n.character_id == hidden_npc_id_for_staging
+                        && n.is_present
+                        && n.is_hidden_from_players
                 })
         })
         .returning(|_| Ok(()));

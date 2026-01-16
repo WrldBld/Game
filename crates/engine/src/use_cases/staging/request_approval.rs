@@ -144,14 +144,14 @@ impl RequestStagingApproval {
                 .npcs()
                 .iter()
                 .map(|n| StagedNpc {
-                    character_id: n.character_id(),
-                    name: n.name().to_string(),
-                    sprite_asset: n.sprite_asset().map(|s| s.to_string()),
-                    portrait_asset: n.portrait_asset().map(|s| s.to_string()),
-                    is_present: n.is_present(),
-                    reasoning: n.reasoning().to_string(),
-                    is_hidden_from_players: n.is_hidden_from_players(),
-                    mood: Some(n.mood().to_string()),
+                    character_id: n.character_id,
+                    name: n.name.clone(),
+                    sprite_asset: n.sprite_asset.clone(),
+                    portrait_asset: n.portrait_asset.clone(),
+                    is_present: n.is_present,
+                    reasoning: n.reasoning.clone(),
+                    is_hidden_from_players: n.is_hidden_from_players,
+                    mood: Some(n.mood.to_string()),
                 })
                 .collect(),
         });

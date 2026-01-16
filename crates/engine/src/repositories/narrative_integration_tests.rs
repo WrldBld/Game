@@ -138,10 +138,7 @@ fn test_has_origin_trigger_fires_with_elf() {
 
     // Assert: Trigger should match
     let eval = event.evaluate_triggers(&ctx);
-    assert!(
-        eval.is_triggered,
-        "Elf wizard should match HasOrigin(elf)"
-    );
+    assert!(eval.is_triggered, "Elf wizard should match HasOrigin(elf)");
 }
 
 #[test]
@@ -431,10 +428,7 @@ fn test_multiple_triggers_any_logic() {
 
     // Assert: Event should trigger (one match with ANY logic)
     let eval = event.evaluate_triggers(&ctx);
-    assert!(
-        eval.is_triggered,
-        "Fighter should match ANY with GWM feat"
-    );
+    assert!(eval.is_triggered, "Fighter should match ANY with GWM feat");
     assert_eq!(eval.matched_triggers.len(), 1);
 }
 

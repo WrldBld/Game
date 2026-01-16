@@ -109,7 +109,14 @@ impl GenerateAsset {
         // Create generation metadata
         let batch_id = BatchId::new();
         let seed = rand::random::<i64>().abs(); // Random seed
-        let metadata = GenerationMetadata::new(workflow, prompt, seed, batch_id);
+        let metadata = GenerationMetadata {
+            workflow: workflow.to_string(),
+            prompt: prompt.to_string(),
+            negative_prompt: None,
+            seed,
+            style_reference_id: None,
+            batch_id,
+        };
 
         // Create the asset
         let now = self.clock.now();

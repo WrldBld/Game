@@ -109,15 +109,15 @@ impl Observation {
         // Create observations for each present, visible NPC
         for npc in npcs
             .iter()
-            .filter(|n| n.is_present() && !n.is_hidden_from_players())
+            .filter(|n| n.is_present && !n.is_hidden_from_players)
         {
             // Check if already observed to avoid duplicates
-            let already_observed = self.repo.has_observed(pc_id, npc.character_id()).await?;
+            let already_observed = self.repo.has_observed(pc_id, npc.character_id).await?;
 
             if !already_observed {
                 let observation = NpcObservation::direct(
                     pc_id,
-                    npc.character_id(),
+                    npc.character_id,
                     location_id,
                     region_id,
                     game_time, // Game time for when the observation occurred in-game

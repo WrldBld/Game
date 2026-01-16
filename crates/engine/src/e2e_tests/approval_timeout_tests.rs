@@ -203,13 +203,13 @@ async fn test_staging_timeout_uses_rule_based_npcs() {
     // All staged NPCs should have auto-approved reasoning
     for npc in &staged_npcs {
         assert!(
-            npc.reasoning().contains("[Auto-approved]")
-                || npc.reasoning().contains("Lives here")
-                || npc.reasoning().contains("Works here")
-                || npc.reasoning().contains("Frequents"),
+            npc.reasoning.contains("[Auto-approved]")
+                || npc.reasoning.contains("Lives here")
+                || npc.reasoning.contains("Works here")
+                || npc.reasoning.contains("Frequents"),
             "Staged NPC {} should have rule-based reasoning, got: {}",
-            npc.name(),
-            npc.reasoning()
+            npc.name,
+            npc.reasoning
         );
     }
 }
@@ -330,7 +330,7 @@ async fn test_player_can_interact_after_auto_staging() {
         );
 
         // Get the first available NPC for conversation
-        let npc_id = staged_npcs[0].character_id();
+        let npc_id = staged_npcs[0].character_id;
 
         // Start conversation with the auto-staged NPC
         let (conversation_id, response) = start_conversation_with_npc(
@@ -533,7 +533,7 @@ async fn test_dm_can_still_modify_after_auto_approve() {
     assert!(
         updated_staged_npcs
             .iter()
-            .any(|npc| npc.character_id() == mira_id),
+            .any(|npc| npc.character_id == mira_id),
         "Mira should be in the updated staging"
     );
 
@@ -549,7 +549,7 @@ async fn test_dm_can_still_modify_after_auto_approve() {
     assert!(
         updated_staged_npcs
             .iter()
-            .any(|npc| npc.reasoning().contains("DM added Mira")),
+            .any(|npc| npc.reasoning.contains("DM added Mira")),
         "Staging should contain DM's reasoning for Mira"
     );
 }

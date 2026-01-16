@@ -138,64 +138,15 @@ impl Item {
 #[serde(rename_all = "camelCase")]
 pub struct InventoryItem {
     /// The item being possessed
-    item: Item,
+    pub item: Item,
     /// How many of this item the character has
-    quantity: u32,
+    pub quantity: u32,
     /// Whether the item is currently equipped/held
-    equipped: bool,
+    pub equipped: bool,
     /// When the item was acquired
-    acquired_at: DateTime<Utc>,
+    pub acquired_at: DateTime<Utc>,
     /// How the item was acquired
-    acquisition_method: Option<AcquisitionMethod>,
-}
-
-impl InventoryItem {
-    pub fn new(item: Item, quantity: u32, now: DateTime<Utc>) -> Self {
-        Self {
-            item,
-            quantity,
-            equipped: false,
-            acquired_at: now,
-            acquisition_method: None,
-        }
-    }
-
-    // Read accessors
-    pub fn item(&self) -> &Item {
-        &self.item
-    }
-
-    pub fn quantity(&self) -> u32 {
-        self.quantity
-    }
-
-    pub fn is_equipped(&self) -> bool {
-        self.equipped
-    }
-
-    pub fn acquired_at(&self) -> DateTime<Utc> {
-        self.acquired_at
-    }
-
-    pub fn acquisition_method(&self) -> Option<AcquisitionMethod> {
-        self.acquisition_method
-    }
-
-    // Builder methods
-    pub fn equipped(mut self) -> Self {
-        self.equipped = true;
-        self
-    }
-
-    pub fn with_acquisition(mut self, method: AcquisitionMethod) -> Self {
-        self.acquisition_method = Some(method);
-        self
-    }
-
-    pub fn with_quantity(mut self, quantity: u32) -> Self {
-        self.quantity = quantity;
-        self
-    }
+    pub acquisition_method: Option<AcquisitionMethod>,
 }
 
 /// How an item was acquired

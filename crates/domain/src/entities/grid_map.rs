@@ -137,12 +137,12 @@ impl GridMap {
         let from_tile = self.get_tile(from.0, from.1)?;
         let to_tile = self.get_tile(to.0, to.1)?;
 
-        if !to_tile.is_passable() {
+        if !to_tile.passable {
             return None;
         }
 
-        let elevation_diff = (to_tile.elevation() - from_tile.elevation()).abs();
-        let base_cost = to_tile.terrain_type().movement_cost();
+        let elevation_diff = (to_tile.elevation - from_tile.elevation).abs();
+        let base_cost = to_tile.terrain_type.movement_cost();
 
         // Climbing costs extra
         Some(base_cost.saturating_add(elevation_diff as u32))
@@ -153,15 +153,15 @@ impl GridMap {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Tile {
-    terrain_type: TerrainType,
+    pub terrain_type: TerrainType,
     /// Elevation level (supports height differences)
-    elevation: i32,
+    pub elevation: i32,
     /// Index into the tilesheet
-    tile_index: u32,
+    pub tile_index: u32,
     /// Whether units can move through this tile
-    passable: bool,
+    pub passable: bool,
     /// Cover value for combat (0 = none, 1 = light, 2 = heavy)
-    cover_value: u8,
+    pub cover_value: u8,
 }
 
 impl Default for Tile {
@@ -202,28 +202,6 @@ impl Tile {
             passable,
             cover_value,
         }
-    }
-
-    // Read-only accessors
-
-    pub fn terrain_type(&self) -> TerrainType {
-        self.terrain_type
-    }
-
-    pub fn elevation(&self) -> i32 {
-        self.elevation
-    }
-
-    pub fn tile_index(&self) -> u32 {
-        self.tile_index
-    }
-
-    pub fn is_passable(&self) -> bool {
-        self.passable
-    }
-
-    pub fn cover_value(&self) -> u8 {
-        self.cover_value
     }
 
     // Builder-style methods

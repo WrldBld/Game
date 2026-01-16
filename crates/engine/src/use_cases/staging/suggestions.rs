@@ -64,16 +64,16 @@ pub async fn generate_rule_based_suggestions(
 
     if let Ok(staged_npcs) = staging.get_staged_npcs(region_id).await {
         for staged in staged_npcs {
-            if !existing_ids.contains(&staged.character_id()) {
+            if !existing_ids.contains(&staged.character_id) {
                 suggestions.push(StagedNpc {
-                    character_id: staged.character_id(),
-                    name: staged.name().to_string(),
-                    sprite_asset: staged.sprite_asset().map(|s| s.to_string()),
-                    portrait_asset: staged.portrait_asset().map(|s| s.to_string()),
-                    is_present: staged.is_present(),
-                    reasoning: staged.reasoning().to_string(),
-                    is_hidden_from_players: staged.is_hidden_from_players(),
-                    mood: Some(staged.mood().to_string()),
+                    character_id: staged.character_id,
+                    name: staged.name.clone(),
+                    sprite_asset: staged.sprite_asset.clone(),
+                    portrait_asset: staged.portrait_asset.clone(),
+                    is_present: staged.is_present,
+                    reasoning: staged.reasoning.clone(),
+                    is_hidden_from_players: staged.is_hidden_from_players,
+                    mood: Some(staged.mood.to_string()),
                 });
             }
         }

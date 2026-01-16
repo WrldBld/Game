@@ -248,11 +248,11 @@ impl Want {
 #[serde(rename_all = "camelCase")]
 pub struct CharacterWant {
     /// The want node
-    want: Want,
+    pub want: Want,
     /// Priority (1 = primary want, 2 = secondary, etc.)
-    priority: u32,
+    pub priority: u32,
     /// When this want was acquired
-    acquired_at: DateTime<Utc>,
+    pub acquired_at: DateTime<Utc>,
 }
 
 impl CharacterWant {
@@ -262,20 +262,6 @@ impl CharacterWant {
             priority,
             acquired_at: now,
         }
-    }
-
-    // === Accessors ===
-
-    pub fn want(&self) -> &Want {
-        &self.want
-    }
-
-    pub fn priority(&self) -> u32 {
-        self.priority
-    }
-
-    pub fn acquired_at(&self) -> DateTime<Utc> {
-        self.acquired_at
     }
 
     // === Builder Methods ===
@@ -330,11 +316,11 @@ pub enum ActantialRole {
 #[serde(rename_all = "camelCase")]
 pub struct ActantialView {
     /// Which want this relates to
-    want_id: WantId,
+    pub want_id: WantId,
     /// Why the character views the target this way
-    reason: String,
+    pub reason: String,
     /// When this view was assigned
-    assigned_at: DateTime<Utc>,
+    pub assigned_at: DateTime<Utc>,
 }
 
 impl ActantialView {
@@ -344,20 +330,6 @@ impl ActantialView {
             reason: reason.into(),
             assigned_at: now,
         }
-    }
-
-    // === Accessors ===
-
-    pub fn want_id(&self) -> WantId {
-        self.want_id
-    }
-
-    pub fn reason(&self) -> &str {
-        &self.reason
-    }
-
-    pub fn assigned_at(&self) -> DateTime<Utc> {
-        self.assigned_at
     }
 
     // === Builder Methods ===

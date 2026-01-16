@@ -152,25 +152,15 @@ impl ClassFeature {
 #[serde(rename_all = "camelCase")]
 pub struct FeatureUses {
     /// How many uses the feature has
-    max: UsesFormula,
+    pub max: UsesFormula,
     /// When uses are restored
-    recharge: RechargeType,
+    pub recharge: RechargeType,
 }
 
 impl FeatureUses {
     /// Create new feature uses.
     pub fn new(max: UsesFormula, recharge: RechargeType) -> Self {
         Self { max, recharge }
-    }
-
-    /// Get the maximum uses formula.
-    pub fn max(&self) -> &UsesFormula {
-        &self.max
-    }
-
-    /// Get the recharge type.
-    pub fn recharge(&self) -> RechargeType {
-        self.recharge
     }
 
     /// Create uses that recharge on a short rest.
@@ -457,11 +447,11 @@ mod tests {
     #[test]
     fn feature_uses_constructors() {
         let uses = FeatureUses::fixed_long_rest(2);
-        assert!(matches!(uses.max(), UsesFormula::Fixed { value: 2 }));
-        assert_eq!(uses.recharge(), RechargeType::LongRest);
+        assert!(matches!(uses.max, UsesFormula::Fixed { value: 2 }));
+        assert_eq!(uses.recharge, RechargeType::LongRest);
 
         let uses = FeatureUses::proficiency_long_rest();
-        assert!(matches!(uses.max(), UsesFormula::ProficiencyBonus));
+        assert!(matches!(uses.max, UsesFormula::ProficiencyBonus));
     }
 
     #[test]

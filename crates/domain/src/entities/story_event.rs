@@ -555,9 +555,9 @@ pub enum DmMarkerType {
 #[serde(rename_all = "camelCase")]
 pub struct InvolvedCharacter {
     /// The character ID
-    character_id: CharacterId,
+    pub character_id: CharacterId,
     /// Role in the event (e.g., "Speaker", "Target", "Witness", "Actor")
-    role: String,
+    pub role: String,
 }
 
 impl InvolvedCharacter {
@@ -566,15 +566,6 @@ impl InvolvedCharacter {
             character_id,
             role: role.into(),
         }
-    }
-
-    // Read accessors
-    pub fn character_id(&self) -> CharacterId {
-        self.character_id
-    }
-
-    pub fn role(&self) -> &str {
-        &self.role
     }
 
     /// Create an involved character with the "Actor" role

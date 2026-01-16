@@ -201,28 +201,24 @@ impl StagingRepo for Neo4jStagingRepo {
         let npc_character_ids: Vec<String> = staging
             .npcs()
             .iter()
-            .map(|n| n.character_id().to_string())
+            .map(|n| n.character_id.to_string())
             .collect();
-        let npc_is_present: Vec<bool> = staging.npcs().iter().map(|n| n.is_present()).collect();
+        let npc_is_present: Vec<bool> = staging.npcs().iter().map(|n| n.is_present).collect();
         let npc_is_hidden_from_players: Vec<bool> = staging
             .npcs()
             .iter()
-            .map(|n| n.is_hidden_from_players())
+            .map(|n| n.is_hidden_from_players)
             .collect();
         let npc_reasoning: Vec<String> = staging
             .npcs()
             .iter()
-            .map(|n| n.reasoning().to_string())
+            .map(|n| n.reasoning.to_string())
             .collect();
-        let npc_mood: Vec<String> = staging
-            .npcs()
-            .iter()
-            .map(|n| n.mood().to_string())
-            .collect();
+        let npc_mood: Vec<String> = staging.npcs().iter().map(|n| n.mood.to_string()).collect();
         let npc_has_incomplete_data: Vec<bool> = staging
             .npcs()
             .iter()
-            .map(|n| n.has_incomplete_data())
+            .map(|n| n.has_incomplete_data)
             .collect();
 
         // Create staging and all NPC relationships in one query (no APOC)

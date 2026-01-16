@@ -124,7 +124,7 @@ async fn test_staging_npc_in_region() {
 
         assert!(!staged.is_empty(), "No NPCs staged");
         assert!(
-            staged.iter().any(|s| s.character_id() == marta_id),
+            staged.iter().any(|s| s.character_id == marta_id),
             "Marta not found in staged NPCs"
         );
 

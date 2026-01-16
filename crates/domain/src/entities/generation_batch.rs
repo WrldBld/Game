@@ -191,111 +191,13 @@ impl GenerationBatch {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GenerationRequest {
-    world_id: WorldId,
-    entity_type: EntityType,
-    entity_id: String,
-    asset_type: AssetType,
-    workflow: String,
-    prompt: String,
-    negative_prompt: Option<String>,
-    count: u8,
-    style_reference_id: Option<AssetId>,
-}
-
-impl GenerationRequest {
-    /// Create a new generation request
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        world_id: WorldId,
-        entity_type: EntityType,
-        entity_id: impl Into<String>,
-        asset_type: AssetType,
-        workflow: impl Into<String>,
-        prompt: impl Into<String>,
-        count: u8,
-    ) -> Self {
-        Self {
-            world_id,
-            entity_type,
-            entity_id: entity_id.into(),
-            asset_type,
-            workflow: workflow.into(),
-            prompt: prompt.into(),
-            negative_prompt: None,
-            count,
-            style_reference_id: None,
-        }
-    }
-
-    // --- Accessors ---
-
-    pub fn world_id(&self) -> WorldId {
-        self.world_id
-    }
-
-    pub fn entity_type(&self) -> EntityType {
-        self.entity_type
-    }
-
-    pub fn entity_id(&self) -> &str {
-        &self.entity_id
-    }
-
-    pub fn asset_type(&self) -> AssetType {
-        self.asset_type
-    }
-
-    pub fn workflow(&self) -> &str {
-        &self.workflow
-    }
-
-    pub fn prompt(&self) -> &str {
-        &self.prompt
-    }
-
-    pub fn negative_prompt(&self) -> Option<&str> {
-        self.negative_prompt.as_deref()
-    }
-
-    pub fn count(&self) -> u8 {
-        self.count
-    }
-
-    pub fn style_reference_id(&self) -> Option<AssetId> {
-        self.style_reference_id
-    }
-
-    // --- Builder methods ---
-
-    pub fn with_negative_prompt(mut self, negative_prompt: impl Into<String>) -> Self {
-        self.negative_prompt = Some(negative_prompt.into());
-        self
-    }
-
-    pub fn with_style_reference(mut self, style_reference_id: AssetId) -> Self {
-        self.style_reference_id = Some(style_reference_id);
-        self
-    }
-
-    // --- Conversion ---
-
-    pub fn into_batch(self, now: DateTime<Utc>) -> GenerationBatch {
-        let mut batch = GenerationBatch::new(
-            self.world_id,
-            self.entity_type,
-            self.entity_id,
-            self.asset_type,
-            self.workflow,
-            self.prompt,
-            self.count,
-            now,
-        );
-        if let Some(neg) = self.negative_prompt {
-            batch = batch.with_negative_prompt(neg);
-        }
-        if let Some(style_ref) = self.style_reference_id {
-            batch = batch.with_style_reference(style_ref);
-        }
-        batch
-    }
+    pub world_id: WorldId,
+    pub entity_type: EntityType,
+    pub entity_id: String,
+    pub asset_type: AssetType,
+    pub workflow: String,
+    pub prompt: String,
+    pub negative_prompt: Option<String>,
+    pub count: u8,
+    pub style_reference_id: Option<AssetId>,
 }

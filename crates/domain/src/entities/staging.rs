@@ -55,25 +55,25 @@ pub struct Staging {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StagedNpc {
-    character_id: CharacterId,
+    pub character_id: CharacterId,
     /// Denormalized for display
-    name: String,
-    sprite_asset: Option<String>,
-    portrait_asset: Option<String>,
+    pub name: String,
+    pub sprite_asset: Option<String>,
+    pub portrait_asset: Option<String>,
     /// Whether NPC is present in this staging
-    is_present: bool,
+    pub is_present: bool,
     /// When true, NPC is present but hidden from players
-    is_hidden_from_players: bool,
+    pub is_hidden_from_players: bool,
     /// Reasoning for presence/absence (from rules or LLM)
-    reasoning: String,
+    pub reasoning: String,
     /// NPC's current mood for this staging (Tier 2 of emotional model)
     /// Affects default expression and dialogue tone
     /// Set by DM during staging approval, or defaults to character's default_mood
-    mood: MoodState,
+    pub mood: MoodState,
     /// When true, character data was not found during staging approval.
     /// This NPC was included with empty defaults and may need attention.
     #[serde(default)]
-    has_incomplete_data: bool,
+    pub has_incomplete_data: bool,
 }
 
 impl StagedNpc {
@@ -94,43 +94,6 @@ impl StagedNpc {
             mood: MoodState::default(),
             has_incomplete_data: false,
         }
-    }
-
-    // Read accessors
-    pub fn character_id(&self) -> CharacterId {
-        self.character_id
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn sprite_asset(&self) -> Option<&str> {
-        self.sprite_asset.as_deref()
-    }
-
-    pub fn portrait_asset(&self) -> Option<&str> {
-        self.portrait_asset.as_deref()
-    }
-
-    pub fn is_present(&self) -> bool {
-        self.is_present
-    }
-
-    pub fn is_hidden_from_players(&self) -> bool {
-        self.is_hidden_from_players
-    }
-
-    pub fn reasoning(&self) -> &str {
-        &self.reasoning
-    }
-
-    pub fn mood(&self) -> MoodState {
-        self.mood
-    }
-
-    pub fn has_incomplete_data(&self) -> bool {
-        self.has_incomplete_data
     }
 
     /// Returns true if this NPC should be visible to players.
@@ -204,19 +167,19 @@ pub enum VisualStateSource {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolvedVisualState {
-    location_state: Option<ResolvedStateInfo>,
-    region_state: Option<ResolvedStateInfo>,
+    pub location_state: Option<ResolvedStateInfo>,
+    pub region_state: Option<ResolvedStateInfo>,
 }
 
 /// Info about a resolved state for display
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolvedStateInfo {
-    id: String,
-    name: String,
-    backdrop_override: Option<String>,
-    atmosphere_override: Option<String>,
-    ambient_sound: Option<String>,
+    pub id: String,
+    pub name: String,
+    pub backdrop_override: Option<String>,
+    pub atmosphere_override: Option<String>,
+    pub ambient_sound: Option<String>,
 }
 
 impl Staging {
@@ -491,15 +454,6 @@ impl ResolvedVisualState {
         }
     }
 
-    // Read accessors
-    pub fn location_state(&self) -> Option<&ResolvedStateInfo> {
-        self.location_state.as_ref()
-    }
-
-    pub fn region_state(&self) -> Option<&ResolvedStateInfo> {
-        self.region_state.as_ref()
-    }
-
     // Builder methods
     pub fn with_location_state(mut self, info: ResolvedStateInfo) -> Self {
         self.location_state = Some(info);
@@ -531,27 +485,6 @@ impl ResolvedStateInfo {
             atmosphere_override: None,
             ambient_sound: None,
         }
-    }
-
-    // Read accessors
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn backdrop_override(&self) -> Option<&str> {
-        self.backdrop_override.as_deref()
-    }
-
-    pub fn atmosphere_override(&self) -> Option<&str> {
-        self.atmosphere_override.as_deref()
-    }
-
-    pub fn ambient_sound(&self) -> Option<&str> {
-        self.ambient_sound.as_deref()
     }
 
     // Builder methods
