@@ -3,8 +3,9 @@
 use async_trait::async_trait;
 use sqlx::{Row, SqlitePool};
 use std::sync::Arc;
-use wrldbldr_domain::{AppSettings, WorldId};
+use wrldbldr_domain::WorldId;
 
+use crate::infrastructure::app_settings::AppSettings;
 use crate::infrastructure::ports::{ClockPort, RepoError, SettingsRepo};
 
 /// SQLite implementation for application settings storage.

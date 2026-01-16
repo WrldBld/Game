@@ -9,6 +9,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::app::App;
+use crate::infrastructure::app_settings::AppSettings;
 
 /// Create all HTTP routes.
 pub fn routes() -> Router<Arc<App>> {
@@ -103,9 +104,7 @@ async fn import_world(
 // Settings
 // =============================================================================
 
-async fn get_settings(
-    State(app): State<Arc<App>>,
-) -> Result<Json<wrldbldr_domain::AppSettings>, ApiError> {
+async fn get_settings(State(app): State<Arc<App>>) -> Result<Json<AppSettings>, ApiError> {
     let settings = app
         .use_cases
         .settings
@@ -117,8 +116,8 @@ async fn get_settings(
 
 async fn update_settings(
     State(app): State<Arc<App>>,
-    Json(settings): Json<wrldbldr_domain::AppSettings>,
-) -> Result<Json<wrldbldr_domain::AppSettings>, ApiError> {
+    Json(settings): Json<AppSettings>,
+) -> Result<Json<AppSettings>, ApiError> {
     let updated = app
         .use_cases
         .settings
@@ -128,9 +127,7 @@ async fn update_settings(
     Ok(Json(updated))
 }
 
-async fn reset_settings(
-    State(app): State<Arc<App>>,
-) -> Result<Json<wrldbldr_domain::AppSettings>, ApiError> {
+async fn reset_settings(State(app): State<Arc<App>>) -> Result<Json<AppSettings>, ApiError> {
     let settings = app
         .use_cases
         .settings
@@ -149,7 +146,7 @@ async fn get_settings_metadata(
 async fn get_world_settings(
     State(app): State<Arc<App>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<wrldbldr_domain::AppSettings>, ApiError> {
+) -> Result<Json<AppSettings>, ApiError> {
     let settings = app
         .use_cases
         .settings
@@ -162,8 +159,8 @@ async fn get_world_settings(
 async fn update_world_settings(
     State(app): State<Arc<App>>,
     Path(id): Path<Uuid>,
-    Json(settings): Json<wrldbldr_domain::AppSettings>,
-) -> Result<Json<wrldbldr_domain::AppSettings>, ApiError> {
+    Json(settings): Json<AppSettings>,
+) -> Result<Json<AppSettings>, ApiError> {
     if let Some(world_id) = settings.world_id() {
         if world_id != wrldbldr_domain::WorldId::from_uuid(id) {
             return Err(ApiError::BadRequest(
@@ -184,7 +181,7 @@ async fn update_world_settings(
 async fn reset_world_settings(
     State(app): State<Arc<App>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<wrldbldr_domain::AppSettings>, ApiError> {
+) -> Result<Json<AppSettings>, ApiError> {
     let settings = app
         .use_cases
         .settings
@@ -353,8 +350,8 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), axum::http::StatusCode::OK);
-        let settings: wrldbldr_domain::AppSettings = read_body_json(response).await;
-        assert_eq!(settings, wrldbldr_domain::AppSettings::default());
+        let settings: AppSettings = read_body_json(response).await;
+        assert_eq!(settings, AppSettings::default());
     }
 
     #[tokio::test]
@@ -390,7 +387,7 @@ mod tests {
 
         let world_id = Uuid::new_v4();
         let other_world_id = Uuid::new_v4();
-        let mut settings = wrldbldr_domain::AppSettings::default();
+        let settings = AppSettings::default();
         let settings =
             settings.with_world_id(Some(wrldbldr_domain::WorldId::from_uuid(other_world_id)));
 

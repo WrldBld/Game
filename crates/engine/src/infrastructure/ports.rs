@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use wrldbldr_domain::*;
 
+use crate::infrastructure::app_settings::AppSettings;
 use crate::queue_types::{
     ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
 };

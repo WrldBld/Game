@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use wrldbldr_domain::WorldId;
 
+use crate::infrastructure::app_settings::AppSettings;
 use crate::infrastructure::ports::RepoError;
 use crate::repositories::Settings;
 
@@ -48,7 +49,7 @@ async fn get_settings_with_fallback(
     settings: &Settings,
     world_id: WorldId,
     operation: &str,
-) -> wrldbldr_domain::AppSettings {
+) -> AppSettings {
     match settings.get_for_world(world_id).await {
         Ok(settings) => settings,
         Err(e) => {
@@ -58,7 +59,7 @@ async fn get_settings_with_fallback(
                 "Failed to load world settings for {}, using defaults",
                 operation
             );
-            wrldbldr_domain::AppSettings::default()
+            AppSettings::default()
         }
     }
 }

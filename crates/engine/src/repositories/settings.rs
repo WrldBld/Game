@@ -5,10 +5,11 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::{AppSettings, WorldId};
+use wrldbldr_domain::WorldId;
 use wrldbldr_protocol::settings::settings_metadata;
 use wrldbldr_protocol::settings::SettingsFieldMetadata;
 
+use crate::infrastructure::app_settings::AppSettings;
 use crate::infrastructure::ports::{RepoError, SettingsRepo};
 
 /// Settings entity operations.

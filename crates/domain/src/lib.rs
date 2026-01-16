@@ -221,8 +221,6 @@ pub use ids::{
 // Re-export value objects (explicit list in value_objects/mod.rs)
 pub use value_objects::{
     // Functions
-    count_tokens,
-    exceeds_token_budget,
     parse_dialogue,
     parse_dialogue_markers,
     validate_markers,
@@ -239,12 +237,9 @@ pub use value_objects::{
     ActorType,
     // Ad-hoc outcomes
     AdHocOutcomes,
-    // Settings
-    AppSettings,
     ApprovalType,
     // Archetype types
     ArchetypeChange,
-    BatchQueueFailurePolicy,
     // Rule system types
     BladesPoolThresholds,
     // Archetype
@@ -255,9 +250,6 @@ pub use value_objects::{
     CharacterName,
     // Character state
     CharacterState,
-    // Context budget
-    ContextBudgetConfig,
-    ContextCategory,
     ConversationEntry,
     Description,
     // Dice types
@@ -314,8 +306,6 @@ pub use value_objects::{
     StatModifier,
     StatValue,
     SuccessComparison,
-    TokenCountMethod,
-    TokenCounter,
     ToneGuidance,
     WantContext,
     WantTarget,

@@ -2,6 +2,7 @@
 //!
 //! Contains port trait implementations for external dependencies.
 
+pub mod app_settings;
 pub mod cache;
 pub mod circuit_breaker;
 pub mod clock;

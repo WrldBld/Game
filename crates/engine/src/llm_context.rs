@@ -5,7 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_domain::{ActorType, ContextBudgetConfig};
+use crate::infrastructure::app_settings::ContextBudgetConfig;
+use wrldbldr_domain::ActorType;
 
 /// Request for generating an NPC response.
 #[derive(Debug, Clone, Serialize, Deserialize)]

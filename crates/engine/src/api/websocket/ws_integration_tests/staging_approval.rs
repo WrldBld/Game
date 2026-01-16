@@ -201,10 +201,11 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         .returning(|_| Ok(vec![]));
 
     // Settings: return defaults (default_presence_cache_ttl_hours = 3)
-    repos
-        .settings_repo
-        .expect_get_for_world()
-        .returning(|_| Ok(Some(wrldbldr_domain::AppSettings::default())));
+    repos.settings_repo.expect_get_for_world().returning(|_| {
+        Ok(Some(
+            crate::infrastructure::app_settings::AppSettings::default(),
+        ))
+    });
 
     // Staging approval persists full per-NPC info (including hidden flags).
     let region_id_for_staging = region_id;
@@ -436,8 +437,8 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
     );
 
     // Custom settings with non-default TTL (7 hours instead of default 3)
-    let custom_settings =
-        wrldbldr_domain::AppSettings::default().with_default_presence_cache_ttl_hours(7);
+    let custom_settings = crate::infrastructure::app_settings::AppSettings::default()
+        .with_default_presence_cache_ttl_hours(7);
 
     // World repo
     let mut world_repo = MockWorldRepo::new();

@@ -116,12 +116,12 @@ Acceptance:
 - State machine flags are expressed as enums, not multiple booleans.
 
 ### 1.7 Move infrastructure settings out of domain
-- [ ] Move `AppSettings` from `domain/src/value_objects/settings.rs` to `engine/src/infrastructure/settings.rs`.
-- [ ] Move `ContextBudgetConfig` and related types to engine (LLM infrastructure concern).
-- [ ] Update all imports across engine, protocol, and player crates.
-- [ ] Domain functions needing validation limits (e.g., `CharacterName::new`) receive them as parameters.
-- [ ] Remove `settings.rs` from domain `value_objects/mod.rs` exports.
-- [ ] Ensure protocol can still serialize/deserialize settings for wire transmission.
+- [x] Move `AppSettings` from `domain/src/value_objects/settings.rs` to `engine/src/infrastructure/settings.rs`.
+- [x] Move `ContextBudgetConfig` and related types to engine (LLM infrastructure concern).
+- [x] Update all imports across engine, protocol, and player crates.
+- [x] Domain functions needing validation limits (e.g., `CharacterName::new`) receive them as parameters.
+- [x] Remove `settings.rs` from domain `value_objects/mod.rs` exports.
+- [x] Ensure protocol can still serialize/deserialize settings for wire transmission.
 
 Acceptance:
 - `crates/domain/src/value_objects/settings.rs` no longer exists.
@@ -380,7 +380,7 @@ Acceptance:
 - [x] Phase 1.4 complete
 - [x] Phase 1.5 complete
 - [x] Phase 1.6 complete
-- [ ] Phase 1.7 complete
+- [x] Phase 1.7 complete
 - [ ] Phase 2.1 complete
 - [ ] Phase 3.1 complete
 - [ ] Phase 3.2 complete
