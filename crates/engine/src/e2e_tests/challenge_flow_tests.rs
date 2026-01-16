@@ -704,7 +704,10 @@ async fn test_active_challenges_in_prompt_context() {
 
         // Verify challenge has required fields populated
         for challenge in &challenges {
-            assert!(!challenge.name().is_empty(), "Challenge should have name");
+            assert!(
+                !challenge.name().as_str().is_empty(),
+                "Challenge should have name"
+            );
             assert!(
                 !challenge.description().is_empty(),
                 "Challenge should have description"

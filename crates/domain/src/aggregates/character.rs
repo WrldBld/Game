@@ -26,7 +26,7 @@ use crate::events::{
     ResurrectOutcome,
 };
 use crate::value_objects::{
-    ArchetypeChange, CampbellArchetype, CharacterName, CharacterState, Description,
+    ArchetypeChange, AssetPath, CampbellArchetype, CharacterName, CharacterState, Description,
     DispositionLevel, ExpressionConfig, MoodState,
 };
 use wrldbldr_domain::{CharacterId, WorldId};
@@ -68,8 +68,8 @@ pub struct Character {
     description: Description,
 
     // Assets
-    sprite_asset: Option<String>,
-    portrait_asset: Option<String>,
+    sprite_asset: Option<AssetPath>,
+    portrait_asset: Option<AssetPath>,
 
     // Campbell Archetype System (Layered)
     base_archetype: CampbellArchetype,
@@ -166,14 +166,14 @@ impl Character {
 
     /// Returns the path to the character's sprite asset, if any.
     #[inline]
-    pub fn sprite_asset(&self) -> Option<&str> {
-        self.sprite_asset.as_deref()
+    pub fn sprite_asset(&self) -> Option<&AssetPath> {
+        self.sprite_asset.as_ref()
     }
 
     /// Returns the path to the character's portrait asset, if any.
     #[inline]
-    pub fn portrait_asset(&self) -> Option<&str> {
-        self.portrait_asset.as_deref()
+    pub fn portrait_asset(&self) -> Option<&AssetPath> {
+        self.portrait_asset.as_ref()
     }
 
     // =========================================================================
@@ -298,14 +298,14 @@ impl Character {
     }
 
     /// Set the character's sprite asset path.
-    pub fn with_sprite(mut self, asset_path: impl Into<String>) -> Self {
-        self.sprite_asset = Some(asset_path.into());
+    pub fn with_sprite(mut self, asset_path: AssetPath) -> Self {
+        self.sprite_asset = Some(asset_path);
         self
     }
 
     /// Set the character's portrait asset path.
-    pub fn with_portrait(mut self, asset_path: impl Into<String>) -> Self {
-        self.portrait_asset = Some(asset_path.into());
+    pub fn with_portrait(mut self, asset_path: AssetPath) -> Self {
+        self.portrait_asset = Some(asset_path);
         self
     }
 
@@ -606,7 +606,7 @@ impl Character {
     }
 
     /// Set the character's sprite asset path.
-    pub fn set_sprite(&mut self, path: Option<String>) -> CharacterUpdate {
+    pub fn set_sprite(&mut self, path: Option<AssetPath>) -> CharacterUpdate {
         let previous = std::mem::replace(&mut self.sprite_asset, path);
         CharacterUpdate::SpriteChanged {
             from: previous,
@@ -615,7 +615,7 @@ impl Character {
     }
 
     /// Set the character's portrait asset path.
-    pub fn set_portrait(&mut self, path: Option<String>) -> CharacterUpdate {
+    pub fn set_portrait(&mut self, path: Option<AssetPath>) -> CharacterUpdate {
         let previous = std::mem::replace(&mut self.portrait_asset, path);
         CharacterUpdate::PortraitChanged {
             from: previous,
@@ -636,8 +636,8 @@ struct CharacterWireFormat {
     world_id: WorldId,
     name: CharacterName,
     description: Description,
-    sprite_asset: Option<String>,
-    portrait_asset: Option<String>,
+    sprite_asset: Option<AssetPath>,
+    portrait_asset: Option<AssetPath>,
     base_archetype: CampbellArchetype,
     current_archetype: CampbellArchetype,
     archetype_history: Vec<ArchetypeChange>,
@@ -724,13 +724,17 @@ impl<'de> Deserialize<'de> for Character {
             }
         };
 
+        // Convert legacy String asset paths to AssetPath (skip invalid ones)
+        let sprite_asset = legacy.sprite_asset.and_then(|s| AssetPath::new(s).ok());
+        let portrait_asset = legacy.portrait_asset.and_then(|s| AssetPath::new(s).ok());
+
         Ok(Character {
             id: legacy.id,
             world_id: legacy.world_id,
             name: legacy.name,
             description: legacy.description,
-            sprite_asset: legacy.sprite_asset,
-            portrait_asset: legacy.portrait_asset,
+            sprite_asset,
+            portrait_asset,
             base_archetype: legacy.base_archetype,
             current_archetype: legacy.current_archetype,
             archetype_history: legacy.archetype_history,
@@ -788,15 +792,23 @@ mod tests {
             let world_id = WorldId::new();
             let name = CharacterName::new("Frodo").unwrap();
             let desc = Description::new("A hobbit").unwrap();
+            let sprite = AssetPath::new("sprites/frodo.png").unwrap();
+            let portrait = AssetPath::new("portraits/frodo.png").unwrap();
             let character = Character::new(world_id, name, CampbellArchetype::Hero)
                 .with_description(desc)
-                .with_sprite("sprites/frodo.png")
-                .with_portrait("portraits/frodo.png")
+                .with_sprite(sprite)
+                .with_portrait(portrait)
                 .with_default_disposition(DispositionLevel::Friendly);
 
             assert_eq!(character.description().as_str(), "A hobbit");
-            assert_eq!(character.sprite_asset(), Some("sprites/frodo.png"));
-            assert_eq!(character.portrait_asset(), Some("portraits/frodo.png"));
+            assert_eq!(
+                character.sprite_asset().map(|p| p.as_str()),
+                Some("sprites/frodo.png")
+            );
+            assert_eq!(
+                character.portrait_asset().map(|p| p.as_str()),
+                Some("portraits/frodo.png")
+            );
             assert_eq!(character.default_disposition(), DispositionLevel::Friendly);
         }
     }

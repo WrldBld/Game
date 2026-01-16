@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::DomainError;
 use crate::ids::{CharacterId, LoreChunkId, LoreId, WorldId};
+use crate::value_objects::Tag;
 
 /// A piece of world knowledge that can be discovered
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -38,7 +39,7 @@ pub struct Lore {
     is_common_knowledge: bool,
 
     /// Tags for filtering/searching
-    tags: Vec<String>,
+    tags: Vec<Tag>,
 
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -172,7 +173,7 @@ impl Lore {
         self.is_common_knowledge
     }
 
-    pub fn tags(&self) -> &[String] {
+    pub fn tags(&self) -> &[Tag] {
         &self.tags
     }
 
@@ -217,8 +218,13 @@ impl Lore {
         self
     }
 
-    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+    pub fn with_tags(mut self, tags: Vec<Tag>) -> Self {
         self.tags = tags;
+        self
+    }
+
+    pub fn with_tag(mut self, tag: Tag) -> Self {
+        self.tags.push(tag);
         self
     }
 
@@ -431,7 +437,8 @@ mod tests {
             .with_summary("A test lore entry")
             .with_chunk("First chunk of content")
             .with_chunk("Second chunk of content")
-            .with_tags(vec!["test".to_string(), "history".to_string()]);
+            .with_tag(Tag::new("test").unwrap())
+            .with_tag(Tag::new("history").unwrap());
 
         assert_eq!(lore.title(), "Test Lore");
         assert_eq!(lore.summary(), "A test lore entry");
@@ -439,6 +446,10 @@ mod tests {
         assert_eq!(lore.chunks()[0].order, 0);
         assert_eq!(lore.chunks()[1].order, 1);
         assert_eq!(lore.tags().len(), 2);
+        assert_eq!(
+            lore.tags(),
+            &[Tag::new("test").unwrap(), Tag::new("history").unwrap()]
+        );
     }
 
     #[test]

@@ -240,13 +240,18 @@ pub use value_objects::{
     ApprovalType,
     // Archetype types
     ArchetypeChange,
+    // Asset paths
+    AssetPath,
+    // Atmosphere
+    Atmosphere,
     // Rule system types
     BladesPoolThresholds,
     // Archetype
     CampbellArchetype,
+    // Names
+    ChallengeName,
     // Disposition types
     ChallengeSignificance,
-    // Names
     CharacterName,
     // Character state
     CharacterState,
@@ -269,7 +274,9 @@ pub use value_objects::{
     ExpressionConfig,
     // Relationship types
     FamilyRelation,
+    GoalName,
     InteractionOutcome,
+    ItemName,
     LadderEntry,
     LocationName,
     MoodState,
@@ -286,6 +293,7 @@ pub use value_objects::{
     PendingApprovalItem,
     Position,
     PositionEffectConfig,
+    RegionName,
     Relationship,
     RelationshipEvent,
     RelationshipLevel,
@@ -306,6 +314,7 @@ pub use value_objects::{
     StatModifier,
     StatValue,
     SuccessComparison,
+    Tag,
     ToneGuidance,
     WantContext,
     WantTarget,

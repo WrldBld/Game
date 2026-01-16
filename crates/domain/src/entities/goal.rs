@@ -12,6 +12,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::value_objects::GoalName;
 use wrldbldr_domain::{GoalId, WorldId};
 
 /// Abstract desire target (for Wants that don't target a Character or Item)
@@ -21,17 +22,17 @@ pub struct Goal {
     id: GoalId,
     world_id: WorldId,
     /// Name of the goal (e.g., "Power", "Revenge", "Peace")
-    name: String,
+    name: GoalName,
     /// Optional description of what this goal means
     description: Option<String>,
 }
 
 impl Goal {
-    pub fn new(world_id: WorldId, name: impl Into<String>) -> Self {
+    pub fn new(world_id: WorldId, name: GoalName) -> Self {
         Self {
             id: GoalId::new(),
             world_id,
-            name: name.into(),
+            name,
             description: None,
         }
     }
@@ -46,7 +47,7 @@ impl Goal {
         self.world_id
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &GoalName {
         &self.name
     }
 
@@ -70,7 +71,7 @@ impl Goal {
     pub fn from_parts(
         id: GoalId,
         world_id: WorldId,
-        name: String,
+        name: GoalName,
         description: Option<String>,
     ) -> Self {
         Self {

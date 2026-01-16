@@ -111,7 +111,11 @@ impl EventChainOps {
             chain.set_description(description, now);
         }
         if let Some(tags) = input.tags {
-            chain.set_tags(tags, now);
+            let domain_tags: Vec<wrldbldr_domain::Tag> = tags
+                .into_iter()
+                .filter_map(|s| wrldbldr_domain::Tag::new(&s).ok())
+                .collect();
+            chain.set_tags(domain_tags, now);
         }
         if let Some(color) = input.color {
             chain.set_color(Some(color), now);
@@ -157,7 +161,11 @@ impl EventChainOps {
             chain.set_description(description, now);
         }
         if let Some(tags) = input.tags {
-            chain.set_tags(tags, now);
+            let domain_tags: Vec<wrldbldr_domain::Tag> = tags
+                .into_iter()
+                .filter_map(|s| wrldbldr_domain::Tag::new(&s).ok())
+                .collect();
+            chain.set_tags(domain_tags, now);
         }
         if let Some(color) = input.color {
             chain.set_color(Some(color), now);
@@ -326,7 +334,7 @@ fn event_chain_to_summary(chain: &EventChain) -> EventChainSummary {
             .map(|id| id.to_string())
             .collect(),
         act_id: chain.act_id().map(|id| id.to_string()),
-        tags: chain.tags().to_vec(),
+        tags: chain.tags().iter().map(|t| t.to_string()).collect(),
         color: chain.color().map(|s| s.to_string()),
         is_favorite: chain.is_favorite(),
         progress_percent: (chain.progress() * 100.0) as u32,

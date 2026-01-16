@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{LocationId, LocationStateId, WorldId};
-use crate::value_objects::{ActivationLogic, ActivationRule};
+use crate::value_objects::{ActivationLogic, ActivationRule, AssetPath, Atmosphere};
 
 /// A visual configuration for a location
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -29,13 +29,13 @@ pub struct LocationState {
 
     // Visual Configuration
     /// Override the location's default backdrop
-    backdrop_override: Option<String>,
+    backdrop_override: Option<AssetPath>,
     /// Override the location's atmosphere text
-    atmosphere_override: Option<String>,
+    atmosphere_override: Option<Atmosphere>,
     /// Ambient sound asset path
-    ambient_sound: Option<String>,
+    ambient_sound: Option<AssetPath>,
     /// Map overlay or tint (for navigation map)
-    map_overlay: Option<String>,
+    map_overlay: Option<AssetPath>,
 
     // Activation Rules
     /// Rules that determine when this state is active
@@ -100,10 +100,10 @@ impl LocationState {
         world_id: WorldId,
         name: String,
         description: String,
-        backdrop_override: Option<String>,
-        atmosphere_override: Option<String>,
-        ambient_sound: Option<String>,
-        map_overlay: Option<String>,
+        backdrop_override: Option<AssetPath>,
+        atmosphere_override: Option<Atmosphere>,
+        ambient_sound: Option<AssetPath>,
+        map_overlay: Option<AssetPath>,
         activation_rules: Vec<ActivationRule>,
         activation_logic: ActivationLogic,
         priority: i32,
@@ -152,20 +152,20 @@ impl LocationState {
         &self.description
     }
 
-    pub fn backdrop_override(&self) -> Option<&str> {
-        self.backdrop_override.as_deref()
+    pub fn backdrop_override(&self) -> Option<&AssetPath> {
+        self.backdrop_override.as_ref()
     }
 
-    pub fn atmosphere_override(&self) -> Option<&str> {
-        self.atmosphere_override.as_deref()
+    pub fn atmosphere_override(&self) -> Option<&Atmosphere> {
+        self.atmosphere_override.as_ref()
     }
 
-    pub fn ambient_sound(&self) -> Option<&str> {
-        self.ambient_sound.as_deref()
+    pub fn ambient_sound(&self) -> Option<&AssetPath> {
+        self.ambient_sound.as_ref()
     }
 
-    pub fn map_overlay(&self) -> Option<&str> {
-        self.map_overlay.as_deref()
+    pub fn map_overlay(&self) -> Option<&AssetPath> {
+        self.map_overlay.as_ref()
     }
 
     pub fn activation_rules(&self) -> &[ActivationRule] {
@@ -199,23 +199,23 @@ impl LocationState {
         self
     }
 
-    pub fn with_backdrop(mut self, asset_path: impl Into<String>) -> Self {
-        self.backdrop_override = Some(asset_path.into());
+    pub fn with_backdrop(mut self, asset_path: AssetPath) -> Self {
+        self.backdrop_override = Some(asset_path);
         self
     }
 
-    pub fn with_atmosphere(mut self, atmosphere: impl Into<String>) -> Self {
-        self.atmosphere_override = Some(atmosphere.into());
+    pub fn with_atmosphere(mut self, atmosphere: Atmosphere) -> Self {
+        self.atmosphere_override = Some(atmosphere);
         self
     }
 
-    pub fn with_ambient_sound(mut self, sound_path: impl Into<String>) -> Self {
-        self.ambient_sound = Some(sound_path.into());
+    pub fn with_ambient_sound(mut self, sound_path: AssetPath) -> Self {
+        self.ambient_sound = Some(sound_path);
         self
     }
 
-    pub fn with_map_overlay(mut self, overlay_path: impl Into<String>) -> Self {
-        self.map_overlay = Some(overlay_path.into());
+    pub fn with_map_overlay(mut self, overlay_path: AssetPath) -> Self {
+        self.map_overlay = Some(overlay_path);
         self
     }
 
@@ -266,9 +266,9 @@ impl LocationState {
         LocationStateSummary {
             id: self.id,
             name: self.name.clone(),
-            backdrop_override: self.backdrop_override.clone(),
-            atmosphere_override: self.atmosphere_override.clone(),
-            ambient_sound: self.ambient_sound.clone(),
+            backdrop_override: self.backdrop_override.as_ref().map(|p| p.to_string()),
+            atmosphere_override: self.atmosphere_override.as_ref().map(|a| a.to_string()),
+            ambient_sound: self.ambient_sound.as_ref().map(|p| p.to_string()),
             priority: self.priority,
             is_default: self.is_default,
         }
@@ -301,10 +301,11 @@ mod tests {
     #[test]
     fn test_location_state_creation() {
         let now = fixed_time();
+        let atm = Atmosphere::new("The streets are alive with music and laughter...").unwrap();
         let state = LocationState::new(LocationId::new(), WorldId::new(), "Festival Day", now)
             .with_description("City-wide festival celebration")
-            .with_backdrop("/assets/city_festival.png")
-            .with_atmosphere("The streets are alive with music and laughter...")
+            .with_backdrop(AssetPath::new("/assets/city_festival.png").unwrap())
+            .with_atmosphere(atm)
             .with_priority(100);
 
         assert_eq!(state.name(), "Festival Day");

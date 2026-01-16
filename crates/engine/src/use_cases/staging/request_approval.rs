@@ -125,7 +125,7 @@ impl RequestStagingApproval {
         let llm_based_npcs = generate_llm_based_suggestions(
             &npcs_for_region,
             self.llm.as_ref(),
-            input.region.name(),
+            input.region.name().as_str(),
             &location_name,
             input.guidance.as_deref(),
         )
@@ -149,8 +149,8 @@ impl RequestStagingApproval {
                 .map(|n| StagedNpc {
                     character_id: n.character_id,
                     name: n.name.clone(),
-                    sprite_asset: n.sprite_asset.clone(),
-                    portrait_asset: n.portrait_asset.clone(),
+                    sprite_asset: n.sprite_asset.as_ref().map(|a| a.to_string()),
+                    portrait_asset: n.portrait_asset.as_ref().map(|a| a.to_string()),
                     is_present: n.is_present,
                     reasoning: n.reasoning.clone(),
                     is_hidden_from_players: n.is_hidden_from_players,

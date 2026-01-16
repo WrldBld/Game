@@ -81,7 +81,7 @@ impl AssetRepo for Neo4jAssetRepo {
         .param("entity_type", asset.entity_type().to_string())
         .param("entity_id", asset.entity_id().to_string())
         .param("asset_type", asset.asset_type().to_string())
-        .param("file_path", asset.file_path().to_string())
+        .param("file_path", asset.file_path().as_str().to_string())
         .param("is_active", asset.is_active())
         .param("label", asset.label().unwrap_or_default().to_string())
         .param("generation_metadata", generation_metadata_json)
@@ -233,9 +233,11 @@ fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset, RepoError> {
     let asset_type_str: String = node
         .get("asset_type")
         .map_err(|e| RepoError::database("query", e))?;
-    let file_path: String = node
+    let file_path_str: String = node
         .get("file_path")
         .map_err(|e| RepoError::database("query", e))?;
+    let file_path = AssetPath::new(file_path_str)
+        .map_err(|e| RepoError::database("query", format!("Invalid asset path: {}", e)))?;
     let is_active: bool = node.get_bool_or("is_active", false);
     let label = node.get_optional_string("label");
     let created_at_str: String = node

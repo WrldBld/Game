@@ -253,9 +253,8 @@ impl Neo4jCharacterRepo {
         let is_active = node.get_bool_or("is_active", true);
         let state = CharacterState::from_legacy(is_alive, is_active);
 
-        // Create validated name (fallback to "Unknown" if stored name is invalid)
         let character_name =
-            CharacterName::new(&name).unwrap_or_else(|_| CharacterName::new("Unknown").unwrap());
+            CharacterName::new(&name).map_err(|e| RepoError::database("parse", e))?;
 
         // Create validated description (fallback to empty if stored description is invalid)
         let character_description =
@@ -273,16 +272,15 @@ impl Neo4jCharacterRepo {
             .with_default_mood(default_mood)
             .with_expression_config(expression_config);
 
-        // Set optional assets
-        if let Some(sprite) = node.get_optional_string("sprite_asset") {
-            if !sprite.is_empty() {
-                character = character.with_sprite(sprite);
-            }
+        // Set optional assets (convert from String to AssetPath)
+        if let Some(sprite_str) = node.get_optional_string("sprite_asset") {
+            let sprite = AssetPath::new(sprite_str).map_err(|e| RepoError::database("parse", e))?;
+            character = character.with_sprite(sprite);
         }
-        if let Some(portrait) = node.get_optional_string("portrait_asset") {
-            if !portrait.is_empty() {
-                character = character.with_portrait(portrait);
-            }
+        if let Some(portrait_str) = node.get_optional_string("portrait_asset") {
+            let portrait =
+                AssetPath::new(portrait_str).map_err(|e| RepoError::database("parse", e))?;
+            character = character.with_portrait(portrait);
         }
 
         Ok(character)
@@ -358,11 +356,17 @@ impl CharacterRepo for Neo4jCharacterRepo {
         .param("description", character.description().to_string())
         .param(
             "sprite_asset",
-            character.sprite_asset().unwrap_or_default().to_string(),
+            character
+                .sprite_asset()
+                .map(|a| a.as_str().to_string())
+                .unwrap_or_default(),
         )
         .param(
             "portrait_asset",
-            character.portrait_asset().unwrap_or_default().to_string(),
+            character
+                .portrait_asset()
+                .map(|a| a.as_str().to_string())
+                .unwrap_or_default(),
         )
         .param(
             "base_archetype",

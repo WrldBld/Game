@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use wrldbldr_domain::{ActId, EventChainId, NarrativeEventId, WorldId};
 
+use crate::value_objects::Tag;
+
 /// A chain of connected narrative events forming a story arc
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,7 +36,7 @@ pub struct EventChain {
     act_id: Option<ActId>,
 
     /// Tags for organization
-    tags: Vec<String>,
+    tags: Vec<Tag>,
 
     /// Color for visualization (hex)
     color: Option<String>,
@@ -103,7 +105,7 @@ impl EventChain {
         self.act_id
     }
 
-    pub fn tags(&self) -> &[String] {
+    pub fn tags(&self) -> &[Tag] {
         &self.tags
     }
 
@@ -134,8 +136,13 @@ impl EventChain {
         self
     }
 
-    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+    pub fn with_tags(mut self, tags: Vec<Tag>) -> Self {
         self.tags = tags;
+        self
+    }
+
+    pub fn with_tag(mut self, tag: Tag) -> Self {
+        self.tags.push(tag);
         self
     }
 
@@ -165,7 +172,7 @@ impl EventChain {
         self.updated_at = now;
     }
 
-    pub fn set_tags(&mut self, tags: Vec<String>, now: DateTime<Utc>) {
+    pub fn set_tags(&mut self, tags: Vec<Tag>, now: DateTime<Utc>) {
         self.tags = tags;
         self.updated_at = now;
     }
@@ -199,7 +206,7 @@ impl EventChain {
         current_position: u32,
         completed_events: Vec<NarrativeEventId>,
         act_id: Option<ActId>,
-        tags: Vec<String>,
+        tags: Vec<Tag>,
         color: Option<String>,
         is_favorite: bool,
         created_at: DateTime<Utc>,

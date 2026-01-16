@@ -597,10 +597,12 @@ fn row_to_staged_npc(row: Row) -> Result<StagedNpc, RepoError> {
         .with_mood(mood)
         .with_hidden_from_players(is_hidden_from_players)
         .with_incomplete_data(has_incomplete_data);
-    if let Some(sprite) = sprite_asset {
+    if let Some(sprite_str) = sprite_asset {
+        let sprite = AssetPath::new(sprite_str).map_err(|e| RepoError::database("parse", e))?;
         npc = npc.with_sprite(sprite);
     }
-    if let Some(portrait) = portrait_asset {
+    if let Some(portrait_str) = portrait_asset {
+        let portrait = AssetPath::new(portrait_str).map_err(|e| RepoError::database("parse", e))?;
         npc = npc.with_portrait(portrait);
     }
     Ok(npc)
@@ -699,10 +701,13 @@ fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
             .with_mood(mood)
             .with_hidden_from_players(is_hidden_from_players)
             .with_incomplete_data(has_incomplete_data);
-        if let Some(sprite) = sprite_asset {
+        if let Some(sprite_str) = sprite_asset {
+            let sprite = AssetPath::new(sprite_str).map_err(|e| RepoError::database("parse", e))?;
             npc = npc.with_sprite(sprite);
         }
-        if let Some(portrait) = portrait_asset {
+        if let Some(portrait_str) = portrait_asset {
+            let portrait =
+                AssetPath::new(portrait_str).map_err(|e| RepoError::database("parse", e))?;
             npc = npc.with_portrait(portrait);
         }
         npcs.push(npc);

@@ -7,7 +7,7 @@ pub mod expression_sheet;
 use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{
-    AssetId, AssetType, BatchId, EntityType, GalleryAsset, GenerationMetadata, WorldId,
+    AssetId, AssetPath, AssetType, BatchId, EntityType, GalleryAsset, GenerationMetadata, WorldId,
 };
 
 use crate::queue_types::AssetGenerationData;
@@ -127,7 +127,9 @@ impl GenerateAsset {
 
         // Create the asset
         let now = self.clock.now();
-        let file_path = format!("assets/{:?}/{}.png", entity_type, entity_id);
+        let file_path_str = format!("assets/{:?}/{}.png", entity_type, entity_id);
+        let file_path = AssetPath::new(file_path_str)
+            .map_err(|e| GenerateError::Failed(format!("Invalid asset path: {}", e)))?;
         let asset = GalleryAsset::new_generated(
             entity_type,
             entity_id.to_string(),

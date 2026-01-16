@@ -633,13 +633,18 @@ impl FiveToolsImporter {
             .unwrap_or(false);
         let ritual = raw.meta.map(|m| m.ritual).unwrap_or(false);
 
-        let mut tags = raw.misc_tags.unwrap_or_default();
+        let mut raw_tags = raw.misc_tags.unwrap_or_default();
         if let Some(damage) = raw.damage_inflict {
-            tags.extend(damage);
+            raw_tags.extend(damage);
         }
         if let Some(conditions) = raw.condition_inflict {
-            tags.extend(conditions);
+            raw_tags.extend(conditions);
         }
+        // Convert string tags to Tag newtypes, filtering out invalid ones
+        let tags: Vec<wrldbldr_domain::Tag> = raw_tags
+            .into_iter()
+            .filter_map(|s| wrldbldr_domain::Tag::new(&s).ok())
+            .collect();
 
         let mut spell = Spell::new(
             id,
@@ -2000,7 +2005,7 @@ impl Dnd5eContentProvider {
             "concentration": spell.concentration(),
         });
 
-        let mut tags = spell.tags().to_vec();
+        let mut tags: Vec<String> = spell.tags().iter().map(|t| t.to_string()).collect();
         tags.push("spell".to_string());
         tags.push(spell.source().to_string());
         if let Some(school) = spell.school() {
@@ -2027,7 +2032,7 @@ impl Dnd5eContentProvider {
             "repeatable": feat.repeatable(),
         });
 
-        let mut tags = feat.tags().to_vec();
+        let mut tags: Vec<String> = feat.tags().iter().map(|t| t.to_string()).collect();
         tags.push("feat".to_string());
         tags.push(feat.source().to_string());
         if let Some(cat) = feat.category() {

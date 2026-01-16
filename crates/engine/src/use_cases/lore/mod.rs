@@ -253,7 +253,11 @@ impl LoreOps {
             lore = lore.with_summary(summary);
         }
         if let Some(tags) = input.tags.as_ref() {
-            lore = lore.with_tags(tags.clone());
+            for tag_str in tags {
+                if let Ok(tag) = wrldbldr_domain::Tag::new(tag_str) {
+                    lore = lore.with_tag(tag);
+                }
+            }
         }
         if input.is_common_knowledge.unwrap_or(false) {
             lore = lore.as_common_knowledge();
@@ -339,8 +343,18 @@ impl LoreOps {
                 .unwrap_or(&lore.summary().to_string()),
         )
         .with_chunks(lore.chunks().to_vec())
-        .with_tags(input.tags.clone().unwrap_or_else(|| lore.tags().to_vec()))
         .with_timestamps(lore.created_at(), now);
+
+        // Apply tags: use input tags if provided, otherwise keep existing
+        if let Some(new_tags) = input.tags.as_ref() {
+            for tag_str in new_tags {
+                if let Ok(tag) = wrldbldr_domain::Tag::new(tag_str) {
+                    updated_lore = updated_lore.with_tag(tag);
+                }
+            }
+        } else {
+            updated_lore = updated_lore.with_tags(lore.tags().to_vec());
+        }
 
         if input
             .is_common_knowledge
@@ -778,7 +792,7 @@ fn lore_to_summary(lore: wrldbldr_domain::Lore) -> LoreSummary {
         summary: lore.summary().to_string(),
         category: format!("{}", lore.category()),
         is_common_knowledge: lore.is_common_knowledge(),
-        tags: lore.tags().to_vec(),
+        tags: lore.tags().iter().map(|t| t.to_string()).collect(),
         chunk_count: lore.chunks().len(),
         created_at: lore.created_at().to_rfc3339(),
         updated_at: lore.updated_at().to_rfc3339(),
@@ -805,7 +819,7 @@ fn lore_to_detail(lore: wrldbldr_domain::Lore) -> LoreDetail {
         summary: lore.summary().to_string(),
         category: format!("{}", lore.category()),
         is_common_knowledge: lore.is_common_knowledge(),
-        tags: lore.tags().to_vec(),
+        tags: lore.tags().iter().map(|t| t.to_string()).collect(),
         chunks,
         created_at: lore.created_at().to_rfc3339(),
         updated_at: lore.updated_at().to_rfc3339(),

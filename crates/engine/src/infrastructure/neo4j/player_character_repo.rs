@@ -117,11 +117,15 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
         )
         .param(
             "sprite_asset",
-            pc.sprite_asset().unwrap_or_default().to_string(),
+            pc.sprite_asset()
+                .map(|p| p.as_str().to_string())
+                .unwrap_or_default(),
         )
         .param(
             "portrait_asset",
-            pc.portrait_asset().unwrap_or_default().to_string(),
+            pc.portrait_asset()
+                .map(|p| p.as_str().to_string())
+                .unwrap_or_default(),
         )
         .param("is_alive", pc.is_alive())
         .param("is_active", pc.is_active())
@@ -476,10 +480,20 @@ fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
     .with_current_location(current_location_id)
     .with_current_region(current_region_id)
     .with_description(description.unwrap_or_default())
-    .with_sprite(sprite_asset.unwrap_or_default())
-    .with_portrait(portrait_asset.unwrap_or_default())
     .with_state(CharacterState::from_legacy(is_alive, is_active))
     .with_last_active_at(last_active_at);
+
+    // Set optional assets (convert from String to AssetPath)
+    if let Some(asset_str) = sprite_asset {
+        let asset_path = wrldbldr_domain::AssetPath::new(asset_str)
+            .map_err(|e| RepoError::database("parse", e))?;
+        pc = pc.with_sprite(asset_path);
+    }
+    if let Some(asset_str) = portrait_asset {
+        let asset_path = wrldbldr_domain::AssetPath::new(asset_str)
+            .map_err(|e| RepoError::database("parse", e))?;
+        pc = pc.with_portrait(asset_path);
+    }
 
     if let Some(sheet_data) = sheet_data {
         pc = pc.with_sheet_data(sheet_data);

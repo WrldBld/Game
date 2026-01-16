@@ -16,6 +16,7 @@
 //! DEPRECATED and kept only for backward compatibility during migration.
 
 use crate::error::DomainError;
+use crate::value_objects::{ChallengeName, Tag};
 use crate::{ChallengeId, LocationId, RegionId, SceneId, WorldId};
 use serde::{Deserialize, Serialize};
 
@@ -38,7 +39,7 @@ pub use crate::types::{
 pub struct Challenge {
     id: ChallengeId,
     world_id: WorldId,
-    name: String,
+    name: ChallengeName,
     description: String,
     challenge_type: ChallengeType,
     difficulty: Difficulty,
@@ -52,7 +53,7 @@ pub struct Challenge {
     /// Whether the DM favorited this challenge
     is_favorite: bool,
     /// Tags for filtering
-    tags: Vec<String>,
+    tags: Vec<Tag>,
     /// The stat to check for this challenge (e.g., "STR", "DEX", "ATHLETICS_MOD")
     /// If None, the modifier will be 0 unless provided by the client.
     #[serde(default)]
@@ -64,11 +65,11 @@ impl Challenge {
     ///
     /// Note: The skill relationship should be set via `ChallengeRepositoryPort::set_required_skill()`
     /// after creating the challenge.
-    pub fn new(world_id: WorldId, name: impl Into<String>, difficulty: Difficulty) -> Self {
+    pub fn new(world_id: WorldId, name: ChallengeName, difficulty: Difficulty) -> Self {
         Self {
             id: ChallengeId::new(),
             world_id,
-            name: name.into(),
+            name,
             description: String::new(),
             challenge_type: ChallengeType::SkillCheck,
             difficulty,
@@ -92,7 +93,7 @@ impl Challenge {
         self.world_id
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &ChallengeName {
         &self.name
     }
 
@@ -128,7 +129,7 @@ impl Challenge {
         self.is_favorite
     }
 
-    pub fn tags(&self) -> &[String] {
+    pub fn tags(&self) -> &[Tag] {
         &self.tags
     }
 
@@ -170,8 +171,8 @@ impl Challenge {
         self
     }
 
-    pub fn with_tag(mut self, tag: impl Into<String>) -> Self {
-        self.tags.push(tag.into());
+    pub fn with_tag(mut self, tag: Tag) -> Self {
+        self.tags.push(tag);
         self
     }
 
@@ -1308,20 +1309,24 @@ impl ChallengeUnlock {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::value_objects::ChallengeName;
 
     #[test]
     fn test_challenge_creation() {
         let world_id = WorldId::new();
 
-        let challenge =
-            Challenge::new(world_id, "Investigate the Statue", Difficulty::d20_medium())
-                .with_description("Examine the ancient statue for hidden compartments")
-                .with_outcomes(ChallengeOutcomes::simple(
-                    "You find a hidden mechanism in the statue's base",
-                    "The statue appears to be solid stone",
-                ));
+        let challenge = Challenge::new(
+            world_id,
+            ChallengeName::new("Investigate the Statue").unwrap(),
+            Difficulty::d20_medium(),
+        )
+        .with_description("Examine the ancient statue for hidden compartments")
+        .with_outcomes(ChallengeOutcomes::simple(
+            "You find a hidden mechanism in the statue's base",
+            "The statue appears to be solid stone",
+        ));
 
-        assert_eq!(challenge.name(), "Investigate the Statue");
+        assert_eq!(challenge.name().as_str(), "Investigate the Statue");
         assert!(challenge.active());
         assert_eq!(
             challenge.outcomes().success.description,
@@ -1363,8 +1368,12 @@ mod tests {
     #[test]
     fn test_evaluate_roll_dc_success() {
         let world_id = WorldId::new();
-        let challenge = Challenge::new(world_id, "Test", Difficulty::DC(15))
-            .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!"));
+        let challenge = Challenge::new(
+            world_id,
+            ChallengeName::new("Test").unwrap(),
+            Difficulty::DC(15),
+        )
+        .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!"));
 
         // Roll 10 + modifier 5 = 15, meets DC 15
         let (outcome_type, outcome) = challenge.evaluate_roll(10, 5);
@@ -1380,7 +1389,12 @@ mod tests {
     #[test]
     fn test_evaluate_roll_dc_critical() {
         let world_id = WorldId::new();
-        let challenge = Challenge::new(world_id, "Test", Difficulty::DC(15)).with_outcomes(
+        let challenge = Challenge::new(
+            world_id,
+            ChallengeName::new("Test").unwrap(),
+            Difficulty::DC(15),
+        )
+        .with_outcomes(
             ChallengeOutcomes::simple("Success!", "Failure!")
                 .with_critical_success("Critical!")
                 .with_critical_failure("Fumble!"),
@@ -1400,8 +1414,12 @@ mod tests {
     #[test]
     fn test_evaluate_roll_percentage() {
         let world_id = WorldId::new();
-        let challenge = Challenge::new(world_id, "Test", Difficulty::Percentage(45))
-            .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!"));
+        let challenge = Challenge::new(
+            world_id,
+            ChallengeName::new("Test").unwrap(),
+            Difficulty::Percentage(45),
+        )
+        .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!"));
 
         // Roll 30 <= 45 = success (lower is better)
         let (outcome_type, _) = challenge.evaluate_roll(30, 0);
@@ -1417,7 +1435,7 @@ mod tests {
         let world_id = WorldId::new();
         let challenge = Challenge::new(
             world_id,
-            "Test",
+            ChallengeName::new("Test").unwrap(),
             Difficulty::Descriptor(DifficultyDescriptor::Moderate),
         )
         .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Partial!"));
@@ -1479,7 +1497,7 @@ mod tests {
         let world_id = WorldId::new();
         let challenge = Challenge::new(
             world_id,
-            "Test",
+            ChallengeName::new("Test").unwrap(),
             Difficulty::Descriptor(DifficultyDescriptor::Moderate),
         )
         .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Partial!"));
@@ -1512,7 +1530,7 @@ mod tests {
         let world_id = WorldId::new();
         let challenge = Challenge::new(
             world_id,
-            "Test",
+            ChallengeName::new("Test").unwrap(),
             Difficulty::Descriptor(DifficultyDescriptor::Hard), // Hard = +4 on ladder
         )
         .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Tie!"));
@@ -1543,7 +1561,7 @@ mod tests {
         let world_id = WorldId::new();
         let challenge = Challenge::new(
             world_id,
-            "Test",
+            ChallengeName::new("Test").unwrap(),
             Difficulty::Descriptor(DifficultyDescriptor::Moderate),
         )
         .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Partial!"));
@@ -1600,18 +1618,25 @@ mod tests {
 
     #[test]
     fn test_challenge_accessors() {
-        let world_id = WorldId::new();
-        let challenge = Challenge::new(world_id, "Test Challenge", Difficulty::DC(15))
-            .with_description("A test")
-            .with_tag("combat")
-            .with_check_stat("STR")
-            .with_active(false)
-            .with_order(5)
-            .with_is_favorite(true);
+        use crate::value_objects::Tag;
 
-        assert_eq!(challenge.name(), "Test Challenge");
+        let world_id = WorldId::new();
+        let combat_tag = Tag::new("combat").unwrap();
+        let challenge = Challenge::new(
+            world_id,
+            ChallengeName::new("Test Challenge").unwrap(),
+            Difficulty::DC(15),
+        )
+        .with_description("A test")
+        .with_tag(combat_tag.clone())
+        .with_check_stat("STR")
+        .with_active(false)
+        .with_order(5)
+        .with_is_favorite(true);
+
+        assert_eq!(challenge.name().as_str(), "Test Challenge");
         assert_eq!(challenge.description(), "A test");
-        assert_eq!(challenge.tags(), &["combat"]);
+        assert_eq!(challenge.tags(), &[combat_tag]);
         assert_eq!(challenge.check_stat(), Some("STR"));
         assert!(!challenge.active());
         assert_eq!(challenge.order(), 5);

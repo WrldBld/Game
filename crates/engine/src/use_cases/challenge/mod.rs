@@ -22,12 +22,17 @@ use crate::queue_types::{
 };
 
 mod crud;
+mod types;
 
 #[cfg(test)]
 mod llm_context_tests;
 
 pub use crud::{
     ChallengeError as ChallengeCrudError, ChallengeOps, CreateChallengeInput, UpdateChallengeInput,
+};
+pub use types::{
+    ChallengeSummary, DifficultySummary, OutcomeSummary, OutcomeTriggerData, OutcomeTriggerSummary,
+    OutcomesSummary, TriggerConditionSummary, TriggerTypeData, TriggerTypeSummary,
 };
 
 use crate::infrastructure::ports::RepoError;
@@ -404,7 +409,7 @@ impl ResolveOutcome {
         for trigger in &outcome.triggers {
             self.execute_trigger(
                 trigger,
-                challenge.name(),
+                challenge.name().as_str(),
                 challenge.world_id(),
                 target_pc_id,
             )
@@ -798,9 +803,9 @@ mod tests {
 
     use chrono::Utc;
     use wrldbldr_domain::{
-        Challenge as DomainChallenge, ChallengeId, ChallengeOutcomes, CharacterName, Difficulty,
-        ItemId, LocationId, Outcome, OutcomeTrigger, OutcomeType, PlayerCharacter as DomainPc,
-        PlayerCharacterId, SceneId, WorldId,
+        Challenge as DomainChallenge, ChallengeId, ChallengeName, ChallengeOutcomes, CharacterName,
+        Difficulty, ItemId, LocationId, Outcome, OutcomeTrigger, OutcomeType,
+        PlayerCharacter as DomainPc, PlayerCharacterId, SceneId, WorldId,
     };
 
     use crate::infrastructure::ports::{
@@ -859,8 +864,12 @@ mod tests {
             serde_json::from_value(json).expect("valid outcomes json")
         };
 
-        let challenge = DomainChallenge::new(world_id, "Test Challenge", Difficulty::DC(10))
-            .with_outcomes(outcomes);
+        let challenge = DomainChallenge::new(
+            world_id,
+            ChallengeName::new("Test Challenge").unwrap(),
+            Difficulty::DC(10),
+        )
+        .with_outcomes(outcomes);
 
         // ---------------------------------------------------------------------
         // Challenge repo expectations
@@ -893,7 +902,7 @@ mod tests {
         let mut item_repo = MockItemRepo::new();
         item_repo
             .expect_save()
-            .withf(|item| item.name() == "Key" && item.description() == Some("Rusty"))
+            .withf(|item| item.name().as_str() == "Key" && item.description() == Some("Rusty"))
             .returning(move |item| {
                 let expected_item_id_for_save = expected_item_id_for_save.clone();
                 let item_id = item.id();

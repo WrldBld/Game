@@ -386,7 +386,7 @@ impl NarrativeOps {
             game_time.or(fallback_game_time),
             summary,
             false, // is_hidden
-            vec!["dialogue".to_string()],
+            vec![wrldbldr_domain::Tag::new("dialogue").expect("valid tag")],
         );
 
         // Save the story event

@@ -70,8 +70,8 @@ pub async fn generate_rule_based_suggestions(
                     suggestions.push(StagedNpc {
                         character_id: staged.character_id,
                         name: staged.name.clone(),
-                        sprite_asset: staged.sprite_asset.clone(),
-                        portrait_asset: staged.portrait_asset.clone(),
+                        sprite_asset: staged.sprite_asset.as_ref().map(|a| a.to_string()),
+                        portrait_asset: staged.portrait_asset.as_ref().map(|a| a.to_string()),
                         is_present: staged.is_present,
                         reasoning: staged.reasoning.clone(),
                         is_hidden_from_players: staged.is_hidden_from_players,

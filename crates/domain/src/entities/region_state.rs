@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{LocationId, RegionId, RegionStateId, WorldId};
-use crate::value_objects::{ActivationLogic, ActivationRule};
+use crate::value_objects::{ActivationLogic, ActivationRule, AssetPath, Atmosphere};
 
 /// A visual configuration for a region
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -31,11 +31,11 @@ pub struct RegionState {
 
     // Visual Configuration
     /// Override the region's default backdrop
-    backdrop_override: Option<String>,
+    backdrop_override: Option<AssetPath>,
     /// Override the region's atmosphere text
-    atmosphere_override: Option<String>,
+    atmosphere_override: Option<Atmosphere>,
     /// Ambient sound asset path
-    ambient_sound: Option<String>,
+    ambient_sound: Option<AssetPath>,
 
     // Activation Rules
     /// Rules that determine when this state is active
@@ -103,9 +103,9 @@ impl RegionState {
         world_id: WorldId,
         name: String,
         description: String,
-        backdrop_override: Option<String>,
-        atmosphere_override: Option<String>,
-        ambient_sound: Option<String>,
+        backdrop_override: Option<AssetPath>,
+        atmosphere_override: Option<Atmosphere>,
+        ambient_sound: Option<AssetPath>,
         activation_rules: Vec<ActivationRule>,
         activation_logic: ActivationLogic,
         priority: i32,
@@ -158,16 +158,16 @@ impl RegionState {
         &self.description
     }
 
-    pub fn backdrop_override(&self) -> Option<&str> {
-        self.backdrop_override.as_deref()
+    pub fn backdrop_override(&self) -> Option<&AssetPath> {
+        self.backdrop_override.as_ref()
     }
 
-    pub fn atmosphere_override(&self) -> Option<&str> {
-        self.atmosphere_override.as_deref()
+    pub fn atmosphere_override(&self) -> Option<&Atmosphere> {
+        self.atmosphere_override.as_ref()
     }
 
-    pub fn ambient_sound(&self) -> Option<&str> {
-        self.ambient_sound.as_deref()
+    pub fn ambient_sound(&self) -> Option<&AssetPath> {
+        self.ambient_sound.as_ref()
     }
 
     pub fn activation_rules(&self) -> &[ActivationRule] {
@@ -201,18 +201,18 @@ impl RegionState {
         self
     }
 
-    pub fn with_backdrop(mut self, asset_path: impl Into<String>) -> Self {
-        self.backdrop_override = Some(asset_path.into());
+    pub fn with_backdrop(mut self, asset_path: AssetPath) -> Self {
+        self.backdrop_override = Some(asset_path);
         self
     }
 
-    pub fn with_atmosphere(mut self, atmosphere: impl Into<String>) -> Self {
-        self.atmosphere_override = Some(atmosphere.into());
+    pub fn with_atmosphere(mut self, atmosphere: Atmosphere) -> Self {
+        self.atmosphere_override = Some(atmosphere);
         self
     }
 
-    pub fn with_ambient_sound(mut self, sound_path: impl Into<String>) -> Self {
-        self.ambient_sound = Some(sound_path.into());
+    pub fn with_ambient_sound(mut self, sound_path: AssetPath) -> Self {
+        self.ambient_sound = Some(sound_path);
         self
     }
 
@@ -263,9 +263,9 @@ impl RegionState {
         RegionStateSummary {
             id: self.id,
             name: self.name.clone(),
-            backdrop_override: self.backdrop_override.clone(),
-            atmosphere_override: self.atmosphere_override.clone(),
-            ambient_sound: self.ambient_sound.clone(),
+            backdrop_override: self.backdrop_override.as_ref().map(|p| p.to_string()),
+            atmosphere_override: self.atmosphere_override.as_ref().map(|a| a.to_string()),
+            ambient_sound: self.ambient_sound.as_ref().map(|p| p.to_string()),
             priority: self.priority,
             is_default: self.is_default,
         }
@@ -289,6 +289,7 @@ pub struct RegionStateSummary {
 mod tests {
     use super::*;
     use crate::game_time::TimeOfDay;
+    use crate::value_objects::AssetPath;
     use chrono::TimeZone;
 
     fn fixed_time() -> DateTime<Utc> {
@@ -298,6 +299,7 @@ mod tests {
     #[test]
     fn test_region_state_creation() {
         let now = fixed_time();
+        let atm = Atmosphere::new("Warm candlelight flickers across polished brass...").unwrap();
         let state = RegionState::new(
             RegionId::new(),
             LocationId::new(),
@@ -306,8 +308,8 @@ mod tests {
             now,
         )
         .with_description("Warm evening atmosphere")
-        .with_backdrop("/assets/tavern_evening.png")
-        .with_atmosphere("Warm candlelight flickers across polished brass...")
+        .with_backdrop(AssetPath::new("/assets/tavern_evening.png").unwrap())
+        .with_atmosphere(atm)
         .with_rule(ActivationRule::TimeOfDay {
             period: TimeOfDay::Evening,
         })
@@ -379,7 +381,7 @@ mod tests {
             "Morning",
             now,
         )
-        .with_backdrop("/assets/tavern_morning.png")
+        .with_backdrop(AssetPath::new("/assets/tavern_morning.png").unwrap())
         .with_priority(10);
 
         let summary = state.summary();

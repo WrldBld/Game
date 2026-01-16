@@ -18,7 +18,7 @@
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::value_objects::{Description, LocationName};
+use crate::value_objects::{AssetPath, Atmosphere, Description, LocationName};
 use wrldbldr_domain::{LocationId, RegionId, WorldId};
 
 // Re-export from entities for now (MapBounds, LocationType)
@@ -57,9 +57,9 @@ pub struct Location {
 
     // Visual assets
     /// Path to the default backdrop image asset (used if entering without specific region)
-    backdrop_asset: Option<String>,
+    backdrop_asset: Option<AssetPath>,
     /// Path to the top-down map image for navigation between regions
-    map_asset: Option<String>,
+    map_asset: Option<AssetPath>,
 
     // Position on parent location's map (if this location is nested)
     /// Bounds defining where this location appears on its parent's map
@@ -70,7 +70,7 @@ pub struct Location {
     default_region_id: Option<RegionId>,
 
     /// Sensory/emotional description of the location's atmosphere
-    atmosphere: Option<String>,
+    atmosphere: Option<Atmosphere>,
 
     // Staging settings
     /// Default staging duration in game hours (default: 3)
@@ -159,14 +159,14 @@ impl Location {
 
     /// Returns the path to the location's backdrop asset, if any.
     #[inline]
-    pub fn backdrop_asset(&self) -> Option<&str> {
-        self.backdrop_asset.as_deref()
+    pub fn backdrop_asset(&self) -> Option<&AssetPath> {
+        self.backdrop_asset.as_ref()
     }
 
     /// Returns the path to the location's map asset, if any.
     #[inline]
-    pub fn map_asset(&self) -> Option<&str> {
-        self.map_asset.as_deref()
+    pub fn map_asset(&self) -> Option<&AssetPath> {
+        self.map_asset.as_ref()
     }
 
     // =========================================================================
@@ -187,8 +187,8 @@ impl Location {
 
     /// Returns the atmosphere description, if any.
     #[inline]
-    pub fn atmosphere(&self) -> Option<&str> {
-        self.atmosphere.as_deref()
+    pub fn atmosphere(&self) -> Option<&Atmosphere> {
+        self.atmosphere.as_ref()
     }
 
     // =========================================================================
@@ -218,14 +218,14 @@ impl Location {
     }
 
     /// Set the location's backdrop asset path.
-    pub fn with_backdrop(mut self, asset_path: impl Into<String>) -> Self {
-        self.backdrop_asset = Some(asset_path.into());
+    pub fn with_backdrop(mut self, asset_path: AssetPath) -> Self {
+        self.backdrop_asset = Some(asset_path);
         self
     }
 
     /// Set the location's map asset path.
-    pub fn with_map(mut self, asset_path: impl Into<String>) -> Self {
-        self.map_asset = Some(asset_path.into());
+    pub fn with_map(mut self, asset_path: AssetPath) -> Self {
+        self.map_asset = Some(asset_path);
         self
     }
 
@@ -242,8 +242,8 @@ impl Location {
     }
 
     /// Set the location's atmosphere description.
-    pub fn with_atmosphere(mut self, atmosphere: impl Into<String>) -> Self {
-        self.atmosphere = Some(atmosphere.into());
+    pub fn with_atmosphere(mut self, atmosphere: Atmosphere) -> Self {
+        self.atmosphere = Some(atmosphere);
         self
     }
 
@@ -280,17 +280,17 @@ impl Location {
     }
 
     /// Set the location's backdrop asset path.
-    pub fn set_backdrop(&mut self, path: Option<String>) {
+    pub fn set_backdrop(&mut self, path: Option<AssetPath>) {
         self.backdrop_asset = path;
     }
 
     /// Set the location's map asset path.
-    pub fn set_map(&mut self, path: Option<String>) {
+    pub fn set_map(&mut self, path: Option<AssetPath>) {
         self.map_asset = path;
     }
 
     /// Set the location's atmosphere description.
-    pub fn set_atmosphere(&mut self, atmosphere: Option<String>) {
+    pub fn set_atmosphere(&mut self, atmosphere: Option<Atmosphere>) {
         self.atmosphere = atmosphere;
     }
 
@@ -361,11 +361,11 @@ impl Serialize for Location {
             name: self.name.clone(),
             description: self.description.clone(),
             location_type: self.location_type,
-            backdrop_asset: self.backdrop_asset.clone(),
-            map_asset: self.map_asset.clone(),
+            backdrop_asset: self.backdrop_asset.as_ref().map(|p| p.to_string()),
+            map_asset: self.map_asset.as_ref().map(|p| p.to_string()),
             parent_map_bounds: self.parent_map_bounds,
             default_region_id: self.default_region_id,
-            atmosphere: self.atmosphere.clone(),
+            atmosphere: self.atmosphere.as_ref().map(|a| a.to_string()),
             presence_cache_ttl_hours: self.presence_cache_ttl_hours,
             use_llm_presence: self.use_llm_presence,
         };
@@ -408,17 +408,23 @@ impl<'de> Deserialize<'de> for Location {
 
         let legacy = LegacyLocationFormat::deserialize(deserializer)?;
 
+        // Convert Option<String> to Option<AssetPath>, ignoring invalid paths
+        let backdrop_asset = legacy.backdrop_asset.and_then(|s| AssetPath::new(s).ok());
+        let map_asset = legacy.map_asset.and_then(|s| AssetPath::new(s).ok());
+        // Convert Option<String> to Option<Atmosphere>, ignoring invalid values
+        let atmosphere = legacy.atmosphere.and_then(|s| Atmosphere::new(s).ok());
+
         Ok(Location {
             id: legacy.id,
             world_id: legacy.world_id,
             name: legacy.name,
             description: legacy.description,
             location_type: legacy.location_type,
-            backdrop_asset: legacy.backdrop_asset,
-            map_asset: legacy.map_asset,
+            backdrop_asset,
+            map_asset,
             parent_map_bounds: legacy.parent_map_bounds,
             default_region_id: legacy.default_region_id,
-            atmosphere: legacy.atmosphere,
+            atmosphere,
             presence_cache_ttl_hours: legacy.presence_cache_ttl_hours,
             use_llm_presence: legacy.use_llm_presence,
         })
@@ -432,6 +438,7 @@ impl<'de> Deserialize<'de> for Location {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::value_objects::Atmosphere;
 
     fn create_test_location() -> Location {
         let world_id = WorldId::new();
@@ -463,19 +470,24 @@ mod tests {
 
         #[test]
         fn builder_methods_work() {
+            use crate::value_objects::AssetPath;
+
             let world_id = WorldId::new();
             let name = LocationName::new("Moria").unwrap();
             let desc = Description::new("An ancient dwarven kingdom").unwrap();
             let region_id = RegionId::new();
             let bounds = MapBounds::new(10, 20, 100, 50).unwrap();
+            let backdrop = AssetPath::new("backdrops/moria.png").unwrap();
+            let map = AssetPath::new("maps/moria.png").unwrap();
 
+            let atm = Atmosphere::new("Dark and echoing").unwrap();
             let location = Location::new(world_id, name, LocationType::Interior)
                 .with_description(desc)
-                .with_backdrop("backdrops/moria.png")
-                .with_map("maps/moria.png")
+                .with_backdrop(backdrop)
+                .with_map(map)
                 .with_parent_map_bounds(bounds)
                 .with_default_region(region_id)
-                .with_atmosphere("Dark and echoing")
+                .with_atmosphere(atm)
                 .with_presence_ttl(6)
                 .with_llm_presence(false);
 
@@ -483,11 +495,20 @@ mod tests {
                 location.description().as_str(),
                 "An ancient dwarven kingdom"
             );
-            assert_eq!(location.backdrop_asset(), Some("backdrops/moria.png"));
-            assert_eq!(location.map_asset(), Some("maps/moria.png"));
+            assert_eq!(
+                location.backdrop_asset().map(|p| p.as_str()),
+                Some("backdrops/moria.png")
+            );
+            assert_eq!(
+                location.map_asset().map(|p| p.as_str()),
+                Some("maps/moria.png")
+            );
             assert!(location.parent_map_bounds().is_some());
             assert_eq!(location.default_region_id(), Some(region_id));
-            assert_eq!(location.atmosphere(), Some("Dark and echoing"));
+            assert_eq!(
+                location.atmosphere().map(|a| a.as_str()),
+                Some("Dark and echoing")
+            );
             assert_eq!(location.presence_cache_ttl_hours(), 6);
             assert!(!location.use_llm_presence());
         }
@@ -506,9 +527,14 @@ mod tests {
 
         #[test]
         fn set_backdrop_works() {
+            use crate::value_objects::AssetPath;
+
             let mut location = create_test_location();
-            location.set_backdrop(Some("backdrops/tavern.png".to_string()));
-            assert_eq!(location.backdrop_asset(), Some("backdrops/tavern.png"));
+            location.set_backdrop(Some(AssetPath::new("backdrops/tavern.png").unwrap()));
+            assert_eq!(
+                location.backdrop_asset().map(|p| p.as_str()),
+                Some("backdrops/tavern.png")
+            );
 
             location.set_backdrop(None);
             assert!(location.backdrop_asset().is_none());
@@ -516,9 +542,14 @@ mod tests {
 
         #[test]
         fn set_map_works() {
+            use crate::value_objects::AssetPath;
+
             let mut location = create_test_location();
-            location.set_map(Some("maps/tavern.png".to_string()));
-            assert_eq!(location.map_asset(), Some("maps/tavern.png"));
+            location.set_map(Some(AssetPath::new("maps/tavern.png").unwrap()));
+            assert_eq!(
+                location.map_asset().map(|p| p.as_str()),
+                Some("maps/tavern.png")
+            );
 
             location.set_map(None);
             assert!(location.map_asset().is_none());
@@ -527,8 +558,12 @@ mod tests {
         #[test]
         fn set_atmosphere_works() {
             let mut location = create_test_location();
-            location.set_atmosphere(Some("Warm and inviting".to_string()));
-            assert_eq!(location.atmosphere(), Some("Warm and inviting"));
+            let atm = Atmosphere::new("Warm and inviting").unwrap();
+            location.set_atmosphere(Some(atm));
+            assert_eq!(
+                location.atmosphere().map(|a| a.as_str()),
+                Some("Warm and inviting")
+            );
 
             location.set_atmosphere(None);
             assert!(location.atmosphere().is_none());

@@ -569,8 +569,8 @@ async fn build_scene_update(
         characters.push(CharacterData {
             id: npc.character_id.to_string(),
             name: npc.name.clone(),
-            sprite_asset: npc.sprite_asset.clone(),
-            portrait_asset: npc.portrait_asset.clone(),
+            sprite_asset: npc.sprite_asset.as_ref().map(|a| a.to_string()),
+            portrait_asset: npc.portrait_asset.as_ref().map(|a| a.to_string()),
             position,
             is_speaking: false,
             expression: None,

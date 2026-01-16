@@ -3,7 +3,9 @@
 //! These enums communicate what happened when character state was modified,
 //! allowing callers to react appropriately.
 
-use crate::value_objects::{CampbellArchetype, CharacterName, CharacterState, Description};
+use crate::value_objects::{
+    AssetPath, CampbellArchetype, CharacterName, CharacterState, Description,
+};
 
 /// Outcome of applying damage to a character
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,12 +56,12 @@ pub enum CharacterUpdate {
         to: Description,
     },
     SpriteChanged {
-        from: Option<String>,
-        to: Option<String>,
+        from: Option<AssetPath>,
+        to: Option<AssetPath>,
     },
     PortraitChanged {
-        from: Option<String>,
-        to: Option<String>,
+        from: Option<AssetPath>,
+        to: Option<AssetPath>,
     },
 }
 

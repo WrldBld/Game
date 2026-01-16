@@ -32,7 +32,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     let region = wrldbldr_domain::Region::from_parts(
         region_id,
         location_id,
-        "Region".to_string(),
+        wrldbldr_domain::value_objects::RegionName::new("Region").unwrap(),
         String::new(),
         None,
         None,

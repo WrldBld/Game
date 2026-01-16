@@ -88,7 +88,13 @@ impl StoryEventOps {
 
         // Rebuild event with updated fields using from_parts
         let new_summary = summary.unwrap_or_else(|| event.summary().to_string());
-        let new_tags = tags.unwrap_or_else(|| event.tags().to_vec());
+        let new_tags: Vec<wrldbldr_domain::Tag> = match tags {
+            Some(tag_strings) => tag_strings
+                .into_iter()
+                .filter_map(|s| wrldbldr_domain::Tag::new(&s).ok())
+                .collect(),
+            None => event.tags().to_vec(),
+        };
 
         let event = wrldbldr_domain::StoryEvent::from_parts(
             event.id(),
@@ -177,7 +183,7 @@ fn story_event_to_summary(event: wrldbldr_domain::StoryEvent) -> StoryEventSumma
         summary: event.summary().to_string(),
         involved_characters: Vec::new(),
         is_hidden: event.is_hidden(),
-        tags: event.tags().to_vec(),
+        tags: event.tags().iter().map(|t| t.to_string()).collect(),
         triggered_by: None,
         type_name,
     }

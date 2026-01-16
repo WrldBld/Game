@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::value_objects::Tag;
+
 /// A spell or magical ability.
 ///
 /// This struct is designed to be system-agnostic while supporting the
@@ -41,7 +43,7 @@ pub struct Spell {
     source: String,
     /// Tags for filtering and categorization
     #[serde(default)]
-    tags: Vec<String>,
+    tags: Vec<Tag>,
     /// Whether this spell can be cast as a ritual
     #[serde(default)]
     ritual: bool,
@@ -153,7 +155,7 @@ impl Spell {
     }
 
     /// Get the tags for filtering.
-    pub fn tags(&self) -> &[String] {
+    pub fn tags(&self) -> &[Tag] {
         &self.tags
     }
 
@@ -182,8 +184,14 @@ impl Spell {
     }
 
     /// Set the tags.
-    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+    pub fn with_tags(mut self, tags: Vec<Tag>) -> Self {
         self.tags = tags;
+        self
+    }
+
+    /// Add a single tag.
+    pub fn with_tag(mut self, tag: Tag) -> Self {
+        self.tags.push(tag);
         self
     }
 
@@ -591,7 +599,8 @@ mod tests {
         )
         .with_school("Evocation")
         .with_higher_levels("When cast at 4th level or higher...")
-        .with_tags(vec!["damage".into(), "fire".into()]);
+        .with_tag(Tag::new("damage").unwrap())
+        .with_tag(Tag::new("fire").unwrap());
 
         let other = spell.clone();
         assert_eq!(spell, other);

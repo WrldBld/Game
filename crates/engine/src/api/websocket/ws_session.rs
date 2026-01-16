@@ -96,12 +96,22 @@ pub(super) async fn handle_join_world(
         })
         .collect();
 
+    // Convert typed snapshot and PC to JSON for wire format
+    let snapshot_json = serde_json::to_value(&join_result.snapshot).unwrap_or_else(|e| {
+        tracing::error!(error = %e, "Failed to serialize world snapshot");
+        serde_json::json!({})
+    });
+    let your_pc_json = join_result
+        .your_pc
+        .as_ref()
+        .and_then(|pc| serde_json::to_value(pc).ok());
+
     Some(ServerMessage::WorldJoined {
         world_id,
-        snapshot: join_result.snapshot,
+        snapshot: snapshot_json,
         connected_users,
         your_role: role,
-        your_pc: join_result.your_pc,
+        your_pc: your_pc_json,
     })
 }
 

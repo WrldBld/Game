@@ -2,7 +2,7 @@
 
 Status: Active
 Owner: Team
-Last updated: 2026-01-17
+Last updated: 2026-01-16 (Phase 4.1 COMPLETE - All value object newtypes applied with fail-fast validation)
 
 Goal: remediate all findings from the latest full code review and establish a clean baseline with no new tech debt.
 
@@ -220,26 +220,142 @@ Acceptance:
 - Enhancement data logs at warn/debug level with context.
 
 ### 3.3 Remove `serde_json::Value`/JSON building from use cases
-- [ ] Inventory use cases returning `serde_json::Value` or building JSON snapshots.
-- [ ] Replace with domain/use-case DTOs; move JSON serialization to API/protocol layers.
-- [ ] Update callers (API/websocket) to perform serialization and mapping.
+- [x] Inventory use cases returning `serde_json::Value` or building JSON snapshots.
+- [x] Replace with domain/use-case DTOs; move JSON serialization to API/protocol layers.
+- [x] Update callers (API/websocket) to perform serialization and mapping.
+- [x] Targeted cleanup:
+  - `session/join_world.rs` - Created typed DTOs (`WorldSnapshot`, `WorldSummary`, `LocationSummary`, etc.)
+  - `session/join_world_flow.rs` - Passes through typed `JoinWorldResult`
+  - `session/types.rs` - NEW: typed session snapshot DTOs
+  - `challenge/crud.rs` - Created typed DTOs (`ChallengeSummary`, `DifficultySummary`, etc.)
+  - `challenge/types.rs` - NEW: typed challenge CRUD DTOs
+  - `api/websocket/ws_session.rs` - Converts typed DTOs to JSON at wire boundary
+- [x] Acceptable remaining `serde_json::Value` usage:
+  - `challenge/mod.rs:260` - `ProposedTool.arguments` (LLM tool args are `Value` by design)
+  - `challenge/mod.rs:857-864` - Test code (`#[cfg(test)]`)
+  - `custom_condition/mod.rs` - LLM response parsing
+  - `queues/tool_builder.rs` - LLM tool schemas
+  - `queues/mod.rs:717` - Queue persistence serialization
+  - `queues/tool_extractor.rs` - Tests
 
 Acceptance:
-- `rg "serde_json::Value|serde_json::json" crates/engine/src/use_cases` returns only test-only hits.
+- `rg "serde_json::Value|serde_json::json" crates/engine/src/use_cases` returns only test-only or infrastructure-acceptable hits.
 
 ## Phase 4: Value Objects for Stringly-Typed Fields
 
 ### 4.1 Define value objects for validated strings
-- [ ] Identify string fields in aggregates that represent domain concepts (names, descriptions, tags, asset paths, notes).
-- [ ] For each, create a value object with validation and serde try_from/into.
-- [ ] Replace raw `String` fields with value objects across aggregates.
-- [ ] Redesign guidance for common string fields:
-  - Descriptions/notes: `Description` newtype with length bounds and trimming.
-  - Tags: `Tag` newtype + `Vec<Tag>` (lowercased, no empty/whitespace).
-  - Asset paths/IDs: `AssetId` or `AssetPath` newtype (non-empty, max length).
-  - User identifiers: `UserId` newtype (non-empty, max length).
-  - Settings metadata: replace `field_type`/`category` strings with enums.
-- [ ] Update repositories, use cases, and protocol mappings accordingly.
+- [x] Identify string fields in aggregates that represent domain concepts (names, descriptions, tags, asset paths, notes).
+- [x] For each, create a value object with validation and serde try_from/into.
+- [x] Replace raw `String` fields with value objects across aggregates.
+- [x] Redesign guidance for common string fields:
+  - [x] Descriptions/notes: `Description` newtype exists (applied to Challenge).
+  - [x] Tags: `Tag` newtype + `Vec<Tag>` (lowercased, no empty/whitespace) - **COMPLETE**:
+    - Created `Tag` newtype in `domain/src/value_objects/names.rs` (lines 381-448)
+    - Applied to all domain entities with tags:
+      - `Challenge` (entities/challenge.rs)
+      - `NarrativeEvent` (aggregates/narrative_event.rs)
+      - `Lore` (entities/lore.rs)
+      - `StoryEvent` (entities/story_event.rs)
+      - `EventChain` (entities/event_chain.rs)
+      - `Spell` (entities/spell.rs)
+      - `Feat` (entities/feat.rs)
+      - `ClassFeature` (entities/class_feature.rs)
+      - `RacialTrait` (entities/class_feature.rs)
+    - Updated all corresponding repositories with fail-fast hydration pattern
+    - Updated all use case DTO conversions
+    - 12 unit tests for Tag newtype
+  - [x] Asset paths/IDs: `AssetPath` newtype (non-empty, max 500 chars) - **COMPLETE**:
+    - Created `AssetPath` newtype in `domain/src/value_objects/names.rs`
+    - Applied to: StagedNpc, ResolvedStateInfo, Region, Character, PlayerCharacter, Location, RegionState, LocationState, GridMap, GalleryAsset
+    - Fail-fast hydration in all 16 repository locations (location_repo, character_repo, player_character_repo, staging_repo, region_state_repo, location_state_repo)
+    - DTOs/wire types correctly kept as `Option<String>`
+    - 12 unit tests for AssetPath newtype
+  - [x] Name newtypes: Apply existing newtypes to entity name fields (fail-fast validation pattern) - **COMPLETE**
+  - [x] Atmosphere: `Atmosphere` newtype (can be empty, max 2000 chars) - **COMPLETE**:
+    - Created `Atmosphere` newtype in `domain/src/value_objects/names.rs`
+    - Applied to: Region, Location, RegionState, LocationState, ResolvedStateInfo
+    - Fail-fast hydration in all repositories
+    - 12 unit tests for Atmosphere newtype
+  - [x] DirectorialNotes: Analyzed - `Scene.directorial_notes` is free-form DM guidance text with no invariants. Per ADR-008, kept as `String` (no newtype needed).
+- [x] Update repositories, use cases, and protocol mappings accordingly.
+
+#### 4.1.1 Name Newtype Application (Fail-Fast Pattern)
+
+**Reference Pattern** (from `location_repo.rs`):
+```rust
+let name = LocationName::new(&name_str)
+    .map_err(|e| RepoError::database("parse", e))?;
+```
+
+**All newtypes already exist in `crates/domain/src/value_objects/names.rs`:**
+- `GoalName` (lines 726-787)
+- `ItemName` (lines 597-658)
+- `RegionName` (lines 534-595)
+- `ChallengeName` (lines 662-723)
+
+##### Goal Entity (4 files) - COMPLETE
+
+| Task | File | Status |
+|------|------|--------|
+| Update domain entity | `crates/domain/src/entities/goal.rs` | [x] |
+| Update repository hydration | `crates/engine/src/infrastructure/neo4j/goal_repo.rs` | [x] |
+| Update use case | `crates/engine/src/use_cases/actantial/mod.rs` | [x] |
+| Update WebSocket handler | `crates/engine/src/api/websocket/ws_actantial.rs` | [x] |
+
+##### Item Entity (9 files) - COMPLETE
+
+| Task | File | Status |
+|------|------|--------|
+| Update domain entity | `crates/domain/src/entities/item.rs` | [x] |
+| Update repository helpers | `crates/engine/src/infrastructure/neo4j/helpers.rs` (row_to_item) | [x] |
+| Update repository | `crates/engine/src/infrastructure/neo4j/item_repo.rs` | [x] |
+| Update inventory repository | `crates/engine/src/repositories/inventory.rs` | [x] |
+| Update use_cases/movement/scene_change.rs | accessor usage | [x] |
+| Update use_cases/narrative_operations.rs | accessor usage | [x] |
+| Update use_cases/challenge/mod.rs | test comparison | [x] |
+| Update api/websocket/ws_core.rs | Item construction | [x] |
+| Update e2e_tests/tool_call_tests.rs | test comparisons | [x] |
+
+##### Region Entity (16 files) - COMPLETE
+
+| Task | File | Status |
+|------|------|--------|
+| Update domain entity | `crates/domain/src/entities/region.rs` | [x] |
+| Update repository hydration | `crates/engine/src/infrastructure/neo4j/location_repo.rs` (row_to_region) | [x] |
+| Update use_cases/management/location.rs | Region construction | [x] |
+| Update use_cases/movement/enter_region.rs | accessor + tests | [x] |
+| Update use_cases/movement/exit_location.rs | tests | [x] |
+| Update use_cases/movement/scene_change.rs | accessor usage | [x] |
+| Update use_cases/staging/request_approval.rs | accessor usage | [x] |
+| Update use_cases/staging/regenerate.rs | accessor usage | [x] |
+| Update use_cases/location_events/mod.rs | accessor usage | [x] |
+| Update use_cases/npc/mod.rs | accessor usage | [x] |
+| Update api/websocket/ws_location.rs | accessor usage | [x] |
+| Update api/websocket/mod.rs | test Region construction | [x] |
+| Update api/websocket/test_support.rs | test helpers | [x] |
+| Update ws_integration_tests/staging_regenerate.rs | tests | [x] |
+| Update ws_integration_tests/staging_approval.rs | tests | [x] |
+| Update ws_integration_tests/staging_prestage.rs | tests | [x] |
+
+##### Challenge Entity - Name Field (7 files) - COMPLETE
+
+Note: `tags: Vec<Tag>` already complete. This is for `name: String` → `name: ChallengeName`.
+
+| Task | File | Status |
+|------|------|--------|
+| Update domain entity | `crates/domain/src/entities/challenge.rs` (name field only) | [x] |
+| Update repository hydration | `crates/engine/src/infrastructure/neo4j/challenge_repo.rs` | [x] |
+| Update use_cases/challenge/crud.rs | ChallengeName construction | [x] |
+| Update use_cases/challenge/mod.rs | accessor usage + tests | [x] |
+| Update challenge.rs tests | Challenge::new() calls | [x] |
+| Update e2e_tests/challenge_flow_tests.rs | test code | [x] |
+
+##### Implementation Order (ALL COMPLETE)
+
+1. **Goal** (4 files) - [x] DONE
+2. **Challenge** (7 files) - [x] DONE
+3. **Item** (9 files) - [x] DONE
+4. **Region** (16 files) - [x] DONE
 
 Acceptance:
 - No raw `String` fields for validated concepts in domain aggregates.
@@ -428,8 +544,8 @@ Acceptance:
 - [x] Phase 2.1 complete (already implemented - see revised criteria)
 - [x] Phase 3.1 complete (shared types removed; arch-check enforces)
 - [x] Phase 3.2 complete (repository failures propagated or logged)
-- [ ] Phase 3.3 complete
-- [ ] Phase 4.1 complete
+- [x] Phase 3.3 complete (serde_json replaced with typed DTOs)
+- [x] Phase 4.1 complete (Tag, Name, AssetPath, Atmosphere newtypes with fail-fast; DirectorialNotes kept as String per ADR-008)
 - [ ] Phase 5.1 complete
 - [ ] Phase 5.2 complete
 - [ ] Phase 6.1 complete

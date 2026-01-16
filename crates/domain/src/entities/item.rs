@@ -19,7 +19,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_domain::{ItemId, WorldId};
+use wrldbldr_domain::{ItemId, ItemName, WorldId};
 
 /// An object that can be possessed or interacted with
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,7 +27,7 @@ use wrldbldr_domain::{ItemId, WorldId};
 pub struct Item {
     id: ItemId,
     world_id: WorldId,
-    name: String,
+    name: ItemName,
     description: Option<String>,
     /// Type of item (e.g., "Weapon", "Consumable", "Key", "Quest")
     item_type: Option<String>,
@@ -42,11 +42,11 @@ pub struct Item {
 }
 
 impl Item {
-    pub fn new(world_id: WorldId, name: impl Into<String>) -> Self {
+    pub fn new(world_id: WorldId, name: ItemName) -> Self {
         Self {
             id: ItemId::new(),
             world_id,
-            name: name.into(),
+            name,
             description: None,
             item_type: None,
             is_unique: false,
@@ -65,7 +65,7 @@ impl Item {
         self.world_id
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &ItemName {
         &self.name
     }
 

@@ -61,10 +61,14 @@ impl CharacterCrud {
             character = character.with_description(desc);
         }
         if let Some(sprite) = sprite_asset {
-            character = character.with_sprite(sprite);
+            let asset_path = wrldbldr_domain::AssetPath::new(sprite)
+                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            character = character.with_sprite(asset_path);
         }
         if let Some(portrait) = portrait_asset {
-            character = character.with_portrait(portrait);
+            let asset_path = wrldbldr_domain::AssetPath::new(portrait)
+                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            character = character.with_portrait(asset_path);
         }
 
         self.character.save(&character).await?;
@@ -109,12 +113,12 @@ impl CharacterCrud {
             .with_expression_config(character.expression_config().clone());
             // Copy assets if present
             let new_character = if let Some(sprite) = character.sprite_asset() {
-                new_character.with_sprite(sprite)
+                new_character.with_sprite(sprite.clone())
             } else {
                 new_character
             };
             let new_character = if let Some(portrait) = character.portrait_asset() {
-                new_character.with_portrait(portrait)
+                new_character.with_portrait(portrait.clone())
             } else {
                 new_character
             };
@@ -126,10 +130,14 @@ impl CharacterCrud {
             character.set_description(desc);
         }
         if let Some(sprite) = sprite_asset {
-            character.set_sprite(Some(sprite));
+            let asset_path = wrldbldr_domain::AssetPath::new(sprite)
+                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            character.set_sprite(Some(asset_path));
         }
         if let Some(portrait) = portrait_asset {
-            character.set_portrait(Some(portrait));
+            let asset_path = wrldbldr_domain::AssetPath::new(portrait)
+                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            character.set_portrait(Some(asset_path));
         }
         if let Some(is_alive) = is_alive {
             if is_alive && character.is_dead() {

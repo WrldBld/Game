@@ -35,7 +35,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let region = wrldbldr_domain::Region::from_parts(
         region_id,
         location_id,
-        "Unstaged Region".to_string(),
+        wrldbldr_domain::value_objects::RegionName::new("Unstaged Region").unwrap(),
         String::new(),
         None,
         None,
@@ -427,7 +427,7 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
     let region = wrldbldr_domain::Region::from_parts(
         region_id,
         location_id,
-        "Test Region".to_string(),
+        wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
         String::new(),
         None,
         None,
@@ -575,7 +575,7 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
     let region = wrldbldr_domain::Region::from_parts(
         region_id,
         location_id,
-        "Test Region".to_string(),
+        wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
         String::new(),
         None,
         None,

@@ -83,7 +83,8 @@ pub use world_state::{ApprovalType, ConversationEntry, PendingApprovalItem, Spea
 
 // Validated name newtypes
 pub use names::{
-    CharacterName, Description, LocationName, NarrativeEventName, SceneName, WorldName,
+    AssetPath, Atmosphere, ChallengeName, CharacterName, Description, GoalName, ItemName,
+    LocationName, NarrativeEventName, RegionName, SceneName, Tag, WorldName,
 };
 
 // Character lifecycle state enum

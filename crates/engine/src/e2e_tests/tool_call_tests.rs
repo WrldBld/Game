@@ -816,7 +816,7 @@ async fn test_tool_effect_persists_after_conversation() {
         // Verify any items given during the conversation still exist
         // The key assertion: items persist after the conversation ends
         for item in &final_inventory {
-            assert!(!item.name().is_empty(), "Item should have a name");
+            assert!(!item.name().as_str().is_empty(), "Item should have a name");
             tracing::info!(
                 item_name = %item.name(),
                 item_id = %item.id(),

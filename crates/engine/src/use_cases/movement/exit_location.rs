@@ -262,7 +262,7 @@ mod tests {
 
     use chrono::Utc;
     use wrldbldr_domain::{
-        value_objects::{CharacterName, LocationName},
+        value_objects::{CharacterName, LocationName, RegionName},
         Description, LocationId, LocationType, PlayerCharacterId, Region, RegionId, WorldId,
     };
 
@@ -456,7 +456,7 @@ mod tests {
         let arrival_region = Region::from_parts(
             arrival_region_id,
             other_location_id,
-            "Arrival".to_string(),
+            RegionName::new("Arrival").unwrap(),
             String::new(),
             None,
             None,
@@ -584,7 +584,7 @@ mod tests {
         let arrival_region = Region::from_parts(
             arrival_region_id,
             target_location_id,
-            "Arrival".to_string(),
+            RegionName::new("Arrival").unwrap(),
             String::new(),
             None,
             None,

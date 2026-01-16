@@ -8,7 +8,7 @@
 //! - `(Staging)-[:USES_REGION_STATE]->(RegionState)` - Visual state at region level
 
 use crate::error::DomainError;
-use crate::value_objects::MoodState;
+use crate::value_objects::{AssetPath, Atmosphere, MoodState};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{
@@ -58,8 +58,8 @@ pub struct StagedNpc {
     pub character_id: CharacterId,
     /// Denormalized for display
     pub name: String,
-    pub sprite_asset: Option<String>,
-    pub portrait_asset: Option<String>,
+    pub sprite_asset: Option<AssetPath>,
+    pub portrait_asset: Option<AssetPath>,
     /// Whether NPC is present in this staging
     pub is_present: bool,
     /// When true, NPC is present but hidden from players
@@ -108,13 +108,13 @@ impl StagedNpc {
         self
     }
 
-    pub fn with_sprite(mut self, asset: impl Into<String>) -> Self {
-        self.sprite_asset = Some(asset.into());
+    pub fn with_sprite(mut self, asset: AssetPath) -> Self {
+        self.sprite_asset = Some(asset);
         self
     }
 
-    pub fn with_portrait(mut self, asset: impl Into<String>) -> Self {
-        self.portrait_asset = Some(asset.into());
+    pub fn with_portrait(mut self, asset: AssetPath) -> Self {
+        self.portrait_asset = Some(asset);
         self
     }
 
@@ -177,9 +177,9 @@ pub struct ResolvedVisualState {
 pub struct ResolvedStateInfo {
     pub id: String,
     pub name: String,
-    pub backdrop_override: Option<String>,
-    pub atmosphere_override: Option<String>,
-    pub ambient_sound: Option<String>,
+    pub backdrop_override: Option<AssetPath>,
+    pub atmosphere_override: Option<Atmosphere>,
+    pub ambient_sound: Option<AssetPath>,
 }
 
 impl Staging {
@@ -488,18 +488,18 @@ impl ResolvedStateInfo {
     }
 
     // Builder methods
-    pub fn with_backdrop(mut self, path: impl Into<String>) -> Self {
-        self.backdrop_override = Some(path.into());
+    pub fn with_backdrop(mut self, path: AssetPath) -> Self {
+        self.backdrop_override = Some(path);
         self
     }
 
-    pub fn with_atmosphere(mut self, atmosphere: impl Into<String>) -> Self {
-        self.atmosphere_override = Some(atmosphere.into());
+    pub fn with_atmosphere(mut self, atmosphere: Atmosphere) -> Self {
+        self.atmosphere_override = Some(atmosphere);
         self
     }
 
-    pub fn with_ambient_sound(mut self, path: impl Into<String>) -> Self {
-        self.ambient_sound = Some(path.into());
+    pub fn with_ambient_sound(mut self, path: AssetPath) -> Self {
+        self.ambient_sound = Some(path);
         self
     }
 }

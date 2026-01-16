@@ -250,10 +250,13 @@ impl ApproveStagingRequest {
             .with_mood(mood)
             .with_hidden_from_players(npc_info.is_hidden_from_players)
             .with_incomplete_data(has_incomplete_data);
-            if let Some(sprite) = sprite_asset {
+            if let Some(sprite) = sprite_asset.and_then(|s| wrldbldr_domain::AssetPath::new(s).ok())
+            {
                 staged_npc = staged_npc.with_sprite(sprite);
             }
-            if let Some(portrait) = portrait_asset {
+            if let Some(portrait) =
+                portrait_asset.and_then(|s| wrldbldr_domain::AssetPath::new(s).ok())
+            {
                 staged_npc = staged_npc.with_portrait(portrait);
             }
             staged_npcs.push(staged_npc);

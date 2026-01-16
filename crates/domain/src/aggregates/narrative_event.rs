@@ -28,7 +28,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use wrldbldr_domain::{NarrativeEventId, WorldId};
 
 use crate::events::NarrativeEventUpdate;
-use crate::value_objects::NarrativeEventName;
+use crate::value_objects::{NarrativeEventName, Tag};
 
 // Re-export complex types from entities that are used within the aggregate
 pub use crate::entities::{
@@ -131,7 +131,7 @@ pub struct NarrativeEvent {
     /// Detailed description of what this event represents
     description: String,
     /// Tags for organization and filtering
-    tags: Vec<String>,
+    tags: Vec<Tag>,
 
     // Trigger Configuration
     /// Conditions that must be met to trigger this event
@@ -272,7 +272,7 @@ impl NarrativeEvent {
 
     /// Returns the event's tags.
     #[inline]
-    pub fn tags(&self) -> &[String] {
+    pub fn tags(&self) -> &[Tag] {
         &self.tags
     }
 
@@ -437,14 +437,14 @@ impl NarrativeEvent {
     }
 
     /// Set the event's tags.
-    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+    pub fn with_tags(mut self, tags: Vec<Tag>) -> Self {
         self.tags = tags;
         self
     }
 
     /// Add a tag to the event.
-    pub fn with_tag(mut self, tag: impl Into<String>) -> Self {
-        self.tags.push(tag.into());
+    pub fn with_tag(mut self, tag: Tag) -> Self {
+        self.tags.push(tag);
         self
     }
 
@@ -1020,7 +1020,7 @@ impl Serialize for NarrativeEvent {
             world_id: self.world_id,
             name: self.name.to_string(),
             description: self.description.clone(),
-            tags: self.tags.clone(),
+            tags: self.tags.iter().map(|t| t.to_string()).collect(),
             trigger_conditions: self.trigger_conditions.clone(),
             trigger_logic: self.trigger_logic,
             scene_direction: self.scene_direction.clone(),
@@ -1053,12 +1053,19 @@ impl<'de> Deserialize<'de> for NarrativeEvent {
 
         let name = NarrativeEventName::new(wire.name).map_err(DeError::custom)?;
 
+        // Convert string tags to Tag newtypes, skipping invalid ones
+        let tags: Vec<Tag> = wire
+            .tags
+            .into_iter()
+            .filter_map(|s| Tag::new(&s).ok())
+            .collect();
+
         Ok(NarrativeEvent {
             id: wire.id,
             world_id: wire.world_id,
             name,
             description: wire.description,
-            tags: wire.tags,
+            tags,
             trigger_conditions: wire.trigger_conditions,
             trigger_logic: wire.trigger_logic,
             scene_direction: wire.scene_direction,
@@ -1165,8 +1172,8 @@ mod tests {
                 now,
             )
             .with_description("A dramatic event")
-            .with_tag("drama")
-            .with_tag("important")
+            .with_tag(Tag::new("drama").unwrap())
+            .with_tag(Tag::new("important").unwrap())
             .with_scene_direction("Build tension slowly")
             .with_suggested_opening("The air grows thick...")
             .with_repeatable(true)
@@ -1175,7 +1182,10 @@ mod tests {
 
             assert_eq!(event.name().as_str(), "Epic Event");
             assert_eq!(event.description(), "A dramatic event");
-            assert_eq!(event.tags(), &["drama", "important"]);
+            assert_eq!(
+                event.tags(),
+                &[Tag::new("drama").unwrap(), Tag::new("important").unwrap()]
+            );
             assert_eq!(event.scene_direction(), "Build tension slowly");
             assert_eq!(event.suggested_opening(), Some("The air grows thick..."));
             assert!(event.is_repeatable());

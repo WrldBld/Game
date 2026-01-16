@@ -5,6 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::value_objects::Tag;
+
 /// A feat, talent, or special ability that a character can acquire.
 ///
 /// This struct supports various TTRPG systems' concepts of character
@@ -35,7 +37,7 @@ pub struct Feat {
     repeatable: bool,
     /// Tags for filtering and categorization
     #[serde(default)]
-    tags: Vec<String>,
+    tags: Vec<Tag>,
 }
 
 impl Feat {
@@ -109,7 +111,7 @@ impl Feat {
     }
 
     /// Get the tags for filtering.
-    pub fn tags(&self) -> &[String] {
+    pub fn tags(&self) -> &[Tag] {
         &self.tags
     }
 
@@ -140,8 +142,14 @@ impl Feat {
     }
 
     /// Set the tags.
-    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+    pub fn with_tags(mut self, tags: Vec<Tag>) -> Self {
         self.tags = tags;
+        self
+    }
+
+    /// Add a single tag.
+    pub fn with_tag(mut self, tag: Tag) -> Self {
+        self.tags.push(tag);
         self
     }
 }
@@ -435,7 +443,8 @@ mod tests {
             },
         ])
         .with_category("combat")
-        .with_tags(vec!["combat".into(), "melee".into()]);
+        .with_tag(Tag::new("combat").unwrap())
+        .with_tag(Tag::new("melee").unwrap());
 
         let other = feat.clone();
         assert_eq!(feat, other);

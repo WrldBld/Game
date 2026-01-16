@@ -191,9 +191,10 @@ impl Neo4jChallengeRepo {
             parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
         let world_id: WorldId =
             parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-        let name: String = node
+        let name_str: String = node
             .get("name")
             .map_err(|e| RepoError::database("query", e))?;
+        let name = ChallengeName::new(name_str).map_err(|e| RepoError::database("parse", e))?;
         let description: String = node.get_string_or("description", "");
 
         let challenge_type_str: String = node.get_string_or("challenge_type", "SkillCheck");
@@ -239,7 +240,9 @@ impl Neo4jChallengeRepo {
         for condition in trigger_conditions {
             challenge = challenge.with_trigger(condition);
         }
-        for tag in tags {
+        for tag_str in tags {
+            let tag =
+                wrldbldr_domain::Tag::new(&tag_str).map_err(|e| RepoError::database("parse", e))?;
             challenge = challenge.with_tag(tag);
         }
         if let Some(stat) = check_stat {

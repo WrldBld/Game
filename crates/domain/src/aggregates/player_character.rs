@@ -15,7 +15,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::error::DomainError;
 use crate::types::character_sheet::CharacterSheetValues;
-use crate::value_objects::{CharacterName, CharacterState};
+use crate::value_objects::{AssetPath, CharacterName, CharacterState};
 use crate::{LocationId, PlayerCharacterId, RegionId, WorldId};
 
 // ============================================================================
@@ -108,8 +108,8 @@ pub struct PlayerCharacter {
     starting_location_id: LocationId, // For reference/history
 
     // Visual assets (optional, can be generated later)
-    sprite_asset: Option<String>,
-    portrait_asset: Option<String>,
+    sprite_asset: Option<AssetPath>,
+    portrait_asset: Option<AssetPath>,
 
     // Lifecycle state (replaces is_alive/is_active boolean blindness)
     /// The character's lifecycle state (Active, Inactive, or Dead)
@@ -250,14 +250,14 @@ impl PlayerCharacter {
 
     /// Returns the path to the character's sprite asset, if any.
     #[inline]
-    pub fn sprite_asset(&self) -> Option<&str> {
-        self.sprite_asset.as_deref()
+    pub fn sprite_asset(&self) -> Option<&AssetPath> {
+        self.sprite_asset.as_ref()
     }
 
     /// Returns the path to the character's portrait asset, if any.
     #[inline]
-    pub fn portrait_asset(&self) -> Option<&str> {
-        self.portrait_asset.as_deref()
+    pub fn portrait_asset(&self) -> Option<&AssetPath> {
+        self.portrait_asset.as_ref()
     }
 
     // =========================================================================
@@ -341,14 +341,14 @@ impl PlayerCharacter {
     }
 
     /// Set the sprite asset.
-    pub fn with_sprite(mut self, asset_path: impl Into<String>) -> Self {
-        self.sprite_asset = Some(asset_path.into());
+    pub fn with_sprite(mut self, asset_path: AssetPath) -> Self {
+        self.sprite_asset = Some(asset_path);
         self
     }
 
     /// Set the portrait asset.
-    pub fn with_portrait(mut self, asset_path: impl Into<String>) -> Self {
-        self.portrait_asset = Some(asset_path.into());
+    pub fn with_portrait(mut self, asset_path: AssetPath) -> Self {
+        self.portrait_asset = Some(asset_path);
         self
     }
 
@@ -456,12 +456,12 @@ impl PlayerCharacter {
     }
 
     /// Set the sprite asset path.
-    pub fn set_sprite(&mut self, path: Option<String>) {
+    pub fn set_sprite(&mut self, path: Option<AssetPath>) {
         self.sprite_asset = path;
     }
 
     /// Set the portrait asset path.
-    pub fn set_portrait(&mut self, path: Option<String>) {
+    pub fn set_portrait(&mut self, path: Option<AssetPath>) {
         self.portrait_asset = path;
     }
 
@@ -649,8 +649,8 @@ struct PlayerCharacterWireFormat {
     current_location_id: LocationId,
     current_region_id: Option<RegionId>,
     starting_location_id: LocationId,
-    sprite_asset: Option<String>,
-    portrait_asset: Option<String>,
+    sprite_asset: Option<AssetPath>,
+    portrait_asset: Option<AssetPath>,
     /// Legacy field for backward compatibility (serialized from CharacterState)
     #[serde(default = "default_true")]
     is_alive: bool,
@@ -778,13 +778,19 @@ mod tests {
             let pc = PlayerCharacter::new("user456", world_id, name, location_id, now)
                 .with_description("A loyal gardener")
                 .with_starting_region(region_id)
-                .with_sprite("sprites/sam.png")
-                .with_portrait("portraits/sam.png");
+                .with_sprite(AssetPath::new("sprites/sam.png").unwrap())
+                .with_portrait(AssetPath::new("portraits/sam.png").unwrap());
 
             assert_eq!(pc.description(), Some("A loyal gardener"));
             assert_eq!(pc.current_region_id(), Some(region_id));
-            assert_eq!(pc.sprite_asset(), Some("sprites/sam.png"));
-            assert_eq!(pc.portrait_asset(), Some("portraits/sam.png"));
+            assert_eq!(
+                pc.sprite_asset().map(AssetPath::as_str),
+                Some("sprites/sam.png")
+            );
+            assert_eq!(
+                pc.portrait_asset().map(AssetPath::as_str),
+                Some("portraits/sam.png")
+            );
         }
     }
 

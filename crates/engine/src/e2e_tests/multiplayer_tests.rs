@@ -1178,48 +1178,36 @@ async fn test_new_player_receives_snapshot() {
         let snapshot = &join_result.snapshot;
 
         // Check world data
-        let world_data = snapshot.get("world").expect("Snapshot should have world");
+        let world_data = &snapshot.world;
         assert_eq!(
-            world_data.get("id").and_then(|v| v.as_str()),
-            Some(ctx.world.world_id.to_string().as_str()),
+            world_data.id, ctx.world.world_id,
             "Snapshot world ID should match"
         );
         assert!(
-            world_data.get("name").is_some(),
+            !world_data.name.is_empty(),
             "Snapshot should include world name"
         );
         assert!(
-            world_data.get("description").is_some(),
+            !world_data.description.is_empty(),
             "Snapshot should include world description"
         );
 
         // Check locations are included
-        let locations = snapshot
-            .get("locations")
-            .and_then(|v| v.as_array())
-            .expect("Snapshot should have locations array");
+        let locations = &snapshot.locations;
         assert!(
             !locations.is_empty(),
             "Snapshot should include at least one location"
         );
 
         // Check characters (NPCs) are included
-        let characters = snapshot
-            .get("characters")
-            .and_then(|v| v.as_array())
-            .expect("Snapshot should have characters array");
+        let characters = &snapshot.characters;
         assert!(
             !characters.is_empty(),
             "Snapshot should include NPCs from the world"
         );
 
         // Verify that Marta (our test NPC) is in the snapshot
-        let marta_in_snapshot = characters.iter().any(|c| {
-            c.get("name")
-                .and_then(|v| v.as_str())
-                .map(|n| n.contains("Marta"))
-                .unwrap_or(false)
-        });
+        let marta_in_snapshot = characters.iter().any(|c| c.name.contains("Marta"));
         assert!(marta_in_snapshot, "Marta should be in the snapshot");
 
         // Verify Player B's PC info is returned
@@ -1227,8 +1215,7 @@ async fn test_new_player_receives_snapshot() {
             .your_pc
             .expect("your_pc should be present for Player role");
         assert_eq!(
-            your_pc.get("id").and_then(|v| v.as_str()),
-            Some(pc_b_id.to_string().as_str()),
+            your_pc.id, pc_b_id,
             "your_pc should be Player B's character"
         );
 
@@ -1386,12 +1373,10 @@ async fn test_other_players_notified_on_join() {
 
         // Verify Player B's PC info contains data for notification
         let pc_b_info = join_b_result.your_pc.expect("Should have PC B info");
+        // PC info has ID (typed field is always present)
+        let _ = pc_b_info.id; // Access to verify it exists
         assert!(
-            pc_b_info.get("id").is_some(),
-            "PC info should have ID for notification"
-        );
-        assert!(
-            pc_b_info.get("name").is_some(),
+            !pc_b_info.name.is_empty(),
             "PC info should have name for notification"
         );
 
@@ -1415,11 +1400,9 @@ async fn test_other_players_notified_on_join() {
         );
 
         // Verify the join result contains region info for Player A to know where B spawned
-        let pc_b_region_id = pc_b_info.get("current_region_id");
-        assert!(
-            pc_b_region_id.is_some(),
-            "PC info should include region for presence notification"
-        );
+        // current_region_id may be None if PC hasn't moved to a region yet, but the field exists
+        let _pc_b_region_id = pc_b_info.current_region_id;
+        // PC info includes region field for presence notification (may be None initially)
 
         // Verify user IDs are distinct (for routing notifications)
         assert_ne!(user_a, user_b, "User IDs should be distinct");
@@ -1526,15 +1509,9 @@ async fn test_player_leave_notifies_others() {
 
         // Capture Player B's info for the notification payload
         let pc_b_info = join_b.your_pc.expect("Should have PC B info");
-        let leaving_player_id = pc_b_info
-            .get("id")
-            .and_then(|v| v.as_str())
-            .expect("Should have PC ID");
-        let leaving_player_name = pc_b_info
-            .get("name")
-            .and_then(|v| v.as_str())
-            .expect("Should have PC name");
-        let leaving_player_region = pc_b_info.get("current_region_id").and_then(|v| v.as_str());
+        let leaving_player_id = pc_b_info.id;
+        let leaving_player_name = &pc_b_info.name;
+        let leaving_player_region = pc_b_info.current_region_id;
 
         // Player B disconnects - in real scenario this would:
         // 1. WebSocket connection closes
@@ -1605,10 +1582,8 @@ async fn test_player_leave_notifies_others() {
 
         // Verify we have all the data needed for UserLeft notification
         // In real scenario, this would be broadcast to Player A and DM
-        assert!(
-            !leaving_player_id.is_empty(),
-            "Should have player ID for notification"
-        );
+        // leaving_player_id is always valid (typed ID)
+        let _ = leaving_player_id; // Access to verify it exists
         assert!(
             !leaving_player_name.is_empty(),
             "Should have player name for notification"

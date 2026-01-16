@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use wrldbldr_domain::value_objects::RegionName;
 use wrldbldr_domain::{value_objects, LocationId, RegionId, WorldId};
 
 use crate::repositories::location::Location;
@@ -52,7 +53,9 @@ impl LocationCrud {
             location = location.with_description(desc);
         }
         if let Some(setting) = setting {
-            location = location.with_atmosphere(setting);
+            let atm = value_objects::Atmosphere::new(&setting)
+                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            location = location.with_atmosphere(atm);
         }
 
         self.location.save_location(&location).await?;
@@ -84,7 +87,9 @@ impl LocationCrud {
             location.set_description(desc);
         }
         if let Some(setting) = setting {
-            location.set_atmosphere(Some(setting));
+            let atm = value_objects::Atmosphere::new(&setting)
+                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            location.set_atmosphere(Some(atm));
         }
 
         self.location.save_location(&location).await?;
@@ -117,9 +122,10 @@ impl LocationCrud {
         description: Option<String>,
         is_spawn_point: Option<bool>,
     ) -> Result<wrldbldr_domain::Region, ManagementError> {
-        require_non_empty(&name, "Region name")?;
+        let region_name =
+            RegionName::new(&name).map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
 
-        let mut region = wrldbldr_domain::Region::new(location_id, name);
+        let mut region = wrldbldr_domain::Region::new(location_id, region_name);
         if let Some(description) = description {
             region = region.with_description(description);
         }
@@ -146,10 +152,9 @@ impl LocationCrud {
 
         // Regions are immutable - rebuild with updated values using from_parts
         let new_name = if let Some(name) = name {
-            require_non_empty(&name, "Region name")?;
-            name
+            RegionName::new(&name).map_err(|e| ManagementError::InvalidInput(e.to_string()))?
         } else {
-            region.name().to_string()
+            region.name().clone()
         };
         let new_description = description.unwrap_or_else(|| region.description().to_string());
         let new_is_spawn_point = is_spawn_point.unwrap_or_else(|| region.is_spawn_point());
@@ -159,8 +164,8 @@ impl LocationCrud {
             region.location_id(),
             new_name,
             new_description,
-            region.backdrop_asset().map(|s| s.to_string()),
-            region.atmosphere().map(|s| s.to_string()),
+            region.backdrop_asset().cloned(),
+            region.atmosphere().cloned(),
             region.map_bounds().cloned(),
             new_is_spawn_point,
             region.order(),

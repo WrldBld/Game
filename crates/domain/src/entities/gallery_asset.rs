@@ -3,6 +3,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::value_objects::AssetPath;
 use crate::{AssetId, BatchId};
 
 // Re-export shared types from types module
@@ -38,7 +39,7 @@ pub struct GalleryAsset {
     /// Type of asset (Portrait, Sprite, Backdrop, etc.)
     asset_type: AssetType,
     /// Path to the stored asset file
-    file_path: String,
+    file_path: AssetPath,
     /// Whether this is the currently active asset for this slot
     is_active: bool,
     /// User-defined label (e.g., "Angry", "Winter Outfit", "Night")
@@ -55,7 +56,7 @@ impl GalleryAsset {
         entity_type: EntityType,
         entity_id: impl Into<String>,
         asset_type: AssetType,
-        file_path: impl Into<String>,
+        file_path: AssetPath,
         now: DateTime<Utc>,
     ) -> Self {
         Self {
@@ -63,7 +64,7 @@ impl GalleryAsset {
             entity_type,
             entity_id: entity_id.into(),
             asset_type,
-            file_path: file_path.into(),
+            file_path,
             is_active: false,
             label: None,
             generation_metadata: None,
@@ -76,7 +77,7 @@ impl GalleryAsset {
         entity_type: EntityType,
         entity_id: impl Into<String>,
         asset_type: AssetType,
-        file_path: impl Into<String>,
+        file_path: AssetPath,
         metadata: GenerationMetadata,
         now: DateTime<Utc>,
     ) -> Self {
@@ -85,7 +86,7 @@ impl GalleryAsset {
             entity_type,
             entity_id: entity_id.into(),
             asset_type,
-            file_path: file_path.into(),
+            file_path,
             is_active: false,
             label: None,
             generation_metadata: Some(metadata),
@@ -100,7 +101,7 @@ impl GalleryAsset {
         entity_type: EntityType,
         entity_id: String,
         asset_type: AssetType,
-        file_path: String,
+        file_path: AssetPath,
         is_active: bool,
         label: Option<String>,
         generation_metadata: Option<GenerationMetadata>,
@@ -137,7 +138,7 @@ impl GalleryAsset {
         self.asset_type
     }
 
-    pub fn file_path(&self) -> &str {
+    pub fn file_path(&self) -> &AssetPath {
         &self.file_path
     }
 

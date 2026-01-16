@@ -29,7 +29,7 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
     let region = wrldbldr_domain::Region::from_parts(
         region_id,
         location_id,
-        "Test Region".to_string(),
+        wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
         String::new(),
         None,
         None,

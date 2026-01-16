@@ -83,13 +83,17 @@ impl Neo4jLocationRepo {
             .with_presence_ttl(presence_cache_ttl_hours as i32)
             .with_llm_presence(use_llm_presence);
 
-        if let Some(asset) = backdrop_asset {
+        if let Some(asset_str) = backdrop_asset {
+            let asset = AssetPath::new(asset_str).map_err(|e| RepoError::database("parse", e))?;
             location = location.with_backdrop(asset);
         }
-        if let Some(asset) = map_asset {
+        if let Some(asset_str) = map_asset {
+            let asset = AssetPath::new(asset_str).map_err(|e| RepoError::database("parse", e))?;
             location = location.with_map(asset);
         }
-        if let Some(atm) = atmosphere {
+        if let Some(atm_str) = atmosphere {
+            let atm = value_objects::Atmosphere::new(atm_str)
+                .map_err(|e| RepoError::database("parse", e))?;
             location = location.with_atmosphere(atm);
         }
         if let Some(bounds) = parent_map_bounds {
@@ -109,12 +113,22 @@ impl Neo4jLocationRepo {
             parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
         let location_id: LocationId =
             parse_typed_id(&node, "location_id").map_err(|e| RepoError::database("query", e))?;
-        let name: String = node
+        let name_str: String = node
             .get("name")
             .map_err(|e| RepoError::database("query", e))?;
+        let name = value_objects::RegionName::new(name_str)
+            .map_err(|e| RepoError::database("parse", e))?;
         let description = node.get_string_or("description", "");
-        let backdrop_asset = node.get_optional_string("backdrop_asset");
-        let atmosphere = node.get_optional_string("atmosphere");
+        let backdrop_asset = node
+            .get_optional_string("backdrop_asset")
+            .map(|s| value_objects::AssetPath::new(s))
+            .transpose()
+            .map_err(|e| RepoError::database("parse", e))?;
+        let atmosphere = node
+            .get_optional_string("atmosphere")
+            .map(|s| value_objects::Atmosphere::new(s))
+            .transpose()
+            .map_err(|e| RepoError::database("parse", e))?;
         let is_spawn_point = node.get_bool_or("is_spawn_point", false);
         let order = node.get_i64_or("order", 0) as u32;
 
@@ -271,11 +285,17 @@ impl LocationRepo for Neo4jLocationRepo {
         .param("location_type", format!("{:?}", location.location_type()))
         .param(
             "backdrop_asset",
-            location.backdrop_asset().unwrap_or_default().to_string(),
+            location
+                .backdrop_asset()
+                .map(|p| p.as_str().to_string())
+                .unwrap_or_default(),
         )
         .param(
             "map_asset",
-            location.map_asset().unwrap_or_default().to_string(),
+            location
+                .map_asset()
+                .map(|p| p.as_str().to_string())
+                .unwrap_or_default(),
         )
         .param("parent_map_bounds", map_bounds_json)
         .param(
@@ -287,7 +307,10 @@ impl LocationRepo for Neo4jLocationRepo {
         )
         .param(
             "atmosphere",
-            location.atmosphere().unwrap_or_default().to_string(),
+            location
+                .atmosphere()
+                .map(|a| a.as_str().to_string())
+                .unwrap_or_default(),
         )
         .param(
             "presence_cache_ttl_hours",
@@ -405,11 +428,17 @@ impl LocationRepo for Neo4jLocationRepo {
         .param("description", region.description().to_string())
         .param(
             "backdrop_asset",
-            region.backdrop_asset().unwrap_or_default().to_string(),
+            region
+                .backdrop_asset()
+                .map(|a| a.to_string())
+                .unwrap_or_default(),
         )
         .param(
             "atmosphere",
-            region.atmosphere().unwrap_or_default().to_string(),
+            region
+                .atmosphere()
+                .map(|a| a.as_str().to_string())
+                .unwrap_or_default(),
         )
         .param("map_bounds", map_bounds_json)
         .param("is_spawn_point", region.is_spawn_point())

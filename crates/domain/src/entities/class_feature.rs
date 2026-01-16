@@ -6,6 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::feat::{RechargeType, UsesFormula};
+use crate::value_objects::Tag;
 
 /// A class feature that a character gains from their class or subclass.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -34,7 +35,7 @@ pub struct ClassFeature {
     has_choices: bool,
     /// Tags for categorization
     #[serde(default)]
-    tags: Vec<String>,
+    tags: Vec<Tag>,
 }
 
 impl ClassFeature {
@@ -116,7 +117,7 @@ impl ClassFeature {
     }
 
     /// Get the tags for categorization.
-    pub fn tags(&self) -> &[String] {
+    pub fn tags(&self) -> &[Tag] {
         &self.tags
     }
 
@@ -141,8 +142,14 @@ impl ClassFeature {
     }
 
     /// Set the tags.
-    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+    pub fn with_tags(mut self, tags: Vec<Tag>) -> Self {
         self.tags = tags;
+        self
+    }
+
+    /// Add a single tag.
+    pub fn with_tag(mut self, tag: Tag) -> Self {
+        self.tags.push(tag);
         self
     }
 }
@@ -218,7 +225,7 @@ pub struct RacialTrait {
     source: String,
     /// Tags for categorization
     #[serde(default)]
-    tags: Vec<String>,
+    tags: Vec<Tag>,
 }
 
 impl RacialTrait {
@@ -287,7 +294,7 @@ impl RacialTrait {
     }
 
     /// Get the tags for categorization.
-    pub fn tags(&self) -> &[String] {
+    pub fn tags(&self) -> &[Tag] {
         &self.tags
     }
 
@@ -306,8 +313,14 @@ impl RacialTrait {
     }
 
     /// Set the tags.
-    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+    pub fn with_tags(mut self, tags: Vec<Tag>) -> Self {
         self.tags = tags;
+        self
+    }
+
+    /// Add a single tag.
+    pub fn with_tag(mut self, tag: Tag) -> Self {
+        self.tags.push(tag);
         self
     }
 }
@@ -399,7 +412,7 @@ mod tests {
             "PHB p.72",
         )
         .with_uses(FeatureUses::short_rest(UsesFormula::Fixed { value: 1 }))
-        .with_tags(vec!["healing".into()]);
+        .with_tag(Tag::new("healing").unwrap());
 
         let other = feature.clone();
         assert_eq!(feature, other);
@@ -438,7 +451,7 @@ mod tests {
             "PHB p.72",
         )
         .with_subclass_id("champion")
-        .with_tags(vec!["combat".into()]);
+        .with_tag(Tag::new("combat").unwrap());
 
         assert_eq!(feature.subclass_id(), Some("champion"));
         assert!(feature.uses().is_none());
@@ -464,7 +477,7 @@ mod tests {
             "You can see in dim light within 60 feet...",
             "PHB p.20",
         )
-        .with_tags(vec!["vision".into()]);
+        .with_tag(Tag::new("vision").unwrap());
 
         let other = trait_.clone();
         assert_eq!(trait_, other);

@@ -264,7 +264,7 @@ where
 // Common Row-to-Entity Converters
 // =============================================================================
 
-use wrldbldr_domain::{Item, ItemId, WorldId};
+use wrldbldr_domain::{Item, ItemId, ItemName, WorldId};
 
 /// Convert a Neo4j row containing an Item node (aliased as 'i') to an Item entity.
 ///
@@ -275,9 +275,10 @@ pub fn row_to_item(row: Row) -> Result<Item, RepoError> {
     let id: ItemId = parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
     let world_id: WorldId =
         parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-    let name: String = node
+    let name_str: String = node
         .get("name")
         .map_err(|e| RepoError::database("query", e))?;
+    let name = ItemName::new(name_str).map_err(|e| RepoError::database("parse", e))?;
     let description = node.get_optional_string("description");
     let item_type = node.get_optional_string("item_type");
     let is_unique = node.get_bool_or("is_unique", false);

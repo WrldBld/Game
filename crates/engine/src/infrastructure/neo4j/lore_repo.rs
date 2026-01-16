@@ -94,7 +94,7 @@ impl Neo4jLoreRepo {
         let updated_at = node.get_datetime_or("updated_at", fallback);
 
         // Parse tags from JSON
-        let tags: Vec<String> = node
+        let tags_raw: Vec<String> = node
             .get_optional_string("tags")
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
@@ -102,8 +102,13 @@ impl Neo4jLoreRepo {
         let mut lore = Lore::new(world_id, title, category, created_at)
             .with_id(id)
             .with_summary(summary)
-            .with_tags(tags)
             .with_timestamps(created_at, updated_at);
+
+        for tag_str in tags_raw {
+            let tag =
+                wrldbldr_domain::Tag::new(&tag_str).map_err(|e| RepoError::database("parse", e))?;
+            lore = lore.with_tag(tag);
+        }
         if is_common_knowledge {
             lore = lore.as_common_knowledge();
         }
@@ -192,8 +197,9 @@ impl LoreRepo for Neo4jLoreRepo {
     }
 
     async fn save(&self, lore: &Lore) -> Result<(), RepoError> {
-        let tags_json = serde_json::to_string(lore.tags())
-            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let tags: Vec<String> = lore.tags().iter().map(|t| t.to_string()).collect();
+        let tags_json =
+            serde_json::to_string(&tags).map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         // Save the Lore node (without chunks - they're separate nodes now)
         let q = query(

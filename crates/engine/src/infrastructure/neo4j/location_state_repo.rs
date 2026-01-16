@@ -36,10 +36,26 @@ impl Neo4jLocationStateRepo {
             .map_err(|e| RepoError::database("query", e))?;
         let description: String = node.get_string_or("description", "");
 
-        let backdrop_override: Option<String> = node.get_optional_string("backdrop_override");
-        let atmosphere_override: Option<String> = node.get_optional_string("atmosphere_override");
-        let ambient_sound: Option<String> = node.get_optional_string("ambient_sound");
-        let map_overlay: Option<String> = node.get_optional_string("map_overlay");
+        let backdrop_override: Option<AssetPath> = node
+            .get_optional_string("backdrop_override")
+            .map(|s| AssetPath::new(s))
+            .transpose()
+            .map_err(|e| RepoError::database("parse", e))?;
+        let atmosphere_override: Option<Atmosphere> = node
+            .get_optional_string("atmosphere_override")
+            .map(|s| Atmosphere::new(s))
+            .transpose()
+            .map_err(|e| RepoError::database("parse", e))?;
+        let ambient_sound: Option<AssetPath> = node
+            .get_optional_string("ambient_sound")
+            .map(|s| AssetPath::new(s))
+            .transpose()
+            .map_err(|e| RepoError::database("parse", e))?;
+        let map_overlay: Option<AssetPath> = node
+            .get_optional_string("map_overlay")
+            .map(|s| AssetPath::new(s))
+            .transpose()
+            .map_err(|e| RepoError::database("parse", e))?;
 
         // Parse activation rules from JSON
         let activation_rules: Vec<ActivationRule> = node
@@ -133,19 +149,31 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
         .param("description", state.description().to_string())
         .param(
             "backdrop_override",
-            state.backdrop_override().unwrap_or_default().to_string(),
+            state
+                .backdrop_override()
+                .map(|p| p.to_string())
+                .unwrap_or_default(),
         )
         .param(
             "atmosphere_override",
-            state.atmosphere_override().unwrap_or_default().to_string(),
+            state
+                .atmosphere_override()
+                .map(|a| a.as_str().to_string())
+                .unwrap_or_default(),
         )
         .param(
             "ambient_sound",
-            state.ambient_sound().unwrap_or_default().to_string(),
+            state
+                .ambient_sound()
+                .map(|p| p.to_string())
+                .unwrap_or_default(),
         )
         .param(
             "map_overlay",
-            state.map_overlay().unwrap_or_default().to_string(),
+            state
+                .map_overlay()
+                .map(|p| p.to_string())
+                .unwrap_or_default(),
         )
         .param("activation_rules", activation_rules_json)
         .param("activation_logic", activation_logic_json)

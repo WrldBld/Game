@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use serde_json::Value;
 use uuid::Uuid;
 
 use crate::infrastructure::ports::{
@@ -10,6 +9,7 @@ use crate::infrastructure::ports::{
 use crate::repositories::WorldSession;
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 
+use super::types::{PlayerCharacterSummary, WorldSnapshot};
 use super::{JoinWorld, JoinWorldError};
 
 /// IO dependencies for join-world flows (WS-state owned).
@@ -94,6 +94,12 @@ impl JoinWorldFlow {
             })
             .collect();
 
+        // Convert PC summary to JSON for UserJoinedInfo (ports type uses Value)
+        let pc_json = join_result
+            .your_pc
+            .as_ref()
+            .and_then(|pc| serde_json::to_value(pc).ok());
+
         let user_joined = ctx
             .session
             .get_connection(input.connection_id)
@@ -101,7 +107,7 @@ impl JoinWorldFlow {
             .map(|info| UserJoinedInfo {
                 user_id: info.user_id,
                 role: input.role,
-                pc: join_result.your_pc.clone(),
+                pc: pc_json.clone(),
             });
 
         Ok(JoinWorldFlowResult {
@@ -116,9 +122,9 @@ impl JoinWorldFlow {
 
 pub struct JoinWorldFlowResult {
     pub world_id: WorldId,
-    pub snapshot: Value,
+    pub snapshot: WorldSnapshot,
     pub connected_users: Vec<ConnectedUserInfo>,
-    pub your_pc: Option<Value>,
+    pub your_pc: Option<PlayerCharacterSummary>,
     pub user_joined: Option<UserJoinedInfo>,
 }
 

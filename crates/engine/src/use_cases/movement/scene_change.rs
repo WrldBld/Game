@@ -112,7 +112,7 @@ impl SceneChangeBuilder {
             location_id: region.location_id().to_string(),
             location_name: location.name().to_string(),
             backdrop_asset: region.backdrop_asset().map(|s| s.to_string()),
-            atmosphere: region.atmosphere().map(|s| s.to_string()),
+            atmosphere: region.atmosphere().map(|a| a.to_string()),
             map_asset: None,
         };
 
@@ -122,8 +122,8 @@ impl SceneChangeBuilder {
             .map(|npc| NpcPresenceInfo {
                 character_id: npc.character_id.to_string(),
                 name: npc.name.clone(),
-                sprite_asset: npc.sprite_asset.clone(),
-                portrait_asset: npc.portrait_asset.clone(),
+                sprite_asset: npc.sprite_asset.as_ref().map(|a| a.to_string()),
+                portrait_asset: npc.portrait_asset.as_ref().map(|a| a.to_string()),
             })
             .collect();
 

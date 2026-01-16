@@ -57,7 +57,7 @@ impl RegenerateStagingSuggestions {
         Ok(generate_llm_based_suggestions(
             &npcs_for_region,
             self.llm.as_ref(),
-            region.name(),
+            region.name().as_str(),
             &location_name,
             guidance,
         )

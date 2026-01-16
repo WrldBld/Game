@@ -15,6 +15,8 @@
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{LocationId, RegionId};
 
+use crate::value_objects::{AssetPath, Atmosphere, RegionName};
+
 /// A region within a location - represents a distinct "screen" or area
 ///
 /// Regions are the leaf nodes of the location hierarchy. Players navigate
@@ -25,14 +27,14 @@ use wrldbldr_domain::{LocationId, RegionId};
 pub struct Region {
     id: RegionId,
     location_id: LocationId,
-    name: String,
+    name: RegionName,
     description: String,
 
     // Scene display (visual novel view)
     /// Path to backdrop image for this region's scene
-    backdrop_asset: Option<String>,
+    backdrop_asset: Option<AssetPath>,
     /// Sensory/emotional description of the region's atmosphere
-    atmosphere: Option<String>,
+    atmosphere: Option<Atmosphere>,
 
     // Position on parent location's map (clickable area)
     /// Bounds defining where this region is on the parent location's map
@@ -46,11 +48,11 @@ pub struct Region {
 
 impl Region {
     /// Create a new region within a location
-    pub fn new(location_id: LocationId, name: impl Into<String>) -> Self {
+    pub fn new(location_id: LocationId, name: RegionName) -> Self {
         Self {
             id: RegionId::new(),
             location_id,
-            name: name.into(),
+            name,
             description: String::new(),
             backdrop_asset: None,
             atmosphere: None,
@@ -64,10 +66,10 @@ impl Region {
     pub fn from_parts(
         id: RegionId,
         location_id: LocationId,
-        name: String,
+        name: RegionName,
         description: String,
-        backdrop_asset: Option<String>,
-        atmosphere: Option<String>,
+        backdrop_asset: Option<AssetPath>,
+        atmosphere: Option<Atmosphere>,
         map_bounds: Option<MapBounds>,
         is_spawn_point: bool,
         order: u32,
@@ -95,7 +97,7 @@ impl Region {
         self.location_id
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &RegionName {
         &self.name
     }
 
@@ -103,12 +105,12 @@ impl Region {
         &self.description
     }
 
-    pub fn backdrop_asset(&self) -> Option<&str> {
-        self.backdrop_asset.as_deref()
+    pub fn backdrop_asset(&self) -> Option<&AssetPath> {
+        self.backdrop_asset.as_ref()
     }
 
-    pub fn atmosphere(&self) -> Option<&str> {
-        self.atmosphere.as_deref()
+    pub fn atmosphere(&self) -> Option<&Atmosphere> {
+        self.atmosphere.as_ref()
     }
 
     pub fn map_bounds(&self) -> Option<&MapBounds> {
@@ -130,13 +132,13 @@ impl Region {
         self
     }
 
-    pub fn with_backdrop(mut self, asset_path: impl Into<String>) -> Self {
-        self.backdrop_asset = Some(asset_path.into());
+    pub fn with_backdrop(mut self, asset_path: AssetPath) -> Self {
+        self.backdrop_asset = Some(asset_path);
         self
     }
 
-    pub fn with_atmosphere(mut self, atmosphere: impl Into<String>) -> Self {
-        self.atmosphere = Some(atmosphere.into());
+    pub fn with_atmosphere(mut self, atmosphere: Atmosphere) -> Self {
+        self.atmosphere = Some(atmosphere);
         self
     }
 

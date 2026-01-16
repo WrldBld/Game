@@ -22,6 +22,8 @@ use wrldbldr_domain::{
     ChallengeId, CharacterId, LocationId, NarrativeEventId, SceneId, StoryEventId, WorldId,
 };
 
+use crate::value_objects::Tag;
+
 /// A story event - an immutable record of something that happened
 ///
 /// # Graph Relationships
@@ -53,7 +55,7 @@ pub struct StoryEvent {
     /// Whether this event is hidden from timeline UI (but still tracked)
     is_hidden: bool,
     /// Tags for filtering/searching
-    tags: Vec<String>,
+    tags: Vec<Tag>,
     // NOTE: triggered_by moved to TRIGGERED_BY_NARRATIVE edge
 }
 
@@ -114,7 +116,7 @@ impl StoryEvent {
         self.is_hidden
     }
 
-    pub fn tags(&self) -> &[String] {
+    pub fn tags(&self) -> &[Tag] {
         &self.tags
     }
 
@@ -134,12 +136,12 @@ impl StoryEvent {
 
     // NOTE: with_characters() removed - use repository edge method add_involved_character()
 
-    pub fn with_tag(mut self, tag: impl Into<String>) -> Self {
-        self.tags.push(tag.into());
+    pub fn with_tag(mut self, tag: Tag) -> Self {
+        self.tags.push(tag);
         self
     }
 
-    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+    pub fn with_tags(mut self, tags: Vec<Tag>) -> Self {
         self.tags = tags;
         self
     }
@@ -163,7 +165,7 @@ impl StoryEvent {
         game_time: Option<String>,
         summary: String,
         is_hidden: bool,
-        tags: Vec<String>,
+        tags: Vec<Tag>,
     ) -> Self {
         Self {
             id,

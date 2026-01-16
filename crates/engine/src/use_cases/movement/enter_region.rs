@@ -209,7 +209,7 @@ impl EnterRegion {
             pc_id,
             pc.name().to_string(),
             "travel_region",
-            region.name(),
+            region.name().as_str(),
         )
         .await;
 
@@ -290,7 +290,8 @@ mod tests {
 
     use chrono::Utc;
     use wrldbldr_domain::{
-        CharacterName, LocationId, PlayerCharacterId, Region, RegionConnection, RegionId, WorldId,
+        value_objects::RegionName, CharacterName, LocationId, PlayerCharacterId, Region,
+        RegionConnection, RegionId, WorldId,
     };
 
     use crate::infrastructure::ports::{
@@ -466,7 +467,7 @@ mod tests {
         let region = Region::from_parts(
             region_id,
             other_location_id,
-            "Target".to_string(),
+            RegionName::new("Target").unwrap(),
             String::new(),
             None,
             None,
@@ -515,7 +516,7 @@ mod tests {
         let to_region = Region::from_parts(
             to_region_id,
             location_id,
-            "Target".to_string(),
+            RegionName::new("Target").unwrap(),
             String::new(),
             None,
             None,
@@ -574,7 +575,7 @@ mod tests {
         let to_region = Region::from_parts(
             to_region_id,
             location_id,
-            "Target".to_string(),
+            RegionName::new("Target").unwrap(),
             String::new(),
             None,
             None,
@@ -644,7 +645,7 @@ mod tests {
         let region = Region::from_parts(
             region_id,
             location_id,
-            "Target".to_string(),
+            RegionName::new("Target").unwrap(),
             String::new(),
             None,
             None,

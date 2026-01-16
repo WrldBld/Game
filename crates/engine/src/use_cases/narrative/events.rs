@@ -310,7 +310,7 @@ fn narrative_event_to_summary(event: &NarrativeEvent) -> NarrativeEventSummary {
         expires_after_turns: event.expires_after_turns(),
         priority: event.priority(),
         is_favorite: event.is_favorite(),
-        tags: event.tags().to_vec(),
+        tags: event.tags().iter().map(|t| t.to_string()).collect(),
         scene_id: None,
         location_id: None,
         act_id: None,

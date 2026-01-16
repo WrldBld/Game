@@ -7,11 +7,16 @@ use std::sync::Arc;
 mod directorial;
 mod join_world;
 mod join_world_flow;
+mod types;
 
 pub use directorial::{DirectorialUpdate, DirectorialUpdateContext, DirectorialUpdateInput};
 pub use join_world::{JoinWorld, JoinWorldError, JoinWorldResult};
 pub use join_world_flow::{
     JoinWorldContext, JoinWorldFlow, JoinWorldFlowError, JoinWorldFlowResult, JoinWorldInput,
+};
+pub use types::{
+    CharacterSummary, LocationSummary, PlayerCharacterSummary, SceneSummary, WorldSnapshot,
+    WorldSummary,
 };
 
 /// Container for session use cases.

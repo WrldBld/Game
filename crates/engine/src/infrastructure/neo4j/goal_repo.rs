@@ -5,7 +5,7 @@
 use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
 use neo4rs::query;
-use wrldbldr_domain::{Goal, GoalId, WorldId};
+use wrldbldr_domain::{Goal, GoalId, GoalName, WorldId};
 
 use super::helpers::{parse_typed_id, NodeExt};
 use crate::infrastructure::ports::{GoalDetails, GoalRepo, RepoError};
@@ -47,7 +47,8 @@ impl GoalRepo for Neo4jGoalRepo {
                 parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
             let world_id: WorldId =
                 parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-            let name: String = node.get_string_or("name", "");
+            let name_str: String = node.get_string_or("name", "");
+            let name = GoalName::new(name_str).map_err(|e| RepoError::database("parse", e))?;
             let description = node.get_optional_string("description");
             let usage_count: i64 = row.get("usage_count").unwrap_or(0);
 
@@ -129,7 +130,8 @@ impl GoalRepo for Neo4jGoalRepo {
                 parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
             let world_id: WorldId =
                 parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-            let name: String = node.get_string_or("name", "");
+            let name_str: String = node.get_string_or("name", "");
+            let name = GoalName::new(name_str).map_err(|e| RepoError::database("parse", e))?;
             let description = node.get_optional_string("description");
             let usage_count: i64 = row.get("usage_count").unwrap_or(0);
 

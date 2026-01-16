@@ -1533,7 +1533,16 @@ pub(super) async fn handle_items_request(
             };
 
             // Create the item using the domain builder pattern
-            let mut item = wrldbldr_domain::Item::new(world_uuid, data.name);
+            let item_name = match wrldbldr_domain::ItemName::new(data.name) {
+                Ok(name) => name,
+                Err(e) => {
+                    return Ok(ResponseResult::error(
+                        ErrorCode::ValidationError,
+                        format!("Invalid item name: {}", e),
+                    ))
+                }
+            };
+            let mut item = wrldbldr_domain::Item::new(world_uuid, item_name);
             if let Some(desc) = data.description {
                 item = item.with_description(desc);
             }

@@ -62,8 +62,9 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             event.outcomes().iter().map(|o| o.into()).collect();
         let outcomes_json = serde_json::to_string(&stored_outcomes)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let tags_json = serde_json::to_string(&event.tags())
-            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let tags: Vec<String> = event.tags().iter().map(|t| t.to_string()).collect();
+        let tags_json =
+            serde_json::to_string(&tags).map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let q = query(
             "MERGE (e:NarrativeEvent {id: $id})
@@ -249,8 +250,9 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             .iter()
             .map(|id| id.to_string())
             .collect();
-        let tags_json = serde_json::to_string(&chain.tags())
-            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let tags: Vec<String> = chain.tags().iter().map(|t| t.to_string()).collect();
+        let tags_json =
+            serde_json::to_string(&tags).map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let q = query(
             "MERGE (c:EventChain {id: $id})
@@ -383,8 +385,9 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         let stored_event_type: StoredStoryEventType = event.event_type().into();
         let event_type_json = serde_json::to_string(&stored_event_type)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let tags_json = serde_json::to_string(&event.tags())
-            .map_err(|e| RepoError::Serialization(e.to_string()))?;
+        let tags: Vec<String> = event.tags().iter().map(|t| t.to_string()).collect();
+        let tags_json =
+            serde_json::to_string(&tags).map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let q = query(
             "MERGE (e:StoryEvent {id: $id})
@@ -1293,7 +1296,7 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
     let default_outcome = node.get_optional_string("default_outcome");
     let selected_outcome = node.get_optional_string("selected_outcome");
 
-    let tags: Vec<String> = node.get_json_or_default("tags_json");
+    let tags_raw: Vec<String> = node.get_json_or_default("tags_json");
     let stored_triggers: Vec<StoredNarrativeTrigger> = node.get_json_or_default("triggers_json");
     let stored_outcomes: Vec<StoredEventOutcome> = node.get_json_or_default("outcomes_json");
     let trigger_logic_str = node.get_string_or("trigger_logic", "All");
@@ -1338,7 +1341,6 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
     let mut event = NarrativeEvent::new(world_id, name, created_at)
         .with_id(id)
         .with_description(description)
-        .with_tags(tags)
         .with_trigger_conditions(trigger_conditions)
         .with_trigger_logic(trigger_logic)
         .with_scene_direction(scene_direction)
@@ -1359,6 +1361,12 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
     }
     if let Some(turns) = expires_after_turns {
         event = event.with_expires_after_turns(turns);
+    }
+
+    for tag_str in tags_raw {
+        let tag =
+            wrldbldr_domain::Tag::new(&tag_str).map_err(|e| RepoError::database("parse", e))?;
+        event = event.with_tag(tag);
     }
 
     Ok(event)
@@ -1382,7 +1390,7 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
     let completed_strs: Vec<String> = node.get("completed_events").unwrap_or_default();
     let act_id: Option<ActId> =
         parse_optional_typed_id(&node, "act_id").map_err(|e| RepoError::database("query", e))?;
-    let tags: Vec<String> = node.get_json_or_default("tags_json");
+    let tags_raw: Vec<String> = node.get_json_or_default("tags_json");
     let color: Option<String> = node.get_optional_string("color");
     let is_favorite: bool = node.get_bool_or("is_favorite", false);
     let created_at: DateTime<Utc> = node.get_datetime_or("created_at", fallback);
@@ -1397,6 +1405,11 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
         .iter()
         .filter_map(|s| Uuid::parse_str(s).ok().map(NarrativeEventId::from))
         .collect();
+
+    let tags: Vec<wrldbldr_domain::Tag> = tags_raw
+        .into_iter()
+        .map(|s| wrldbldr_domain::Tag::new(&s).map_err(|e| RepoError::database("parse", e)))
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(EventChain::from_parts(
         id,
@@ -1432,7 +1445,12 @@ fn row_to_story_event(row: Row, fallback: DateTime<Utc>) -> Result<StoryEvent, R
         .get("summary")
         .map_err(|e| RepoError::database("query", e))?;
     let is_hidden = node.get_bool_or("is_hidden", false);
-    let tags: Vec<String> = node.get_json_or_default("tags_json");
+    let tags_raw: Vec<String> = node.get_json_or_default("tags_json");
+
+    let tags: Vec<wrldbldr_domain::Tag> = tags_raw
+        .into_iter()
+        .map(|s| wrldbldr_domain::Tag::new(&s).map_err(|e| RepoError::database("parse", e)))
+        .collect::<Result<Vec<_>, _>>()?;
 
     let stored_event_type: StoredStoryEventType = serde_json::from_str(&event_type_json)
         .map_err(|e| RepoError::Serialization(e.to_string()))?;

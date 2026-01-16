@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use wrldbldr_domain::{
-    ActantialContext, ActantialRole, ActantialTarget, CharacterId, GoalId, Want, WantId,
+    ActantialContext, ActantialRole, ActantialTarget, CharacterId, GoalId, GoalName, Want, WantId,
     WantTarget, WantVisibility, WorldId,
 };
 
@@ -77,9 +77,10 @@ impl GoalOps {
         name: String,
         description: Option<String>,
     ) -> Result<GoalDetails, ActantialError> {
-        require_non_empty(&name, "Goal name")?;
+        let goal_name =
+            GoalName::new(&name).map_err(|e| ActantialError::InvalidInput(e.to_string()))?;
 
-        let mut goal = wrldbldr_domain::Goal::new(world_id, name);
+        let mut goal = wrldbldr_domain::Goal::new(world_id, goal_name);
         if let Some(description) = description {
             if !description.trim().is_empty() {
                 goal = goal.with_description(description);
@@ -108,10 +109,9 @@ impl GoalOps {
 
         // Rebuild the goal with updated values using from_parts
         let new_name = if let Some(name) = name {
-            require_non_empty(&name, "Goal name")?;
-            name
+            GoalName::new(&name).map_err(|e| ActantialError::InvalidInput(e.to_string()))?
         } else {
-            details.goal.name().to_string()
+            details.goal.name().clone()
         };
 
         let new_description = match description {

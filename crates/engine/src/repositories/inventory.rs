@@ -213,7 +213,8 @@ impl Inventory {
             .ok_or(InventoryError::CharacterNotFound)?;
 
         // Create a new item in the same world as the PC
-        let mut item = domain::Item::new(pc.world_id(), item_name.clone());
+        let validated_name = domain::ItemName::new(item_name.clone())?;
+        let mut item = domain::Item::new(pc.world_id(), validated_name);
         if let Some(desc) = item_description {
             item = item.with_description(desc);
         }
@@ -350,6 +351,8 @@ pub enum InventoryError {
     ItemNotInRegion,
     #[error("Character not in a region")]
     NotInRegion,
+    #[error("Validation error: {0}")]
+    Validation(#[from] domain::DomainError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }

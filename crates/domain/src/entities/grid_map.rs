@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{GridMapId, WorldId};
 
+use crate::value_objects::AssetPath;
+
 /// A tactical grid map for combat
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -13,7 +15,7 @@ pub struct GridMap {
     width: u32,
     height: u32,
     /// Path to the tilesheet asset
-    tilesheet_asset: String,
+    tilesheet_asset: AssetPath,
     /// Tile size in pixels (for rendering)
     tile_size: u32,
     /// The grid of tiles
@@ -26,7 +28,7 @@ impl GridMap {
         name: impl Into<String>,
         width: u32,
         height: u32,
-        tilesheet_asset: impl Into<String>,
+        tilesheet_asset: AssetPath,
     ) -> Self {
         let tiles = (0..height)
             .map(|_| (0..width).map(|_| Tile::default()).collect())
@@ -38,7 +40,7 @@ impl GridMap {
             name: name.into(),
             width,
             height,
-            tilesheet_asset: tilesheet_asset.into(),
+            tilesheet_asset,
             tile_size: 32,
             tiles,
         }
@@ -52,7 +54,7 @@ impl GridMap {
         name: String,
         width: u32,
         height: u32,
-        tilesheet_asset: String,
+        tilesheet_asset: AssetPath,
         tile_size: u32,
         tiles: Vec<Vec<Tile>>,
     ) -> Self {
@@ -90,7 +92,7 @@ impl GridMap {
         self.height
     }
 
-    pub fn tilesheet_asset(&self) -> &str {
+    pub fn tilesheet_asset(&self) -> &AssetPath {
         &self.tilesheet_asset
     }
 
