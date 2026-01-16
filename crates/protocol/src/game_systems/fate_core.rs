@@ -291,15 +291,15 @@ impl CalculationEngine for FateCoreSystem {
         // Take highest bonus, all penalties stack
         let max_bonus = modifiers
             .iter()
-            .filter(|m| m.active && m.value > 0)
-            .map(|m| m.value)
+            .filter(|m| m.is_active() && m.value() > 0)
+            .map(|m| m.value())
             .max()
             .unwrap_or(0);
 
         let total_penalties: i32 = modifiers
             .iter()
-            .filter(|m| m.active && m.value < 0)
-            .map(|m| m.value)
+            .filter(|m| m.is_active() && m.value() < 0)
+            .map(|m| m.value())
             .sum();
 
         max_bonus + total_penalties

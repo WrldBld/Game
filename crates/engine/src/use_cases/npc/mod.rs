@@ -60,12 +60,12 @@ impl NpcDisposition {
         reason: Option<String>,
     ) -> Result<NpcDispositionUpdate, NpcError> {
         let now = self.clock.now();
-        let mut state = match self.character.get_disposition(npc_id, pc_id).await? {
+        let state = match self.character.get_disposition(npc_id, pc_id).await? {
             Some(existing) => existing,
             None => NpcDispositionState::new(npc_id, pc_id, now),
         };
 
-        state.set_disposition(disposition, reason.clone(), now);
+        let state = state.updating_disposition(disposition, reason.clone(), now);
         self.character.save_disposition(&state).await?;
 
         let npc_name = self
@@ -94,12 +94,12 @@ impl NpcDisposition {
         relationship: RelationshipLevel,
     ) -> Result<NpcDispositionUpdate, NpcError> {
         let now = self.clock.now();
-        let mut state = match self.character.get_disposition(npc_id, pc_id).await? {
+        let state = match self.character.get_disposition(npc_id, pc_id).await? {
             Some(existing) => existing,
             None => NpcDispositionState::new(npc_id, pc_id, now),
         };
 
-        state.set_relationship(relationship, now);
+        let state = state.updating_relationship(relationship, now);
         self.character.save_disposition(&state).await?;
 
         let npc_name = self

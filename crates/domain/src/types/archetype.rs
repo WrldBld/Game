@@ -1,5 +1,6 @@
 //! Campbell's character archetypes from "The Hero with a Thousand Faces"
 
+use crate::error::DomainError;
 use serde::{Deserialize, Serialize};
 
 /// Character archetypes based on Joseph Campbell's monomyth
@@ -116,7 +117,7 @@ impl std::fmt::Display for CampbellArchetype {
 }
 
 impl std::str::FromStr for CampbellArchetype {
-    type Err = String;
+    type Err = DomainError;
 
     /// Parse an archetype from a string (case-insensitive)
     ///

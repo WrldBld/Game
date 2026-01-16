@@ -6,107 +6,165 @@
   "description": "A human variant who combines martial prowess with arcane magic. A former soldier who discovered latent magical talent.",
   "sheetData": {
     "values": {
-      "RACE": "human",
-      "SUBRACE": "variant",
-      "CLASS": "fighter",
-      "LEVEL": 5,
-      "BACKGROUND": "soldier",
-      "STR": 16,
-      "DEX": 12,
-      "CON": 14,
-      "INT": 14,
-      "WIS": 10,
-      "CHA": 8,
-      "HP_MAX": 38,
-      "HP_CURRENT": 38,
-      "AC": 16,
-      "SPEED": 30,
-      "PROFICIENCY_BONUS": 3,
-      "character_identity": {
-        "race": "human",
-        "subrace": "variant",
-        "classes": [
-          {
-            "classId": "fighter",
-            "subclass": "eldritch_knight",
-            "level": 3
-          },
-          {
-            "classId": "wizard",
-            "subclass": null,
-            "level": 2
-          }
-        ],
-        "background": "soldier",
-        "alignment": "neutral",
-        "totalLevel": 5
-      },
-      "character_spells": {
-        "cantrips": ["booming_blade", "green_flame_blade", "minor_illusion"],
-        "known": [
-          { "spellId": "shield", "source": "fighter_eldritch_knight", "notes": null },
-          { "spellId": "absorb_elements", "source": "fighter_eldritch_knight", "notes": null },
-          { "spellId": "find_familiar", "source": "wizard", "notes": null },
-          { "spellId": "magic_missile", "source": "wizard", "notes": null },
-          { "spellId": "sleep", "source": "wizard", "notes": null },
-          { "spellId": "detect_magic", "source": "wizard", "notes": "Ritual only" }
-        ],
-        "prepared": ["shield", "absorb_elements", "magic_missile"],
-        "slots": {
-          "1": { "current": 4, "max": 4 },
-          "2": { "current": 2, "max": 2 }
-        },
-        "pactSlots": null,
-        "spellcastingAbility": "INT"
-      },
-      "character_feats": {
-        "feats": [
-          {
-            "featId": "war_caster",
-            "acquiredAtLevel": 1,
-            "choices": {},
-            "notes": "Human variant feat"
-          }
-        ]
-      },
-      "character_features": {
-        "features": [
-          {
-            "featureId": "fighting_style_defense",
-            "usesRemaining": null,
-            "usesMax": null,
-            "choices": {}
-          },
-          {
-            "featureId": "second_wind",
-            "usesRemaining": 1,
-            "usesMax": 1,
-            "choices": {}
-          },
-          {
-            "featureId": "action_surge",
-            "usesRemaining": 1,
-            "usesMax": 1,
-            "choices": {}
-          },
-          {
-            "featureId": "weapon_bond",
-            "usesRemaining": null,
-            "usesMax": null,
-            "choices": {}
-          },
-          {
-            "featureId": "arcane_recovery",
-            "usesRemaining": 1,
-            "usesMax": 1,
-            "choices": {}
-          }
-        ]
-      },
-      "skill_proficiencies": ["athletics", "arcana", "perception", "survival"],
-      "saving_throw_proficiencies": ["strength", "constitution", "intelligence", "wisdom"],
-      "armor_proficiencies": ["light", "medium", "heavy", "shields"],
-      "weapon_proficiencies": ["simple", "martial"]
+      "RACE": {"type": "string", "value": "human"},
+      "SUBRACE": {"type": "string", "value": "variant"},
+      "CLASS": {"type": "string", "value": "fighter"},
+      "LEVEL": {"type": "integer", "value": 5},
+      "BACKGROUND": {"type": "string", "value": "soldier"},
+      "STR": {"type": "integer", "value": 16},
+      "DEX": {"type": "integer", "value": 12},
+      "CON": {"type": "integer", "value": 14},
+      "INT": {"type": "integer", "value": 14},
+      "WIS": {"type": "integer", "value": 10},
+      "CHA": {"type": "integer", "value": 8},
+      "HP_MAX": {"type": "integer", "value": 38},
+      "HP_CURRENT": {"type": "integer", "value": 38},
+      "AC": {"type": "integer", "value": 16},
+      "SPEED": {"type": "integer", "value": 30},
+      "PROFICIENCY_BONUS": {"type": "integer", "value": 3},
+      "FEATS": {"type": "string", "value": "war_caster"},
+      "KNOWN_SPELLS": {"type": "string", "value": "shield,absorb_elements,find_familiar,magic_missile,sleep,detect_magic"},
+      "character_identity": {"type": "object", "value": {
+        "race": {"type": "string", "value": "human"},
+        "subrace": {"type": "string", "value": "variant"},
+        "classes": {"type": "list", "value": [
+          {"type": "object", "value": {
+            "classId": {"type": "string", "value": "fighter"},
+            "subclass": {"type": "string", "value": "eldritch_knight"},
+            "level": {"type": "integer", "value": 3}
+          }},
+          {"type": "object", "value": {
+            "classId": {"type": "string", "value": "wizard"},
+            "subclass": {"type": "null", "value": null},
+            "level": {"type": "integer", "value": 2}
+          }}
+        ]},
+        "background": {"type": "string", "value": "soldier"},
+        "alignment": {"type": "string", "value": "neutral"},
+        "totalLevel": {"type": "integer", "value": 5}
+      }},
+      "character_spells": {"type": "object", "value": {
+        "cantrips": {"type": "list", "value": [
+          {"type": "string", "value": "booming_blade"},
+          {"type": "string", "value": "green_flame_blade"},
+          {"type": "string", "value": "minor_illusion"}
+        ]},
+        "known": {"type": "list", "value": [
+          {"type": "object", "value": {
+            "spellId": {"type": "string", "value": "shield"},
+            "source": {"type": "string", "value": "fighter_eldritch_knight"},
+            "notes": {"type": "null", "value": null}
+          }},
+          {"type": "object", "value": {
+            "spellId": {"type": "string", "value": "absorb_elements"},
+            "source": {"type": "string", "value": "fighter_eldritch_knight"},
+            "notes": {"type": "null", "value": null}
+          }},
+          {"type": "object", "value": {
+            "spellId": {"type": "string", "value": "find_familiar"},
+            "source": {"type": "string", "value": "wizard"},
+            "notes": {"type": "null", "value": null}
+          }},
+          {"type": "object", "value": {
+            "spellId": {"type": "string", "value": "magic_missile"},
+            "source": {"type": "string", "value": "wizard"},
+            "notes": {"type": "null", "value": null}
+          }},
+          {"type": "object", "value": {
+            "spellId": {"type": "string", "value": "sleep"},
+            "source": {"type": "string", "value": "wizard"},
+            "notes": {"type": "null", "value": null}
+          }},
+          {"type": "object", "value": {
+            "spellId": {"type": "string", "value": "detect_magic"},
+            "source": {"type": "string", "value": "wizard"},
+            "notes": {"type": "string", "value": "Ritual only"}
+          }}
+        ]},
+        "prepared": {"type": "list", "value": [
+          {"type": "string", "value": "shield"},
+          {"type": "string", "value": "absorb_elements"},
+          {"type": "string", "value": "magic_missile"}
+        ]},
+        "slots": {"type": "object", "value": {
+          "1": {"type": "object", "value": {
+            "current": {"type": "integer", "value": 4},
+            "max": {"type": "integer", "value": 4}
+          }},
+          "2": {"type": "object", "value": {
+            "current": {"type": "integer", "value": 2},
+            "max": {"type": "integer", "value": 2}
+          }}
+        }},
+        "pactSlots": {"type": "null", "value": null},
+        "spellcastingAbility": {"type": "string", "value": "INT"}
+      }},
+      "character_feats": {"type": "object", "value": {
+        "feats": {"type": "list", "value": [
+          {"type": "object", "value": {
+            "featId": {"type": "string", "value": "war_caster"},
+            "acquiredAtLevel": {"type": "integer", "value": 1},
+            "choices": {"type": "object", "value": {}},
+            "notes": {"type": "string", "value": "Human variant feat"}
+          }}
+        ]}
+      }},
+      "character_features": {"type": "object", "value": {
+        "features": {"type": "list", "value": [
+          {"type": "object", "value": {
+            "featureId": {"type": "string", "value": "fighting_style_defense"},
+            "usesRemaining": {"type": "null", "value": null},
+            "usesMax": {"type": "null", "value": null},
+            "choices": {"type": "object", "value": {}}
+          }},
+          {"type": "object", "value": {
+            "featureId": {"type": "string", "value": "second_wind"},
+            "usesRemaining": {"type": "integer", "value": 1},
+            "usesMax": {"type": "integer", "value": 1},
+            "choices": {"type": "object", "value": {}}
+          }},
+          {"type": "object", "value": {
+            "featureId": {"type": "string", "value": "action_surge"},
+            "usesRemaining": {"type": "integer", "value": 1},
+            "usesMax": {"type": "integer", "value": 1},
+            "choices": {"type": "object", "value": {}}
+          }},
+          {"type": "object", "value": {
+            "featureId": {"type": "string", "value": "weapon_bond"},
+            "usesRemaining": {"type": "null", "value": null},
+            "usesMax": {"type": "null", "value": null},
+            "choices": {"type": "object", "value": {}}
+          }},
+          {"type": "object", "value": {
+            "featureId": {"type": "string", "value": "arcane_recovery"},
+            "usesRemaining": {"type": "integer", "value": 1},
+            "usesMax": {"type": "integer", "value": 1},
+            "choices": {"type": "object", "value": {}}
+          }}
+        ]}
+      }},
+      "skill_proficiencies": {"type": "list", "value": [
+        {"type": "string", "value": "athletics"},
+        {"type": "string", "value": "arcana"},
+        {"type": "string", "value": "perception"},
+        {"type": "string", "value": "survival"}
+      ]},
+      "saving_throw_proficiencies": {"type": "list", "value": [
+        {"type": "string", "value": "strength"},
+        {"type": "string", "value": "constitution"},
+        {"type": "string", "value": "intelligence"},
+        {"type": "string", "value": "wisdom"}
+      ]},
+      "armor_proficiencies": {"type": "list", "value": [
+        {"type": "string", "value": "light"},
+        {"type": "string", "value": "medium"},
+        {"type": "string", "value": "heavy"},
+        {"type": "string", "value": "shields"}
+      ]},
+      "weapon_proficiencies": {"type": "list", "value": [
+        {"type": "string", "value": "simple"},
+        {"type": "string", "value": "martial"}
+      ]}
     }
   },
   "currentLocationId": "00000000-0000-0000-0002-000000000001",

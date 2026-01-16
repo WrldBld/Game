@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::error::DomainError;
+
 /// Unified entity type enum for the entire WrldBldr system
 ///
 /// This enum represents all types of entities in the game. It serves two purposes:
@@ -141,7 +143,7 @@ impl EntityType {
 }
 
 impl std::str::FromStr for EntityType {
-    type Err = String;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().replace('-', "_").as_str() {
@@ -166,7 +168,7 @@ impl std::str::FromStr for EntityType {
             "actantial_view" | "actantialview" => Ok(Self::ActantialView),
             "game_time" | "gametime" => Ok(Self::GameTime),
             "unknown" => Ok(Self::Unknown),
-            _ => Err(format!("Unknown entity type: {}", s)),
+            _ => Err(DomainError::parse(format!("Unknown entity type: {}", s))),
         }
     }
 }
@@ -236,7 +238,7 @@ impl std::fmt::Display for AssetType {
 }
 
 impl std::str::FromStr for AssetType {
-    type Err = String;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s.to_lowercase().as_str() {

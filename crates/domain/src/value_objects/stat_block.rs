@@ -6,24 +6,30 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::StatModifierId;
+
 /// A temporary modifier to a stat (from equipment, spells, conditions, etc.)
+///
+/// This is an immutable value object. Use builder-style methods to create
+/// modified copies.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct StatModifier {
     /// Unique identifier for this modifier
-    pub id: uuid::Uuid,
+    id: StatModifierId,
     /// Source of the modifier (e.g., "Sword of Strength", "Bless spell", "Exhausted condition")
-    pub source: String,
+    source: String,
     /// The value to add (positive) or subtract (negative)
-    pub value: i32,
+    value: i32,
     /// Whether this modifier is currently active
-    pub active: bool,
+    active: bool,
 }
 
 impl StatModifier {
+    /// Create a new active modifier with the given source and value.
     pub fn new(source: impl Into<String>, value: i32) -> Self {
         Self {
-            id: uuid::Uuid::new_v4(),
+            id: StatModifierId::new(),
             source: source.into(),
             value,
             active: true,
@@ -33,10 +39,61 @@ impl StatModifier {
     /// Create an inactive modifier (for tracking but not applying)
     pub fn inactive(source: impl Into<String>, value: i32) -> Self {
         Self {
-            id: uuid::Uuid::new_v4(),
+            id: StatModifierId::new(),
             source: source.into(),
             value,
             active: false,
+        }
+    }
+
+    /// Reconstruct from storage (database hydration)
+    pub fn from_storage(id: StatModifierId, source: String, value: i32, active: bool) -> Self {
+        Self {
+            id,
+            source,
+            value,
+            active,
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Read accessors
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// Get the unique identifier for this modifier.
+    pub fn id(&self) -> StatModifierId {
+        self.id
+    }
+
+    /// Get the source of this modifier (e.g., "Sword of Strength").
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+
+    /// Get the modifier value (positive = bonus, negative = penalty).
+    pub fn value(&self) -> i32 {
+        self.value
+    }
+
+    /// Check if this modifier is currently active.
+    pub fn is_active(&self) -> bool {
+        self.active
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Builder-style methods (consume self, return new instance)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// Create a copy with the active state changed.
+    pub fn with_active(self, active: bool) -> Self {
+        Self { active, ..self }
+    }
+
+    /// Create a copy with the active state toggled.
+    pub fn toggled(self) -> Self {
+        Self {
+            active: !self.active,
+            ..self
         }
     }
 }
@@ -109,7 +166,12 @@ impl StatBlock {
     pub fn get_modifier_total(&self, name: &str) -> i32 {
         self.modifiers
             .get(name)
-            .map(|mods| mods.iter().filter(|m| m.active).map(|m| m.value).sum())
+            .map(|mods| {
+                mods.iter()
+                    .filter(|m| m.is_active())
+                    .map(|m| m.value())
+                    .sum()
+            })
             .unwrap_or(0)
     }
 
@@ -140,20 +202,25 @@ impl StatBlock {
     }
 
     /// Remove a modifier by its ID
-    pub fn remove_modifier(&mut self, stat_name: &str, modifier_id: uuid::Uuid) -> bool {
+    pub fn remove_modifier(&mut self, stat_name: &str, modifier_id: StatModifierId) -> bool {
         if let Some(mods) = self.modifiers.get_mut(stat_name) {
             let len_before = mods.len();
-            mods.retain(|m| m.id != modifier_id);
+            mods.retain(|m| m.id() != modifier_id);
             return mods.len() < len_before;
         }
         false
     }
 
     /// Toggle a modifier's active state
-    pub fn toggle_modifier(&mut self, stat_name: &str, modifier_id: uuid::Uuid) -> bool {
+    ///
+    /// Note: This method mutates in-place because modifiers are stored in a Vec
+    /// and need to be updated by reference. The StatModifier itself is immutable
+    /// but we replace it with a toggled copy.
+    pub fn toggle_modifier(&mut self, stat_name: &str, modifier_id: StatModifierId) -> bool {
         if let Some(mods) = self.modifiers.get_mut(stat_name) {
-            if let Some(modifier) = mods.iter_mut().find(|m| m.id == modifier_id) {
-                modifier.active = !modifier.active;
+            if let Some(idx) = mods.iter().position(|m| m.id() == modifier_id) {
+                let modifier = mods.remove(idx);
+                mods.insert(idx, modifier.toggled());
                 return true;
             }
         }
@@ -310,29 +377,52 @@ impl StatBlock {
             .iter()
             .map(|(name, &base)| {
                 let modifier_total = self.get_modifier_total(name);
-                (
-                    name.clone(),
-                    StatValue {
-                        base,
-                        modifier_total,
-                        effective: base + modifier_total,
-                    },
-                )
+                (name.clone(), StatValue::new(base, modifier_total))
             })
             .collect()
     }
 }
 
 /// A stat value with base, modifiers, and effective total
+///
+/// This is an immutable value object representing a computed stat snapshot.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct StatValue {
     /// The base value (before modifiers)
-    pub base: i32,
+    base: i32,
     /// Sum of all active modifiers
-    pub modifier_total: i32,
+    modifier_total: i32,
     /// Effective value (base + modifier_total)
-    pub effective: i32,
+    effective: i32,
+}
+
+impl StatValue {
+    /// Create a new stat value from base and modifier total.
+    ///
+    /// The effective value is automatically computed as `base + modifier_total`.
+    pub fn new(base: i32, modifier_total: i32) -> Self {
+        Self {
+            base,
+            modifier_total,
+            effective: base + modifier_total,
+        }
+    }
+
+    /// Get the base value (before modifiers).
+    pub fn base(&self) -> i32 {
+        self.base
+    }
+
+    /// Get the sum of all active modifiers.
+    pub fn modifier_total(&self) -> i32 {
+        self.modifier_total
+    }
+
+    /// Get the effective value (base + modifier_total).
+    pub fn effective(&self) -> i32 {
+        self.effective
+    }
 }
 
 #[cfg(test)]
@@ -389,7 +479,7 @@ mod tests {
     fn stat_block_remove_modifier_works() {
         let mut stats = StatBlock::new().with_stat("STR", 15);
         let modifier = StatModifier::new("Temporary Buff", 2);
-        let modifier_id = modifier.id;
+        let modifier_id = modifier.id();
         stats.add_modifier("STR", modifier);
 
         assert_eq!(stats.get_stat("STR"), Some(17));
@@ -400,7 +490,7 @@ mod tests {
     #[test]
     fn stat_block_remove_nonexistent_modifier_returns_false() {
         let mut stats = StatBlock::new().with_stat("STR", 15);
-        let fake_id = uuid::Uuid::new_v4();
+        let fake_id = crate::StatModifierId::new();
         assert!(!stats.remove_modifier("STR", fake_id));
         assert!(!stats.remove_modifier("DEX", fake_id));
     }
@@ -409,7 +499,7 @@ mod tests {
     fn stat_block_toggle_modifier_works() {
         let mut stats = StatBlock::new().with_stat("DEX", 14);
         let modifier = StatModifier::new("Haste", 2);
-        let modifier_id = modifier.id;
+        let modifier_id = modifier.id();
         stats.add_modifier("DEX", modifier);
 
         // Initially active
@@ -457,14 +547,14 @@ mod tests {
         let all = stats.get_all_stats();
 
         let str_value = all.get("STR").unwrap();
-        assert_eq!(str_value.base, 10);
-        assert_eq!(str_value.modifier_total, 4);
-        assert_eq!(str_value.effective, 14);
+        assert_eq!(str_value.base(), 10);
+        assert_eq!(str_value.modifier_total(), 4);
+        assert_eq!(str_value.effective(), 14);
 
         let dex_value = all.get("DEX").unwrap();
-        assert_eq!(dex_value.base, 14);
-        assert_eq!(dex_value.modifier_total, 0);
-        assert_eq!(dex_value.effective, 14);
+        assert_eq!(dex_value.base(), 14);
+        assert_eq!(dex_value.modifier_total(), 0);
+        assert_eq!(dex_value.effective(), 14);
     }
 
     #[test]
@@ -477,24 +567,24 @@ mod tests {
 
         let modifiers = stats.get_modifiers("CHA");
         assert_eq!(modifiers.len(), 2);
-        assert_eq!(modifiers[0].source, "Cloak");
-        assert_eq!(modifiers[1].source, "Curse");
+        assert_eq!(modifiers[0].source(), "Cloak");
+        assert_eq!(modifiers[1].source(), "Curse");
     }
 
     #[test]
     fn stat_modifier_new_creates_active_modifier() {
         let modifier = StatModifier::new("Test Source", 5);
-        assert_eq!(modifier.source, "Test Source");
-        assert_eq!(modifier.value, 5);
-        assert!(modifier.active);
+        assert_eq!(modifier.source(), "Test Source");
+        assert_eq!(modifier.value(), 5);
+        assert!(modifier.is_active());
     }
 
     #[test]
     fn stat_modifier_inactive_creates_inactive_modifier() {
         let modifier = StatModifier::inactive("Test Source", -3);
-        assert_eq!(modifier.source, "Test Source");
-        assert_eq!(modifier.value, -3);
-        assert!(!modifier.active);
+        assert_eq!(modifier.source(), "Test Source");
+        assert_eq!(modifier.value(), -3);
+        assert!(!modifier.is_active());
     }
 
     #[test]
@@ -562,8 +652,8 @@ mod tests {
         // But should be retrievable
         let modifiers = stats.get_hp_modifiers();
         assert_eq!(modifiers.len(), 1);
-        assert_eq!(modifiers[0].source, "Dormant Blessing");
-        assert!(!modifiers[0].active);
+        assert_eq!(modifiers[0].source(), "Dormant Blessing");
+        assert!(!modifiers[0].is_active());
     }
 
     #[test]
@@ -572,7 +662,7 @@ mod tests {
         stats.add_hp_modifier("Rage Bonus", 10);
 
         let modifiers = stats.get_hp_modifiers();
-        let modifier_id = modifiers[0].id;
+        let modifier_id = modifiers[0].id();
 
         assert_eq!(stats.get_current_hp(), Some(40));
 
@@ -598,16 +688,11 @@ mod tests {
 
     #[test]
     fn stat_value_struct_equality() {
-        let v1 = StatValue {
-            base: 10,
-            modifier_total: 4,
-            effective: 14,
-        };
-        let v2 = StatValue {
-            base: 10,
-            modifier_total: 4,
-            effective: 14,
-        };
+        let v1 = StatValue::new(10, 4);
+        let v2 = StatValue::new(10, 4);
         assert_eq!(v1, v2);
+        assert_eq!(v1.base(), 10);
+        assert_eq!(v1.modifier_total(), 4);
+        assert_eq!(v1.effective(), 14);
     }
 }

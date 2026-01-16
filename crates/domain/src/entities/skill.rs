@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::value_objects::RuleSystemVariant;
-use wrldbldr_domain::{SkillId, WorldId};
+use wrldbldr_domain::{DomainError, SkillId, WorldId};
 
 /// A skill that characters can use for challenges
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,7 +122,7 @@ impl std::fmt::Display for SkillCategory {
 }
 
 impl std::str::FromStr for SkillCategory {
-    type Err = String;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
@@ -138,7 +138,7 @@ impl std::str::FromStr for SkillCategory {
             "aspect" => Ok(Self::Aspect),
             "other" => Ok(Self::Other),
             "custom" => Ok(Self::Custom),
-            _ => Err(format!("Unknown skill category: {}", s)),
+            _ => Err(DomainError::parse(format!("Unknown skill category: {}", s))),
         }
     }
 }

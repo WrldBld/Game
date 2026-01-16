@@ -294,7 +294,11 @@ impl CalculationEngine for Coc7eSystem {
 
     fn stack_modifiers(&self, modifiers: &[StatModifier]) -> i32 {
         // CoC modifiers typically stack (they're flat bonuses/penalties)
-        modifiers.iter().filter(|m| m.active).map(|m| m.value).sum()
+        modifiers
+            .iter()
+            .filter(|m| m.is_active())
+            .map(|m| m.value())
+            .sum()
     }
 
     fn calculate_ac(

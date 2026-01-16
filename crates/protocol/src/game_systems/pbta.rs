@@ -267,7 +267,11 @@ impl CalculationEngine for PbtaSystem {
 
     fn stack_modifiers(&self, modifiers: &[StatModifier]) -> i32 {
         // PbtA modifiers stack (forward, ongoing, etc.)
-        modifiers.iter().filter(|m| m.active).map(|m| m.value).sum()
+        modifiers
+            .iter()
+            .filter(|m| m.is_active())
+            .map(|m| m.value())
+            .sum()
     }
 
     fn calculate_ac(
@@ -2268,10 +2272,9 @@ mod tests {
 
         assert!(!schema.creation_steps.is_empty());
 
-        let mut prev_order = 0;
-        for step in &schema.creation_steps {
-            assert!(step.order > prev_order);
-            prev_order = step.order;
+        // Verify all steps have valid IDs (order is implicit by vector position)
+        for (i, step) in schema.creation_steps.iter().enumerate() {
+            assert!(!step.id.is_empty(), "Step {} should have a non-empty id", i);
         }
     }
 

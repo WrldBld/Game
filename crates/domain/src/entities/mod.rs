@@ -41,7 +41,7 @@ pub use character_content::{
     CharacterSpells, ClassLevel, KnownSpell, SpellSlotPool,
 };
 pub use class_feature::{BackgroundFeature, ClassFeature, FeatureUses, RacialTrait};
-pub use content_types::{ContentFilter, ContentSource, ContentType, SourceType};
+pub use content_types::{ContentSource, ContentType, SourceType};
 pub use event_chain::{ChainStatus, EventChain};
 pub use feat::{AbilityUses, Feat, FeatBenefit, Prerequisite, RechargeType, UsesFormula};
 pub use gallery_asset::{AssetType, EntityType, GalleryAsset, GenerationMetadata};

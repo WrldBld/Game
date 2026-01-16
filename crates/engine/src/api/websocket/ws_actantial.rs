@@ -255,8 +255,11 @@ pub(super) async fn handle_want_request(
                 .await
             {
                 Ok(Some(context)) => {
-                    let data: Vec<WantResponse> =
-                        context.wants.iter().map(want_context_to_response).collect();
+                    let data: Vec<WantResponse> = context
+                        .wants()
+                        .iter()
+                        .map(want_context_to_response)
+                        .collect();
                     Ok(ResponseResult::success(data))
                 }
                 Ok(None) => Ok(ResponseResult::error(
@@ -302,9 +305,9 @@ pub(super) async fn handle_want_request(
                 .await
             {
                 Ok(Some(context)) => context
-                    .wants
+                    .wants()
                     .iter()
-                    .find(|want| want.want_id == uuid::Uuid::from(details.want.id))
+                    .find(|want| want.want_id() == WantId::from_uuid(details.want.id.into()))
                     .map(want_context_to_response)
                     .unwrap_or_else(|| want_details_to_response(&details)),
                 _ => want_details_to_response(&details),
@@ -755,14 +758,14 @@ fn want_details_to_response(details: &crate::infrastructure::ports::WantDetails)
 
 fn want_context_to_response(want: &wrldbldr_domain::WantContext) -> WantResponse {
     WantResponse {
-        id: want.want_id.to_string(),
-        description: want.description.clone(),
-        intensity: want.intensity,
-        priority: want.priority,
-        visibility: map_visibility_data(want.visibility),
-        target: want.target.as_ref().map(want_target_to_data),
-        deflection_behavior: want.deflection_behavior.clone(),
-        tells: want.tells.first().cloned(),
+        id: want.want_id().to_string(),
+        description: want.description().to_string(),
+        intensity: want.intensity(),
+        priority: want.priority(),
+        visibility: map_visibility_data(want.visibility()),
+        target: want.target().map(want_target_to_data),
+        deflection_behavior: want.deflection_behavior().map(|s| s.to_string()),
+        tells: want.tells().first().cloned(),
     }
 }
 
@@ -785,27 +788,31 @@ fn want_details_to_data(details: &crate::infrastructure::ports::WantDetails) -> 
 
 fn want_context_to_data(want: &wrldbldr_domain::WantContext) -> WantData {
     WantData {
-        id: want.want_id.to_string(),
-        description: want.description.clone(),
-        intensity: want.intensity,
-        priority: want.priority,
-        visibility: map_visibility_data(want.visibility),
-        target: want.target.as_ref().map(want_target_to_data),
-        deflection_behavior: want.deflection_behavior.clone(),
-        tells: want.tells.clone(),
-        helpers: want.helpers.iter().map(actantial_actor_to_data).collect(),
-        opponents: want.opponents.iter().map(actantial_actor_to_data).collect(),
-        sender: want.sender.as_ref().map(actantial_actor_to_data),
-        receiver: want.receiver.as_ref().map(actantial_actor_to_data),
+        id: want.want_id().to_string(),
+        description: want.description().to_string(),
+        intensity: want.intensity(),
+        priority: want.priority(),
+        visibility: map_visibility_data(want.visibility()),
+        target: want.target().map(want_target_to_data),
+        deflection_behavior: want.deflection_behavior().map(|s| s.to_string()),
+        tells: want.tells().to_vec(),
+        helpers: want.helpers().iter().map(actantial_actor_to_data).collect(),
+        opponents: want
+            .opponents()
+            .iter()
+            .map(actantial_actor_to_data)
+            .collect(),
+        sender: want.sender().map(actantial_actor_to_data),
+        receiver: want.receiver().map(actantial_actor_to_data),
     }
 }
 
 fn actantial_actor_to_data(actor: &ActantialActor) -> ActantialActorData {
     ActantialActorData {
-        id: actor.target.id_string(),
-        name: actor.name.clone(),
-        actor_type: map_actor_type_data(actor.target.actor_type()),
-        reason: actor.reason.clone(),
+        id: actor.target().id_string(),
+        name: actor.name().to_string(),
+        actor_type: map_actor_type_data(actor.target().actor_type()),
+        reason: actor.reason().to_string(),
     }
 }
 
@@ -837,11 +844,11 @@ fn want_target_to_data(target: &WantTarget) -> WantTargetData {
 }
 
 fn actantial_context_to_data(context: &ActantialContext) -> NpcActantialContextData {
-    let wants = context.wants.iter().map(want_context_to_data).collect();
+    let wants = context.wants().iter().map(want_context_to_data).collect();
 
     let allies = context
-        .social_views
-        .allies
+        .social_views()
+        .allies()
         .iter()
         .map(|(target, name, reasons)| SocialRelationData {
             id: target.id_string(),
@@ -852,8 +859,8 @@ fn actantial_context_to_data(context: &ActantialContext) -> NpcActantialContextD
         .collect();
 
     let enemies = context
-        .social_views
-        .enemies
+        .social_views()
+        .enemies()
         .iter()
         .map(|(target, name, reasons)| SocialRelationData {
             id: target.id_string(),
@@ -864,8 +871,8 @@ fn actantial_context_to_data(context: &ActantialContext) -> NpcActantialContextD
         .collect();
 
     NpcActantialContextData {
-        npc_id: context.character_id.to_string(),
-        npc_name: context.character_name.clone(),
+        npc_id: context.character_id().to_string(),
+        npc_name: context.character_name().to_string(),
         wants,
         social_views: SocialViewsData { allies, enemies },
     }
@@ -949,8 +956,10 @@ fn map_actantial_target(
 ) -> Result<ActantialTarget, ServerMessage> {
     let target_uuid = parse_uuid_for_request(target_id, request_id, "Invalid target ID")?;
     match target_type {
-        ActorTypeData::Npc => Ok(ActantialTarget::npc(target_uuid)),
-        ActorTypeData::Pc => Ok(ActantialTarget::pc(target_uuid)),
+        ActorTypeData::Npc => Ok(ActantialTarget::npc(CharacterId::from_uuid(target_uuid))),
+        ActorTypeData::Pc => Ok(ActantialTarget::pc(
+            wrldbldr_domain::PlayerCharacterId::from_uuid(target_uuid),
+        )),
         ActorTypeData::Unknown => Err(ServerMessage::Response {
             request_id: request_id.to_string(),
             result: ResponseResult::error(ErrorCode::BadRequest, "Invalid target type"),
@@ -1000,8 +1009,8 @@ async fn resolve_want_data(
         .flatten()?;
 
     context
-        .wants
+        .wants()
         .iter()
-        .find(|want| want.want_id == uuid::Uuid::from(want_id))
+        .find(|want| want.want_id() == want_id)
         .map(want_context_to_data)
 }

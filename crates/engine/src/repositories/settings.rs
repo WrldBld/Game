@@ -36,11 +36,8 @@ impl Settings {
     /// Update global application settings.
     ///
     /// Clears any world_id to ensure settings are truly global.
-    pub async fn update_global(
-        &self,
-        mut settings: AppSettings,
-    ) -> Result<AppSettings, SettingsError> {
-        settings.world_id = None;
+    pub async fn update_global(&self, settings: AppSettings) -> Result<AppSettings, SettingsError> {
+        let settings = settings.with_world_id(None);
         self.repo.save_global(&settings).await?;
         Ok(settings)
     }
@@ -57,8 +54,8 @@ impl Settings {
     /// Falls back to global settings if no world-specific settings exist.
     /// The returned settings will have the world_id set appropriately.
     pub async fn get_for_world(&self, world_id: WorldId) -> Result<AppSettings, SettingsError> {
-        if let Some(mut settings) = self.repo.get_for_world(world_id).await? {
-            settings.world_id = Some(world_id);
+        if let Some(settings) = self.repo.get_for_world(world_id).await? {
+            let settings = settings.with_world_id(Some(world_id));
             return Ok(settings);
         }
 
@@ -72,9 +69,9 @@ impl Settings {
     pub async fn update_for_world(
         &self,
         world_id: WorldId,
-        mut settings: AppSettings,
+        settings: AppSettings,
     ) -> Result<AppSettings, SettingsError> {
-        settings.world_id = Some(world_id);
+        let settings = settings.with_world_id(Some(world_id));
         self.repo.save_for_world(world_id, &settings).await?;
         Ok(settings)
     }

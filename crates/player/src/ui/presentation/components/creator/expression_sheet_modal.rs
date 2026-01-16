@@ -61,7 +61,7 @@ pub fn ExpressionSheetModal(props: ExpressionSheetModalProps) -> Element {
     // State for selected expressions
     let mut selected_expressions = use_signal(|| {
         // Pre-select expressions from the character's config
-        props.expression_config.expressions.clone()
+        props.expression_config.expressions().to_vec()
     });
     let mut workflow = use_signal(|| "expression_sheet".to_string());
     let mut style_prompt = use_signal(String::new);
@@ -154,7 +154,7 @@ pub fn ExpressionSheetModal(props: ExpressionSheetModalProps) -> Element {
 
                         for expr in STANDARD_EXPRESSION_ORDER {
                             {
-                                let is_selected = selected_expressions.read().iter().any(|e| e.eq_ignore_ascii_case(expr));
+                                let is_selected = selected_expressions.read().iter().any(|e: &String| e.eq_ignore_ascii_case(expr));
                                 let expr_str = expr.to_string();
                                 rsx! {
                                     button {
@@ -170,7 +170,7 @@ pub fn ExpressionSheetModal(props: ExpressionSheetModalProps) -> Element {
                                         onclick: move |_| {
                                             let mut current = selected_expressions.read().clone();
                                             if is_selected {
-                                                current.retain(|e| !e.eq_ignore_ascii_case(&expr_str));
+                                                current.retain(|e: &String| !e.eq_ignore_ascii_case(&expr_str));
                                             } else {
                                                 current.push(expr_str.clone());
                                             }
@@ -201,7 +201,7 @@ pub fn ExpressionSheetModal(props: ExpressionSheetModalProps) -> Element {
                                             let expr = custom_expr_input.read().trim().to_string();
                                             if !expr.is_empty() {
                                                 let mut current = selected_expressions.read().clone();
-                                                if !current.iter().any(|e| e.eq_ignore_ascii_case(&expr)) {
+                                                if !current.iter().any(|e: &String| e.eq_ignore_ascii_case(&expr)) {
                                                     current.push(expr);
                                                     selected_expressions.set(current);
                                                 }
@@ -217,7 +217,7 @@ pub fn ExpressionSheetModal(props: ExpressionSheetModalProps) -> Element {
                                         let expr = custom_expr_input.read().trim().to_string();
                                         if !expr.is_empty() {
                                             let mut current = selected_expressions.read().clone();
-                                            if !current.iter().any(|e| e.eq_ignore_ascii_case(&expr)) {
+                                            if !current.iter().any(|e: &String| e.eq_ignore_ascii_case(&expr)) {
                                                 current.push(expr);
                                                 selected_expressions.set(current);
                                             }

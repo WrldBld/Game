@@ -164,7 +164,7 @@ async fn update_world_settings(
     Path(id): Path<Uuid>,
     Json(settings): Json<wrldbldr_domain::AppSettings>,
 ) -> Result<Json<wrldbldr_domain::AppSettings>, ApiError> {
-    if let Some(world_id) = settings.world_id {
+    if let Some(world_id) = settings.world_id() {
         if world_id != wrldbldr_domain::WorldId::from_uuid(id) {
             return Err(ApiError::BadRequest(
                 "world_id does not match path".to_string(),
@@ -391,7 +391,8 @@ mod tests {
         let world_id = Uuid::new_v4();
         let other_world_id = Uuid::new_v4();
         let mut settings = wrldbldr_domain::AppSettings::default();
-        settings.world_id = Some(wrldbldr_domain::WorldId::from_uuid(other_world_id));
+        let settings =
+            settings.with_world_id(Some(wrldbldr_domain::WorldId::from_uuid(other_world_id)));
 
         let response = router
             .into_service()

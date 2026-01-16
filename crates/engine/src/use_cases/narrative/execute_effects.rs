@@ -603,10 +603,10 @@ impl ExecuteEffects {
                 // Find existing relationship to target
                 let existing_relationship = relationships
                     .into_iter()
-                    .find(|r| r.to_character == to_character);
+                    .find(|r| r.to_character() == to_character);
 
                 // If no existing relationship, create a new one with logging
-                let (mut relationship, is_new_relationship) = match existing_relationship {
+                let (relationship, is_new_relationship) = match existing_relationship {
                     Some(rel) => (rel, false),
                     None => {
                         tracing::info!(
@@ -647,17 +647,17 @@ impl ExecuteEffects {
                     };
                 }
 
-                // Apply sentiment change
-                let old_sentiment = relationship.sentiment;
-                relationship.sentiment =
-                    (relationship.sentiment + sentiment_change).clamp(-1.0, 1.0);
-
-                // Add event to history
-                relationship.add_event(RelationshipEvent {
-                    description: reason.to_string(),
-                    sentiment_change,
-                    timestamp: self.clock.now(),
-                });
+                // Apply sentiment change and add event to history
+                let old_sentiment = relationship.sentiment();
+                let new_sentiment = (old_sentiment + sentiment_change).clamp(-1.0, 1.0);
+                let relationship =
+                    relationship
+                        .with_sentiment(new_sentiment)
+                        .with_event(RelationshipEvent::new(
+                            reason.to_string(),
+                            sentiment_change,
+                            self.clock.now(),
+                        ));
 
                 // Save updated relationship
                 match self.character.save_relationship(&relationship).await {
@@ -674,7 +674,7 @@ impl ExecuteEffects {
                                 from_name,
                                 to_name,
                                 old_sentiment,
-                                relationship.sentiment,
+                                relationship.sentiment(),
                                 reason
                             ),
                             success: true,

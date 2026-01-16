@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 /// Each character can have a unique set of expressions based on their
 /// sprite sheet. This is typically configured when setting up character assets.
 ///
+/// This is an immutable value object. Use builder-style methods to create
+/// modified copies.
+///
 /// # Example
 /// ```
 /// use wrldbldr_domain::ExpressionConfig;
@@ -24,16 +27,16 @@ use serde::{Deserialize, Serialize};
 pub struct ExpressionConfig {
     /// Available expression names for this character's sprite sheet
     /// Examples: "neutral", "happy", "sad", "angry", "surprised", "afraid", "thoughtful"
-    pub expressions: Vec<String>,
+    expressions: Vec<String>,
 
     /// Custom action names this character can perform
     /// Examples: "sighs", "laughs", "nods", "shakes head", "crosses arms"
     /// Actions are rendered as stage directions in dialogue
-    pub actions: Vec<String>,
+    actions: Vec<String>,
 
     /// Default expression to show when no marker is specified
     /// This is overridden by MoodState.default_expression() when NPC has a mood set
-    pub default_expression: String,
+    default_expression: String,
 }
 
 impl Default for ExpressionConfig {
@@ -87,6 +90,29 @@ impl ExpressionConfig {
         ]
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // Read accessors
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// Get available expressions for this character.
+    pub fn expressions(&self) -> &[String] {
+        &self.expressions
+    }
+
+    /// Get available actions for this character.
+    pub fn actions(&self) -> &[String] {
+        &self.actions
+    }
+
+    /// Get the default expression.
+    pub fn default_expression(&self) -> &str {
+        &self.default_expression
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Builder-style methods (consume self, return new instance)
+    // ──────────────────────────────────────────────────────────────────────────
+
     /// Builder: set available expressions
     pub fn with_expressions(
         mut self,
@@ -108,21 +134,58 @@ impl ExpressionConfig {
         self
     }
 
-    /// Add an expression to the list
-    pub fn add_expression(&mut self, expression: impl Into<String>) {
+    /// Return a new config with an additional expression (if not already present).
+    ///
+    /// This consumes self and returns a new instance.
+    pub fn adding_expression(mut self, expression: impl Into<String>) -> Self {
         let expr = expression.into();
         if !self.expressions.contains(&expr) {
             self.expressions.push(expr);
         }
+        self
     }
 
-    /// Add an action to the list
-    pub fn add_action(&mut self, action: impl Into<String>) {
+    /// Return a new config with an additional action (if not already present).
+    ///
+    /// This consumes self and returns a new instance.
+    pub fn adding_action(mut self, action: impl Into<String>) -> Self {
         let act = action.into();
         if !self.actions.contains(&act) {
             self.actions.push(act);
         }
+        self
     }
+
+    /// Return a new config with an expression removed.
+    ///
+    /// If the removed expression was the default, resets to first available or "neutral".
+    /// This consumes self and returns a new instance.
+    pub fn removing_expression(mut self, expression: &str) -> Self {
+        self.expressions
+            .retain(|e| !e.eq_ignore_ascii_case(expression));
+
+        // If removed the default, reset to first available or "neutral"
+        if self.default_expression.eq_ignore_ascii_case(expression) {
+            self.default_expression = self
+                .expressions
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "neutral".to_string());
+        }
+        self
+    }
+
+    /// Return a new config with an action removed.
+    ///
+    /// This consumes self and returns a new instance.
+    pub fn removing_action(mut self, action: &str) -> Self {
+        self.actions.retain(|a| !a.eq_ignore_ascii_case(action));
+        self
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Query methods
+    // ──────────────────────────────────────────────────────────────────────────
 
     /// Check if an expression is available for this character
     pub fn has_expression(&self, expression: &str) -> bool {
@@ -167,7 +230,7 @@ mod tests {
         assert!(config.has_expression("neutral"));
         assert!(config.has_expression("happy"));
         assert!(config.has_action("sighs"));
-        assert_eq!(config.default_expression, "neutral");
+        assert_eq!(config.default_expression(), "neutral");
     }
 
     #[test]
@@ -181,7 +244,7 @@ mod tests {
         assert!(config.has_expression("excited"));
         assert!(!config.has_expression("neutral"));
         assert!(config.has_action("waves"));
-        assert_eq!(config.default_expression, "calm");
+        assert_eq!(config.default_expression(), "calm");
     }
 
     #[test]
@@ -204,12 +267,12 @@ mod tests {
     }
 
     #[test]
-    fn test_add_expression_deduplication() {
-        let mut config = ExpressionConfig::new().with_expressions(vec!["neutral"]);
+    fn test_adding_expression_deduplication() {
+        let config = ExpressionConfig::new().with_expressions(vec!["neutral"]);
 
-        config.add_expression("neutral");
-        config.add_expression("happy");
+        let config = config.adding_expression("neutral");
+        let config = config.adding_expression("happy");
 
-        assert_eq!(config.expressions.len(), 2);
+        assert_eq!(config.expressions().len(), 2);
     }
 }

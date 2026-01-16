@@ -2866,22 +2866,22 @@ mod tests {
             }
 
             let provider = Dnd5eContentProvider::new(FIVETOOLS_PATH);
-            let stats = provider.content_stats();
+            let types = provider.content_types();
 
             println!("Content stats by type:");
-            for (content_type, count) in &stats {
+            for content_type in &types {
+                let count = provider.count_content(content_type).unwrap_or(0);
                 println!("  {:?}: {}", content_type, count);
             }
 
             // At minimum, spells and backgrounds should be present
             assert!(
-                stats.get(&ContentType::Spell).copied().unwrap_or(0) > 100,
+                provider.count_content(&ContentType::Spell).unwrap_or(0) > 100,
                 "Should have many spells"
             );
             assert!(
-                stats
-                    .get(&ContentType::CharacterBackground)
-                    .copied()
+                provider
+                    .count_content(&ContentType::CharacterBackground)
                     .unwrap_or(0)
                     > 10,
                 "Should have backgrounds"

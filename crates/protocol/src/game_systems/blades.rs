@@ -289,7 +289,11 @@ impl CalculationEngine for BladesSystem {
 
     fn stack_modifiers(&self, modifiers: &[StatModifier]) -> i32 {
         // In Blades, modifiers add/remove dice from pool
-        modifiers.iter().filter(|m| m.active).map(|m| m.value).sum()
+        modifiers
+            .iter()
+            .filter(|m| m.is_active())
+            .map(|m| m.value())
+            .sum()
     }
 
     fn calculate_ac(

@@ -96,9 +96,9 @@ Acceptance:
 - No `&mut self` mutation methods on value objects (builder patterns only).
 
 ### 1.5 Replace raw Uuid usage in domain value objects
-- [ ] Inventory `Uuid` usage in domain value objects.
-- [ ] Replace with typed IDs (`CharacterId`, `PlayerCharacterId`, etc.) or newtypes.
-- [ ] Update serde mappings to use `try_from`/`into` to preserve wire compatibility.
+- [x] Inventory `Uuid` usage in domain value objects.
+- [x] Replace with typed IDs (`CharacterId`, `PlayerCharacterId`, etc.) or newtypes.
+- [x] Update serde mappings to use `try_from`/`into` to preserve wire compatibility.
 
 Acceptance:
 - Domain value objects do not expose raw `Uuid` fields.
@@ -114,6 +114,20 @@ Acceptance:
 - Domain entities no longer expose public fields.
 - Domain entities use typed IDs or value objects for identifiers and validated strings.
 - State machine flags are expressed as enums, not multiple booleans.
+
+### 1.7 Move infrastructure settings out of domain
+- [ ] Move `AppSettings` from `domain/src/value_objects/settings.rs` to `engine/src/infrastructure/settings.rs`.
+- [ ] Move `ContextBudgetConfig` and related types to engine (LLM infrastructure concern).
+- [ ] Update all imports across engine, protocol, and player crates.
+- [ ] Domain functions needing validation limits (e.g., `CharacterName::new`) receive them as parameters.
+- [ ] Remove `settings.rs` from domain `value_objects/mod.rs` exports.
+- [ ] Ensure protocol can still serialize/deserialize settings for wire transmission.
+
+Acceptance:
+- `crates/domain/src/value_objects/settings.rs` no longer exists.
+- Domain crate has no `AppSettings` or infrastructure configuration types.
+- `rg "circuit_breaker|health_check" crates/domain` returns zero hits.
+- Domain validation functions accept limits as parameters, not from global settings.
 
 ## Phase 2: Domain Events for Mutations
 
@@ -361,11 +375,12 @@ Acceptance:
 ## Progress Tracking Checklist
 
 - [x] Phase 1.1 complete
-- [ ] Phase 1.2 complete
-- [ ] Phase 1.3 complete
-- [ ] Phase 1.4 complete
-- [ ] Phase 1.5 complete
+- [x] Phase 1.2 complete
+- [x] Phase 1.3 complete
+- [x] Phase 1.4 complete
+- [x] Phase 1.5 complete
 - [ ] Phase 1.6 complete
+- [ ] Phase 1.7 complete
 - [ ] Phase 2.1 complete
 - [ ] Phase 3.1 complete
 - [ ] Phase 3.2 complete

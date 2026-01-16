@@ -177,14 +177,14 @@ impl CalculationEngine for Dnd5eSystem {
         let mut bonus_by_source: HashMap<&str, i32> = HashMap::new();
         let mut total_penalty = 0;
 
-        for modifier in modifiers.iter().filter(|m| m.active) {
-            if modifier.value >= 0 {
+        for modifier in modifiers.iter().filter(|m| m.is_active()) {
+            if modifier.value() >= 0 {
                 // Bonus - same source doesn't stack, take highest
-                let current = bonus_by_source.entry(&modifier.source).or_insert(0);
-                *current = (*current).max(modifier.value);
+                let current = bonus_by_source.entry(modifier.source()).or_insert(0);
+                *current = (*current).max(modifier.value());
             } else {
                 // Penalty - always stacks
-                total_penalty += modifier.value;
+                total_penalty += modifier.value();
             }
         }
 
@@ -2491,15 +2491,13 @@ mod tests {
 
         // Check first step is identity
         assert_eq!(schema.creation_steps[0].id, "identity");
-        assert_eq!(schema.creation_steps[0].order, 1);
 
         // Check second step is abilities
         assert_eq!(schema.creation_steps[1].id, "abilities");
-        assert_eq!(schema.creation_steps[1].order, 2);
 
-        // Steps should be in order
-        for i in 1..schema.creation_steps.len() {
-            assert!(schema.creation_steps[i].order > schema.creation_steps[i - 1].order);
+        // Verify all steps have valid IDs (order is implicit by vector position)
+        for (i, step) in schema.creation_steps.iter().enumerate() {
+            assert!(!step.id.is_empty(), "Step {} should have a non-empty id", i);
         }
     }
 }

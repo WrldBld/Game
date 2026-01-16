@@ -43,9 +43,7 @@ impl SkillCrud {
         require_non_empty(&name, "Skill name")?;
 
         let category_value = match category {
-            Some(category) => category
-                .parse::<SkillCategory>()
-                .map_err(ManagementError::Domain)?,
+            Some(category) => category.parse::<SkillCategory>()?,
             None => SkillCategory::Other,
         };
 
@@ -86,9 +84,7 @@ impl SkillCrud {
             skill.description = description;
         }
         if let Some(category) = category {
-            skill.category = category
-                .parse::<SkillCategory>()
-                .map_err(ManagementError::Domain)?;
+            skill.category = category.parse::<SkillCategory>()?;
         }
         if let Some(attribute) = attribute {
             if attribute.trim().is_empty() {

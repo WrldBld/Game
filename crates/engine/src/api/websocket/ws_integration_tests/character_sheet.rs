@@ -439,13 +439,6 @@ async fn get_sheet_template_schema_includes_creation_steps() {
                     Some("identity"),
                     "First step should be identity"
                 );
-                assert_eq!(
-                    first_step
-                        .get("order")
-                        .and_then(|v: &serde_json::Value| v.as_i64()),
-                    Some(1),
-                    "Identity should be order 1"
-                );
 
                 // Check second step is abilities
                 let second_step = &creation_steps[1];
@@ -456,23 +449,19 @@ async fn get_sheet_template_schema_includes_creation_steps() {
                     Some("abilities"),
                     "Second step should be abilities"
                 );
-                assert_eq!(
-                    second_step
-                        .get("order")
-                        .and_then(|v: &serde_json::Value| v.as_i64()),
-                    Some(2),
-                    "Abilities should be order 2"
-                );
 
-                // Verify steps are in order
-                let mut prev_order = 0i64;
-                for step in creation_steps {
-                    let order = step
-                        .get("order")
-                        .and_then(|v: &serde_json::Value| v.as_i64())
-                        .unwrap_or(0);
-                    assert!(order > prev_order, "Steps should be in order");
-                    prev_order = order;
+                // Verify all steps have required fields (id, label)
+                for (idx, step) in creation_steps.iter().enumerate() {
+                    assert!(
+                        step.get("id").and_then(|v| v.as_str()).is_some(),
+                        "Step {} should have an id",
+                        idx
+                    );
+                    assert!(
+                        step.get("label").and_then(|v| v.as_str()).is_some(),
+                        "Step {} should have a label",
+                        idx
+                    );
                 }
             }
             ResponseResult::Error { code, message, .. } => {

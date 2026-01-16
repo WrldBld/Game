@@ -706,7 +706,7 @@ impl NarrativeOps {
                         // Extract effective stat values (base + modifiers)
                         let mut char_stats = HashMap::new();
                         for (stat_name, stat_value) in character.stats().get_all_stats() {
-                            char_stats.insert(stat_name, stat_value.effective);
+                            char_stats.insert(stat_name, stat_value.effective());
                         }
                         // Also include HP if present
                         if let Some(hp) = character.stats().get_current_hp() {

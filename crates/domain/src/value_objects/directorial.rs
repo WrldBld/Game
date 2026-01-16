@@ -13,25 +13,64 @@ use wrldbldr_domain::CharacterId;
 #[serde(rename_all = "snake_case")]
 pub struct DirectorialNotes {
     /// General notes about the scene (free-form text)
-    pub general_notes: String,
+    general_notes: String,
     /// Overall tone for the scene
-    pub tone: ToneGuidance,
+    tone: ToneGuidance,
     /// Per-NPC motivation hints (character ID -> motivation text)
-    pub npc_motivations: HashMap<String, NpcMotivation>,
+    npc_motivations: HashMap<String, NpcMotivation>,
     /// Topics the LLM should avoid
-    pub forbidden_topics: Vec<String>,
+    forbidden_topics: Vec<String>,
     /// Tools the LLM is allowed to call in this scene
-    pub allowed_tools: Vec<String>,
+    allowed_tools: Vec<String>,
     /// Suggested story beats for the scene
-    pub suggested_beats: Vec<String>,
+    suggested_beats: Vec<String>,
     /// Pacing guidance
-    pub pacing: PacingGuidance,
+    pacing: PacingGuidance,
 }
 
 impl DirectorialNotes {
     pub fn new() -> Self {
         Self::default()
     }
+
+    // ── Accessors ────────────────────────────────────────────────────────
+
+    /// Get general notes about the scene
+    pub fn general_notes(&self) -> &str {
+        &self.general_notes
+    }
+
+    /// Get the overall tone for the scene
+    pub fn tone(&self) -> &ToneGuidance {
+        &self.tone
+    }
+
+    /// Get per-NPC motivation hints
+    pub fn npc_motivations(&self) -> &HashMap<String, NpcMotivation> {
+        &self.npc_motivations
+    }
+
+    /// Get topics the LLM should avoid
+    pub fn forbidden_topics(&self) -> &[String] {
+        &self.forbidden_topics
+    }
+
+    /// Get tools the LLM is allowed to call in this scene
+    pub fn allowed_tools(&self) -> &[String] {
+        &self.allowed_tools
+    }
+
+    /// Get suggested story beats for the scene
+    pub fn suggested_beats(&self) -> &[String] {
+        &self.suggested_beats
+    }
+
+    /// Get pacing guidance
+    pub fn pacing(&self) -> &PacingGuidance {
+        &self.pacing
+    }
+
+    // ── Builder Methods ──────────────────────────────────────────────────
 
     pub fn with_general_notes(mut self, notes: impl Into<String>) -> Self {
         self.general_notes = notes.into();
@@ -89,9 +128,11 @@ impl DirectorialNotes {
             for (char_id, motivation) in &self.npc_motivations {
                 parts.push(format!(
                     "  - {}: {} (Mood: {})",
-                    char_id, motivation.immediate_goal, motivation.current_mood
+                    char_id,
+                    motivation.immediate_goal(),
+                    motivation.current_mood()
                 ));
-                if let Some(ref secret) = motivation.secret_agenda {
+                if let Some(secret) = motivation.secret_agenda() {
                     parts.push(format!("    [Hidden agenda: {}]", secret));
                 }
             }
@@ -196,15 +237,15 @@ impl PacingGuidance {
 #[serde(rename_all = "snake_case")]
 pub struct NpcMotivation {
     /// Current emotional state
-    pub current_mood: String,
+    current_mood: String,
     /// What they're trying to achieve right now
-    pub immediate_goal: String,
+    immediate_goal: String,
     /// Hidden agenda (not revealed to players)
-    pub secret_agenda: Option<String>,
+    secret_agenda: Option<String>,
     /// How they feel about the player characters
-    pub attitude_to_players: String,
+    attitude_to_players: String,
     /// Keywords or phrases they might use
-    pub speech_patterns: Vec<String>,
+    speech_patterns: Vec<String>,
 }
 
 impl NpcMotivation {
@@ -217,6 +258,35 @@ impl NpcMotivation {
             speech_patterns: Vec::new(),
         }
     }
+
+    // ── Accessors ────────────────────────────────────────────────────────
+
+    /// Get the current emotional state
+    pub fn current_mood(&self) -> &str {
+        &self.current_mood
+    }
+
+    /// Get what the NPC is trying to achieve right now
+    pub fn immediate_goal(&self) -> &str {
+        &self.immediate_goal
+    }
+
+    /// Get the hidden agenda (not revealed to players), if any
+    pub fn secret_agenda(&self) -> Option<&str> {
+        self.secret_agenda.as_deref()
+    }
+
+    /// Get how the NPC feels about the player characters
+    pub fn attitude_to_players(&self) -> &str {
+        &self.attitude_to_players
+    }
+
+    /// Get keywords or phrases the NPC might use
+    pub fn speech_patterns(&self) -> &[String] {
+        &self.speech_patterns
+    }
+
+    // ── Builder Methods ──────────────────────────────────────────────────
 
     pub fn with_secret(mut self, secret: impl Into<String>) -> Self {
         self.secret_agenda = Some(secret.into());

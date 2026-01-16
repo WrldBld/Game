@@ -8,11 +8,11 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct ConversationEntry {
     /// When this conversation occurred
-    pub timestamp: DateTime<Utc>,
+    timestamp: DateTime<Utc>,
     /// Who spoke
-    pub speaker: Speaker,
+    speaker: Speaker,
     /// What was said
-    pub message: String,
+    message: String,
 }
 
 impl ConversationEntry {
@@ -28,6 +28,25 @@ impl ConversationEntry {
             message,
         }
     }
+
+    // ── Accessors ────────────────────────────────────────────────────────
+
+    /// Get when this conversation occurred
+    pub fn timestamp(&self) -> DateTime<Utc> {
+        self.timestamp
+    }
+
+    /// Get who spoke
+    pub fn speaker(&self) -> &Speaker {
+        &self.speaker
+    }
+
+    /// Get what was said
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    // ── Factory Methods ──────────────────────────────────────────────────
 
     /// Create a player conversation entry.
     pub fn player(pc_id: String, pc_name: String, message: String, now: DateTime<Utc>) -> Self {
@@ -79,13 +98,13 @@ pub enum Speaker {
 #[serde(rename_all = "camelCase")]
 pub struct PendingApprovalItem {
     /// Unique identifier for this approval request
-    pub approval_id: String,
+    approval_id: String,
     /// What type of approval is needed
-    pub approval_type: ApprovalType,
+    approval_type: ApprovalType,
     /// When this approval was requested
-    pub created_at: DateTime<Utc>,
+    created_at: DateTime<Utc>,
     /// Additional data specific to the approval type
-    pub data: String,
+    data: String,
 }
 
 impl PendingApprovalItem {
@@ -106,6 +125,28 @@ impl PendingApprovalItem {
             created_at: now,
             data,
         }
+    }
+
+    // ── Accessors ────────────────────────────────────────────────────────
+
+    /// Get the unique identifier for this approval request
+    pub fn approval_id(&self) -> &str {
+        &self.approval_id
+    }
+
+    /// Get what type of approval is needed
+    pub fn approval_type(&self) -> ApprovalType {
+        self.approval_type
+    }
+
+    /// Get when this approval was requested
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+
+    /// Get additional data specific to the approval type
+    pub fn data(&self) -> &str {
+        &self.data
     }
 }
 

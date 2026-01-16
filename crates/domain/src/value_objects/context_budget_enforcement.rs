@@ -19,18 +19,64 @@ use crate::value_objects::{ContextBudgetConfig, ContextCategory, TokenCounter};
 #[derive(Debug, Clone)]
 pub struct EnforcementResult {
     /// The text after enforcement (may be truncated)
-    pub text: String,
+    text: String,
     /// Original token count before enforcement
-    pub original_tokens: usize,
+    original_tokens: usize,
     /// Final token count after enforcement
-    pub final_tokens: usize,
+    final_tokens: usize,
     /// Whether truncation occurred
-    pub was_truncated: bool,
+    was_truncated: bool,
     /// The budget that was applied
-    pub budget: usize,
+    budget: usize,
 }
 
 impl EnforcementResult {
+    /// Create a new enforcement result
+    pub(crate) fn new(
+        text: String,
+        original_tokens: usize,
+        final_tokens: usize,
+        was_truncated: bool,
+        budget: usize,
+    ) -> Self {
+        Self {
+            text,
+            original_tokens,
+            final_tokens,
+            was_truncated,
+            budget,
+        }
+    }
+
+    // ── Accessors ────────────────────────────────────────────────────────
+
+    /// Get the text after enforcement (may be truncated)
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    /// Get the original token count before enforcement
+    pub fn original_tokens(&self) -> usize {
+        self.original_tokens
+    }
+
+    /// Get the final token count after enforcement
+    pub fn final_tokens(&self) -> usize {
+        self.final_tokens
+    }
+
+    /// Get whether truncation occurred
+    pub fn was_truncated(&self) -> bool {
+        self.was_truncated
+    }
+
+    /// Get the budget that was applied
+    pub fn budget(&self) -> usize {
+        self.budget
+    }
+
+    // ── Query Methods ────────────────────────────────────────────────────
+
     /// Returns true if the content exceeded its budget
     pub fn exceeded_budget(&self) -> bool {
         self.was_truncated
@@ -39,6 +85,11 @@ impl EnforcementResult {
     /// Returns the number of tokens saved by truncation
     pub fn tokens_saved(&self) -> usize {
         self.original_tokens.saturating_sub(self.final_tokens)
+    }
+
+    /// Consume self and return the text
+    pub fn into_text(self) -> String {
+        self.text
     }
 }
 
@@ -58,16 +109,66 @@ pub struct ContextBudgetEnforcer {
 #[derive(Debug, Clone, Default)]
 pub struct EnforcementStats {
     /// Total tokens before enforcement
-    pub total_original_tokens: usize,
+    total_original_tokens: usize,
     /// Total tokens after enforcement
-    pub total_final_tokens: usize,
+    total_final_tokens: usize,
     /// Number of categories that were truncated
-    pub categories_truncated: usize,
+    categories_truncated: usize,
     /// Details per category
-    pub category_results: Vec<(ContextCategory, EnforcementResult)>,
+    category_results: Vec<(ContextCategory, EnforcementResult)>,
 }
 
 impl EnforcementStats {
+    // ── Accessors ────────────────────────────────────────────────────────
+
+    /// Get total tokens before enforcement
+    pub fn total_original_tokens(&self) -> usize {
+        self.total_original_tokens
+    }
+
+    /// Get total tokens after enforcement
+    pub fn total_final_tokens(&self) -> usize {
+        self.total_final_tokens
+    }
+
+    /// Get number of categories that were truncated
+    pub fn categories_truncated(&self) -> usize {
+        self.categories_truncated
+    }
+
+    /// Get details per category
+    pub fn category_results(&self) -> &[(ContextCategory, EnforcementResult)] {
+        &self.category_results
+    }
+
+    // ── Mutators (crate-internal) ────────────────────────────────────────
+
+    /// Add tokens to the original total
+    pub(crate) fn add_original_tokens(&mut self, tokens: usize) {
+        self.total_original_tokens += tokens;
+    }
+
+    /// Add tokens to the final total
+    pub(crate) fn add_final_tokens(&mut self, tokens: usize) {
+        self.total_final_tokens += tokens;
+    }
+
+    /// Increment the truncated categories count
+    pub(crate) fn increment_truncated(&mut self) {
+        self.categories_truncated += 1;
+    }
+
+    /// Add a category result
+    pub(crate) fn add_category_result(
+        &mut self,
+        category: ContextCategory,
+        result: EnforcementResult,
+    ) {
+        self.category_results.push((category, result));
+    }
+
+    // ── Query Methods ────────────────────────────────────────────────────
+
     /// Returns true if any category was truncated
     pub fn any_truncated(&self) -> bool {
         self.categories_truncated > 0
@@ -105,6 +206,10 @@ impl ContextBudgetEnforcer {
     }
 
     /// Reset enforcement statistics (call before building a new prompt)
+    ///
+    /// # Note on `&mut self`
+    /// The enforcer is stateful, accumulating statistics across a prompt-building
+    /// session. Call this method to reset statistics when starting a new prompt.
     pub fn reset_stats(&mut self) {
         self.enforcement_stats = EnforcementStats::default();
     }
@@ -113,6 +218,12 @@ impl ContextBudgetEnforcer {
     ///
     /// Returns the (possibly truncated) text and enforcement details.
     /// Also updates internal statistics.
+    ///
+    /// # Note on `&mut self`
+    /// This method requires mutable access because the enforcer tracks cumulative
+    /// statistics across multiple enforce calls. This is intentional: the enforcer
+    /// is designed to be used across a prompt-building session, accumulating stats
+    /// that can be logged or analyzed after all sections are processed.
     pub fn enforce(&mut self, category: ContextCategory, text: &str) -> EnforcementResult {
         let budget = self.config.budget_for(category);
         let original_tokens = self.counter.count(text);
@@ -125,30 +236,32 @@ impl ContextBudgetEnforcer {
 
         let final_tokens = self.counter.count(&final_text);
 
-        let result = EnforcementResult {
-            text: final_text,
+        let result = EnforcementResult::new(
+            final_text,
             original_tokens,
             final_tokens,
             was_truncated,
             budget,
-        };
+        );
 
         // Update stats
-        self.enforcement_stats.total_original_tokens += original_tokens;
-        self.enforcement_stats.total_final_tokens += final_tokens;
+        self.enforcement_stats.add_original_tokens(original_tokens);
+        self.enforcement_stats.add_final_tokens(final_tokens);
         if was_truncated {
-            self.enforcement_stats.categories_truncated += 1;
+            self.enforcement_stats.increment_truncated();
         }
         self.enforcement_stats
-            .category_results
-            .push((category, result.clone()));
+            .add_category_result(category, result.clone());
 
         result
     }
 
     /// Enforce budget and return just the text (convenience method)
+    ///
+    /// # Note on `&mut self`
+    /// Delegates to `enforce()`, which updates internal statistics.
     pub fn enforce_text(&mut self, category: ContextCategory, text: &str) -> String {
-        self.enforce(category, text).text
+        self.enforce(category, text).into_text()
     }
 
     /// Check if text exceeds budget without modifying it
@@ -174,12 +287,12 @@ impl ContextBudgetEnforcer {
 
     /// Check if total context exceeds total budget
     pub fn total_exceeds_budget(&self) -> bool {
-        self.enforcement_stats.total_final_tokens > self.config.total_budget_tokens
+        self.enforcement_stats.total_final_tokens() > self.config.total_budget_tokens()
     }
 
     /// Get the total budget
     pub fn total_budget(&self) -> usize {
-        self.config.total_budget_tokens
+        self.config.total_budget_tokens()
     }
 
     /// Finalize enforcement and return whether any truncation occurred
@@ -264,31 +377,30 @@ mod tests {
         let text = "Short text";
         let result = enforcer.enforce(ContextCategory::Scene, text);
 
-        assert!(!result.was_truncated);
-        assert_eq!(result.text, text);
-        assert_eq!(result.original_tokens, result.final_tokens);
+        assert!(!result.was_truncated());
+        assert_eq!(result.text(), text);
+        assert_eq!(result.original_tokens(), result.final_tokens());
     }
 
     #[test]
     fn test_enforce_exceeds_budget() {
-        let mut config = ContextBudgetConfig::default();
-        config.scene_tokens = 5; // Very small budget
+        let config = ContextBudgetConfig::default().with_scene_tokens(5); // Very small budget
 
         let mut enforcer = ContextBudgetEnforcer::new(config);
 
         let text = "This is a much longer text that should definitely exceed our tiny token budget and require truncation to fit.";
         let result = enforcer.enforce(ContextCategory::Scene, text);
 
-        assert!(result.was_truncated);
-        assert!(result.final_tokens <= 10); // Allow some margin
-        assert!(result.text.ends_with("..."));
+        assert!(result.was_truncated());
+        assert!(result.final_tokens() <= 10); // Allow some margin
+        assert!(result.text().ends_with("..."));
     }
 
     #[test]
     fn test_stats_tracking() {
-        let mut config = ContextBudgetConfig::default();
-        config.scene_tokens = 5;
-        config.character_tokens = 1000;
+        let config = ContextBudgetConfig::default()
+            .with_scene_tokens(5)
+            .with_character_tokens(1000);
 
         let mut enforcer = ContextBudgetEnforcer::new(config);
 
@@ -301,8 +413,8 @@ mod tests {
         enforcer.enforce(ContextCategory::Character, "Short");
 
         let stats = enforcer.stats();
-        assert_eq!(stats.categories_truncated, 1);
-        assert_eq!(stats.category_results.len(), 2);
+        assert_eq!(stats.categories_truncated(), 1);
+        assert_eq!(stats.category_results().len(), 2);
     }
 
     #[test]
@@ -316,13 +428,12 @@ mod tests {
 
         assert!(result.contains("Scene content"));
         assert!(result.contains("Character content"));
-        assert_eq!(stats.category_results.len(), 2);
+        assert_eq!(stats.category_results().len(), 2);
     }
 
     #[test]
     fn test_would_exceed() {
-        let mut config = ContextBudgetConfig::default();
-        config.scene_tokens = 5;
+        let config = ContextBudgetConfig::default().with_scene_tokens(5);
 
         let enforcer = ContextBudgetEnforcer::new(config);
 

@@ -29,6 +29,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::error::DomainError;
+
 /// Categories of context that can be included in LLM prompts
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ContextCategory {
@@ -90,37 +92,37 @@ impl ContextCategory {
 pub struct ContextBudgetConfig {
     /// Total token budget for the entire system prompt
     /// Should leave room for user message and response
-    pub total_budget_tokens: usize,
+    total_budget_tokens: usize,
 
     /// Budget for scene context (location, time, atmosphere)
-    pub scene_tokens: usize,
+    scene_tokens: usize,
 
     /// Budget for character details (personality, wants, relationships)
-    pub character_tokens: usize,
+    character_tokens: usize,
 
     /// Budget for conversation history
-    pub conversation_history_tokens: usize,
+    conversation_history_tokens: usize,
 
     /// Budget for active challenges
-    pub challenges_tokens: usize,
+    challenges_tokens: usize,
 
     /// Budget for narrative events
-    pub narrative_events_tokens: usize,
+    narrative_events_tokens: usize,
 
     /// Budget for directorial notes
-    pub directorial_notes_tokens: usize,
+    directorial_notes_tokens: usize,
 
     /// Budget for location-specific context
-    pub location_context_tokens: usize,
+    location_context_tokens: usize,
 
     /// Budget for player character context
-    pub player_context_tokens: usize,
+    player_context_tokens: usize,
 
     /// Whether to enable automatic summarization when over budget
-    pub enable_summarization: bool,
+    enable_summarization: bool,
 
     /// Model to use for summarization (uses main model if None)
-    pub summarization_model: Option<String>,
+    summarization_model: Option<String>,
 }
 
 impl Default for ContextBudgetConfig {
@@ -178,6 +180,65 @@ impl ContextBudgetConfig {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Accessors
+    // -------------------------------------------------------------------------
+
+    /// Get the total budget tokens
+    pub fn total_budget_tokens(&self) -> usize {
+        self.total_budget_tokens
+    }
+
+    /// Get the scene tokens budget
+    pub fn scene_tokens(&self) -> usize {
+        self.scene_tokens
+    }
+
+    /// Get the character tokens budget
+    pub fn character_tokens(&self) -> usize {
+        self.character_tokens
+    }
+
+    /// Get the conversation history tokens budget
+    pub fn conversation_history_tokens(&self) -> usize {
+        self.conversation_history_tokens
+    }
+
+    /// Get the challenges tokens budget
+    pub fn challenges_tokens(&self) -> usize {
+        self.challenges_tokens
+    }
+
+    /// Get the narrative events tokens budget
+    pub fn narrative_events_tokens(&self) -> usize {
+        self.narrative_events_tokens
+    }
+
+    /// Get the directorial notes tokens budget
+    pub fn directorial_notes_tokens(&self) -> usize {
+        self.directorial_notes_tokens
+    }
+
+    /// Get the location context tokens budget
+    pub fn location_context_tokens(&self) -> usize {
+        self.location_context_tokens
+    }
+
+    /// Get the player context tokens budget
+    pub fn player_context_tokens(&self) -> usize {
+        self.player_context_tokens
+    }
+
+    /// Check if summarization is enabled
+    pub fn enable_summarization(&self) -> bool {
+        self.enable_summarization
+    }
+
+    /// Get the summarization model (if set)
+    pub fn summarization_model(&self) -> Option<&str> {
+        self.summarization_model.as_deref()
+    }
+
     /// Get the budget for a specific category
     pub fn budget_for(&self, category: ContextCategory) -> usize {
         match category {
@@ -192,8 +253,12 @@ impl ContextBudgetConfig {
         }
     }
 
-    /// Set the budget for a specific category
-    pub fn set_budget_for(&mut self, category: ContextCategory, tokens: usize) {
+    // -------------------------------------------------------------------------
+    // Builder methods
+    // -------------------------------------------------------------------------
+
+    /// Set the budget for a specific category (builder pattern)
+    pub fn with_budget_for(mut self, category: ContextCategory, tokens: usize) -> Self {
         match category {
             ContextCategory::Scene => self.scene_tokens = tokens,
             ContextCategory::Character => self.character_tokens = tokens,
@@ -204,7 +269,78 @@ impl ContextBudgetConfig {
             ContextCategory::LocationContext => self.location_context_tokens = tokens,
             ContextCategory::PlayerContext => self.player_context_tokens = tokens,
         }
+        self
     }
+
+    /// Set the total budget tokens
+    pub fn with_total_budget_tokens(mut self, tokens: usize) -> Self {
+        self.total_budget_tokens = tokens;
+        self
+    }
+
+    /// Set the scene tokens budget
+    pub fn with_scene_tokens(mut self, tokens: usize) -> Self {
+        self.scene_tokens = tokens;
+        self
+    }
+
+    /// Set the character tokens budget
+    pub fn with_character_tokens(mut self, tokens: usize) -> Self {
+        self.character_tokens = tokens;
+        self
+    }
+
+    /// Set the conversation history tokens budget
+    pub fn with_conversation_history_tokens(mut self, tokens: usize) -> Self {
+        self.conversation_history_tokens = tokens;
+        self
+    }
+
+    /// Set the challenges tokens budget
+    pub fn with_challenges_tokens(mut self, tokens: usize) -> Self {
+        self.challenges_tokens = tokens;
+        self
+    }
+
+    /// Set the narrative events tokens budget
+    pub fn with_narrative_events_tokens(mut self, tokens: usize) -> Self {
+        self.narrative_events_tokens = tokens;
+        self
+    }
+
+    /// Set the directorial notes tokens budget
+    pub fn with_directorial_notes_tokens(mut self, tokens: usize) -> Self {
+        self.directorial_notes_tokens = tokens;
+        self
+    }
+
+    /// Set the location context tokens budget
+    pub fn with_location_context_tokens(mut self, tokens: usize) -> Self {
+        self.location_context_tokens = tokens;
+        self
+    }
+
+    /// Set the player context tokens budget
+    pub fn with_player_context_tokens(mut self, tokens: usize) -> Self {
+        self.player_context_tokens = tokens;
+        self
+    }
+
+    /// Set whether summarization is enabled
+    pub fn with_enable_summarization(mut self, enable: bool) -> Self {
+        self.enable_summarization = enable;
+        self
+    }
+
+    /// Set the summarization model
+    pub fn with_summarization_model(mut self, model: impl Into<String>) -> Self {
+        self.summarization_model = Some(model.into());
+        self
+    }
+
+    // -------------------------------------------------------------------------
+    // Query methods
+    // -------------------------------------------------------------------------
 
     /// Sum of all category budgets (may exceed total_budget_tokens if overlap is expected)
     pub fn sum_category_budgets(&self) -> usize {
@@ -219,19 +355,21 @@ impl ContextBudgetConfig {
     }
 
     /// Validate the configuration
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), DomainError> {
         if self.total_budget_tokens == 0 {
-            return Err("Total budget must be greater than 0".to_string());
+            return Err(DomainError::validation(
+                "Total budget must be greater than 0",
+            ));
         }
 
         // Individual budgets can exceed total (summarization will handle it)
         // but warn if way over
         let sum = self.sum_category_budgets();
         if sum > self.total_budget_tokens * 3 {
-            return Err(format!(
+            return Err(DomainError::validation(format!(
                 "Sum of category budgets ({}) is more than 3x total budget ({})",
                 sum, self.total_budget_tokens
-            ));
+            )));
         }
 
         Ok(())
@@ -435,17 +573,16 @@ mod tests {
 
     #[test]
     fn test_category_budget_access() {
-        let mut config = ContextBudgetConfig::default();
+        let config = ContextBudgetConfig::default();
         assert_eq!(config.budget_for(ContextCategory::Character), 800);
 
-        config.set_budget_for(ContextCategory::Character, 1000);
+        let config = config.with_budget_for(ContextCategory::Character, 1000);
         assert_eq!(config.budget_for(ContextCategory::Character), 1000);
     }
 
     #[test]
     fn test_validation_zero_budget() {
-        let mut config = ContextBudgetConfig::default();
-        config.total_budget_tokens = 0;
+        let config = ContextBudgetConfig::default().with_total_budget_tokens(0);
         assert!(config.validate().is_err());
     }
 

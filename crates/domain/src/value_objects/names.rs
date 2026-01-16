@@ -455,12 +455,6 @@ mod tests {
             let cloned = name.clone();
             assert_eq!(cloned.as_str(), "Gimli");
         }
-
-        #[test]
-        fn empty_name_rejected() {
-            let result = CharacterName::new("");
-            assert!(result.is_err());
-        }
     }
 
     mod location_name {

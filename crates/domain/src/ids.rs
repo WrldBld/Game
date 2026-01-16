@@ -113,3 +113,6 @@ define_id!(RegionStateId);
 
 // Misc IDs (present in codebase)
 define_id!(WorkflowId);
+
+// Stat system IDs
+define_id!(StatModifierId);

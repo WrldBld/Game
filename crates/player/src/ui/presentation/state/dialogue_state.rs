@@ -122,7 +122,7 @@ impl DialogueState {
         self.speaker_id.set(Some(speaker_id));
         self.speaker_name.set(speaker_name);
         self.full_text.set(text);
-        self.clean_text.set(parsed.clean_text);
+        self.clean_text.set(parsed.clean_text().to_string());
         self.displayed_text.set(String::new());
         self.choices.set(choices);
         self.is_typing.set(true);
@@ -152,8 +152,8 @@ impl DialogueState {
         // Apply all remaining markers
         let markers = self.positioned_markers.read();
         if let Some(last_marker) = markers.last() {
-            if let Some(expr) = &last_marker.marker.expression {
-                self.current_expression.set(Some(expr.clone()));
+            if let Some(expr) = last_marker.marker.expression_value() {
+                self.current_expression.set(Some(expr.to_string()));
             }
         }
         self.current_action.set(None); // Clear action when skipping
@@ -186,12 +186,12 @@ impl DialogueState {
         while next_idx < markers.len() && markers[next_idx].clean_position <= current_position {
             let marker = &markers[next_idx];
 
-            if let Some(expr) = &marker.marker.expression {
-                self.current_expression.set(Some(expr.clone()));
+            if let Some(expr) = marker.marker.expression_value() {
+                self.current_expression.set(Some(expr.to_string()));
             }
 
-            if let Some(action) = &marker.marker.action {
-                self.current_action.set(Some(action.clone()));
+            if let Some(action) = marker.marker.action_value() {
+                self.current_action.set(Some(action.to_string()));
             } else {
                 // Clear action when we hit a non-action marker
                 self.current_action.set(None);
@@ -270,10 +270,10 @@ fn calculate_marker_positions(parsed: &ParsedDialogue) -> Vec<PositionedMarker> 
     let mut positioned = Vec::new();
     let mut offset_adjustment = 0;
 
-    for marker in &parsed.markers {
+    for marker in parsed.markers() {
         // The clean position is the original position minus all the marker text
         // that came before this one
-        let clean_position = marker.start_offset.saturating_sub(offset_adjustment);
+        let clean_position = marker.start_offset().saturating_sub(offset_adjustment);
 
         positioned.push(PositionedMarker {
             clean_position,
@@ -356,12 +356,12 @@ pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
                     while idx < markers.len() && markers[idx].clean_position <= char_index {
                         let marker = &markers[idx];
 
-                        if let Some(expr) = &marker.marker.expression {
-                            current_expression.set(Some(expr.clone()));
+                        if let Some(expr) = marker.marker.expression_value() {
+                            current_expression.set(Some(expr.to_string()));
                         }
 
-                        if let Some(action) = &marker.marker.action {
-                            current_action.set(Some(action.clone()));
+                        if let Some(action) = marker.marker.action_value() {
+                            current_action.set(Some(action.to_string()));
                         } else {
                             current_action.set(None);
                         }

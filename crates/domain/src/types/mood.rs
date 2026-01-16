@@ -11,6 +11,7 @@
 //! - Affects default expression and dialogue tone
 //! - Included in LLM context for richer responses
 
+use crate::error::DomainError;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -192,7 +193,7 @@ impl fmt::Display for MoodState {
 }
 
 impl FromStr for MoodState {
-    type Err = String;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {

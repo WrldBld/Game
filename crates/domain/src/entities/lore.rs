@@ -14,6 +14,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::error::DomainError;
 use crate::ids::{CharacterId, LoreChunkId, LoreId, WorldId};
 
 /// A piece of world knowledge that can be discovered
@@ -333,7 +334,7 @@ impl LoreCategory {
 }
 
 impl std::str::FromStr for LoreCategory {
-    type Err = String;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
@@ -346,10 +347,10 @@ impl std::str::FromStr for LoreCategory {
             "natural" => Ok(LoreCategory::Natural),
             "religious" => Ok(LoreCategory::Religious),
             "unknown" => Ok(LoreCategory::Unknown),
-            _ => Err(format!(
+            _ => Err(DomainError::parse(format!(
                 "Invalid lore category '{}'. Valid categories: historical, legend, secret, common, technical, political, natural, religious",
                 s
-            )),
+            ))),
         }
     }
 }

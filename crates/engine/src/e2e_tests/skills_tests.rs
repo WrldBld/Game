@@ -174,7 +174,7 @@ async fn test_skill_proficiency_levels() {
 
     // Test proficiency level enum/values
     // ProficiencyLevel variants are: None, Half, Proficient, Expert
-    use wrldbldr_domain::ProficiencyLevel;
+    use wrldbldr_protocol::game_systems::ProficiencyLevel;
 
     let levels = [
         ProficiencyLevel::None,

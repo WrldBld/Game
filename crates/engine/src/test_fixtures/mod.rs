@@ -19,7 +19,7 @@ pub mod image_mocks;
 pub mod llm_integration;
 pub mod world_seeder;
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
 use wrldbldr_domain::{NarrativeTriggerType, PlayerCharacter, TriggerContext, World};
@@ -151,9 +151,37 @@ pub fn trigger_context_from_pc(pc: &PlayerCharacter) -> TriggerContext {
         ctx.origin_id = Some(race.to_lowercase());
     }
 
-    if let Some(class_name) = sheet_data.get_string("CLASS") {
-        let level = sheet_data.get_number("LEVEL").unwrap_or(1) as u8;
-        ctx.class_levels.insert(class_name.to_lowercase(), level);
+    // Try to extract multiclass info from character_identity.classes first
+    let mut found_classes = false;
+    if let Some(wrldbldr_domain::types::SheetValue::Object(identity_obj)) =
+        sheet_data.get("character_identity")
+    {
+        if let Some(wrldbldr_domain::types::SheetValue::List(classes_list)) =
+            identity_obj.get("classes")
+        {
+            for class_entry in classes_list {
+                if let wrldbldr_domain::types::SheetValue::Object(class_obj) = class_entry {
+                    let class_id = class_obj
+                        .get("classId")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_lowercase());
+                    let level = class_obj.get("level").and_then(|v| v.as_i64());
+
+                    if let (Some(class_id), Some(level)) = (class_id, level) {
+                        ctx.class_levels.insert(class_id, level as u8);
+                        found_classes = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fall back to simple CLASS/LEVEL fields for single-class characters
+    if !found_classes {
+        if let Some(class_name) = sheet_data.get_string("CLASS") {
+            let level = sheet_data.get_number("LEVEL").unwrap_or(1) as u8;
+            ctx.class_levels.insert(class_name.to_lowercase(), level);
+        }
     }
 
     let known_spells_key = sheet_data
@@ -240,13 +268,13 @@ pub mod triggers {
 
 /// Helper to build CharacterSheetValues for tests.
 pub struct SheetDataBuilder {
-    values: HashMap<String, SheetValue>,
+    values: BTreeMap<String, SheetValue>,
 }
 
 impl SheetDataBuilder {
     pub fn new() -> Self {
         Self {
-            values: HashMap::new(),
+            values: BTreeMap::new(),
         }
     }
 
@@ -289,9 +317,9 @@ impl SheetDataBuilder {
     }
 
     pub fn with_identity(mut self, identity: wrldbldr_domain::CharacterIdentity) -> Self {
-        if let Some(race) = identity.race {
+        if let Some(ref race) = identity.race {
             self.values
-                .insert("RACE".to_string(), SheetValue::String(race));
+                .insert("RACE".to_string(), SheetValue::String(race.clone()));
         }
         if let Some(primary) = identity.primary_class() {
             self.values.insert(

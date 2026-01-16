@@ -180,7 +180,7 @@ impl RequestStagingApproval {
                 previous_staging,
                 rule_based_npcs,
                 llm_based_npcs,
-                default_ttl_hours: settings.default_presence_cache_ttl_hours,
+                default_ttl_hours: settings.default_presence_cache_ttl_hours(),
                 waiting_pcs: vec![WaitingPc {
                     pc_id: input.pc.id(),
                     pc_name: input.pc.name().to_string(),
@@ -259,8 +259,8 @@ impl RequestStagingApproval {
             .available_location_states
             .iter()
             .map(|s| {
-                let match_reason = if s.evaluation.is_active {
-                    Some(s.evaluation.matched_rules.join(", "))
+                let match_reason = if s.evaluation.is_active() {
+                    Some(s.evaluation.matched_rules().join(", "))
                 } else {
                     None
                 };
@@ -278,8 +278,8 @@ impl RequestStagingApproval {
             .available_region_states
             .iter()
             .map(|s| {
-                let match_reason = if s.evaluation.is_active {
-                    Some(s.evaluation.matched_rules.join(", "))
+                let match_reason = if s.evaluation.is_active() {
+                    Some(s.evaluation.matched_rules().join(", "))
                 } else {
                     None
                 };

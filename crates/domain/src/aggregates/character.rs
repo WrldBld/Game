@@ -545,12 +545,8 @@ impl Character {
     ) -> ArchetypeShift {
         let previous = self.current_archetype;
         let reason = reason.into();
-        let change = ArchetypeChange {
-            from: self.current_archetype,
-            to: new_archetype,
-            reason: reason.clone(),
-            timestamp: now,
-        };
+        let change =
+            ArchetypeChange::new(self.current_archetype, new_archetype, reason.clone(), now);
         self.archetype_history.push(change);
         self.current_archetype = new_archetype;
 
@@ -1023,9 +1019,9 @@ mod tests {
             assert_eq!(character.current_archetype(), CampbellArchetype::Mentor);
             assert_eq!(character.archetype_history().len(), 1);
             let change = &character.archetype_history()[0];
-            assert_eq!(change.from, CampbellArchetype::Hero);
-            assert_eq!(change.to, CampbellArchetype::Mentor);
-            assert_eq!(change.reason, "Character growth");
+            assert_eq!(change.from(), CampbellArchetype::Hero);
+            assert_eq!(change.to(), CampbellArchetype::Mentor);
+            assert_eq!(change.reason(), "Character growth");
         }
     }
 }

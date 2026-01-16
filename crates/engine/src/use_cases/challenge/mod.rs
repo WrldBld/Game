@@ -329,8 +329,8 @@ impl RollChallenge {
             world_id,
             challenge_id,
             pc_id,
-            Some(roll_result.dice_total),
-            roll_result.modifier_applied,
+            Some(roll_result.dice_total()),
+            roll_result.modifier_applied(),
         )
         .await
     }

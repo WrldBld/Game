@@ -166,10 +166,10 @@ impl From<ProtoApprovedNpcInfo> for ApprovedNpcInfo {
 impl From<ProtoAdHocOutcomes> for AdHocOutcomes {
     fn from(proto: ProtoAdHocOutcomes) -> Self {
         Self {
-            success: proto.success,
-            failure: proto.failure,
-            critical_success: proto.critical_success,
-            critical_failure: proto.critical_failure,
+            success: proto.success().to_string(),
+            failure: proto.failure().to_string(),
+            critical_success: proto.critical_success().map(|s| s.to_string()),
+            critical_failure: proto.critical_failure().map(|s| s.to_string()),
         }
     }
 }
@@ -249,12 +249,12 @@ impl From<ApprovedNpcInfo> for ProtoApprovedNpcInfo {
 
 impl From<AdHocOutcomes> for ProtoAdHocOutcomes {
     fn from(local: AdHocOutcomes) -> Self {
-        Self {
-            success: local.success,
-            failure: local.failure,
-            critical_success: local.critical_success,
-            critical_failure: local.critical_failure,
-        }
+        Self::new(
+            local.success,
+            local.failure,
+            local.critical_success,
+            local.critical_failure,
+        )
     }
 }
 

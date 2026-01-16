@@ -235,12 +235,12 @@ pub(super) async fn handle_relationship_request(
                         .into_iter()
                         .map(|r| {
                             serde_json::json!({
-                                "id": r.id.to_string(),
-                                "from_character_id": r.from_character.to_string(),
-                                "to_character_id": r.to_character.to_string(),
-                                "relationship_type": relationship_type_to_string(&r.relationship_type),
-                                "sentiment": r.sentiment,
-                                "known_to_player": r.known_to_player,
+                                "id": r.id().to_string(),
+                                "from_character_id": r.from_character().to_string(),
+                                "to_character_id": r.to_character().to_string(),
+                                "relationship_type": relationship_type_to_string(r.relationship_type()),
+                                "sentiment": r.sentiment(),
+                                "known_to_player": r.known_to_player(),
                             })
                         })
                         .collect();
@@ -277,7 +277,7 @@ pub(super) async fn handle_relationship_request(
                 .await
             {
                 Ok(relationship) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": relationship.id.to_string(),
+                    "id": relationship.id().to_string(),
                 }))),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))

@@ -262,20 +262,20 @@ impl CalculationEngine for Pf2eSystem {
         let mut source_bonuses: HashMap<String, i32> = HashMap::new();
         let mut total_penalties = 0;
 
-        for modifier in modifiers.iter().filter(|m| m.active) {
-            if modifier.value >= 0 {
+        for modifier in modifiers.iter().filter(|m| m.is_active()) {
+            if modifier.value() >= 0 {
                 // Extract source category (first word) as a proxy for type
                 let source_type = modifier
-                    .source
+                    .source()
                     .split_whitespace()
                     .next()
                     .unwrap_or("untyped")
                     .to_lowercase();
                 let current = source_bonuses.entry(source_type).or_insert(0);
-                *current = (*current).max(modifier.value);
+                *current = (*current).max(modifier.value());
             } else {
                 // Penalty - all stack
-                total_penalties += modifier.value;
+                total_penalties += modifier.value();
             }
         }
 

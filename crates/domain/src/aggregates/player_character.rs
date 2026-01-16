@@ -13,6 +13,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::error::DomainError;
 use crate::types::character_sheet::CharacterSheetValues;
 use crate::value_objects::{CharacterName, CharacterState};
 use crate::{LocationId, PlayerCharacterId, RegionId, WorldId};
@@ -620,7 +621,7 @@ impl PlayerCharacter {
 
     /// Validate that the character has required fields.
     /// Note: With newtypes, most validation happens at construction time.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), DomainError> {
         // CharacterName already validates non-empty at construction
         Ok(())
     }

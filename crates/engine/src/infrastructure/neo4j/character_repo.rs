@@ -49,10 +49,10 @@ struct StatModifierStored {
 impl From<StatModifier> for StatModifierStored {
     fn from(value: StatModifier) -> Self {
         Self {
-            id: value.id.to_string(),
-            source: value.source,
-            value: value.value,
-            active: value.active,
+            id: value.id().to_string(),
+            source: value.source().to_string(),
+            value: value.value(),
+            active: value.is_active(),
         }
     }
 }
@@ -60,10 +60,10 @@ impl From<StatModifier> for StatModifierStored {
 impl From<&StatModifier> for StatModifierStored {
     fn from(value: &StatModifier) -> Self {
         Self {
-            id: value.id.to_string(),
-            source: value.source.clone(),
-            value: value.value,
-            active: value.active,
+            id: value.id().to_string(),
+            source: value.source().to_string(),
+            value: value.value(),
+            active: value.is_active(),
         }
     }
 }
@@ -80,12 +80,7 @@ impl From<StatModifierStored> for StatModifier {
             );
             new_id
         });
-        Self {
-            id,
-            source: value.source,
-            value: value.value,
-            active: value.active,
-        }
+        StatModifier::from_storage(id.into(), value.source, value.value, value.active)
     }
 }
 
@@ -154,10 +149,10 @@ struct ArchetypeChangeStored {
 impl From<ArchetypeChange> for ArchetypeChangeStored {
     fn from(value: ArchetypeChange) -> Self {
         Self {
-            from: format!("{:?}", value.from),
-            to: format!("{:?}", value.to),
-            reason: value.reason,
-            timestamp: value.timestamp.to_rfc3339(),
+            from: format!("{:?}", value.from()),
+            to: format!("{:?}", value.to()),
+            reason: value.reason().to_string(),
+            timestamp: value.timestamp().to_rfc3339(),
         }
     }
 }
@@ -168,12 +163,12 @@ impl From<ArchetypeChangeStored> for ArchetypeChange {
             &value.timestamp,
             chrono::DateTime::UNIX_EPOCH,
         );
-        Self {
-            from: value.from.parse().unwrap_or(CampbellArchetype::Ally),
-            to: value.to.parse().unwrap_or(CampbellArchetype::Ally),
-            reason: value.reason,
+        ArchetypeChange::new(
+            value.from.parse().unwrap_or(CampbellArchetype::Ally),
+            value.to.parse().unwrap_or(CampbellArchetype::Ally),
+            value.reason,
             timestamp,
-        }
+        )
     }
 }
 
@@ -237,7 +232,7 @@ impl Neo4jCharacterRepo {
 
         let default_disposition = default_disposition_str
             .parse()
-            .map_err(|e: String| RepoError::database("query", e))?;
+            .map_err(|e: DomainError| RepoError::database("query", e.to_string()))?;
 
         // Parse default_mood from stored string (falls back to Calm)
         let default_mood_str: String = node
@@ -580,15 +575,15 @@ impl CharacterRepo for Neo4jCharacterRepo {
             let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
             let known_to_player: bool = row.get("known_to_player").unwrap_or(true);
 
-            relationships.push(Relationship {
-                id: rel_id,
-                from_character: id,
-                to_character: other_id,
+            relationships.push(Relationship::from_persisted(
+                rel_id,
+                id,
+                other_id,
                 relationship_type,
-                sentiment: sentiment as f32,
-                history: Vec::new(), // History is stored separately if needed
+                sentiment as f32,
+                Vec::new(), // History is stored separately if needed
                 known_to_player,
-            });
+            ));
         }
 
         Ok(relationships)
@@ -596,7 +591,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
     async fn save_relationship(&self, relationship: &Relationship) -> Result<(), RepoError> {
         // Convert relationship type to string for storage
-        let rel_type_str = match &relationship.relationship_type {
+        let rel_type_str = match relationship.relationship_type() {
             RelationshipType::Family(family) => format!("family:{:?}", family),
             RelationshipType::Romantic => "romantic".to_string(),
             RelationshipType::Professional => "professional".to_string(),
@@ -615,12 +610,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 r.sentiment = $sentiment,
                 r.known_to_player = $known_to_player",
         )
-        .param("from_id", relationship.from_character.to_string())
-        .param("to_id", relationship.to_character.to_string())
-        .param("rel_id", relationship.id.to_string())
+        .param("from_id", relationship.from_character().to_string())
+        .param("to_id", relationship.to_character().to_string())
+        .param("rel_id", relationship.id().to_string())
         .param("rel_type", rel_type_str)
-        .param("sentiment", relationship.sentiment as f64)
-        .param("known_to_player", relationship.known_to_player);
+        .param("sentiment", relationship.sentiment() as f64)
+        .param("known_to_player", relationship.known_to_player());
 
         self.graph
             .run(q)
@@ -629,8 +624,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
         tracing::debug!(
             "Saved relationship from {} to {}",
-            relationship.from_character,
-            relationship.to_character
+            relationship.from_character(),
+            relationship.to_character()
         );
         Ok(())
     }
@@ -966,7 +961,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 .map_err(|e| RepoError::database("query", e))?;
             let disposition: DispositionLevel = disposition_str
                 .parse()
-                .map_err(|e: String| RepoError::database("query", e))?;
+                .map_err(|e: DomainError| RepoError::database("query", e.to_string()))?;
 
             let relationship_str: String = row
                 .get("relationship")
@@ -1076,7 +1071,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 .map_err(|e| RepoError::database("query", e))?;
             let disposition: DispositionLevel = disposition_str
                 .parse()
-                .map_err(|e: String| RepoError::database("query", e))?;
+                .map_err(|e: DomainError| RepoError::database("query", e.to_string()))?;
 
             let relationship_str: String = row
                 .get("relationship")
@@ -1139,25 +1134,44 @@ impl CharacterRepo for Neo4jCharacterRepo {
         let wants = self.get_wants(id).await?;
         let views = self.list_actantial_views(id).await?;
 
-        let mut context = ActantialContext::new(Uuid::from(id), character_name);
+        // Build a map from want_id to index
         let mut want_index = std::collections::HashMap::new();
+
+        // First, build all the WantContexts with their base data
+        let mut wants_builder: Vec<WantContext> = Vec::new();
 
         for details in wants {
             let mut want_ctx = WantContext::new(
                 details.want.id,
-                details.want.description,
+                details.want.description.clone(),
                 details.want.intensity,
                 details.priority,
-            );
-            want_ctx.visibility = details.want.visibility;
-            want_ctx.target = details.target;
-            want_ctx.deflection_behavior = details.want.deflection_behavior;
-            want_ctx.tells = details.want.tells;
+            )
+            .with_visibility(details.want.visibility)
+            .with_tells(details.want.tells.clone());
 
-            let idx = context.wants.len();
-            context.wants.push(want_ctx);
+            if let Some(target) = details.target {
+                want_ctx = want_ctx.with_target(target);
+            }
+            if let Some(deflection) = details.want.deflection_behavior.as_ref() {
+                want_ctx = want_ctx.with_deflection_behavior(deflection.clone());
+            }
+
+            let idx = wants_builder.len();
             want_index.insert(details.want.id, idx);
+            wants_builder.push(want_ctx);
         }
+
+        // Collect helpers, opponents, senders, receivers for each want
+        let mut want_helpers: std::collections::HashMap<usize, Vec<ActantialActor>> =
+            std::collections::HashMap::new();
+        let mut want_opponents: std::collections::HashMap<usize, Vec<ActantialActor>> =
+            std::collections::HashMap::new();
+        let mut want_senders: std::collections::HashMap<usize, Option<ActantialActor>> =
+            std::collections::HashMap::new();
+        let mut want_receivers: std::collections::HashMap<usize, Option<ActantialActor>> =
+            std::collections::HashMap::new();
+        let mut social_views = SocialViewSummary::new();
 
         for view in views {
             let Some(idx) = want_index.get(&view.want_id).copied() else {
@@ -1172,30 +1186,50 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
             match view.role {
                 ActantialRole::Helper => {
-                    context.wants[idx].helpers.push(actor);
-                    context
-                        .social_views
-                        .add_ally(view.target, view.target_name, view.reason);
+                    want_helpers.entry(idx).or_default().push(actor);
+                    social_views =
+                        social_views.with_ally(view.target, view.target_name, view.reason);
                 }
                 ActantialRole::Opponent => {
-                    context.wants[idx].opponents.push(actor);
-                    context
-                        .social_views
-                        .add_enemy(view.target, view.target_name, view.reason);
+                    want_opponents.entry(idx).or_default().push(actor);
+                    social_views =
+                        social_views.with_enemy(view.target, view.target_name, view.reason);
                 }
                 ActantialRole::Sender => {
-                    if context.wants[idx].sender.is_none() {
-                        context.wants[idx].sender = Some(actor);
-                    }
+                    want_senders.entry(idx).or_insert(Some(actor));
                 }
                 ActantialRole::Receiver => {
-                    if context.wants[idx].receiver.is_none() {
-                        context.wants[idx].receiver = Some(actor);
-                    }
+                    want_receivers.entry(idx).or_insert(Some(actor));
                 }
                 ActantialRole::Unknown => {}
             }
         }
+
+        // Apply collected actors to WantContexts using builder pattern
+        let final_wants: Vec<WantContext> = wants_builder
+            .into_iter()
+            .enumerate()
+            .map(|(idx, want)| {
+                let mut want = want;
+                if let Some(helpers) = want_helpers.remove(&idx) {
+                    want = want.with_helpers(helpers);
+                }
+                if let Some(opponents) = want_opponents.remove(&idx) {
+                    want = want.with_opponents(opponents);
+                }
+                if let Some(Some(sender)) = want_senders.remove(&idx) {
+                    want = want.with_sender(sender);
+                }
+                if let Some(Some(receiver)) = want_receivers.remove(&idx) {
+                    want = want.with_receiver(receiver);
+                }
+                want
+            })
+            .collect();
+
+        let context = ActantialContext::new(id, character_name)
+            .with_wants(final_wants)
+            .with_social_views(social_views);
 
         Ok(Some(context))
     }
@@ -1256,9 +1290,9 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 Uuid::parse_str(&target_id_str).map_err(|e| RepoError::database("query", e))?;
             let target_labels: Vec<String> = row.get("target_labels").unwrap_or_default();
             let target = if target_labels.iter().any(|l| l == "PlayerCharacter") {
-                ActantialTarget::pc(target_uuid)
+                ActantialTarget::pc(PlayerCharacterId::from_uuid(target_uuid))
             } else {
-                ActantialTarget::npc(target_uuid)
+                ActantialTarget::npc(CharacterId::from_uuid(target_uuid))
             };
 
             let target_name: String = row.get("target_name").unwrap_or_else(|_| "Unknown".into());
@@ -1318,9 +1352,9 @@ impl CharacterRepo for Neo4jCharacterRepo {
             let target_uuid =
                 Uuid::parse_str(&target_id).map_err(|e| RepoError::database("query", e))?;
             let resolved_target = if target_labels.iter().any(|l| l == "PlayerCharacter") {
-                ActantialTarget::pc(target_uuid)
+                ActantialTarget::pc(PlayerCharacterId::from_uuid(target_uuid))
             } else {
-                ActantialTarget::npc(target_uuid)
+                ActantialTarget::npc(CharacterId::from_uuid(target_uuid))
             };
 
             Ok(ActantialViewRecord {
@@ -1776,18 +1810,18 @@ fn parse_want_target_from_row(row: &Row) -> Result<Option<WantTarget>, RepoError
 
     if target_labels.iter().any(|label| label == "Goal") {
         Ok(Some(WantTarget::Goal {
-            id: target_id,
+            id: GoalId::from_uuid(target_id),
             name: target_name,
             description: node.get_optional_string("description"),
         }))
     } else if target_labels.iter().any(|label| label == "Item") {
         Ok(Some(WantTarget::Item {
-            id: target_id,
+            id: ItemId::from_uuid(target_id),
             name: target_name,
         }))
     } else {
         Ok(Some(WantTarget::Character {
-            id: target_id,
+            id: CharacterId::from_uuid(target_id),
             name: target_name,
         }))
     }

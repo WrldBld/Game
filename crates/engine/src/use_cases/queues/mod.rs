@@ -352,8 +352,8 @@ impl ProcessPlayerAction {
                 motivations,
                 social_stance: None, // Could be populated from actantial context
                 relationship_to_player: disposition.as_ref().map(|d| d.relationship().to_string()),
-                available_expressions: Some(npc.expression_config().expressions.clone()),
-                available_actions: Some(npc.expression_config().actions.clone()),
+                available_expressions: Some(npc.expression_config().expressions().to_vec()),
+                available_actions: Some(npc.expression_config().actions().to_vec()),
             }
         } else {
             // Fallback for when NPC entity is not found

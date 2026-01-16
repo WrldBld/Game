@@ -236,9 +236,13 @@ impl LoreOps {
         input: CreateLoreInput,
     ) -> Result<CreateLoreResult, LoreError> {
         let category = match input.category.as_deref() {
-            Some(cat_str) => cat_str
-                .parse::<LoreCategory>()
-                .map_err(|e| LoreError::InvalidCategory(e))?,
+            Some(cat_str) => {
+                cat_str
+                    .parse::<LoreCategory>()
+                    .map_err(|e: wrldbldr_domain::DomainError| {
+                        LoreError::InvalidCategory(e.to_string())
+                    })?
+            }
             None => LoreCategory::Common,
         };
 
@@ -317,9 +321,9 @@ impl LoreOps {
             lore.summary = summary.clone();
         }
         if let Some(category_str) = input.category.as_ref() {
-            lore.category = category_str
-                .parse::<LoreCategory>()
-                .map_err(|e| LoreError::InvalidCategory(e))?;
+            lore.category = category_str.parse::<LoreCategory>().map_err(
+                |e: wrldbldr_domain::DomainError| LoreError::InvalidCategory(e.to_string()),
+            )?;
         }
         if let Some(tags) = input.tags.as_ref() {
             lore.tags = tags.clone();

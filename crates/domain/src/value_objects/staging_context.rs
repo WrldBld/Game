@@ -5,60 +5,91 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
+use crate::CharacterId;
 
 /// Complete context for staging decisions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StagingContext {
     // Region information
-    pub region_name: String,
-    pub region_description: String,
-    pub location_name: String,
-    pub time_of_day: String,
-    pub time_display: String,
+    region_name: String,
+    region_description: String,
+    location_name: String,
+    time_of_day: String,
+    time_display: String,
 
     // Story context
-    pub active_events: Vec<ActiveEventContext>,
-    pub npc_dialogues: Vec<NpcDialogueContext>,
+    active_events: Vec<ActiveEventContext>,
+    npc_dialogues: Vec<NpcDialogueContext>,
 
     // Extensible additional context
-    pub additional_context: HashMap<String, String>,
+    additional_context: HashMap<String, String>,
 }
 
 /// Context about an active narrative event relevant to staging
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveEventContext {
-    pub event_name: String,
-    pub description: String,
-    pub relevance: String,
+    event_name: String,
+    description: String,
+    relevance: String,
 }
 
 /// Context about recent dialogues with an NPC
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NpcDialogueContext {
-    pub character_id: Uuid,
-    pub character_name: String,
-    pub last_dialogue_summary: String,
-    pub game_time_of_dialogue: String,
-    pub mentioned_locations: Vec<String>,
+    character_id: CharacterId,
+    character_name: String,
+    last_dialogue_summary: String,
+    game_time_of_dialogue: String,
+    mentioned_locations: Vec<String>,
 }
 
 /// Rule-based NPC presence suggestion
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuleBasedSuggestion {
-    pub character_id: Uuid,
-    pub character_name: String,
-    pub is_present: bool,
-    pub reasoning: String,
-    pub roll_result: Option<RollResult>,
+    character_id: CharacterId,
+    character_name: String,
+    is_present: bool,
+    reasoning: String,
+    roll_result: Option<RollResult>,
 }
 
 /// Result of a probabilistic presence roll
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RollResult {
-    pub chance_percent: u8,
-    pub rolled: u8,
-    pub passed: bool,
+    chance_percent: u8,
+    rolled: u8,
+    passed: bool,
+}
+
+impl RollResult {
+    /// Create a new roll result
+    pub fn new(chance_percent: u8, rolled: u8) -> Self {
+        Self {
+            chance_percent,
+            rolled,
+            passed: rolled <= chance_percent,
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Accessors
+    // -------------------------------------------------------------------------
+
+    /// Get the chance percentage
+    pub fn chance_percent(&self) -> u8 {
+        self.chance_percent
+    }
+
+    /// Get the rolled value
+    pub fn rolled(&self) -> u8 {
+        self.rolled
+    }
+
+    /// Check if the roll passed
+    pub fn passed(&self) -> bool {
+        self.passed
+    }
 }
 
 impl StagingContext {
@@ -81,17 +112,68 @@ impl StagingContext {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Accessors
+    // -------------------------------------------------------------------------
+
+    /// Get the region name
+    pub fn region_name(&self) -> &str {
+        &self.region_name
+    }
+
+    /// Get the region description
+    pub fn region_description(&self) -> &str {
+        &self.region_description
+    }
+
+    /// Get the location name
+    pub fn location_name(&self) -> &str {
+        &self.location_name
+    }
+
+    /// Get the time of day
+    pub fn time_of_day(&self) -> &str {
+        &self.time_of_day
+    }
+
+    /// Get the time display string
+    pub fn time_display(&self) -> &str {
+        &self.time_display
+    }
+
+    /// Get the active events
+    pub fn active_events(&self) -> &[ActiveEventContext] {
+        &self.active_events
+    }
+
+    /// Get the NPC dialogues
+    pub fn npc_dialogues(&self) -> &[NpcDialogueContext] {
+        &self.npc_dialogues
+    }
+
+    /// Get the additional context
+    pub fn additional_context(&self) -> &HashMap<String, String> {
+        &self.additional_context
+    }
+
+    // -------------------------------------------------------------------------
+    // Builder methods
+    // -------------------------------------------------------------------------
+
+    /// Set the active events
     pub fn with_active_events(mut self, events: Vec<ActiveEventContext>) -> Self {
         self.active_events = events;
         self
     }
 
+    /// Set the NPC dialogues
     pub fn with_npc_dialogues(mut self, dialogues: Vec<NpcDialogueContext>) -> Self {
         self.npc_dialogues = dialogues;
         self
     }
 
-    pub fn add_context(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+    /// Add additional context
+    pub fn with_context(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.additional_context.insert(key.into(), value.into());
         self
     }
@@ -109,11 +191,30 @@ impl ActiveEventContext {
             relevance: relevance.into(),
         }
     }
+
+    // -------------------------------------------------------------------------
+    // Accessors
+    // -------------------------------------------------------------------------
+
+    /// Get the event name
+    pub fn event_name(&self) -> &str {
+        &self.event_name
+    }
+
+    /// Get the event description
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    /// Get the relevance
+    pub fn relevance(&self) -> &str {
+        &self.relevance
+    }
 }
 
 impl NpcDialogueContext {
     pub fn new(
-        character_id: Uuid,
+        character_id: CharacterId,
         character_name: impl Into<String>,
         last_dialogue_summary: impl Into<String>,
         game_time_of_dialogue: impl Into<String>,
@@ -127,6 +228,40 @@ impl NpcDialogueContext {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Accessors
+    // -------------------------------------------------------------------------
+
+    /// Get the character ID
+    pub fn character_id(&self) -> CharacterId {
+        self.character_id
+    }
+
+    /// Get the character name
+    pub fn character_name(&self) -> &str {
+        &self.character_name
+    }
+
+    /// Get the last dialogue summary
+    pub fn last_dialogue_summary(&self) -> &str {
+        &self.last_dialogue_summary
+    }
+
+    /// Get the game time of dialogue
+    pub fn game_time_of_dialogue(&self) -> &str {
+        &self.game_time_of_dialogue
+    }
+
+    /// Get the mentioned locations
+    pub fn mentioned_locations(&self) -> &[String] {
+        &self.mentioned_locations
+    }
+
+    // -------------------------------------------------------------------------
+    // Builder methods
+    // -------------------------------------------------------------------------
+
+    /// Set the mentioned locations
     pub fn with_mentioned_locations(mut self, locations: Vec<String>) -> Self {
         self.mentioned_locations = locations;
         self
@@ -135,7 +270,7 @@ impl NpcDialogueContext {
 
 impl RuleBasedSuggestion {
     pub fn present(
-        character_id: Uuid,
+        character_id: CharacterId,
         character_name: impl Into<String>,
         reasoning: impl Into<String>,
     ) -> Self {
@@ -149,7 +284,7 @@ impl RuleBasedSuggestion {
     }
 
     pub fn absent(
-        character_id: Uuid,
+        character_id: CharacterId,
         character_name: impl Into<String>,
         reasoning: impl Into<String>,
     ) -> Self {
@@ -162,12 +297,42 @@ impl RuleBasedSuggestion {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Accessors
+    // -------------------------------------------------------------------------
+
+    /// Get the character ID
+    pub fn character_id(&self) -> CharacterId {
+        self.character_id
+    }
+
+    /// Get the character name
+    pub fn character_name(&self) -> &str {
+        &self.character_name
+    }
+
+    /// Check if the NPC is present
+    pub fn is_present(&self) -> bool {
+        self.is_present
+    }
+
+    /// Get the reasoning
+    pub fn reasoning(&self) -> &str {
+        &self.reasoning
+    }
+
+    /// Get the roll result (if any)
+    pub fn roll_result(&self) -> Option<&RollResult> {
+        self.roll_result.as_ref()
+    }
+
+    // -------------------------------------------------------------------------
+    // Builder methods
+    // -------------------------------------------------------------------------
+
+    /// Add a roll result
     pub fn with_roll(mut self, chance_percent: u8, rolled: u8) -> Self {
-        self.roll_result = Some(RollResult {
-            chance_percent,
-            rolled,
-            passed: rolled <= chance_percent,
-        });
+        self.roll_result = Some(RollResult::new(chance_percent, rolled));
         self
     }
 }

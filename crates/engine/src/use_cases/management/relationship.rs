@@ -40,16 +40,16 @@ impl RelationshipCrud {
     ) -> Result<wrldbldr_domain::Relationship, ManagementError> {
         let rel_type = relationship_type
             .parse::<wrldbldr_domain::RelationshipType>()
-            .map_err(ManagementError::Domain)?;
+            .map_err(|e| ManagementError::Domain(e.to_string()))?;
 
         let mut relationship = wrldbldr_domain::Relationship::new(from_id, to_id, rel_type);
 
         if let Some(description) = description {
-            relationship.add_event(wrldbldr_domain::RelationshipEvent {
+            relationship = relationship.with_event(wrldbldr_domain::RelationshipEvent::new(
                 description,
-                sentiment_change: 0.0,
-                timestamp: self.clock.now(),
-            });
+                0.0,
+                self.clock.now(),
+            ));
         }
 
         self.character.save_relationship(&relationship).await?;
@@ -79,15 +79,15 @@ impl RelationshipCrud {
         let relationships = self.character.get_relationships(from_id).await?;
         let mut relationship = relationships
             .into_iter()
-            .find(|r| r.to_character == to_id)
+            .find(|r| r.to_character() == to_id)
             .ok_or(ManagementError::NotFound)?;
 
         // Add the event
-        relationship.add_event(wrldbldr_domain::RelationshipEvent {
+        relationship = relationship.with_event(wrldbldr_domain::RelationshipEvent::new(
             description,
             sentiment_change,
-            timestamp: self.clock.now(),
-        });
+            self.clock.now(),
+        ));
 
         self.character.save_relationship(&relationship).await?;
         Ok(relationship)

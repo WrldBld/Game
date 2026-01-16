@@ -43,7 +43,20 @@ pub enum DomainError {
 }
 
 impl DomainError {
-    /// Create a validation error
+    /// Creates a validation error for business rule violations.
+    ///
+    /// Use this when domain invariants or constraints are violated:
+    /// - Required fields are empty or missing
+    /// - Values are outside allowed ranges
+    /// - State transitions are invalid
+    /// - Business rules are not satisfied
+    ///
+    /// # Example
+    /// ```ignore
+    /// if name.is_empty() {
+    ///     return Err(DomainError::validation("Character name cannot be empty"));
+    /// }
+    /// ```
     pub fn validation(msg: impl Into<String>) -> Self {
         Self::Validation(msg.into())
     }
@@ -66,7 +79,26 @@ impl DomainError {
         Self::InvalidId(msg.into())
     }
 
-    /// Create a parse error
+    /// Creates a parse error for string-to-type conversion failures.
+    ///
+    /// Use this in `FromStr` implementations when the input string
+    /// doesn't match any known variant or format:
+    /// - Unknown enum variant names
+    /// - Invalid format strings
+    /// - Malformed identifiers
+    ///
+    /// # Example
+    /// ```ignore
+    /// impl FromStr for SkillCategory {
+    ///     type Err = DomainError;
+    ///     fn from_str(s: &str) -> Result<Self, Self::Err> {
+    ///         match s {
+    ///             "combat" => Ok(Self::Combat),
+    ///             _ => Err(DomainError::parse(format!("Unknown skill category: {}", s))),
+    ///         }
+    ///     }
+    /// }
+    /// ```
     pub fn parse(msg: impl Into<String>) -> Self {
         Self::Parse(msg.into())
     }

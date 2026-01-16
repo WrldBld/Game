@@ -2,6 +2,7 @@
 //!
 //! These represent the emotional stance and social distance between NPCs and PCs.
 
+use crate::error::DomainError;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -111,7 +112,7 @@ impl fmt::Display for DispositionLevel {
 }
 
 impl std::str::FromStr for DispositionLevel {
-    type Err = String;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s.to_lowercase().as_str() {
@@ -220,7 +221,7 @@ impl fmt::Display for RelationshipLevel {
 }
 
 impl std::str::FromStr for RelationshipLevel {
-    type Err = String;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s.to_lowercase().as_str() {

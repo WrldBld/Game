@@ -7,6 +7,7 @@
 //! - `(Staging)-[:USES_LOCATION_STATE]->(LocationState)` - Visual state at location level
 //! - `(Staging)-[:USES_REGION_STATE]->(RegionState)` - Visual state at region level
 
+use crate::error::DomainError;
 use crate::value_objects::MoodState;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -278,7 +279,7 @@ impl std::fmt::Display for StagingSource {
 }
 
 impl std::str::FromStr for StagingSource {
-    type Err = String;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
@@ -305,15 +306,27 @@ impl std::fmt::Display for VisualStateSource {
 }
 
 impl std::str::FromStr for VisualStateSource {
-    type Err = String;
+    type Err = DomainError;
 
+    /// Parses a string into a VisualStateSource.
+    ///
+    /// Unlike serde deserialization (which falls back to `Default` for unknown values
+    /// via `#[serde(other)]`), this returns an error for unrecognized inputs.
+    ///
+    /// **Rationale**: `FromStr` is typically used for internal/validated sources
+    /// (e.g., database values) where unknown values indicate data corruption or a bug.
+    /// Failing fast surfaces these issues immediately. Serde's fallback handles
+    /// forward compatibility for external JSON payloads from updated clients.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "rules" | "hardrulesonly" => Ok(VisualStateSource::HardRulesOnly),
             "llm" | "withllmevaluation" => Ok(VisualStateSource::WithLlmEvaluation),
             "dm" | "dmoverride" => Ok(VisualStateSource::DmOverride),
             "default" => Ok(VisualStateSource::Default),
-            _ => Err(format!("Unknown visual state source: {}", s)),
+            _ => Err(DomainError::parse(format!(
+                "Unknown visual state source: {}",
+                s
+            ))),
         }
     }
 }

@@ -1227,7 +1227,7 @@ pub enum DiceInputType {
 
 // AdHocOutcomes is re-exported from domain to avoid duplication.
 // Previously had duplicate definition here - consolidated per CR6-1.6.
-pub use wrldbldr_domain::AdHocOutcomes;
+pub use wrldbldr_domain::value_objects::AdHocOutcomes;
 
 /// Outcome detail data for regenerated outcomes
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

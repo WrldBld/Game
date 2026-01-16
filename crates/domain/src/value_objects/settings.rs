@@ -61,79 +61,79 @@ impl std::str::FromStr for BatchQueueFailurePolicy {
 pub struct AppSettings {
     /// World ID for per-world settings. None = global defaults.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub world_id: Option<WorldId>,
+    world_id: Option<WorldId>,
 
     // ============================================================================
     // Session & Conversation
     // ============================================================================
     /// Maximum conversation turns to store in session memory
-    pub max_conversation_turns: usize,
+    max_conversation_turns: usize,
 
     /// Number of conversation turns to include in LLM prompt context
     #[serde(default = "default_conversation_history_turns")]
-    pub conversation_history_turns: usize,
+    conversation_history_turns: usize,
 
     // ============================================================================
     // Circuit Breaker & Health
     // ============================================================================
-    pub circuit_breaker_failure_threshold: u32,
-    pub circuit_breaker_open_duration_secs: u64,
-    pub health_check_cache_ttl_secs: u64,
+    circuit_breaker_failure_threshold: u32,
+    circuit_breaker_open_duration_secs: u64,
+    health_check_cache_ttl_secs: u64,
 
     // ============================================================================
     // Validation Limits
     // ============================================================================
     /// Maximum length for entity names (characters, locations, etc.)
-    pub max_name_length: usize,
+    max_name_length: usize,
     /// Maximum length for descriptions
-    pub max_description_length: usize,
+    max_description_length: usize,
 
     // ============================================================================
     // Animation (synced to Player)
     // ============================================================================
-    pub typewriter_sentence_delay_ms: u64,
-    pub typewriter_pause_delay_ms: u64,
-    pub typewriter_char_delay_ms: u64,
+    typewriter_sentence_delay_ms: u64,
+    typewriter_pause_delay_ms: u64,
+    typewriter_char_delay_ms: u64,
 
     // ============================================================================
     // Game Defaults
     // ============================================================================
-    pub default_max_stat_value: i32,
+    default_max_stat_value: i32,
 
     // ============================================================================
     // Staging System
     // ============================================================================
     /// Default NPC presence cache TTL in game hours for new locations
     #[serde(default = "default_presence_cache_ttl_hours")]
-    pub default_presence_cache_ttl_hours: i32,
+    default_presence_cache_ttl_hours: i32,
 
     /// Whether to use LLM for staging decisions by default
     #[serde(default = "default_use_llm_presence")]
-    pub default_use_llm_presence: bool,
+    default_use_llm_presence: bool,
 
     // ============================================================================
     // Challenge System
     // ============================================================================
     /// Number of outcome branches to generate for each challenge result tier
     #[serde(default = "default_outcome_branch_count")]
-    pub outcome_branch_count: usize,
+    outcome_branch_count: usize,
     /// Minimum allowed branch count (for UI validation)
     #[serde(default = "default_outcome_branch_min")]
-    pub outcome_branch_min: usize,
+    outcome_branch_min: usize,
     /// Maximum allowed branch count (for UI validation)
     #[serde(default = "default_outcome_branch_max")]
-    pub outcome_branch_max: usize,
+    outcome_branch_max: usize,
 
     // ============================================================================
     // LLM Settings
     // ============================================================================
     /// Max tokens per outcome branch when generating suggestions
     #[serde(default = "default_suggestion_tokens_per_branch")]
-    pub suggestion_tokens_per_branch: u32,
+    suggestion_tokens_per_branch: u32,
 
     /// Token budget configuration for LLM context building
     #[serde(default)]
-    pub context_budget: ContextBudgetConfig,
+    context_budget: ContextBudgetConfig,
 
     // ============================================================================
     // Asset Generation
@@ -141,11 +141,11 @@ pub struct AppSettings {
     /// Default style reference asset ID for image generation
     /// When set, new asset generations will use this asset's style by default
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub style_reference_asset_id: Option<String>,
+    style_reference_asset_id: Option<String>,
 
     /// Policy for how to handle failures while queueing prompts for a batch.
     #[serde(default = "default_batch_queue_failure_policy")]
-    pub batch_queue_failure_policy: BatchQueueFailurePolicy,
+    batch_queue_failure_policy: BatchQueueFailurePolicy,
 }
 
 fn default_outcome_branch_count() -> usize {
@@ -223,19 +223,294 @@ impl AppSettings {
         // In the future, we could make this more granular with Option<T> fields
         self.clone()
     }
-}
 
-    /// Merge per-world settings with global settings.
-    /// Per-world values override global where present.
-    pub fn merge_with_global(&self, _global: &AppSettings) -> AppSettings {
-        // If this is global settings, just return a clone
-        if self.world_id.is_none() {
-            return self.clone();
+    // ============================================================================
+    // Accessors
+    // ============================================================================
+
+    /// World ID for per-world settings. None = global defaults.
+    pub fn world_id(&self) -> Option<WorldId> {
+        self.world_id
+    }
+
+    /// Maximum conversation turns to store in session memory
+    pub fn max_conversation_turns(&self) -> usize {
+        self.max_conversation_turns
+    }
+
+    /// Number of conversation turns to include in LLM prompt context
+    pub fn conversation_history_turns(&self) -> usize {
+        self.conversation_history_turns
+    }
+
+    /// Circuit breaker failure threshold
+    pub fn circuit_breaker_failure_threshold(&self) -> u32 {
+        self.circuit_breaker_failure_threshold
+    }
+
+    /// Circuit breaker open duration in seconds
+    pub fn circuit_breaker_open_duration_secs(&self) -> u64 {
+        self.circuit_breaker_open_duration_secs
+    }
+
+    /// Health check cache TTL in seconds
+    pub fn health_check_cache_ttl_secs(&self) -> u64 {
+        self.health_check_cache_ttl_secs
+    }
+
+    /// Maximum length for entity names (characters, locations, etc.)
+    pub fn max_name_length(&self) -> usize {
+        self.max_name_length
+    }
+
+    /// Maximum length for descriptions
+    pub fn max_description_length(&self) -> usize {
+        self.max_description_length
+    }
+
+    /// Typewriter sentence delay in milliseconds
+    pub fn typewriter_sentence_delay_ms(&self) -> u64 {
+        self.typewriter_sentence_delay_ms
+    }
+
+    /// Typewriter pause delay in milliseconds
+    pub fn typewriter_pause_delay_ms(&self) -> u64 {
+        self.typewriter_pause_delay_ms
+    }
+
+    /// Typewriter character delay in milliseconds
+    pub fn typewriter_char_delay_ms(&self) -> u64 {
+        self.typewriter_char_delay_ms
+    }
+
+    /// Default maximum stat value
+    pub fn default_max_stat_value(&self) -> i32 {
+        self.default_max_stat_value
+    }
+
+    /// Default NPC presence cache TTL in game hours for new locations
+    pub fn default_presence_cache_ttl_hours(&self) -> i32 {
+        self.default_presence_cache_ttl_hours
+    }
+
+    /// Whether to use LLM for staging decisions by default
+    pub fn default_use_llm_presence(&self) -> bool {
+        self.default_use_llm_presence
+    }
+
+    /// Number of outcome branches to generate for each challenge result tier
+    pub fn outcome_branch_count(&self) -> usize {
+        self.outcome_branch_count
+    }
+
+    /// Minimum allowed branch count (for UI validation)
+    pub fn outcome_branch_min(&self) -> usize {
+        self.outcome_branch_min
+    }
+
+    /// Maximum allowed branch count (for UI validation)
+    pub fn outcome_branch_max(&self) -> usize {
+        self.outcome_branch_max
+    }
+
+    /// Max tokens per outcome branch when generating suggestions
+    pub fn suggestion_tokens_per_branch(&self) -> u32 {
+        self.suggestion_tokens_per_branch
+    }
+
+    /// Token budget configuration for LLM context building
+    pub fn context_budget(&self) -> &ContextBudgetConfig {
+        &self.context_budget
+    }
+
+    /// Default style reference asset ID for image generation
+    pub fn style_reference_asset_id(&self) -> Option<&str> {
+        self.style_reference_asset_id.as_deref()
+    }
+
+    /// Policy for how to handle failures while queueing prompts for a batch
+    pub fn batch_queue_failure_policy(&self) -> BatchQueueFailurePolicy {
+        self.batch_queue_failure_policy
+    }
+
+    // ============================================================================
+    // Builder-style setters (consume self)
+    // ============================================================================
+
+    /// Set the world ID
+    pub fn with_world_id(self, world_id: Option<WorldId>) -> Self {
+        Self { world_id, ..self }
+    }
+
+    /// Set maximum conversation turns
+    pub fn with_max_conversation_turns(self, max_conversation_turns: usize) -> Self {
+        Self {
+            max_conversation_turns,
+            ..self
         }
+    }
 
-        // Start with global, then override with per-world values
-        // For now, per-world settings completely override global
-        // In the future, we could make this more granular with Option<T> fields
-        self.clone()
+    /// Set conversation history turns
+    pub fn with_conversation_history_turns(self, conversation_history_turns: usize) -> Self {
+        Self {
+            conversation_history_turns,
+            ..self
+        }
+    }
+
+    /// Set circuit breaker failure threshold
+    pub fn with_circuit_breaker_failure_threshold(
+        self,
+        circuit_breaker_failure_threshold: u32,
+    ) -> Self {
+        Self {
+            circuit_breaker_failure_threshold,
+            ..self
+        }
+    }
+
+    /// Set circuit breaker open duration in seconds
+    pub fn with_circuit_breaker_open_duration_secs(
+        self,
+        circuit_breaker_open_duration_secs: u64,
+    ) -> Self {
+        Self {
+            circuit_breaker_open_duration_secs,
+            ..self
+        }
+    }
+
+    /// Set health check cache TTL in seconds
+    pub fn with_health_check_cache_ttl_secs(self, health_check_cache_ttl_secs: u64) -> Self {
+        Self {
+            health_check_cache_ttl_secs,
+            ..self
+        }
+    }
+
+    /// Set maximum name length
+    pub fn with_max_name_length(self, max_name_length: usize) -> Self {
+        Self {
+            max_name_length,
+            ..self
+        }
+    }
+
+    /// Set maximum description length
+    pub fn with_max_description_length(self, max_description_length: usize) -> Self {
+        Self {
+            max_description_length,
+            ..self
+        }
+    }
+
+    /// Set typewriter sentence delay in milliseconds
+    pub fn with_typewriter_sentence_delay_ms(self, typewriter_sentence_delay_ms: u64) -> Self {
+        Self {
+            typewriter_sentence_delay_ms,
+            ..self
+        }
+    }
+
+    /// Set typewriter pause delay in milliseconds
+    pub fn with_typewriter_pause_delay_ms(self, typewriter_pause_delay_ms: u64) -> Self {
+        Self {
+            typewriter_pause_delay_ms,
+            ..self
+        }
+    }
+
+    /// Set typewriter character delay in milliseconds
+    pub fn with_typewriter_char_delay_ms(self, typewriter_char_delay_ms: u64) -> Self {
+        Self {
+            typewriter_char_delay_ms,
+            ..self
+        }
+    }
+
+    /// Set default maximum stat value
+    pub fn with_default_max_stat_value(self, default_max_stat_value: i32) -> Self {
+        Self {
+            default_max_stat_value,
+            ..self
+        }
+    }
+
+    /// Set default presence cache TTL in hours
+    pub fn with_default_presence_cache_ttl_hours(
+        self,
+        default_presence_cache_ttl_hours: i32,
+    ) -> Self {
+        Self {
+            default_presence_cache_ttl_hours,
+            ..self
+        }
+    }
+
+    /// Set whether to use LLM for staging decisions by default
+    pub fn with_default_use_llm_presence(self, default_use_llm_presence: bool) -> Self {
+        Self {
+            default_use_llm_presence,
+            ..self
+        }
+    }
+
+    /// Set outcome branch count
+    pub fn with_outcome_branch_count(self, outcome_branch_count: usize) -> Self {
+        Self {
+            outcome_branch_count,
+            ..self
+        }
+    }
+
+    /// Set outcome branch minimum
+    pub fn with_outcome_branch_min(self, outcome_branch_min: usize) -> Self {
+        Self {
+            outcome_branch_min,
+            ..self
+        }
+    }
+
+    /// Set outcome branch maximum
+    pub fn with_outcome_branch_max(self, outcome_branch_max: usize) -> Self {
+        Self {
+            outcome_branch_max,
+            ..self
+        }
+    }
+
+    /// Set suggestion tokens per branch
+    pub fn with_suggestion_tokens_per_branch(self, suggestion_tokens_per_branch: u32) -> Self {
+        Self {
+            suggestion_tokens_per_branch,
+            ..self
+        }
+    }
+
+    /// Set context budget configuration
+    pub fn with_context_budget(self, context_budget: ContextBudgetConfig) -> Self {
+        Self {
+            context_budget,
+            ..self
+        }
+    }
+
+    /// Set style reference asset ID
+    pub fn with_style_reference_asset_id(self, style_reference_asset_id: Option<String>) -> Self {
+        Self {
+            style_reference_asset_id,
+            ..self
+        }
+    }
+
+    /// Set batch queue failure policy
+    pub fn with_batch_queue_failure_policy(
+        self,
+        batch_queue_failure_policy: BatchQueueFailurePolicy,
+    ) -> Self {
+        Self {
+            batch_queue_failure_policy,
+            ..self
+        }
     }
 }

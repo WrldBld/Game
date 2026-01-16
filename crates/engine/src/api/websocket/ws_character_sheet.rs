@@ -850,7 +850,7 @@ fn get_character_values(
 
     // Add stats
     for (name, stat) in character.stats().get_all_stats() {
-        values.insert(name.to_string(), SheetValue::Integer(stat.effective));
+        values.insert(name.to_string(), SheetValue::Integer(stat.effective()));
     }
 
     values

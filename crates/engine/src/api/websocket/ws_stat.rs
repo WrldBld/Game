@@ -144,7 +144,7 @@ pub(super) async fn handle_stat_request(
             } else {
                 StatModifier::inactive(&data.source, data.value)
             };
-            let modifier_id = modifier.id;
+            let modifier_id = modifier.id();
             character
                 .stats_mut()
                 .add_modifier(&data.stat_name, modifier);
@@ -176,15 +176,16 @@ pub(super) async fn handle_stat_request(
         } => {
             require_dm_for_request(conn_info, request_id)?;
             let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
-            let modifier_uuid = match Uuid::parse_str(&modifier_id) {
-                Ok(id) => id,
-                Err(_) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::BadRequest,
-                        "Invalid modifier ID format",
-                    ));
-                }
-            };
+            let modifier_id_typed: wrldbldr_domain::StatModifierId =
+                match Uuid::parse_str(&modifier_id) {
+                    Ok(id) => id.into(),
+                    Err(_) => {
+                        return Ok(ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            "Invalid modifier ID format",
+                        ));
+                    }
+                };
 
             let mut character = match get_character_or_error(state, character_id_typed).await {
                 Ok(c) => c,
@@ -193,7 +194,7 @@ pub(super) async fn handle_stat_request(
 
             if !character
                 .stats_mut()
-                .remove_modifier(&stat_name, modifier_uuid)
+                .remove_modifier(&stat_name, modifier_id_typed)
             {
                 return Ok(ResponseResult::error(
                     ErrorCode::NotFound,
@@ -222,15 +223,16 @@ pub(super) async fn handle_stat_request(
         } => {
             require_dm_for_request(conn_info, request_id)?;
             let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
-            let modifier_uuid = match Uuid::parse_str(&modifier_id) {
-                Ok(id) => id,
-                Err(_) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::BadRequest,
-                        "Invalid modifier ID format",
-                    ));
-                }
-            };
+            let modifier_id_typed: wrldbldr_domain::StatModifierId =
+                match Uuid::parse_str(&modifier_id) {
+                    Ok(id) => id.into(),
+                    Err(_) => {
+                        return Ok(ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            "Invalid modifier ID format",
+                        ));
+                    }
+                };
 
             let mut character = match get_character_or_error(state, character_id_typed).await {
                 Ok(c) => c,
@@ -239,7 +241,7 @@ pub(super) async fn handle_stat_request(
 
             if !character
                 .stats_mut()
-                .toggle_modifier(&stat_name, modifier_uuid)
+                .toggle_modifier(&stat_name, modifier_id_typed)
             {
                 return Ok(ResponseResult::error(
                     ErrorCode::NotFound,
@@ -404,9 +406,9 @@ fn character_stats_to_json(character: &domain::Character) -> serde_json::Value {
             (
                 name.clone(),
                 json!({
-                    "base": value.base,
-                    "modifier_total": value.modifier_total,
-                    "effective": value.effective,
+                    "base": value.base(),
+                    "modifier_total": value.modifier_total(),
+                    "effective": value.effective(),
                 }),
             )
         })
@@ -422,10 +424,10 @@ fn character_stats_to_json(character: &domain::Character) -> serde_json::Value {
                 json!(mods
                     .iter()
                     .map(|m| json!({
-                        "id": m.id.to_string(),
-                        "source": m.source,
-                        "value": m.value,
-                        "active": m.active,
+                        "id": m.id().to_string(),
+                        "source": m.source(),
+                        "value": m.value(),
+                        "active": m.is_active(),
                     }))
                     .collect::<Vec<_>>()),
             )

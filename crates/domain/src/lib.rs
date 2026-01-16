@@ -50,7 +50,6 @@ pub use entities::{
     CombatOutcome,
     ConnectionType,
     // Content types for compendium system
-    ContentFilter,
     ContentSource,
     ContentType,
     Difficulty,
@@ -215,27 +214,105 @@ pub use ids::{
     ActId, ActionId, AssetId, BatchId, ChallengeId, CharacterId, ConnectionId, EventChainId,
     EventId, GoalId, GridMapId, InteractionId, ItemId, LocationId, LocationStateId, LoreChunkId,
     LoreId, NarrativeEventId, ParticipantId, PlayerCharacterId, QueueItemId, RegionId,
-    RegionStateId, RelationshipId, SceneId, SkillId, StagingId, StoryEventId, UserId, WantId,
-    WorkflowId, WorldId,
+    RegionStateId, RelationshipId, SceneId, SkillId, StagingId, StatModifierId, StoryEventId,
+    UserId, WantId, WorkflowId, WorldId,
 };
 
 // Re-export value objects (explicit list in value_objects/mod.rs)
 pub use value_objects::{
+    // Functions
     count_tokens,
     exceeds_token_budget,
-    get_prompt_default,
-    key_to_env_var,
-    // Dialogue marker parsing functions
     parse_dialogue,
     parse_dialogue_markers,
-
+    validate_markers,
+    // Actantial model types
+    ActantialActor,
+    ActantialContext,
+    ActantialLLMContext,
+    ActantialTarget,
+    // Activation rules
+    ActivationEvaluation,
+    ActivationLogic,
+    ActivationRule,
+    ActiveEventContext,
+    ActorType,
+    // Ad-hoc outcomes
+    AdHocOutcomes,
+    // Settings
     AppSettings,
+    ApprovalType,
+    // Archetype types
+    ArchetypeChange,
     BatchQueueFailurePolicy,
-
+    // Rule system types
+    BladesPoolThresholds,
+    // Archetype
+    CampbellArchetype,
+    // Disposition types
+    ChallengeSignificance,
+    // Names
+    CharacterName,
+    // Character state
+    CharacterState,
+    // Context budget
+    ContextBudgetConfig,
+    ContextCategory,
+    ConversationEntry,
+    Description,
+    // Dice types
+    DialogueMarker,
+    DiceFormula,
+    DiceParseError,
+    DiceRollInput,
+    DiceRollResult,
+    DiceSystem,
+    DifficultyLadder,
+    // Directorial types
+    DirectorialNotes,
+    DispositionLevel,
+    DomainNpcMotivation,
+    EffectLevel,
+    EffectTickConfig,
+    ExpressionConfig,
+    // Relationship types
+    FamilyRelation,
+    InteractionOutcome,
+    LadderEntry,
+    LocationName,
+    MoodState,
+    NarrativeDiceConfig,
+    NarrativeDiceType,
+    NarrativeEventName,
+    NarrativeResolutionConfig,
+    NarrativeResolutionStyle,
+    NarrativeThresholds,
+    NpcDialogueContext,
+    NpcDispositionState,
+    PacingGuidance,
+    ParsedDialogue,
+    PendingApprovalItem,
+    Position,
+    PositionEffectConfig,
+    Relationship,
+    RelationshipEvent,
+    RelationshipLevel,
+    RelationshipType,
+    RollResult,
+    RuleBasedSuggestion,
+    RuleSystemConfig,
+    RuleSystemType,
+    RuleSystemVariant,
+    SceneName,
+    SecretMotivationContext,
     SocialViewSummary,
     Speaker,
     StagingContext,
+    // Stat block
+    StatBlock,
     StatDefinition,
+    StatModifier,
+    StatValue,
     SuccessComparison,
     TokenCountMethod,
     TokenCounter,

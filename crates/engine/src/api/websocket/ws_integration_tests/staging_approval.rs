@@ -418,8 +418,8 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
     region.id = region_id;
 
     // Custom settings with non-default TTL (7 hours instead of default 3)
-    let mut custom_settings = wrldbldr_domain::AppSettings::default();
-    custom_settings.default_presence_cache_ttl_hours = 7;
+    let custom_settings =
+        wrldbldr_domain::AppSettings::default().with_default_presence_cache_ttl_hours(7);
 
     // World repo
     let mut world_repo = MockWorldRepo::new();

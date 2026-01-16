@@ -86,7 +86,7 @@ impl AutoApproveStagingTimeout {
             location_id: Some(pending.location_id),
             world_id: pending.world_id,
             approved_by: "system".to_string(),
-            ttl_hours: settings.default_presence_cache_ttl_hours,
+            ttl_hours: settings.default_presence_cache_ttl_hours(),
             source: StagingSource::AutoApproved,
             approved_npcs,
             location_state_id: None,

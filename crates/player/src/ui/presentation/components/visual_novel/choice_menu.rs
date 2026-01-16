@@ -195,8 +195,8 @@ fn validate_input_markers(text: &str) -> InputValidation {
 
     // Use standard config for validation
     let config = ExpressionConfig::default();
-    let expressions: Vec<String> = config.expressions.iter().cloned().collect();
-    let actions: Vec<String> = config.actions.iter().cloned().collect();
+    let expressions: Vec<String> = config.expressions().iter().cloned().collect();
+    let actions: Vec<String> = config.actions().iter().cloned().collect();
 
     // Get warnings from domain validation
     let domain_warnings = validate_markers(&markers, &expressions, &actions);
@@ -204,13 +204,13 @@ fn validate_input_markers(text: &str) -> InputValidation {
     // Build detected markers preview
     let detected_markers: Vec<String> = markers
         .iter()
-        .map(|m| match (&m.action, &m.expression) {
+        .map(|m| match (m.action_value(), m.expression_value()) {
             (Some(action), Some(expr)) => format!("{}|{}", action, expr),
             (Some(action), None) => format!("[{}]", action),
-            (None, Some(expr)) => expr.clone(),
+            (None, Some(expr)) => expr.to_string(),
             (None, None) => String::new(),
         })
-        .filter(|s| !s.is_empty())
+        .filter(|s: &String| !s.is_empty())
         .collect();
 
     // Check for common mistakes
@@ -224,9 +224,12 @@ fn validate_input_markers(text: &str) -> InputValidation {
 
     // Check for reversed pipe format (expression|action instead of action|expression)
     for marker in &markers {
-        if let (Some(action), Some(_expr)) = (&marker.action, &marker.expression) {
+        if let (Some(action), Some(_expr)) = (marker.action_value(), marker.expression_value()) {
             // If the "action" looks like an expression name, suggest fix
-            if expressions.iter().any(|e| e.eq_ignore_ascii_case(action)) {
+            if expressions
+                .iter()
+                .any(|e: &String| e.eq_ignore_ascii_case(action))
+            {
                 warnings.push(format!(
                     "Tip: Use *action|expression* format (e.g., *sighs|sad*)"
                 ));

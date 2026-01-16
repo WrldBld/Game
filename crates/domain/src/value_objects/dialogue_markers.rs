@@ -19,8 +19,8 @@
 //! let markers = parse_dialogue_markers(text);
 //!
 //! assert_eq!(markers.len(), 2);
-//! assert_eq!(markers[0].expression, Some("curious".to_string()));
-//! assert_eq!(markers[1].expression, Some("suspicious".to_string()));
+//! assert_eq!(markers[0].expression_value(), Some("curious"));
+//! assert_eq!(markers[1].expression_value(), Some("suspicious"));
 //! ```
 
 use serde::{Deserialize, Serialize};
@@ -30,20 +30,20 @@ use serde::{Deserialize, Serialize};
 pub struct DialogueMarker {
     /// The action to perform (displayed as stage direction)
     /// e.g., "sighs", "nods", "shakes head"
-    pub action: Option<String>,
+    action: Option<String>,
 
     /// The expression to change to
     /// e.g., "happy", "sad", "suspicious"
-    pub expression: Option<String>,
+    expression: Option<String>,
 
     /// Character offset where this marker starts in the original text
-    pub start_offset: usize,
+    start_offset: usize,
 
     /// Character offset where this marker ends in the original text
-    pub end_offset: usize,
+    end_offset: usize,
 
     /// The raw marker text including asterisks
-    pub raw: String,
+    raw: String,
 }
 
 impl DialogueMarker {
@@ -115,22 +115,77 @@ impl DialogueMarker {
     pub fn is_empty(&self) -> bool {
         self.action.is_none() && self.expression.is_none()
     }
+
+    // ── Accessors ────────────────────────────────────────────────────────
+
+    /// Get the action to perform, if any
+    pub fn action_value(&self) -> Option<&str> {
+        self.action.as_deref()
+    }
+
+    /// Get the expression to change to, if any
+    pub fn expression_value(&self) -> Option<&str> {
+        self.expression.as_deref()
+    }
+
+    /// Get the character offset where this marker starts in the original text
+    pub fn start_offset(&self) -> usize {
+        self.start_offset
+    }
+
+    /// Get the character offset where this marker ends in the original text
+    pub fn end_offset(&self) -> usize {
+        self.end_offset
+    }
+
+    /// Get the raw marker text including asterisks
+    pub fn raw(&self) -> &str {
+        &self.raw
+    }
 }
 
 /// Result of parsing dialogue text for markers
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ParsedDialogue {
     /// The original text with markers
-    pub original: String,
+    original: String,
 
     /// Text with markers removed (for display)
-    pub clean_text: String,
+    clean_text: String,
 
     /// Extracted markers with their positions
-    pub markers: Vec<DialogueMarker>,
+    markers: Vec<DialogueMarker>,
 }
 
 impl ParsedDialogue {
+    /// Create a new parsed dialogue result
+    pub fn new(original: String, clean_text: String, markers: Vec<DialogueMarker>) -> Self {
+        Self {
+            original,
+            clean_text,
+            markers,
+        }
+    }
+
+    // ── Accessors ────────────────────────────────────────────────────────
+
+    /// Get the original text with markers
+    pub fn original(&self) -> &str {
+        &self.original
+    }
+
+    /// Get the text with markers removed (for display)
+    pub fn clean_text(&self) -> &str {
+        &self.clean_text
+    }
+
+    /// Get the extracted markers with their positions
+    pub fn markers(&self) -> &[DialogueMarker] {
+        &self.markers
+    }
+
+    // ── Query Methods ────────────────────────────────────────────────────
+
     /// Check if there are any markers
     pub fn has_markers(&self) -> bool {
         !self.markers.is_empty()
@@ -220,11 +275,7 @@ pub fn parse_dialogue(text: &str) -> ParsedDialogue {
     // Trim extra whitespace that might result from marker removal
     let clean_text = clean.split_whitespace().collect::<Vec<_>>().join(" ");
 
-    ParsedDialogue {
-        original: text.to_string(),
-        clean_text,
-        markers,
-    }
+    ParsedDialogue::new(text.to_string(), clean_text, markers)
 }
 
 /// Parse the content of a marker (text between asterisks)
@@ -262,14 +313,14 @@ pub fn validate_markers(
     let mut warnings = Vec::new();
 
     for marker in markers {
-        if let Some(ref expr) = marker.expression {
+        if let Some(expr) = marker.expression_value() {
             let found = expressions.iter().any(|e| e.eq_ignore_ascii_case(expr));
             if !found {
                 warnings.push(format!("Unknown expression: '{}'", expr));
             }
         }
 
-        if let Some(ref act) = marker.action {
+        if let Some(act) = marker.action_value() {
             let found = actions.iter().any(|a| a.eq_ignore_ascii_case(act));
             if !found {
                 warnings.push(format!("Unknown action: '{}'", act));
@@ -288,9 +339,9 @@ mod tests {
     fn test_parse_single_expression() {
         let markers = parse_dialogue_markers("*happy* Hello there!");
         assert_eq!(markers.len(), 1);
-        assert_eq!(markers[0].expression, Some("happy".to_string()));
-        assert!(markers[0].action.is_none());
-        assert_eq!(markers[0].start_offset, 0);
+        assert_eq!(markers[0].expression_value(), Some("happy"));
+        assert!(markers[0].action_value().is_none());
+        assert_eq!(markers[0].start_offset(), 0);
     }
 
     #[test]
@@ -299,8 +350,8 @@ mod tests {
         let markers = parse_dialogue_markers(text);
 
         assert_eq!(markers.len(), 2);
-        assert_eq!(markers[0].expression, Some("curious".to_string()));
-        assert_eq!(markers[1].expression, Some("suspicious".to_string()));
+        assert_eq!(markers[0].expression_value(), Some("curious"));
+        assert_eq!(markers[1].expression_value(), Some("suspicious"));
     }
 
     #[test]
@@ -308,8 +359,8 @@ mod tests {
         let markers = parse_dialogue_markers("*sighs|sad* I suppose so...");
 
         assert_eq!(markers.len(), 1);
-        assert_eq!(markers[0].action, Some("sighs".to_string()));
-        assert_eq!(markers[0].expression, Some("sad".to_string()));
+        assert_eq!(markers[0].action_value(), Some("sighs"));
+        assert_eq!(markers[0].expression_value(), Some("sad"));
     }
 
     #[test]
@@ -317,8 +368,8 @@ mod tests {
         let text = "*happy* Hello there! *curious* How are you?";
         let parsed = parse_dialogue(text);
 
-        assert_eq!(parsed.clean_text, "Hello there! How are you?");
-        assert_eq!(parsed.markers.len(), 2);
+        assert_eq!(parsed.clean_text(), "Hello there! How are you?");
+        assert_eq!(parsed.markers().len(), 2);
     }
 
     #[test]
@@ -338,7 +389,7 @@ mod tests {
         let markers = parse_dialogue_markers("*shakes head* No way!");
 
         assert_eq!(markers.len(), 1);
-        assert_eq!(markers[0].expression, Some("shakes head".to_string()));
+        assert_eq!(markers[0].expression_value(), Some("shakes head"));
     }
 
     #[test]
@@ -362,16 +413,16 @@ mod tests {
     fn test_pipe_only_expression() {
         let markers = parse_dialogue_markers("*|happy*");
         assert_eq!(markers.len(), 1);
-        assert_eq!(markers[0].expression, Some("happy".to_string()));
-        assert!(markers[0].action.is_none());
+        assert_eq!(markers[0].expression_value(), Some("happy"));
+        assert!(markers[0].action_value().is_none());
     }
 
     #[test]
     fn test_pipe_only_action() {
         let markers = parse_dialogue_markers("*sighs|*");
         assert_eq!(markers.len(), 1);
-        assert_eq!(markers[0].action, Some("sighs".to_string()));
-        assert!(markers[0].expression.is_none());
+        assert_eq!(markers[0].action_value(), Some("sighs"));
+        assert!(markers[0].expression_value().is_none());
     }
 
     #[test]

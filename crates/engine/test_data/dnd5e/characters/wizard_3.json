@@ -6,83 +6,151 @@
   "description": "A high elf wizard specializing in evocation magic. Curious and scholarly, she seeks ancient arcane knowledge.",
   "sheetData": {
     "values": {
-      "RACE": "elf",
-      "SUBRACE": "high_elf",
-      "CLASS": "wizard",
-      "LEVEL": 3,
-      "BACKGROUND": "sage",
-      "STR": 8,
-      "DEX": 14,
-      "CON": 12,
-      "INT": 17,
-      "WIS": 13,
-      "CHA": 10,
-      "HP_MAX": 17,
-      "HP_CURRENT": 17,
-      "AC": 12,
-      "SPEED": 30,
-      "PROFICIENCY_BONUS": 2,
-      "character_identity": {
-        "race": "elf",
-        "subrace": "high_elf",
-        "classes": [
-          {
-            "classId": "wizard",
-            "subclass": "evocation",
-            "level": 3
-          }
-        ],
-        "background": "sage",
-        "alignment": "neutral_good",
-        "totalLevel": 3
-      },
-      "character_spells": {
-        "cantrips": ["fire_bolt", "prestidigitation", "light", "mage_hand"],
-        "known": [
-          { "spellId": "magic_missile", "source": "class", "notes": null },
-          { "spellId": "shield", "source": "class", "notes": null },
-          { "spellId": "burning_hands", "source": "class", "notes": null },
-          { "spellId": "detect_magic", "source": "class", "notes": null },
-          { "spellId": "mage_armor", "source": "class", "notes": null },
-          { "spellId": "identify", "source": "class", "notes": null },
-          { "spellId": "fireball", "source": "class", "notes": "Learned at level 3" },
-          { "spellId": "scorching_ray", "source": "class", "notes": "Learned at level 3" }
-        ],
-        "prepared": ["magic_missile", "shield", "fireball", "mage_armor"],
-        "slots": {
-          "1": { "current": 4, "max": 4 },
-          "2": { "current": 2, "max": 2 }
-        },
-        "pactSlots": null,
-        "spellcastingAbility": "INT"
-      },
-      "character_features": {
-        "features": [
-          {
-            "featureId": "arcane_recovery",
-            "usesRemaining": 1,
-            "usesMax": 1,
-            "choices": {}
-          },
-          {
-            "featureId": "evocation_savant",
-            "usesRemaining": null,
-            "usesMax": null,
-            "choices": {}
-          },
-          {
-            "featureId": "sculpt_spells",
-            "usesRemaining": null,
-            "usesMax": null,
-            "choices": {}
-          }
-        ]
-      },
-      "skill_proficiencies": ["arcana", "history", "investigation", "insight"],
-      "saving_throw_proficiencies": ["intelligence", "wisdom"],
-      "armor_proficiencies": [],
-      "weapon_proficiencies": ["daggers", "darts", "slings", "quarterstaffs", "light_crossbows"],
-      "languages": ["common", "elvish", "draconic", "celestial"]
+      "RACE": {"type": "string", "value": "elf"},
+      "SUBRACE": {"type": "string", "value": "high_elf"},
+      "CLASS": {"type": "string", "value": "wizard"},
+      "LEVEL": {"type": "integer", "value": 3},
+      "BACKGROUND": {"type": "string", "value": "sage"},
+      "STR": {"type": "integer", "value": 8},
+      "DEX": {"type": "integer", "value": 14},
+      "CON": {"type": "integer", "value": 12},
+      "INT": {"type": "integer", "value": 17},
+      "WIS": {"type": "integer", "value": 13},
+      "CHA": {"type": "integer", "value": 10},
+      "HP_MAX": {"type": "integer", "value": 17},
+      "HP_CURRENT": {"type": "integer", "value": 17},
+      "AC": {"type": "integer", "value": 12},
+      "SPEED": {"type": "integer", "value": 30},
+      "PROFICIENCY_BONUS": {"type": "integer", "value": 2},
+      "KNOWN_SPELLS": {"type": "string", "value": "magic_missile,shield,burning_hands,detect_magic,mage_armor,identify,fireball,scorching_ray"},
+      "character_identity": {"type": "object", "value": {
+        "race": {"type": "string", "value": "elf"},
+        "subrace": {"type": "string", "value": "high_elf"},
+        "classes": {"type": "list", "value": [
+          {"type": "object", "value": {
+            "classId": {"type": "string", "value": "wizard"},
+            "subclass": {"type": "string", "value": "evocation"},
+            "level": {"type": "integer", "value": 3}
+          }}
+        ]},
+        "background": {"type": "string", "value": "sage"},
+        "alignment": {"type": "string", "value": "neutral_good"},
+        "totalLevel": {"type": "integer", "value": 3}
+      }},
+      "character_spells": {"type": "object", "value": {
+        "cantrips": {"type": "list", "value": [
+          {"type": "string", "value": "fire_bolt"},
+          {"type": "string", "value": "prestidigitation"},
+          {"type": "string", "value": "light"},
+          {"type": "string", "value": "mage_hand"}
+        ]},
+        "known": {"type": "list", "value": [
+          {"type": "object", "value": {
+            "spellId": {"type": "string", "value": "magic_missile"},
+            "source": {"type": "string", "value": "class"},
+            "notes": {"type": "null", "value": null}
+          }},
+          {"type": "object", "value": {
+            "spellId": {"type": "string", "value": "shield"},
+            "source": {"type": "string", "value": "class"},
+            "notes": {"type": "null", "value": null}
+          }},
+          {"type": "object", "value": {
+            "spellId": {"type": "string", "value": "burning_hands"},
+            "source": {"type": "string", "value": "class"},
+            "notes": {"type": "null", "value": null}
+          }},
+          {"type": "object", "value": {
+            "spellId": {"type": "string", "value": "detect_magic"},
+            "source": {"type": "string", "value": "class"},
+            "notes": {"type": "null", "value": null}
+          }},
+          {"type": "object", "value": {
+            "spellId": {"type": "string", "value": "mage_armor"},
+            "source": {"type": "string", "value": "class"},
+            "notes": {"type": "null", "value": null}
+          }},
+          {"type": "object", "value": {
+            "spellId": {"type": "string", "value": "identify"},
+            "source": {"type": "string", "value": "class"},
+            "notes": {"type": "null", "value": null}
+          }},
+          {"type": "object", "value": {
+            "spellId": {"type": "string", "value": "fireball"},
+            "source": {"type": "string", "value": "class"},
+            "notes": {"type": "string", "value": "Learned at level 3"}
+          }},
+          {"type": "object", "value": {
+            "spellId": {"type": "string", "value": "scorching_ray"},
+            "source": {"type": "string", "value": "class"},
+            "notes": {"type": "string", "value": "Learned at level 3"}
+          }}
+        ]},
+        "prepared": {"type": "list", "value": [
+          {"type": "string", "value": "magic_missile"},
+          {"type": "string", "value": "shield"},
+          {"type": "string", "value": "fireball"},
+          {"type": "string", "value": "mage_armor"}
+        ]},
+        "slots": {"type": "object", "value": {
+          "1": {"type": "object", "value": {
+            "current": {"type": "integer", "value": 4},
+            "max": {"type": "integer", "value": 4}
+          }},
+          "2": {"type": "object", "value": {
+            "current": {"type": "integer", "value": 2},
+            "max": {"type": "integer", "value": 2}
+          }}
+        }},
+        "pactSlots": {"type": "null", "value": null},
+        "spellcastingAbility": {"type": "string", "value": "INT"}
+      }},
+      "character_features": {"type": "object", "value": {
+        "features": {"type": "list", "value": [
+          {"type": "object", "value": {
+            "featureId": {"type": "string", "value": "arcane_recovery"},
+            "usesRemaining": {"type": "integer", "value": 1},
+            "usesMax": {"type": "integer", "value": 1},
+            "choices": {"type": "object", "value": {}}
+          }},
+          {"type": "object", "value": {
+            "featureId": {"type": "string", "value": "evocation_savant"},
+            "usesRemaining": {"type": "null", "value": null},
+            "usesMax": {"type": "null", "value": null},
+            "choices": {"type": "object", "value": {}}
+          }},
+          {"type": "object", "value": {
+            "featureId": {"type": "string", "value": "sculpt_spells"},
+            "usesRemaining": {"type": "null", "value": null},
+            "usesMax": {"type": "null", "value": null},
+            "choices": {"type": "object", "value": {}}
+          }}
+        ]}
+      }},
+      "skill_proficiencies": {"type": "list", "value": [
+        {"type": "string", "value": "arcana"},
+        {"type": "string", "value": "history"},
+        {"type": "string", "value": "investigation"},
+        {"type": "string", "value": "insight"}
+      ]},
+      "saving_throw_proficiencies": {"type": "list", "value": [
+        {"type": "string", "value": "intelligence"},
+        {"type": "string", "value": "wisdom"}
+      ]},
+      "armor_proficiencies": {"type": "list", "value": []},
+      "weapon_proficiencies": {"type": "list", "value": [
+        {"type": "string", "value": "daggers"},
+        {"type": "string", "value": "darts"},
+        {"type": "string", "value": "slings"},
+        {"type": "string", "value": "quarterstaffs"},
+        {"type": "string", "value": "light_crossbows"}
+      ]},
+      "languages": {"type": "list", "value": [
+        {"type": "string", "value": "common"},
+        {"type": "string", "value": "elvish"},
+        {"type": "string", "value": "draconic"},
+        {"type": "string", "value": "celestial"}
+      ]}
     }
   },
   "currentLocationId": "00000000-0000-0000-0002-000000000001",

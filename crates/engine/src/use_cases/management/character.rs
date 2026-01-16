@@ -50,7 +50,7 @@ impl CharacterCrud {
             .as_deref()
             .unwrap_or("Unknown")
             .parse::<wrldbldr_domain::CampbellArchetype>()
-            .map_err(ManagementError::Domain)?;
+            .map_err(|e| ManagementError::Domain(e.to_string()))?;
 
         let mut character =
             wrldbldr_domain::Character::new(world_id, character_name, archetype_value);
@@ -189,7 +189,7 @@ impl CharacterCrud {
 
         let archetype_value = new_archetype
             .parse::<wrldbldr_domain::CampbellArchetype>()
-            .map_err(ManagementError::Domain)?;
+            .map_err(|e| ManagementError::Domain(e.to_string()))?;
 
         character.change_archetype(archetype_value, reason, self.clock.now());
         self.character.save(&character).await?;

@@ -142,7 +142,7 @@ impl NpcDispositionState {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Builders
+    // Builder-style methods (consume self, return new instance)
     // ──────────────────────────────────────────────────────────────────────────
 
     /// Create with a specific starting disposition
@@ -158,42 +158,69 @@ impl NpcDispositionState {
         self
     }
 
-    /// Update the disposition with a reason
-    pub fn set_disposition(
-        &mut self,
+    /// Return a new state with the disposition updated.
+    ///
+    /// This consumes self and returns a new instance with the updated values.
+    pub fn updating_disposition(
+        self,
         disposition: DispositionLevel,
         reason: Option<String>,
         now: DateTime<Utc>,
-    ) {
-        self.disposition = disposition;
-        self.sentiment = disposition.base_sentiment();
-        self.disposition_reason = reason;
-        self.updated_at = now;
+    ) -> Self {
+        Self {
+            disposition,
+            sentiment: disposition.base_sentiment(),
+            disposition_reason: reason,
+            updated_at: now,
+            ..self
+        }
     }
 
-    /// Update the relationship level directly
-    pub fn set_relationship(&mut self, relationship: RelationshipLevel, now: DateTime<Utc>) {
-        self.relationship = relationship;
-        self.updated_at = now;
+    /// Return a new state with the relationship level updated.
+    ///
+    /// This consumes self and returns a new instance with the updated values.
+    pub fn updating_relationship(
+        self,
+        relationship: RelationshipLevel,
+        now: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            relationship,
+            updated_at: now,
+            ..self
+        }
     }
 
-    /// Adjust sentiment and potentially update disposition
-    pub fn adjust_sentiment(&mut self, delta: f32, reason: Option<String>, now: DateTime<Utc>) {
-        self.sentiment = (self.sentiment + delta).clamp(-1.0, 1.0);
-        self.disposition = DispositionLevel::from_sentiment(self.sentiment);
-        self.disposition_reason = reason;
-        self.updated_at = now;
+    /// Return a new state with sentiment adjusted and disposition potentially updated.
+    ///
+    /// This consumes self and returns a new instance with the updated values.
+    pub fn adjusting_sentiment(
+        self,
+        delta: f32,
+        reason: Option<String>,
+        now: DateTime<Utc>,
+    ) -> Self {
+        let new_sentiment = (self.sentiment + delta).clamp(-1.0, 1.0);
+        Self {
+            sentiment: new_sentiment,
+            disposition: DispositionLevel::from_sentiment(new_sentiment),
+            disposition_reason: reason,
+            updated_at: now,
+            ..self
+        }
     }
 
-    /// Add relationship points and potentially upgrade/downgrade relationship
-    pub fn add_relationship_points(&mut self, points: i32, now: DateTime<Utc>) {
-        self.relationship_points += points;
-        self.updated_at = now;
+    /// Return a new state with relationship points added and relationship level potentially changed.
+    ///
+    /// This consumes self and returns a new instance with the updated values.
+    ///
+    /// Thresholds for relationship changes:
+    /// - Positive: 10 = Acquaintance, 25 = Friend, 50 = Ally
+    /// - Negative: -10 = Rival, -25 = Enemy, -50 = Nemesis
+    pub fn adding_relationship_points(self, points: i32, now: DateTime<Utc>) -> Self {
+        let new_points = self.relationship_points + points;
 
-        // Thresholds for relationship changes
-        // Positive: 10 = Acquaintance, 25 = Friend, 50 = Ally
-        // Negative: -10 = Rival, -25 = Enemy, -50 = Nemesis
-        self.relationship = match self.relationship_points {
+        let new_relationship = match new_points {
             p if p >= 50 => RelationshipLevel::Ally,
             p if p >= 25 => RelationshipLevel::Friend,
             p if p >= 10 => RelationshipLevel::Acquaintance,
@@ -202,6 +229,13 @@ impl NpcDispositionState {
             p if p > -50 => RelationshipLevel::Enemy,
             _ => RelationshipLevel::Nemesis,
         };
+
+        Self {
+            relationship_points: new_points,
+            relationship: new_relationship,
+            updated_at: now,
+            ..self
+        }
     }
 
     /// Get a text description for LLM context
@@ -323,21 +357,21 @@ mod tests {
     #[test]
     fn test_relationship_points() {
         let now = fixed_time();
-        let mut state = NpcDispositionState::new(CharacterId::new(), PlayerCharacterId::new(), now);
+        let state = NpcDispositionState::new(CharacterId::new(), PlayerCharacterId::new(), now);
 
         // Starts as Stranger (0 points)
         assert_eq!(state.relationship(), RelationshipLevel::Stranger);
 
         // +15 = 15 points -> Acquaintance (>= 10)
-        state.add_relationship_points(15, now);
+        let state = state.adding_relationship_points(15, now);
         assert_eq!(state.relationship(), RelationshipLevel::Acquaintance);
 
         // +20 = 35 points -> Friend (>= 25)
-        state.add_relationship_points(20, now);
+        let state = state.adding_relationship_points(20, now);
         assert_eq!(state.relationship(), RelationshipLevel::Friend);
 
         // -60 = -25 points -> Enemy (> -50 but <= -25)
-        state.add_relationship_points(-60, now);
+        let state = state.adding_relationship_points(-60, now);
         assert_eq!(state.relationship(), RelationshipLevel::Enemy);
     }
 

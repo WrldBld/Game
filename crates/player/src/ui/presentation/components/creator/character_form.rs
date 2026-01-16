@@ -374,14 +374,14 @@ pub fn CharacterForm(
                                 // Expression count
                                 span {
                                     class: "px-2 py-1 bg-purple-900/50 text-purple-200 rounded",
-                                    "{expression_config.read().expressions.len()} expressions"
+                                    "{expression_config.read().expressions().len()} expressions"
                                 }
 
                                 // Action count
-                                if !expression_config.read().actions.is_empty() {
+                                if !expression_config.read().actions().is_empty() {
                                     span {
                                         class: "px-2 py-1 bg-gray-700 text-gray-300 rounded",
-                                        "{expression_config.read().actions.len()} actions"
+                                        "{expression_config.read().actions().len()} actions"
                                     }
                                 }
                             }

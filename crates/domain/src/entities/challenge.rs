@@ -15,6 +15,7 @@
 //! The embedded fields `scene_id`, `skill_id`, and `prerequisite_challenges` are
 //! DEPRECATED and kept only for backward compatibility during migration.
 
+use crate::error::DomainError;
 use crate::{ChallengeId, LocationId, RegionId, SceneId, WorldId};
 use serde::{Deserialize, Serialize};
 
@@ -778,28 +779,34 @@ impl OutcomeTrigger {
     /// - GiveItem: item_name must be non-empty
     /// - ModifyCharacterStat: stat must be non-empty
     /// - Custom: description must be non-empty
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), DomainError> {
         match self {
             Self::RevealInformation { info, .. } => {
                 if info.trim().is_empty() {
-                    return Err("RevealInformation trigger requires non-empty info".to_string());
+                    return Err(DomainError::validation(
+                        "RevealInformation trigger requires non-empty info",
+                    ));
                 }
             }
             Self::GiveItem { item_name, .. } => {
                 if item_name.trim().is_empty() {
-                    return Err("GiveItem trigger requires non-empty item_name".to_string());
+                    return Err(DomainError::validation(
+                        "GiveItem trigger requires non-empty item_name",
+                    ));
                 }
             }
             Self::ModifyCharacterStat { stat, .. } => {
                 if stat.trim().is_empty() {
-                    return Err(
-                        "ModifyCharacterStat trigger requires non-empty stat name".to_string()
-                    );
+                    return Err(DomainError::validation(
+                        "ModifyCharacterStat trigger requires non-empty stat name",
+                    ));
                 }
             }
             Self::Custom { description } => {
                 if description.trim().is_empty() {
-                    return Err("Custom trigger requires non-empty description".to_string());
+                    return Err(DomainError::validation(
+                        "Custom trigger requires non-empty description",
+                    ));
                 }
             }
             // EnableChallenge, DisableChallenge, and TriggerScene have typed IDs that are always valid
@@ -886,7 +893,7 @@ impl TriggerCondition {
     }
 
     /// Validate this trigger condition, returning an error message if invalid.
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), DomainError> {
         self.condition_type.validate()
     }
 
@@ -933,47 +940,61 @@ impl TriggerType {
     /// - NpcPresent: npc_keywords must be non-empty and contain non-empty strings
     /// - Custom: description must be non-empty
     /// - ChallengeComplete and TimeBased: always valid (IDs are typed)
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), DomainError> {
         match self {
             Self::ObjectInteraction { keywords } => {
                 if keywords.is_empty() {
-                    return Err(
-                        "ObjectInteraction trigger requires at least one keyword".to_string()
-                    );
+                    return Err(DomainError::validation(
+                        "ObjectInteraction trigger requires at least one keyword",
+                    ));
                 }
                 if keywords.iter().all(|k| k.trim().is_empty()) {
-                    return Err(
-                        "ObjectInteraction trigger keywords cannot all be empty".to_string()
-                    );
+                    return Err(DomainError::validation(
+                        "ObjectInteraction trigger keywords cannot all be empty",
+                    ));
                 }
             }
             Self::EnterArea { area_keywords } => {
                 if area_keywords.is_empty() {
-                    return Err("EnterArea trigger requires at least one keyword".to_string());
+                    return Err(DomainError::validation(
+                        "EnterArea trigger requires at least one keyword",
+                    ));
                 }
                 if area_keywords.iter().all(|k| k.trim().is_empty()) {
-                    return Err("EnterArea trigger keywords cannot all be empty".to_string());
+                    return Err(DomainError::validation(
+                        "EnterArea trigger keywords cannot all be empty",
+                    ));
                 }
             }
             Self::DialogueTopic { topic_keywords } => {
                 if topic_keywords.is_empty() {
-                    return Err("DialogueTopic trigger requires at least one keyword".to_string());
+                    return Err(DomainError::validation(
+                        "DialogueTopic trigger requires at least one keyword",
+                    ));
                 }
                 if topic_keywords.iter().all(|k| k.trim().is_empty()) {
-                    return Err("DialogueTopic trigger keywords cannot all be empty".to_string());
+                    return Err(DomainError::validation(
+                        "DialogueTopic trigger keywords cannot all be empty",
+                    ));
                 }
             }
             Self::NpcPresent { npc_keywords } => {
                 if npc_keywords.is_empty() {
-                    return Err("NpcPresent trigger requires at least one keyword".to_string());
+                    return Err(DomainError::validation(
+                        "NpcPresent trigger requires at least one keyword",
+                    ));
                 }
                 if npc_keywords.iter().all(|k| k.trim().is_empty()) {
-                    return Err("NpcPresent trigger keywords cannot all be empty".to_string());
+                    return Err(DomainError::validation(
+                        "NpcPresent trigger keywords cannot all be empty",
+                    ));
                 }
             }
             Self::Custom { description } => {
                 if description.trim().is_empty() {
-                    return Err("Custom trigger requires non-empty description".to_string());
+                    return Err(DomainError::validation(
+                        "Custom trigger requires non-empty description",
+                    ));
                 }
             }
             // ChallengeComplete and TimeBased have typed values that are always valid
