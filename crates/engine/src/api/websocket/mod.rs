@@ -835,7 +835,10 @@ fn error_response(code: &str, message: &str) -> ServerMessage {
 }
 
 fn parse_staging_source(source: &str) -> StagingSource {
-    source.parse().unwrap_or(StagingSource::Unknown)
+    source.parse().unwrap_or_else(|_| {
+        tracing::warn!("Invalid staging source '{}', defaulting to Unknown", source);
+        StagingSource::Unknown
+    })
 }
 
 /// Parse a string ID into a typed domain ID, returning an error response on failure.

@@ -580,13 +580,53 @@ pub(super) async fn handle_expression_request(
             let (cols, rows) = match grid_layout {
                 Some(s) if !s.trim().is_empty() => {
                     let parts: Vec<&str> = s.split('x').collect();
-                    if parts.len() == 2 {
-                        let c = parts[0].trim().parse::<u32>().unwrap_or(4);
-                        let r = parts[1].trim().parse::<u32>().unwrap_or(4);
-                        (c.max(1), r.max(1))
-                    } else {
-                        (4, 4)
+                    if parts.len() != 2 {
+                        return Err(ServerMessage::Response {
+                            request_id: request_id.to_string(),
+                            result: ResponseResult::error(
+                                ErrorCode::BadRequest,
+                                &format!("Invalid grid_layout format '{}': expected 'COLSxROWS' (e.g., '4x4')", s),
+                            ),
+                        });
                     }
+                    let c =
+                        parts[0]
+                            .trim()
+                            .parse::<u32>()
+                            .map_err(|_| ServerMessage::Response {
+                                request_id: request_id.to_string(),
+                                result: ResponseResult::error(
+                                    ErrorCode::BadRequest,
+                                    &format!(
+                                    "Invalid grid_layout columns '{}': must be a positive integer",
+                                    parts[0].trim()
+                                ),
+                                ),
+                            })?;
+                    let r =
+                        parts[1]
+                            .trim()
+                            .parse::<u32>()
+                            .map_err(|_| ServerMessage::Response {
+                                request_id: request_id.to_string(),
+                                result: ResponseResult::error(
+                                    ErrorCode::BadRequest,
+                                    &format!(
+                                        "Invalid grid_layout rows '{}': must be a positive integer",
+                                        parts[1].trim()
+                                    ),
+                                ),
+                            })?;
+                    if c == 0 || r == 0 {
+                        return Err(ServerMessage::Response {
+                            request_id: request_id.to_string(),
+                            result: ResponseResult::error(
+                                ErrorCode::BadRequest,
+                                "Invalid grid_layout: columns and rows must be at least 1",
+                            ),
+                        });
+                    }
+                    (c, r)
                 }
                 _ => (4, 4),
             };

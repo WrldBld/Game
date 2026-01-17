@@ -97,14 +97,29 @@ pub(super) async fn handle_join_world(
         .collect();
 
     // Convert typed snapshot and PC to JSON for wire format
-    let snapshot_json = serde_json::to_value(&join_result.snapshot).unwrap_or_else(|e| {
-        tracing::error!(error = %e, "Failed to serialize world snapshot");
-        serde_json::json!({})
-    });
-    let your_pc_json = join_result
-        .your_pc
-        .as_ref()
-        .and_then(|pc| serde_json::to_value(pc).ok());
+    let snapshot_json = match serde_json::to_value(&join_result.snapshot) {
+        Ok(json) => json,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to serialize world snapshot");
+            return Some(ServerMessage::WorldJoinFailed {
+                world_id,
+                error: wrldbldr_shared::JoinError::Unknown,
+            });
+        }
+    };
+    let your_pc_json = match &join_result.your_pc {
+        Some(pc) => match serde_json::to_value(pc) {
+            Ok(json) => Some(json),
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to serialize player character");
+                return Some(ServerMessage::WorldJoinFailed {
+                    world_id,
+                    error: wrldbldr_shared::JoinError::Unknown,
+                });
+            }
+        },
+        None => None,
+    };
 
     Some(ServerMessage::WorldJoined {
         world_id,

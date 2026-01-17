@@ -2,7 +2,7 @@
 
 Status: Active
 Owner: Team
-Last updated: 2026-01-17 (Phase 9 COMPLETE - External input validation for LLM + importers)
+Last updated: 2026-01-17 (Phase 10 COMPLETE - API input validation and serialization fail-fast)
 
 Goal: remediate all findings from the latest full code review and establish a clean baseline with no new tech debt.
 
@@ -517,18 +517,27 @@ Acceptance:
 
 ## Phase 10: API Input Validation
 
-### 10.1 Validate user input in websocket/http handlers
-- [ ] Replace default parsing on invalid inputs (e.g., numeric fields, IDs) with explicit errors.
-- [ ] Ensure handler-level validation rejects malformed payloads rather than silently defaulting.
-- [ ] Add tests for invalid input cases where defaults were previously applied.
+### 10.1 Validate user input in websocket/http handlers - COMPLETE
+- [x] Replace default parsing on invalid inputs (e.g., numeric fields, IDs) with explicit errors.
+- [x] Ensure handler-level validation rejects malformed payloads rather than silently defaulting.
+- [x] Add tests for invalid input cases where defaults were previously applied.
+
+**Implementation details:**
+- `ws_conversation.rs`: Invalid conversation_id now returns INVALID_CONVERSATION_ID error
+- `ws_creator.rs`: Invalid grid_layout format returns validation error with helpful message
+- `mod.rs`: Invalid staging source logs warning (Unknown is valid domain default)
 
 Acceptance:
 - No API handlers silently default invalid user inputs.
 
-### 10.2 Fail fast on protocol/message serialization errors
-- [ ] Replace `serde_json::to_value(...).unwrap_or_default()` with explicit error handling.
-- [ ] Return structured errors when serialization fails (protocol + message translation).
-- [ ] Add tests for invalid/unsupported payloads.
+### 10.2 Fail fast on protocol/message serialization errors - COMPLETE
+- [x] Replace `serde_json::to_value(...).unwrap_or_default()` with explicit error handling.
+- [x] Return structured errors when serialization fails (protocol + message translation).
+- [x] Add tests for invalid/unsupported payloads.
+
+**Implementation details:**
+- `ws_session.rs`: Snapshot and PC serialization failures now return WorldJoinFailed
+- Both snapshot and your_pc serialization are validated with proper error logging
 
 Acceptance:
 - Protocol/message layers do not silently drop/empty payloads on serialization failures.
@@ -605,8 +614,8 @@ Acceptance:
 - [x] Phase 8.1 complete (2 unwrap() fixed; no hook violations; context access architecturally sound)
 - [x] Phase 9.1 complete (LLM response validation - empty choices and invalid tool JSON now error)
 - [x] Phase 9.2 complete (importers already correct - added documentation)
-- [ ] Phase 10.1 complete
-- [ ] Phase 10.2 complete
+- [x] Phase 10.1 complete (API input validation - conversation_id, grid_layout, staging source)
+- [x] Phase 10.2 complete (serialization errors - snapshot and PC now fail-fast)
 - [ ] Phase 11.1 complete
 - [ ] Phase 12.1 complete
 - [ ] Phase 13.1 complete

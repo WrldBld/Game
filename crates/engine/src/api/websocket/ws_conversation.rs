@@ -128,7 +128,18 @@ pub(super) async fn handle_continue_conversation(
     };
 
     // Parse optional conversation_id from string to UUID
-    let conversation_uuid = conversation_id.and_then(|id| Uuid::parse_str(&id).ok());
+    let conversation_uuid = match conversation_id {
+        Some(id_str) => match Uuid::parse_str(&id_str) {
+            Ok(uuid) => Some(uuid),
+            Err(_) => {
+                return Some(error_response(
+                    "INVALID_CONVERSATION_ID",
+                    &format!("Invalid conversation_id format: {}", id_str),
+                ))
+            }
+        },
+        None => None,
+    };
 
     let message = message.trim().to_string();
     if message.is_empty() {
