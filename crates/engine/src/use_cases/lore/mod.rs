@@ -6,7 +6,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::Lore;
+use crate::repositories::LoreRepository;
 use wrldbldr_domain::{
     CharacterId, LoreCategory, LoreChunkId, LoreDiscoverySource, LoreId, LoreKnowledge, WorldId,
 };
@@ -212,11 +212,11 @@ impl LoreUseCases {
 
 /// Lore operations.
 pub struct LoreOps {
-    lore: Arc<Lore>,
+    lore: Arc<LoreRepository>,
 }
 
 impl LoreOps {
-    pub fn new(lore: Arc<Lore>) -> Self {
+    pub fn new(lore: Arc<LoreRepository>) -> Self {
         Self { lore }
     }
 
@@ -831,7 +831,7 @@ mod tests {
     use super::*;
     use crate::infrastructure::clock::FixedClock;
     use crate::infrastructure::ports::MockLoreRepo;
-    use crate::repositories::Lore as LoreEntity;
+    use crate::repositories::LoreRepository;
     use chrono::TimeZone;
     use std::sync::Arc;
 
@@ -874,7 +874,7 @@ mod tests {
             .returning(move |_| Ok(Some(lore.clone())));
 
         let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo), clock));
+        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
         let ops = LoreOps::new(lore_entity);
 
         // Try to add chunk with order 1 (already exists)
@@ -908,7 +908,7 @@ mod tests {
         });
 
         let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo), clock));
+        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
         let ops = LoreOps::new(lore_entity);
 
         let input = CreateLoreChunkInput {
@@ -934,7 +934,7 @@ mod tests {
             .returning(move |_| Ok(vec![lore.clone()]));
 
         let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo), clock));
+        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
         let ops = LoreOps::new(lore_entity);
 
         // Try to update chunk 2's order to 0 (already taken)
@@ -968,7 +968,7 @@ mod tests {
         });
 
         let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo), clock));
+        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
         let ops = LoreOps::new(lore_entity);
 
         let result = ops.delete_chunk(world_id, chunk_to_delete).await;
@@ -988,7 +988,7 @@ mod tests {
 
         let mock_repo = MockLoreRepo::new();
         let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo), clock));
+        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
         let ops = LoreOps::new(lore_entity);
 
         // Empty chunk list should fail
@@ -1016,7 +1016,7 @@ mod tests {
             .returning(|_, _| Ok(()));
 
         let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo), clock));
+        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
         let ops = LoreOps::new(lore_entity);
 
         let result = ops.revoke_knowledge(character_id, lore_id, None).await;
@@ -1043,7 +1043,7 @@ mod tests {
             .returning(move |_| Ok(Some(lore.clone())));
 
         let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo), clock));
+        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
         let ops = LoreOps::new(lore_entity);
 
         let result = ops
@@ -1063,7 +1063,7 @@ mod tests {
 
         let mock_repo = MockLoreRepo::new();
         let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo), clock));
+        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
         let ops = LoreOps::new(lore_entity);
 
         // Create with duplicate orders
@@ -1108,7 +1108,7 @@ mod tests {
         });
 
         let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo), clock));
+        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
         let ops = LoreOps::new(lore_entity);
 
         let data = CreateLoreInput {
@@ -1160,7 +1160,7 @@ mod tests {
         });
 
         let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreEntity::new(Arc::new(mock_repo), clock));
+        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
         let ops = LoreOps::new(lore_entity);
 
         let data = CreateLoreInput {

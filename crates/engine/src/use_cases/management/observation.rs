@@ -4,29 +4,31 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 
-use crate::repositories::character::Character;
 use crate::repositories::location::Location;
-use crate::repositories::{Clock, Observation, PlayerCharacter, World};
+use crate::repositories::{
+    CharacterRepository, ClockService, ObservationRepository, PlayerCharacterRepository,
+    WorldRepository,
+};
 
 use super::ManagementError;
 
 pub struct ObservationCrud {
-    observation: Arc<Observation>,
-    player_character: Arc<PlayerCharacter>,
-    character: Arc<Character>,
+    observation: Arc<ObservationRepository>,
+    player_character: Arc<PlayerCharacterRepository>,
+    character: Arc<CharacterRepository>,
     location: Arc<Location>,
-    world: Arc<World>,
-    clock: Arc<Clock>,
+    world: Arc<WorldRepository>,
+    clock: Arc<ClockService>,
 }
 
 impl ObservationCrud {
     pub fn new(
-        observation: Arc<Observation>,
-        player_character: Arc<PlayerCharacter>,
-        character: Arc<Character>,
+        observation: Arc<ObservationRepository>,
+        player_character: Arc<PlayerCharacterRepository>,
+        character: Arc<CharacterRepository>,
         location: Arc<Location>,
-        world: Arc<World>,
-        clock: Arc<Clock>,
+        world: Arc<WorldRepository>,
+        clock: Arc<ClockService>,
     ) -> Self {
         Self {
             observation,

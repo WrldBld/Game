@@ -10,9 +10,9 @@ use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 
 use crate::queue_types::PlayerActionData;
 
-use crate::repositories::character::Character;
-use crate::repositories::staging::Staging;
-use crate::repositories::{Clock, PlayerCharacter, Queue, World};
+use crate::repositories::character::CharacterRepository;
+use crate::repositories::staging::StagingRepository;
+use crate::repositories::{ClockService, PlayerCharacterRepository, QueueService, WorldRepository};
 use crate::use_cases::narrative_operations::Narrative;
 
 // Re-use the shared ConversationError from start.rs
@@ -33,24 +33,24 @@ pub struct ConversationContinued {
 ///
 /// Orchestrates: Context validation, player action queuing.
 pub struct ContinueConversation {
-    character: Arc<Character>,
-    player_character: Arc<PlayerCharacter>,
-    staging: Arc<Staging>,
-    world: Arc<World>,
+    character: Arc<CharacterRepository>,
+    player_character: Arc<PlayerCharacterRepository>,
+    staging: Arc<StagingRepository>,
+    world: Arc<WorldRepository>,
     narrative: Arc<Narrative>,
-    queue: Arc<Queue>,
-    clock: Arc<Clock>,
+    queue: Arc<QueueService>,
+    clock: Arc<ClockService>,
 }
 
 impl ContinueConversation {
     pub fn new(
-        character: Arc<Character>,
-        player_character: Arc<PlayerCharacter>,
-        staging: Arc<Staging>,
-        world: Arc<World>,
+        character: Arc<CharacterRepository>,
+        player_character: Arc<PlayerCharacterRepository>,
+        staging: Arc<StagingRepository>,
+        world: Arc<WorldRepository>,
         narrative: Arc<Narrative>,
-        queue: Arc<Queue>,
-        clock: Arc<Clock>,
+        queue: Arc<QueueService>,
+        clock: Arc<ClockService>,
     ) -> Self {
         Self {
             character,
@@ -223,9 +223,7 @@ mod tests {
         MockStagingRepo, MockWorldRepo, QueueError, QueueItem, QueuePort,
     };
     use crate::repositories;
-    use crate::repositories::{
-        Character as CharacterOp, Clock as ClockRepo, Queue as QueueRepo, Staging as StagingOp,
-    };
+    use crate::repositories::{CharacterRepository, ClockService, QueueService, StagingRepository};
     use crate::use_cases::Narrative;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -236,9 +234,9 @@ mod tests {
         }
     }
 
-    fn build_clock(now: chrono::DateTime<chrono::Utc>) -> (Arc<dyn ClockPort>, Arc<ClockRepo>) {
+    fn build_clock(now: chrono::DateTime<chrono::Utc>) -> (Arc<dyn ClockPort>, Arc<ClockService>) {
         let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let clock = Arc::new(ClockRepo::new(clock_port.clone()));
+        let clock = Arc::new(ClockService::new(clock_port.clone()));
         (clock_port, clock)
     }
 
@@ -261,9 +259,9 @@ mod tests {
         }
     }
 
-    fn build_queue(queue_id: Uuid) -> (Arc<RecordingQueuePort>, Arc<QueueRepo>) {
+    fn build_queue(queue_id: Uuid) -> (Arc<RecordingQueuePort>, Arc<QueueService>) {
         let queue_port = Arc::new(RecordingQueuePort::new(queue_id));
-        let queue = Arc::new(QueueRepo::new(queue_port.clone()));
+        let queue = Arc::new(QueueService::new(queue_port.clone()));
         (queue_port, queue)
     }
 
@@ -382,25 +380,27 @@ mod tests {
         let scene_repo = Arc::new(MockSceneRepo::new());
 
         Arc::new(Narrative::new(
-            Arc::new(repositories::Narrative::new(
+            Arc::new(repositories::NarrativeRepository::new(
                 Arc::new(narrative_repo),
                 clock_port.clone(),
             )),
             Arc::new(repositories::Location::new(location_repo.clone())),
-            Arc::new(repositories::World::new(
+            Arc::new(repositories::WorldRepository::new(
                 world_repo.clone(),
                 clock_port.clone(),
             )),
-            Arc::new(repositories::PlayerCharacter::new(player_character_repo)),
-            Arc::new(repositories::Character::new(character_repo)),
-            Arc::new(repositories::Observation::new(
+            Arc::new(repositories::PlayerCharacterRepository::new(
+                player_character_repo,
+            )),
+            Arc::new(repositories::CharacterRepository::new(character_repo)),
+            Arc::new(repositories::ObservationRepository::new(
                 observation_repo,
                 location_repo,
                 clock_port.clone(),
             )),
-            Arc::new(repositories::Challenge::new(challenge_repo)),
-            Arc::new(repositories::Flag::new(flag_repo)),
-            Arc::new(repositories::Scene::new(scene_repo)),
+            Arc::new(repositories::ChallengeRepository::new(challenge_repo)),
+            Arc::new(repositories::FlagRepository::new(flag_repo)),
+            Arc::new(repositories::SceneRepository::new(scene_repo)),
             clock,
         ))
     }
@@ -422,10 +422,12 @@ mod tests {
         let (queue_port, queue) = build_queue(Uuid::new_v4());
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(MockCharacterRepo::new()))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(StagingOp::new(Arc::new(MockStagingRepo::new()))),
-            Arc::new(repositories::World::new(
+            Arc::new(CharacterRepository::new(Arc::new(MockCharacterRepo::new()))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
+            Arc::new(StagingRepository::new(Arc::new(MockStagingRepo::new()))),
+            Arc::new(repositories::WorldRepository::new(
                 Arc::new(MockWorldRepo::new()),
                 clock_port.clone(),
             )),
@@ -489,10 +491,12 @@ mod tests {
         let (queue_port, queue) = build_queue(Uuid::new_v4());
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(StagingOp::new(Arc::new(MockStagingRepo::new()))),
-            Arc::new(repositories::World::new(
+            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
+            Arc::new(StagingRepository::new(Arc::new(MockStagingRepo::new()))),
+            Arc::new(repositories::WorldRepository::new(
                 Arc::new(MockWorldRepo::new()),
                 clock_port.clone(),
             )),
@@ -563,10 +567,12 @@ mod tests {
         let (queue_port, queue) = build_queue(Uuid::new_v4());
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(StagingOp::new(Arc::new(MockStagingRepo::new()))),
-            Arc::new(repositories::World::new(
+            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
+            Arc::new(StagingRepository::new(Arc::new(MockStagingRepo::new()))),
+            Arc::new(repositories::WorldRepository::new(
                 Arc::new(MockWorldRepo::new()),
                 clock_port.clone(),
             )),
@@ -644,10 +650,12 @@ mod tests {
         let (queue_port, queue) = build_queue(Uuid::new_v4());
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(StagingOp::new(Arc::new(MockStagingRepo::new()))),
-            Arc::new(repositories::World::new(
+            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
+            Arc::new(StagingRepository::new(Arc::new(MockStagingRepo::new()))),
+            Arc::new(repositories::WorldRepository::new(
                 Arc::new(world_repo),
                 clock_port.clone(),
             )),
@@ -752,10 +760,12 @@ mod tests {
         let (queue_port, queue) = build_queue(Uuid::new_v4());
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(StagingOp::new(Arc::new(staging_repo))),
-            Arc::new(repositories::World::new(
+            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
+            Arc::new(StagingRepository::new(Arc::new(staging_repo))),
+            Arc::new(repositories::WorldRepository::new(
                 Arc::new(world_repo),
                 clock_port.clone(),
             )),
@@ -866,10 +876,12 @@ mod tests {
         let (queue_port, queue) = build_queue(Uuid::new_v4());
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(StagingOp::new(Arc::new(staging_repo))),
-            Arc::new(repositories::World::new(
+            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
+            Arc::new(StagingRepository::new(Arc::new(staging_repo))),
+            Arc::new(repositories::WorldRepository::new(
                 Arc::new(world_repo),
                 clock_port.clone(),
             )),
@@ -980,10 +992,12 @@ mod tests {
         let (queue_port, queue) = build_queue(Uuid::new_v4());
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(StagingOp::new(Arc::new(staging_repo))),
-            Arc::new(repositories::World::new(
+            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
+            Arc::new(StagingRepository::new(Arc::new(staging_repo))),
+            Arc::new(repositories::WorldRepository::new(
                 Arc::new(world_repo),
                 clock_port.clone(),
             )),
@@ -1098,10 +1112,12 @@ mod tests {
         let (queue_port, queue) = build_queue(queue_id);
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(StagingOp::new(Arc::new(staging_repo))),
-            Arc::new(repositories::World::new(
+            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
+            Arc::new(StagingRepository::new(Arc::new(staging_repo))),
+            Arc::new(repositories::WorldRepository::new(
                 Arc::new(world_repo),
                 clock_port.clone(),
             )),
@@ -1226,10 +1242,12 @@ mod tests {
         let (queue_port, queue) = build_queue(queue_id);
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(StagingOp::new(Arc::new(staging_repo))),
-            Arc::new(repositories::World::new(
+            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
+            Arc::new(StagingRepository::new(Arc::new(staging_repo))),
+            Arc::new(repositories::WorldRepository::new(
                 Arc::new(world_repo),
                 clock_port.clone(),
             )),

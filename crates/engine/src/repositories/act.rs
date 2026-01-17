@@ -7,11 +7,11 @@ use wrldbldr_domain::{self as domain, ActId, WorldId};
 use crate::infrastructure::ports::{ActRepo, RepoError};
 
 /// Act entity operations.
-pub struct Act {
+pub struct ActRepository {
     repo: Arc<dyn ActRepo>,
 }
 
-impl Act {
+impl ActRepository {
     pub fn new(repo: Arc<dyn ActRepo>) -> Self {
         Self { repo }
     }

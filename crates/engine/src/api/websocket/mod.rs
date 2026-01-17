@@ -1369,7 +1369,7 @@ mod ws_integration_tests_inline {
             asset_repo.clone(),
             image_gen,
         ));
-        let goal = Arc::new(crate::repositories::Goal::new(goal_repo.clone()));
+        let goal = Arc::new(crate::repositories::GoalRepository::new(goal_repo.clone()));
         let lore = Arc::new(crate::repositories::Lore::new(
             lore_repo.clone(),
             clock_port.clone(),

@@ -12,8 +12,8 @@ use wrldbldr_domain::{CharacterId, RegionId, WorldId};
 use crate::queue_types::DmApprovalDecision;
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::staging::Staging;
-use crate::repositories::Queue;
+use crate::repositories::staging::StagingRepository;
+use crate::repositories::QueueService;
 
 /// Container for approval use cases.
 pub struct ApprovalUseCases {
@@ -49,11 +49,11 @@ pub struct StagingApprovalResult {
 ///
 /// Handles DM approval of which NPCs appear in a region.
 pub struct ApproveStaging {
-    staging: Arc<Staging>,
+    staging: Arc<StagingRepository>,
 }
 
 impl ApproveStaging {
-    pub fn new(staging: Arc<Staging>) -> Self {
+    pub fn new(staging: Arc<StagingRepository>) -> Self {
         Self { staging }
     }
 
@@ -117,11 +117,11 @@ pub struct SuggestionApprovalResult {
 ///
 /// Handles DM approval of LLM-generated content (dialogue, tool calls).
 pub struct ApproveSuggestion {
-    queue: Arc<Queue>,
+    queue: Arc<QueueService>,
 }
 
 impl ApproveSuggestion {
-    pub fn new(queue: Arc<Queue>) -> Self {
+    pub fn new(queue: Arc<QueueService>) -> Self {
         Self { queue }
     }
 
@@ -207,14 +207,14 @@ impl ApproveSuggestion {
 pub struct ApprovalDecisionFlow {
     approve_suggestion: Arc<ApproveSuggestion>,
     narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
-    queue: Arc<Queue>,
+    queue: Arc<QueueService>,
 }
 
 impl ApprovalDecisionFlow {
     pub fn new(
         approve_suggestion: Arc<ApproveSuggestion>,
         narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
-        queue: Arc<Queue>,
+        queue: Arc<QueueService>,
     ) -> Self {
         Self {
             approve_suggestion,

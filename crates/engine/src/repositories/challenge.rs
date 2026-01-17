@@ -6,11 +6,11 @@ use wrldbldr_domain::{self as domain, ChallengeId, SceneId, WorldId};
 use crate::infrastructure::ports::{ChallengeRepo, RepoError};
 
 /// Challenge entity operations.
-pub struct Challenge {
+pub struct ChallengeRepository {
     repo: Arc<dyn ChallengeRepo>,
 }
 
-impl Challenge {
+impl ChallengeRepository {
     pub fn new(repo: Arc<dyn ChallengeRepo>) -> Self {
         Self { repo }
     }

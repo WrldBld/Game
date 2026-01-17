@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::character::Character;
+use crate::repositories::character::CharacterRepository;
 use crate::repositories::location::Location;
-use crate::repositories::scene::Scene;
-use crate::repositories::{PlayerCharacter, World};
+use crate::repositories::scene::SceneRepository;
+use crate::repositories::{PlayerCharacterRepository, WorldRepository};
 use wrldbldr_domain::{PlayerCharacterId, WorldId, WorldRole};
 
 use super::types::{
@@ -14,20 +14,20 @@ use super::types::{
 
 /// Use case for joining a world and building the session snapshot.
 pub struct JoinWorld {
-    world: Arc<World>,
+    world: Arc<WorldRepository>,
     location: Arc<Location>,
-    character: Arc<Character>,
-    scene: Arc<Scene>,
-    player_character: Arc<PlayerCharacter>,
+    character: Arc<CharacterRepository>,
+    scene: Arc<SceneRepository>,
+    player_character: Arc<PlayerCharacterRepository>,
 }
 
 impl JoinWorld {
     pub fn new(
-        world: Arc<World>,
+        world: Arc<WorldRepository>,
         location: Arc<Location>,
-        character: Arc<Character>,
-        scene: Arc<Scene>,
-        player_character: Arc<PlayerCharacter>,
+        character: Arc<CharacterRepository>,
+        scene: Arc<SceneRepository>,
+        player_character: Arc<PlayerCharacterRepository>,
     ) -> Self {
         Self {
             world,

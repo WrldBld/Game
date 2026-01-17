@@ -18,12 +18,12 @@ use crate::llm_context::ConversationTurn;
 /// Provides simple repository access for narrative events, event chains,
 /// story events, and conversation tracking. Does not perform complex
 /// trigger evaluation - see `NarrativeOps` for that.
-pub struct Narrative {
+pub struct NarrativeRepository {
     repo: Arc<dyn NarrativeRepo>,
     clock: Arc<dyn ClockPort>,
 }
 
-impl Narrative {
+impl NarrativeRepository {
     pub fn new(repo: Arc<dyn NarrativeRepo>, clock: Arc<dyn ClockPort>) -> Self {
         Self { repo, clock }
     }

@@ -36,9 +36,9 @@ pub use types::{
 };
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::scene::Scene;
 use crate::repositories::{
-    Challenge, Clock, Inventory, Observation, PlayerCharacter, Queue, Random,
+    ChallengeRepository, ClockService, InventoryRepository, ObservationRepository,
+    PlayerCharacterRepository, QueueService, RandomService, SceneRepository,
 };
 
 /// Container for challenge use cases.
@@ -114,11 +114,11 @@ pub struct ChallengePromptData {
 
 /// Build a challenge prompt for a player.
 pub struct TriggerChallengePrompt {
-    challenge: Arc<Challenge>,
+    challenge: Arc<ChallengeRepository>,
 }
 
 impl TriggerChallengePrompt {
-    pub fn new(challenge: Arc<Challenge>) -> Self {
+    pub fn new(challenge: Arc<ChallengeRepository>) -> Self {
         Self { challenge }
     }
 
@@ -153,20 +153,20 @@ impl TriggerChallengePrompt {
 /// Handles dice rolling and outcome determination. The outcome is then
 /// queued for DM approval before effects are applied.
 pub struct RollChallenge {
-    challenge: Arc<Challenge>,
-    player_character: Arc<PlayerCharacter>,
-    queue: Arc<Queue>,
-    random: Arc<Random>,
-    clock: Arc<Clock>,
+    challenge: Arc<ChallengeRepository>,
+    player_character: Arc<PlayerCharacterRepository>,
+    queue: Arc<QueueService>,
+    random: Arc<RandomService>,
+    clock: Arc<ClockService>,
 }
 
 impl RollChallenge {
     pub fn new(
-        challenge: Arc<Challenge>,
-        player_character: Arc<PlayerCharacter>,
-        queue: Arc<Queue>,
-        random: Arc<Random>,
-        clock: Arc<Clock>,
+        challenge: Arc<ChallengeRepository>,
+        player_character: Arc<PlayerCharacterRepository>,
+        queue: Arc<QueueService>,
+        random: Arc<RandomService>,
+        clock: Arc<ClockService>,
     ) -> Self {
         Self {
             challenge,
@@ -349,20 +349,20 @@ impl RollChallenge {
 ///
 /// Called after DM approves the outcome to execute triggers.
 pub struct ResolveOutcome {
-    challenge: Arc<Challenge>,
-    inventory: Arc<Inventory>,
-    observation: Arc<Observation>,
-    scene: Arc<Scene>,
-    player_character: Arc<PlayerCharacter>,
+    challenge: Arc<ChallengeRepository>,
+    inventory: Arc<InventoryRepository>,
+    observation: Arc<ObservationRepository>,
+    scene: Arc<SceneRepository>,
+    player_character: Arc<PlayerCharacterRepository>,
 }
 
 impl ResolveOutcome {
     pub fn new(
-        challenge: Arc<Challenge>,
-        inventory: Arc<Inventory>,
-        observation: Arc<Observation>,
-        scene: Arc<Scene>,
-        player_character: Arc<PlayerCharacter>,
+        challenge: Arc<ChallengeRepository>,
+        inventory: Arc<InventoryRepository>,
+        observation: Arc<ObservationRepository>,
+        scene: Arc<SceneRepository>,
+        player_character: Arc<PlayerCharacterRepository>,
     ) -> Self {
         Self {
             challenge,
@@ -562,12 +562,12 @@ impl ResolveOutcome {
 
 /// Decision flow for challenge outcome approvals.
 pub struct OutcomeDecision {
-    queue: Arc<Queue>,
+    queue: Arc<QueueService>,
     resolve: Arc<ResolveOutcome>,
 }
 
 impl OutcomeDecision {
-    pub fn new(queue: Arc<Queue>, resolve: Arc<ResolveOutcome>) -> Self {
+    pub fn new(queue: Arc<QueueService>, resolve: Arc<ResolveOutcome>) -> Self {
         Self { queue, resolve }
     }
 
@@ -813,8 +813,7 @@ mod tests {
         MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
     };
     use crate::repositories;
-    use crate::repositories::Inventory;
-    use crate::use_cases::Scene;
+    use crate::repositories::{InventoryRepository, SceneRepository};
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -947,21 +946,24 @@ mod tests {
         // ---------------------------------------------------------------------
         // Wire entities + use case
         // ---------------------------------------------------------------------
-        let challenge_entity = Arc::new(repositories::Challenge::new(Arc::new(challenge_repo)));
+        let challenge_entity = Arc::new(repositories::ChallengeRepository::new(Arc::new(
+            challenge_repo,
+        )));
 
         let pc_repo: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> = Arc::new(pc_repo);
-        let inventory_entity = Arc::new(Inventory::new(
+        let inventory_entity = Arc::new(InventoryRepository::new(
             Arc::new(item_repo),
             Arc::new(character_repo),
             pc_repo.clone(),
         ));
-        let observation_entity = Arc::new(repositories::Observation::new(
+        let observation_entity = Arc::new(repositories::ObservationRepository::new(
             Arc::new(observation_repo),
             Arc::new(location_repo),
             clock,
         ));
-        let scene_entity = Arc::new(Scene::new(Arc::new(scene_repo)));
-        let player_character_entity = Arc::new(repositories::PlayerCharacter::new(pc_repo));
+        let scene_entity = Arc::new(SceneRepository::new(Arc::new(scene_repo)));
+        let player_character_entity =
+            Arc::new(repositories::PlayerCharacterRepository::new(pc_repo));
 
         let resolve = super::ResolveOutcome::new(
             challenge_entity,

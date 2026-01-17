@@ -6,12 +6,12 @@ use wrldbldr_domain::{self as domain, CharacterId, LoreCategory, LoreChunkId, Lo
 use crate::infrastructure::ports::{ClockPort, LoreRepo, RepoError};
 
 /// Lore entity operations.
-pub struct Lore {
+pub struct LoreRepository {
     repo: Arc<dyn LoreRepo>,
     clock: Arc<dyn ClockPort>,
 }
 
-impl Lore {
+impl LoreRepository {
     pub fn new(repo: Arc<dyn LoreRepo>, clock: Arc<dyn ClockPort>) -> Self {
         Self { repo, clock }
     }

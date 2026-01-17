@@ -11,10 +11,13 @@ use wrldbldr_domain::{
 };
 use wrldbldr_shared::character_sheet::SheetValue;
 
-use crate::repositories::character::Character;
-use crate::repositories::scene::Scene;
-use crate::repositories::{Challenge, Clock, Flag, Inventory, Observation, PlayerCharacter, World};
-use crate::use_cases::narrative_operations::Narrative;
+use crate::repositories::character::CharacterRepository;
+use crate::repositories::scene::SceneRepository;
+use crate::repositories::{
+    ChallengeRepository, ClockService, FlagRepository, InventoryRepository, ObservationRepository,
+    PlayerCharacterRepository, WorldRepository,
+};
+use crate::use_cases::narrative_operations::NarrativeOps;
 
 /// Result of executing a single effect.
 #[derive(Debug, Clone)]
@@ -69,30 +72,30 @@ pub struct EffectExecutionContext {
 /// - TriggerScene via Scene
 /// - SetFlag via Flag
 pub struct ExecuteEffects {
-    inventory: Arc<Inventory>,
-    challenge: Arc<Challenge>,
-    narrative: Arc<Narrative>,
-    character: Arc<Character>,
-    observation: Arc<Observation>,
-    player_character: Arc<PlayerCharacter>,
-    scene: Arc<Scene>,
-    flag: Arc<Flag>,
-    world: Arc<World>,
-    clock: Arc<Clock>,
+    inventory: Arc<InventoryRepository>,
+    challenge: Arc<ChallengeRepository>,
+    narrative: Arc<NarrativeOps>,
+    character: Arc<CharacterRepository>,
+    observation: Arc<ObservationRepository>,
+    player_character: Arc<PlayerCharacterRepository>,
+    scene: Arc<SceneRepository>,
+    flag: Arc<FlagRepository>,
+    world: Arc<WorldRepository>,
+    clock: Arc<ClockService>,
 }
 
 impl ExecuteEffects {
     pub fn new(
-        inventory: Arc<Inventory>,
-        challenge: Arc<Challenge>,
-        narrative: Arc<Narrative>,
-        character: Arc<Character>,
-        observation: Arc<Observation>,
-        player_character: Arc<PlayerCharacter>,
-        scene: Arc<Scene>,
-        flag: Arc<Flag>,
-        world: Arc<World>,
-        clock: Arc<Clock>,
+        inventory: Arc<InventoryRepository>,
+        challenge: Arc<ChallengeRepository>,
+        narrative: Arc<NarrativeOps>,
+        character: Arc<CharacterRepository>,
+        observation: Arc<ObservationRepository>,
+        player_character: Arc<PlayerCharacterRepository>,
+        scene: Arc<SceneRepository>,
+        flag: Arc<FlagRepository>,
+        world: Arc<WorldRepository>,
+        clock: Arc<ClockService>,
     ) -> Self {
         Self {
             inventory,

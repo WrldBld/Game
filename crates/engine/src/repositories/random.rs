@@ -4,12 +4,12 @@ use std::sync::Arc;
 
 use crate::infrastructure::ports::RandomPort;
 
-/// Random wrapper for use cases.
-pub struct Random {
+/// Random service wrapper for use cases.
+pub struct RandomService {
     random: Arc<dyn RandomPort>,
 }
 
-impl Random {
+impl RandomService {
     pub fn new(random: Arc<dyn RandomPort>) -> Self {
         Self { random }
     }

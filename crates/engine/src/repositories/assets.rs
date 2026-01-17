@@ -9,12 +9,12 @@ use crate::infrastructure::ports::{AssetRepo, ImageGenPort, ImageRequest, RepoEr
 /// Asset entity operations.
 ///
 /// Handles gallery assets and image generation.
-pub struct Assets {
+pub struct AssetsRepository {
     repo: Arc<dyn AssetRepo>,
     image_gen: Arc<dyn ImageGenPort>,
 }
 
-impl Assets {
+impl AssetsRepository {
     pub fn new(repo: Arc<dyn AssetRepo>, image_gen: Arc<dyn ImageGenPort>) -> Self {
         Self { repo, image_gen }
     }

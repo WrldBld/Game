@@ -3,8 +3,8 @@ use std::sync::Arc;
 use wrldbldr_domain::{LocationId, Region, RegionId, StagedNpc};
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::inventory::Inventory;
 use crate::repositories::location::Location;
+use crate::repositories::InventoryRepository;
 
 // =============================================================================
 // Domain Types (for use case output)
@@ -83,11 +83,11 @@ pub enum SceneChangeError {
 
 pub struct SceneChangeBuilder {
     location: Arc<Location>,
-    inventory: Arc<Inventory>,
+    inventory: Arc<InventoryRepository>,
 }
 
 impl SceneChangeBuilder {
-    pub fn new(location: Arc<Location>, inventory: Arc<Inventory>) -> Self {
+    pub fn new(location: Arc<Location>, inventory: Arc<InventoryRepository>) -> Self {
         Self {
             location,
             inventory,

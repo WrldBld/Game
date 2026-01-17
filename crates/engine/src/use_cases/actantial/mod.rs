@@ -12,8 +12,7 @@ use wrldbldr_domain::{
 use crate::infrastructure::ports::{
     ActantialViewRecord, GoalDetails, RepoError, WantDetails, WantTargetRef,
 };
-use crate::repositories::character::Character;
-use crate::repositories::{Clock, Goal};
+use crate::repositories::{CharacterRepository, ClockService, GoalRepository};
 use crate::use_cases::validation::{require_non_empty, ValidationError};
 
 /// Shared error type for actantial use cases.
@@ -55,11 +54,11 @@ impl ActantialUseCases {
 // =============================================================================
 
 pub struct GoalOps {
-    goal: Arc<Goal>,
+    goal: Arc<GoalRepository>,
 }
 
 impl GoalOps {
-    pub fn new(goal: Arc<Goal>) -> Self {
+    pub fn new(goal: Arc<GoalRepository>) -> Self {
         Self { goal }
     }
 
@@ -145,12 +144,12 @@ impl GoalOps {
 // =============================================================================
 
 pub struct WantOps {
-    character: Arc<Character>,
-    clock: Arc<Clock>,
+    character: Arc<CharacterRepository>,
+    clock: Arc<ClockService>,
 }
 
 impl WantOps {
-    pub fn new(character: Arc<Character>, clock: Arc<Clock>) -> Self {
+    pub fn new(character: Arc<CharacterRepository>, clock: Arc<ClockService>) -> Self {
         Self { character, clock }
     }
 
@@ -284,11 +283,11 @@ impl WantOps {
 // =============================================================================
 
 pub struct ActantialContextOps {
-    character: Arc<Character>,
+    character: Arc<CharacterRepository>,
 }
 
 impl ActantialContextOps {
-    pub fn new(character: Arc<Character>) -> Self {
+    pub fn new(character: Arc<CharacterRepository>) -> Self {
         Self { character }
     }
 

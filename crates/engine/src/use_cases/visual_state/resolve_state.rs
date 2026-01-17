@@ -12,7 +12,7 @@ use wrldbldr_domain::{
 };
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::{Flag, LocationStateEntity, RegionStateEntity};
+use crate::repositories::{FlagRepository, LocationStateRepository, RegionStateRepository};
 
 /// Context for evaluating activation rules
 #[derive(Debug, Clone)]
@@ -143,16 +143,16 @@ impl StateResolutionResult {
 
 /// Use case for resolving visual states
 pub struct ResolveVisualState {
-    location_state: Arc<LocationStateEntity>,
-    region_state: Arc<RegionStateEntity>,
-    flag: Arc<Flag>,
+    location_state: Arc<LocationStateRepository>,
+    region_state: Arc<RegionStateRepository>,
+    flag: Arc<FlagRepository>,
 }
 
 impl ResolveVisualState {
     pub fn new(
-        location_state: Arc<LocationStateEntity>,
-        region_state: Arc<RegionStateEntity>,
-        flag: Arc<Flag>,
+        location_state: Arc<LocationStateRepository>,
+        region_state: Arc<RegionStateRepository>,
+        flag: Arc<FlagRepository>,
     ) -> Self {
         Self {
             location_state,
@@ -829,16 +829,16 @@ mod tests {
             }
         }
 
-        let location_state = Arc::new(crate::repositories::LocationStateEntity::new(Arc::new(
+        let location_state = Arc::new(crate::repositories::LocationStateRepository::new(Arc::new(
             MockLocationStateRepo,
         )
             as Arc<dyn LocationStateRepo>));
-        let region_state = Arc::new(crate::repositories::RegionStateEntity::new(Arc::new(
+        let region_state = Arc::new(crate::repositories::RegionStateRepository::new(Arc::new(
             MockRegionStateRepo,
         )
             as Arc<dyn RegionStateRepo>));
-        let flag = Arc::new(crate::repositories::Flag::new(
-            Arc::new(MockFlagRepo) as Arc<dyn FlagRepo>
+        let flag = Arc::new(crate::repositories::FlagRepository::new(
+            Arc::new(MockFlagRepo) as Arc<dyn FlagRepo>,
         ));
 
         ResolveVisualState::new(location_state, region_state, flag)

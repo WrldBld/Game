@@ -24,7 +24,7 @@ use crate::llm_context::{
 use crate::queue_types::{LlmRequestData, LlmRequestType, PlayerActionData};
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::{Llm, Queue};
+use crate::repositories::{LlmService, QueueService};
 
 /// Events that need to be broadcast to clients after queue processing.
 ///
@@ -85,28 +85,28 @@ pub struct PlayerActionProcessed {
 /// Dequeues player actions, builds LLM prompts, and enqueues LLM requests.
 #[allow(dead_code)]
 pub struct ProcessPlayerAction {
-    queue: Arc<Queue>,
-    character: Arc<crate::repositories::character::Character>,
-    player_character: Arc<crate::repositories::PlayerCharacter>,
-    staging: Arc<crate::repositories::staging::Staging>,
-    scene: Arc<crate::repositories::scene::Scene>,
-    world: Arc<crate::repositories::World>,
+    queue: Arc<QueueService>,
+    character: Arc<crate::repositories::CharacterRepository>,
+    player_character: Arc<crate::repositories::PlayerCharacterRepository>,
+    staging: Arc<crate::repositories::StagingRepository>,
+    scene: Arc<crate::repositories::SceneRepository>,
+    world: Arc<crate::repositories::WorldRepository>,
     narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
     location: Arc<crate::repositories::location::Location>,
-    challenge: Arc<crate::repositories::Challenge>,
+    challenge: Arc<crate::repositories::ChallengeRepository>,
 }
 
 impl ProcessPlayerAction {
     pub fn new(
-        queue: Arc<Queue>,
-        character: Arc<crate::repositories::character::Character>,
-        player_character: Arc<crate::repositories::PlayerCharacter>,
-        staging: Arc<crate::repositories::staging::Staging>,
-        scene: Arc<crate::repositories::scene::Scene>,
-        world: Arc<crate::repositories::World>,
+        queue: Arc<QueueService>,
+        character: Arc<crate::repositories::CharacterRepository>,
+        player_character: Arc<crate::repositories::PlayerCharacterRepository>,
+        staging: Arc<crate::repositories::StagingRepository>,
+        scene: Arc<crate::repositories::SceneRepository>,
+        world: Arc<crate::repositories::WorldRepository>,
         narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
         location: Arc<crate::repositories::location::Location>,
-        challenge: Arc<crate::repositories::Challenge>,
+        challenge: Arc<crate::repositories::ChallengeRepository>,
     ) -> Self {
         Self {
             queue,
@@ -548,12 +548,12 @@ pub struct LlmRequestProcessed {
 ///
 /// Dequeues LLM requests, calls the LLM, and enqueues DM approval requests.
 pub struct ProcessLlmRequest {
-    queue: Arc<Queue>,
-    llm: Arc<Llm>,
+    queue: Arc<QueueService>,
+    llm: Arc<LlmService>,
 }
 
 impl ProcessLlmRequest {
-    pub fn new(queue: Arc<Queue>, llm: Arc<Llm>) -> Self {
+    pub fn new(queue: Arc<QueueService>, llm: Arc<LlmService>) -> Self {
         Self { queue, llm }
     }
 

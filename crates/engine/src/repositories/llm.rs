@@ -4,12 +4,12 @@ use std::sync::Arc;
 
 use crate::infrastructure::ports::{LlmError, LlmPort, LlmRequest, LlmResponse, ToolDefinition};
 
-/// LLM wrapper for use cases.
-pub struct Llm {
+/// LLM service wrapper for use cases.
+pub struct LlmService {
     llm: Arc<dyn LlmPort>,
 }
 
-impl Llm {
+impl LlmService {
     pub fn new(llm: Arc<dyn LlmPort>) -> Self {
         Self { llm }
     }

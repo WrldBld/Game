@@ -25,11 +25,11 @@ use crate::infrastructure::ports::{RepoError, StagingRepo};
 ///
 /// The full workflow with DM approval is handled at the WebSocket/API layer.
 /// This entity module provides the building blocks.
-pub struct Staging {
+pub struct StagingRepository {
     repo: Arc<dyn StagingRepo>,
 }
 
-impl Staging {
+impl StagingRepository {
     pub fn new(repo: Arc<dyn StagingRepo>) -> Self {
         Self { repo }
     }

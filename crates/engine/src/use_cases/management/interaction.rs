@@ -4,17 +4,17 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{InteractionId, SceneId};
 
-use crate::repositories::Interaction;
+use crate::repositories::InteractionRepository;
 use crate::use_cases::validation::require_non_empty;
 
 use super::ManagementError;
 
 pub struct InteractionCrud {
-    interaction: Arc<Interaction>,
+    interaction: Arc<InteractionRepository>,
 }
 
 impl InteractionCrud {
-    pub fn new(interaction: Arc<Interaction>) -> Self {
+    pub fn new(interaction: Arc<InteractionRepository>) -> Self {
         Self { interaction }
     }
 

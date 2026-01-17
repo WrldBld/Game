@@ -11,10 +11,10 @@ use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 use crate::queue_types::PlayerActionData;
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::character::Character;
-use crate::repositories::scene::Scene;
-use crate::repositories::staging::Staging;
-use crate::repositories::{Clock, PlayerCharacter, Queue, World};
+use crate::repositories::character::CharacterRepository;
+use crate::repositories::scene::SceneRepository;
+use crate::repositories::staging::StagingRepository;
+use crate::repositories::{ClockService, PlayerCharacterRepository, QueueService, WorldRepository};
 
 /// Result of starting a conversation.
 #[derive(Debug)]
@@ -34,24 +34,24 @@ pub struct ConversationStarted {
 /// Orchestrates: NPC validation, staging check, player action queuing.
 #[allow(dead_code)]
 pub struct StartConversation {
-    character: Arc<Character>,
-    player_character: Arc<PlayerCharacter>,
-    staging: Arc<Staging>,
-    scene: Arc<Scene>,
-    world: Arc<World>,
-    queue: Arc<Queue>,
-    clock: Arc<Clock>,
+    character: Arc<CharacterRepository>,
+    player_character: Arc<PlayerCharacterRepository>,
+    staging: Arc<StagingRepository>,
+    scene: Arc<SceneRepository>,
+    world: Arc<WorldRepository>,
+    queue: Arc<QueueService>,
+    clock: Arc<ClockService>,
 }
 
 impl StartConversation {
     pub fn new(
-        character: Arc<Character>,
-        player_character: Arc<PlayerCharacter>,
-        staging: Arc<Staging>,
-        scene: Arc<Scene>,
-        world: Arc<World>,
-        queue: Arc<Queue>,
-        clock: Arc<Clock>,
+        character: Arc<CharacterRepository>,
+        player_character: Arc<PlayerCharacterRepository>,
+        staging: Arc<StagingRepository>,
+        scene: Arc<SceneRepository>,
+        world: Arc<WorldRepository>,
+        queue: Arc<QueueService>,
+        clock: Arc<ClockService>,
     ) -> Self {
         Self {
             character,
@@ -215,8 +215,7 @@ mod tests {
     };
     use crate::repositories;
     use crate::repositories::{
-        Character as CharacterOp, Clock as ClockRepo, Queue as QueueRepo, Scene as SceneOp,
-        Staging as StagingOp,
+        CharacterRepository, ClockService, QueueService, SceneRepository, StagingRepository,
     };
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -407,17 +406,19 @@ mod tests {
             .returning(|_, _| Ok(None));
 
         let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let clock = Arc::new(ClockRepo::new(clock_port.clone()));
+        let clock = Arc::new(ClockService::new(clock_port.clone()));
         let queue_id = Uuid::new_v4();
         let queue_port = Arc::new(RecordingQueuePort::new(queue_id));
-        let queue = Arc::new(QueueRepo::new(queue_port.clone()));
+        let queue = Arc::new(QueueService::new(queue_port.clone()));
 
         let use_case = super::StartConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(StagingOp::new(Arc::new(staging_repo))),
-            Arc::new(SceneOp::new(Arc::new(MockSceneRepo::new()))),
-            Arc::new(repositories::World::new(
+            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
+            Arc::new(StagingRepository::new(Arc::new(staging_repo))),
+            Arc::new(SceneRepository::new(Arc::new(MockSceneRepo::new()))),
+            Arc::new(repositories::WorldRepository::new(
                 Arc::new(world_repo),
                 clock_port.clone(),
             )),
@@ -518,17 +519,19 @@ mod tests {
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
         let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let clock = Arc::new(ClockRepo::new(clock_port.clone()));
+        let clock = Arc::new(ClockService::new(clock_port.clone()));
         let queue_id = Uuid::new_v4();
         let queue_port = Arc::new(RecordingQueuePort::new(queue_id));
-        let queue = Arc::new(QueueRepo::new(queue_port.clone()));
+        let queue = Arc::new(QueueService::new(queue_port.clone()));
 
         let use_case = super::StartConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
-            Arc::new(StagingOp::new(Arc::new(staging_repo))),
-            Arc::new(SceneOp::new(Arc::new(MockSceneRepo::new()))),
-            Arc::new(repositories::World::new(
+            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
+            Arc::new(StagingRepository::new(Arc::new(staging_repo))),
+            Arc::new(SceneRepository::new(Arc::new(MockSceneRepo::new()))),
+            Arc::new(repositories::WorldRepository::new(
                 Arc::new(world_repo),
                 clock_port.clone(),
             )),

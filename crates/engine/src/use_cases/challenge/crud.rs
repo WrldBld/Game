@@ -3,7 +3,7 @@ use std::sync::Arc;
 use wrldbldr_domain::{self as domain, ChallengeId, ChallengeName, Difficulty, WorldId};
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::Challenge;
+use crate::repositories::ChallengeRepository;
 use crate::use_cases::validation::ValidationError;
 
 use super::types::{
@@ -30,11 +30,11 @@ pub struct UpdateChallengeInput {
 }
 
 pub struct ChallengeOps {
-    challenge: Arc<Challenge>,
+    challenge: Arc<ChallengeRepository>,
 }
 
 impl ChallengeOps {
-    pub fn new(challenge: Arc<Challenge>) -> Self {
+    pub fn new(challenge: Arc<ChallengeRepository>) -> Self {
         Self { challenge }
     }
 

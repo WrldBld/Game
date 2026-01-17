@@ -6,11 +6,11 @@ use wrldbldr_domain::{self as domain, LocationId, LocationStateId};
 use crate::infrastructure::ports::{LocationStateRepo, RepoError};
 
 /// LocationState entity operations.
-pub struct LocationStateEntity {
+pub struct LocationStateRepository {
     repo: Arc<dyn LocationStateRepo>,
 }
 
-impl LocationStateEntity {
+impl LocationStateRepository {
     pub fn new(repo: Arc<dyn LocationStateRepo>) -> Self {
         Self { repo }
     }

@@ -9,12 +9,12 @@ use crate::queue_types::{
 use uuid::Uuid;
 use wrldbldr_domain::WorldId;
 
-/// Queue wrapper for use cases.
-pub struct Queue {
+/// Queue service wrapper for use cases.
+pub struct QueueService {
     queue: Arc<dyn QueuePort>,
 }
 
-impl Queue {
+impl QueueService {
     pub fn new(queue: Arc<dyn QueuePort>) -> Self {
         Self { queue }
     }

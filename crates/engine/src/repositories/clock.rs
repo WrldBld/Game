@@ -4,12 +4,12 @@ use std::sync::Arc;
 
 use crate::infrastructure::ports::ClockPort;
 
-/// Clock wrapper for use cases.
-pub struct Clock {
+/// Clock service wrapper for use cases.
+pub struct ClockService {
     clock: Arc<dyn ClockPort>,
 }
 
-impl Clock {
+impl ClockService {
     pub fn new(clock: Arc<dyn ClockPort>) -> Self {
         Self { clock }
     }

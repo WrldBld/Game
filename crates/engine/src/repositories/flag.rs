@@ -10,11 +10,11 @@ use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use crate::infrastructure::ports::{FlagRepo, RepoError};
 
 /// Flag entity - handles game flag operations.
-pub struct Flag {
+pub struct FlagRepository {
     repo: Arc<dyn FlagRepo>,
 }
 
-impl Flag {
+impl FlagRepository {
     pub fn new(repo: Arc<dyn FlagRepo>) -> Self {
         Self { repo }
     }

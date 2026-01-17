@@ -4,16 +4,16 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{ActId, LocationId, SceneId, SceneName};
 
-use crate::repositories::scene::Scene;
+use crate::repositories::SceneRepository;
 
 use super::ManagementError;
 
 pub struct SceneCrud {
-    scene: Arc<Scene>,
+    scene: Arc<SceneRepository>,
 }
 
 impl SceneCrud {
-    pub fn new(scene: Arc<Scene>) -> Self {
+    pub fn new(scene: Arc<SceneRepository>) -> Self {
         Self { scene }
     }
 

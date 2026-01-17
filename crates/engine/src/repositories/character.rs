@@ -14,11 +14,11 @@ use crate::infrastructure::ports::{
 /// Character entity operations.
 ///
 /// Encapsulates all character-related queries and mutations.
-pub struct Character {
+pub struct CharacterRepository {
     repo: Arc<dyn CharacterRepo>,
 }
 
-impl Character {
+impl CharacterRepository {
     pub fn new(repo: Arc<dyn CharacterRepo>) -> Self {
         Self { repo }
     }

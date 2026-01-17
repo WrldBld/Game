@@ -5,10 +5,10 @@ use std::sync::Arc;
 use wrldbldr_domain::StagingSource;
 
 use crate::infrastructure::ports::PendingStagingRequest;
-use crate::repositories::character::Character;
-use crate::repositories::location::Location;
-use crate::repositories::staging::Staging;
-use crate::repositories::{LocationStateEntity, RegionStateEntity, Settings, World};
+use crate::repositories::{
+    CharacterRepository, Location, LocationStateRepository, RegionStateRepository,
+    SettingsRepository, StagingRepository, WorldRepository,
+};
 
 use super::approve::{ApproveStagingInput, ApproveStagingRequest, StagingReadyPayload};
 use super::suggestions::generate_rule_based_suggestions;
@@ -17,24 +17,24 @@ use super::{get_settings_with_fallback, StagingError};
 
 /// Use case for auto-approving expired staging requests.
 pub struct AutoApproveStagingTimeout {
-    character: Arc<Character>,
-    staging: Arc<Staging>,
-    world: Arc<World>,
+    character: Arc<CharacterRepository>,
+    staging: Arc<StagingRepository>,
+    world: Arc<WorldRepository>,
     location: Arc<Location>,
-    location_state: Arc<LocationStateEntity>,
-    region_state: Arc<RegionStateEntity>,
-    settings: Arc<Settings>,
+    location_state: Arc<LocationStateRepository>,
+    region_state: Arc<RegionStateRepository>,
+    settings: Arc<SettingsRepository>,
 }
 
 impl AutoApproveStagingTimeout {
     pub fn new(
-        character: Arc<Character>,
-        staging: Arc<Staging>,
-        world: Arc<World>,
+        character: Arc<CharacterRepository>,
+        staging: Arc<StagingRepository>,
+        world: Arc<WorldRepository>,
         location: Arc<Location>,
-        location_state: Arc<LocationStateEntity>,
-        region_state: Arc<RegionStateEntity>,
-        settings: Arc<Settings>,
+        location_state: Arc<LocationStateRepository>,
+        region_state: Arc<RegionStateRepository>,
+        settings: Arc<SettingsRepository>,
     ) -> Self {
         Self {
             character,

@@ -7,9 +7,7 @@ use wrldbldr_domain::{CharacterId, WorldId};
 use crate::queue_types::{LlmRequestData, LlmRequestType, SuggestionContext};
 
 use crate::infrastructure::ports::{QueueError, RepoError};
-use crate::repositories::character::Character;
-use crate::repositories::Queue;
-use crate::repositories::World;
+use crate::repositories::{CharacterRepository, QueueService, WorldRepository};
 
 /// Actantial role for NPC want relationships (domain representation).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,13 +54,17 @@ impl AiUseCases {
 }
 
 pub struct SuggestionOps {
-    queue: Arc<Queue>,
-    world: Arc<World>,
-    character: Arc<Character>,
+    queue: Arc<QueueService>,
+    world: Arc<WorldRepository>,
+    character: Arc<CharacterRepository>,
 }
 
 impl SuggestionOps {
-    pub fn new(queue: Arc<Queue>, world: Arc<World>, character: Arc<Character>) -> Self {
+    pub fn new(
+        queue: Arc<QueueService>,
+        world: Arc<WorldRepository>,
+        character: Arc<CharacterRepository>,
+    ) -> Self {
         Self {
             queue,
             world,

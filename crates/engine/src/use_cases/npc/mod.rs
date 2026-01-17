@@ -5,10 +5,10 @@
 use std::sync::Arc;
 
 use crate::infrastructure::ports::{NpcDispositionInfo, RepoError};
-use crate::repositories::character::Character;
+use crate::repositories::character::CharacterRepository;
 use crate::repositories::location::Location;
-use crate::repositories::staging::Staging;
-use crate::repositories::{Clock, Observation};
+use crate::repositories::staging::StagingRepository;
+use crate::repositories::{ClockService, ObservationRepository};
 use wrldbldr_domain::{
     CharacterId, DispositionLevel, LocationId, MoodState, NpcDispositionState, PlayerCharacterId,
     RegionId, RelationshipLevel,
@@ -43,12 +43,12 @@ impl NpcUseCases {
 
 /// Disposition and relationship operations.
 pub struct NpcDisposition {
-    character: Arc<Character>,
-    clock: Arc<Clock>,
+    character: Arc<CharacterRepository>,
+    clock: Arc<ClockService>,
 }
 
 impl NpcDisposition {
-    pub fn new(character: Arc<Character>, clock: Arc<Clock>) -> Self {
+    pub fn new(character: Arc<CharacterRepository>, clock: Arc<ClockService>) -> Self {
         Self { character, clock }
     }
 
@@ -163,12 +163,12 @@ impl NpcDisposition {
 
 /// Mood operations for staged NPCs.
 pub struct NpcMood {
-    staging: Arc<Staging>,
-    character: Arc<Character>,
+    staging: Arc<StagingRepository>,
+    character: Arc<CharacterRepository>,
 }
 
 impl NpcMood {
-    pub fn new(staging: Arc<Staging>, character: Arc<Character>) -> Self {
+    pub fn new(staging: Arc<StagingRepository>, character: Arc<CharacterRepository>) -> Self {
         Self { staging, character }
     }
 
@@ -215,11 +215,11 @@ impl NpcMood {
 
 /// NPC region relationship operations.
 pub struct NpcRegionRelationships {
-    character: Arc<Character>,
+    character: Arc<CharacterRepository>,
 }
 
 impl NpcRegionRelationships {
-    pub fn new(character: Arc<Character>) -> Self {
+    pub fn new(character: Arc<CharacterRepository>) -> Self {
         Self { character }
     }
 
@@ -272,18 +272,18 @@ impl NpcRegionRelationships {
 
 /// Share NPC location knowledge with a PC (creates observation).
 pub struct NpcLocationSharing {
-    character: Arc<Character>,
+    character: Arc<CharacterRepository>,
     location: Arc<Location>,
-    observation: Arc<Observation>,
-    clock: Arc<Clock>,
+    observation: Arc<ObservationRepository>,
+    clock: Arc<ClockService>,
 }
 
 impl NpcLocationSharing {
     pub fn new(
-        character: Arc<Character>,
+        character: Arc<CharacterRepository>,
         location: Arc<Location>,
-        observation: Arc<Observation>,
-        clock: Arc<Clock>,
+        observation: Arc<ObservationRepository>,
+        clock: Arc<ClockService>,
     ) -> Self {
         Self {
             character,
@@ -355,11 +355,11 @@ impl NpcLocationSharing {
 
 /// Build NPC approach event details.
 pub struct NpcApproachEvents {
-    character: Arc<Character>,
+    character: Arc<CharacterRepository>,
 }
 
 impl NpcApproachEvents {
-    pub fn new(character: Arc<Character>) -> Self {
+    pub fn new(character: Arc<CharacterRepository>) -> Self {
         Self { character }
     }
 

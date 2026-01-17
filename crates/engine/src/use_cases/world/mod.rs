@@ -6,10 +6,8 @@ use std::sync::Arc;
 use wrldbldr_domain::WorldId;
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::character::Character;
-use crate::repositories::inventory::Inventory;
 use crate::repositories::location::Location;
-use crate::repositories::World;
+use crate::repositories::{CharacterRepository, InventoryRepository, WorldRepository};
 use crate::use_cases::narrative_operations::Narrative;
 
 /// Container for world use cases.
@@ -47,19 +45,19 @@ pub struct WorldExport {
 ///
 /// Exports a world and all its contents to a portable format.
 pub struct ExportWorld {
-    world: Arc<World>,
+    world: Arc<WorldRepository>,
     location: Arc<Location>,
-    character: Arc<Character>,
-    inventory: Arc<Inventory>,
+    character: Arc<CharacterRepository>,
+    inventory: Arc<InventoryRepository>,
     narrative: Arc<Narrative>,
 }
 
 impl ExportWorld {
     pub fn new(
-        world: Arc<World>,
+        world: Arc<WorldRepository>,
         location: Arc<Location>,
-        character: Arc<Character>,
-        inventory: Arc<Inventory>,
+        character: Arc<CharacterRepository>,
+        inventory: Arc<InventoryRepository>,
         narrative: Arc<Narrative>,
     ) -> Self {
         Self {
@@ -122,19 +120,19 @@ impl ExportWorld {
 ///
 /// Imports a world from an exported format.
 pub struct ImportWorld {
-    world: Arc<World>,
+    world: Arc<WorldRepository>,
     location: Arc<Location>,
-    character: Arc<Character>,
-    inventory: Arc<Inventory>,
+    character: Arc<CharacterRepository>,
+    inventory: Arc<InventoryRepository>,
     narrative: Arc<Narrative>,
 }
 
 impl ImportWorld {
     pub fn new(
-        world: Arc<World>,
+        world: Arc<WorldRepository>,
         location: Arc<Location>,
-        character: Arc<Character>,
-        inventory: Arc<Inventory>,
+        character: Arc<CharacterRepository>,
+        inventory: Arc<InventoryRepository>,
         narrative: Arc<Narrative>,
     ) -> Self {
         Self {

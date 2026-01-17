@@ -7,11 +7,11 @@ use wrldbldr_domain::{self as domain, GoalId, WorldId};
 use crate::infrastructure::ports::{GoalDetails, GoalRepo, RepoError};
 
 /// Goal entity operations.
-pub struct Goal {
+pub struct GoalRepository {
     repo: Arc<dyn GoalRepo>,
 }
 
-impl Goal {
+impl GoalRepository {
     pub fn new(repo: Arc<dyn GoalRepo>) -> Self {
         Self { repo }
     }

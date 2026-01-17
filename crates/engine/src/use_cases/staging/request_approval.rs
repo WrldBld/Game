@@ -7,10 +7,10 @@ use uuid::Uuid;
 use wrldbldr_domain::{LocationId, PlayerCharacter, RegionId, Staging as DomainStaging, WorldId};
 
 use crate::infrastructure::ports::{PendingStagingRequest, TimeSuggestion};
-use crate::repositories::character::Character;
-use crate::repositories::location::Location;
-use crate::repositories::staging::Staging;
-use crate::repositories::{Flag, Llm, PendingStaging, Settings, TimeSuggestionStore, World};
+use crate::repositories::{
+    CharacterRepository, FlagRepository, LlmService, Location, PendingStaging, SettingsRepository,
+    StagingRepository, TimeSuggestionStore, WorldRepository,
+};
 use crate::use_cases::visual_state::{ResolveVisualState, StateResolutionContext};
 
 use super::suggestions::{generate_llm_based_suggestions, generate_rule_based_suggestions};
@@ -38,26 +38,26 @@ pub struct StagingApprovalInput {
 
 /// Use case for building and broadcasting a staging approval request.
 pub struct RequestStagingApproval {
-    character: Arc<Character>,
-    staging: Arc<Staging>,
+    character: Arc<CharacterRepository>,
+    staging: Arc<StagingRepository>,
     location: Arc<Location>,
-    world: Arc<World>,
-    flag: Arc<Flag>,
+    world: Arc<WorldRepository>,
+    flag: Arc<FlagRepository>,
     visual_state: Arc<ResolveVisualState>,
-    settings: Arc<Settings>,
-    llm: Arc<Llm>,
+    settings: Arc<SettingsRepository>,
+    llm: Arc<LlmService>,
 }
 
 impl RequestStagingApproval {
     pub fn new(
-        character: Arc<Character>,
-        staging: Arc<Staging>,
+        character: Arc<CharacterRepository>,
+        staging: Arc<StagingRepository>,
         location: Arc<Location>,
-        world: Arc<World>,
-        flag: Arc<Flag>,
+        world: Arc<WorldRepository>,
+        flag: Arc<FlagRepository>,
         visual_state: Arc<ResolveVisualState>,
-        settings: Arc<Settings>,
-        llm: Arc<Llm>,
+        settings: Arc<SettingsRepository>,
+        llm: Arc<LlmService>,
     ) -> Self {
         Self {
             character,

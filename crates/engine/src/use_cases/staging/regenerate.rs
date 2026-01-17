@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 use wrldbldr_domain::RegionId;
 
-use crate::repositories::character::Character;
+use crate::repositories::character::CharacterRepository;
 use crate::repositories::location::Location;
-use crate::repositories::Llm;
+use crate::repositories::LlmService;
 
 use super::suggestions::generate_llm_based_suggestions;
 use super::types::StagedNpc;
@@ -15,12 +15,16 @@ use super::StagingError;
 /// Use case for regenerating LLM staging suggestions.
 pub struct RegenerateStagingSuggestions {
     location: Arc<Location>,
-    character: Arc<Character>,
-    llm: Arc<Llm>,
+    character: Arc<CharacterRepository>,
+    llm: Arc<LlmService>,
 }
 
 impl RegenerateStagingSuggestions {
-    pub fn new(location: Arc<Location>, character: Arc<Character>, llm: Arc<Llm>) -> Self {
+    pub fn new(
+        location: Arc<Location>,
+        character: Arc<CharacterRepository>,
+        llm: Arc<LlmService>,
+    ) -> Self {
         Self {
             location,
             character,

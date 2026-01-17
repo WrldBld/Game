@@ -104,11 +104,11 @@ pub struct SceneConsideration {
 }
 
 /// Scene entity operations.
-pub struct Scene {
+pub struct SceneRepository {
     repo: Arc<dyn SceneRepo>,
 }
 
-impl Scene {
+impl SceneRepository {
     pub fn new(repo: Arc<dyn SceneRepo>) -> Self {
         Self { repo }
     }

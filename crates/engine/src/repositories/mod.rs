@@ -2,6 +2,11 @@
 //!
 //! Each repository wraps a port trait and provides the interface
 //! for use cases to access persisted aggregates.
+//!
+//! Naming convention:
+//! - `*Repository` - Data access wrappers for domain entities
+//! - `*Service` - Wrappers for infrastructure services (LLM, queue, clock, random)
+//! - `*Store` - In-memory state storage (session, pending staging, etc.)
 
 pub mod act;
 pub mod assets;
@@ -35,39 +40,46 @@ pub mod world;
 #[cfg(test)]
 mod narrative_integration_tests;
 
-pub use act::Act;
-pub use assets::Assets;
-pub use challenge::Challenge;
-pub use character::Character;
-pub use clock::Clock;
-pub use content::Content;
-pub use directorial::DirectorialContextStore;
-pub use flag::Flag;
-pub use goal::Goal;
-pub use interaction::Interaction;
-pub use inventory::Inventory;
+// Repositories (entity data access)
+pub use act::ActRepository;
+pub use assets::AssetsRepository;
+pub use challenge::ChallengeRepository;
+pub use character::CharacterRepository;
+pub use content::ContentRepository;
+pub use flag::FlagRepository;
+pub use goal::GoalRepository;
+pub use interaction::InteractionRepository;
 pub use inventory::InventoryActionResult;
 pub use inventory::InventoryError;
-pub use llm::Llm;
+pub use inventory::InventoryRepository;
 pub use location::Location;
 pub use location::RegionExit;
 pub use location::RegionExitsResult;
 pub use location::SkippedExit;
-pub use location_state::LocationStateEntity;
-pub use lore::Lore;
-pub use narrative::Narrative;
-pub use observation::Observation;
-pub use pending_staging::PendingStaging;
-pub use player_character::PlayerCharacter;
-pub use queue::Queue;
-pub use random::Random;
-pub use region_state::RegionStateEntity;
-pub use scene::Scene;
+pub use location_state::LocationStateRepository;
+pub use lore::LoreRepository;
+pub use narrative::NarrativeRepository;
+pub use observation::ObservationRepository;
+pub use player_character::PlayerCharacterRepository;
+pub use region_state::RegionStateRepository;
 pub use scene::SceneConsideration;
+pub use scene::SceneRepository;
 pub use scene::SceneResolutionContext;
 pub use scene::SceneResolutionResult;
+pub use settings::SettingsError;
+pub use settings::SettingsRepository;
+pub use staging::StagingRepository;
+pub use world::WorldError;
+pub use world::WorldRepository;
+
+// Services (infrastructure wrappers)
+pub use clock::ClockService;
+pub use llm::LlmService;
+pub use queue::QueueService;
+pub use random::RandomService;
+
+// Stores (in-memory state)
+pub use directorial::DirectorialContextStore;
+pub use pending_staging::PendingStaging;
 pub use session::WorldSession;
-pub use settings::{Settings, SettingsError};
-pub use staging::Staging;
 pub use time_suggestion::TimeSuggestionStore;
-pub use world::{World, WorldError};

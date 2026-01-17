@@ -4,17 +4,17 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{SkillCategory, SkillId, WorldId};
 
-use crate::repositories::Content;
+use crate::repositories::ContentRepository;
 use crate::use_cases::validation::require_non_empty;
 
 use super::ManagementError;
 
 pub struct SkillCrud {
-    content: Arc<Content>,
+    content: Arc<ContentRepository>,
 }
 
 impl SkillCrud {
-    pub fn new(content: Arc<Content>) -> Self {
+    pub fn new(content: Arc<ContentRepository>) -> Self {
         Self { content }
     }
 

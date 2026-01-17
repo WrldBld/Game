@@ -11,9 +11,10 @@ use wrldbldr_domain::{
 
 use crate::infrastructure::ports::RepoError;
 use crate::repositories::location::Location;
-use crate::repositories::scene::Scene;
-use crate::repositories::staging::Staging;
-use crate::repositories::{Flag, Inventory, Observation, PlayerCharacter, World};
+use crate::repositories::{
+    FlagRepository, InventoryRepository, ObservationRepository, PlayerCharacterRepository,
+    SceneRepository, StagingRepository, WorldRepository,
+};
 use crate::use_cases::narrative_operations::Narrative;
 use crate::use_cases::time::{SuggestTime, TimeSuggestion};
 
@@ -54,29 +55,29 @@ pub enum StagingStatus {
 ///
 /// Orchestrates: Movement validation, staging resolution, scene resolution, observation updates, trigger checks, time suggestions.
 pub struct EnterRegion {
-    player_character: Arc<PlayerCharacter>,
+    player_character: Arc<PlayerCharacterRepository>,
     location: Arc<Location>,
-    staging: Arc<Staging>,
-    observation: Arc<Observation>,
+    staging: Arc<StagingRepository>,
+    observation: Arc<ObservationRepository>,
     narrative: Arc<Narrative>,
-    scene: Arc<Scene>,
-    inventory: Arc<Inventory>,
-    flag: Arc<Flag>,
-    world: Arc<World>,
+    scene: Arc<SceneRepository>,
+    inventory: Arc<InventoryRepository>,
+    flag: Arc<FlagRepository>,
+    world: Arc<WorldRepository>,
     suggest_time: Arc<SuggestTime>,
 }
 
 impl EnterRegion {
     pub fn new(
-        player_character: Arc<PlayerCharacter>,
+        player_character: Arc<PlayerCharacterRepository>,
         location: Arc<Location>,
-        staging: Arc<Staging>,
-        observation: Arc<Observation>,
+        staging: Arc<StagingRepository>,
+        observation: Arc<ObservationRepository>,
         narrative: Arc<Narrative>,
-        scene: Arc<Scene>,
-        inventory: Arc<Inventory>,
-        flag: Arc<Flag>,
-        world: Arc<World>,
+        scene: Arc<SceneRepository>,
+        inventory: Arc<InventoryRepository>,
+        flag: Arc<FlagRepository>,
+        world: Arc<WorldRepository>,
         suggest_time: Arc<SuggestTime>,
     ) -> Self {
         Self {
@@ -300,7 +301,7 @@ mod tests {
         MockSceneRepo, MockStagingRepo, MockWorldRepo,
     };
     use crate::repositories;
-    use crate::repositories::{Inventory, Staging as StagingOp};
+    use crate::repositories::{InventoryRepository, StagingRepository};
     use crate::use_cases::{Location, Narrative, Scene};
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -317,47 +318,49 @@ mod tests {
         world_repo: MockWorldRepo,
         clock_port: Arc<dyn ClockPort>,
     ) -> super::EnterRegion {
-        let clock = Arc::new(repositories::Clock::new(clock_port.clone()));
-        let player_character = Arc::new(repositories::PlayerCharacter::new(Arc::new(
+        let clock = Arc::new(repositories::ClockService::new(clock_port.clone()));
+        let player_character = Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
             player_character_repo,
         )));
 
         let location_repo = Arc::new(location_repo);
         let location = Arc::new(Location::new(location_repo.clone()));
 
-        let staging = Arc::new(StagingOp::new(Arc::new(MockStagingRepo::new())));
+        let staging = Arc::new(StagingRepository::new(Arc::new(MockStagingRepo::new())));
 
-        let observation = Arc::new(repositories::Observation::new(
+        let observation = Arc::new(repositories::ObservationRepository::new(
             Arc::new(MockObservationRepo::new()),
             location_repo.clone(),
             clock_port.clone(),
         ));
 
         let scene = Arc::new(Scene::new(Arc::new(MockSceneRepo::new())));
-        let inventory = Arc::new(Inventory::new(
+        let inventory = Arc::new(InventoryRepository::new(
             Arc::new(MockItemRepo::new()),
             Arc::new(MockCharacterRepo::new()),
             Arc::new(MockPlayerCharacterRepo::new()),
         ));
-        let flag = Arc::new(repositories::Flag::new(Arc::new(MockFlagRepo::new())));
+        let flag = Arc::new(repositories::FlagRepository::new(Arc::new(
+            MockFlagRepo::new(),
+        )));
 
-        let world = Arc::new(repositories::World::new(
+        let world = Arc::new(repositories::WorldRepository::new(
             Arc::new(world_repo),
             clock_port.clone(),
         ));
         let narrative = Arc::new(Narrative::new(
-            Arc::new(repositories::Narrative::new(
+            Arc::new(repositories::NarrativeRepository::new(
                 Arc::new(MockNarrativeRepo::new()),
                 clock_port.clone(),
             )),
             location.clone(),
             world.clone(),
             player_character.clone(),
-            Arc::new(repositories::Character::new(Arc::new(
+            Arc::new(repositories::CharacterRepository::new(Arc::new(
                 MockCharacterRepo::new(),
             ))),
             observation.clone(),
-            Arc::new(repositories::Challenge::new(Arc::new(
+            Arc::new(repositories::ChallengeRepository::new(Arc::new(
                 MockChallengeRepo::new(),
             ))),
             flag.clone(),

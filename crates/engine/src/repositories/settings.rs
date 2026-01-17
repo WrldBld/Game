@@ -18,11 +18,11 @@ use crate::infrastructure::ports::{RepoError, SettingsRepo};
 /// - Global settings management
 /// - Per-world settings with fallback to global
 /// - Settings metadata for UI/configuration
-pub struct Settings {
+pub struct SettingsRepository {
     repo: Arc<dyn SettingsRepo>,
 }
 
-impl Settings {
+impl SettingsRepository {
     pub fn new(repo: Arc<dyn SettingsRepo>) -> Self {
         Self { repo }
     }

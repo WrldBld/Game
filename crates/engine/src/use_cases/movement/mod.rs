@@ -12,9 +12,10 @@ pub use scene_change::{
 };
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::scene::{Scene, SceneResolutionContext};
-use crate::repositories::staging::Staging as StagingEntity;
-use crate::repositories::{Flag, Inventory, Observation};
+use crate::repositories::{
+    FlagRepository, InventoryRepository, ObservationRepository, SceneRepository,
+    SceneResolutionContext, StagingRepository,
+};
 use crate::use_cases::custom_condition::{CustomConditionEvaluator, EvaluationContext};
 use crate::use_cases::time::{SuggestTime, SuggestTimeResult, TimeSuggestion};
 use chrono::{DateTime, Utc};
@@ -46,7 +47,7 @@ impl MovementUseCases {
 /// # Returns
 /// A tuple of (visible NPCs, staging status)
 pub async fn resolve_staging_for_region(
-    staging: &StagingEntity,
+    staging: &StagingRepository,
     region_id: RegionId,
     location_id: LocationId,
     world_id: WorldId,
@@ -164,10 +165,10 @@ pub async fn suggest_time_for_movement(
 /// # Returns
 /// The resolved scene, if any matches the conditions
 pub async fn resolve_scene_for_region(
-    scene: &Scene,
-    inventory: &Inventory,
-    observation: &Observation,
-    flag: &Flag,
+    scene: &SceneRepository,
+    inventory: &InventoryRepository,
+    observation: &ObservationRepository,
+    flag: &FlagRepository,
     pc_id: PlayerCharacterId,
     world_id: WorldId,
     region_id: RegionId,
@@ -209,10 +210,10 @@ pub async fn resolve_scene_for_region(
 /// # Returns
 /// The resolved scene, if any matches the conditions
 pub async fn resolve_scene_for_region_with_evaluator(
-    scene: &Scene,
-    inventory: &Inventory,
-    observation: &Observation,
-    flag: &Flag,
+    scene: &SceneRepository,
+    inventory: &InventoryRepository,
+    observation: &ObservationRepository,
+    flag: &FlagRepository,
     pc_id: PlayerCharacterId,
     world_id: WorldId,
     region_id: RegionId,

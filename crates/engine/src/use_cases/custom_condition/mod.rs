@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use crate::infrastructure::ports::{ChatMessage, LlmError, LlmRequest};
-use crate::repositories::Llm;
+use crate::repositories::LlmService;
 
 /// Result of evaluating a custom condition.
 #[derive(Debug, Clone)]
@@ -150,13 +150,13 @@ impl EvaluationContext {
 /// This use case wraps the LLM port and provides a structured way to evaluate
 /// natural language conditions against the current game state.
 pub struct CustomConditionEvaluator {
-    llm: Arc<Llm>,
+    llm: Arc<LlmService>,
     /// Minimum confidence threshold to consider condition met (default: 0.7)
     confidence_threshold: f32,
 }
 
 impl CustomConditionEvaluator {
-    pub fn new(llm: Arc<Llm>) -> Self {
+    pub fn new(llm: Arc<LlmService>) -> Self {
         Self {
             llm,
             confidence_threshold: 0.7,
@@ -355,7 +355,7 @@ Please evaluate whether this condition is currently met and respond with the JSO
 mod tests {
     use super::*;
     use crate::infrastructure::ports::{FinishReason, LlmPort, LlmResponse, ToolDefinition};
-    use crate::repositories::Llm;
+    use crate::repositories::LlmService;
     use async_trait::async_trait;
 
     /// Mock LLM that returns a configurable response
@@ -393,7 +393,7 @@ mod tests {
 
     fn build_evaluator(response: impl Into<String>) -> CustomConditionEvaluator {
         let mock = Arc::new(MockLlm::new(response));
-        let llm = Arc::new(Llm::new(mock));
+        let llm = Arc::new(LlmService::new(mock));
         CustomConditionEvaluator::new(llm)
     }
 

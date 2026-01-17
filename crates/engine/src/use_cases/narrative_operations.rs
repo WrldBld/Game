@@ -15,8 +15,9 @@ use wrldbldr_domain::{
 use crate::infrastructure::ports::RepoError;
 use crate::llm_context::ConversationTurn;
 use crate::repositories::{
-    Challenge, Character, Clock, Flag, Location, Narrative as NarrativeRepository, Observation,
-    PlayerCharacter, Scene, World,
+    ChallengeRepository, CharacterRepository, ClockService, FlagRepository, Location,
+    NarrativeRepository, ObservationRepository, PlayerCharacterRepository, SceneRepository,
+    WorldRepository,
 };
 
 /// Backward-compatible alias for `NarrativeOps`.
@@ -34,14 +35,14 @@ pub struct NarrativeOps {
     /// Narrative repository wrapper
     narrative: Arc<NarrativeRepository>,
     location_repo: Arc<Location>,
-    world_repo: Arc<World>,
-    player_character_repo: Arc<PlayerCharacter>,
-    character_repo: Arc<Character>,
-    observation_repo: Arc<Observation>,
-    challenge_repo: Arc<Challenge>,
-    flag_repo: Arc<Flag>,
-    scene_repo: Arc<Scene>,
-    clock: Arc<Clock>,
+    world_repo: Arc<WorldRepository>,
+    player_character_repo: Arc<PlayerCharacterRepository>,
+    character_repo: Arc<CharacterRepository>,
+    observation_repo: Arc<ObservationRepository>,
+    challenge_repo: Arc<ChallengeRepository>,
+    flag_repo: Arc<FlagRepository>,
+    scene_repo: Arc<SceneRepository>,
+    clock: Arc<ClockService>,
 }
 
 #[cfg(test)]
@@ -57,8 +58,9 @@ mod trigger_tests {
         MockWorldRepo,
     };
     use crate::repositories::{
-        Challenge, Character, Clock, Flag, Location, Narrative, Observation, PlayerCharacter,
-        Scene, World,
+        ChallengeRepository, CharacterRepository, ClockService, FlagRepository, Location,
+        NarrativeRepository, ObservationRepository, PlayerCharacterRepository, SceneRepository,
+        WorldRepository,
     };
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -91,22 +93,25 @@ mod trigger_tests {
         let scene_repo = Arc::new(MockSceneRepo::new());
 
         let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let clock = Arc::new(Clock::new(clock_port.clone()));
+        let clock = Arc::new(ClockService::new(clock_port.clone()));
 
         let narrative_ops = super::NarrativeOps::new(
-            Arc::new(Narrative::new(Arc::new(narrative_repo), clock_port.clone())),
+            Arc::new(NarrativeRepository::new(
+                Arc::new(narrative_repo),
+                clock_port.clone(),
+            )),
             Arc::new(Location::new(location_repo.clone())),
-            Arc::new(World::new(world_repo.clone(), clock_port.clone())),
-            Arc::new(PlayerCharacter::new(player_character_repo)),
-            Arc::new(Character::new(character_repo)),
-            Arc::new(Observation::new(
+            Arc::new(WorldRepository::new(world_repo.clone(), clock_port.clone())),
+            Arc::new(PlayerCharacterRepository::new(player_character_repo)),
+            Arc::new(CharacterRepository::new(character_repo)),
+            Arc::new(ObservationRepository::new(
                 observation_repo,
                 location_repo,
                 clock_port.clone(),
             )),
-            Arc::new(Challenge::new(challenge_repo)),
-            Arc::new(Flag::new(flag_repo)),
-            Arc::new(Scene::new(scene_repo)),
+            Arc::new(ChallengeRepository::new(challenge_repo)),
+            Arc::new(FlagRepository::new(flag_repo)),
+            Arc::new(SceneRepository::new(scene_repo)),
             clock,
         );
 
@@ -122,14 +127,14 @@ impl NarrativeOps {
     pub fn new(
         narrative: Arc<NarrativeRepository>,
         location_repo: Arc<Location>,
-        world_repo: Arc<World>,
-        player_character_repo: Arc<PlayerCharacter>,
-        character_repo: Arc<Character>,
-        observation_repo: Arc<Observation>,
-        challenge_repo: Arc<Challenge>,
-        flag_repo: Arc<Flag>,
-        scene_repo: Arc<Scene>,
-        clock: Arc<Clock>,
+        world_repo: Arc<WorldRepository>,
+        player_character_repo: Arc<PlayerCharacterRepository>,
+        character_repo: Arc<CharacterRepository>,
+        observation_repo: Arc<ObservationRepository>,
+        challenge_repo: Arc<ChallengeRepository>,
+        flag_repo: Arc<FlagRepository>,
+        scene_repo: Arc<SceneRepository>,
+        clock: Arc<ClockService>,
     ) -> Self {
         Self {
             narrative,

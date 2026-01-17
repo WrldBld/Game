@@ -25,8 +25,7 @@ use uuid::Uuid;
 use wrldbldr_domain::{AssetId, CharacterId};
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::character::Character;
-use crate::repositories::{Assets, Clock, Queue};
+use crate::repositories::{AssetsRepository, CharacterRepository, ClockService, QueueService};
 
 /// Standard expression order in a 4x4 grid
 pub const STANDARD_EXPRESSION_ORDER: [&str; 16] = [
@@ -126,18 +125,18 @@ pub struct SlicedExpression {
 /// Generate expression sheet use case.
 #[allow(dead_code)]
 pub struct GenerateExpressionSheet {
-    assets: Arc<Assets>,
-    character: Arc<Character>,
-    queue: Arc<Queue>,
-    clock: Arc<Clock>,
+    assets: Arc<AssetsRepository>,
+    character: Arc<CharacterRepository>,
+    queue: Arc<QueueService>,
+    clock: Arc<ClockService>,
 }
 
 impl GenerateExpressionSheet {
     pub fn new(
-        assets: Arc<Assets>,
-        character: Arc<Character>,
-        queue: Arc<Queue>,
-        clock: Arc<Clock>,
+        assets: Arc<AssetsRepository>,
+        character: Arc<CharacterRepository>,
+        queue: Arc<QueueService>,
+        clock: Arc<ClockService>,
     ) -> Self {
         Self {
             assets,

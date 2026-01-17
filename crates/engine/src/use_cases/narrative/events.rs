@@ -7,7 +7,7 @@ use wrldbldr_domain::{
 };
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::Clock;
+use crate::repositories::ClockService;
 use crate::use_cases::narrative::{EffectExecutionContext, EffectExecutionSummary, ExecuteEffects};
 use crate::use_cases::narrative_operations::Narrative;
 
@@ -59,14 +59,14 @@ pub struct NarrativeEventSummary {
 pub struct NarrativeEventOps {
     narrative: Arc<Narrative>,
     execute_effects: Arc<ExecuteEffects>,
-    clock: Arc<Clock>,
+    clock: Arc<ClockService>,
 }
 
 impl NarrativeEventOps {
     pub fn new(
         narrative: Arc<Narrative>,
         execute_effects: Arc<ExecuteEffects>,
-        clock: Arc<Clock>,
+        clock: Arc<ClockService>,
     ) -> Self {
         Self {
             narrative,

@@ -10,11 +10,11 @@ use crate::infrastructure::ports::{ContentRepo, RepoError};
 ///
 /// Currently provides skill CRUD, but intended to expand with
 /// other system content (feats, spells, etc.) as needed.
-pub struct Content {
+pub struct ContentRepository {
     repo: Arc<dyn ContentRepo>,
 }
 
-impl Content {
+impl ContentRepository {
     pub fn new(repo: Arc<dyn ContentRepo>) -> Self {
         Self { repo }
     }

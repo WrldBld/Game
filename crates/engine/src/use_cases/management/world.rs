@@ -5,17 +5,17 @@ use std::sync::Arc;
 use wrldbldr_domain::value_objects::{Description, WorldName};
 use wrldbldr_domain::WorldId;
 
-use crate::repositories::{Clock, World};
+use crate::repositories::{ClockService, WorldRepository};
 
 use super::ManagementError;
 
 pub struct WorldCrud {
-    world: Arc<World>,
-    clock: Arc<Clock>,
+    world: Arc<WorldRepository>,
+    clock: Arc<ClockService>,
 }
 
 impl WorldCrud {
-    pub fn new(world: Arc<World>, clock: Arc<Clock>) -> Self {
+    pub fn new(world: Arc<WorldRepository>, clock: Arc<ClockService>) -> Self {
         Self { world, clock }
     }
 

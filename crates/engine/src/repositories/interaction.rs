@@ -7,11 +7,11 @@ use wrldbldr_domain::{self as domain, InteractionId, SceneId};
 use crate::infrastructure::ports::{InteractionRepo, RepoError};
 
 /// Interaction entity operations.
-pub struct Interaction {
+pub struct InteractionRepository {
     repo: Arc<dyn InteractionRepo>,
 }
 
-impl Interaction {
+impl InteractionRepository {
     pub fn new(repo: Arc<dyn InteractionRepo>) -> Self {
         Self { repo }
     }

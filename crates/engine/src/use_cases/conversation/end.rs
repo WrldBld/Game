@@ -9,8 +9,8 @@ use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::character::Character;
-use crate::repositories::PlayerCharacter;
+use crate::repositories::character::CharacterRepository;
+use crate::repositories::PlayerCharacterRepository;
 use crate::use_cases::narrative_operations::Narrative;
 
 /// Result of ending a conversation.
@@ -39,15 +39,15 @@ pub struct ConversationEnded {
 /// - Notify any listeners/subscribers that the conversation has ended
 /// - Update NPC disposition based on conversation outcome
 pub struct EndConversation {
-    character: Arc<Character>,
-    player_character: Arc<PlayerCharacter>,
+    character: Arc<CharacterRepository>,
+    player_character: Arc<PlayerCharacterRepository>,
     narrative: Arc<Narrative>,
 }
 
 impl EndConversation {
     pub fn new(
-        character: Arc<Character>,
-        player_character: Arc<PlayerCharacter>,
+        character: Arc<CharacterRepository>,
+        player_character: Arc<PlayerCharacterRepository>,
         narrative: Arc<Narrative>,
     ) -> Self {
         Self {
@@ -168,7 +168,7 @@ mod tests {
         MockWorldRepo,
     };
     use crate::repositories;
-    use crate::repositories::{Character as CharacterOp, Clock as ClockRepo};
+    use crate::repositories::{CharacterRepository, ClockService};
     use crate::use_cases::Narrative;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -179,9 +179,9 @@ mod tests {
         }
     }
 
-    fn build_clock(now: chrono::DateTime<chrono::Utc>) -> (Arc<dyn ClockPort>, Arc<ClockRepo>) {
+    fn build_clock(now: chrono::DateTime<chrono::Utc>) -> (Arc<dyn ClockPort>, Arc<ClockService>) {
         let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let clock = Arc::new(ClockRepo::new(clock_port.clone()));
+        let clock = Arc::new(ClockService::new(clock_port.clone()));
         (clock_port, clock)
     }
 
@@ -198,25 +198,27 @@ mod tests {
         let scene_repo = Arc::new(MockSceneRepo::new());
 
         Arc::new(Narrative::new(
-            Arc::new(repositories::Narrative::new(
+            Arc::new(repositories::NarrativeRepository::new(
                 Arc::new(narrative_repo),
                 clock_port.clone(),
             )),
             Arc::new(repositories::Location::new(location_repo.clone())),
-            Arc::new(repositories::World::new(
+            Arc::new(repositories::WorldRepository::new(
                 world_repo.clone(),
                 clock_port.clone(),
             )),
-            Arc::new(repositories::PlayerCharacter::new(player_character_repo)),
-            Arc::new(repositories::Character::new(character_repo)),
-            Arc::new(repositories::Observation::new(
+            Arc::new(repositories::PlayerCharacterRepository::new(
+                player_character_repo,
+            )),
+            Arc::new(repositories::CharacterRepository::new(character_repo)),
+            Arc::new(repositories::ObservationRepository::new(
                 observation_repo,
                 location_repo,
                 clock_port.clone(),
             )),
-            Arc::new(repositories::Challenge::new(challenge_repo)),
-            Arc::new(repositories::Flag::new(flag_repo)),
-            Arc::new(repositories::Scene::new(scene_repo)),
+            Arc::new(repositories::ChallengeRepository::new(challenge_repo)),
+            Arc::new(repositories::FlagRepository::new(flag_repo)),
+            Arc::new(repositories::SceneRepository::new(scene_repo)),
             clock,
         ))
     }
@@ -234,8 +236,10 @@ mod tests {
             .returning(|_| Ok(None));
 
         let use_case = super::EndConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(MockCharacterRepo::new()))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
+            Arc::new(CharacterRepository::new(Arc::new(MockCharacterRepo::new()))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
             create_narrative_entity(MockNarrativeRepo::new()),
         );
 
@@ -278,8 +282,10 @@ mod tests {
             .returning(|_| Ok(None));
 
         let use_case = super::EndConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
+            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
             create_narrative_entity(MockNarrativeRepo::new()),
         );
 
@@ -335,8 +341,10 @@ mod tests {
             .returning(move |_, _| Ok(Some(conversation_id)));
 
         let use_case = super::EndConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
+            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
             create_narrative_entity(narrative_repo),
         );
 
@@ -400,8 +408,10 @@ mod tests {
             .returning(|_, _| Ok(None));
 
         let use_case = super::EndConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
+            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
             create_narrative_entity(narrative_repo),
         );
 
@@ -466,8 +476,10 @@ mod tests {
             });
 
         let use_case = super::EndConversation::new(
-            Arc::new(CharacterOp::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacter::new(Arc::new(pc_repo))),
+            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
+            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
+                pc_repo,
+            ))),
             create_narrative_entity(narrative_repo),
         );
 

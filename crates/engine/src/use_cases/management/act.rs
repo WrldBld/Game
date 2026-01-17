@@ -4,17 +4,17 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{ActId, WorldId};
 
-use crate::repositories::Act;
+use crate::repositories::ActRepository;
 use crate::use_cases::validation::require_non_empty;
 
 use super::ManagementError;
 
 pub struct ActCrud {
-    act: Arc<Act>,
+    act: Arc<ActRepository>,
 }
 
 impl ActCrud {
-    pub fn new(act: Arc<Act>) -> Self {
+    pub fn new(act: Arc<ActRepository>) -> Self {
         Self { act }
     }
 

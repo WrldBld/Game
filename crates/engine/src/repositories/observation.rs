@@ -9,13 +9,13 @@ use crate::infrastructure::ports::{ClockPort, LocationRepo, ObservationRepo, Rep
 /// Observation entity operations.
 ///
 /// Tracks what NPCs a player character has observed/met.
-pub struct Observation {
+pub struct ObservationRepository {
     repo: Arc<dyn ObservationRepo>,
     location_repo: Arc<dyn LocationRepo>,
     clock: Arc<dyn ClockPort>,
 }
 
-impl Observation {
+impl ObservationRepository {
     pub fn new(
         repo: Arc<dyn ObservationRepo>,
         location_repo: Arc<dyn LocationRepo>,

@@ -5,22 +5,22 @@ use std::sync::Arc;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
 
 use crate::repositories::location::Location;
-use crate::repositories::Clock;
-use crate::repositories::PlayerCharacter;
+use crate::repositories::ClockService;
+use crate::repositories::PlayerCharacterRepository;
 
 use super::ManagementError;
 
 pub struct PlayerCharacterCrud {
-    player_character: Arc<PlayerCharacter>,
+    player_character: Arc<PlayerCharacterRepository>,
     location: Arc<Location>,
-    clock: Arc<Clock>,
+    clock: Arc<ClockService>,
 }
 
 impl PlayerCharacterCrud {
     pub fn new(
-        player_character: Arc<PlayerCharacter>,
+        player_character: Arc<PlayerCharacterRepository>,
         location: Arc<Location>,
-        clock: Arc<Clock>,
+        clock: Arc<ClockService>,
     ) -> Self {
         Self {
             player_character,

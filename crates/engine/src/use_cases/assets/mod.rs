@@ -13,7 +13,7 @@ use wrldbldr_domain::{
 use crate::queue_types::AssetGenerationData;
 
 use crate::infrastructure::ports::{ImageGenError, ImageRequest, RepoError};
-use crate::repositories::{Assets, Clock, Queue};
+use crate::repositories::{AssetsRepository, ClockService, QueueService};
 
 pub use expression_sheet::{
     ExpressionSheetError, ExpressionSheetRequest, ExpressionSheetResult, GenerateExpressionSheet,
@@ -53,13 +53,17 @@ pub struct GenerateResult {
 ///
 /// Orchestrates image generation for game entities.
 pub struct GenerateAsset {
-    assets: Arc<Assets>,
-    queue: Arc<Queue>,
-    clock: Arc<Clock>,
+    assets: Arc<AssetsRepository>,
+    queue: Arc<QueueService>,
+    clock: Arc<ClockService>,
 }
 
 impl GenerateAsset {
-    pub fn new(assets: Arc<Assets>, queue: Arc<Queue>, clock: Arc<Clock>) -> Self {
+    pub fn new(
+        assets: Arc<AssetsRepository>,
+        queue: Arc<QueueService>,
+        clock: Arc<ClockService>,
+    ) -> Self {
         Self {
             assets,
             queue,

@@ -8,11 +8,11 @@ use crate::infrastructure::ports::{PlayerCharacterRepo, RepoError};
 /// Player Character entity operations.
 ///
 /// Encapsulates all player character-related queries and mutations.
-pub struct PlayerCharacter {
+pub struct PlayerCharacterRepository {
     repo: Arc<dyn PlayerCharacterRepo>,
 }
 
-impl PlayerCharacter {
+impl PlayerCharacterRepository {
     pub fn new(repo: Arc<dyn PlayerCharacterRepo>) -> Self {
         Self { repo }
     }

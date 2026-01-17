@@ -5,10 +5,10 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{LocationId, RegionId, StagingSource, WorldId};
 
-use crate::repositories::character::Character;
-use crate::repositories::location::Location;
-use crate::repositories::staging::Staging;
-use crate::repositories::{LocationStateEntity, RegionStateEntity, World};
+use crate::repositories::{
+    CharacterRepository, Location, LocationStateRepository, RegionStateRepository,
+    StagingRepository, WorldRepository,
+};
 
 use super::types::{ApprovedNpc, NpcPresent, ResolvedStateInfo, ResolvedVisualState};
 use super::StagingError;
@@ -35,22 +35,22 @@ pub struct StagingReadyPayload {
 
 /// Use case for applying DM staging approvals.
 pub struct ApproveStagingRequest {
-    staging: Arc<Staging>,
-    world: Arc<World>,
-    character: Arc<Character>,
+    staging: Arc<StagingRepository>,
+    world: Arc<WorldRepository>,
+    character: Arc<CharacterRepository>,
     location: Arc<Location>,
-    location_state: Arc<LocationStateEntity>,
-    region_state: Arc<RegionStateEntity>,
+    location_state: Arc<LocationStateRepository>,
+    region_state: Arc<RegionStateRepository>,
 }
 
 impl ApproveStagingRequest {
     pub fn new(
-        staging: Arc<Staging>,
-        world: Arc<World>,
-        character: Arc<Character>,
+        staging: Arc<StagingRepository>,
+        world: Arc<WorldRepository>,
+        character: Arc<CharacterRepository>,
         location: Arc<Location>,
-        location_state: Arc<LocationStateEntity>,
-        region_state: Arc<RegionStateEntity>,
+        location_state: Arc<LocationStateRepository>,
+        region_state: Arc<RegionStateRepository>,
     ) -> Self {
         Self {
             staging,

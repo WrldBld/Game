@@ -8,7 +8,7 @@ use wrldbldr_domain::{
 use crate::infrastructure::ports::{ClockPort, RepoError, WorldRepo};
 
 /// World entity operations.
-pub struct World {
+pub struct WorldRepository {
     repo: Arc<dyn WorldRepo>,
     clock: Arc<dyn ClockPort>,
 }
@@ -22,7 +22,7 @@ pub enum WorldError {
     Repo(#[from] RepoError),
 }
 
-impl World {
+impl WorldRepository {
     pub fn new(repo: Arc<dyn WorldRepo>, clock: Arc<dyn ClockPort>) -> Self {
         Self { repo, clock }
     }

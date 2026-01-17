@@ -18,7 +18,7 @@ use wrldbldr_domain::WorldId;
 
 use crate::infrastructure::app_settings::AppSettings;
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::Settings;
+use crate::repositories::SettingsRepository;
 
 // Re-export types
 pub use crate::infrastructure::ports::{PendingStagingRequest, TimeSuggestion};
@@ -47,7 +47,7 @@ pub const DEFAULT_STAGING_TIMEOUT_SECONDS: u64 = 30;
 ///
 /// This ensures staging operations never fail due to settings unavailability.
 async fn get_settings_with_fallback(
-    settings: &Settings,
+    settings: &SettingsRepository,
     world_id: WorldId,
     operation: &str,
 ) -> AppSettings {

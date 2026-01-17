@@ -8,7 +8,7 @@ use crate::infrastructure::ports::{CharacterRepo, ItemRepo, PlayerCharacterRepo,
 /// Inventory entity operations.
 ///
 /// Handles items in the game world and character inventories.
-pub struct Inventory {
+pub struct InventoryRepository {
     item_repo: Arc<dyn ItemRepo>,
     character_repo: Arc<dyn CharacterRepo>,
     pc_repo: Arc<dyn PlayerCharacterRepo>,
@@ -20,7 +20,7 @@ pub struct InventoryActionResult {
     pub quantity: u32,
 }
 
-impl Inventory {
+impl InventoryRepository {
     pub fn new(
         item_repo: Arc<dyn ItemRepo>,
         character_repo: Arc<dyn CharacterRepo>,
