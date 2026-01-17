@@ -42,9 +42,7 @@ pub(super) async fn handle_goal_request(
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
         GoalRequest::ListGoals { world_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
@@ -78,9 +76,7 @@ pub(super) async fn handle_goal_request(
         }
 
         GoalRequest::GetGoal { goal_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let goal_id_typed = match parse_goal_id_for_request(&goal_id, request_id) {
                 Ok(id) => id,
@@ -102,9 +98,7 @@ pub(super) async fn handle_goal_request(
         }
 
         GoalRequest::CreateGoal { world_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
@@ -145,9 +139,7 @@ pub(super) async fn handle_goal_request(
         }
 
         GoalRequest::UpdateGoal { goal_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let goal_id_typed = match parse_goal_id_for_request(&goal_id, request_id) {
                 Ok(id) => id,
@@ -190,9 +182,7 @@ pub(super) async fn handle_goal_request(
         }
 
         GoalRequest::DeleteGoal { goal_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let goal_id_typed = match parse_goal_id_for_request(&goal_id, request_id) {
                 Ok(id) => id,
@@ -236,9 +226,7 @@ pub(super) async fn handle_want_request(
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
         WantRequest::ListWants { character_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let character_id_typed = match parse_character_id_for_request(&character_id, request_id)
             {
@@ -274,9 +262,7 @@ pub(super) async fn handle_want_request(
         }
 
         WantRequest::GetWant { want_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let want_id_typed = match parse_want_id_for_request(&want_id, request_id) {
                 Ok(id) => id,
@@ -317,9 +303,7 @@ pub(super) async fn handle_want_request(
         }
 
         WantRequest::CreateWant { character_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let character_id_typed = match parse_character_id_for_request(&character_id, request_id)
             {
@@ -400,9 +384,7 @@ pub(super) async fn handle_want_request(
         }
 
         WantRequest::UpdateWant { want_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let want_id_typed = match parse_want_id_for_request(&want_id, request_id) {
                 Ok(id) => id,
@@ -457,9 +439,7 @@ pub(super) async fn handle_want_request(
         }
 
         WantRequest::DeleteWant { want_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let want_id_typed = match parse_want_id_for_request(&want_id, request_id) {
                 Ok(id) => id,
@@ -509,9 +489,7 @@ pub(super) async fn handle_want_request(
             target_id,
             target_type,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let want_id_typed = match parse_want_id_for_request(&want_id, request_id) {
                 Ok(id) => id,
@@ -552,9 +530,7 @@ pub(super) async fn handle_want_request(
         }
 
         WantRequest::RemoveWantTarget { want_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let want_id_typed = match parse_want_id_for_request(&want_id, request_id) {
                 Ok(id) => id,
@@ -595,9 +571,7 @@ pub(super) async fn handle_actantial_request(
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
         ActantialRequest::GetActantialContext { character_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let character_id_typed = match parse_character_id_for_request(&character_id, request_id)
             {
@@ -635,9 +609,7 @@ pub(super) async fn handle_actantial_request(
             role,
             reason,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let character_id_typed = match parse_character_id_for_request(&character_id, request_id)
             {
@@ -692,9 +664,7 @@ pub(super) async fn handle_actantial_request(
             target_type,
             role,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let character_id_typed = match parse_character_id_for_request(&character_id, request_id)
             {

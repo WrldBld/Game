@@ -195,8 +195,8 @@ fn validate_input_markers(text: &str) -> InputValidation {
 
     // Use standard config for validation
     let config = ExpressionConfig::default();
-    let expressions: Vec<String> = config.expressions().iter().cloned().collect();
-    let actions: Vec<String> = config.actions().iter().cloned().collect();
+    let expressions: Vec<String> = config.expressions().to_vec();
+    let actions: Vec<String> = config.actions().to_vec();
 
     // Get warnings from domain validation
     let domain_warnings = validate_markers(&markers, &expressions, &actions);
@@ -218,7 +218,7 @@ fn validate_input_markers(text: &str) -> InputValidation {
 
     // Check for unclosed markers
     let open_count = text.matches('*').count();
-    if open_count % 2 != 0 {
+    if !open_count.is_multiple_of(2) {
         warnings.push("Unclosed marker - use *expression* format".to_string());
     }
 
@@ -230,9 +230,8 @@ fn validate_input_markers(text: &str) -> InputValidation {
                 .iter()
                 .any(|e: &String| e.eq_ignore_ascii_case(action))
             {
-                warnings.push(format!(
-                    "Tip: Use *action|expression* format (e.g., *sighs|sad*)"
-                ));
+                warnings
+                    .push("Tip: Use *action|expression* format (e.g., *sighs|sad*)".to_string());
                 break;
             }
         }

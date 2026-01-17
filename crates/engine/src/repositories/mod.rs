@@ -59,7 +59,6 @@ pub use player_character::PlayerCharacterRepository;
 pub use region_state::RegionStateRepository;
 pub use scene::SceneRepository;
 pub use scene::SceneResolutionContext;
-pub use scene::SceneResolutionResult;
 pub use settings::SettingsRepository;
 pub use staging::StagingRepository;
 pub use world::WorldError;

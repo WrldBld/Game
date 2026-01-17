@@ -15,10 +15,7 @@ use crate::queue_types::AssetGenerationData;
 use crate::infrastructure::ports::{ImageGenError, ImageRequest, RepoError};
 use crate::repositories::{AssetsRepository, ClockService, QueueService};
 
-pub use expression_sheet::{
-    ExpressionSheetError, ExpressionSheetRequest, ExpressionSheetResult, GenerateExpressionSheet,
-    SlicedExpression, STANDARD_EXPRESSION_ORDER,
-};
+pub use expression_sheet::GenerateExpressionSheet;
 
 /// Container for asset use cases.
 pub struct AssetUseCases {

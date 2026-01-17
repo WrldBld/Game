@@ -40,17 +40,17 @@ impl Neo4jRegionStateRepo {
 
         let backdrop_override: Option<AssetPath> = node
             .get_optional_string("backdrop_override")
-            .map(|s| AssetPath::new(s))
+            .map(AssetPath::new)
             .transpose()
             .map_err(|e| RepoError::database("parse", e))?;
         let atmosphere_override: Option<Atmosphere> = node
             .get_optional_string("atmosphere_override")
-            .map(|s| Atmosphere::new(s))
+            .map(Atmosphere::new)
             .transpose()
             .map_err(|e| RepoError::database("parse", e))?;
         let ambient_sound: Option<AssetPath> = node
             .get_optional_string("ambient_sound")
-            .map(|s| AssetPath::new(s))
+            .map(AssetPath::new)
             .transpose()
             .map_err(|e| RepoError::database("parse", e))?;
 
@@ -314,7 +314,7 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
             );
             return Err(RepoError::not_found(
                 "RegionState",
-                &format!("region:{}/state:{}", region_id, state_id),
+                format!("region:{}/state:{}", region_id, state_id),
             ));
         }
 

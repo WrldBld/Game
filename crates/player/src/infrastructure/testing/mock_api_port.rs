@@ -1,3 +1,6 @@
+// Test/mock code uses unwrap for brevity - panics are acceptable in tests
+#![allow(clippy::unwrap_used)]
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 

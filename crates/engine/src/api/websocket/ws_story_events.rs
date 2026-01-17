@@ -36,9 +36,7 @@ pub(super) async fn handle_story_event_request(
         }
 
         StoryEventRequest::UpdateStoryEvent { event_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let event_uuid = match parse_uuid_for_request(&event_id, request_id, "Invalid event_id")
             {
@@ -95,9 +93,7 @@ pub(super) async fn handle_story_event_request(
         }
 
         StoryEventRequest::CreateDmMarker { world_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_uuid = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
@@ -123,9 +119,7 @@ pub(super) async fn handle_story_event_request(
         }
 
         StoryEventRequest::SetStoryEventVisibility { event_id, visible } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let event_uuid = match parse_uuid_for_request(&event_id, request_id, "Invalid event_id")
             {

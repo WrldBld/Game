@@ -38,22 +38,22 @@ impl Neo4jLocationStateRepo {
 
         let backdrop_override: Option<AssetPath> = node
             .get_optional_string("backdrop_override")
-            .map(|s| AssetPath::new(s))
+            .map(AssetPath::new)
             .transpose()
             .map_err(|e| RepoError::database("parse", e))?;
         let atmosphere_override: Option<Atmosphere> = node
             .get_optional_string("atmosphere_override")
-            .map(|s| Atmosphere::new(s))
+            .map(Atmosphere::new)
             .transpose()
             .map_err(|e| RepoError::database("parse", e))?;
         let ambient_sound: Option<AssetPath> = node
             .get_optional_string("ambient_sound")
-            .map(|s| AssetPath::new(s))
+            .map(AssetPath::new)
             .transpose()
             .map_err(|e| RepoError::database("parse", e))?;
         let map_overlay: Option<AssetPath> = node
             .get_optional_string("map_overlay")
-            .map(|s| AssetPath::new(s))
+            .map(AssetPath::new)
             .transpose()
             .map_err(|e| RepoError::database("parse", e))?;
 
@@ -329,7 +329,7 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
             );
             return Err(RepoError::not_found(
                 "LocationState",
-                &format!("location:{}/state:{}", location_id, state_id),
+                format!("location:{}/state:{}", location_id, state_id),
             ));
         }
 

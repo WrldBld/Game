@@ -93,9 +93,7 @@ pub(super) async fn handle_world_request(
         }
 
         WorldRequest::UpdateWorld { world_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
@@ -126,9 +124,7 @@ pub(super) async fn handle_world_request(
         }
 
         WorldRequest::DeleteWorld { world_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
@@ -321,9 +317,7 @@ pub(super) async fn handle_character_request(
         }
 
         CharacterRequest::CreateCharacter { world_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
@@ -365,9 +359,7 @@ pub(super) async fn handle_character_request(
         }
 
         CharacterRequest::UpdateCharacter { character_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let char_id = match parse_character_id_for_request(&character_id, request_id) {
                 Ok(id) => id,
@@ -413,9 +405,7 @@ pub(super) async fn handle_character_request(
         }
 
         CharacterRequest::DeleteCharacter { character_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let char_id = match parse_character_id_for_request(&character_id, request_id) {
                 Ok(id) => id,
@@ -442,9 +432,7 @@ pub(super) async fn handle_character_request(
         }
 
         CharacterRequest::ChangeArchetype { character_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let char_id = match parse_character_id_for_request(&character_id, request_id) {
                 Ok(id) => id,
@@ -561,9 +549,7 @@ pub(super) async fn handle_time_request(
         }
 
         TimeRequest::AdvanceGameTime { world_id, hours } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_id_typed =
                 match parse_uuid_for_request(&world_id, request_id, "Invalid world ID") {
@@ -625,9 +611,7 @@ pub(super) async fn handle_time_request(
             minutes,
             reason: _reason,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_id_typed =
                 match parse_uuid_for_request(&world_id, request_id, "Invalid world ID") {
@@ -696,9 +680,7 @@ pub(super) async fn handle_time_request(
             hour,
             notify_players,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_id_typed =
                 match parse_uuid_for_request(&world_id, request_id, "Invalid world ID") {
@@ -762,9 +744,7 @@ pub(super) async fn handle_time_request(
         }
 
         TimeRequest::SkipToPeriod { world_id, period } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_id_typed =
                 match parse_uuid_for_request(&world_id, request_id, "Invalid world ID") {
@@ -882,9 +862,7 @@ pub(super) async fn handle_time_request(
         }
 
         TimeRequest::UpdateTimeConfig { world_id, config } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_id_typed =
                 match parse_uuid_for_request(&world_id, request_id, "Invalid world ID") {
@@ -951,9 +929,7 @@ pub(super) async fn handle_npc_request(
             disposition,
             reason,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let npc_id_typed = match parse_character_id_for_request(&npc_id, request_id) {
                 Ok(id) => id,
@@ -1021,9 +997,7 @@ pub(super) async fn handle_npc_request(
             pc_id,
             relationship,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let npc_id_typed = match parse_character_id_for_request(&npc_id, request_id) {
                 Ok(id) => id,
@@ -1183,9 +1157,7 @@ pub(super) async fn handle_npc_request(
             character_id,
             region_id,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let char_uuid = match parse_character_id_for_request(&character_id, request_id) {
                 Ok(id) => id,
@@ -1223,9 +1195,7 @@ pub(super) async fn handle_npc_request(
             character_id,
             region_id,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let char_uuid = match parse_character_id_for_request(&character_id, request_id) {
                 Ok(id) => id,
@@ -1264,9 +1234,7 @@ pub(super) async fn handle_npc_request(
             region_id,
             relationship_type,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let char_uuid = match parse_character_id_for_request(&character_id, request_id) {
                 Ok(id) => id,
@@ -1426,7 +1394,7 @@ pub(super) async fn handle_npc_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    e.to_string(),
                 )),
             }
         }
@@ -1468,7 +1436,7 @@ pub(super) async fn handle_npc_request(
                 }))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    e.to_string(),
                 )),
             }
         }
@@ -1483,9 +1451,7 @@ pub(super) async fn handle_items_request(
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
         ItemsRequest::PlaceItemInRegion { region_id, item_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let region_uuid = match parse_region_id_for_request(&region_id, request_id) {
                 Ok(id) => id,
@@ -1518,9 +1484,7 @@ pub(super) async fn handle_items_request(
             region_id,
             data,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_uuid = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,

@@ -335,8 +335,8 @@ pub(super) async fn handle_perform_interaction(
         });
     }
 
-    let target = interaction_target_label(&interaction.target());
-    let action_type = interaction_action_type(&interaction.interaction_type());
+    let target = interaction_target_label(interaction.target());
+    let action_type = interaction_action_type(interaction.interaction_type());
 
     let action_data = PlayerActionData {
         world_id,

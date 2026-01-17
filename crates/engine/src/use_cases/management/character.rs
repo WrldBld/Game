@@ -108,7 +108,7 @@ impl CharacterCrud {
             .with_current_archetype(character.current_archetype())
             .with_archetype_history(character.archetype_history().to_vec())
             .with_default_disposition(character.default_disposition())
-            .with_default_mood(character.default_mood().clone())
+            .with_default_mood(*character.default_mood())
             .with_expression_config(character.expression_config().clone());
             // Copy assets if present
             let new_character = if let Some(sprite) = character.sprite_asset() {
@@ -160,7 +160,7 @@ impl CharacterCrud {
                     .with_current_archetype(character.current_archetype())
                     .with_archetype_history(character.archetype_history().to_vec())
                     .with_default_disposition(character.default_disposition())
-                    .with_default_mood(character.default_mood().clone())
+                    .with_default_mood(*character.default_mood())
                     .with_expression_config(character.expression_config().clone());
                 }
             }

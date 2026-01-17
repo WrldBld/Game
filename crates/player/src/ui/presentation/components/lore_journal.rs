@@ -90,7 +90,7 @@ fn category_icon(category: &str) -> &'static str {
 #[component]
 pub fn LoreJournal(props: LoreJournalProps) -> Element {
     let mut selected_category = use_signal(|| "all".to_string());
-    let mut search_query = use_signal(|| String::new());
+    let mut search_query = use_signal(String::new);
     let mut expanded_entry = use_signal(|| None::<String>);
 
     // Get unique categories

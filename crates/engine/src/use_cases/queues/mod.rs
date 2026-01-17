@@ -826,7 +826,7 @@ impl ProcessLlmRequest {
                 };
 
                 // Build tool definitions for function calling
-                let tools = tool_builder::build_game_tool_definitions();
+                let _tools = tool_builder::build_game_tool_definitions();
 
                 // Extract NPC context for error logging
                 let npc_name_for_log = request_data

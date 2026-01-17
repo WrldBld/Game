@@ -409,7 +409,7 @@ impl ResolveVisualState {
                     return false;
                 }
                 let current = context.game_time.current();
-                current.month() as u32 == *month && current.day() as u32 == *day
+                current.month() == *month && current.day() == *day
             }
 
             ActivationRule::DateRange {
@@ -437,8 +437,8 @@ impl ResolveVisualState {
                 }
 
                 let current = context.game_time.current();
-                let current_month = current.month() as u32;
-                let current_day = current.day() as u32;
+                let current_month = current.month();
+                let current_day = current.day();
 
                 // Simple range check (doesn't handle year wrap-around)
                 let current_ordinal = current_month * 100 + current_day;
@@ -481,7 +481,7 @@ impl ResolveVisualState {
     /// Note: For February, we allow up to 29 days to account for leap years.
     fn is_valid_date(month: u32, day: u32) -> bool {
         // Validate month is 1-12
-        if month < 1 || month > 12 {
+        if !(1..=12).contains(&month) {
             return false;
         }
 

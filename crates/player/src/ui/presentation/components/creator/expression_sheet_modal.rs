@@ -315,7 +315,7 @@ pub fn ExpressionSheetModal(props: ExpressionSheetModalProps) -> Element {
                         {
                             let total_slots = (grid_layout.read().0 * grid_layout.read().1) as usize;
                             let filled = selected_expressions.read().len();
-                            let empty_slots = if total_slots > filled { total_slots - filled } else { 0 };
+                            let empty_slots = total_slots.saturating_sub(filled);
                             rsx! {
                                 for i in 0..empty_slots {
                                     div {

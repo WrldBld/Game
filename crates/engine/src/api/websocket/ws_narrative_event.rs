@@ -169,13 +169,12 @@ pub(super) async fn handle_narrative_event_request(
         NarrativeEventRequest::TriggerNarrativeEvent { event_id } => {
             require_dm_for_request(conn_info, request_id)?;
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
-            if conn_info.world_id.is_none() {
+            let Some(world_id) = conn_info.world_id else {
                 return Ok(ResponseResult::error(
                     ErrorCode::BadRequest,
                     "Must join a world before triggering events",
                 ));
-            }
-            let world_id = conn_info.world_id.unwrap();
+            };
             match state
                 .app
                 .use_cases

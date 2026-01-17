@@ -187,7 +187,7 @@ impl NpcMood {
             Ok(mood) => mood,
             Err(e) => {
                 tracing::debug!(region_id = %region_id, npc_id = %npc_id, error = %e, "Failed to get staged mood, using default");
-                npc.default_mood().clone()
+                *npc.default_mood()
             }
         };
 

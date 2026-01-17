@@ -17,7 +17,7 @@ pub use act::ActCrud;
 pub use character::CharacterCrud;
 pub use interaction::InteractionCrud;
 pub use location::LocationCrud;
-pub use observation::{ObservationCrud, ObservationSummaryData};
+pub use observation::ObservationCrud;
 pub use player_character::PlayerCharacterCrud;
 pub use relationship::RelationshipCrud;
 pub use scene::SceneCrud;

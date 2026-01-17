@@ -428,9 +428,7 @@ pub(super) async fn handle_ai_request(
         | AiRequest::SuggestDeflectionBehavior { .. }
         | AiRequest::SuggestBehavioralTells { .. } => {
             // These are legacy/creator utilities; gate behind DM for now.
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let Some(world_uuid) = conn_info.world_id else {
                 return Err(ServerMessage::Response {
@@ -560,9 +558,7 @@ pub(super) async fn handle_expression_request(
             style_prompt,
         } => {
             // DM-only for now.
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let character_uuid = match Uuid::parse_str(&character_id) {
                 Ok(u) => wrldbldr_domain::CharacterId::from_uuid(u),
@@ -585,7 +581,7 @@ pub(super) async fn handle_expression_request(
                             request_id: request_id.to_string(),
                             result: ResponseResult::error(
                                 ErrorCode::BadRequest,
-                                &format!("Invalid grid_layout format '{}': expected 'COLSxROWS' (e.g., '4x4')", s),
+                                format!("Invalid grid_layout format '{}': expected 'COLSxROWS' (e.g., '4x4')", s),
                             ),
                         });
                     }
@@ -597,7 +593,7 @@ pub(super) async fn handle_expression_request(
                                 request_id: request_id.to_string(),
                                 result: ResponseResult::error(
                                     ErrorCode::BadRequest,
-                                    &format!(
+                                    format!(
                                     "Invalid grid_layout columns '{}': must be a positive integer",
                                     parts[0].trim()
                                 ),
@@ -611,7 +607,7 @@ pub(super) async fn handle_expression_request(
                                 request_id: request_id.to_string(),
                                 result: ResponseResult::error(
                                     ErrorCode::BadRequest,
-                                    &format!(
+                                    format!(
                                         "Invalid grid_layout rows '{}': must be a positive integer",
                                         parts[1].trim()
                                     ),

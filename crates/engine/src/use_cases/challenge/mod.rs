@@ -30,10 +30,6 @@ mod llm_context_tests;
 pub use crud::{
     ChallengeError as ChallengeCrudError, ChallengeOps, CreateChallengeInput, UpdateChallengeInput,
 };
-pub use types::{
-    ChallengeSummary, DifficultySummary, OutcomeSummary, OutcomeTriggerData, OutcomeTriggerSummary,
-    OutcomesSummary, TriggerConditionSummary, TriggerTypeData, TriggerTypeSummary,
-};
 
 use crate::infrastructure::ports::{QueueError, RepoError};
 use crate::repositories::{
@@ -596,7 +592,7 @@ impl OutcomeDecision {
                     .pc_id
                     .ok_or(OutcomeDecisionError::MissingPcId)?;
                 self.resolve
-                    .execute_for_pc(challenge_id, outcome_type.clone(), pc_id)
+                    .execute_for_pc(challenge_id, outcome_type, pc_id)
                     .await
                     .map_err(OutcomeDecisionError::Resolve)?;
 
@@ -631,7 +627,7 @@ impl OutcomeDecision {
                     .pc_id
                     .ok_or(OutcomeDecisionError::MissingPcId)?;
                 self.resolve
-                    .execute_for_pc(challenge_id, outcome_type.clone(), pc_id)
+                    .execute_for_pc(challenge_id, outcome_type, pc_id)
                     .await
                     .map_err(OutcomeDecisionError::Resolve)?;
 

@@ -21,17 +21,11 @@ use crate::infrastructure::ports::RepoError;
 use crate::repositories::SettingsRepository;
 
 // Re-export types
-pub use crate::infrastructure::ports::{PendingStagingRequest, TimeSuggestion};
-pub use crate::repositories::{PendingStaging, TimeSuggestionStore};
-pub use approve::{ApproveStagingInput, ApproveStagingRequest, StagingReadyPayload};
+pub use approve::{ApproveStagingInput, ApproveStagingRequest};
 pub use auto_approve::AutoApproveStagingTimeout;
 pub use regenerate::RegenerateStagingSuggestions;
 pub use request_approval::{RequestStagingApproval, StagingApprovalContext, StagingApprovalInput};
-pub use types::{
-    ApprovedNpc, GameTimeData, NpcPresent, PreviousStagingData, ResolvedStateInfo,
-    ResolvedVisualState, StagedNpc, StagingApprovalData, StagingPendingData, StagingRequestResult,
-    StateOption, WaitingPc,
-};
+pub use types::{ApprovedNpc, StagingApprovalData};
 
 /// Timeout in seconds before a pending staging request auto-approves.
 /// This is the delay shown to players while waiting for DM approval.

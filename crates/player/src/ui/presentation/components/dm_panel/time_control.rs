@@ -21,7 +21,7 @@ pub fn TimeControlPanel() -> Element {
     let session_state = use_session_state();
     let command_bus = use_command_bus();
 
-    let game_time = game_state.game_time.read().clone();
+    let game_time = *game_state.game_time.read();
     let time_mode = game_state.time_mode.read().clone();
     let time_paused = *game_state.time_paused.read();
     let pending_suggestions = game_state.pending_time_suggestions.read().clone();
@@ -51,7 +51,7 @@ pub fn TimeControlPanel() -> Element {
 
             // Current time display
             if let Some(ref gt) = game_time {
-                TimeDisplay { game_time: gt.clone() }
+                TimeDisplay { game_time: *gt }
             } else {
                 div { class: "text-gray-500 italic text-center py-4", "Time not set" }
             }
@@ -107,7 +107,7 @@ pub fn TimeControlPanel() -> Element {
                         // Quick skip to next period
                         if let Some(ref gt) = game_time {
                             if let Some(world_id) = *session_state.world_id().read() {
-                                let next_period = time_of_day(gt.clone()).to_string();
+                                let next_period = time_of_day(*gt).to_string();
                                 let msg = ClientMessageBuilder::skip_to_period(&world_id.to_string(), &next_period);
                                 let _ = command_bus.send(msg);
                             }
@@ -134,7 +134,7 @@ pub fn TimeControlPanel() -> Element {
             // Set time modal
             if *show_set_time_modal.read() {
                 SetTimeModal {
-                    current_time: game_time.clone(),
+                    current_time: game_time,
                     on_close: move |_| show_set_time_modal.set(false),
                 }
             }
@@ -145,9 +145,9 @@ pub fn TimeControlPanel() -> Element {
 /// Displays current game time with period icon
 #[component]
 fn TimeDisplay(game_time: GameTime) -> Element {
-    let period = time_of_day(game_time.clone());
-    let time_str = display_time(game_time.clone());
-    let _date_str = display_date(game_time.clone());
+    let period = time_of_day(game_time);
+    let time_str = display_time(game_time);
+    let _date_str = display_date(game_time);
 
     let period_icon = match period {
         crate::presentation::game_time_format::TimeOfDay::Morning => "",
@@ -196,8 +196,8 @@ fn TimeSuggestionCard(suggestion: TimeSuggestionData) -> Element {
     let mut game_state = use_game_state();
     let mut custom_minutes = use_signal(|| suggestion.suggested_minutes);
 
-    let current_display = display_time(suggestion.current_time.clone());
-    let resulting_display = display_time(suggestion.resulting_time.clone());
+    let current_display = display_time(suggestion.current_time);
+    let resulting_display = display_time(suggestion.resulting_time);
 
     let suggestion_id_approve = suggestion.suggestion_id.clone();
     let suggestion_id_skip = suggestion.suggestion_id.clone();

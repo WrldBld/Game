@@ -478,11 +478,7 @@ impl LoreOps {
             .ok_or(LoreError::ChunkNotFound)?;
 
         // Build updated chunk
-        let content = input
-            .content
-            .as_ref()
-            .map(|s| s.as_str())
-            .unwrap_or(&old_chunk.content);
+        let content = input.content.as_deref().unwrap_or(&old_chunk.content);
         let mut new_chunk = wrldbldr_domain::LoreChunk::new(content)
             .with_id(chunk_id)
             .with_order(input.order.unwrap_or(old_chunk.order));
@@ -653,9 +649,7 @@ impl LoreOps {
     ) -> Result<RevokeKnowledgeResult, LoreError> {
         match chunk_ids {
             // Explicit empty list is an error - use None for full revocation
-            Some(ref ids) if ids.is_empty() => {
-                return Err(LoreError::EmptyChunkList);
-            }
+            Some(ref ids) if ids.is_empty() => Err(LoreError::EmptyChunkList),
             Some(ids) => {
                 // Validate that the lore exists and chunk IDs are valid
                 let lore = self.lore.get(lore_id).await?.ok_or(LoreError::NotFound)?;

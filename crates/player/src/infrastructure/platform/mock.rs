@@ -3,6 +3,9 @@
 //! Provides controllable implementations of all platform providers
 //! for deterministic testing.
 
+// Test/mock code uses unwrap for brevity - panics are acceptable in tests
+#![allow(clippy::unwrap_used)]
+
 use crate::ports::outbound::platform::{
     DocumentProvider, EngineConfigProvider, LogProvider, RandomProvider, SleepProvider,
     StorageProvider, TimeProvider,

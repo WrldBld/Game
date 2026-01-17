@@ -508,7 +508,7 @@ impl StagingRepo for Neo4jStagingRepo {
                 );
                 Err(RepoError::not_found(
                     "NpcMood",
-                    &format!("region:{}/npc:{}", region_id, npc_id),
+                    format!("region:{}/npc:{}", region_id, npc_id),
                 ))
             }
         }
@@ -553,7 +553,7 @@ impl StagingRepo for Neo4jStagingRepo {
             );
             return Err(RepoError::not_found(
                 "StagedNpc",
-                &format!("region:{}/npc:{}", region_id, npc_id),
+                format!("region:{}/npc:{}", region_id, npc_id),
             ));
         }
 

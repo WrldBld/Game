@@ -47,6 +47,12 @@ pub struct DirectorialUpdate {
     _marker: Arc<()>,
 }
 
+impl Default for DirectorialUpdate {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DirectorialUpdate {
     pub fn new() -> Self {
         Self {

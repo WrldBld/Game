@@ -455,7 +455,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
             );
             return Err(RepoError::not_found(
                 "World",
-                &character.world_id().to_string(),
+                character.world_id().to_string(),
             ));
         }
 
@@ -578,7 +578,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
             );
             return Err(RepoError::not_found(
                 "CharacterPosition",
-                &format!("char:{}/region:{}", id, region_id),
+                format!("char:{}/region:{}", id, region_id),
             ));
         }
 
@@ -973,11 +973,11 @@ impl CharacterRepo for Neo4jCharacterRepo {
         {
             parse_want_target_from_row(&row)?.ok_or_else(|| {
                 tracing::warn!(want_id = %want_id, target_id = %target_id, "Want target parse returned None");
-                RepoError::not_found("WantTarget", &format!("want:{}/target:{}", want_id, target_id))
+                RepoError::not_found("WantTarget", format!("want:{}/target:{}", want_id, target_id))
             })
         } else {
             tracing::warn!(want_id = %want_id, target_id = %target_id, "Want or target not found");
-            Err(RepoError::not_found("Want", &want_id.to_string()))
+            Err(RepoError::not_found("Want", want_id.to_string()))
         }
     }
 
@@ -1478,7 +1478,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
             );
             Err(RepoError::not_found(
                 "ActantialView",
-                &format!(
+                format!(
                     "char:{}/want:{}/target:{}",
                     character_id, want_id, target_id
                 ),

@@ -72,9 +72,7 @@ pub(super) async fn handle_lore_request(
         }
 
         LoreRequest::CreateLore { world_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_uuid = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
@@ -119,9 +117,7 @@ pub(super) async fn handle_lore_request(
         }
 
         LoreRequest::UpdateLore { lore_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
@@ -159,9 +155,7 @@ pub(super) async fn handle_lore_request(
         }
 
         LoreRequest::DeleteLore { lore_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
@@ -178,9 +172,7 @@ pub(super) async fn handle_lore_request(
         }
 
         LoreRequest::AddLoreChunk { lore_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
@@ -227,9 +219,7 @@ pub(super) async fn handle_lore_request(
         }
 
         LoreRequest::UpdateLoreChunk { chunk_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let chunk_uuid = match parse_uuid_for_request(&chunk_id, request_id, "Invalid chunk_id")
             {
@@ -292,9 +282,7 @@ pub(super) async fn handle_lore_request(
         }
 
         LoreRequest::DeleteLoreChunk { chunk_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let chunk_uuid = match parse_uuid_for_request(&chunk_id, request_id, "Invalid chunk_id")
             {
@@ -346,9 +334,7 @@ pub(super) async fn handle_lore_request(
             chunk_ids,
             discovery_source,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let char_uuid = match parse_character_id_for_request(&character_id, request_id) {
                 Ok(id) => id,
@@ -423,9 +409,7 @@ pub(super) async fn handle_lore_request(
             lore_id,
             chunk_ids,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let char_uuid = match parse_character_id_for_request(&character_id, request_id) {
                 Ok(id) => id,

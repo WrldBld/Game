@@ -4,12 +4,9 @@ mod enter_region;
 mod exit_location;
 pub mod scene_change;
 
-pub use enter_region::{EnterRegion, EnterRegionError, EnterRegionResult, StagingStatus};
+pub use enter_region::{EnterRegion, EnterRegionError, StagingStatus};
 pub use exit_location::{ExitLocation, ExitLocationError};
-pub use scene_change::{
-    NavigationExitInfo, NavigationInfo, NavigationTargetInfo, NpcPresenceInfo, RegionInfo,
-    RegionItemInfo, SceneChangeBuilder, SceneChangeData, SceneChangeError,
-};
+pub use scene_change::SceneChangeBuilder;
 
 use crate::infrastructure::ports::RepoError;
 use crate::repositories::{

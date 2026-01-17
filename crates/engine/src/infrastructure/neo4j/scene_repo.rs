@@ -411,7 +411,7 @@ impl SceneRepo for Neo4jSceneRepo {
             );
             return Err(RepoError::not_found(
                 "Scene",
-                &format!("world:{}/scene:{}", world_id, scene_id),
+                format!("world:{}/scene:{}", world_id, scene_id),
             ));
         }
 
@@ -668,11 +668,11 @@ impl SceneRepo for Neo4jSceneRepo {
                     pc_id = %pc_id,
                     "mark_scene_completed failed: PlayerCharacter not found"
                 );
-                return Err(RepoError::not_found("PlayerCharacter", &pc_id.to_string()));
+                return Err(RepoError::not_found("PlayerCharacter", pc_id.to_string()));
             }
             if !scene_exists {
                 tracing::warn!(scene_id = %scene_id, "mark_scene_completed failed: Scene not found");
-                return Err(RepoError::not_found("Scene", &scene_id.to_string()));
+                return Err(RepoError::not_found("Scene", scene_id.to_string()));
             }
 
             tracing::debug!("Marked scene {} as completed for PC {}", scene_id, pc_id);
@@ -707,16 +707,16 @@ impl SceneRepo for Neo4jSceneRepo {
                         pc_id = %pc_id,
                         "mark_scene_completed failed: PlayerCharacter not found"
                     );
-                    return Err(RepoError::not_found("PlayerCharacter", &pc_id.to_string()));
+                    return Err(RepoError::not_found("PlayerCharacter", pc_id.to_string()));
                 } else if !scene_exists {
                     tracing::warn!(scene_id = %scene_id, "mark_scene_completed failed: Scene not found");
-                    return Err(RepoError::not_found("Scene", &scene_id.to_string()));
+                    return Err(RepoError::not_found("Scene", scene_id.to_string()));
                 }
             }
 
             Err(RepoError::not_found(
                 "SceneCompletion",
-                &format!("pc:{}/scene:{}", pc_id, scene_id),
+                format!("pc:{}/scene:{}", pc_id, scene_id),
             ))
         }
     }

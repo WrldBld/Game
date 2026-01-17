@@ -254,9 +254,7 @@ pub(super) async fn handle_relationship_request(
         }
 
         RelationshipRequest::CreateRelationship { data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let from_id = match parse_character_id_for_request(&data.from_character_id, request_id)
             {
@@ -290,9 +288,7 @@ pub(super) async fn handle_relationship_request(
         }
 
         RelationshipRequest::DeleteRelationship { relationship_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let rel_id = match parse_uuid_for_request(
                 &relationship_id,
@@ -351,9 +347,7 @@ pub(super) async fn handle_observation_request(
         }
 
         ObservationRequest::CreateObservation { pc_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let pc_id_typed = match parse_pc_id(&pc_id) {
                 Ok(id) => id,
@@ -407,9 +401,7 @@ pub(super) async fn handle_observation_request(
         }
 
         ObservationRequest::DeleteObservation { pc_id, npc_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let pc_id_typed = match parse_pc_id(&pc_id) {
                 Ok(id) => id,

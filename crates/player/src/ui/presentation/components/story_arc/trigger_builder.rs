@@ -229,7 +229,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
 
     // Notify parent of changes
     let notify_change = {
-        let on_change = props.on_change.clone();
+        let on_change = props.on_change;
         move || {
             let conds: Vec<JsonValue> = conditions
                 .read()
@@ -244,7 +244,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
 
     // Add a new condition
     let add_condition = {
-        let notify = notify_change.clone();
+        let notify = notify_change;
         move |type_name: String| {
             let mut conds = conditions.write();
             let new_cond = TriggerCondition::new(&type_name);
@@ -258,7 +258,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
 
     // Remove a condition
     let remove_condition = {
-        let notify = notify_change.clone();
+        let notify = notify_change;
         move |id: String| {
             let mut conds = conditions.write();
             conds.retain(|c| c.id != id);
@@ -269,7 +269,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
 
     // Update a condition field
     let update_field = {
-        let notify = notify_change.clone();
+        let notify = notify_change;
         move |cond_id: String, field_name: String, value: JsonValue| {
             let mut conds = conditions.write();
             if let Some(cond) = conds.iter_mut().find(|c| c.id == cond_id) {
@@ -282,7 +282,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
 
     // Update condition description
     let update_description = {
-        let notify = notify_change.clone();
+        let notify = notify_change;
         move |cond_id: String, desc: String| {
             let mut conds = conditions.write();
             if let Some(cond) = conds.iter_mut().find(|c| c.id == cond_id) {
@@ -295,7 +295,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
 
     // Toggle is_required
     let toggle_required = {
-        let notify = notify_change.clone();
+        let notify = notify_change;
         move |cond_id: String| {
             let mut conds = conditions.write();
             if let Some(cond) = conds.iter_mut().find(|c| c.id == cond_id) {
@@ -355,7 +355,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                     class: "bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-white",
                     value: "{logic}",
                     onchange: {
-                        let notify = notify_change.clone();
+                        let notify = notify_change;
                         move |e: Event<FormData>| {
                             logic.set(e.value().clone());
                             notify();
@@ -377,7 +377,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                         value: "{at_least_count}",
                         min: "1",
                         onchange: {
-                            let notify = notify_change.clone();
+                            let notify = notify_change;
                             move |e: Event<FormData>| {
                                 if let Ok(n) = e.value().parse::<u32>() {
                                     at_least_count.set(n);
@@ -419,22 +419,22 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                                     }
                                 },
                                 on_remove: {
-                                    let mut remove = remove_condition.clone();
+                                    let mut remove = remove_condition;
                                     let id = cond.id.clone();
                                     move |_| remove(id.clone())
                                 },
                                 on_update_field: {
-                                    let mut update = update_field.clone();
+                                    let mut update = update_field;
                                     let id = cond.id.clone();
                                     move |(field, value): (String, JsonValue)| update(id.clone(), field, value)
                                 },
                                 on_update_description: {
-                                    let mut update = update_description.clone();
+                                    let mut update = update_description;
                                     let id = cond.id.clone();
                                     move |desc: String| update(id.clone(), desc)
                                 },
                                 on_toggle_required: {
-                                    let mut toggle = toggle_required.clone();
+                                    let mut toggle = toggle_required;
                                     let id = cond.id.clone();
                                     move |_| toggle(id.clone())
                                 },
@@ -474,7 +474,7 @@ pub fn TriggerBuilder(props: TriggerBuilderProps) -> Element {
                                     for trigger_type in schema_data.trigger_types.iter().filter(|t| t.category == *category) {
                                         {
                                             let type_name = trigger_type.type_name.clone();
-                                            let mut add = add_condition.clone();
+                                            let mut add = add_condition;
                                             rsx! {
                                                 button {
                                                     class: "text-left px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm text-gray-200 transition-colors",

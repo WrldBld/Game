@@ -2,7 +2,7 @@
 
 Status: Active
 Owner: Team
-Last updated: 2026-01-17 (Phase 13 COMPLETE - Observability tech debt)
+Last updated: 2026-01-17 (Phase 14 COMPLETE - Dependency + lint hygiene)
 
 Goal: remediate all findings from the latest full code review and establish a clean baseline with no new tech debt.
 
@@ -604,10 +604,26 @@ Acceptance:
 
 ## Phase 14: Dependency + Lint Hygiene
 
-### 14.1 Clean unused deps and standardize linting
+### 14.1 Clean unused deps and standardize linting - COMPLETE
 - [x] Audit crates for unused dependencies; remove or gate test-only deps.
-- [ ] Standardize clippy/lint warnings as errors where appropriate.
+- [x] Standardize clippy/lint warnings as errors where appropriate.
 - [x] Ensure formatting/lint baselines are documented in `docs/architecture/review.md`.
+
+**Implementation details:**
+- Auto-fixed ~180 clippy warnings across 48 files using `cargo clippy --fix`
+- Added workspace-level lint configuration in `Cargo.toml`:
+  - `unsafe_code = "deny"` - No unsafe code allowed
+  - `unwrap_used = "deny"` - Prevents silent panics in production
+  - `too_many_arguments = "allow"` - Tracked as separate tech debt
+  - `result_large_err = "allow"` - Tracked as separate tech debt
+  - `type_complexity = "allow"` - Tracked as separate tech debt
+  - `dead_code = "warn"` - Kept as warn until dead code audit
+- Fixed 3 production `unwrap` calls:
+  - `xtask/src/main.rs:849` - Changed to `is_none_or()` pattern
+  - `shared/src/game_systems/blades.rs:41` - Changed to `let-else` pattern
+  - `ws_narrative_event.rs:178` - Changed to proper error propagation
+- Added `#![allow(clippy::unwrap_used)]` to 2 mock/test files
+- Remaining ~200 warnings are `dead_code` (tracked as separate tech debt)
 
 Acceptance:
 - No unused dependencies in workspace; lint/format baselines documented.
@@ -648,7 +664,7 @@ Acceptance:
 - [x] Phase 11.1 complete (repository naming: 19 repos→*Repository, 4 services→*Service, 70 files)
 - [x] Phase 12.1 complete (error taxonomy: typed ErrorCode, #[from] chains, 10 mapping tests)
 - [x] Phase 13.1 complete (observability: contextual logging in parse_id, ApiError, LLM, 16 repo not_found sites)
-- [~] Phase 14.1 complete
+- [x] Phase 14.1 complete (lint hygiene: unwrap_used=deny, unsafe_code=deny, ~180 auto-fixes, 3 manual unwrap fixes)
 - [ ] Phase 15.1 complete
 
 

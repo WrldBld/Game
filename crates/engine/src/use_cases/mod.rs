@@ -35,9 +35,7 @@ pub use actantial::ActantialUseCases;
 pub use ai::AiUseCases;
 pub use approval::ApprovalUseCases;
 // Re-export NarrativeOps (for complex trigger evaluation) - also exports type alias Narrative
-pub use crate::repositories::{
-    SceneRepository as Scene, SceneResolutionContext, SceneResolutionResult,
-};
+pub use crate::repositories::SceneRepository as Scene;
 pub use assets::AssetUseCases;
 pub use challenge::ChallengeUseCases;
 pub use conversation::ConversationUseCases;
@@ -48,7 +46,7 @@ pub use management::ManagementUseCases;
 pub use movement::MovementUseCases;
 pub use movement::SceneChangeBuilder;
 pub use narrative::NarrativeUseCases;
-pub use narrative_operations::{Narrative, NarrativeOps};
+pub use narrative_operations::Narrative;
 pub use npc::NpcUseCases;
 pub use player_action::PlayerActionUseCases;
 pub use queues::QueueUseCases;

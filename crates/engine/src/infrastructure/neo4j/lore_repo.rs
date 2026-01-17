@@ -706,7 +706,7 @@ impl LoreRepo for Neo4jLoreRepo {
             );
             return Err(RepoError::not_found(
                 "LoreKnowledge",
-                &format!("char:{}/lore:{}", character_id, lore_id),
+                format!("char:{}/lore:{}", character_id, lore_id),
             ));
         };
 

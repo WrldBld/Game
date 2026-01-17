@@ -80,9 +80,7 @@ pub(super) async fn handle_location_request(
         }
 
         LocationRequest::CreateLocation { world_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
@@ -117,9 +115,7 @@ pub(super) async fn handle_location_request(
         }
 
         LocationRequest::UpdateLocation { location_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
                 Ok(id) => id,
@@ -157,9 +153,7 @@ pub(super) async fn handle_location_request(
         }
 
         LocationRequest::DeleteLocation { location_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
                 Ok(id) => id,
@@ -223,9 +217,7 @@ pub(super) async fn handle_location_request(
         }
 
         LocationRequest::CreateLocationConnection { data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let from_id = match parse_location_id_for_request(&data.from_id, request_id) {
                 Ok(id) => id,
@@ -253,9 +245,7 @@ pub(super) async fn handle_location_request(
         }
 
         LocationRequest::DeleteLocationConnection { from_id, to_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let from_id = match parse_location_id_for_request(&from_id, request_id) {
                 Ok(id) => id,
@@ -386,9 +376,7 @@ pub(super) async fn handle_region_request(
         }
 
         RegionRequest::CreateRegion { location_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
                 Ok(id) => id,
@@ -435,9 +423,7 @@ pub(super) async fn handle_region_request(
         }
 
         RegionRequest::UpdateRegion { region_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let region_id_typed = match parse_region_id_for_request(&region_id, request_id) {
                 Ok(id) => id,
@@ -487,9 +473,7 @@ pub(super) async fn handle_region_request(
         }
 
         RegionRequest::DeleteRegion { region_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let region_id_typed = match parse_region_id_for_request(&region_id, request_id) {
                 Ok(id) => id,
@@ -557,9 +541,7 @@ pub(super) async fn handle_region_request(
             to_id,
             data,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let from_id = match parse_region_id_for_request(&from_id, request_id) {
                 Ok(id) => id,
@@ -594,9 +576,7 @@ pub(super) async fn handle_region_request(
         }
 
         RegionRequest::DeleteRegionConnection { from_id, to_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let from_id = match parse_region_id_for_request(&from_id, request_id) {
                 Ok(id) => id,
@@ -624,9 +604,7 @@ pub(super) async fn handle_region_request(
         }
 
         RegionRequest::UnlockRegionConnection { from_id, to_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let from_id = match parse_region_id_for_request(&from_id, request_id) {
                 Ok(id) => id,
@@ -699,9 +677,7 @@ pub(super) async fn handle_region_request(
             description,
             bidirectional,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let region_id_typed = match parse_region_id_for_request(&region_id, request_id) {
                 Ok(id) => id,
@@ -743,9 +719,7 @@ pub(super) async fn handle_region_request(
             region_id,
             location_id,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let region_id_typed = match parse_region_id_for_request(&region_id, request_id) {
                 Ok(id) => id,

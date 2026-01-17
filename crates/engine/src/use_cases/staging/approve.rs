@@ -203,7 +203,7 @@ impl ApproveStagingRequest {
                     c.name().to_string(),
                     c.sprite_asset().map(|s| s.to_string()),
                     c.portrait_asset().map(|s| s.to_string()),
-                    c.default_mood().clone(),
+                    *c.default_mood(),
                     false,
                 ),
                 Ok(None) => {

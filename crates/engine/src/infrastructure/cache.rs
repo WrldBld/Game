@@ -74,7 +74,7 @@ where
         let guard = self.entries.read().await;
         guard
             .get(key)
-            .map_or(false, |entry| entry.inserted_at.elapsed() < self.ttl)
+            .is_some_and(|entry| entry.inserted_at.elapsed() < self.ttl)
     }
 
     /// Remove all expired entries and return the count of removed entries.

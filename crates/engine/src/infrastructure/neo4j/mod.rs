@@ -13,7 +13,6 @@ mod schema;
 
 #[cfg(not(test))]
 pub use graph::Neo4jGraph;
-pub use graph::Neo4jRowStream;
 #[cfg(test)]
 pub use graph_test::Neo4jGraph;
 pub use schema::ensure_schema;

@@ -136,7 +136,7 @@ pub(super) async fn handle_character_sheet_request(
                 .list_systems_with_names()
                 .iter()
                 .map(|(id, name)| {
-                    let sys = registry.get(id);
+                    let _sys = registry.get(id);
                     json!({
                         "id": id,
                         "name": name,
@@ -393,12 +393,11 @@ pub(super) async fn handle_character_sheet_request(
             if let Some(ref schema) = schema {
                 for section in &schema.sections {
                     for field in &section.fields {
-                        if field.required {
-                            if !values.contains_key(&field.id)
-                                || values.get(&field.id) == Some(&SheetValue::Null)
-                            {
-                                missing_required.push(field.id.clone());
-                            }
+                        if field.required
+                            && (!values.contains_key(&field.id)
+                                || values.get(&field.id) == Some(&SheetValue::Null))
+                        {
+                            missing_required.push(field.id.clone());
                         }
                     }
                 }

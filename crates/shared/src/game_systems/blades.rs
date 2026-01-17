@@ -38,7 +38,10 @@ impl BladesOutcome {
             return BladesOutcome::Failure;
         }
 
-        let highest = *dice.iter().max().unwrap();
+        // Safe: we've already checked dice.is_empty() above
+        let Some(highest) = dice.iter().max().copied() else {
+            return BladesOutcome::Failure;
+        };
         let sixes = dice.iter().filter(|&&d| d == 6).count();
 
         if sixes >= 2 {

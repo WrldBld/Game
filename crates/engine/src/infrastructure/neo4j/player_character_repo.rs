@@ -50,7 +50,7 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
     async fn save(&self, pc: &PlayerCharacter) -> Result<(), RepoError> {
         let sheet_data_json = pc
             .sheet_data()
-            .map(|s| serde_json::to_string(s))
+            .map(serde_json::to_string)
             .transpose()
             .map_err(|e| RepoError::Serialization(e.to_string()))?
             .unwrap_or_else(|| {
@@ -257,7 +257,7 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             );
             return Err(RepoError::not_found(
                 "PlayerCharacterPosition",
-                &format!("pc:{}/location:{}", id, location_id),
+                format!("pc:{}/location:{}", id, location_id),
             ));
         }
 
@@ -378,7 +378,7 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
                 stat = %stat,
                 "modify_stat failed: PlayerCharacter not found"
             );
-            return Err(RepoError::not_found("PlayerCharacter", &id.to_string()));
+            return Err(RepoError::not_found("PlayerCharacter", id.to_string()));
         };
 
         // Step 2: Parse JSON, modify stat in Rust

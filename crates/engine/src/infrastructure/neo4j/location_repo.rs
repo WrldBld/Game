@@ -121,12 +121,12 @@ impl Neo4jLocationRepo {
         let description = node.get_string_or("description", "");
         let backdrop_asset = node
             .get_optional_string("backdrop_asset")
-            .map(|s| value_objects::AssetPath::new(s))
+            .map(value_objects::AssetPath::new)
             .transpose()
             .map_err(|e| RepoError::database("parse", e))?;
         let atmosphere = node
             .get_optional_string("atmosphere")
-            .map(|s| value_objects::Atmosphere::new(s))
+            .map(value_objects::Atmosphere::new)
             .transpose()
             .map_err(|e| RepoError::database("parse", e))?;
         let is_spawn_point = node.get_bool_or("is_spawn_point", false);

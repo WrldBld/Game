@@ -33,6 +33,7 @@ pub enum BusMessage {
 
 /// Pending request tracker for request-response correlation
 #[cfg(not(target_arch = "wasm32"))]
+#[derive(Default)]
 pub struct PendingRequests {
     inner: HashMap<String, oneshot::Sender<ResponseResult>>,
 }
@@ -40,14 +41,6 @@ pub struct PendingRequests {
 #[cfg(target_arch = "wasm32")]
 pub struct PendingRequests {
     inner: HashMap<String, oneshot::Sender<ResponseResult>>,
-}
-
-impl Default for PendingRequests {
-    fn default() -> Self {
-        Self {
-            inner: HashMap::new(),
-        }
-    }
 }
 
 impl PendingRequests {

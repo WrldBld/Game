@@ -846,7 +846,7 @@ fn collect_cfg_test_item_ranges(sanitized: &str) -> Vec<(usize, usize)> {
         let next_brace = sanitized[j..].find('{').map(|o| j + o);
 
         if let Some(semi) = next_semi {
-            if next_brace.is_none() || semi < next_brace.unwrap() {
+            if next_brace.is_none_or(|brace| semi < brace) {
                 ranges.push((attr_start, semi + 1));
                 i = semi + 1;
                 continue;

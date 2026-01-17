@@ -148,8 +148,17 @@ send_wrapper = "0.6"
 
 # Shared workspace lints
 [workspace.lints.rust]
-unsafe_code = "warn"
+unsafe_code = "deny"           # No unsafe code allowed
 unused_lifetimes = "warn"
+dead_code = "warn"             # Keep as warn until dead code audit
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# Deny - these catch real bugs and should be fixed immediately
+unwrap_used = "deny"           # Prevent silent panics in production
+
+# Allow - require design work, tracked as separate tech debt
+too_many_arguments = "allow"   # TODO: Refactor large constructors
+result_large_err = "allow"     # TODO: Box large error variants
+type_complexity = "allow"      # TODO: Simplify complex types

@@ -56,11 +56,11 @@ pub fn dice_input_from_proto(input: DiceInputType) -> app::DiceInput {
 // =============================================================================
 
 pub fn approval_decision_to_proto(decision: app::ApprovalDecision) -> ApprovalDecision {
-    decision.into()
+    decision
 }
 
 pub fn approval_decision_from_proto(decision: ApprovalDecision) -> app::ApprovalDecision {
-    decision.into()
+    decision
 }
 
 // =============================================================================
