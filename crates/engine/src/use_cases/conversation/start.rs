@@ -11,10 +11,10 @@ use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 use crate::queue_types::PlayerActionData;
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::character::CharacterRepository;
-use crate::repositories::scene::SceneRepository;
-use crate::repositories::staging::StagingRepository;
-use crate::repositories::{ClockService, PlayerCharacterRepository, QueueService, WorldRepository};
+use crate::repositories::{
+    CharacterRepository, ClockService, PlayerCharacterRepository, QueueService, SceneRepository,
+    StagingRepository, WorldRepository,
+};
 
 /// Result of starting a conversation.
 #[derive(Debug)]

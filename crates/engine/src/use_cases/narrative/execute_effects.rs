@@ -11,11 +11,9 @@ use wrldbldr_domain::{
 };
 use wrldbldr_shared::character_sheet::SheetValue;
 
-use crate::repositories::character::CharacterRepository;
-use crate::repositories::scene::SceneRepository;
 use crate::repositories::{
-    ChallengeRepository, ClockService, FlagRepository, InventoryRepository, ObservationRepository,
-    PlayerCharacterRepository, WorldRepository,
+    ChallengeRepository, CharacterRepository, ClockService, FlagRepository, InventoryRepository,
+    ObservationRepository, PlayerCharacterRepository, SceneRepository, WorldRepository,
 };
 use crate::use_cases::narrative_operations::NarrativeOps;
 

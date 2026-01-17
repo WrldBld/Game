@@ -7,8 +7,7 @@ use serde::Deserialize;
 use crate::infrastructure::ports::{
     ChatMessage, LlmRequest, NpcRegionRelationType, NpcWithRegionInfo,
 };
-use crate::repositories::staging::StagingRepository;
-use crate::repositories::LlmService;
+use crate::repositories::{LlmService, StagingRepository};
 use wrldbldr_domain::{CharacterId, RegionId};
 
 use super::types::StagedNpc;

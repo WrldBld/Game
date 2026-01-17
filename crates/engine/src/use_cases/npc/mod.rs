@@ -5,10 +5,9 @@
 use std::sync::Arc;
 
 use crate::infrastructure::ports::{NpcDispositionInfo, RepoError};
-use crate::repositories::character::CharacterRepository;
-use crate::repositories::location::Location;
-use crate::repositories::staging::StagingRepository;
-use crate::repositories::{ClockService, ObservationRepository};
+use crate::repositories::{
+    CharacterRepository, ClockService, Location, ObservationRepository, StagingRepository,
+};
 use wrldbldr_domain::{
     CharacterId, DispositionLevel, LocationId, MoodState, NpcDispositionState, PlayerCharacterId,
     RegionId, RelationshipLevel,

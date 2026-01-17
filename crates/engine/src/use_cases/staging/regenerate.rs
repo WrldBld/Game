@@ -4,9 +4,7 @@ use std::sync::Arc;
 
 use wrldbldr_domain::RegionId;
 
-use crate::repositories::character::CharacterRepository;
-use crate::repositories::location::Location;
-use crate::repositories::LlmService;
+use crate::repositories::{CharacterRepository, LlmService, Location};
 
 use super::suggestions::generate_llm_based_suggestions;
 use super::types::StagedNpc;

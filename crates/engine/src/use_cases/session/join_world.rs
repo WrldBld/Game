@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::character::CharacterRepository;
-use crate::repositories::location::Location;
-use crate::repositories::scene::SceneRepository;
-use crate::repositories::{PlayerCharacterRepository, WorldRepository};
+use crate::repositories::{
+    CharacterRepository, Location, PlayerCharacterRepository, SceneRepository, WorldRepository,
+};
 use wrldbldr_domain::{PlayerCharacterId, WorldId, WorldRole};
 
 use super::types::{

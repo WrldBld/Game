@@ -4,8 +4,7 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{CharacterId, RelationshipId, WorldId};
 
-use crate::repositories::character::CharacterRepository;
-use crate::repositories::ClockService;
+use crate::repositories::{CharacterRepository, ClockService};
 
 use super::ManagementError;
 

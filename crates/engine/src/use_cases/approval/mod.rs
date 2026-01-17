@@ -12,8 +12,7 @@ use wrldbldr_domain::{CharacterId, RegionId, WorldId};
 use crate::queue_types::DmApprovalDecision;
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::staging::StagingRepository;
-use crate::repositories::QueueService;
+use crate::repositories::{QueueService, StagingRepository};
 
 /// Container for approval use cases.
 pub struct ApprovalUseCases {

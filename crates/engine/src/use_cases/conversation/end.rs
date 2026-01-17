@@ -9,8 +9,7 @@ use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::character::CharacterRepository;
-use crate::repositories::PlayerCharacterRepository;
+use crate::repositories::{CharacterRepository, PlayerCharacterRepository};
 use crate::use_cases::narrative_operations::Narrative;
 
 /// Result of ending a conversation.
