@@ -1,13 +1,15 @@
+// Player action - fields for future player action features
+#![allow(dead_code)]
+
 use std::sync::Arc;
 
 use uuid::Uuid;
 
 use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 
-use crate::infrastructure::ports::QueueError;
+use crate::infrastructure::ports::{ClockPort, QueueError, QueuePort};
 use crate::queue_types::PlayerActionData;
 
-use crate::repositories::{ClockService, QueueService};
 use crate::use_cases::conversation::{ConversationError, StartConversation};
 
 pub struct PlayerActionUseCases {
@@ -22,15 +24,15 @@ impl PlayerActionUseCases {
 
 pub struct HandlePlayerAction {
     start_conversation: Arc<StartConversation>,
-    queue: Arc<QueueService>,
-    clock: Arc<ClockService>,
+    queue: Arc<dyn QueuePort>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl HandlePlayerAction {
     pub fn new(
         start_conversation: Arc<StartConversation>,
-        queue: Arc<QueueService>,
-        clock: Arc<ClockService>,
+        queue: Arc<dyn QueuePort>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             start_conversation,

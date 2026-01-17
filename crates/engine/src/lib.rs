@@ -18,6 +18,7 @@ pub mod llm_context;
 pub mod prompt_templates;
 pub mod queue_types;
 pub mod repositories;
+pub mod stores;
 pub mod use_cases;
 
 /// Test fixtures module for integration testing.

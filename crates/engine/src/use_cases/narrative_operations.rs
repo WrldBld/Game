@@ -1,3 +1,6 @@
+// Narrative operations - methods for future trigger evaluation
+#![allow(dead_code)]
+
 //! Narrative operations with complex trigger evaluation.
 //!
 //! This module handles complex narrative operations that require multiple
@@ -12,13 +15,11 @@ use wrldbldr_domain::{
     SceneId, StoryEvent, StoryEventId, StoryEventType, TimeContext, TriggerContext, WorldId,
 };
 
-use crate::infrastructure::ports::RepoError;
-use crate::llm_context::ConversationTurn;
-use crate::repositories::{
-    ChallengeRepository, CharacterRepository, ClockService, FlagRepository, Location,
-    NarrativeRepository, ObservationRepository, PlayerCharacterRepository, SceneRepository,
-    WorldRepository,
+use crate::infrastructure::ports::{
+    ChallengeRepo, CharacterRepo, ClockPort, FlagRepo, LocationRepo, NarrativeRepo,
+    ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo, WorldRepo,
 };
+use crate::llm_context::ConversationTurn;
 
 /// Backward-compatible alias for `NarrativeOps`.
 ///
@@ -32,17 +33,17 @@ pub type Narrative = NarrativeOps;
 /// that need access to multiple data sources. Uses `entities::Narrative` for
 /// simple CRUD operations.
 pub struct NarrativeOps {
-    /// Narrative repository wrapper
-    narrative: Arc<NarrativeRepository>,
-    location_repo: Arc<Location>,
-    world_repo: Arc<WorldRepository>,
-    player_character_repo: Arc<PlayerCharacterRepository>,
-    character_repo: Arc<CharacterRepository>,
-    observation_repo: Arc<ObservationRepository>,
-    challenge_repo: Arc<ChallengeRepository>,
-    flag_repo: Arc<FlagRepository>,
-    scene_repo: Arc<SceneRepository>,
-    clock: Arc<ClockService>,
+    /// Narrative repository port
+    narrative: Arc<dyn NarrativeRepo>,
+    location_repo: Arc<dyn LocationRepo>,
+    world_repo: Arc<dyn WorldRepo>,
+    player_character_repo: Arc<dyn PlayerCharacterRepo>,
+    character_repo: Arc<dyn CharacterRepo>,
+    observation_repo: Arc<dyn ObservationRepo>,
+    challenge_repo: Arc<dyn ChallengeRepo>,
+    flag_repo: Arc<dyn FlagRepo>,
+    scene_repo: Arc<dyn SceneRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 #[cfg(test)]
@@ -104,11 +105,7 @@ mod trigger_tests {
             Arc::new(WorldRepository::new(world_repo.clone(), clock_port.clone())),
             Arc::new(PlayerCharacterRepository::new(player_character_repo)),
             Arc::new(CharacterRepository::new(character_repo)),
-            Arc::new(ObservationRepository::new(
-                observation_repo,
-                location_repo,
-                clock_port.clone(),
-            )),
+            Arc::new(ObservationRepository::new(observation_repo)),
             Arc::new(ChallengeRepository::new(challenge_repo)),
             Arc::new(FlagRepository::new(flag_repo)),
             Arc::new(SceneRepository::new(scene_repo)),
@@ -125,16 +122,16 @@ mod trigger_tests {
 impl NarrativeOps {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        narrative: Arc<NarrativeRepository>,
-        location_repo: Arc<Location>,
-        world_repo: Arc<WorldRepository>,
-        player_character_repo: Arc<PlayerCharacterRepository>,
-        character_repo: Arc<CharacterRepository>,
-        observation_repo: Arc<ObservationRepository>,
-        challenge_repo: Arc<ChallengeRepository>,
-        flag_repo: Arc<FlagRepository>,
-        scene_repo: Arc<SceneRepository>,
-        clock: Arc<ClockService>,
+        narrative: Arc<dyn NarrativeRepo>,
+        location_repo: Arc<dyn LocationRepo>,
+        world_repo: Arc<dyn WorldRepo>,
+        player_character_repo: Arc<dyn PlayerCharacterRepo>,
+        character_repo: Arc<dyn CharacterRepo>,
+        observation_repo: Arc<dyn ObservationRepo>,
+        challenge_repo: Arc<dyn ChallengeRepo>,
+        flag_repo: Arc<dyn FlagRepo>,
+        scene_repo: Arc<dyn SceneRepo>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             narrative,
@@ -150,8 +147,8 @@ impl NarrativeOps {
         }
     }
 
-    /// Get the underlying Narrative entity for CRUD operations.
-    pub fn entity(&self) -> &Arc<NarrativeRepository> {
+    /// Get the underlying Narrative port for CRUD operations.
+    pub fn port(&self) -> &Arc<dyn NarrativeRepo> {
         &self.narrative
     }
 
@@ -179,7 +176,7 @@ impl NarrativeOps {
         &self,
         world_id: WorldId,
     ) -> Result<Vec<domain::NarrativeEvent>, RepoError> {
-        self.narrative.list_events(world_id).await
+        self.narrative.list_events_for_world(world_id).await
     }
 
     pub async fn delete_event(
@@ -254,9 +251,21 @@ impl NarrativeOps {
         npc_id: CharacterId,
         limit: usize,
     ) -> Result<Vec<ConversationTurn>, RepoError> {
-        self.narrative
+        let records = self
+            .narrative
             .get_conversation_turns(pc_id, npc_id, limit)
-            .await
+            .await?;
+
+        // Convert ConversationTurnRecord to ConversationTurn
+        let turns = records
+            .into_iter()
+            .map(|r| ConversationTurn {
+                speaker: r.speaker,
+                text: r.text,
+            })
+            .collect();
+
+        Ok(turns)
     }
 
     pub async fn get_active_conversation_id(
@@ -569,7 +578,7 @@ impl NarrativeOps {
                     Vec::new()
                 }
             };
-            let challenges = match self.challenge_repo.get_resolved(world_id).await {
+            let challenges = match self.challenge_repo.get_resolved_challenges(world_id).await {
                 Ok(c) => c,
                 Err(e) => {
                     tracing::warn!(
@@ -804,7 +813,7 @@ impl NarrativeOps {
             .collect();
 
         // Sort by priority (higher priority first)
-        triggered.sort_by(|a, b| b.priority().cmp(&a.priority()));
+        triggered.sort_by_key(|b| std::cmp::Reverse(b.priority()));
 
         Ok(triggered)
     }

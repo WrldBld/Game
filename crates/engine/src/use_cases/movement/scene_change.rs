@@ -2,9 +2,10 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{LocationId, Region, RegionId, StagedNpc};
 
-use crate::infrastructure::ports::RepoError;
-use crate::repositories::location::Location;
+use crate::infrastructure::ports::{LocationRepo, RepoError};
 use crate::repositories::InventoryRepository;
+
+use super::GetRegionExits;
 
 // =============================================================================
 // Domain Types (for use case output)
@@ -82,14 +83,17 @@ pub enum SceneChangeError {
 }
 
 pub struct SceneChangeBuilder {
-    location: Arc<Location>,
+    location: Arc<dyn LocationRepo>,
+    get_exits: GetRegionExits,
     inventory: Arc<InventoryRepository>,
 }
 
 impl SceneChangeBuilder {
-    pub fn new(location: Arc<Location>, inventory: Arc<InventoryRepository>) -> Self {
+    pub fn new(location: Arc<dyn LocationRepo>, inventory: Arc<InventoryRepository>) -> Self {
+        let get_exits = GetRegionExits::new(location.clone());
         Self {
             location,
+            get_exits,
             inventory,
         }
     }
@@ -102,7 +106,7 @@ impl SceneChangeBuilder {
     ) -> Result<SceneChangeData, SceneChangeError> {
         let location = self
             .location
-            .get(region.location_id())
+            .get_location(region.location_id())
             .await?
             .ok_or(SceneChangeError::LocationNotFound(region.location_id()))?;
 
@@ -160,7 +164,7 @@ impl SceneChangeBuilder {
             });
         }
 
-        let exits_result = self.location.get_exits(region_id).await?;
+        let exits_result = self.get_exits.execute(region_id).await?;
 
         // Fail hard if any exits were skipped due to data integrity issues
         if let Some(skipped) = exits_result.skipped.first() {

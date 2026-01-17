@@ -1,3 +1,6 @@
+// Actantial use cases - methods for future motivation features
+#![allow(dead_code)]
+
 //! Actantial (motivations) use cases.
 //!
 //! Handles goals, wants, and actantial context operations.
@@ -10,9 +13,9 @@ use wrldbldr_domain::{
 };
 
 use crate::infrastructure::ports::{
-    ActantialViewRecord, GoalDetails, RepoError, WantDetails, WantTargetRef,
+    ActantialViewRecord, CharacterRepo, ClockPort, GoalDetails, GoalRepo, RepoError, WantDetails,
+    WantTargetRef,
 };
-use crate::repositories::{CharacterRepository, ClockService, GoalRepository};
 use crate::use_cases::validation::{require_non_empty, ValidationError};
 
 /// Shared error type for actantial use cases.
@@ -54,11 +57,11 @@ impl ActantialUseCases {
 // =============================================================================
 
 pub struct GoalOps {
-    goal: Arc<GoalRepository>,
+    goal: Arc<dyn GoalRepo>,
 }
 
 impl GoalOps {
-    pub fn new(goal: Arc<GoalRepository>) -> Self {
+    pub fn new(goal: Arc<dyn GoalRepo>) -> Self {
         Self { goal }
     }
 
@@ -144,12 +147,12 @@ impl GoalOps {
 // =============================================================================
 
 pub struct WantOps {
-    character: Arc<CharacterRepository>,
-    clock: Arc<ClockService>,
+    character: Arc<dyn CharacterRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl WantOps {
-    pub fn new(character: Arc<CharacterRepository>, clock: Arc<ClockService>) -> Self {
+    pub fn new(character: Arc<dyn CharacterRepo>, clock: Arc<dyn ClockPort>) -> Self {
         Self { character, clock }
     }
 
@@ -283,11 +286,11 @@ impl WantOps {
 // =============================================================================
 
 pub struct ActantialContextOps {
-    character: Arc<CharacterRepository>,
+    character: Arc<dyn CharacterRepo>,
 }
 
 impl ActantialContextOps {
-    pub fn new(character: Arc<CharacterRepository>) -> Self {
+    pub fn new(character: Arc<dyn CharacterRepo>) -> Self {
         Self { character }
     }
 

@@ -1402,11 +1402,6 @@ impl Dnd5eSystem {
     // Allocation Systems
     // =========================================================================
 
-    /// Get the default allocation system (Point Buy).
-    fn default_allocation_system() -> AllocationSystem {
-        Self::point_buy_allocation()
-    }
-
     /// D&D 5e Point Buy allocation system.
     ///
     /// Players have 27 points to spend. Stats start at 8 and can go up to 15

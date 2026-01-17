@@ -92,6 +92,8 @@ pub trait NodeExt {
     fn get_string_strict(&self, field: &str) -> Result<String, RepoError>;
 
     /// Get a required datetime field with strict error handling (fail-fast).
+    /// Currently unused but kept for symmetry with other strict methods.
+    #[allow(dead_code)]
     fn get_datetime_strict(&self, field: &str) -> Result<DateTime<Utc>, RepoError>;
 }
 

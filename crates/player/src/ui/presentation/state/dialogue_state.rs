@@ -334,9 +334,8 @@ pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
         let platform = platform.clone();
         spawn_task(async move {
             let mut current = String::new();
-            let mut char_index = 0;
 
-            for ch in text.chars() {
+            for (char_index, ch) in text.chars().enumerate() {
                 // Check if we should stop:
                 // 1. User skipped (is_typing set to false)
                 // 2. New dialogue arrived (version changed)
@@ -374,7 +373,6 @@ pub fn use_typewriter_effect(dialogue_state: &mut DialogueState) {
 
                 current.push(ch);
                 displayed_text.set(current.clone());
-                char_index += 1;
 
                 // Variable delay based on punctuation
                 let delay = match ch {

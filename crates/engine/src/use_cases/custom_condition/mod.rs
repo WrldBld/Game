@@ -1,3 +1,6 @@
+// Custom condition - methods for future LLM evaluation
+#![allow(dead_code)]
+
 //! Custom condition evaluation via LLM.
 //!
 //! Evaluates custom conditions and triggers that require LLM interpretation.
@@ -7,8 +10,10 @@
 
 use std::sync::Arc;
 
-use crate::infrastructure::ports::{ChatMessage, LlmError, LlmRequest};
-use crate::repositories::LlmService;
+use crate::infrastructure::ports::{ChatMessage, LlmError, LlmPort, LlmRequest};
+
+// Type alias for old name to maintain compatibility
+type LlmService = dyn LlmPort;
 
 /// Result of evaluating a custom condition.
 #[derive(Debug, Clone)]

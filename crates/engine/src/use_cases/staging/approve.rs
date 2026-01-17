@@ -5,9 +5,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{LocationId, RegionId, StagingSource, WorldId};
 
-use crate::repositories::{
-    CharacterRepository, Location, LocationStateRepository, RegionStateRepository,
-    StagingRepository, WorldRepository,
+use crate::infrastructure::ports::{
+    CharacterRepo, ClockPort, LocationRepo, LocationStateRepo, RegionStateRepo, StagingRepo,
+    WorldRepo,
 };
 
 use super::types::{ApprovedNpc, NpcPresent, ResolvedStateInfo, ResolvedVisualState};
@@ -35,22 +35,24 @@ pub struct StagingReadyPayload {
 
 /// Use case for applying DM staging approvals.
 pub struct ApproveStagingRequest {
-    staging: Arc<StagingRepository>,
-    world: Arc<WorldRepository>,
-    character: Arc<CharacterRepository>,
-    location: Arc<Location>,
-    location_state: Arc<LocationStateRepository>,
-    region_state: Arc<RegionStateRepository>,
+    staging: Arc<dyn StagingRepo>,
+    world: Arc<dyn WorldRepo>,
+    character: Arc<dyn CharacterRepo>,
+    location: Arc<dyn LocationRepo>,
+    location_state: Arc<dyn LocationStateRepo>,
+    region_state: Arc<dyn RegionStateRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl ApproveStagingRequest {
     pub fn new(
-        staging: Arc<StagingRepository>,
-        world: Arc<WorldRepository>,
-        character: Arc<CharacterRepository>,
-        location: Arc<Location>,
-        location_state: Arc<LocationStateRepository>,
-        region_state: Arc<RegionStateRepository>,
+        staging: Arc<dyn StagingRepo>,
+        world: Arc<dyn WorldRepo>,
+        character: Arc<dyn CharacterRepo>,
+        location: Arc<dyn LocationRepo>,
+        location_state: Arc<dyn LocationStateRepo>,
+        region_state: Arc<dyn RegionStateRepo>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             staging,
@@ -59,6 +61,7 @@ impl ApproveStagingRequest {
             location,
             location_state,
             region_state,
+            clock,
         }
     }
 
@@ -75,7 +78,7 @@ impl ApproveStagingRequest {
             .world
             .get(input.world_id)
             .await?
-            .ok_or(StagingError::WorldNotFound)?;
+            .ok_or(StagingError::WorldNotFound(input.world_id))?;
 
         let location_id = match input.location_id {
             Some(id) => id,
@@ -84,13 +87,13 @@ impl ApproveStagingRequest {
                     .location
                     .get_region(input.region_id)
                     .await?
-                    .ok_or(StagingError::RegionNotFound)?;
+                    .ok_or(StagingError::RegionNotFound(input.region_id))?;
                 region.location_id()
             }
         };
 
         let current_game_time = world.game_time().current();
-        let approved_at = self.world.now();
+        let approved_at = self.clock.now();
 
         let staged_npcs = self.build_staged_npcs(&input.approved_npcs).await;
 
@@ -106,7 +109,7 @@ impl ApproveStagingRequest {
         )
         .with_npcs(staged_npcs);
 
-        self.staging.save_pending(&staging).await?;
+        self.staging.save_pending_staging(&staging).await?;
         self.staging
             .activate_staging(staging.id(), input.region_id)
             .await?;

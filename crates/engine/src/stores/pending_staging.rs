@@ -1,3 +1,6 @@
+// Pending staging store - methods for future staging approval
+#![allow(dead_code)]
+
 //! Pending staging request storage wrapper.
 
 use std::sync::Arc;
@@ -6,11 +9,11 @@ use crate::api::websocket::PendingStagingStoreImpl;
 use crate::infrastructure::ports::PendingStagingRequest;
 
 /// Pending staging store wrapper for use cases.
-pub struct PendingStaging {
+pub struct PendingStagingStore {
     store: Arc<PendingStagingStoreImpl>,
 }
 
-impl PendingStaging {
+impl PendingStagingStore {
     pub fn new(store: Arc<PendingStagingStoreImpl>) -> Self {
         Self { store }
     }
@@ -27,3 +30,6 @@ impl PendingStaging {
         self.store.remove(key).await
     }
 }
+
+// Keep the old name as a type alias for backwards compatibility
+pub type PendingStaging = PendingStagingStore;

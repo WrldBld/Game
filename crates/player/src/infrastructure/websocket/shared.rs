@@ -18,7 +18,7 @@ pub enum ParsedServerMessage {
         request_id: String,
         result: ResponseResult,
     },
-    Other(ServerMessage),
+    Other(Box<ServerMessage>),
 }
 
 pub fn parse_server_message(text: &str) -> Result<ParsedServerMessage, serde_json::Error> {
@@ -27,6 +27,6 @@ pub fn parse_server_message(text: &str) -> Result<ParsedServerMessage, serde_jso
         ServerMessage::Response { request_id, result } => {
             ParsedServerMessage::Response { request_id, result }
         }
-        other => ParsedServerMessage::Other(other),
+        other => ParsedServerMessage::Other(Box::new(other)),
     })
 }

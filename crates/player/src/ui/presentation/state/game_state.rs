@@ -166,17 +166,21 @@ pub enum TimeMode {
     Suggested,
 }
 
-impl TimeMode {
-    pub fn from_str(s: &str) -> Self {
-        match s.to_lowercase().as_str() {
+impl std::str::FromStr for TimeMode {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s.to_lowercase().as_str() {
             "manual" => TimeMode::Manual,
             "suggested" => TimeMode::Suggested,
             // Auto mode is intentionally treated as Suggested.
             "auto" | "automatic" => TimeMode::Suggested,
             _ => TimeMode::Suggested,
-        }
+        })
     }
+}
 
+impl TimeMode {
     pub fn display_name(&self) -> &'static str {
         match self {
             TimeMode::Manual => "Manual",

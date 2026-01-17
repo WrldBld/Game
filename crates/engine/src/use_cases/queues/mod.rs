@@ -1,3 +1,6 @@
+// Queue processing - fields for future queue result types
+#![allow(dead_code)]
+
 //! Queue processing use cases.
 //!
 //! These use cases are background workers that poll queues and process items.
@@ -23,8 +26,10 @@ use crate::llm_context::{
 };
 use crate::queue_types::{LlmRequestData, LlmRequestType, PlayerActionData};
 
-use crate::infrastructure::ports::RepoError;
-use crate::repositories::{LlmService, QueueService};
+use crate::infrastructure::ports::{
+    ChallengeRepo, CharacterRepo, LlmPort, LocationRepo, PlayerCharacterRepo, QueuePort, RepoError,
+    SceneRepo,
+};
 
 /// Events that need to be broadcast to clients after queue processing.
 ///
@@ -85,28 +90,28 @@ pub struct PlayerActionProcessed {
 /// Dequeues player actions, builds LLM prompts, and enqueues LLM requests.
 #[allow(dead_code)]
 pub struct ProcessPlayerAction {
-    queue: Arc<QueueService>,
-    character: Arc<crate::repositories::CharacterRepository>,
-    player_character: Arc<crate::repositories::PlayerCharacterRepository>,
+    queue: Arc<dyn QueuePort>,
+    character: Arc<dyn CharacterRepo>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
     staging: Arc<crate::repositories::StagingRepository>,
-    scene: Arc<crate::repositories::SceneRepository>,
+    scene: Arc<dyn SceneRepo>,
     world: Arc<crate::repositories::WorldRepository>,
     narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
-    location: Arc<crate::repositories::location::Location>,
-    challenge: Arc<crate::repositories::ChallengeRepository>,
+    location: Arc<dyn LocationRepo>,
+    challenge: Arc<dyn ChallengeRepo>,
 }
 
 impl ProcessPlayerAction {
     pub fn new(
-        queue: Arc<QueueService>,
-        character: Arc<crate::repositories::CharacterRepository>,
-        player_character: Arc<crate::repositories::PlayerCharacterRepository>,
+        queue: Arc<dyn QueuePort>,
+        character: Arc<dyn CharacterRepo>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
         staging: Arc<crate::repositories::StagingRepository>,
-        scene: Arc<crate::repositories::SceneRepository>,
+        scene: Arc<dyn SceneRepo>,
         world: Arc<crate::repositories::WorldRepository>,
         narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
-        location: Arc<crate::repositories::location::Location>,
-        challenge: Arc<crate::repositories::ChallengeRepository>,
+        location: Arc<dyn LocationRepo>,
+        challenge: Arc<dyn ChallengeRepo>,
     ) -> Self {
         Self {
             queue,
@@ -240,7 +245,7 @@ impl ProcessPlayerAction {
         // Get actual location name from the location entity
         let location_name = if let Some(location_id) = pc_location_id {
             self.location
-                .get(location_id)
+                .get_location(location_id)
                 .await?
                 .map(|loc| loc.name().to_string())
                 .unwrap_or_else(|| "Unknown Location".to_string())
@@ -548,12 +553,12 @@ pub struct LlmRequestProcessed {
 ///
 /// Dequeues LLM requests, calls the LLM, and enqueues DM approval requests.
 pub struct ProcessLlmRequest {
-    queue: Arc<QueueService>,
-    llm: Arc<LlmService>,
+    queue: Arc<dyn QueuePort>,
+    llm: Arc<dyn LlmPort>,
 }
 
 impl ProcessLlmRequest {
-    pub fn new(queue: Arc<QueueService>, llm: Arc<LlmService>) -> Self {
+    pub fn new(queue: Arc<dyn QueuePort>, llm: Arc<dyn LlmPort>) -> Self {
         Self { queue, llm }
     }
 
@@ -985,6 +990,9 @@ fn build_suggestion_prompt(
     }
 }
 
+/// Parse a string value into a typed ID.
+/// Currently unused but kept for future queue processing needs.
+#[allow(dead_code)]
 fn parse_typed_id<T: From<Uuid>>(value: &str, field: &str) -> Result<T, QueueError> {
     Uuid::parse_str(value)
         .map(T::from)

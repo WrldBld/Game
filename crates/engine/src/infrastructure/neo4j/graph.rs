@@ -1,3 +1,6 @@
+// Neo4j graph wrapper - some methods for future use
+#![allow(dead_code)]
+
 //! Neo4j graph wrapper.
 
 use futures_util::{Stream, TryStreamExt};

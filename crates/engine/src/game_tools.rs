@@ -1,3 +1,6 @@
+// Game tools are defined for future LLM tool-calling workflows
+#![allow(dead_code)]
+
 //! Game tools used in LLM tool-call workflows.
 
 use serde_json::Value;

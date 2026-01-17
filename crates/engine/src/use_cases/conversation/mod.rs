@@ -1,3 +1,6 @@
+// Conversation use cases - fields for future conversation features
+#![allow(dead_code)]
+
 //! Conversation use cases.
 //!
 //! Handles player-NPC dialogue interactions. The conversation flow is:

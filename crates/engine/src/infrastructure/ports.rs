@@ -1,3 +1,6 @@
+// Port traits define the full contract - many methods are for future use
+#![allow(dead_code)]
+
 //! Port traits for infrastructure boundaries.
 //!
 //! These are the ONLY abstractions in the engine. Everything else is concrete types.

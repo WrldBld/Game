@@ -31,8 +31,11 @@ use wrldbldr_domain::DomainError;
 /// Shared error type for management use cases.
 #[derive(Debug, thiserror::Error)]
 pub enum ManagementError {
-    #[error("Not found")]
-    NotFound,
+    #[error("{entity_type} not found: {id}")]
+    NotFound {
+        entity_type: &'static str,
+        id: String,
+    },
     #[error("Invalid input: {0}")]
     InvalidInput(String),
     #[error("Repository error: {0}")]

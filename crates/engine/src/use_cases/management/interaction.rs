@@ -4,17 +4,17 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{InteractionId, SceneId};
 
-use crate::repositories::InteractionRepository;
+use crate::infrastructure::ports::InteractionRepo;
 use crate::use_cases::validation::require_non_empty;
 
 use super::ManagementError;
 
 pub struct InteractionCrud {
-    interaction: Arc<InteractionRepository>,
+    interaction: Arc<dyn InteractionRepo>,
 }
 
 impl InteractionCrud {
-    pub fn new(interaction: Arc<InteractionRepository>) -> Self {
+    pub fn new(interaction: Arc<dyn InteractionRepo>) -> Self {
         Self { interaction }
     }
 
@@ -74,11 +74,14 @@ impl InteractionCrud {
         trigger: Option<String>,
         available: Option<bool>,
     ) -> Result<wrldbldr_domain::InteractionTemplate, ManagementError> {
-        let existing = self
-            .interaction
-            .get(interaction_id)
-            .await?
-            .ok_or(ManagementError::NotFound)?;
+        let existing =
+            self.interaction
+                .get(interaction_id)
+                .await?
+                .ok_or(ManagementError::NotFound {
+                    entity_type: "Interaction",
+                    id: interaction_id.to_string(),
+                })?;
 
         // Rebuild the interaction with updated values
         let updated_name = match name {

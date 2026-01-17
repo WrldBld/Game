@@ -225,7 +225,7 @@ crates/
 
   engine/       # All server-side code
     src/
-      repositories/     # Data access wrappers (e.g., CharacterRepository)
+      stores/           # In-memory state (sessions, pending staging, etc.)
       use_cases/        # Business orchestration (multi-repository)
       infrastructure/   # External system adapters
         ports.rs        # ~10 port trait definitions
@@ -306,53 +306,43 @@ Port traits exist ONLY for infrastructure that might realistically be swapped:
 - `Uuid::new_v4()` allowed for ID generation (ADR-001)
 - `Utc::now()` NOT allowed (inject via ClockPort)
 
-### Repository Layer (`crates/engine/src/repositories/`)
+### Stores Layer (`crates/engine/src/stores/`)
 
-**Purpose:** Data access wrappers around port traits
+**Purpose:** In-memory runtime state (NOT database wrappers)
 
 **Contains:**
-- One struct per aggregate type
-- Wraps a single port trait
-- CRUD methods only
+- `SessionStore` - WebSocket connection tracking
+- `PendingStagingStore` - Approval workflow state
+- `DirectorialStore` - DM context state
+- `TimeSuggestionStore` - Time suggestion cache
 
 **Rules:**
-- Named `*Repository` (e.g., `CharacterRepository`)
-- No business logic
-- Returns domain types
-- Async methods
+- Named `*Store` (not `*Repository`)
+- Manages ephemeral runtime state
+- Not persistence wrappers
 
-```rust
-pub struct CharacterRepository {
-    repo: Arc<dyn CharacterRepo>,
-}
-
-impl CharacterRepository {
-    pub async fn get(&self, id: CharacterId) -> Result<Option<Character>, RepoError> {
-        self.repo.get(id).await
-    }
-}
-```
+**Note:** There is no repository wrapper layer. Per [ADR-009](ADR-009-repository-layer-elimination.md), use cases inject port traits directly.
 
 ### Use Case Layer (`crates/engine/src/use_cases/`)
 
-**Purpose:** Business orchestration across multiple repositories
+**Purpose:** Business orchestration, injecting port traits directly
 
 **Contains:**
 - One struct per use case
-- Injects 2+ repositories
+- Injects port traits (`Arc<dyn *Repo>`)
 - Coordinates domain logic
 
 **Rules:**
 - Named `{Verb}{Noun}` (e.g., `EnterRegion`, `StartConversation`)
-- Inject repositories, not port traits directly
+- Inject port traits directly (not wrapper classes)
 - Return domain types or use-case-specific results
 - Has its own error type with context
 
 ```rust
 pub struct EnterRegion {
-    player_character: Arc<PlayerCharacterRepository>,
-    staging: Arc<StagingRepository>,
-    narrative: Arc<NarrativeRepository>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
+    staging: Arc<dyn StagingRepo>,
+    narrative: Arc<dyn NarrativeRepo>,
 }
 
 impl EnterRegion {
@@ -634,10 +624,10 @@ Use this checklist when doing a comprehensive review of the entire codebase.
 - [ ] Domain crate has no async functions
 - [ ] Domain crate imports only allowed dependencies (serde, uuid, chrono, thiserror)
 - [ ] All port traits are defined in `infrastructure/ports.rs`
-- [ ] No more than ~10-15 port traits total
-- [ ] Repositories are in `repositories/`, use cases in `use_cases/`
-- [ ] Repository wrappers use `*Repository` naming
-- [ ] Use cases inject repositories, not port traits directly
+- [ ] No more than ~25 port traits total (20 repos + 5 services)
+- [ ] In-memory stores are in `stores/`, use cases in `use_cases/`
+- [ ] No repository wrapper layer (use cases inject ports directly per ADR-009)
+- [ ] Use cases inject port traits (`Arc<dyn *Repo>`), not wrapper classes
 
 ### Security
 
@@ -699,8 +689,8 @@ rg '[A-Za-z0-9/+=]{32,}' --type rust -g '!target/*'
 
 - [ ] All LLM calls have VCR cassettes
 - [ ] Domain tests don't use mocking (pure functions)
-- [ ] Repository tests mock port traits
-- [ ] Use case tests mock repositories
+- [ ] Neo4j infrastructure tests use testcontainers
+- [ ] Use case tests mock port traits directly
 - [ ] No flaky tests (timing, ordering)
 
 ### Documentation

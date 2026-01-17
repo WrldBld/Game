@@ -41,7 +41,7 @@ pub enum SessionEvent {
     /// Connection state changed
     StateChanged(ConnectionState),
     /// Server event received (application-layer type)
-    MessageReceived(PlayerEvent),
+    MessageReceived(Box<PlayerEvent>),
 }
 
 /// Session service for managing Engine connection.
@@ -138,7 +138,8 @@ impl SessionService {
         let tx_for_events = tx.clone();
         self.event_bus
             .subscribe(move |event| {
-                let _ = tx_for_events.unbounded_send(SessionEvent::MessageReceived(event));
+                let _ =
+                    tx_for_events.unbounded_send(SessionEvent::MessageReceived(Box::new(event)));
             })
             .await;
 

@@ -434,17 +434,14 @@ pub fn ExpressionMapping(props: ExpressionMappingProps) -> Element {
                         select {
                             class: "w-full p-2 bg-gray-800 border border-gray-700 rounded text-white text-sm",
                             value: mappings.read().iter().find(|(i, _)| *i == idx).map(|(_, e)| e.clone()).unwrap_or_default(),
-                            onchange: {
-                                let idx = idx;
-                                move |e| {
-                                    let mut current = mappings.read().clone();
-                                    if let Some(entry) = current.iter_mut().find(|(i, _)| *i == idx) {
-                                        entry.1 = e.value();
-                                    } else {
-                                        current.push((idx, e.value()));
-                                    }
-                                    mappings.set(current);
+                            onchange: move |e| {
+                                let mut current = mappings.read().clone();
+                                if let Some(entry) = current.iter_mut().find(|(i, _)| *i == idx) {
+                                    entry.1 = e.value();
+                                } else {
+                                    current.push((idx, e.value()));
                                 }
+                                mappings.set(current);
                             },
 
                             option { value: "", "— Select —" }

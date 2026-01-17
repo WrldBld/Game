@@ -4,16 +4,16 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{ActId, LocationId, SceneId, SceneName};
 
-use crate::repositories::SceneRepository;
+use crate::infrastructure::ports::SceneRepo;
 
 use super::ManagementError;
 
 pub struct SceneCrud {
-    scene: Arc<SceneRepository>,
+    scene: Arc<dyn SceneRepo>,
 }
 
 impl SceneCrud {
-    pub fn new(scene: Arc<SceneRepository>) -> Self {
+    pub fn new(scene: Arc<dyn SceneRepo>) -> Self {
         Self { scene }
     }
 
@@ -65,7 +65,10 @@ impl SceneCrud {
             .scene
             .get(scene_id)
             .await?
-            .ok_or(ManagementError::NotFound)?;
+            .ok_or(ManagementError::NotFound {
+                entity_type: "Scene",
+                id: scene_id.to_string(),
+            })?;
 
         if let Some(name) = name {
             let name =

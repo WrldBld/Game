@@ -1,3 +1,6 @@
+// Connection manager - some methods prepared for future use
+#![allow(dead_code)]
+
 //! Connection management for WebSocket clients.
 //!
 //! Tracks connected clients and their world associations.

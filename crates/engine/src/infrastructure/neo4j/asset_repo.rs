@@ -1,3 +1,6 @@
+// Asset repo - some helper functions for future use
+#![allow(dead_code)]
+
 //! Neo4j asset repository implementation.
 //!
 //! Handles GalleryAsset persistence for character portraits, location backdrops, etc.

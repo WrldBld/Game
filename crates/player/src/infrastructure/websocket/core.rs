@@ -26,6 +26,7 @@ pub struct PendingRequests {
 
 impl PendingRequests {
     /// Insert a pending request callback.
+    #[allow(dead_code)]
     pub fn insert(&mut self, request_id: String, callback: PendingCallback) {
         self.inner.insert(request_id, callback);
     }

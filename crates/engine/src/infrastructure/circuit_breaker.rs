@@ -1,3 +1,6 @@
+// Circuit breaker is infrastructure - prepared for future resilience patterns
+#![allow(dead_code)]
+
 //! Circuit breaker pattern implementation for resilient service calls.
 //!
 //! The circuit breaker prevents cascading failures by temporarily rejecting

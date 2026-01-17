@@ -1,3 +1,6 @@
+// Assets repository - methods for future asset generation
+#![allow(dead_code)]
+
 //! Asset entity operations.
 
 use std::sync::Arc;

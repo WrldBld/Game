@@ -10,10 +10,9 @@ use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 
 use crate::queue_types::PlayerActionData;
 
-use crate::infrastructure::ports::{QueueError, RepoError};
-use crate::repositories::{
-    CharacterRepository, ClockService, PlayerCharacterRepository, QueueService, SceneRepository,
-    StagingRepository, WorldRepository,
+use crate::infrastructure::ports::{
+    CharacterRepo, ClockPort, PlayerCharacterRepo, QueueError, QueuePort, RepoError, SceneRepo,
+    StagingRepo, WorldRepo,
 };
 
 /// Result of starting a conversation.
@@ -34,24 +33,24 @@ pub struct ConversationStarted {
 /// Orchestrates: NPC validation, staging check, player action queuing.
 #[allow(dead_code)]
 pub struct StartConversation {
-    character: Arc<CharacterRepository>,
-    player_character: Arc<PlayerCharacterRepository>,
-    staging: Arc<StagingRepository>,
-    scene: Arc<SceneRepository>,
-    world: Arc<WorldRepository>,
-    queue: Arc<QueueService>,
-    clock: Arc<ClockService>,
+    character: Arc<dyn CharacterRepo>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
+    staging: Arc<dyn StagingRepo>,
+    scene: Arc<dyn SceneRepo>,
+    world: Arc<dyn WorldRepo>,
+    queue: Arc<dyn QueuePort>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl StartConversation {
     pub fn new(
-        character: Arc<CharacterRepository>,
-        player_character: Arc<PlayerCharacterRepository>,
-        staging: Arc<StagingRepository>,
-        scene: Arc<SceneRepository>,
-        world: Arc<WorldRepository>,
-        queue: Arc<QueueService>,
-        clock: Arc<ClockService>,
+        character: Arc<dyn CharacterRepo>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
+        staging: Arc<dyn StagingRepo>,
+        scene: Arc<dyn SceneRepo>,
+        world: Arc<dyn WorldRepo>,
+        queue: Arc<dyn QueuePort>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             character,
@@ -89,14 +88,14 @@ impl StartConversation {
             .player_character
             .get(pc_id)
             .await?
-            .ok_or(ConversationError::PlayerCharacterNotFound)?;
+            .ok_or(ConversationError::PlayerCharacterNotFound(pc_id))?;
 
         // 2. Get the NPC
         let npc = self
             .character
             .get(npc_id)
             .await?
-            .ok_or(ConversationError::NpcNotFound)?;
+            .ok_or(ConversationError::NpcNotFound(npc_id))?;
 
         // 3. Verify the NPC is in the same region as the PC
         let pc_region_id = pc
@@ -108,14 +107,24 @@ impl StartConversation {
             .world
             .get(world_id)
             .await?
-            .ok_or(ConversationError::WorldNotFound)?;
+            .ok_or(ConversationError::WorldNotFound(world_id))?;
         let current_game_time = world_data.game_time().current();
 
         // Check if NPC is staged in this region (with TTL check)
-        let staged_npcs = self
+        // Get active staging and filter to visible NPCs
+        let active_staging = self
             .staging
-            .resolve_for_region(pc_region_id, current_game_time)
+            .get_active_staging(pc_region_id, current_game_time)
             .await?;
+        let staged_npcs = active_staging
+            .map(|s| {
+                s.npcs()
+                    .iter()
+                    .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
+                    .cloned()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
         let npc_in_region = staged_npcs
             .iter()
             .any(|staged| staged.character_id == npc_id);
@@ -167,12 +176,12 @@ impl StartConversation {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConversationError {
-    #[error("Player character not found")]
-    PlayerCharacterNotFound,
-    #[error("NPC not found")]
-    NpcNotFound,
-    #[error("World not found")]
-    WorldNotFound,
+    #[error("Player character not found: {0}")]
+    PlayerCharacterNotFound(PlayerCharacterId),
+    #[error("NPC not found: {0}")]
+    NpcNotFound(CharacterId),
+    #[error("World not found: {0}")]
+    WorldNotFound(WorldId),
     #[error("Player is not in a region")]
     PlayerNotInRegion,
     #[error("NPC is not in the player's region")]

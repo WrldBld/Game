@@ -32,8 +32,7 @@ pub(super) async fn handle_directorial_update(
         }
     };
 
-    let context_store =
-        crate::repositories::DirectorialContextStore::new(state.connections.clone());
+    let context_store = crate::stores::DirectorialContextStore::new(state.connections.clone());
     let ctx = crate::use_cases::session::DirectorialUpdateContext {
         context_store: &context_store,
     };

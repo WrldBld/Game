@@ -1,3 +1,6 @@
+// Staging repo - clock field for future TTL calculations
+#![allow(dead_code)]
+
 //! Neo4j staging repository implementation.
 //!
 //! Handles NPC staging for regions and pending staging approval.

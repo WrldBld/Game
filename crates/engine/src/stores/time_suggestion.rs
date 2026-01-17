@@ -6,14 +6,11 @@ use crate::api::websocket::TimeSuggestionStoreImpl;
 use crate::infrastructure::ports::TimeSuggestion;
 
 /// Time suggestion store wrapper for use cases.
-///
-/// Note: This was renamed from `TimeSuggestionStore` to `TimeSuggestionRepository`
-/// to avoid confusion with `TimeSuggestionStoreImpl`.
-pub struct TimeSuggestionRepository {
+pub struct TimeSuggestionStore {
     store: Arc<TimeSuggestionStoreImpl>,
 }
 
-impl TimeSuggestionRepository {
+impl TimeSuggestionStore {
     pub fn new(store: Arc<TimeSuggestionStoreImpl>) -> Self {
         Self { store }
     }
@@ -26,6 +23,3 @@ impl TimeSuggestionRepository {
         self.store.remove(&key).await
     }
 }
-
-// Keep the old name as a type alias for backwards compatibility
-pub type TimeSuggestionStore = TimeSuggestionRepository;

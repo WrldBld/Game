@@ -1,3 +1,6 @@
+// Narrative repository - methods for future narrative features
+#![allow(dead_code)]
+
 //! Narrative entity CRUD operations.
 //!
 //! Simple repository wrappers for narrative events, event chains, story events,

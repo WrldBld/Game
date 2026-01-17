@@ -19,6 +19,7 @@ mod infrastructure;
 mod llm_context;
 mod queue_types;
 mod repositories;
+mod stores;
 mod use_cases;
 
 #[cfg(test)]
@@ -476,9 +477,7 @@ fn build_cors_layer_from_env() -> Option<CorsLayer> {
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
 
-    let Some(allowed_origins) = allowed_origins else {
-        return None;
-    };
+    let allowed_origins = allowed_origins?;
 
     let mut cors = CorsLayer::new()
         .allow_methods([

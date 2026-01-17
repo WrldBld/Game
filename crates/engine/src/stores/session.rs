@@ -1,3 +1,6 @@
+// Session store - type alias for future use
+#![allow(dead_code)]
+
 //! World session storage wrapper.
 
 use std::sync::Arc;
@@ -9,11 +12,11 @@ use crate::infrastructure::ports::{ConnectionInfo, SessionError};
 use wrldbldr_domain::{PlayerCharacterId, WorldId, WorldRole};
 
 /// World session wrapper for use cases.
-pub struct WorldSession {
+pub struct SessionStore {
     connections: Arc<ConnectionManager>,
 }
 
-impl WorldSession {
+impl SessionStore {
     pub fn new(connections: Arc<ConnectionManager>) -> Self {
         Self { connections }
     }
@@ -52,3 +55,6 @@ impl WorldSession {
             .map(ConnectionInfo::from)
     }
 }
+
+// Keep the old name as a type alias for backwards compatibility
+pub type WorldSession = SessionStore;

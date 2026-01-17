@@ -547,6 +547,7 @@ impl PbtaSystem {
     /// PbtA games typically use stat arrays where players choose from
     /// pre-defined distributions of stat values.
     /// Values are positional - first value goes to first target_field, etc.
+    #[allow(dead_code)] // Unfinished allocation systems feature - PbtA needs public allocation_systems() method
     fn stat_array_allocation(&self) -> AllocationSystem {
         match self.variant {
             PbtaVariant::DungeonWorld => {

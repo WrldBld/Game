@@ -1,3 +1,6 @@
+// Session use cases - fields for future session features
+#![allow(dead_code)]
+
 //! Session use cases.
 //!
 //! Orchestrates session-level flows (joining worlds, snapshots, etc.).

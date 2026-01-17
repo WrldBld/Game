@@ -1,3 +1,6 @@
+// Narrative use cases - fields for future event features
+#![allow(dead_code)]
+
 //! Narrative use cases - Event triggering and effect execution.
 
 #[cfg(test)]

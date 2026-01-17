@@ -6,7 +6,7 @@ use crate::infrastructure::ports::{
     ConnectedUserInfo, JoinWorldError as PortJoinWorldError, RepoError, SessionError,
     UserJoinedInfo, WorldRole,
 };
-use crate::repositories::WorldSession;
+use crate::stores::SessionStore as WorldSession;
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
 
 use super::types::{PlayerCharacterSummary, WorldSnapshot};

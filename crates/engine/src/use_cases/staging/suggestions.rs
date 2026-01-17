@@ -5,9 +5,8 @@ use std::collections::{HashMap, HashSet};
 use serde::Deserialize;
 
 use crate::infrastructure::ports::{
-    ChatMessage, LlmRequest, NpcRegionRelationType, NpcWithRegionInfo,
+    ChatMessage, LlmPort, LlmRequest, NpcRegionRelationType, NpcWithRegionInfo, StagingRepo,
 };
-use crate::repositories::{LlmService, StagingRepository};
 use wrldbldr_domain::{CharacterId, RegionId};
 
 use super::types::StagedNpc;
@@ -20,7 +19,7 @@ struct LlmSuggestion {
 
 pub async fn generate_rule_based_suggestions(
     npcs_with_relationships: &[NpcWithRegionInfo],
-    staging: &StagingRepository,
+    staging: &dyn StagingRepo,
     region_id: RegionId,
 ) -> Vec<StagedNpc> {
     let mut suggestions: Vec<StagedNpc> = npcs_with_relationships
@@ -89,7 +88,7 @@ pub async fn generate_rule_based_suggestions(
 
 pub async fn generate_llm_based_suggestions(
     npcs_with_relationships: &[NpcWithRegionInfo],
-    llm: &LlmService,
+    llm: &dyn LlmPort,
     region_name: &str,
     location_name: &str,
     guidance: Option<&str>,

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use wrldbldr_domain::RegionId;
 
-use crate::repositories::{CharacterRepository, LlmService, Location};
+use crate::infrastructure::ports::{CharacterRepo, LlmPort, LocationRepo};
 
 use super::suggestions::generate_llm_based_suggestions;
 use super::types::StagedNpc;
@@ -12,16 +12,16 @@ use super::StagingError;
 
 /// Use case for regenerating LLM staging suggestions.
 pub struct RegenerateStagingSuggestions {
-    location: Arc<Location>,
-    character: Arc<CharacterRepository>,
-    llm: Arc<LlmService>,
+    location: Arc<dyn LocationRepo>,
+    character: Arc<dyn CharacterRepo>,
+    llm: Arc<dyn LlmPort>,
 }
 
 impl RegenerateStagingSuggestions {
     pub fn new(
-        location: Arc<Location>,
-        character: Arc<CharacterRepository>,
-        llm: Arc<LlmService>,
+        location: Arc<dyn LocationRepo>,
+        character: Arc<dyn CharacterRepo>,
+        llm: Arc<dyn LlmPort>,
     ) -> Self {
         Self {
             location,
@@ -39,9 +39,9 @@ impl RegenerateStagingSuggestions {
             .location
             .get_region(region_id)
             .await?
-            .ok_or(StagingError::RegionNotFound)?;
+            .ok_or(StagingError::RegionNotFound(region_id))?;
 
-        let location_name = match self.location.get(region.location_id()).await {
+        let location_name = match self.location.get_location(region.location_id()).await {
             Ok(Some(l)) => l.name().to_string(),
             Ok(None) => {
                 tracing::warn!(location_id = %region.location_id(), "Location not found for staging regeneration");

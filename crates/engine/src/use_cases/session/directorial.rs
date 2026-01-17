@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::infrastructure::ports::{DirectorialContext, NpcMotivation};
-use crate::repositories::DirectorialContextStore;
+use crate::stores::DirectorialContextStore;
 use wrldbldr_domain::WorldId;
 
 /// IO dependencies for directorial updates (WS-state owned).

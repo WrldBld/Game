@@ -4,17 +4,17 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{CharacterId, WorldId};
 
-use crate::repositories::{CharacterRepository, ClockService};
+use crate::infrastructure::ports::{CharacterRepo, ClockPort};
 
 use super::ManagementError;
 
 pub struct CharacterCrud {
-    character: Arc<CharacterRepository>,
-    clock: Arc<ClockService>,
+    character: Arc<dyn CharacterRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl CharacterCrud {
-    pub fn new(character: Arc<CharacterRepository>, clock: Arc<ClockService>) -> Self {
+    pub fn new(character: Arc<dyn CharacterRepo>, clock: Arc<dyn ClockPort>) -> Self {
         Self { character, clock }
     }
 
@@ -84,11 +84,14 @@ impl CharacterCrud {
         is_alive: Option<bool>,
         is_active: Option<bool>,
     ) -> Result<wrldbldr_domain::Character, ManagementError> {
-        let mut character = self
-            .character
-            .get(character_id)
-            .await?
-            .ok_or(ManagementError::NotFound)?;
+        let mut character =
+            self.character
+                .get(character_id)
+                .await?
+                .ok_or(ManagementError::NotFound {
+                    entity_type: "Character",
+                    id: character_id.to_string(),
+                })?;
 
         // For name/description, we need to rebuild the character using builder pattern
         // since fields are private. We use the with_* methods for immutable updates.
@@ -188,11 +191,14 @@ impl CharacterCrud {
         new_archetype: String,
         reason: String,
     ) -> Result<(), ManagementError> {
-        let mut character = self
-            .character
-            .get(character_id)
-            .await?
-            .ok_or(ManagementError::NotFound)?;
+        let mut character =
+            self.character
+                .get(character_id)
+                .await?
+                .ok_or(ManagementError::NotFound {
+                    entity_type: "Character",
+                    id: character_id.to_string(),
+                })?;
 
         let archetype_value = new_archetype
             .parse::<wrldbldr_domain::CampbellArchetype>()

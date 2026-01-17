@@ -418,7 +418,7 @@ pub(super) async fn handle_respond_to_time_suggestion(
     };
 
     let time_suggestions =
-        crate::repositories::TimeSuggestionStore::new(state.pending_time_suggestions.clone());
+        crate::stores::TimeSuggestionStore::new(state.pending_time_suggestions.clone());
     match state
         .app
         .use_cases

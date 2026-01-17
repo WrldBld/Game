@@ -103,7 +103,7 @@ pub(super) async fn handle_skill_request(
                 .await
             {
                 Ok(skill) => Ok(ResponseResult::success(skill_to_json(&skill))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Skill not found"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
@@ -130,7 +130,7 @@ pub(super) async fn handle_skill_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Skill not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(

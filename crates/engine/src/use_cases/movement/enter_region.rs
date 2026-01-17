@@ -6,16 +6,17 @@
 use std::sync::Arc;
 use wrldbldr_domain::{
     NarrativeEvent, PlayerCharacter as DomainPlayerCharacter, PlayerCharacterId, Region, RegionId,
-    Scene as DomainScene, StagedNpc, Staging as DomainStaging,
+    Scene as DomainScene, StagedNpc, Staging as DomainStaging, WorldId,
 };
 
-use crate::infrastructure::ports::RepoError;
-use crate::repositories::location::Location;
-use crate::repositories::{
-    FlagRepository, InventoryRepository, ObservationRepository, PlayerCharacterRepository,
-    SceneRepository, StagingRepository, WorldRepository,
+use crate::infrastructure::ports::{
+    FlagRepo, LocationRepo, ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo,
+    StagingRepo, WorldRepo,
 };
+use crate::repositories::InventoryRepository;
 use crate::use_cases::narrative_operations::Narrative;
+use crate::use_cases::observation::RecordVisit;
+use crate::use_cases::scene::ResolveScene;
 use crate::use_cases::time::{SuggestTime, TimeSuggestion};
 
 use super::{resolve_scene_for_region, resolve_staging_for_region, suggest_time_for_movement};
@@ -47,7 +48,7 @@ pub enum StagingStatus {
     /// No valid staging, DM approval required
     Pending {
         /// Previous staging if it exists (may be expired)
-        previous_staging: Option<DomainStaging>,
+        previous_staging: Box<Option<DomainStaging>>,
     },
 }
 
@@ -55,29 +56,33 @@ pub enum StagingStatus {
 ///
 /// Orchestrates: Movement validation, staging resolution, scene resolution, observation updates, trigger checks, time suggestions.
 pub struct EnterRegion {
-    player_character: Arc<PlayerCharacterRepository>,
-    location: Arc<Location>,
-    staging: Arc<StagingRepository>,
-    observation: Arc<ObservationRepository>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
+    location: Arc<dyn LocationRepo>,
+    staging: Arc<dyn StagingRepo>,
+    observation: Arc<dyn ObservationRepo>,
+    record_visit: Arc<RecordVisit>,
     narrative: Arc<Narrative>,
-    scene: Arc<SceneRepository>,
+    resolve_scene: Arc<ResolveScene>,
+    scene: Arc<dyn SceneRepo>,
     inventory: Arc<InventoryRepository>,
-    flag: Arc<FlagRepository>,
-    world: Arc<WorldRepository>,
+    flag: Arc<dyn FlagRepo>,
+    world: Arc<dyn WorldRepo>,
     suggest_time: Arc<SuggestTime>,
 }
 
 impl EnterRegion {
     pub fn new(
-        player_character: Arc<PlayerCharacterRepository>,
-        location: Arc<Location>,
-        staging: Arc<StagingRepository>,
-        observation: Arc<ObservationRepository>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
+        location: Arc<dyn LocationRepo>,
+        staging: Arc<dyn StagingRepo>,
+        observation: Arc<dyn ObservationRepo>,
+        record_visit: Arc<RecordVisit>,
         narrative: Arc<Narrative>,
-        scene: Arc<SceneRepository>,
+        resolve_scene: Arc<ResolveScene>,
+        scene: Arc<dyn SceneRepo>,
         inventory: Arc<InventoryRepository>,
-        flag: Arc<FlagRepository>,
-        world: Arc<WorldRepository>,
+        flag: Arc<dyn FlagRepo>,
+        world: Arc<dyn WorldRepo>,
         suggest_time: Arc<SuggestTime>,
     ) -> Self {
         Self {
@@ -85,7 +90,9 @@ impl EnterRegion {
             location,
             staging,
             observation,
+            record_visit,
             narrative,
+            resolve_scene,
             scene,
             inventory,
             flag,
@@ -113,14 +120,14 @@ impl EnterRegion {
             .player_character
             .get(pc_id)
             .await?
-            .ok_or(EnterRegionError::PlayerCharacterNotFound)?;
+            .ok_or(EnterRegionError::PlayerCharacterNotFound(pc_id))?;
 
         // 2. Get the target region
         let region = self
             .location
             .get_region(region_id)
             .await?
-            .ok_or(EnterRegionError::RegionNotFound)?;
+            .ok_or(EnterRegionError::RegionNotFound(region_id))?;
 
         // 3. Verify region is in the same location (for move_to_region)
         if region.location_id() != pc.current_location_id() {
@@ -151,12 +158,12 @@ impl EnterRegion {
             .world
             .get(pc.world_id())
             .await?
-            .ok_or(EnterRegionError::WorldNotFound)?;
+            .ok_or(EnterRegionError::WorldNotFound(pc.world_id()))?;
         let current_game_time = world_data.game_time().current();
 
         // 6. Check for valid staging (with TTL check using game time)
         let (npcs, staging_status) = resolve_staging_for_region(
-            &self.staging,
+            self.staging.as_ref(),
             region_id,
             region.location_id(),
             pc.world_id(),
@@ -167,17 +174,18 @@ impl EnterRegion {
         // 7. Update player's observation state (even if staging pending, record the visit)
         // Use game time for when the observation occurred in-game
         if !npcs.is_empty() {
-            self.observation
-                .record_visit(pc_id, region_id, &npcs, current_game_time)
+            self.record_visit
+                .execute(pc_id, region_id, &npcs, current_game_time)
                 .await?;
         }
 
         // 8. Resolve scene for this region (use world's game time for time-of-day checks)
         let resolved_scene = resolve_scene_for_region(
-            &self.scene,
+            &self.resolve_scene,
+            self.scene.as_ref(),
             &self.inventory,
-            &self.observation,
-            &self.flag,
+            self.observation.as_ref(),
+            self.flag.as_ref(),
             pc_id,
             pc.world_id(),
             region_id,
@@ -269,12 +277,12 @@ enum ConnectionCheckResult {
 
 #[derive(Debug, thiserror::Error)]
 pub enum EnterRegionError {
-    #[error("Player character not found")]
-    PlayerCharacterNotFound,
-    #[error("Region not found")]
-    RegionNotFound,
-    #[error("World not found")]
-    WorldNotFound,
+    #[error("Player character not found: {0}")]
+    PlayerCharacterNotFound(PlayerCharacterId),
+    #[error("Region not found: {0}")]
+    RegionNotFound(RegionId),
+    #[error("World not found: {0}")]
+    WorldNotFound(WorldId),
     #[error("Region is not in the current location")]
     RegionNotInCurrentLocation,
     #[error("No path exists to that region")]
@@ -301,8 +309,9 @@ mod tests {
         MockSceneRepo, MockStagingRepo, MockWorldRepo,
     };
     use crate::repositories;
-    use crate::repositories::{InventoryRepository, StagingRepository};
-    use crate::use_cases::{Location, Narrative, Scene};
+    use crate::repositories::InventoryRepository;
+    use crate::use_cases::scene::ResolveScene;
+    use crate::use_cases::Narrative;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -319,69 +328,81 @@ mod tests {
         clock_port: Arc<dyn ClockPort>,
     ) -> super::EnterRegion {
         let clock = Arc::new(repositories::ClockService::new(clock_port.clone()));
-        let player_character = Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
-            player_character_repo,
-        )));
+        let player_character_repo: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> =
+            Arc::new(player_character_repo);
 
-        let location_repo = Arc::new(location_repo);
-        let location = Arc::new(Location::new(location_repo.clone()));
+        let location_repo: Arc<dyn crate::infrastructure::ports::LocationRepo> =
+            Arc::new(location_repo);
 
-        let staging = Arc::new(StagingRepository::new(Arc::new(MockStagingRepo::new())));
+        let staging_repo: Arc<dyn crate::infrastructure::ports::StagingRepo> =
+            Arc::new(MockStagingRepo::new());
 
-        let observation = Arc::new(repositories::ObservationRepository::new(
-            Arc::new(MockObservationRepo::new()),
+        let observation_repo: Arc<dyn crate::infrastructure::ports::ObservationRepo> =
+            Arc::new(MockObservationRepo::new());
+        let record_visit = Arc::new(crate::use_cases::observation::RecordVisit::new(
+            observation_repo.clone(),
             location_repo.clone(),
             clock_port.clone(),
         ));
 
-        let scene = Arc::new(Scene::new(Arc::new(MockSceneRepo::new())));
+        let scene_repo: Arc<dyn crate::infrastructure::ports::SceneRepo> =
+            Arc::new(MockSceneRepo::new());
+        let resolve_scene = Arc::new(ResolveScene::new(scene_repo.clone()));
         let inventory = Arc::new(InventoryRepository::new(
             Arc::new(MockItemRepo::new()),
             Arc::new(MockCharacterRepo::new()),
             Arc::new(MockPlayerCharacterRepo::new()),
         ));
-        let flag = Arc::new(repositories::FlagRepository::new(Arc::new(
-            MockFlagRepo::new(),
-        )));
+        let flag_repo: Arc<dyn crate::infrastructure::ports::FlagRepo> =
+            Arc::new(MockFlagRepo::new());
 
-        let world = Arc::new(repositories::WorldRepository::new(
-            Arc::new(world_repo),
-            clock_port.clone(),
-        ));
+        let world_repo: Arc<dyn crate::infrastructure::ports::WorldRepo> = Arc::new(world_repo);
         let narrative = Arc::new(Narrative::new(
             Arc::new(repositories::NarrativeRepository::new(
                 Arc::new(MockNarrativeRepo::new()),
                 clock_port.clone(),
             )),
-            location.clone(),
-            world.clone(),
-            player_character.clone(),
+            Arc::new(repositories::Location::new(location_repo.clone())),
+            Arc::new(repositories::WorldRepository::new(
+                world_repo.clone(),
+                clock_port.clone(),
+            )),
+            Arc::new(repositories::PlayerCharacterRepository::new(
+                player_character_repo.clone(),
+            )),
             Arc::new(repositories::CharacterRepository::new(Arc::new(
                 MockCharacterRepo::new(),
             ))),
-            observation.clone(),
+            Arc::new(repositories::ObservationRepository::new(
+                observation_repo.clone(),
+            )),
             Arc::new(repositories::ChallengeRepository::new(Arc::new(
                 MockChallengeRepo::new(),
             ))),
-            flag.clone(),
-            scene.clone(),
+            Arc::new(repositories::FlagRepository::new(flag_repo.clone())),
+            Arc::new(repositories::SceneRepository::new(scene_repo.clone())),
             clock.clone(),
         ));
         let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
-            world.clone(),
+            Arc::new(repositories::WorldRepository::new(
+                world_repo.clone(),
+                clock_port.clone(),
+            )),
             clock,
         ));
 
         super::EnterRegion::new(
-            player_character,
-            location,
-            staging,
-            observation,
+            player_character_repo,
+            location_repo,
+            staging_repo,
+            observation_repo,
+            record_visit,
             narrative,
-            scene,
+            resolve_scene,
+            scene_repo,
             inventory,
-            flag,
-            world,
+            flag_repo,
+            world_repo,
             suggest_time,
         )
     }

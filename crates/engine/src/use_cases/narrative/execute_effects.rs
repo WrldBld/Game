@@ -1,3 +1,6 @@
+// Execute effects - fields for future effect execution
+#![allow(dead_code)]
+
 //! Execute event effects use case.
 //!
 //! When a narrative event triggers and the DM approves, this executes the effects
@@ -11,10 +14,10 @@ use wrldbldr_domain::{
 };
 use wrldbldr_shared::character_sheet::SheetValue;
 
-use crate::repositories::{
-    ChallengeRepository, CharacterRepository, ClockService, FlagRepository, InventoryRepository,
-    ObservationRepository, PlayerCharacterRepository, SceneRepository, WorldRepository,
+use crate::infrastructure::ports::{
+    ChallengeRepo, CharacterRepo, ClockPort, ObservationRepo, PlayerCharacterRepo, SceneRepo,
 };
+use crate::repositories::{FlagRepository, InventoryRepository, WorldRepository};
 use crate::use_cases::narrative_operations::NarrativeOps;
 
 /// Result of executing a single effect.
@@ -71,29 +74,29 @@ pub struct EffectExecutionContext {
 /// - SetFlag via Flag
 pub struct ExecuteEffects {
     inventory: Arc<InventoryRepository>,
-    challenge: Arc<ChallengeRepository>,
+    challenge: Arc<dyn ChallengeRepo>,
     narrative: Arc<NarrativeOps>,
-    character: Arc<CharacterRepository>,
-    observation: Arc<ObservationRepository>,
-    player_character: Arc<PlayerCharacterRepository>,
-    scene: Arc<SceneRepository>,
+    character: Arc<dyn CharacterRepo>,
+    observation: Arc<dyn ObservationRepo>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
+    scene: Arc<dyn SceneRepo>,
     flag: Arc<FlagRepository>,
     world: Arc<WorldRepository>,
-    clock: Arc<ClockService>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl ExecuteEffects {
     pub fn new(
         inventory: Arc<InventoryRepository>,
-        challenge: Arc<ChallengeRepository>,
+        challenge: Arc<dyn ChallengeRepo>,
         narrative: Arc<NarrativeOps>,
-        character: Arc<CharacterRepository>,
-        observation: Arc<ObservationRepository>,
-        player_character: Arc<PlayerCharacterRepository>,
-        scene: Arc<SceneRepository>,
+        character: Arc<dyn CharacterRepo>,
+        observation: Arc<dyn ObservationRepo>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
+        scene: Arc<dyn SceneRepo>,
         flag: Arc<FlagRepository>,
         world: Arc<WorldRepository>,
-        clock: Arc<ClockService>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             inventory,
@@ -441,6 +444,8 @@ impl ExecuteEffects {
         item_description: Option<String>,
         quantity: u32,
     ) -> EffectExecutionResult {
+        // TODO: Replace with GiveItem use case
+        #[allow(deprecated)]
         match self
             .inventory
             .give_item_to_pc(pc_id, item_name.clone(), item_description)
@@ -473,6 +478,8 @@ impl ExecuteEffects {
                 if let Some(item) = inventory.iter().find(|i| i.name().as_str() == item_name) {
                     let item_id = item.id();
                     // For now, just drop it (removes from inventory)
+                    // TODO: Replace with DropItem use case
+                    #[allow(deprecated)]
                     match self.inventory.drop_item(pc_id, item_id, quantity).await {
                         Ok(_) => EffectExecutionResult {
                             description: format!("Took {} x{} from player", item_name, quantity),
@@ -714,11 +721,7 @@ impl ExecuteEffects {
         if persist_to_journal {
             // Save as deduced info in the observation system
             let info_entry = format!("[{}] {}: {}", info_type, title, content);
-            match self
-                .observation
-                .record_deduced_info(pc_id, info_entry)
-                .await
-            {
+            match self.observation.save_deduced_info(pc_id, info_entry).await {
                 Ok(()) => EffectExecutionResult {
                     description: format!("Revealed {} '{}' (saved to journal)", info_type, title),
                     success: true,

@@ -137,7 +137,7 @@ pub(super) async fn handle_player_character_request(
                 .await
             {
                 Ok(pc) => Ok(ResponseResult::success(pc_to_json(pc))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Player character not found"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
@@ -165,7 +165,7 @@ pub(super) async fn handle_player_character_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Player character not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
@@ -197,7 +197,7 @@ pub(super) async fn handle_player_character_request(
                     "success": true,
                     "scene_id": serde_json::Value::Null,
                 }))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Player character not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
@@ -390,7 +390,7 @@ pub(super) async fn handle_observation_request(
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Observation target not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(

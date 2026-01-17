@@ -472,8 +472,11 @@ impl LoreRepo for Neo4jLoreRepo {
         // enumerate() indices, not user input. The tag values are properly
         // passed as parameterized values to neo4rs, which handles escaping.
         for (i, tag) in tags.iter().enumerate() {
-            // Tags in JSON are stored as `["tag1", "tag2"]`, so we search for `"tag"`
-            q = q.param(&format!("tag{}", i), format!("\"{}\"", tag));
+            // Tags in JSON are stored as `["tag1", "tag2"]`, so we search for `"tag"`.
+            // Use serde_json::to_string to properly escape quotes and special characters.
+            let json_tag =
+                serde_json::to_string(tag).map_err(|e| RepoError::Serialization(e.to_string()))?;
+            q = q.param(&format!("tag{}", i), json_tag);
         }
 
         let mut result = self

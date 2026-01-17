@@ -1,3 +1,6 @@
+// 5etools importer - prepared for external content import
+#![allow(dead_code)]
+
 //! 5etools data importer.
 //!
 //! Imports spell, feat, and class feature data from 5etools JSON files
@@ -2389,6 +2392,8 @@ impl CompendiumProvider for Dnd5eContentProvider {
 }
 
 /// Create an Arc-wrapped content provider for use in the application.
+/// Currently unused but kept for future external integration.
+#[allow(dead_code)]
 pub fn create_dnd5e_provider(data_path: impl Into<PathBuf>) -> Arc<dyn CompendiumProvider> {
     Arc::new(Dnd5eContentProvider::new(data_path))
 }

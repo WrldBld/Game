@@ -1,3 +1,6 @@
+// Unified error - some helper methods for future use
+#![allow(dead_code)]
+
 //! Unified infrastructure error types.
 //!
 //! Provides a single error type that wraps all infrastructure-layer errors,

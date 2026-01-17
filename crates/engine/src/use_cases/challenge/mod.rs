@@ -1,3 +1,6 @@
+// Challenge use cases - methods for future skill check resolution
+#![allow(dead_code)]
+
 //! Challenge use cases.
 //!
 //! Handles challenge (skill check) resolution. The flow is:
@@ -31,11 +34,11 @@ pub use crud::{
     ChallengeError as ChallengeCrudError, ChallengeOps, CreateChallengeInput, UpdateChallengeInput,
 };
 
-use crate::infrastructure::ports::{QueueError, RepoError};
-use crate::repositories::{
-    ChallengeRepository, ClockService, InventoryRepository, ObservationRepository,
-    PlayerCharacterRepository, QueueService, RandomService, SceneRepository,
+use crate::infrastructure::ports::{
+    ChallengeRepo, ClockPort, ObservationRepo, PlayerCharacterRepo, QueueError, QueuePort,
+    RandomPort, RepoError, SceneRepo,
 };
+use crate::repositories::InventoryRepository;
 
 /// Container for challenge use cases.
 pub struct ChallengeUseCases {
@@ -110,11 +113,11 @@ pub struct ChallengePromptData {
 
 /// Build a challenge prompt for a player.
 pub struct TriggerChallengePrompt {
-    challenge: Arc<ChallengeRepository>,
+    challenge: Arc<dyn ChallengeRepo>,
 }
 
 impl TriggerChallengePrompt {
-    pub fn new(challenge: Arc<ChallengeRepository>) -> Self {
+    pub fn new(challenge: Arc<dyn ChallengeRepo>) -> Self {
         Self { challenge }
     }
 
@@ -126,7 +129,7 @@ impl TriggerChallengePrompt {
             .challenge
             .get(challenge_id)
             .await?
-            .ok_or(ChallengeError::NotFound)?;
+            .ok_or(ChallengeError::NotFound(challenge_id))?;
 
         // Use the built-in display() method for consistent formatting
         let difficulty_display = challenge.difficulty().display();
@@ -149,20 +152,20 @@ impl TriggerChallengePrompt {
 /// Handles dice rolling and outcome determination. The outcome is then
 /// queued for DM approval before effects are applied.
 pub struct RollChallenge {
-    challenge: Arc<ChallengeRepository>,
-    player_character: Arc<PlayerCharacterRepository>,
-    queue: Arc<QueueService>,
-    random: Arc<RandomService>,
-    clock: Arc<ClockService>,
+    challenge: Arc<dyn ChallengeRepo>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
+    queue: Arc<dyn QueuePort>,
+    random: Arc<dyn RandomPort>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl RollChallenge {
     pub fn new(
-        challenge: Arc<ChallengeRepository>,
-        player_character: Arc<PlayerCharacterRepository>,
-        queue: Arc<QueueService>,
-        random: Arc<RandomService>,
-        clock: Arc<ClockService>,
+        challenge: Arc<dyn ChallengeRepo>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
+        queue: Arc<dyn QueuePort>,
+        random: Arc<dyn RandomPort>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             challenge,
@@ -198,7 +201,7 @@ impl RollChallenge {
             .challenge
             .get(challenge_id)
             .await?
-            .ok_or(ChallengeError::NotFound)?;
+            .ok_or(ChallengeError::NotFound(challenge_id))?;
 
         // 2. Validate challenge ownership and status (defense in depth - also validated at handler)
         if challenge.world_id() != world_id {
@@ -213,7 +216,7 @@ impl RollChallenge {
             .player_character
             .get(pc_id)
             .await?
-            .ok_or(ChallengeError::PlayerCharacterNotFound)?;
+            .ok_or(ChallengeError::PlayerCharacterNotFound(pc_id))?;
 
         // 3. Determine the roll value
         let roll = if let Some(r) = client_roll {
@@ -341,20 +344,20 @@ impl RollChallenge {
 ///
 /// Called after DM approves the outcome to execute triggers.
 pub struct ResolveOutcome {
-    challenge: Arc<ChallengeRepository>,
+    challenge: Arc<dyn ChallengeRepo>,
     inventory: Arc<InventoryRepository>,
-    observation: Arc<ObservationRepository>,
-    scene: Arc<SceneRepository>,
-    player_character: Arc<PlayerCharacterRepository>,
+    observation: Arc<dyn ObservationRepo>,
+    scene: Arc<dyn SceneRepo>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
 }
 
 impl ResolveOutcome {
     pub fn new(
-        challenge: Arc<ChallengeRepository>,
+        challenge: Arc<dyn ChallengeRepo>,
         inventory: Arc<InventoryRepository>,
-        observation: Arc<ObservationRepository>,
-        scene: Arc<SceneRepository>,
-        player_character: Arc<PlayerCharacterRepository>,
+        observation: Arc<dyn ObservationRepo>,
+        scene: Arc<dyn SceneRepo>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
     ) -> Self {
         Self {
             challenge,
@@ -379,7 +382,7 @@ impl ResolveOutcome {
             .challenge
             .get(challenge_id)
             .await?
-            .ok_or(ChallengeError::NotFound)?;
+            .ok_or(ChallengeError::NotFound(challenge_id))?;
 
         // Find the matching outcome based on outcome_type
         let outcomes = challenge.outcomes();
@@ -452,7 +455,7 @@ impl ResolveOutcome {
                     // This records that the PC learned this information
                     if let Err(e) = self
                         .observation
-                        .record_deduced_info(target_pc_id, info.clone())
+                        .save_deduced_info(target_pc_id, info.clone())
                         .await
                     {
                         tracing::warn!(error = %e, "Failed to persist revealed information");
@@ -473,6 +476,8 @@ impl ResolveOutcome {
                 );
 
                 // Create a new item and add it to the PC's inventory
+                // TODO: Replace with GiveItem use case
+                #[allow(deprecated)]
                 if let Err(e) = self
                     .inventory
                     .give_item_to_pc(target_pc_id, item_name.clone(), item_description.clone())
@@ -554,12 +559,12 @@ impl ResolveOutcome {
 
 /// Decision flow for challenge outcome approvals.
 pub struct OutcomeDecision {
-    queue: Arc<QueueService>,
+    queue: Arc<dyn QueuePort>,
     resolve: Arc<ResolveOutcome>,
 }
 
 impl OutcomeDecision {
-    pub fn new(queue: Arc<QueueService>, resolve: Arc<ResolveOutcome>) -> Self {
+    pub fn new(queue: Arc<dyn QueuePort>, resolve: Arc<ResolveOutcome>) -> Self {
         Self { queue, resolve }
     }
 
@@ -765,14 +770,14 @@ fn outcome_type_to_str(outcome_type: &OutcomeType) -> &'static str {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ChallengeError {
-    #[error("Challenge not found")]
-    NotFound,
+    #[error("Challenge not found: {0}")]
+    NotFound(ChallengeId),
     #[error("Challenge does not belong to this world")]
     InvalidWorld,
     #[error("Challenge is not active")]
     ChallengeInactive,
-    #[error("Player character not found")]
-    PlayerCharacterNotFound,
+    #[error("Player character not found: {0}")]
+    PlayerCharacterNotFound(PlayerCharacterId),
     #[error("Missing target player character for challenge outcome")]
     MissingTargetPc,
     #[error("Trigger execution failed: {0}")]
@@ -944,11 +949,9 @@ mod tests {
             Arc::new(character_repo),
             pc_repo.clone(),
         ));
-        let observation_entity = Arc::new(repositories::ObservationRepository::new(
-            Arc::new(observation_repo),
-            Arc::new(location_repo),
-            clock,
-        ));
+        let observation_entity = Arc::new(repositories::ObservationRepository::new(Arc::new(
+            observation_repo,
+        )));
         let scene_entity = Arc::new(SceneRepository::new(Arc::new(scene_repo)));
         let player_character_entity =
             Arc::new(repositories::PlayerCharacterRepository::new(pc_repo));

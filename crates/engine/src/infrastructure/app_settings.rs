@@ -1,3 +1,6 @@
+// Many settings builders and token-budget infrastructure are prepared for future use
+#![allow(dead_code)]
+
 //! Application settings and LLM context budget configuration
 //!
 //! These types are infrastructure concerns - they configure LLM token budgets,

@@ -71,7 +71,6 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
         let session_state = session_state.clone();
         let game_state = game_state.clone();
         let dialogue_state = dialogue_state.clone();
-        let generation_state = generation_state;
         let lore_state = lore_state.clone();
         use_effect(move || {
             // If we're already connected to a different world (e.g., deep link without a full reload),
@@ -131,7 +130,6 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
                         let mut session_state = session_state.clone();
                         let game_state = game_state.clone();
                         let dialogue_state = dialogue_state.clone();
-                        let generation_state = generation_state;
                         let lore_state = lore_state.clone();
                         move |_| {
                             // Force reconnection attempt by setting disconnected first

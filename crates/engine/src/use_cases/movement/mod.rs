@@ -1,19 +1,20 @@
 //! Movement use cases.
 
+mod can_move;
 mod enter_region;
 mod exit_location;
+mod get_exits;
 pub mod scene_change;
 
 pub use enter_region::{EnterRegion, EnterRegionError, StagingStatus};
 pub use exit_location::{ExitLocation, ExitLocationError};
+pub use get_exits::GetRegionExits;
 pub use scene_change::SceneChangeBuilder;
 
-use crate::infrastructure::ports::RepoError;
-use crate::repositories::{
-    FlagRepository, InventoryRepository, ObservationRepository, SceneRepository,
-    SceneResolutionContext, StagingRepository,
-};
+use crate::infrastructure::ports::{FlagRepo, ObservationRepo, RepoError, SceneRepo, StagingRepo};
+use crate::repositories::InventoryRepository;
 use crate::use_cases::custom_condition::{CustomConditionEvaluator, EvaluationContext};
+use crate::use_cases::scene::{ResolveScene, SceneResolutionContext};
 use crate::use_cases::time::{SuggestTime, SuggestTimeResult, TimeSuggestion};
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
@@ -44,7 +45,7 @@ impl MovementUseCases {
 /// # Returns
 /// A tuple of (visible NPCs, staging status)
 pub async fn resolve_staging_for_region(
-    staging: &StagingRepository,
+    staging: &dyn StagingRepo,
     region_id: RegionId,
     location_id: LocationId,
     world_id: WorldId,
@@ -90,7 +91,7 @@ pub async fn resolve_staging_for_region(
             Ok((
                 vec![],
                 StagingStatus::Pending {
-                    previous_staging: previous,
+                    previous_staging: Box::new(previous),
                 },
             ))
         }
@@ -147,13 +148,14 @@ pub async fn suggest_time_for_movement(
 /// This is shared logic between EnterRegion and ExitLocation use cases.
 ///
 /// Builds the evaluation context from the PC's state (inventory, observations, completed scenes, flags)
-/// and calls the scene resolution service.
+/// and calls the scene resolution use case.
 ///
 /// # Arguments
-/// * `scene` - Scene entity for resolution
-/// * `inventory` - Inventory entity for PC items
-/// * `observation` - Observation entity for known characters
-/// * `flag` - Flag entity for flag state
+/// * `resolve_scene` - Scene resolution use case
+/// * `scene` - Scene repository for completion tracking
+/// * `inventory` - Inventory repository for PC items
+/// * `observation` - Observation repository for known characters
+/// * `flag` - Flag repository for flag state
 /// * `pc_id` - Player character ID
 /// * `world_id` - World ID for flags
 /// * `region_id` - Region to resolve scene for
@@ -162,16 +164,18 @@ pub async fn suggest_time_for_movement(
 /// # Returns
 /// The resolved scene, if any matches the conditions
 pub async fn resolve_scene_for_region(
-    scene: &SceneRepository,
+    resolve_scene: &ResolveScene,
+    scene: &dyn SceneRepo,
     inventory: &InventoryRepository,
-    observation: &ObservationRepository,
-    flag: &FlagRepository,
+    observation: &dyn ObservationRepo,
+    flag: &dyn FlagRepo,
     pc_id: PlayerCharacterId,
     world_id: WorldId,
     region_id: RegionId,
     game_time: &GameTime,
 ) -> Result<Option<DomainScene>, RepoError> {
     resolve_scene_for_region_with_evaluator(
+        resolve_scene,
         scene,
         inventory,
         observation,
@@ -193,10 +197,11 @@ pub async fn resolve_scene_for_region(
 /// be evaluated via LLM instead of being treated as unmet.
 ///
 /// # Arguments
-/// * `scene` - Scene entity for resolution
-/// * `inventory` - Inventory entity for PC items
-/// * `observation` - Observation entity for known characters
-/// * `flag` - Flag entity for flag state
+/// * `resolve_scene` - Scene resolution use case
+/// * `scene` - Scene repository for completion tracking
+/// * `inventory` - Inventory repository for PC items
+/// * `observation` - Observation repository for known characters
+/// * `flag` - Flag repository for flag state
 /// * `pc_id` - Player character ID
 /// * `world_id` - World ID for flags
 /// * `region_id` - Region to resolve scene for
@@ -207,10 +212,11 @@ pub async fn resolve_scene_for_region(
 /// # Returns
 /// The resolved scene, if any matches the conditions
 pub async fn resolve_scene_for_region_with_evaluator(
-    scene: &SceneRepository,
+    resolve_scene: &ResolveScene,
+    scene: &dyn SceneRepo,
     inventory: &InventoryRepository,
-    observation: &ObservationRepository,
-    flag: &FlagRepository,
+    observation: &dyn ObservationRepo,
+    flag: &dyn FlagRepo,
     pc_id: PlayerCharacterId,
     world_id: WorldId,
     region_id: RegionId,
@@ -225,7 +231,15 @@ pub async fn resolve_scene_for_region_with_evaluator(
     let completed_scenes = scene.get_completed_scenes(pc_id).await?;
     let inventory_items = inventory.get_pc_inventory(pc_id).await?;
     let observations = observation.get_observations(pc_id).await?;
-    let flags = flag.get_all_flags_for_pc(world_id, pc_id).await?;
+    // Combine world and PC flags
+    let world_flags = flag.get_world_flags(world_id).await?;
+    let pc_flags = flag.get_pc_flags(pc_id).await?;
+    let mut flags: Vec<String> = world_flags;
+    for f in pc_flags {
+        if !flags.contains(&f) {
+            flags.push(f);
+        }
+    }
 
     // Extract item names and flag names for LLM context
     let inventory_names: Vec<String> = inventory_items
@@ -251,7 +265,9 @@ pub async fn resolve_scene_for_region_with_evaluator(
 
     // If custom evaluator is provided, pre-evaluate custom conditions via LLM
     if let Some(evaluator) = custom_evaluator {
-        let custom_conditions = scene.get_custom_conditions_for_region(region_id).await?;
+        let custom_conditions = resolve_scene
+            .get_custom_conditions_for_region(region_id)
+            .await?;
 
         if !custom_conditions.is_empty() {
             tracing::debug!(
@@ -298,7 +314,7 @@ pub async fn resolve_scene_for_region_with_evaluator(
     }
 
     // Resolve the scene
-    let result = scene.resolve_scene(region_id, &context).await?;
+    let result = resolve_scene.execute(region_id, &context).await?;
 
     // Log considered scenes for debugging
     for consideration in &result.considered_scenes {

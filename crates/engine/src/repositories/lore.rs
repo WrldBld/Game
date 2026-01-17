@@ -1,3 +1,6 @@
+// Lore repository - methods for future lore management
+#![allow(dead_code)]
+
 //! Lore entity operations.
 
 use std::sync::Arc;

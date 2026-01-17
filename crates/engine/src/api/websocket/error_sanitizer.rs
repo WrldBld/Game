@@ -1,3 +1,6 @@
+// Error sanitizer - constants and helpers for future use
+#![allow(dead_code)]
+
 //! Error sanitization for client-facing messages.
 //!
 //! Prevents leaking internal details (paths, DB errors, stack traces) to clients.

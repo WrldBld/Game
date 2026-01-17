@@ -4,23 +4,21 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
 
-use crate::repositories::location::Location;
-use crate::repositories::ClockService;
-use crate::repositories::PlayerCharacterRepository;
+use crate::infrastructure::ports::{ClockPort, LocationRepo, PlayerCharacterRepo};
 
 use super::ManagementError;
 
 pub struct PlayerCharacterCrud {
-    player_character: Arc<PlayerCharacterRepository>,
-    location: Arc<Location>,
-    clock: Arc<ClockService>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
+    location: Arc<dyn LocationRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl PlayerCharacterCrud {
     pub fn new(
-        player_character: Arc<PlayerCharacterRepository>,
-        location: Arc<Location>,
-        clock: Arc<ClockService>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
+        location: Arc<dyn LocationRepo>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             player_character,
@@ -99,7 +97,10 @@ impl PlayerCharacterCrud {
             .player_character
             .get(pc_id)
             .await?
-            .ok_or(ManagementError::NotFound)?;
+            .ok_or(ManagementError::NotFound {
+                entity_type: "PlayerCharacter",
+                id: pc_id.to_string(),
+            })?;
 
         if let Some(name) = name {
             let character_name: wrldbldr_domain::CharacterName = name.try_into().map_err(|e| {
@@ -121,11 +122,14 @@ impl PlayerCharacterCrud {
         pc_id: PlayerCharacterId,
         region_id: RegionId,
     ) -> Result<(), ManagementError> {
-        let region = self
-            .location
-            .get_region(region_id)
-            .await?
-            .ok_or(ManagementError::NotFound)?;
+        let region =
+            self.location
+                .get_region(region_id)
+                .await?
+                .ok_or(ManagementError::NotFound {
+                    entity_type: "Region",
+                    id: region_id.to_string(),
+                })?;
 
         self.player_character
             .update_position(pc_id, region.location_id(), region_id)
@@ -144,15 +148,18 @@ impl PlayerCharacterCrud {
         starting_region_id: Option<RegionId>,
     ) -> Result<(LocationId, Option<RegionId>), ManagementError> {
         if let Some(region_id) = starting_region_id {
-            let region = self
-                .location
-                .get_region(region_id)
-                .await?
-                .ok_or(ManagementError::NotFound)?;
+            let region =
+                self.location
+                    .get_region(region_id)
+                    .await?
+                    .ok_or(ManagementError::NotFound {
+                        entity_type: "Region",
+                        id: region_id.to_string(),
+                    })?;
             return Ok((region.location_id(), Some(region.id())));
         }
 
-        let locations = self.location.list_in_world(world_id).await?;
+        let locations = self.location.list_locations_in_world(world_id).await?;
         for location in &locations {
             let regions = self
                 .location

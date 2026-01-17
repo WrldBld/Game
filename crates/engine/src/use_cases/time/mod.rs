@@ -1,3 +1,6 @@
+// Time use cases - fields for future time advancement
+#![allow(dead_code)]
+
 //! Time use cases.
 //!
 //! Handles game time operations including:
@@ -14,9 +17,9 @@ use wrldbldr_domain::{
     WorldId,
 };
 
-use crate::infrastructure::ports::QueueError;
-use crate::infrastructure::ports::RepoError;
-use crate::repositories::{ClockService, TimeSuggestionStore, WorldError, WorldRepository};
+use crate::infrastructure::ports::{ClockPort, QueueError, RepoError, WorldRepo};
+use crate::repositories::WorldError;
+use crate::stores::TimeSuggestionStore;
 
 /// Container for time use cases.
 pub struct TimeUseCases {
@@ -66,12 +69,12 @@ pub enum SuggestTimeResult {
 ///    - Manual: Does nothing (DM advances manually)
 #[allow(dead_code)]
 pub struct SuggestTime {
-    world: Arc<WorldRepository>,
-    clock: Arc<ClockService>,
+    world: Arc<dyn WorldRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl SuggestTime {
-    pub fn new(world: Arc<WorldRepository>, clock: Arc<ClockService>) -> Self {
+    pub fn new(world: Arc<dyn WorldRepo>, clock: Arc<dyn ClockPort>) -> Self {
         Self { world, clock }
     }
 
@@ -190,20 +193,23 @@ pub enum SuggestTimeError {
 
 /// Consolidated use case for time control operations (get/advance/set/config).
 pub struct TimeControl {
-    world: Arc<WorldRepository>,
-    clock: Arc<ClockService>,
+    world: Arc<dyn WorldRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl TimeControl {
-    pub fn new(world: Arc<WorldRepository>, clock: Arc<ClockService>) -> Self {
+    pub fn new(world: Arc<dyn WorldRepo>, clock: Arc<dyn ClockPort>) -> Self {
         Self { world, clock }
     }
 
     pub async fn get_game_time(&self, world_id: WorldId) -> Result<GameTime, TimeControlError> {
-        self.world
-            .get_current_time(world_id)
-            .await
-            .map_err(TimeControlError::from)
+        let world = self
+            .world
+            .get(world_id)
+            .await?
+            .ok_or(TimeControlError::WorldNotFound)?;
+
+        Ok(world.game_time().clone())
     }
 
     pub async fn advance_hours(
@@ -236,10 +242,19 @@ impl TimeControl {
         minutes: u32,
         reason: TimeAdvanceReason,
     ) -> Result<TimeAdvanceOutcome, TimeControlError> {
-        let result = self.world.advance_time(world_id, minutes, reason).await?;
+        let mut world = self
+            .world
+            .get(world_id)
+            .await?
+            .ok_or(TimeControlError::WorldNotFound)?;
+
+        let previous_time = world.game_time().clone();
+        let result = world.advance_time(minutes, reason, self.clock.now());
+
+        self.world.save(&world).await?;
 
         Ok(TimeAdvanceOutcome {
-            previous_time: result.previous_time.clone(),
+            previous_time,
             new_time: result.new_time.clone(),
             minutes_advanced: result.minutes_advanced,
         })

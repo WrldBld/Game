@@ -7,7 +7,7 @@ use neo4rs::{Graph, Query};
 
 use crate::e2e_tests::E2EBenchmark;
 use crate::infrastructure::neo4j::graph::Neo4jGraph as InnerGraph;
-use crate::infrastructure::neo4j::Neo4jRowStream;
+use crate::infrastructure::neo4j::graph::Neo4jRowStream;
 
 /// Test-only wrapper around the production graph that records benchmark timing.
 #[derive(Clone)]

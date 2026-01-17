@@ -4,10 +4,9 @@ use std::sync::Arc;
 
 use wrldbldr_domain::StagingSource;
 
-use crate::infrastructure::ports::PendingStagingRequest;
-use crate::repositories::{
-    CharacterRepository, Location, LocationStateRepository, RegionStateRepository,
-    SettingsRepository, StagingRepository, WorldRepository,
+use crate::infrastructure::ports::{
+    CharacterRepo, ClockPort, LocationRepo, LocationStateRepo, PendingStagingRequest,
+    RegionStateRepo, SettingsRepo, StagingRepo, WorldRepo,
 };
 
 use super::approve::{ApproveStagingInput, ApproveStagingRequest, StagingReadyPayload};
@@ -17,24 +16,26 @@ use super::{get_settings_with_fallback, StagingError};
 
 /// Use case for auto-approving expired staging requests.
 pub struct AutoApproveStagingTimeout {
-    character: Arc<CharacterRepository>,
-    staging: Arc<StagingRepository>,
-    world: Arc<WorldRepository>,
-    location: Arc<Location>,
-    location_state: Arc<LocationStateRepository>,
-    region_state: Arc<RegionStateRepository>,
-    settings: Arc<SettingsRepository>,
+    character: Arc<dyn CharacterRepo>,
+    staging: Arc<dyn StagingRepo>,
+    world: Arc<dyn WorldRepo>,
+    location: Arc<dyn LocationRepo>,
+    location_state: Arc<dyn LocationStateRepo>,
+    region_state: Arc<dyn RegionStateRepo>,
+    settings: Arc<dyn SettingsRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl AutoApproveStagingTimeout {
     pub fn new(
-        character: Arc<CharacterRepository>,
-        staging: Arc<StagingRepository>,
-        world: Arc<WorldRepository>,
-        location: Arc<Location>,
-        location_state: Arc<LocationStateRepository>,
-        region_state: Arc<RegionStateRepository>,
-        settings: Arc<SettingsRepository>,
+        character: Arc<dyn CharacterRepo>,
+        staging: Arc<dyn StagingRepo>,
+        world: Arc<dyn WorldRepo>,
+        location: Arc<dyn LocationRepo>,
+        location_state: Arc<dyn LocationStateRepo>,
+        region_state: Arc<dyn RegionStateRepo>,
+        settings: Arc<dyn SettingsRepo>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             character,
@@ -44,6 +45,7 @@ impl AutoApproveStagingTimeout {
             location_state,
             region_state,
             settings,
+            clock,
         }
     }
 
@@ -64,9 +66,12 @@ impl AutoApproveStagingTimeout {
             .await?;
 
         // Generate rule-based NPC suggestions
-        let rule_based_npcs =
-            generate_rule_based_suggestions(&npcs_for_region, &self.staging, pending.region_id)
-                .await;
+        let rule_based_npcs = generate_rule_based_suggestions(
+            &npcs_for_region,
+            self.staging.as_ref(),
+            pending.region_id,
+        )
+        .await;
 
         // Convert to ApprovedNpc domain type
         let approved_npcs: Vec<ApprovedNpc> = rule_based_npcs
@@ -100,6 +105,7 @@ impl AutoApproveStagingTimeout {
             self.location.clone(),
             self.location_state.clone(),
             self.region_state.clone(),
+            self.clock.clone(),
         );
 
         let result = approve_use_case.execute(input).await?;

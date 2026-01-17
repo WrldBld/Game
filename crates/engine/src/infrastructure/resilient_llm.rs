@@ -1,3 +1,6 @@
+// Resilient LLM client - methods for future resilience features
+#![allow(dead_code)]
+
 //! Resilient LLM client wrapper with exponential backoff retry and circuit breaker
 //!
 //! Wraps any LlmPort implementation with retry logic and circuit breaker pattern

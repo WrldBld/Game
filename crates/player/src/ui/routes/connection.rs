@@ -153,7 +153,9 @@ fn initiate_connection(
             event_bus_clone
                 .subscribe(move |event: PlayerEvent| {
                     let _ = tx_for_events.unbounded_send(
-                        crate::application::services::SessionEvent::MessageReceived(event),
+                        crate::application::services::SessionEvent::MessageReceived(Box::new(
+                            event,
+                        )),
                     );
                 })
                 .await;

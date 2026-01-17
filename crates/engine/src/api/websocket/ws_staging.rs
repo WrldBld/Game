@@ -121,11 +121,17 @@ pub(super) async fn handle_staging_approval(
 
     let payload = match state.app.use_cases.staging.approve.execute(input).await {
         Ok(result) => result,
-        Err(crate::use_cases::staging::StagingError::RegionNotFound) => {
-            return Some(error_response(ErrorCode::NotFound, "Region not found"))
+        Err(crate::use_cases::staging::StagingError::RegionNotFound(id)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                &format!("Region not found: {}", id),
+            ))
         }
-        Err(crate::use_cases::staging::StagingError::WorldNotFound) => {
-            return Some(error_response(ErrorCode::NotFound, "World not found"))
+        Err(crate::use_cases::staging::StagingError::WorldNotFound(id)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                &format!("World not found: {}", id),
+            ))
         }
         Err(e) => {
             return Some(error_response(
@@ -213,8 +219,11 @@ pub(super) async fn handle_staging_regenerate(
         .await
     {
         Ok(npcs) => npcs,
-        Err(crate::use_cases::staging::StagingError::RegionNotFound) => {
-            return Some(error_response(ErrorCode::NotFound, "Region not found"))
+        Err(crate::use_cases::staging::StagingError::RegionNotFound(id)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                &format!("Region not found: {}", id),
+            ))
         }
         Err(e) => {
             return Some(error_response(
@@ -311,11 +320,11 @@ pub(super) async fn handle_pre_stage_region(
 
     if let Err(e) = state.app.use_cases.staging.approve.execute(input).await {
         return Some(match e {
-            crate::use_cases::staging::StagingError::RegionNotFound => {
-                error_response(ErrorCode::NotFound, "Region not found")
+            crate::use_cases::staging::StagingError::RegionNotFound(id) => {
+                error_response(ErrorCode::NotFound, &format!("Region not found: {}", id))
             }
-            crate::use_cases::staging::StagingError::WorldNotFound => {
-                error_response(ErrorCode::NotFound, "World not found")
+            crate::use_cases::staging::StagingError::WorldNotFound(id) => {
+                error_response(ErrorCode::NotFound, &format!("World not found: {}", id))
             }
             _ => error_response(
                 ErrorCode::InternalError,

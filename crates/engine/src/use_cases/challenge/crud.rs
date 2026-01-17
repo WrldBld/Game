@@ -2,9 +2,11 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{self as domain, ChallengeId, ChallengeName, Difficulty, WorldId};
 
-use crate::infrastructure::ports::RepoError;
-use crate::repositories::ChallengeRepository;
+use crate::infrastructure::ports::{ChallengeRepo, RepoError};
 use crate::use_cases::validation::ValidationError;
+
+// Type alias for old name to maintain compatibility
+type ChallengeRepository = dyn ChallengeRepo;
 
 use super::types::{
     ChallengeSummary, DifficultySummary, OutcomeSummary, OutcomeTriggerData, OutcomeTriggerSummary,

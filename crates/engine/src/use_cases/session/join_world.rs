@@ -1,8 +1,10 @@
+// Join world - types for future join flow
+#![allow(dead_code)]
+
 use std::sync::Arc;
 
-use crate::infrastructure::ports::RepoError;
-use crate::repositories::{
-    CharacterRepository, Location, PlayerCharacterRepository, SceneRepository, WorldRepository,
+use crate::infrastructure::ports::{
+    CharacterRepo, LocationRepo, PlayerCharacterRepo, RepoError, SceneRepo, WorldRepo,
 };
 use wrldbldr_domain::{PlayerCharacterId, WorldId, WorldRole};
 
@@ -13,20 +15,20 @@ use super::types::{
 
 /// Use case for joining a world and building the session snapshot.
 pub struct JoinWorld {
-    world: Arc<WorldRepository>,
-    location: Arc<Location>,
-    character: Arc<CharacterRepository>,
-    scene: Arc<SceneRepository>,
-    player_character: Arc<PlayerCharacterRepository>,
+    world: Arc<dyn WorldRepo>,
+    location: Arc<dyn LocationRepo>,
+    character: Arc<dyn CharacterRepo>,
+    scene: Arc<dyn SceneRepo>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
 }
 
 impl JoinWorld {
     pub fn new(
-        world: Arc<WorldRepository>,
-        location: Arc<Location>,
-        character: Arc<CharacterRepository>,
-        scene: Arc<SceneRepository>,
-        player_character: Arc<PlayerCharacterRepository>,
+        world: Arc<dyn WorldRepo>,
+        location: Arc<dyn LocationRepo>,
+        character: Arc<dyn CharacterRepo>,
+        scene: Arc<dyn SceneRepo>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
     ) -> Self {
         Self {
             world,
@@ -49,7 +51,7 @@ impl JoinWorld {
             .await?
             .ok_or(JoinWorldError::WorldNotFound)?;
 
-        let locations = self.location.list_in_world(world_id).await?;
+        let locations = self.location.list_locations_in_world(world_id).await?;
         let characters = self.character.list_in_world(world_id).await?;
         let current_scene = self.scene.get_current(world_id).await?;
 

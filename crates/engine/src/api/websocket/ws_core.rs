@@ -113,7 +113,7 @@ pub(super) async fn handle_world_request(
                     "name": world.name().as_str(),
                     "description": world.description().as_str(),
                 }))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "World not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
@@ -140,7 +140,7 @@ pub(super) async fn handle_world_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "World not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
@@ -391,7 +391,7 @@ pub(super) async fn handle_character_request(
                     "portrait_asset": character.portrait_asset(),
                     "sheet_data": None::<wrldbldr_shared::character_sheet::CharacterSheetValues>,
                 }))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Character not found"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
@@ -421,7 +421,7 @@ pub(super) async fn handle_character_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Character not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
@@ -448,7 +448,7 @@ pub(super) async fn handle_character_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Character not found"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
@@ -1463,6 +1463,8 @@ pub(super) async fn handle_items_request(
                 Err(e) => return Err(e),
             };
 
+            // TODO: Replace with PlaceItemInRegion use case
+            #[allow(deprecated)]
             match state
                 .app
                 .repositories
@@ -1517,6 +1519,8 @@ pub(super) async fn handle_items_request(
                 item = item.with_properties(serde_json::to_string(&props).unwrap_or_default());
             }
 
+            // TODO: Replace with CreateAndPlaceItem use case
+            #[allow(deprecated)]
             match state
                 .app
                 .repositories

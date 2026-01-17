@@ -11,6 +11,7 @@ pub mod challenge;
 pub mod content;
 pub mod conversation;
 pub mod custom_condition;
+pub mod inventory;
 pub mod location_events;
 pub mod lore;
 pub mod management;
@@ -18,8 +19,10 @@ pub mod movement;
 pub mod narrative;
 pub mod narrative_operations;
 pub mod npc;
+pub mod observation;
 pub mod player_action;
 pub mod queues;
+pub mod scene;
 pub mod session;
 pub mod settings;
 pub mod staging;
@@ -30,12 +33,11 @@ pub mod visual_state;
 pub mod world;
 
 // Re-export main types
-pub use crate::repositories::location::Location;
+// Note: Location and Scene wrapper types were removed per ADR-009.
+// Use the port traits directly: LocationRepo, SceneRepo from infrastructure::ports.
 pub use actantial::ActantialUseCases;
 pub use ai::AiUseCases;
 pub use approval::ApprovalUseCases;
-// Re-export NarrativeOps (for complex trigger evaluation) - also exports type alias Narrative
-pub use crate::repositories::SceneRepository as Scene;
 pub use assets::AssetUseCases;
 pub use challenge::ChallengeUseCases;
 pub use conversation::ConversationUseCases;
@@ -50,6 +52,7 @@ pub use narrative_operations::Narrative;
 pub use npc::NpcUseCases;
 pub use player_action::PlayerActionUseCases;
 pub use queues::QueueUseCases;
+
 pub use session::SessionUseCases;
 pub use staging::StagingUseCases;
 pub use story_events::StoryEventUseCases;

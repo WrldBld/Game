@@ -1,20 +1,23 @@
+// Relationship CRUD - methods for future NPC relationship features
+#![allow(dead_code)]
+
 //! Relationship CRUD operations.
 
 use std::sync::Arc;
 
 use wrldbldr_domain::{CharacterId, RelationshipId, WorldId};
 
-use crate::repositories::{CharacterRepository, ClockService};
+use crate::infrastructure::ports::{CharacterRepo, ClockPort};
 
 use super::ManagementError;
 
 pub struct RelationshipCrud {
-    character: Arc<CharacterRepository>,
-    clock: Arc<ClockService>,
+    character: Arc<dyn CharacterRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl RelationshipCrud {
-    pub fn new(character: Arc<CharacterRepository>, clock: Arc<ClockService>) -> Self {
+    pub fn new(character: Arc<dyn CharacterRepo>, clock: Arc<dyn ClockPort>) -> Self {
         Self { character, clock }
     }
 
@@ -79,7 +82,10 @@ impl RelationshipCrud {
         let mut relationship = relationships
             .into_iter()
             .find(|r| r.to_character() == to_id)
-            .ok_or(ManagementError::NotFound)?;
+            .ok_or(ManagementError::NotFound {
+                entity_type: "Relationship",
+                id: format!("{}→{}", from_id, to_id),
+            })?;
 
         // Add the event
         relationship = relationship.with_event(wrldbldr_domain::RelationshipEvent::new(

@@ -1,3 +1,6 @@
+// Continue conversation - fields for future use
+#![allow(dead_code)]
+
 //! Continue conversation use case.
 //!
 //! Handles continuing an existing conversation between a player character and an NPC.
@@ -10,9 +13,8 @@ use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 
 use crate::queue_types::PlayerActionData;
 
-use crate::repositories::{
-    CharacterRepository, ClockService, PlayerCharacterRepository, QueueService, StagingRepository,
-    WorldRepository,
+use crate::infrastructure::ports::{
+    CharacterRepo, ClockPort, PlayerCharacterRepo, QueuePort, StagingRepo, WorldRepo,
 };
 use crate::use_cases::narrative_operations::Narrative;
 
@@ -34,24 +36,24 @@ pub struct ConversationContinued {
 ///
 /// Orchestrates: Context validation, player action queuing.
 pub struct ContinueConversation {
-    character: Arc<CharacterRepository>,
-    player_character: Arc<PlayerCharacterRepository>,
-    staging: Arc<StagingRepository>,
-    world: Arc<WorldRepository>,
+    character: Arc<dyn CharacterRepo>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
+    staging: Arc<dyn StagingRepo>,
+    world: Arc<dyn WorldRepo>,
     narrative: Arc<Narrative>,
-    queue: Arc<QueueService>,
-    clock: Arc<ClockService>,
+    queue: Arc<dyn QueuePort>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl ContinueConversation {
     pub fn new(
-        character: Arc<CharacterRepository>,
-        player_character: Arc<PlayerCharacterRepository>,
-        staging: Arc<StagingRepository>,
-        world: Arc<WorldRepository>,
+        character: Arc<dyn CharacterRepo>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
+        staging: Arc<dyn StagingRepo>,
+        world: Arc<dyn WorldRepo>,
         narrative: Arc<Narrative>,
-        queue: Arc<QueueService>,
-        clock: Arc<ClockService>,
+        queue: Arc<dyn QueuePort>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             character,
@@ -91,14 +93,14 @@ impl ContinueConversation {
             .player_character
             .get(pc_id)
             .await?
-            .ok_or(ConversationError::PlayerCharacterNotFound)?;
+            .ok_or(ConversationError::PlayerCharacterNotFound(pc_id))?;
 
         // 2. Get the NPC
         let _npc = self
             .character
             .get(npc_id)
             .await?
-            .ok_or(ConversationError::NpcNotFound)?;
+            .ok_or(ConversationError::NpcNotFound(npc_id))?;
 
         // 3. Verify the NPC is still in the same region as the PC
         let pc_region_id = pc
@@ -110,13 +112,23 @@ impl ContinueConversation {
             .world
             .get(world_id)
             .await?
-            .ok_or(ConversationError::WorldNotFound)?;
+            .ok_or(ConversationError::WorldNotFound(world_id))?;
         let current_game_time = world_data.game_time().current();
 
-        let staged_npcs = self
+        // Get active staging and filter to visible NPCs
+        let active_staging = self
             .staging
-            .resolve_for_region(pc_region_id, current_game_time)
+            .get_active_staging(pc_region_id, current_game_time)
             .await?;
+        let staged_npcs = active_staging
+            .map(|s| {
+                s.npcs()
+                    .iter()
+                    .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
+                    .cloned()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
         let npc_in_region = staged_npcs
             .iter()
             .any(|staged| staged.character_id == npc_id);
@@ -390,11 +402,7 @@ mod tests {
                 player_character_repo,
             )),
             Arc::new(repositories::CharacterRepository::new(character_repo)),
-            Arc::new(repositories::ObservationRepository::new(
-                observation_repo,
-                location_repo,
-                clock_port.clone(),
-            )),
+            Arc::new(repositories::ObservationRepository::new(observation_repo)),
             Arc::new(repositories::ChallengeRepository::new(challenge_repo)),
             Arc::new(repositories::FlagRepository::new(flag_repo)),
             Arc::new(repositories::SceneRepository::new(scene_repo)),

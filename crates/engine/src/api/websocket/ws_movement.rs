@@ -168,10 +168,10 @@ pub(super) async fn handle_move_to_region(
 
             match result.staging_status {
                 StagingStatus::Pending { previous_staging } => {
-                    let pending_time_suggestions = crate::repositories::TimeSuggestionStore::new(
+                    let pending_time_suggestions = crate::stores::TimeSuggestionStore::new(
                         state.pending_time_suggestions.clone(),
                     );
-                    let pending_staging_requests = crate::repositories::PendingStaging::new(
+                    let pending_staging_requests = crate::stores::PendingStagingStore::new(
                         state.pending_staging_requests.clone(),
                     );
                     let ctx = crate::use_cases::staging::StagingApprovalContext {
@@ -182,7 +182,7 @@ pub(super) async fn handle_move_to_region(
                         world_id,
                         region: result.region.clone(),
                         pc: result.pc.clone(),
-                        previous_staging,
+                        previous_staging: *previous_staging,
                         time_suggestion: result.time_suggestion.clone(),
                         guidance: None,
                     };
@@ -280,16 +280,18 @@ pub(super) async fn handle_move_to_region(
                 }
             }
         }
-        Err(EnterRegionError::RegionNotFound) => {
-            Some(error_response(ErrorCode::NotFound, "Region not found"))
-        }
-        Err(EnterRegionError::PlayerCharacterNotFound) => Some(error_response(
+        Err(EnterRegionError::RegionNotFound(id)) => Some(error_response(
             ErrorCode::NotFound,
-            "Player character not found",
+            &format!("Region not found: {}", id),
         )),
-        Err(EnterRegionError::WorldNotFound) => {
-            Some(error_response(ErrorCode::NotFound, "World not found"))
-        }
+        Err(EnterRegionError::PlayerCharacterNotFound(id)) => Some(error_response(
+            ErrorCode::NotFound,
+            &format!("Player character not found: {}", id),
+        )),
+        Err(EnterRegionError::WorldNotFound(id)) => Some(error_response(
+            ErrorCode::NotFound,
+            &format!("World not found: {}", id),
+        )),
         Err(EnterRegionError::RegionNotInCurrentLocation) => Some(error_response(
             ErrorCode::BadRequest,
             "Region not in current location",
@@ -364,10 +366,10 @@ pub(super) async fn handle_exit_to_location(
 
             match result.staging_status {
                 StagingStatus::Pending { previous_staging } => {
-                    let pending_time_suggestions = crate::repositories::TimeSuggestionStore::new(
+                    let pending_time_suggestions = crate::stores::TimeSuggestionStore::new(
                         state.pending_time_suggestions.clone(),
                     );
-                    let pending_staging_requests = crate::repositories::PendingStaging::new(
+                    let pending_staging_requests = crate::stores::PendingStagingStore::new(
                         state.pending_staging_requests.clone(),
                     );
                     let ctx = crate::use_cases::staging::StagingApprovalContext {
@@ -378,7 +380,7 @@ pub(super) async fn handle_exit_to_location(
                         world_id,
                         region: result.region.clone(),
                         pc: result.pc.clone(),
-                        previous_staging,
+                        previous_staging: *previous_staging,
                         time_suggestion: result.time_suggestion.clone(),
                         guidance: None,
                     };
@@ -537,7 +539,7 @@ async fn build_scene_update(
         .app
         .repositories
         .location
-        .get(scene.location_id())
+        .get_location(scene.location_id())
         .await
     {
         Ok(Some(location)) => location.name().to_string(),

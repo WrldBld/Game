@@ -1,3 +1,6 @@
+// Directorial context store - methods for future DM context features
+#![allow(dead_code)]
+
 //! Directorial context storage wrapper.
 
 use std::sync::Arc;

@@ -49,6 +49,8 @@ pub(super) async fn handle_inventory_action(
     }
 
     // Execute the inventory action via the entity
+    // TODO: Replace with inventory use cases (EquipItem, UnequipItem, DropItem, PickupItem)
+    #[allow(deprecated)]
     let result = match action {
         InventoryAction::Equip => {
             state

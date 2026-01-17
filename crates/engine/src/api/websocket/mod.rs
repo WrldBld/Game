@@ -1,3 +1,6 @@
+// WebSocket handling - store methods prepared for future use
+#![allow(dead_code)]
+
 //! WebSocket handling for Player connections.
 //!
 //! Handles the WebSocket protocol between Engine and Player clients.
@@ -285,10 +288,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<WsState>) {
                 }
                 Err(e) => {
                     tracing::warn!(connection_id = %connection_id, error = %e, "Failed to parse message");
-                    let error = ServerMessage::Error {
-                        code: "PARSE_ERROR".to_string(),
-                        message: format!("Invalid message format: {}", e),
-                    };
+                    let error = error_response(
+                        ErrorCode::BadRequest,
+                        &format!("Invalid message format: {}", e),
+                    );
                     let _ = tx.try_send(error);
                 }
             },
@@ -691,19 +694,19 @@ async fn handle_message(
         // Forward compatibility - return error so client doesn't hang
         ClientMessage::Unknown => {
             tracing::warn!(connection_id = %connection_id, "Received unknown message type");
-            Some(ServerMessage::Error {
-                code: "UNKNOWN_MESSAGE".to_string(),
-                message: "Unrecognized message type".to_string(),
-            })
+            Some(error_response(
+                ErrorCode::BadRequest,
+                "Unrecognized message type",
+            ))
         }
 
         // All other message types - return not implemented for now
         _ => {
             tracing::debug!(connection_id = %connection_id, "Unhandled message type");
-            Some(ServerMessage::Error {
-                code: "NOT_IMPLEMENTED".to_string(),
-                message: "This message type is not yet implemented".to_string(),
-            })
+            Some(error_response(
+                ErrorCode::NotImplemented,
+                "This message type is not yet implemented",
+            ))
         }
     }
 }

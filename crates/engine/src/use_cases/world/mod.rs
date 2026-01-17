@@ -1,3 +1,6 @@
+// World management - variants for future export features
+#![allow(dead_code)]
+
 //! World management use cases.
 //!
 //! Handles world export and import for backup/sharing.
@@ -5,9 +8,7 @@
 use std::sync::Arc;
 use wrldbldr_domain::WorldId;
 
-use crate::infrastructure::ports::RepoError;
-use crate::repositories::location::Location;
-use crate::repositories::{CharacterRepository, InventoryRepository, WorldRepository};
+use crate::infrastructure::ports::{CharacterRepo, ItemRepo, LocationRepo, RepoError, WorldRepo};
 use crate::use_cases::narrative_operations::Narrative;
 
 /// Container for world use cases.
@@ -45,19 +46,19 @@ pub struct WorldExport {
 ///
 /// Exports a world and all its contents to a portable format.
 pub struct ExportWorld {
-    world: Arc<WorldRepository>,
-    location: Arc<Location>,
-    character: Arc<CharacterRepository>,
-    inventory: Arc<InventoryRepository>,
+    world: Arc<dyn WorldRepo>,
+    location: Arc<dyn LocationRepo>,
+    character: Arc<dyn CharacterRepo>,
+    inventory: Arc<dyn ItemRepo>,
     narrative: Arc<Narrative>,
 }
 
 impl ExportWorld {
     pub fn new(
-        world: Arc<WorldRepository>,
-        location: Arc<Location>,
-        character: Arc<CharacterRepository>,
-        inventory: Arc<InventoryRepository>,
+        world: Arc<dyn WorldRepo>,
+        location: Arc<dyn LocationRepo>,
+        character: Arc<dyn CharacterRepo>,
+        inventory: Arc<dyn ItemRepo>,
         narrative: Arc<Narrative>,
     ) -> Self {
         Self {
@@ -86,7 +87,7 @@ impl ExportWorld {
             .ok_or(WorldError::NotFound)?;
 
         // Get all locations
-        let locations = self.location.list_in_world(world_id).await?;
+        let locations = self.location.list_locations_in_world(world_id).await?;
 
         // Get all regions
         let mut regions = Vec::new();
@@ -120,19 +121,19 @@ impl ExportWorld {
 ///
 /// Imports a world from an exported format.
 pub struct ImportWorld {
-    world: Arc<WorldRepository>,
-    location: Arc<Location>,
-    character: Arc<CharacterRepository>,
-    inventory: Arc<InventoryRepository>,
+    world: Arc<dyn WorldRepo>,
+    location: Arc<dyn LocationRepo>,
+    character: Arc<dyn CharacterRepo>,
+    inventory: Arc<dyn ItemRepo>,
     narrative: Arc<Narrative>,
 }
 
 impl ImportWorld {
     pub fn new(
-        world: Arc<WorldRepository>,
-        location: Arc<Location>,
-        character: Arc<CharacterRepository>,
-        inventory: Arc<InventoryRepository>,
+        world: Arc<dyn WorldRepo>,
+        location: Arc<dyn LocationRepo>,
+        character: Arc<dyn CharacterRepo>,
+        inventory: Arc<dyn ItemRepo>,
         narrative: Arc<Narrative>,
     ) -> Self {
         Self {

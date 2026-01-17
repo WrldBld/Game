@@ -1,3 +1,6 @@
+// Expression sheet generation - methods for future sprite sheet features
+#![allow(dead_code)]
+
 //! Expression sheet generation use case.
 //!
 //! Handles generating expression sprite sheets for characters and slicing
@@ -24,8 +27,13 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{AssetId, CharacterId};
 
-use crate::infrastructure::ports::{QueueError, RepoError};
-use crate::repositories::{AssetsRepository, CharacterRepository, ClockService, QueueService};
+use crate::infrastructure::ports::{CharacterRepo, ClockPort, QueueError, QueuePort, RepoError};
+use crate::repositories::AssetsRepository;
+
+// Type aliases for old names to maintain compatibility
+type CharacterRepository = dyn CharacterRepo;
+type QueueService = dyn QueuePort;
+type ClockService = dyn ClockPort;
 
 /// Standard expression order in a 4x4 grid
 pub const STANDARD_EXPRESSION_ORDER: [&str; 16] = [

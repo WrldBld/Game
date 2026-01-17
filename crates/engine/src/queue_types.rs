@@ -1,3 +1,6 @@
+// Queue types - some types prepared for future DM action queueing
+#![allow(dead_code)]
+
 //! Queue payload types used by QueuePort implementations.
 //!
 //! These DTOs are engine-owned to keep the domain pure.

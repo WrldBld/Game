@@ -117,7 +117,10 @@ pub enum ErrorCode {
     ServiceUnavailable,
     /// Operation timed out
     Timeout,
+    /// Operation not yet implemented
+    NotImplemented,
 
+    // Forward compatibility
     /// Unknown variant for forward compatibility
     #[serde(other)]
     Unknown,

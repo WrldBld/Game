@@ -1,3 +1,6 @@
+// Asset generation use cases - methods for future image generation
+#![allow(dead_code)]
+
 //! Asset generation use cases.
 //!
 //! Handles image generation for game entities (characters, locations, items).
@@ -12,8 +15,12 @@ use wrldbldr_domain::{
 
 use crate::queue_types::AssetGenerationData;
 
-use crate::infrastructure::ports::{ImageGenError, ImageRequest, RepoError};
-use crate::repositories::{AssetsRepository, ClockService, QueueService};
+use crate::infrastructure::ports::{ClockPort, ImageGenError, ImageRequest, QueuePort, RepoError};
+use crate::repositories::AssetsRepository;
+
+// Type aliases for old names to maintain compatibility
+type QueueService = dyn QueuePort;
+type ClockService = dyn ClockPort;
 
 pub use expression_sheet::GenerateExpressionSheet;
 

@@ -20,8 +20,9 @@ Quick reference for code reviewers. Check applicable items before approving.
 - [ ] No `domain` importing tokio, axum, or async code
 - [ ] Shared/wire types only in API layer (not in use cases or domain)
 - [ ] New port traits added to `infrastructure/ports.rs` (not scattered)
-- [ ] Repository wrappers use `*Repository` naming
-- [ ] Repositories call port traits directly (no unnecessary abstraction)
+- [ ] Use cases inject port traits directly (`Arc<dyn *Repo>`) per ADR-009
+- [ ] In-memory state in `stores/` (not misnamed as repositories)
+- [ ] No `repositories/` directory exists (fully eliminated per ADR-009)
 
 ## Error Handling
 

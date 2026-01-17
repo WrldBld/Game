@@ -479,6 +479,9 @@ pub(crate) fn build_test_app_with_ports(
     ));
     let observation = Arc::new(crate::repositories::ObservationRepository::new(
         observation_repo.clone(),
+    ));
+    let record_visit = Arc::new(crate::use_cases::observation::RecordVisit::new(
+        observation_repo.clone(),
         location_repo.clone(),
         clock_port.clone(),
     ));
@@ -555,29 +558,37 @@ pub(crate) fn build_test_app_with_ports(
         clock.clone(),
     ));
 
+    let resolve_scene = Arc::new(crate::use_cases::scene::ResolveScene::new(
+        scene_repo.clone(),
+    ));
+
     let movement = crate::use_cases::MovementUseCases::new(
         Arc::new(crate::use_cases::movement::EnterRegion::new(
-            player_character.clone(),
-            location.clone(),
-            staging.clone(),
-            observation.clone(),
+            player_character_repo.clone(),
+            location_repo.clone(),
+            staging_repo.clone(),
+            observation_repo.clone(),
+            record_visit.clone(),
             narrative.clone(),
-            scene.clone(),
+            resolve_scene.clone(),
+            scene_repo.clone(),
             inventory.clone(),
-            flag.clone(),
-            world.clone(),
+            flag_repo.clone(),
+            world_repo.clone(),
             suggest_time.clone(),
         )),
         Arc::new(crate::use_cases::movement::ExitLocation::new(
-            player_character.clone(),
-            location.clone(),
-            staging.clone(),
-            observation.clone(),
+            player_character_repo.clone(),
+            location_repo.clone(),
+            staging_repo.clone(),
+            observation_repo.clone(),
+            record_visit.clone(),
             narrative.clone(),
-            scene.clone(),
+            resolve_scene.clone(),
+            scene_repo.clone(),
             inventory.clone(),
-            flag.clone(),
-            world.clone(),
+            flag_repo.clone(),
+            world_repo.clone(),
             suggest_time.clone(),
         )),
     );

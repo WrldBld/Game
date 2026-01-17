@@ -1,20 +1,23 @@
+// Act CRUD - methods for future story arc features
+#![allow(dead_code)]
+
 //! Act CRUD operations.
 
 use std::sync::Arc;
 
 use wrldbldr_domain::{ActId, WorldId};
 
-use crate::repositories::ActRepository;
+use crate::infrastructure::ports::ActRepo;
 use crate::use_cases::validation::require_non_empty;
 
 use super::ManagementError;
 
 pub struct ActCrud {
-    act: Arc<ActRepository>,
+    act: Arc<dyn ActRepo>,
 }
 
 impl ActCrud {
-    pub fn new(act: Arc<ActRepository>) -> Self {
+    pub fn new(act: Arc<dyn ActRepo>) -> Self {
         Self { act }
     }
 
@@ -67,7 +70,10 @@ impl ActCrud {
             .act
             .get(act_id)
             .await?
-            .ok_or(ManagementError::NotFound)?;
+            .ok_or(ManagementError::NotFound {
+                entity_type: "Act",
+                id: act_id.to_string(),
+            })?;
 
         // Rebuild act with updated values using from_parts
         let new_name = if let Some(name) = name {

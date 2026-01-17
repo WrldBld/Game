@@ -1,3 +1,6 @@
+// Flag repository - methods for future narrative flag features
+#![allow(dead_code)]
+
 //! Flag entity module.
 //!
 //! Handles game flag operations for scene conditions and narrative triggers.
@@ -17,6 +20,11 @@ pub struct FlagRepository {
 impl FlagRepository {
     pub fn new(repo: Arc<dyn FlagRepo>) -> Self {
         Self { repo }
+    }
+
+    /// Access the underlying FlagRepo port for direct database operations.
+    pub fn port(&self) -> Arc<dyn FlagRepo> {
+        Arc::clone(&self.repo)
     }
 
     /// Get all set flags for a world (world-scoped flags).

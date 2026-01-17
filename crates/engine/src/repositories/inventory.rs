@@ -1,3 +1,6 @@
+// Inventory repository - methods for future item management
+#![allow(dead_code)]
+
 //! Inventory entity CRUD operations.
 
 use std::sync::Arc;
@@ -5,19 +8,17 @@ use wrldbldr_domain::{self as domain, CharacterId, ItemId, PlayerCharacterId, Re
 
 use crate::infrastructure::ports::{CharacterRepo, ItemRepo, PlayerCharacterRepo, RepoError};
 
+// Re-export from use_cases for backward compatibility during migration
+pub use crate::use_cases::inventory::{InventoryActionResult, InventoryError};
+
 /// Inventory entity operations.
 ///
-/// Handles items in the game world and character inventories.
+/// Provides CRUD operations for items and inventory queries.
+/// Business logic has been moved to use_cases/inventory/.
 pub struct InventoryRepository {
     item_repo: Arc<dyn ItemRepo>,
     character_repo: Arc<dyn CharacterRepo>,
     pc_repo: Arc<dyn PlayerCharacterRepo>,
-}
-
-/// Result of an inventory operation.
-pub struct InventoryActionResult {
-    pub item_name: String,
-    pub quantity: u32,
 }
 
 impl InventoryRepository {
@@ -31,6 +32,16 @@ impl InventoryRepository {
             character_repo,
             pc_repo,
         }
+    }
+
+    /// Get the underlying item repository port.
+    pub fn item_port(&self) -> Arc<dyn ItemRepo> {
+        self.item_repo.clone()
+    }
+
+    /// Get the underlying player character repository port.
+    pub fn pc_port(&self) -> Arc<dyn PlayerCharacterRepo> {
+        self.pc_repo.clone()
     }
 
     // =========================================================================
@@ -64,7 +75,7 @@ impl InventoryRepository {
     }
 
     // =========================================================================
-    // Character Inventory Operations
+    // Inventory Queries
     // =========================================================================
 
     /// Get the inventory for a player character.
@@ -83,276 +94,126 @@ impl InventoryRepository {
         self.character_repo.get_inventory(character_id).await
     }
 
-    /// Equip an item (mark it as equipped in the character's inventory).
-    ///
-    /// Note: In the graph model, equipping creates an EQUIPPED_BY edge.
-    /// For now, this is a simplified implementation.
-    ///
-    /// Returns the item name for UI feedback.
-    pub async fn equip_item(
-        &self,
-        pc_id: PlayerCharacterId,
-        item_id: ItemId,
-    ) -> Result<InventoryActionResult, InventoryError> {
-        // Get the item to verify it exists
-        let item = self
-            .item_repo
-            .get(item_id)
-            .await?
-            .ok_or(InventoryError::ItemNotFound)?;
-
-        // Verify the item is in the PC's inventory
-        let inventory = self.pc_repo.get_inventory(pc_id).await?;
-        if !inventory.iter().any(|i| i.id() == item_id) {
-            return Err(InventoryError::ItemNotInInventory);
-        }
-
-        // Create EQUIPPED_BY edge in graph
-        self.item_repo.set_equipped(pc_id, item_id).await?;
-
-        Ok(InventoryActionResult {
-            item_name: item.name().to_string(),
-            quantity: 1,
-        })
-    }
-
-    /// Unequip an item.
-    ///
-    /// Returns the item name for UI feedback.
-    pub async fn unequip_item(
-        &self,
-        pc_id: PlayerCharacterId,
-        item_id: ItemId,
-    ) -> Result<InventoryActionResult, InventoryError> {
-        // Get the item
-        let item = self
-            .item_repo
-            .get(item_id)
-            .await?
-            .ok_or(InventoryError::ItemNotFound)?;
-
-        // Verify the item is in the PC's inventory
-        let inventory = self.pc_repo.get_inventory(pc_id).await?;
-        if !inventory.iter().any(|i| i.id() == item_id) {
-            return Err(InventoryError::ItemNotInInventory);
-        }
-
-        // Remove EQUIPPED_BY edge in graph
-        self.item_repo.set_unequipped(pc_id, item_id).await?;
-
-        Ok(InventoryActionResult {
-            item_name: item.name().to_string(),
-            quantity: 1,
-        })
-    }
+    // =========================================================================
+    // Deprecated Business Logic Methods
+    // These methods are kept for backward compatibility during migration.
+    // New code should use the use cases in use_cases/inventory/ directly.
+    // =========================================================================
 
     /// Drop an item from inventory (place in current region or destroy).
     ///
-    /// Returns the item name for UI feedback.
+    /// # Deprecated
+    /// Use `use_cases::inventory::DropItem` instead.
+    #[deprecated(note = "Use use_cases::inventory::DropItem instead")]
     pub async fn drop_item(
         &self,
         pc_id: PlayerCharacterId,
         item_id: ItemId,
         quantity: u32,
     ) -> Result<InventoryActionResult, InventoryError> {
-        // Get the PC to verify they exist and get current region
-        let pc = self
-            .pc_repo
-            .get(pc_id)
-            .await?
-            .ok_or(InventoryError::CharacterNotFound)?;
-
-        // Get the item
-        let item = self
-            .item_repo
-            .get(item_id)
-            .await?
-            .ok_or(InventoryError::ItemNotFound)?;
-
-        // Verify the item is in the PC's inventory
-        let inventory = self.pc_repo.get_inventory(pc_id).await?;
-        if !inventory.iter().any(|i| i.id() == item_id) {
-            return Err(InventoryError::ItemNotInInventory);
-        }
-
-        // Get the PC's current region for placing the dropped item
-        let current_region = pc.current_region_id().ok_or(InventoryError::NotInRegion)?;
-
-        // Remove POSSESSES edge (remove from inventory)
-        self.pc_repo.remove_from_inventory(pc_id, item_id).await?;
-
-        // Also remove EQUIPPED_BY edge if the item was equipped
-        self.item_repo.set_unequipped(pc_id, item_id).await?;
-
-        // Place item in the current region (create IN_REGION edge)
-        self.item_repo
-            .place_in_region(item_id, current_region)
-            .await?;
-
-        Ok(InventoryActionResult {
-            item_name: item.name().to_string(),
-            quantity,
-        })
+        let drop_item = crate::use_cases::inventory::DropItem::new(
+            self.item_repo.clone(),
+            self.pc_repo.clone(),
+        );
+        drop_item.execute(pc_id, item_id, quantity).await
     }
 
     /// Give a new item to a player character (from challenge outcome).
     ///
-    /// Creates a new item with the given name/description and adds it to the PC's inventory.
-    /// This is used by the GiveItem trigger in challenge outcomes.
+    /// # Deprecated
+    /// Use `use_cases::inventory::GiveItem` instead.
+    #[deprecated(note = "Use use_cases::inventory::GiveItem instead")]
     pub async fn give_item_to_pc(
         &self,
         pc_id: PlayerCharacterId,
         item_name: String,
         item_description: Option<String>,
     ) -> Result<InventoryActionResult, InventoryError> {
-        // Get the PC to verify they exist and get their world_id
-        let pc = self
-            .pc_repo
-            .get(pc_id)
-            .await?
-            .ok_or(InventoryError::CharacterNotFound)?;
-
-        // Create a new item in the same world as the PC
-        let validated_name = domain::ItemName::new(item_name.clone())?;
-        let mut item = domain::Item::new(pc.world_id(), validated_name);
-        if let Some(desc) = item_description {
-            item = item.with_description(desc);
-        }
-
-        // Save the item
-        self.item_repo.save(&item).await?;
-
-        // Add to PC's inventory
-        self.pc_repo.add_to_inventory(pc_id, item.id()).await?;
-
-        tracing::info!(
-            pc_id = %pc_id,
-            item_id = %item.id(),
-            item_name = %item_name,
-            "Item given to player character"
+        let give_item = crate::use_cases::inventory::GiveItem::new(
+            self.item_repo.clone(),
+            self.pc_repo.clone(),
         );
+        give_item.execute(pc_id, item_name, item_description).await
+    }
 
-        Ok(InventoryActionResult {
-            item_name,
-            quantity: 1,
-        })
+    /// Equip an item (mark it as equipped in the character's inventory).
+    ///
+    /// # Deprecated
+    /// Use `use_cases::inventory::EquipItem` instead.
+    #[deprecated(note = "Use use_cases::inventory::EquipItem instead")]
+    pub async fn equip_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<InventoryActionResult, InventoryError> {
+        let equip_item = crate::use_cases::inventory::EquipItem::new(
+            self.item_repo.clone(),
+            self.pc_repo.clone(),
+        );
+        equip_item.execute(pc_id, item_id).await
+    }
+
+    /// Unequip an item.
+    ///
+    /// # Deprecated
+    /// Use `use_cases::inventory::UnequipItem` instead.
+    #[deprecated(note = "Use use_cases::inventory::UnequipItem instead")]
+    pub async fn unequip_item(
+        &self,
+        pc_id: PlayerCharacterId,
+        item_id: ItemId,
+    ) -> Result<InventoryActionResult, InventoryError> {
+        let unequip_item = crate::use_cases::inventory::UnequipItem::new(
+            self.item_repo.clone(),
+            self.pc_repo.clone(),
+        );
+        unequip_item.execute(pc_id, item_id).await
     }
 
     /// Pick up an item from the current region.
     ///
-    /// Returns the item name for UI feedback.
+    /// # Deprecated
+    /// Use `use_cases::inventory::PickupItem` instead.
+    #[deprecated(note = "Use use_cases::inventory::PickupItem instead")]
     pub async fn pickup_item(
         &self,
         pc_id: PlayerCharacterId,
         item_id: ItemId,
     ) -> Result<InventoryActionResult, InventoryError> {
-        // Get the PC
-        let pc = self
-            .pc_repo
-            .get(pc_id)
-            .await?
-            .ok_or(InventoryError::CharacterNotFound)?;
-
-        // Get the item
-        let item = self
-            .item_repo
-            .get(item_id)
-            .await?
-            .ok_or(InventoryError::ItemNotFound)?;
-
-        // Verify the item is in the PC's current region
-        let pc_region = pc.current_region_id().ok_or(InventoryError::NotInRegion)?;
-        let items_in_region = self.item_repo.list_in_region(pc_region).await?;
-        if !items_in_region.iter().any(|i| i.id() == item_id) {
-            return Err(InventoryError::ItemNotInRegion);
-        }
-
-        // Remove IN_REGION edge (item is no longer on the ground)
-        self.item_repo.remove_from_region(item_id).await?;
-
-        // Add POSSESSES edge (add to inventory)
-        self.pc_repo.add_to_inventory(pc_id, item_id).await?;
-
-        Ok(InventoryActionResult {
-            item_name: item.name().to_string(),
-            quantity: 1,
-        })
+        let pickup_item = crate::use_cases::inventory::PickupItem::new(
+            self.item_repo.clone(),
+            self.pc_repo.clone(),
+        );
+        pickup_item.execute(pc_id, item_id).await
     }
-
-    // =========================================================================
-    // Item Placement (DM operations)
-    // =========================================================================
 
     /// Place an existing item in a region (DM action).
     ///
-    /// Removes the item from any character's inventory and places it in the region.
+    /// # Deprecated
+    /// Use `use_cases::inventory::PlaceItemInRegion` instead.
+    #[deprecated(note = "Use use_cases::inventory::PlaceItemInRegion instead")]
     pub async fn place_item_in_region(
         &self,
         item_id: ItemId,
         region_id: RegionId,
     ) -> Result<(), InventoryError> {
-        // Verify the item exists
-        let _item = self
-            .item_repo
-            .get(item_id)
-            .await?
-            .ok_or(InventoryError::ItemNotFound)?;
-
-        // Place item in the region (creates IN_REGION edge)
-        self.item_repo.place_in_region(item_id, region_id).await?;
-
-        tracing::info!(
-            item_id = %item_id,
-            region_id = %region_id,
-            "Item placed in region"
-        );
-
-        Ok(())
+        let place_item =
+            crate::use_cases::inventory::PlaceItemInRegion::new(self.item_repo.clone());
+        place_item.execute(item_id, region_id).await
     }
 
     /// Create a new item and place it in a region (DM action).
     ///
-    /// Returns the created item's ID.
+    /// # Deprecated
+    /// Use `use_cases::inventory::CreateAndPlaceItem` instead.
+    #[deprecated(note = "Use use_cases::inventory::CreateAndPlaceItem instead")]
     pub async fn create_and_place_in_region(
         &self,
         item: domain::Item,
         region_id: RegionId,
     ) -> Result<ItemId, InventoryError> {
-        let item_id = item.id();
-        let item_name = item.name().to_string();
-
-        // Save the item
-        self.item_repo.save(&item).await?;
-
-        // Place in the region
-        self.item_repo.place_in_region(item_id, region_id).await?;
-
-        tracing::info!(
-            item_id = %item_id,
-            item_name = %item_name,
-            region_id = %region_id,
-            "Item created and placed in region"
-        );
-
-        Ok(item_id)
+        let create_and_place =
+            crate::use_cases::inventory::CreateAndPlaceItem::new(self.item_repo.clone());
+        create_and_place.execute(item, region_id).await
     }
-}
-
-/// Errors that can occur during inventory operations.
-#[derive(Debug, thiserror::Error)]
-pub enum InventoryError {
-    #[error("Item not found")]
-    ItemNotFound,
-    #[error("Character not found")]
-    CharacterNotFound,
-    #[error("Item not in inventory")]
-    ItemNotInInventory,
-    #[error("Item not in current region")]
-    ItemNotInRegion,
-    #[error("Character not in a region")]
-    NotInRegion,
-    #[error("Validation error: {0}")]
-    Validation(#[from] domain::DomainError),
-    #[error("Repository error: {0}")]
-    Repo(#[from] RepoError),
 }

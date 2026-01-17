@@ -1,3 +1,6 @@
+// End conversation - methods for future use
+#![allow(dead_code)]
+
 //! End conversation use case.
 //!
 //! Handles ending a conversation between a player character and an NPC.
@@ -8,8 +11,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 
-use crate::infrastructure::ports::RepoError;
-use crate::repositories::{CharacterRepository, PlayerCharacterRepository};
+use crate::infrastructure::ports::{CharacterRepo, PlayerCharacterRepo, RepoError};
 use crate::use_cases::narrative_operations::Narrative;
 
 /// Result of ending a conversation.
@@ -38,15 +40,15 @@ pub struct ConversationEnded {
 /// - Notify any listeners/subscribers that the conversation has ended
 /// - Update NPC disposition based on conversation outcome
 pub struct EndConversation {
-    character: Arc<CharacterRepository>,
-    player_character: Arc<PlayerCharacterRepository>,
+    character: Arc<dyn CharacterRepo>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
     narrative: Arc<Narrative>,
 }
 
 impl EndConversation {
     pub fn new(
-        character: Arc<CharacterRepository>,
-        player_character: Arc<PlayerCharacterRepository>,
+        character: Arc<dyn CharacterRepo>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
         narrative: Arc<Narrative>,
     ) -> Self {
         Self {
@@ -210,11 +212,7 @@ mod tests {
                 player_character_repo,
             )),
             Arc::new(repositories::CharacterRepository::new(character_repo)),
-            Arc::new(repositories::ObservationRepository::new(
-                observation_repo,
-                location_repo,
-                clock_port.clone(),
-            )),
+            Arc::new(repositories::ObservationRepository::new(observation_repo)),
             Arc::new(repositories::ChallengeRepository::new(challenge_repo)),
             Arc::new(repositories::FlagRepository::new(flag_repo)),
             Arc::new(repositories::SceneRepository::new(scene_repo)),

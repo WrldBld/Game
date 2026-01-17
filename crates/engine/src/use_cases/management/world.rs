@@ -5,17 +5,17 @@ use std::sync::Arc;
 use wrldbldr_domain::value_objects::{Description, WorldName};
 use wrldbldr_domain::WorldId;
 
-use crate::repositories::{ClockService, WorldRepository};
+use crate::infrastructure::ports::{ClockPort, WorldRepo};
 
 use super::ManagementError;
 
 pub struct WorldCrud {
-    world: Arc<WorldRepository>,
-    clock: Arc<ClockService>,
+    world: Arc<dyn WorldRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl WorldCrud {
-    pub fn new(world: Arc<WorldRepository>, clock: Arc<ClockService>) -> Self {
+    pub fn new(world: Arc<dyn WorldRepo>, clock: Arc<dyn ClockPort>) -> Self {
         Self { world, clock }
     }
 
@@ -66,7 +66,10 @@ impl WorldCrud {
             .world
             .get(world_id)
             .await?
-            .ok_or(ManagementError::NotFound)?;
+            .ok_or(ManagementError::NotFound {
+                entity_type: "World",
+                id: world_id.to_string(),
+            })?;
 
         let now = self.clock.now();
 

@@ -1,3 +1,6 @@
+// Cache infrastructure - some methods for future use
+#![allow(dead_code)]
+
 //! TTL-based cache for ephemeral state.
 //!
 //! Provides a thread-safe cache with automatic expiration to prevent unbounded

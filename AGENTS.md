@@ -286,29 +286,14 @@ pub enum DamageOutcome {
 
 ```
 engine/src/
-  repositories/       # Data access wrappers around port traits
+  stores/             # In-memory state (NOT database wrappers)
     mod.rs
-    character.rs      # CharacterRepository (wraps CharacterRepo port)
-    location.rs       # LocationRepository
-    world.rs          # WorldRepository
-    player_character.rs
-    scene.rs
-    narrative.rs
-    staging.rs
-    observation.rs
-    inventory.rs
-    goal.rs
-    act.rs
-    assets.rs
-    settings.rs
-    lore.rs
-    skill.rs
-    flag.rs
-    interaction.rs
-    location_state.rs
-    region_state.rs
+    session.rs        # WebSocket connection state (wraps ConnectionManager)
+    pending_staging.rs # Pending approval state
+    directorial.rs    # Directorial context state
+    time_suggestion.rs # Time suggestion state
 
-  use_cases/          # Multi-repository orchestration
+  use_cases/          # Business logic orchestration (injects port traits directly)
     movement/         # Player movement (enter_region, exit_location)
     conversation/     # NPC dialogue (start, continue, end)
     challenge/        # Challenge flows
@@ -348,52 +333,30 @@ engine/src/
   main.rs             # Entry point
 ```
 
-### Repository Design Rules
+### Port Injection (ADR-009)
 
-1. **Named `*Repository`** - `CharacterRepository`, not `Character`
-2. **Wraps port trait** - `repo: Arc<dyn CharacterRepo>`
-3. **Async CRUD methods** - `async fn get(&self, id: CharacterId) -> Result<Option<Character>, RepoError>`
-4. **No business logic** - Only data access
+Use cases inject port traits **directly** - there is no repository wrapper layer.
 
-**Example Repository:**
-```rust
-// engine/src/repositories/character.rs
-pub struct CharacterRepository {
-    repo: Arc<dyn CharacterRepo>,
-}
+**Why no repository layer?**
+- Port traits already define the data access contract
+- Wrapper classes that just delegate add no value (~2,300 lines of boilerplate)
+- Business logic belongs in use cases, not data access wrappers
+- See [ADR-009](docs/architecture/ADR-009-repository-layer-elimination.md) for full rationale
 
-impl CharacterRepository {
-    pub fn new(repo: Arc<dyn CharacterRepo>) -> Self {
-        Self { repo }
-    }
+**What about the `stores/` directory?**
 
-    pub async fn get(&self, id: CharacterId) -> Result<Option<domain::Character>, RepoError> {
-        self.repo.get(id).await
-    }
+The `stores/` directory contains **in-memory state**, not database wrappers:
+- `SessionStore` - WebSocket connection tracking
+- `PendingStagingStore` - Approval workflow state
+- `DirectorialStore` - DM context state
+- `TimeSuggestionStore` - Time suggestion cache
 
-    pub async fn save(&self, character: &domain::Character) -> Result<(), RepoError> {
-        self.repo.save(character).await
-    }
-
-    pub async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<domain::Character>, RepoError> {
-        self.repo.list_in_world(world_id).await
-    }
-}
-```
-
-### Repositories vs Use Cases
-
-| Criteria | Layer | Example |
-|----------|-------|---------|
-| 1-2 repo dependencies | `repositories/` | `CharacterRepository` (1 port) |
-| 3+ repository dependencies | `use_cases/` | `EnterRegion` (3+ repos) |
-| Pure data access | `repositories/` | `get`, `save`, `list` |
-| Business orchestration | `use_cases/` | Movement, conversation, challenges |
+These are legitimate because they manage runtime state, not database access.
 
 ### Use Case Design Rules (STRICT)
 
-1. **Inject repositories** - Not port traits directly
-2. **Orchestrate multiple operations** - Coordinate repos + domain logic
+1. **Inject port traits directly** - `Arc<dyn CharacterRepo>`, not wrapper classes
+2. **Orchestrate multiple operations** - Coordinate ports + domain logic
 3. **Return domain types or use-case DTOs** - Never shared/wire types
 
 **DO**:
@@ -415,9 +378,9 @@ impl CharacterRepository {
 ```rust
 // engine/src/use_cases/movement/enter_region.rs
 pub struct EnterRegion {
-    character_repo: Arc<CharacterRepository>,
-    staging_repo: Arc<StagingRepository>,
-    narrative_repo: Arc<NarrativeRepository>,
+    character_repo: Arc<dyn CharacterRepo>,
+    staging_repo: Arc<dyn StagingRepo>,
+    narrative_repo: Arc<dyn NarrativeRepo>,
 }
 
 impl EnterRegion {
@@ -740,16 +703,17 @@ dx serve --platform web
 3. Add domain events if needed in `domain/src/events/`
 4. Export from `domain/src/aggregates/mod.rs`
 
-### New Repository
+### New Port Trait
 
-1. Create `engine/src/repositories/{name}.rs`
-2. Add port trait methods if needed in `infrastructure/ports.rs`
-3. Implement in `engine/src/infrastructure/neo4j/`
+1. Add port trait to `engine/src/infrastructure/ports.rs`
+2. Implement in `engine/src/infrastructure/neo4j/{name}.rs`
+
+Note: There is no repository wrapper layer. Use cases inject port traits directly (ADR-009).
 
 ### New Use Case
 
 1. Create `engine/src/use_cases/{category}/{name}.rs`
-2. Inject required repositories
+2. Inject required port traits directly (`Arc<dyn *Repo>`)
 3. Add to `App` struct
 4. Wire in API layer
 
@@ -778,8 +742,8 @@ dx serve --platform web
 
 ### Unit Tests
 - Domain: Pure tests, no mocking (aggregates, value objects)
-- Repositories: Mock port traits
-- Use cases: Mock repositories
+- Infrastructure (Neo4j): Integration tests with testcontainers
+- Use cases: Mock port traits directly
 
 ### Integration Tests
 - Use testcontainers for Neo4j
@@ -793,11 +757,11 @@ dx serve --platform web
 ```rust
 #[tokio::test]
 async fn enter_region_updates_position() {
-    let mut repo = MockCharacterRepo::new();
-    repo.expect_update_position()
+    let mut mock_repo = MockCharacterRepo::new();
+    mock_repo.expect_update_position()
         .returning(|_, _| Ok(()));
 
-    let character_repo = CharacterRepository::new(Arc::new(repo));
+    let character_repo: Arc<dyn CharacterRepo> = Arc::new(mock_repo);
     let use_case = EnterRegion::new(character_repo, ...);
 
     let result = use_case.execute(pc_id, region_id).await;

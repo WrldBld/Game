@@ -760,7 +760,7 @@ pub fn handle_server_message(
 
         PlayerEvent::TimeModeChanged { world_id, mode } => {
             tracing::info!("Time mode changed for world {}: {}", world_id, mode);
-            game_state.set_time_mode(crate::presentation::state::TimeMode::from_str(&mode));
+            game_state.set_time_mode(mode.parse().unwrap_or_default());
             session_state.add_log_entry(
                 "System".to_string(),
                 format!("Time mode changed to: {}", mode),

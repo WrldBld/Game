@@ -139,7 +139,7 @@ pub(super) async fn handle_location_request(
                     "backdrop_asset": location.backdrop_asset(),
                     "presence_cache_ttl_hours": location.presence_cache_ttl_hours(),
                 }))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Location not found"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
@@ -169,7 +169,7 @@ pub(super) async fn handle_location_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Location not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
@@ -459,7 +459,7 @@ pub(super) async fn handle_region_request(
                     "is_spawn_point": region.is_spawn_point(),
                     "order": region.order(),
                 }))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Region not found"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
@@ -489,7 +489,7 @@ pub(super) async fn handle_region_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Region not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
@@ -624,7 +624,7 @@ pub(super) async fn handle_region_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Connection not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(

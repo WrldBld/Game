@@ -5,8 +5,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::infrastructure::ports::RepoError;
-use crate::repositories::LoreRepository;
+use crate::infrastructure::ports::{ClockPort, LoreRepo, RepoError};
 use wrldbldr_domain::{
     CharacterId, LoreCategory, LoreChunkId, LoreDiscoverySource, LoreId, LoreKnowledge, WorldId,
 };
@@ -212,12 +211,13 @@ impl LoreUseCases {
 
 /// Lore operations.
 pub struct LoreOps {
-    lore: Arc<LoreRepository>,
+    lore: Arc<dyn LoreRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl LoreOps {
-    pub fn new(lore: Arc<LoreRepository>) -> Self {
-        Self { lore }
+    pub fn new(lore: Arc<dyn LoreRepo>, clock: Arc<dyn ClockPort>) -> Self {
+        Self { lore, clock }
     }
 
     pub async fn list(&self, world_id: WorldId) -> Result<Vec<LoreSummary>, LoreError> {
@@ -246,7 +246,7 @@ impl LoreOps {
             None => LoreCategory::Common,
         };
 
-        let now = self.lore.now();
+        let now = self.clock.now();
         let mut lore = wrldbldr_domain::Lore::new(world_id, &input.title, category, now);
 
         if let Some(summary) = input.summary.as_ref() {
@@ -328,7 +328,7 @@ impl LoreOps {
         };
 
         // Build updated lore using builder pattern
-        let now = self.lore.now();
+        let now = self.clock.now();
         let mut updated_lore = wrldbldr_domain::Lore::new(
             lore.world_id(),
             input.title.as_ref().unwrap_or(&lore.title().to_string()),
@@ -421,7 +421,7 @@ impl LoreOps {
         let chunk_id = chunk.id.to_string();
 
         // Rebuild lore with new chunk
-        let now = self.lore.now();
+        let now = self.clock.now();
         let mut chunks = lore.chunks().to_vec();
         chunks.push(chunk);
 
@@ -506,7 +506,7 @@ impl LoreOps {
             .collect();
         chunks.push(new_chunk);
 
-        let now = self.lore.now();
+        let now = self.clock.now();
         let mut updated_lore = wrldbldr_domain::Lore::new(
             lore.world_id(),
             lore.title(),
@@ -578,7 +578,7 @@ impl LoreOps {
             })
             .collect();
 
-        let now = self.lore.now();
+        let now = self.clock.now();
         let mut updated_lore = wrldbldr_domain::Lore::new(
             lore.world_id(),
             lore.title(),
@@ -630,7 +630,7 @@ impl LoreOps {
         }
 
         let domain_source = lore_discovery_source(discovery_source)?;
-        let now = self.lore.now();
+        let now = self.clock.now();
         let knowledge = if let Some(ids) = chunk_ids {
             LoreKnowledge::partial(lore_id, character_id, ids, domain_source, now)
         } else {
@@ -825,7 +825,6 @@ mod tests {
     use super::*;
     use crate::infrastructure::clock::FixedClock;
     use crate::infrastructure::ports::MockLoreRepo;
-    use crate::repositories::LoreRepository;
     use chrono::TimeZone;
     use std::sync::Arc;
 
@@ -867,9 +866,8 @@ mod tests {
             .with(mockall::predicate::eq(lore_id))
             .returning(move |_| Ok(Some(lore.clone())));
 
-        let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         // Try to add chunk with order 1 (already exists)
         let input = CreateLoreChunkInput {
@@ -901,9 +899,8 @@ mod tests {
             Ok(())
         });
 
-        let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         let input = CreateLoreChunkInput {
             content: "New content".to_string(),
@@ -927,9 +924,8 @@ mod tests {
             .expect_list_for_world()
             .returning(move |_| Ok(vec![lore.clone()]));
 
-        let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         // Try to update chunk 2's order to 0 (already taken)
         let input = UpdateLoreChunkInput {
@@ -961,9 +957,8 @@ mod tests {
             Ok(())
         });
 
-        let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         let result = ops.delete_chunk(world_id, chunk_to_delete).await;
         assert!(result.is_ok());
@@ -981,9 +976,8 @@ mod tests {
         let character_id = CharacterId::new();
 
         let mock_repo = MockLoreRepo::new();
-        let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         // Empty chunk list should fail
         let result = ops
@@ -1009,9 +1003,8 @@ mod tests {
             )
             .returning(|_, _| Ok(()));
 
-        let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         let result = ops.revoke_knowledge(character_id, lore_id, None).await;
         assert!(result.is_ok());
@@ -1036,9 +1029,8 @@ mod tests {
             .with(mockall::predicate::eq(lore_id))
             .returning(move |_| Ok(Some(lore.clone())));
 
-        let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         let result = ops
             .revoke_knowledge(character_id, lore_id, Some(vec![invalid_chunk_id]))
@@ -1056,9 +1048,8 @@ mod tests {
         let world_id = WorldId::new();
 
         let mock_repo = MockLoreRepo::new();
-        let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         // Create with duplicate orders
         let data = CreateLoreInput {
@@ -1101,9 +1092,8 @@ mod tests {
             Ok(())
         });
 
-        let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         let data = CreateLoreInput {
             title: "Test".to_string(),
@@ -1153,9 +1143,8 @@ mod tests {
             Ok(())
         });
 
-        let clock = Arc::new(FixedClock(fixed_time()));
-        let lore_entity = Arc::new(LoreRepository::new(Arc::new(mock_repo), clock));
-        let ops = LoreOps::new(lore_entity);
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+        let ops = LoreOps::new(Arc::new(mock_repo), clock);
 
         let data = CreateLoreInput {
             title: "Test".to_string(),

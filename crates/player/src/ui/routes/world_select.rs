@@ -62,7 +62,6 @@ pub fn WorldSelectRoute() -> Element {
         crate::presentation::views::world_select::WorldSelectView {
             role: role,
             on_world_selected: {
-                let role = role;
                 let platform_storage = platform_handler.clone();
                 move |world_id: String| {
                     // Save last accessed world - the destination view will use this

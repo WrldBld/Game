@@ -1,3 +1,6 @@
+// Ollama client - constructor variants for future use
+#![allow(dead_code)]
+
 //! Ollama LLM client (OpenAI-compatible API)
 
 use async_trait::async_trait;

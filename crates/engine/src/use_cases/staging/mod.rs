@@ -14,11 +14,10 @@ mod llm_integration_tests;
 
 use std::sync::Arc;
 
-use wrldbldr_domain::WorldId;
+use wrldbldr_domain::{RegionId, WorldId};
 
 use crate::infrastructure::app_settings::AppSettings;
-use crate::infrastructure::ports::RepoError;
-use crate::repositories::SettingsRepository;
+use crate::infrastructure::ports::{RepoError, SettingsRepo};
 
 // Re-export types
 pub use approve::{ApproveStagingInput, ApproveStagingRequest};
@@ -41,12 +40,13 @@ pub const DEFAULT_STAGING_TIMEOUT_SECONDS: u64 = 30;
 ///
 /// This ensures staging operations never fail due to settings unavailability.
 async fn get_settings_with_fallback(
-    settings: &SettingsRepository,
+    settings: &dyn SettingsRepo,
     world_id: WorldId,
     operation: &str,
 ) -> AppSettings {
     match settings.get_for_world(world_id).await {
-        Ok(settings) => settings,
+        Ok(Some(s)) => s,
+        Ok(None) => AppSettings::default(),
         Err(e) => {
             tracing::warn!(
                 error = %e,
@@ -85,10 +85,10 @@ impl StagingUseCases {
 
 #[derive(Debug, thiserror::Error)]
 pub enum StagingError {
-    #[error("World not found")]
-    WorldNotFound,
-    #[error("Region not found")]
-    RegionNotFound,
+    #[error("World not found: {0}")]
+    WorldNotFound(WorldId),
+    #[error("Region not found: {0}")]
+    RegionNotFound(RegionId),
     #[error("Validation error: {0}")]
     Validation(String),
     #[error("Repository error: {0}")]

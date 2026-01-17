@@ -104,7 +104,7 @@ impl EngineClient {
                                 Ok(ParsedServerMessage::Other(server_msg)) => {
                                     let callback = on_message.lock().await;
                                     if let Some(ref cb) = *callback {
-                                        cb(server_msg);
+                                        cb(*server_msg);
                                     }
                                 }
                                 Err(e) => {

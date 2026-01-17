@@ -1,10 +1,17 @@
-//! Scene entity CRUD and resolution operations.
+// Scene resolution - methods for future scene features
+#![allow(dead_code)]
+
+//! Scene resolution use case.
+//!
+//! Evaluates scene entry conditions to determine which scene to display
+//! for a player character at a given region.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+
 use wrldbldr_domain::{
     self as domain, CharacterId, ItemId, PlayerCharacterId, RegionId, SceneCondition, SceneId,
-    TimeContext, TimeOfDay, WorldId,
+    TimeContext, TimeOfDay,
 };
 
 use crate::infrastructure::ports::{RepoError, SceneRepo};
@@ -103,115 +110,30 @@ pub struct SceneConsideration {
     pub conditions_met: bool,
 }
 
-/// Scene entity operations.
-pub struct SceneRepository {
-    repo: Arc<dyn SceneRepo>,
+/// Scene resolution use case.
+///
+/// Evaluates scene entry conditions to determine which scene to display
+/// for a player character at a given region.
+pub struct ResolveScene {
+    scene_repo: Arc<dyn SceneRepo>,
 }
 
-impl SceneRepository {
-    pub fn new(repo: Arc<dyn SceneRepo>) -> Self {
-        Self { repo }
+impl ResolveScene {
+    pub fn new(scene_repo: Arc<dyn SceneRepo>) -> Self {
+        Self { scene_repo }
     }
-
-    pub async fn get(&self, id: SceneId) -> Result<Option<domain::Scene>, RepoError> {
-        self.repo.get(id).await
-    }
-
-    pub async fn save(&self, scene: &domain::Scene) -> Result<(), RepoError> {
-        self.repo.save(scene).await
-    }
-
-    /// Delete a scene by ID.
-    ///
-    /// Uses DETACH DELETE to remove all relationships.
-    pub async fn delete(&self, id: SceneId) -> Result<(), RepoError> {
-        self.repo.delete(id).await
-    }
-
-    pub async fn get_current(&self, world_id: WorldId) -> Result<Option<domain::Scene>, RepoError> {
-        self.repo.get_current(world_id).await
-    }
-
-    pub async fn set_current(&self, world_id: WorldId, scene_id: SceneId) -> Result<(), RepoError> {
-        self.repo.set_current(world_id, scene_id).await
-    }
-
-    pub async fn list_for_region(
-        &self,
-        region_id: RegionId,
-    ) -> Result<Vec<domain::Scene>, RepoError> {
-        self.repo.list_for_region(region_id).await
-    }
-
-    pub async fn list_for_act(
-        &self,
-        act_id: domain::ActId,
-    ) -> Result<Vec<domain::Scene>, RepoError> {
-        self.repo.list_for_act(act_id).await
-    }
-
-    pub async fn get_featured_characters(
-        &self,
-        scene_id: SceneId,
-    ) -> Result<Vec<domain::SceneCharacter>, RepoError> {
-        self.repo.get_featured_characters(scene_id).await
-    }
-
-    pub async fn set_featured_characters(
-        &self,
-        scene_id: SceneId,
-        characters: &[domain::SceneCharacter],
-    ) -> Result<(), RepoError> {
-        self.repo
-            .set_featured_characters(scene_id, characters)
-            .await
-    }
-
-    // =========================================================================
-    // Scene Completion Tracking
-    // =========================================================================
-
-    /// Check if a PC has completed a specific scene.
-    pub async fn has_completed_scene(
-        &self,
-        pc_id: PlayerCharacterId,
-        scene_id: SceneId,
-    ) -> Result<bool, RepoError> {
-        self.repo.has_completed_scene(pc_id, scene_id).await
-    }
-
-    /// Mark a scene as completed for a PC.
-    pub async fn mark_scene_completed(
-        &self,
-        pc_id: PlayerCharacterId,
-        scene_id: SceneId,
-    ) -> Result<(), RepoError> {
-        self.repo.mark_scene_completed(pc_id, scene_id).await
-    }
-
-    /// Get all completed scene IDs for a PC.
-    pub async fn get_completed_scenes(
-        &self,
-        pc_id: PlayerCharacterId,
-    ) -> Result<Vec<SceneId>, RepoError> {
-        self.repo.get_completed_scenes(pc_id).await
-    }
-
-    // =========================================================================
-    // Scene Resolution
-    // =========================================================================
 
     /// Get all unique custom condition descriptions from scenes in a region.
     ///
     /// This allows callers to pre-evaluate custom conditions via LLM before
-    /// calling `resolve_scene`. Returns unique condition descriptions.
+    /// calling `execute`. Returns unique condition descriptions.
     pub async fn get_custom_conditions_for_region(
         &self,
         region_id: RegionId,
     ) -> Result<Vec<String>, RepoError> {
-        let scenes = self.repo.list_for_region(region_id).await?;
+        let scenes = self.scene_repo.list_for_region(region_id).await?;
 
-        let mut conditions = std::collections::HashSet::new();
+        let mut conditions = HashSet::new();
         for scene in scenes {
             for condition in scene.entry_conditions() {
                 if let SceneCondition::Custom(desc) = condition {
@@ -221,6 +143,16 @@ impl SceneRepository {
         }
 
         Ok(conditions.into_iter().collect())
+    }
+
+    /// Get all completed scene IDs for a PC.
+    ///
+    /// Convenience method that delegates to the SceneRepo.
+    pub async fn get_completed_scenes(
+        &self,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<SceneId>, RepoError> {
+        self.scene_repo.get_completed_scenes(pc_id).await
     }
 
     /// Resolve which scene to display for a PC at a given region.
@@ -234,13 +166,13 @@ impl SceneRepository {
     ///
     /// # Returns
     /// * `SceneResolutionResult` with the matched scene (if any) and considered scenes
-    pub async fn resolve_scene(
+    pub async fn execute(
         &self,
         region_id: RegionId,
         context: &SceneResolutionContext,
     ) -> Result<SceneResolutionResult, RepoError> {
         // Get all scenes at this region
-        let scenes = self.repo.list_for_region(region_id).await?;
+        let scenes = self.scene_repo.list_for_region(region_id).await?;
 
         if scenes.is_empty() {
             return Ok(SceneResolutionResult {
@@ -284,7 +216,7 @@ impl SceneRepository {
         }
 
         // Sort by order (highest first) and take the first match
-        matched_scenes.sort_by(|a, b| b.order().cmp(&a.order()));
+        matched_scenes.sort_by_key(|b| std::cmp::Reverse(b.order()));
         let scene = matched_scenes.into_iter().next();
 
         Ok(SceneResolutionResult {

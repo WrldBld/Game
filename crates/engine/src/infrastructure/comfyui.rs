@@ -1,3 +1,6 @@
+// ComfyUI client - prepared for future image generation integration
+#![allow(dead_code)]
+
 //! ComfyUI image generation client
 //!
 //! Implements the ImageGenPort trait for AI asset generation using ComfyUI's API.

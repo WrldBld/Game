@@ -1,3 +1,6 @@
+// Staging repository - methods for future staging management
+#![allow(dead_code)]
+
 //! Staging entity CRUD operations.
 
 use chrono::{DateTime, Utc};

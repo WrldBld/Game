@@ -1,3 +1,6 @@
+// App struct holds dependencies - some fields for future features
+#![allow(dead_code)]
+
 //! Application state and composition.
 
 use std::sync::Arc;
@@ -5,7 +8,11 @@ use std::sync::Arc;
 use crate::infrastructure::{
     clock::{SystemClock, SystemRandom},
     neo4j::Neo4jRepositories,
-    ports::{ClockPort, ImageGenPort, LlmPort, QueuePort, RandomPort, SettingsRepo},
+    ports::{
+        ActRepo, ChallengeRepo, CharacterRepo, ClockPort, ContentRepo, GoalRepo, ImageGenPort,
+        InteractionRepo, ItemRepo, LlmPort, LocationRepo, LocationStateRepo, ObservationRepo,
+        PlayerCharacterRepo, QueuePort, RandomPort, RegionStateRepo, SceneRepo, SettingsRepo,
+    },
 };
 use crate::repositories;
 use crate::use_cases;
@@ -24,26 +31,33 @@ pub struct App {
 }
 
 /// Container for all repository modules.
+///
+/// Per ADR-009, most fields are now `Arc<dyn PortTrait>` - port traits injected directly.
+/// Only a few wrapper types remain where they add real business logic beyond delegation.
 pub struct Repositories {
-    pub character: Arc<repositories::CharacterRepository>,
-    pub player_character: Arc<repositories::PlayerCharacterRepository>,
-    pub location: Arc<use_cases::Location>,
-    pub scene: Arc<use_cases::Scene>,
-    pub act: Arc<repositories::ActRepository>,
-    pub content: Arc<repositories::ContentRepository>,
-    pub interaction: Arc<repositories::InteractionRepository>,
-    pub challenge: Arc<repositories::ChallengeRepository>,
+    // Port traits injected directly (ADR-009)
+    pub character: Arc<dyn CharacterRepo>,
+    pub player_character: Arc<dyn PlayerCharacterRepo>,
+    pub location: Arc<dyn LocationRepo>,
+    pub scene: Arc<dyn SceneRepo>,
+    pub act: Arc<dyn ActRepo>,
+    pub content: Arc<dyn ContentRepo>,
+    pub interaction: Arc<dyn InteractionRepo>,
+    pub challenge: Arc<dyn ChallengeRepo>,
+    pub observation: Arc<dyn ObservationRepo>,
+    pub item: Arc<dyn ItemRepo>,
+    pub goal: Arc<dyn GoalRepo>,
+    pub location_state: Arc<dyn LocationStateRepo>,
+    pub region_state: Arc<dyn RegionStateRepo>,
+
+    // Wrapper types that add business logic beyond delegation
     pub narrative: Arc<use_cases::Narrative>,
     pub staging: Arc<repositories::StagingRepository>,
-    pub observation: Arc<repositories::ObservationRepository>,
     pub inventory: Arc<repositories::InventoryRepository>,
     pub assets: Arc<repositories::AssetsRepository>,
     pub world: Arc<repositories::WorldRepository>,
     pub flag: Arc<repositories::FlagRepository>,
-    pub goal: Arc<repositories::GoalRepository>,
     pub lore: Arc<repositories::LoreRepository>,
-    pub location_state: Arc<repositories::LocationStateRepository>,
-    pub region_state: Arc<repositories::RegionStateRepository>,
 }
 
 /// Container for all use cases.
@@ -89,53 +103,39 @@ impl App {
         let queue_port: Arc<dyn QueuePort> = queue.clone();
         let llm_port: Arc<dyn LlmPort> = llm.clone();
 
-        let clock = Arc::new(repositories::ClockService::new(clock_port.clone()));
-        let random = Arc::new(repositories::RandomService::new(random_port.clone()));
-        let queue_repo = Arc::new(repositories::QueueService::new(queue_port.clone()));
-        let llm_repo = Arc::new(repositories::LlmService::new(llm_port.clone()));
+        // Port traits from Neo4j - used directly per ADR-009
+        let character_repo: Arc<dyn CharacterRepo> = repos.character.clone();
+        let player_character_repo: Arc<dyn PlayerCharacterRepo> = repos.player_character.clone();
+        let location_repo: Arc<dyn LocationRepo> = repos.location.clone();
+        let scene_repo: Arc<dyn SceneRepo> = repos.scene.clone();
+        let act_repo: Arc<dyn ActRepo> = repos.act.clone();
+        let content_repo: Arc<dyn ContentRepo> = repos.content.clone();
+        let interaction_repo: Arc<dyn InteractionRepo> = repos.interaction.clone();
+        let challenge_repo: Arc<dyn ChallengeRepo> = repos.challenge.clone();
+        let observation_repo: Arc<dyn ObservationRepo> = repos.observation.clone();
+        let item_repo: Arc<dyn ItemRepo> = repos.item.clone();
+        let goal_repo: Arc<dyn GoalRepo> = repos.goal.clone();
+        let location_state_repo: Arc<dyn LocationStateRepo> = repos.location_state.clone();
+        let region_state_repo: Arc<dyn RegionStateRepo> = repos.region_state.clone();
 
-        // Create repository modules
-        let character = Arc::new(repositories::CharacterRepository::new(
-            repos.character.clone(),
-        ));
-        let player_character = Arc::new(repositories::PlayerCharacterRepository::new(
-            repos.player_character.clone(),
-        ));
-        let location = Arc::new(use_cases::Location::new(repos.location.clone()));
-        let scene = Arc::new(use_cases::Scene::new(repos.scene.clone()));
-        let act = Arc::new(repositories::ActRepository::new(repos.act.clone()));
-        let content = Arc::new(repositories::ContentRepository::new(repos.content.clone()));
-        let interaction = Arc::new(repositories::InteractionRepository::new(
-            repos.interaction.clone(),
-        ));
-        let challenge = Arc::new(repositories::ChallengeRepository::new(
-            repos.challenge.clone(),
-        ));
-        let world = Arc::new(repositories::WorldRepository::new(
-            repos.world.clone(),
-            clock_port.clone(),
-        ));
-        let observation = Arc::new(repositories::ObservationRepository::new(
+        // Wrapper types that add business logic beyond delegation
+        let record_visit = Arc::new(use_cases::observation::RecordVisit::new(
             repos.observation.clone(),
             repos.location.clone(),
             clock_port.clone(),
         ));
         let flag = Arc::new(repositories::FlagRepository::new(repos.flag.clone()));
-        let narrative_repo = Arc::new(repositories::NarrativeRepository::new(
-            repos.narrative.clone(),
-            clock_port.clone(),
-        ));
         let narrative = Arc::new(use_cases::Narrative::new(
-            narrative_repo,
-            location.clone(),
-            world.clone(),
-            player_character.clone(),
-            character.clone(),
-            observation.clone(),
-            challenge.clone(),
-            flag.clone(),
-            scene.clone(),
-            clock.clone(),
+            repos.narrative.clone(),
+            repos.location.clone(),
+            repos.world.clone(),
+            repos.player_character.clone(),
+            repos.character.clone(),
+            repos.observation.clone(),
+            repos.challenge.clone(),
+            repos.flag.clone(),
+            repos.scene.clone(),
+            clock_port.clone(),
         ));
         let staging = Arc::new(repositories::StagingRepository::new(repos.staging.clone()));
         let inventory = Arc::new(repositories::InventoryRepository::new(
@@ -147,97 +147,106 @@ impl App {
             repos.asset.clone(),
             image_gen,
         ));
-        let goal = Arc::new(repositories::GoalRepository::new(repos.goal.clone()));
+        let world = Arc::new(repositories::WorldRepository::new(
+            repos.world.clone(),
+            clock_port.clone(),
+        ));
         let lore = Arc::new(repositories::LoreRepository::new(
             repos.lore.clone(),
             clock_port.clone(),
         ));
-        let location_state = Arc::new(repositories::LocationStateRepository::new(
-            repos.location_state.clone(),
-        ));
-        let region_state = Arc::new(repositories::RegionStateRepository::new(
-            repos.region_state.clone(),
-        ));
 
         let repositories_container = Repositories {
-            character: character.clone(),
-            player_character: player_character.clone(),
-            location: location.clone(),
-            scene: scene.clone(),
-            act: act.clone(),
-            content: content.clone(),
-            interaction: interaction.clone(),
-            challenge: challenge.clone(),
+            // Port traits injected directly
+            character: character_repo.clone(),
+            player_character: player_character_repo.clone(),
+            location: location_repo.clone(),
+            scene: scene_repo.clone(),
+            act: act_repo.clone(),
+            content: content_repo.clone(),
+            interaction: interaction_repo.clone(),
+            challenge: challenge_repo.clone(),
+            observation: observation_repo.clone(),
+            item: item_repo.clone(),
+            goal: goal_repo.clone(),
+            location_state: location_state_repo.clone(),
+            region_state: region_state_repo.clone(),
+            // Wrapper types
             narrative: narrative.clone(),
             staging: staging.clone(),
-            observation: observation.clone(),
             inventory: inventory.clone(),
             assets: assets.clone(),
             world: world.clone(),
             flag: flag.clone(),
-            goal: goal.clone(),
             lore: lore.clone(),
-            location_state: location_state.clone(),
-            region_state: region_state.clone(),
         };
 
         // Create time use case first (needed by movement)
         let suggest_time = Arc::new(use_cases::time::SuggestTime::new(
-            world.clone(),
-            clock.clone(),
+            repos.world.clone(),
+            clock_port.clone(),
         ));
 
+        // Create scene resolution use case (needed by movement)
+        let resolve_scene = Arc::new(use_cases::scene::ResolveScene::new(repos.scene.clone()));
+
         // Create use cases
+        // Movement use cases inject port traits directly (ADR-009)
         let movement = use_cases::MovementUseCases::new(
             Arc::new(use_cases::movement::EnterRegion::new(
-                player_character.clone(),
-                location.clone(),
-                staging.clone(),
-                observation.clone(),
+                repos.player_character.clone(),
+                repos.location.clone(),
+                repos.staging.clone(),
+                repos.observation.clone(),
+                record_visit.clone(),
                 narrative.clone(),
-                scene.clone(),
+                resolve_scene.clone(),
+                repos.scene.clone(),
                 inventory.clone(),
-                flag.clone(),
-                world.clone(),
+                repos.flag.clone(),
+                repos.world.clone(),
                 suggest_time.clone(),
             )),
             Arc::new(use_cases::movement::ExitLocation::new(
-                player_character.clone(),
-                location.clone(),
-                staging.clone(),
-                observation.clone(),
+                repos.player_character.clone(),
+                repos.location.clone(),
+                repos.staging.clone(),
+                repos.observation.clone(),
+                record_visit.clone(),
                 narrative.clone(),
-                scene.clone(),
+                resolve_scene.clone(),
+                repos.scene.clone(),
                 inventory.clone(),
-                flag.clone(),
-                world.clone(),
+                repos.flag.clone(),
+                repos.world.clone(),
                 suggest_time.clone(),
             )),
         );
 
-        let scene_change = use_cases::SceneChangeBuilder::new(location.clone(), inventory.clone());
+        let scene_change =
+            use_cases::SceneChangeBuilder::new(repos.location.clone(), inventory.clone());
 
         let conversation_start = Arc::new(use_cases::conversation::StartConversation::new(
-            character.clone(),
-            player_character.clone(),
-            staging.clone(),
-            scene.clone(),
-            world.clone(),
-            queue_repo.clone(),
-            clock.clone(),
+            repos.character.clone(),
+            repos.player_character.clone(),
+            repos.staging.clone(),
+            repos.scene.clone(),
+            repos.world.clone(),
+            queue_port.clone(),
+            clock_port.clone(),
         ));
         let conversation_continue = Arc::new(use_cases::conversation::ContinueConversation::new(
-            character.clone(),
-            player_character.clone(),
-            staging.clone(),
-            world.clone(),
+            repos.character.clone(),
+            repos.player_character.clone(),
+            repos.staging.clone(),
+            repos.world.clone(),
             narrative.clone(),
-            queue_repo.clone(),
-            clock.clone(),
+            queue_port.clone(),
+            clock_port.clone(),
         ));
         let conversation_end = Arc::new(use_cases::conversation::EndConversation::new(
-            character.clone(),
-            player_character.clone(),
+            repos.character.clone(),
+            repos.player_character.clone(),
             narrative.clone(),
         ));
         let conversation = use_cases::ConversationUseCases::new(
@@ -249,134 +258,138 @@ impl App {
         let player_action = use_cases::PlayerActionUseCases::new(Arc::new(
             use_cases::player_action::HandlePlayerAction::new(
                 conversation_start,
-                queue_repo.clone(),
-                clock.clone(),
+                queue_port.clone(),
+                clock_port.clone(),
             ),
         ));
 
         let actantial = use_cases::ActantialUseCases::new(
-            use_cases::actantial::GoalOps::new(goal.clone()),
-            use_cases::actantial::WantOps::new(character.clone(), clock.clone()),
-            use_cases::actantial::ActantialContextOps::new(character.clone()),
+            use_cases::actantial::GoalOps::new(repos.goal.clone()),
+            use_cases::actantial::WantOps::new(repos.character.clone(), clock_port.clone()),
+            use_cases::actantial::ActantialContextOps::new(repos.character.clone()),
         );
 
         let ai = use_cases::AiUseCases::new(Arc::new(use_cases::ai::SuggestionOps::new(
-            queue_repo.clone(),
-            world.clone(),
-            character.clone(),
+            queue_port.clone(),
+            repos.world.clone(),
+            repos.character.clone(),
         )));
 
         let resolve_outcome = Arc::new(use_cases::challenge::ResolveOutcome::new(
-            challenge.clone(),
+            repos.challenge.clone(),
             inventory.clone(),
-            observation.clone(),
-            scene.clone(),
-            player_character.clone(),
+            repos.observation.clone(),
+            repos.scene.clone(),
+            repos.player_character.clone(),
         ));
         let outcome_decision = Arc::new(use_cases::challenge::OutcomeDecision::new(
-            queue_repo.clone(),
+            queue_port.clone(),
             resolve_outcome.clone(),
         ));
 
         let challenge_uc = use_cases::ChallengeUseCases::new(
             Arc::new(use_cases::challenge::RollChallenge::new(
-                challenge.clone(),
-                player_character.clone(),
-                queue_repo.clone(),
-                random.clone(),
-                clock.clone(),
+                repos.challenge.clone(),
+                repos.player_character.clone(),
+                queue_port.clone(),
+                random_port.clone(),
+                clock_port.clone(),
             )),
             resolve_outcome,
             Arc::new(use_cases::challenge::TriggerChallengePrompt::new(
-                challenge.clone(),
+                repos.challenge.clone(),
             )),
             outcome_decision,
-            Arc::new(use_cases::challenge::ChallengeOps::new(challenge.clone())),
+            Arc::new(use_cases::challenge::ChallengeOps::new(
+                repos.challenge.clone(),
+            )),
         );
 
         let approve_suggestion = Arc::new(use_cases::approval::ApproveSuggestion::new(
-            queue_repo.clone(),
+            queue_port.clone(),
         ));
         let approval = use_cases::ApprovalUseCases::new(
-            Arc::new(use_cases::approval::ApproveStaging::new(staging.clone())),
+            Arc::new(use_cases::approval::ApproveStaging::new(
+                repos.staging.clone(),
+            )),
             approve_suggestion.clone(),
             Arc::new(use_cases::approval::ApprovalDecisionFlow::new(
                 approve_suggestion.clone(),
                 narrative.clone(),
-                queue_repo.clone(),
+                queue_port.clone(),
             )),
         );
 
         let generate_asset = Arc::new(use_cases::assets::GenerateAsset::new(
             assets.clone(),
-            queue_repo.clone(),
-            clock.clone(),
+            queue_port.clone(),
+            clock_port.clone(),
         ));
         let expression_sheet = Arc::new(use_cases::assets::GenerateExpressionSheet::new(
             assets.clone(),
-            character.clone(),
-            queue_repo.clone(),
-            clock.clone(),
+            repos.character.clone(),
+            queue_port.clone(),
+            clock_port.clone(),
         ));
         let assets_uc = use_cases::AssetUseCases::new(generate_asset, expression_sheet);
 
         let world_uc = use_cases::WorldUseCases::new(
             Arc::new(use_cases::world::ExportWorld::new(
-                world.clone(),
-                location.clone(),
-                character.clone(),
-                inventory.clone(),
+                repos.world.clone(),
+                repos.location.clone(),
+                repos.character.clone(),
+                repos.item.clone(),
                 narrative.clone(),
             )),
             Arc::new(use_cases::world::ImportWorld::new(
-                world.clone(),
-                location.clone(),
-                character.clone(),
-                inventory.clone(),
+                repos.world.clone(),
+                repos.location.clone(),
+                repos.character.clone(),
+                repos.item.clone(),
                 narrative.clone(),
             )),
         );
 
         let queues = use_cases::QueueUseCases::new(
             Arc::new(use_cases::queues::ProcessPlayerAction::new(
-                queue_repo.clone(),
-                character.clone(),
-                player_character.clone(),
+                queue_port.clone(),
+                repos.character.clone(),
+                repos.player_character.clone(),
                 staging.clone(),
-                scene.clone(),
+                repos.scene.clone(),
                 world.clone(),
                 narrative.clone(),
-                location.clone(),
-                challenge.clone(),
+                repos.location.clone(),
+                repos.challenge.clone(),
             )),
             Arc::new(use_cases::queues::ProcessLlmRequest::new(
-                queue_repo.clone(),
-                llm_repo.clone(),
+                queue_port.clone(),
+                llm_port.clone(),
             )),
         );
 
         let execute_effects = Arc::new(use_cases::narrative::ExecuteEffects::new(
             inventory.clone(),
-            challenge.clone(),
+            repos.challenge.clone(),
             narrative.clone(),
-            character.clone(),
-            observation.clone(),
-            player_character.clone(),
-            scene.clone(),
+            repos.character.clone(),
+            repos.observation.clone(),
+            repos.player_character.clone(),
+            repos.scene.clone(),
             flag.clone(),
             world.clone(),
-            clock.clone(),
+            clock_port.clone(),
         ));
         let narrative_events = Arc::new(use_cases::narrative::NarrativeEventOps::new(
             narrative.clone(),
             execute_effects.clone(),
-            clock.clone(),
+            clock_port.clone(),
         ));
         let narrative_chains =
             Arc::new(use_cases::narrative::EventChainOps::new(narrative.clone()));
         let narrative_decision = Arc::new(use_cases::narrative::NarrativeDecisionFlow::new(
             approve_suggestion.clone(),
-            queue_repo.clone(),
+            queue_port.clone(),
             narrative.clone(),
             execute_effects.clone(),
         ));
@@ -388,8 +401,8 @@ impl App {
         );
 
         let time_control = Arc::new(use_cases::time::TimeControl::new(
-            world.clone(),
-            clock.clone(),
+            repos.world.clone(),
+            clock_port.clone(),
         ));
         let time_suggestions =
             Arc::new(use_cases::time::TimeSuggestions::new(time_control.clone()));
@@ -397,8 +410,8 @@ impl App {
 
         let visual_state_uc = use_cases::VisualStateUseCases::new(Arc::new(
             use_cases::visual_state::ResolveVisualState::new(
-                location_state.clone(),
-                region_state.clone(),
+                repos.location_state.clone(),
+                repos.region_state.clone(),
             ),
         ));
 
@@ -407,106 +420,116 @@ impl App {
 
         let staging_uc = use_cases::StagingUseCases::new(
             Arc::new(use_cases::staging::RequestStagingApproval::new(
-                character.clone(),
-                staging.clone(),
-                location.clone(),
-                world.clone(),
-                flag.clone(),
+                repos.character.clone(),
+                repos.staging.clone(),
+                repos.location.clone(),
+                repos.world.clone(),
+                repos.flag.clone(),
                 visual_state_uc.resolve.clone(),
-                settings_entity.clone(),
-                llm_repo.clone(),
+                settings_repo.clone(),
+                llm.clone(),
+                clock_port.clone(),
             )),
             Arc::new(use_cases::staging::RegenerateStagingSuggestions::new(
-                location.clone(),
-                character.clone(),
-                llm_repo.clone(),
+                repos.location.clone(),
+                repos.character.clone(),
+                llm.clone(),
             )),
             Arc::new(use_cases::staging::ApproveStagingRequest::new(
-                staging.clone(),
-                world.clone(),
-                character.clone(),
-                location.clone(),
-                location_state.clone(),
-                region_state.clone(),
+                repos.staging.clone(),
+                repos.world.clone(),
+                repos.character.clone(),
+                repos.location.clone(),
+                repos.location_state.clone(),
+                repos.region_state.clone(),
+                clock_port.clone(),
             )),
             Arc::new(use_cases::staging::AutoApproveStagingTimeout::new(
-                character.clone(),
-                staging.clone(),
-                world.clone(),
-                location.clone(),
-                location_state.clone(),
-                region_state.clone(),
-                settings_entity.clone(),
+                repos.character.clone(),
+                repos.staging.clone(),
+                repos.world.clone(),
+                repos.location.clone(),
+                repos.location_state.clone(),
+                repos.region_state.clone(),
+                settings_repo.clone(),
+                clock_port.clone(),
             )),
         );
 
         let npc_uc = use_cases::NpcUseCases::new(
             Arc::new(use_cases::npc::NpcDisposition::new(
-                character.clone(),
-                clock.clone(),
+                repos.character.clone(),
+                clock_port.clone(),
             )),
             Arc::new(use_cases::npc::NpcMood::new(
-                staging.clone(),
-                character.clone(),
+                repos.staging.clone(),
+                repos.character.clone(),
             )),
             Arc::new(use_cases::npc::NpcRegionRelationships::new(
-                character.clone(),
+                repos.character.clone(),
             )),
             Arc::new(use_cases::npc::NpcLocationSharing::new(
-                character.clone(),
-                location.clone(),
-                observation.clone(),
-                clock.clone(),
+                repos.character.clone(),
+                repos.location.clone(),
+                repos.observation.clone(),
+                clock_port.clone(),
             )),
-            Arc::new(use_cases::npc::NpcApproachEvents::new(character.clone())),
+            Arc::new(use_cases::npc::NpcApproachEvents::new(
+                repos.character.clone(),
+            )),
         );
 
         let story_events_uc = use_cases::StoryEventUseCases::new(Arc::new(
             use_cases::story_events::StoryEventOps::new(narrative.clone()),
         ));
 
-        let lore_uc =
-            use_cases::LoreUseCases::new(Arc::new(use_cases::lore::LoreOps::new(lore.clone())));
+        let lore_uc = use_cases::LoreUseCases::new(Arc::new(use_cases::lore::LoreOps::new(
+            repos.lore.clone(),
+            clock_port.clone(),
+        )));
 
         let location_events_uc = use_cases::LocationEventUseCases::new(Arc::new(
-            use_cases::location_events::TriggerLocationEvent::new(location.clone()),
+            use_cases::location_events::TriggerLocationEvent::new(repos.location.clone()),
         ));
 
         // Create custom condition evaluator for LLM-based condition/trigger evaluation
-        let custom_condition = Arc::new(use_cases::CustomConditionEvaluator::new(llm_repo.clone()));
+        let custom_condition = Arc::new(use_cases::CustomConditionEvaluator::new(llm_port.clone()));
 
         let management = use_cases::ManagementUseCases::new(
-            use_cases::management::WorldCrud::new(world.clone(), clock.clone()),
-            use_cases::management::CharacterCrud::new(character.clone(), clock.clone()),
-            use_cases::management::LocationCrud::new(location.clone()),
+            use_cases::management::WorldCrud::new(repos.world.clone(), clock_port.clone()),
+            use_cases::management::CharacterCrud::new(repos.character.clone(), clock_port.clone()),
+            use_cases::management::LocationCrud::new(repos.location.clone()),
             use_cases::management::PlayerCharacterCrud::new(
-                player_character.clone(),
-                location.clone(),
-                clock.clone(),
+                repos.player_character.clone(),
+                repos.location.clone(),
+                clock_port.clone(),
             ),
-            use_cases::management::RelationshipCrud::new(character.clone(), clock.clone()),
+            use_cases::management::RelationshipCrud::new(
+                repos.character.clone(),
+                clock_port.clone(),
+            ),
             use_cases::management::ObservationCrud::new(
-                observation.clone(),
-                player_character.clone(),
-                character.clone(),
-                location.clone(),
-                world.clone(),
-                clock.clone(),
+                repos.observation.clone(),
+                repos.player_character.clone(),
+                repos.character.clone(),
+                repos.location.clone(),
+                repos.world.clone(),
+                clock_port.clone(),
             ),
-            use_cases::management::ActCrud::new(act.clone()),
-            use_cases::management::SceneCrud::new(scene.clone()),
-            use_cases::management::InteractionCrud::new(interaction.clone()),
-            use_cases::management::SkillCrud::new(content.clone()),
+            use_cases::management::ActCrud::new(repos.act.clone()),
+            use_cases::management::SceneCrud::new(repos.scene.clone()),
+            use_cases::management::InteractionCrud::new(repos.interaction.clone()),
+            use_cases::management::SkillCrud::new(repos.content.clone()),
         );
 
         let settings = settings_entity;
 
         let join_world = Arc::new(use_cases::session::JoinWorld::new(
-            world.clone(),
-            location.clone(),
-            character.clone(),
-            scene.clone(),
-            player_character.clone(),
+            repos.world.clone(),
+            repos.location.clone(),
+            repos.character.clone(),
+            repos.scene.clone(),
+            repos.player_character.clone(),
         ));
         let join_world_flow = Arc::new(use_cases::session::JoinWorldFlow::new(join_world.clone()));
         let directorial_update = Arc::new(use_cases::session::DirectorialUpdate::new());

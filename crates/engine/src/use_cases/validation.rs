@@ -1,3 +1,6 @@
+// Validation helpers - prepared for future validation rules
+#![allow(dead_code)]
+
 //! Common validation helpers for use cases.
 
 /// Validation error type.

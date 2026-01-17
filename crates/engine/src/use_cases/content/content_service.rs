@@ -1,3 +1,6 @@
+// Content service - methods for future content provider features
+#![allow(dead_code)]
+
 //! Content service for managing game content.
 //!
 //! Provides unified access to game content (spells, feats, classes, races, etc.)

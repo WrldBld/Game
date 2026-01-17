@@ -1,3 +1,6 @@
+// Visual State use cases - methods for future state resolution
+#![allow(dead_code)]
+
 //! Visual State use cases - State resolution for locations and regions.
 //!
 //! This module handles determining which LocationState and RegionState

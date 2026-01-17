@@ -1,3 +1,6 @@
+// Narrative events - fields for future event chain features
+#![allow(dead_code)]
+
 use std::sync::Arc;
 
 use serde::Serialize;
@@ -6,8 +9,8 @@ use wrldbldr_domain::{
     self as domain, NarrativeEvent, NarrativeEventId, NarrativeEventName, NarrativeTrigger, WorldId,
 };
 
+use crate::infrastructure::ports::ClockPort;
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::ClockService;
 use crate::use_cases::narrative::{EffectExecutionContext, EffectExecutionSummary, ExecuteEffects};
 use crate::use_cases::narrative_operations::Narrative;
 
@@ -59,14 +62,14 @@ pub struct NarrativeEventSummary {
 pub struct NarrativeEventOps {
     narrative: Arc<Narrative>,
     execute_effects: Arc<ExecuteEffects>,
-    clock: Arc<ClockService>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl NarrativeEventOps {
     pub fn new(
         narrative: Arc<Narrative>,
         execute_effects: Arc<ExecuteEffects>,
-        clock: Arc<ClockService>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             narrative,

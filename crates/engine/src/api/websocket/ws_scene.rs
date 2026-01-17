@@ -146,7 +146,7 @@ pub(super) async fn handle_scene_request(
                 .await
             {
                 Ok(scene) => Ok(ResponseResult::success(scene_to_json(&scene))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Scene not found"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
@@ -170,7 +170,7 @@ pub(super) async fn handle_scene_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Scene not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
@@ -283,7 +283,7 @@ pub(super) async fn handle_interaction_request(
                 .await
             {
                 Ok(interaction) => Ok(ResponseResult::success(interaction_to_json(&interaction))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Interaction not found"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
@@ -308,7 +308,7 @@ pub(super) async fn handle_interaction_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Interaction not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
@@ -333,7 +333,7 @@ pub(super) async fn handle_interaction_request(
                 .await
             {
                 Ok(interaction) => Ok(ResponseResult::success(interaction_to_json(&interaction))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Interaction not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(

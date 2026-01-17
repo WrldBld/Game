@@ -676,7 +676,7 @@ async fn test_expired_time_decision_returns_error() {
     // Since we can't wait 30 minutes, we'll test the NotFound case
     // by attempting to resolve a suggestion that was never inserted
     let store = Arc::new(TimeSuggestionStoreImpl::new());
-    let store_repo = crate::repositories::TimeSuggestionStore::new(store);
+    let store_repo = crate::stores::TimeSuggestionStore::new(store);
 
     // Create a fake suggestion ID that doesn't exist in the store
     let fake_suggestion_id = Uuid::new_v4();

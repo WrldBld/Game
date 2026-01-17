@@ -4,17 +4,17 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{SkillCategory, SkillId, WorldId};
 
-use crate::repositories::ContentRepository;
+use crate::infrastructure::ports::ContentRepo;
 use crate::use_cases::validation::require_non_empty;
 
 use super::ManagementError;
 
 pub struct SkillCrud {
-    content: Arc<ContentRepository>,
+    content: Arc<dyn ContentRepo>,
 }
 
 impl SkillCrud {
-    pub fn new(content: Arc<ContentRepository>) -> Self {
+    pub fn new(content: Arc<dyn ContentRepo>) -> Self {
         Self { content }
     }
 
@@ -70,11 +70,14 @@ impl SkillCrud {
         attribute: Option<String>,
         is_hidden: Option<bool>,
     ) -> Result<wrldbldr_domain::Skill, ManagementError> {
-        let mut skill = self
-            .content
-            .get_skill(skill_id)
-            .await?
-            .ok_or(ManagementError::NotFound)?;
+        let mut skill =
+            self.content
+                .get_skill(skill_id)
+                .await?
+                .ok_or(ManagementError::NotFound {
+                    entity_type: "Skill",
+                    id: skill_id.to_string(),
+                })?;
 
         // Rebuild skill with updated values
         let new_name = if let Some(name) = name {

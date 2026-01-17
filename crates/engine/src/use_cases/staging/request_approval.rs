@@ -8,11 +8,11 @@ use wrldbldr_domain::{
     LocationId, PlayerCharacter, PlayerCharacterId, RegionId, Staging as DomainStaging, WorldId,
 };
 
-use crate::infrastructure::ports::{PendingStagingRequest, TimeSuggestion};
-use crate::repositories::{
-    CharacterRepository, FlagRepository, LlmService, Location, PendingStaging, SettingsRepository,
-    StagingRepository, TimeSuggestionStore, WorldRepository,
+use crate::infrastructure::ports::{
+    CharacterRepo, ClockPort, FlagRepo, LlmPort, LocationRepo, PendingStagingRequest, SettingsRepo,
+    StagingRepo, TimeSuggestion, WorldRepo,
 };
+use crate::stores::{PendingStagingStore as PendingStaging, TimeSuggestionStore};
 use crate::use_cases::visual_state::{ResolveVisualState, StateResolutionContext};
 
 use super::suggestions::{generate_llm_based_suggestions, generate_rule_based_suggestions};
@@ -40,26 +40,28 @@ pub struct StagingApprovalInput {
 
 /// Use case for building and broadcasting a staging approval request.
 pub struct RequestStagingApproval {
-    character: Arc<CharacterRepository>,
-    staging: Arc<StagingRepository>,
-    location: Arc<Location>,
-    world: Arc<WorldRepository>,
-    flag: Arc<FlagRepository>,
+    character: Arc<dyn CharacterRepo>,
+    staging: Arc<dyn StagingRepo>,
+    location: Arc<dyn LocationRepo>,
+    world: Arc<dyn WorldRepo>,
+    flag: Arc<dyn FlagRepo>,
     visual_state: Arc<ResolveVisualState>,
-    settings: Arc<SettingsRepository>,
-    llm: Arc<LlmService>,
+    settings: Arc<dyn SettingsRepo>,
+    llm: Arc<dyn LlmPort>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl RequestStagingApproval {
     pub fn new(
-        character: Arc<CharacterRepository>,
-        staging: Arc<StagingRepository>,
-        location: Arc<Location>,
-        world: Arc<WorldRepository>,
-        flag: Arc<FlagRepository>,
+        character: Arc<dyn CharacterRepo>,
+        staging: Arc<dyn StagingRepo>,
+        location: Arc<dyn LocationRepo>,
+        world: Arc<dyn WorldRepo>,
+        flag: Arc<dyn FlagRepo>,
         visual_state: Arc<ResolveVisualState>,
-        settings: Arc<SettingsRepository>,
-        llm: Arc<LlmService>,
+        settings: Arc<dyn SettingsRepo>,
+        llm: Arc<dyn LlmPort>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             character,
@@ -70,6 +72,7 @@ impl RequestStagingApproval {
             visual_state,
             settings,
             llm,
+            clock,
         }
     }
 
@@ -87,7 +90,7 @@ impl RequestStagingApproval {
                     region_id: input.region.id(),
                     location_id: input.region.location_id(),
                     world_id: input.world_id,
-                    created_at: self.world.now(),
+                    created_at: self.clock.now(),
                 },
             )
             .await;
@@ -96,13 +99,13 @@ impl RequestStagingApproval {
             .world
             .get(input.world_id)
             .await?
-            .ok_or(StagingError::WorldNotFound)?;
+            .ok_or(StagingError::WorldNotFound(input.world_id))?;
         let now = world.game_time().current();
 
         let settings =
             get_settings_with_fallback(self.settings.as_ref(), input.world_id, "staging").await;
 
-        let location_name = match self.location.get(input.region.location_id()).await {
+        let location_name = match self.location.get_location(input.region.location_id()).await {
             Ok(Some(l)) => l.name().to_string(),
             Ok(None) => {
                 tracing::warn!(location_id = %input.region.location_id(), "Location not found for staging request");
@@ -121,9 +124,12 @@ impl RequestStagingApproval {
             .get_npcs_for_region(input.region.id())
             .await?;
 
-        let rule_based_npcs =
-            generate_rule_based_suggestions(&npcs_for_region, &self.staging, input.region.id())
-                .await;
+        let rule_based_npcs = generate_rule_based_suggestions(
+            &npcs_for_region,
+            self.staging.as_ref(),
+            input.region.id(),
+        )
+        .await;
         let llm_based_npcs = generate_llm_based_suggestions(
             &npcs_for_region,
             self.llm.as_ref(),

@@ -1,3 +1,6 @@
+// Query helpers - prepared for reducing boilerplate in repos
+#![allow(dead_code)]
+
 //! Generic query helpers to reduce Neo4j repository boilerplate.
 
 use neo4rs::{Query, Row};

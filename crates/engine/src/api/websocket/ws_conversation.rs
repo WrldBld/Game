@@ -63,17 +63,23 @@ pub(super) async fn handle_start_conversation(
         .await
     {
         Ok(result) => result,
-        Err(crate::use_cases::conversation::ConversationError::PlayerCharacterNotFound) => {
+        Err(crate::use_cases::conversation::ConversationError::PlayerCharacterNotFound(id)) => {
             return Some(error_response(
                 ErrorCode::NotFound,
-                "Player character not found",
+                &format!("Player character not found: {}", id),
             ))
         }
-        Err(crate::use_cases::conversation::ConversationError::NpcNotFound) => {
-            return Some(error_response(ErrorCode::NotFound, "NPC not found"))
+        Err(crate::use_cases::conversation::ConversationError::NpcNotFound(id)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                &format!("NPC not found: {}", id),
+            ))
         }
-        Err(crate::use_cases::conversation::ConversationError::WorldNotFound) => {
-            return Some(error_response(ErrorCode::NotFound, "World not found"))
+        Err(crate::use_cases::conversation::ConversationError::WorldNotFound(id)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                &format!("World not found: {}", id),
+            ))
         }
         Err(crate::use_cases::conversation::ConversationError::NpcNotInRegion) => {
             return Some(error_response(
@@ -191,11 +197,17 @@ pub(super) async fn handle_continue_conversation(
         Err(crate::use_cases::conversation::ConversationError::NpcLeftRegion) => {
             return Some(error_response(ErrorCode::BadRequest, "NPC left the region"))
         }
-        Err(crate::use_cases::conversation::ConversationError::NpcNotFound) => {
-            return Some(error_response(ErrorCode::NotFound, "NPC not found"))
+        Err(crate::use_cases::conversation::ConversationError::NpcNotFound(id)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                &format!("NPC not found: {}", id),
+            ))
         }
-        Err(crate::use_cases::conversation::ConversationError::WorldNotFound) => {
-            return Some(error_response(ErrorCode::NotFound, "World not found"))
+        Err(crate::use_cases::conversation::ConversationError::WorldNotFound(id)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                &format!("World not found: {}", id),
+            ))
         }
         Err(e) => {
             return Some(error_response(

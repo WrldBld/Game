@@ -93,7 +93,7 @@ pub(super) async fn handle_join_world(
     // =========================================================================
     // Phase 3: Commit (only after serialization succeeds)
     // =========================================================================
-    let session = crate::repositories::WorldSession::new(state.connections.clone());
+    let session = crate::stores::SessionStore::new(state.connections.clone());
     let committed = match state
         .app
         .use_cases

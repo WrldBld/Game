@@ -1,34 +1,35 @@
+// Observation CRUD - methods for future observation features
+#![allow(dead_code)]
+
 //! Observation CRUD operations.
 
 use std::sync::Arc;
 
 use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
 
-use crate::repositories::location::Location;
-use crate::repositories::{
-    CharacterRepository, ClockService, ObservationRepository, PlayerCharacterRepository,
-    WorldRepository,
+use crate::infrastructure::ports::{
+    CharacterRepo, ClockPort, LocationRepo, ObservationRepo, PlayerCharacterRepo, WorldRepo,
 };
 
 use super::ManagementError;
 
 pub struct ObservationCrud {
-    observation: Arc<ObservationRepository>,
-    player_character: Arc<PlayerCharacterRepository>,
-    character: Arc<CharacterRepository>,
-    location: Arc<Location>,
-    world: Arc<WorldRepository>,
-    clock: Arc<ClockService>,
+    observation: Arc<dyn ObservationRepo>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
+    character: Arc<dyn CharacterRepo>,
+    location: Arc<dyn LocationRepo>,
+    world: Arc<dyn WorldRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl ObservationCrud {
     pub fn new(
-        observation: Arc<ObservationRepository>,
-        player_character: Arc<PlayerCharacterRepository>,
-        character: Arc<CharacterRepository>,
-        location: Arc<Location>,
-        world: Arc<WorldRepository>,
-        clock: Arc<ClockService>,
+        observation: Arc<dyn ObservationRepo>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
+        character: Arc<dyn CharacterRepo>,
+        location: Arc<dyn LocationRepo>,
+        world: Arc<dyn WorldRepo>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             observation,
@@ -57,7 +58,10 @@ impl ObservationCrud {
         for observation in observations {
             let npc = self.character.get(observation.npc_id()).await?;
             let region = self.location.get_region(observation.region_id()).await?;
-            let location = self.location.get(observation.location_id()).await?;
+            let location = self
+                .location
+                .get_location(observation.location_id())
+                .await?;
 
             let (npc_name, npc_portrait) = if observation.is_revealed_to_player() {
                 (
@@ -115,7 +119,10 @@ impl ObservationCrud {
             .player_character
             .get(pc_id)
             .await?
-            .ok_or(ManagementError::NotFound)?;
+            .ok_or(ManagementError::NotFound {
+                entity_type: "PlayerCharacter",
+                id: pc_id.to_string(),
+            })?;
 
         let (location_id, region_id) = self
             .resolve_observation_location(location_id, region_id)
@@ -125,7 +132,10 @@ impl ObservationCrud {
             .world
             .get(pc.world_id())
             .await?
-            .ok_or(ManagementError::NotFound)?;
+            .ok_or(ManagementError::NotFound {
+                entity_type: "World",
+                id: pc.world_id().to_string(),
+            })?;
 
         let obs_type = observation_type
             .parse::<wrldbldr_domain::ObservationType>()
@@ -187,11 +197,12 @@ impl ObservationCrud {
         match (location_id, region_id) {
             (Some(location_id), Some(region_id)) => Ok((location_id, region_id)),
             (None, Some(region_id)) => {
-                let region = self
-                    .location
-                    .get_region(region_id)
-                    .await?
-                    .ok_or(ManagementError::NotFound)?;
+                let region = self.location.get_region(region_id).await?.ok_or(
+                    ManagementError::NotFound {
+                        entity_type: "Region",
+                        id: region_id.to_string(),
+                    },
+                )?;
                 Ok((region.location_id(), region_id))
             }
             _ => Err(ManagementError::InvalidInput(

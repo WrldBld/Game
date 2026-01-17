@@ -1,11 +1,13 @@
+// Location event use cases - methods for future features
+#![allow(dead_code)]
+
 //! Location event use cases.
 //!
 //! Handles DM-triggered location events.
 
 use std::sync::Arc;
 
-use crate::infrastructure::ports::RepoError;
-use crate::repositories::location::Location;
+use crate::infrastructure::ports::{LocationRepo, RepoError};
 use wrldbldr_domain::RegionId;
 
 /// Container for location event use cases.
@@ -21,11 +23,11 @@ impl LocationEventUseCases {
 
 /// Trigger a location event (DM broadcast).
 pub struct TriggerLocationEvent {
-    location: Arc<Location>,
+    location: Arc<dyn LocationRepo>,
 }
 
 impl TriggerLocationEvent {
-    pub fn new(location: Arc<Location>) -> Self {
+    pub fn new(location: Arc<dyn LocationRepo>) -> Self {
         Self { location }
     }
 

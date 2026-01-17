@@ -341,12 +341,16 @@ pub(super) async fn handle_challenge_roll(
                 None
             }
         }
-        Err(crate::use_cases::challenge::ChallengeError::NotFound) => {
-            Some(error_response(ErrorCode::NotFound, "Challenge not found"))
+        Err(crate::use_cases::challenge::ChallengeError::NotFound(id)) => Some(error_response(
+            ErrorCode::NotFound,
+            &format!("Challenge not found: {}", id),
+        )),
+        Err(crate::use_cases::challenge::ChallengeError::PlayerCharacterNotFound(id)) => {
+            Some(error_response(
+                ErrorCode::NotFound,
+                &format!("Player character not found: {}", id),
+            ))
         }
-        Err(crate::use_cases::challenge::ChallengeError::PlayerCharacterNotFound) => Some(
-            error_response(ErrorCode::NotFound, "Player character not found"),
-        ),
         Err(crate::use_cases::challenge::ChallengeError::DiceParse(_)) => Some(error_response(
             ErrorCode::ValidationError,
             "Invalid dice input",
@@ -485,12 +489,16 @@ pub(super) async fn handle_challenge_roll_input(
                 None
             }
         }
-        Err(crate::use_cases::challenge::ChallengeError::NotFound) => {
-            Some(error_response(ErrorCode::NotFound, "Challenge not found"))
+        Err(crate::use_cases::challenge::ChallengeError::NotFound(id)) => Some(error_response(
+            ErrorCode::NotFound,
+            &format!("Challenge not found: {}", id),
+        )),
+        Err(crate::use_cases::challenge::ChallengeError::PlayerCharacterNotFound(id)) => {
+            Some(error_response(
+                ErrorCode::NotFound,
+                &format!("Player character not found: {}", id),
+            ))
         }
-        Err(crate::use_cases::challenge::ChallengeError::PlayerCharacterNotFound) => Some(
-            error_response(ErrorCode::NotFound, "Player character not found"),
-        ),
         Err(crate::use_cases::challenge::ChallengeError::DiceParse(_)) => Some(error_response(
             ErrorCode::ValidationError,
             "Invalid dice input",
@@ -555,9 +563,10 @@ pub(super) async fn handle_trigger_challenge(
             state.connections.send_to_pc(target_uuid, msg).await;
             None
         }
-        Err(crate::use_cases::challenge::ChallengeError::NotFound) => {
-            Some(error_response(ErrorCode::NotFound, "Challenge not found"))
-        }
+        Err(crate::use_cases::challenge::ChallengeError::NotFound(id)) => Some(error_response(
+            ErrorCode::NotFound,
+            &format!("Challenge not found: {}", id),
+        )),
         Err(e) => Some(error_response(
             ErrorCode::InternalError,
             &sanitize_repo_error(&e, "trigger challenge"),
