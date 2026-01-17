@@ -77,17 +77,23 @@ pub(super) async fn handle_approval_decision(
 
                 // Send DialogueResponse to all players (for visual novel display)
                 if !dialogue.is_empty() {
-                    let dialogue_msg = ServerMessage::DialogueResponse {
-                        speaker_id: result.npc_id.unwrap_or_default(),
-                        speaker_name: result.npc_name.unwrap_or_else(|| "Unknown".to_string()),
-                        text: dialogue,
-                        choices: vec![], // Free-form input mode
-                        conversation_id: result.conversation_id.map(|id| id.to_string()),
-                    };
-                    state
-                        .connections
-                        .broadcast_to_world(world_id, dialogue_msg)
-                        .await;
+                    if let Some(speaker_id) = result.npc_id {
+                        let dialogue_msg = ServerMessage::DialogueResponse {
+                            speaker_id,
+                            speaker_name: result.npc_name.unwrap_or_else(|| "Unknown".to_string()),
+                            text: dialogue,
+                            choices: vec![], // Free-form input mode
+                            conversation_id: result.conversation_id.map(|id| id.to_string()),
+                        };
+                        state
+                            .connections
+                            .broadcast_to_world(world_id, dialogue_msg)
+                            .await;
+                    } else {
+                        tracing::warn!(
+                            "Approved dialogue has no speaker ID, skipping DialogueResponse broadcast"
+                        );
+                    }
                 }
             }
             None
