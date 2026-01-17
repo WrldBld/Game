@@ -12,7 +12,8 @@ mod types;
 pub use directorial::{DirectorialUpdate, DirectorialUpdateContext, DirectorialUpdateInput};
 pub use join_world::{JoinWorld, JoinWorldError, JoinWorldResult};
 pub use join_world_flow::{
-    JoinWorldContext, JoinWorldFlow, JoinWorldFlowError, JoinWorldFlowResult, JoinWorldInput,
+    JoinWorldCommitted, JoinWorldContext, JoinWorldFlow, JoinWorldFlowError, JoinWorldFlowResult,
+    JoinWorldInput, JoinWorldPrepared,
 };
 pub use types::{
     CharacterSummary, LocationSummary, PlayerCharacterSummary, SceneSummary, WorldSnapshot,

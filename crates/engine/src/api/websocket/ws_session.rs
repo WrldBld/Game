@@ -26,27 +26,21 @@ pub(super) async fn handle_join_world(
     _spectate_pc_id: Option<Uuid>,
 ) -> Option<ServerMessage> {
     let world_id_typed = WorldId::from_uuid(world_id);
-
     let pc_id_typed = pc_id.map(PlayerCharacterId::from_uuid);
-    let session = crate::repositories::WorldSession::new(state.connections.clone());
-    let ctx = crate::use_cases::session::JoinWorldContext { session: &session };
-    let input = crate::use_cases::session::JoinWorldInput::from_protocol(
-        connection_id,
-        world_id_typed,
-        role,
-        user_id,
-        pc_id_typed,
-    );
+    let domain_role: wrldbldr_domain::WorldRole = role.into();
 
-    let join_result = match state
+    // =========================================================================
+    // Phase 1: Prepare (read-only, can fail safely)
+    // =========================================================================
+    let prepared = match state
         .app
         .use_cases
         .session
         .join_world_flow
-        .execute(&ctx, input)
+        .prepare(world_id_typed, domain_role, pc_id_typed)
         .await
     {
-        Ok(result) => result,
+        Ok(p) => p,
         Err(crate::use_cases::session::JoinWorldFlowError::WorldNotFound) => {
             return Some(ServerMessage::WorldJoinFailed {
                 world_id,
@@ -60,8 +54,7 @@ pub(super) async fn handle_join_world(
             })
         }
         Err(crate::use_cases::session::JoinWorldFlowError::Repo(e)) => {
-            // sanitize_repo_error logs internally; response uses generic error
-            let _ = sanitize_repo_error(&e, "building world snapshot");
+            let _ = sanitize_repo_error(&e, "preparing world snapshot");
             return Some(ServerMessage::WorldJoinFailed {
                 world_id,
                 error: wrldbldr_shared::JoinError::Unknown,
@@ -69,35 +62,10 @@ pub(super) async fn handle_join_world(
         }
     };
 
-    // Broadcast UserJoined to other world members
-    if let Some(joined) = join_result.user_joined {
-        let user_joined_msg = ServerMessage::UserJoined {
-            user_id: joined.user_id,
-            username: None,
-            role: joined.role.into(), // Uses From<domain::WorldRole> for protocol::WorldRole
-            pc: joined.pc,
-        };
-        state
-            .connections
-            .broadcast_to_world_except(world_id_typed, connection_id, user_joined_msg)
-            .await;
-    }
-
-    // Convert connected users from domain to protocol
-    let connected_users = join_result
-        .connected_users
-        .into_iter()
-        .map(|u| wrldbldr_shared::ConnectedUser {
-            user_id: u.user_id,
-            username: u.username,
-            role: u.role.into(), // Uses From<domain::WorldRole> for protocol::WorldRole
-            pc_id: u.pc_id.map(|id| id.to_string()),
-            connection_count: u.connection_count,
-        })
-        .collect();
-
-    // Convert typed snapshot and PC to JSON for wire format
-    let snapshot_json = match serde_json::to_value(&join_result.snapshot) {
+    // =========================================================================
+    // Phase 2: Serialize (can fail safely, no state changed yet)
+    // =========================================================================
+    let snapshot_json = match serde_json::to_value(&prepared.snapshot) {
         Ok(json) => json,
         Err(e) => {
             tracing::error!(error = %e, "Failed to serialize world snapshot");
@@ -107,7 +75,8 @@ pub(super) async fn handle_join_world(
             });
         }
     };
-    let your_pc_json = match &join_result.your_pc {
+
+    let your_pc_json = match &prepared.your_pc {
         Some(pc) => match serde_json::to_value(pc) {
             Ok(json) => Some(json),
             Err(e) => {
@@ -120,6 +89,79 @@ pub(super) async fn handle_join_world(
         },
         None => None,
     };
+
+    // =========================================================================
+    // Phase 3: Commit (only after serialization succeeds)
+    // =========================================================================
+    let session = crate::repositories::WorldSession::new(state.connections.clone());
+    let committed = match state
+        .app
+        .use_cases
+        .session
+        .join_world_flow
+        .commit(
+            &session,
+            connection_id,
+            user_id,
+            world_id_typed,
+            domain_role,
+            pc_id_typed,
+            your_pc_json.clone(),
+        )
+        .await
+    {
+        Ok(c) => c,
+        Err(crate::use_cases::session::JoinWorldFlowError::WorldNotFound) => {
+            return Some(ServerMessage::WorldJoinFailed {
+                world_id,
+                error: wrldbldr_shared::JoinError::WorldNotFound,
+            })
+        }
+        Err(crate::use_cases::session::JoinWorldFlowError::JoinError(e)) => {
+            return Some(ServerMessage::WorldJoinFailed {
+                world_id,
+                error: to_proto_join_error(e),
+            })
+        }
+        Err(crate::use_cases::session::JoinWorldFlowError::Repo(e)) => {
+            let _ = sanitize_repo_error(&e, "committing world join");
+            return Some(ServerMessage::WorldJoinFailed {
+                world_id,
+                error: wrldbldr_shared::JoinError::Unknown,
+            });
+        }
+    };
+
+    // =========================================================================
+    // Phase 4: Broadcast (only after commit succeeds)
+    // =========================================================================
+    if let Some(joined) = &committed.user_joined {
+        let user_joined_msg = ServerMessage::UserJoined {
+            user_id: joined.user_id.clone(),
+            username: None,
+            role: joined.role.into(),
+            pc: joined.pc.clone(),
+        };
+        state
+            .connections
+            .broadcast_to_world_except(world_id_typed, connection_id, user_joined_msg)
+            .await;
+    }
+
+    // =========================================================================
+    // Phase 5: Return success
+    // =========================================================================
+    let connected_users = committed
+        .connected_users
+        .into_iter()
+        .map(|u| wrldbldr_shared::ConnectedUser {
+            user_id: u.user_id,
+            username: u.username,
+            role: u.role.into(),
+            pc_id: u.pc_id.map(|id| id.to_string()),
+            connection_count: u.connection_count,
+        })
+        .collect();
 
     Some(ServerMessage::WorldJoined {
         world_id,

@@ -12,6 +12,27 @@ use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use super::types::{PlayerCharacterSummary, WorldSnapshot};
 use super::{JoinWorld, JoinWorldError};
 
+// =============================================================================
+// Prepare/Commit Result Types
+// =============================================================================
+
+/// Result of the prepare phase: data fetched from DB, no state changes made.
+/// Safe to serialize after this - if serialization fails, no cleanup needed.
+#[derive(Debug, Clone)]
+pub struct JoinWorldPrepared {
+    pub world_id: WorldId,
+    pub snapshot: WorldSnapshot,
+    pub your_pc: Option<PlayerCharacterSummary>,
+}
+
+/// Result of the commit phase: connection registered, notification built.
+/// Only call after serialization succeeds.
+#[derive(Debug, Clone)]
+pub struct JoinWorldCommitted {
+    pub connected_users: Vec<ConnectedUserInfo>,
+    pub user_joined: Option<UserJoinedInfo>,
+}
+
 /// IO dependencies for join-world flows (WS-state owned).
 pub struct JoinWorldContext<'a> {
     pub session: &'a WorldSession,
@@ -59,6 +80,103 @@ impl JoinWorldFlow {
         Self { join_world }
     }
 
+    // =========================================================================
+    // Prepare/Commit Pattern
+    // =========================================================================
+
+    /// Phase 1: Fetch data from database. No side effects.
+    ///
+    /// This is safe to call and then abandon if subsequent operations fail.
+    /// No connection state is modified.
+    pub async fn prepare(
+        &self,
+        world_id: WorldId,
+        role: WorldRole,
+        pc_id: Option<PlayerCharacterId>,
+    ) -> Result<JoinWorldPrepared, JoinWorldFlowError> {
+        let join_result = self
+            .join_world
+            .execute_with_role(world_id, role, pc_id)
+            .await
+            .map_err(JoinWorldFlowError::from)?;
+
+        Ok(JoinWorldPrepared {
+            world_id,
+            snapshot: join_result.snapshot,
+            your_pc: join_result.your_pc,
+        })
+    }
+
+    /// Phase 2: Register connection and build notification.
+    ///
+    /// Only call after serialization succeeds. This modifies connection state.
+    ///
+    /// # Arguments
+    /// * `session` - The world session for connection management
+    /// * `connection_id` - The WebSocket connection ID
+    /// * `user_id` - The stable user identifier from client
+    /// * `world_id` - The world being joined
+    /// * `role` - The role in the world (DM, Player, Spectator)
+    /// * `pc_id` - Player character ID (if role is Player)
+    /// * `pc_json` - Pre-serialized PC data for the UserJoined notification
+    pub async fn commit(
+        &self,
+        session: &WorldSession,
+        connection_id: Uuid,
+        user_id: String,
+        world_id: WorldId,
+        role: WorldRole,
+        pc_id: Option<PlayerCharacterId>,
+        pc_json: Option<serde_json::Value>,
+    ) -> Result<JoinWorldCommitted, JoinWorldFlowError> {
+        // Update user_id from the client (stable identifier from browser storage)
+        session.set_user_id(connection_id, user_id.clone()).await;
+
+        // Register the connection to the world
+        session
+            .join_world(connection_id, world_id, role, pc_id)
+            .await
+            .map_err(JoinWorldFlowError::from)?;
+
+        // Get all connected users (including the one we just added)
+        let connected_users = session
+            .get_world_connections(world_id)
+            .await
+            .into_iter()
+            .map(|info| ConnectedUserInfo {
+                user_id: info.user_id,
+                username: None,
+                role: info.role,
+                pc_id: info.pc_id,
+                connection_count: 1,
+            })
+            .collect();
+
+        // Build user joined notification from connection info
+        let user_joined = session
+            .get_connection(connection_id)
+            .await
+            .map(|info| UserJoinedInfo {
+                user_id: info.user_id,
+                role,
+                pc: pc_json,
+            });
+
+        Ok(JoinWorldCommitted {
+            connected_users,
+            user_joined,
+        })
+    }
+
+    // =========================================================================
+    // Legacy Combined Method (for backward compatibility)
+    // =========================================================================
+
+    /// Combined prepare + commit for callers that don't need the separation.
+    ///
+    /// Note: This has the original race condition where serialization failure
+    /// after connection registration leaves state inconsistent. Prefer using
+    /// `prepare()` + `commit()` separately for new code.
     pub async fn execute(
         &self,
         ctx: &JoinWorldContext<'_>,
