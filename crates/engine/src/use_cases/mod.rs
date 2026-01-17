@@ -53,7 +53,6 @@ pub use npc::NpcUseCases;
 pub use player_action::PlayerActionUseCases;
 pub use queues::QueueUseCases;
 pub use session::SessionUseCases;
-pub use settings::SettingsError;
 pub use staging::StagingUseCases;
 pub use story_events::StoryEventUseCases;
 pub use time::TimeUseCases;
