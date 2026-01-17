@@ -864,6 +864,9 @@ where
 pub(crate) mod test_support;
 
 #[cfg(test)]
+mod error_mapping_tests;
+
+#[cfg(test)]
 mod ws_integration_tests;
 
 #[cfg(test)]
