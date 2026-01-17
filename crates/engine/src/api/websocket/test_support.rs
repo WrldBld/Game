@@ -775,7 +775,6 @@ pub(crate) fn build_test_app_with_ports(
         crate::use_cases::visual_state::ResolveVisualState::new(
             location_state.clone(),
             region_state.clone(),
-            flag.clone(),
         ),
     ));
 

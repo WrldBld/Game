@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use chrono::{Datelike, Timelike};
 use uuid::Uuid;
-use wrldbldr_domain::{LocationId, PlayerCharacter, RegionId, Staging as DomainStaging, WorldId};
+use wrldbldr_domain::{
+    LocationId, PlayerCharacter, PlayerCharacterId, RegionId, Staging as DomainStaging, WorldId,
+};
 
 use crate::infrastructure::ports::{PendingStagingRequest, TimeSuggestion};
 use crate::repositories::{
@@ -136,6 +138,7 @@ impl RequestStagingApproval {
                 input.world_id,
                 input.region.location_id(),
                 input.region.id(),
+                input.pc.id(),
             )
             .await;
 
@@ -207,6 +210,7 @@ impl RequestStagingApproval {
         world_id: WorldId,
         location_id: LocationId,
         region_id: RegionId,
+        pc_id: PlayerCharacterId,
     ) -> (
         Option<ResolvedVisualState>,
         Vec<StateOption>,
@@ -225,8 +229,17 @@ impl RequestStagingApproval {
             }
         };
 
-        let context =
-            StateResolutionContext::new(world_id, game_time).with_world_flags(world_flags);
+        let pc_flags = match self.flag.get_pc_flags(pc_id).await {
+            Ok(flags) => flags,
+            Err(e) => {
+                tracing::warn!(pc_id = %pc_id, error = %e, "Failed to fetch PC flags for visual state, using empty flags");
+                vec![]
+            }
+        };
+
+        let context = StateResolutionContext::new(world_id, game_time)
+            .with_world_flags(world_flags)
+            .with_pc_flags(pc_flags);
 
         let resolution = match self
             .visual_state

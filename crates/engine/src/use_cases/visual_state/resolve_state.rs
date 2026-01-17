@@ -12,7 +12,7 @@ use wrldbldr_domain::{
 };
 
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::{FlagRepository, LocationStateRepository, RegionStateRepository};
+use crate::repositories::{LocationStateRepository, RegionStateRepository};
 
 /// Context for evaluating activation rules
 #[derive(Debug, Clone)]
@@ -141,23 +141,24 @@ impl StateResolutionResult {
     }
 }
 
-/// Use case for resolving visual states
+/// Use case for resolving visual states.
+///
+/// Evaluates activation rules against a provided context to determine which
+/// LocationState and RegionState should be active. Flags are passed via
+/// `StateResolutionContext` by the caller, allowing flexible flag sourcing.
 pub struct ResolveVisualState {
     location_state: Arc<LocationStateRepository>,
     region_state: Arc<RegionStateRepository>,
-    flag: Arc<FlagRepository>,
 }
 
 impl ResolveVisualState {
     pub fn new(
         location_state: Arc<LocationStateRepository>,
         region_state: Arc<RegionStateRepository>,
-        flag: Arc<FlagRepository>,
     ) -> Self {
         Self {
             location_state,
             region_state,
-            flag,
         }
     }
 
@@ -682,7 +683,7 @@ mod tests {
 
     // Helper to create a test resolver (would need mock repos in real tests)
     fn create_test_resolve() -> ResolveVisualState {
-        use crate::infrastructure::ports::{FlagRepo, LocationStateRepo, RegionStateRepo};
+        use crate::infrastructure::ports::{LocationStateRepo, RegionStateRepo};
         use async_trait::async_trait;
         use std::sync::Arc;
         use wrldbldr_domain::{LocationStateId, RegionStateId};
@@ -690,7 +691,6 @@ mod tests {
         // Mock implementations for testing
         struct MockLocationStateRepo;
         struct MockRegionStateRepo;
-        struct MockFlagRepo;
 
         #[async_trait]
         impl LocationStateRepo for MockLocationStateRepo {
@@ -774,61 +774,6 @@ mod tests {
             }
         }
 
-        #[async_trait]
-        impl FlagRepo for MockFlagRepo {
-            async fn get_world_flags(&self, _world_id: WorldId) -> Result<Vec<String>, RepoError> {
-                Ok(vec![])
-            }
-            async fn get_pc_flags(
-                &self,
-                _pc_id: wrldbldr_domain::PlayerCharacterId,
-            ) -> Result<Vec<String>, RepoError> {
-                Ok(vec![])
-            }
-            async fn set_world_flag(
-                &self,
-                _world_id: WorldId,
-                _flag_name: &str,
-            ) -> Result<(), RepoError> {
-                Ok(())
-            }
-            async fn unset_world_flag(
-                &self,
-                _world_id: WorldId,
-                _flag_name: &str,
-            ) -> Result<(), RepoError> {
-                Ok(())
-            }
-            async fn set_pc_flag(
-                &self,
-                _pc_id: wrldbldr_domain::PlayerCharacterId,
-                _flag_name: &str,
-            ) -> Result<(), RepoError> {
-                Ok(())
-            }
-            async fn unset_pc_flag(
-                &self,
-                _pc_id: wrldbldr_domain::PlayerCharacterId,
-                _flag_name: &str,
-            ) -> Result<(), RepoError> {
-                Ok(())
-            }
-            async fn is_world_flag_set(
-                &self,
-                _world_id: WorldId,
-                _flag_name: &str,
-            ) -> Result<bool, RepoError> {
-                Ok(false)
-            }
-            async fn is_pc_flag_set(
-                &self,
-                _pc_id: wrldbldr_domain::PlayerCharacterId,
-                _flag_name: &str,
-            ) -> Result<bool, RepoError> {
-                Ok(false)
-            }
-        }
-
         let location_state = Arc::new(crate::repositories::LocationStateRepository::new(Arc::new(
             MockLocationStateRepo,
         )
@@ -837,10 +782,7 @@ mod tests {
             MockRegionStateRepo,
         )
             as Arc<dyn RegionStateRepo>));
-        let flag = Arc::new(crate::repositories::FlagRepository::new(
-            Arc::new(MockFlagRepo) as Arc<dyn FlagRepo>,
-        ));
 
-        ResolveVisualState::new(location_state, region_state, flag)
+        ResolveVisualState::new(location_state, region_state)
     }
 }

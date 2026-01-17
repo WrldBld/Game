@@ -399,7 +399,6 @@ impl App {
             use_cases::visual_state::ResolveVisualState::new(
                 location_state.clone(),
                 region_state.clone(),
-                flag.clone(),
             ),
         ));
 
