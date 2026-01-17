@@ -30,10 +30,17 @@ impl Neo4jActRepo {
         let name: String = node
             .get("name")
             .map_err(|e| RepoError::database("query", e))?;
-        let stage_str = node.get_string_or("stage", MonomythStage::Unknown.as_str());
-        let stage = stage_str
-            .parse::<MonomythStage>()
-            .unwrap_or(MonomythStage::Unknown);
+        let stage_str = node.get_string_or("stage", "");
+        let stage: MonomythStage = if stage_str.is_empty() {
+            return Err(RepoError::database(
+                "parse",
+                format!("Missing required field 'stage' for act: {}", id),
+            ));
+        } else {
+            stage_str.parse().map_err(|_| {
+                RepoError::database("parse", format!("Invalid MonomythStage: '{}'", stage_str))
+            })?
+        };
         let description: String = node.get_string_or("description", "");
         let order_num = node.get_i64_or("order_num", 0);
 

@@ -87,17 +87,34 @@ impl Neo4jLoreRepo {
             .get("title")
             .map_err(|e| RepoError::database("query", e))?;
         let summary: String = node.get_string_or("summary", "");
-        let category_str: String = node.get_string_or("category", "common");
-        let category: LoreCategory = category_str.parse().unwrap_or(LoreCategory::Common);
+        let category_str: String = node.get_string_or("category", "");
+        let category: LoreCategory = if category_str.is_empty() {
+            return Err(RepoError::database(
+                "parse",
+                format!("Missing required field 'category' for lore: {}", id),
+            ));
+        } else {
+            category_str.parse().map_err(|_| {
+                RepoError::database("parse", format!("Invalid LoreCategory: '{}'", category_str))
+            })?
+        };
         let is_common_knowledge: bool = node.get_bool_or("is_common_knowledge", false);
         let created_at = node.get_datetime_or("created_at", fallback);
         let updated_at = node.get_datetime_or("updated_at", fallback);
 
-        // Parse tags from JSON
-        let tags_raw: Vec<String> = node
+        // Parse tags from JSON - fail-fast on invalid JSON
+        let tags_str = node
             .get_optional_string("tags")
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default();
+            .ok_or_else(|| RepoError::database("query", format!("Missing tags for Lore {}", id)))?;
+        let tags_raw: Vec<String> = serde_json::from_str(&tags_str).map_err(|e| {
+            RepoError::database(
+                "parse",
+                format!(
+                    "Invalid tags JSON for Lore {}: {} (value: '{}')",
+                    id, e, tags_str
+                ),
+            )
+        })?;
 
         let mut lore = Lore::new(world_id, title, category, created_at)
             .with_id(id)
@@ -129,9 +146,15 @@ impl Neo4jLoreRepo {
         let character_id_str: String = row
             .get("character_id")
             .map_err(|e| RepoError::database("query", e))?;
-        let known_chunk_ids_json: String = row
-            .get::<String>("known_chunk_ids")
-            .unwrap_or_else(|_| "[]".to_string());
+        let known_chunk_ids_json: String = row.get::<String>("known_chunk_ids").map_err(|_| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Missing required column 'known_chunk_ids' for lore knowledge (lore_id: {})",
+                    lore_id_str
+                ),
+            )
+        })?;
         let discovery_source_json: String = row
             .get("discovery_source")
             .map_err(|e| RepoError::database("query", e))?;
@@ -657,10 +680,24 @@ impl LoreRepo for Neo4jLoreRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
-            let json_str: String = row
-                .get("known_chunk_ids")
-                .unwrap_or_else(|_| "[]".to_string());
-            serde_json::from_str(&json_str).unwrap_or_default()
+            let json_str: String = row.get("known_chunk_ids").map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!(
+                        "Missing known_chunk_ids for knowledge (character: {}, lore: {}): {}",
+                        character_id, lore_id, e
+                    ),
+                )
+            })?;
+            serde_json::from_str(&json_str).map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid known_chunk_ids JSON for knowledge (character: {}, lore: {}): {} (value: '{}')",
+                        character_id, lore_id, e, json_str
+                    ),
+                )
+            })?
         } else {
             return Err(RepoError::not_found("Entity", "unknown"));
         };
@@ -729,10 +766,24 @@ impl LoreRepo for Neo4jLoreRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
-            let json_str: String = row
-                .get("known_chunk_ids")
-                .unwrap_or_else(|_| "[]".to_string());
-            serde_json::from_str(&json_str).unwrap_or_default()
+            let json_str: String = row.get("known_chunk_ids").map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!(
+                        "Missing known_chunk_ids for knowledge (character: {}, lore: {}): {}",
+                        character_id, lore_id, e
+                    ),
+                )
+            })?;
+            serde_json::from_str(&json_str).map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid known_chunk_ids JSON for knowledge (character: {}, lore: {}): {} (value: '{}')",
+                        character_id, lore_id, e, json_str
+                    ),
+                )
+            })?
         } else {
             // No knowledge relationship exists
             return Ok(false);

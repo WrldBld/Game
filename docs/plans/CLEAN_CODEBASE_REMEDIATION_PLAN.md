@@ -363,21 +363,36 @@ Acceptance:
 
 ## Phase 5: UUID Parsing and Data Integrity
 
-### 5.1 Remove UUID nil fallbacks
-- [ ] Replace `parse_uuid_or_nil` with fallible parsing returning `Result<Uuid, RepoError>`.
-- [ ] Update call sites to handle parse errors explicitly (propagate or return validation errors).
-- [ ] Add logging with context (entity type, field) on parse failures.
-- [ ] Add tests for invalid UUID handling paths.
+### 5.1 Remove UUID nil fallbacks - COMPLETE
+- [x] Replace `parse_uuid_or_nil` with fallible parsing returning `Result<Uuid, RepoError>`.
+- [x] Update call sites to handle parse errors explicitly (propagate or return validation errors).
+- [x] Add logging with context (entity type, field) on parse failures.
+- [x] Add tests for invalid UUID handling paths.
+
+**Implementation details:**
+- Removed `parse_uuid_or_nil` function from `narrative_repo.rs`
+- Created `parse_uuid()` helper returning `Result<Uuid, StoredTypeParseError>`
+- Converted 6 `From` impls to `TryFrom` for stored types parsing UUIDs
+- Fixed `scene_repo.rs` entry_conditions and featured_characters to use fail-fast
+- Fixed EventChain events/completed_events lists to use fail-fast
+- 11 remaining `.ok()` patterns are ACCEPTABLE (truly optional `Option<TypedId>` fields)
 
 Acceptance:
 - No silent UUID fallback to `Uuid::nil()` in persistence code.
 - Invalid UUIDs surface as errors (not silently accepted).
 
-### 5.2 Eliminate silent data drops during repository hydration
-- [ ] Inventory all `unwrap_or_default`, `unwrap_or_*`, and `filter_map(...ok())` in repo hydration code.
-- [ ] Replace silent defaults with explicit `RepoError` for invalid stored data.
-- [ ] Update tests to expect failures on corrupted data.
-- [ ] Replace `get_json_or_default`/`get_string_or` usage in hydration paths for required fields with strict parsing.
+### 5.2 Eliminate silent data drops during repository hydration - COMPLETE
+- [x] Inventory all `unwrap_or_default`, `unwrap_or_*`, and `filter_map(...ok())` in repo hydration code.
+- [x] Replace silent defaults with explicit `RepoError` for invalid stored data.
+- [x] Update tests to expect failures on corrupted data.
+- [x] Replace `get_json_or_default`/`get_string_or` usage in hydration paths for required fields with strict parsing.
+
+**Implementation details:**
+- Fixed 26 MUST FIX items across 10 repository files
+- Required enums (MoodState, RelationshipLevel, TimeContext, ActivationLogic, etc.) now fail-fast
+- Required JSON arrays (activation_rules, triggers, conditions) now fail-fast
+- Converted From to TryFrom where needed (OutcomeStored, TriggerConditionStored)
+- ACCEPTABLE patterns preserved: boolean flags, numeric counters, optional descriptions
 - [ ] Targeted cleanup (fail-fast on invalid stored values):
   - `engine/src/infrastructure/neo4j/scene_repo.rs` (entry_conditions, featured_characters, time_context).
   - `engine/src/infrastructure/neo4j/narrative_repo.rs` (triggers/outcomes/tags JSON, trigger_logic, event lists).
@@ -546,8 +561,8 @@ Acceptance:
 - [x] Phase 3.2 complete (repository failures propagated or logged)
 - [x] Phase 3.3 complete (serde_json replaced with typed DTOs)
 - [x] Phase 4.1 complete (Tag, Name, AssetPath, Atmosphere newtypes with fail-fast; DirectorialNotes kept as String per ADR-008)
-- [ ] Phase 5.1 complete
-- [ ] Phase 5.2 complete
+- [x] Phase 5.1 complete (UUID nil fallbacks removed; TryFrom for stored types; fail-fast parsing)
+- [x] Phase 5.2 complete (silent data drops eliminated; 26 MUST FIX items across 10 files)
 - [ ] Phase 6.1 complete
 - [ ] Phase 7.1 complete
 - [ ] Phase 8.1 complete

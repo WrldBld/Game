@@ -244,7 +244,7 @@ fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset, RepoError> {
         .get("created_at")
         .map_err(|e| RepoError::database("query", e))?;
 
-    let entity_type = parse_entity_type(&entity_type_str);
+    let entity_type = parse_entity_type(&entity_type_str)?;
     let asset_type = AssetType::from_str(&asset_type_str)
         .map_err(|e| RepoError::database("query", format!("Invalid asset type: {}", e)))?;
 
@@ -269,12 +269,15 @@ fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset, RepoError> {
     ))
 }
 
-fn parse_entity_type(s: &str) -> EntityType {
+fn parse_entity_type(s: &str) -> Result<EntityType, RepoError> {
     match s {
-        "Character" => EntityType::Character,
-        "Location" => EntityType::Location,
-        "Item" => EntityType::Item,
-        _ => EntityType::Character, // Default fallback
+        "Character" => Ok(EntityType::Character),
+        "Location" => Ok(EntityType::Location),
+        "Item" => Ok(EntityType::Item),
+        _ => Err(RepoError::database(
+            "parse",
+            format!("Unknown EntityType: '{}'", s),
+        )),
     }
 }
 

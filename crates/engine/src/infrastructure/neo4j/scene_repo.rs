@@ -167,24 +167,41 @@ impl Neo4jSceneRepo {
         // JSON fields
         let time_context: TimeContext = node
             .get_json::<TimeContextStored>("time_context")
-            .map(Into::into)
-            .unwrap_or(TimeContext::Unspecified);
+            .map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!("Invalid time_context JSON for Scene {}: {}", id, e),
+                )
+            })?
+            .into();
 
         let entry_conditions: Vec<SceneCondition> = node
             .get_json::<Vec<SceneConditionStored>>("entry_conditions")
-            .map(|stored| {
-                stored
-                    .into_iter()
-                    .filter_map(|sc| sc.try_into_condition().ok())
-                    .collect()
+            .map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!("Invalid entry_conditions JSON for Scene {}: {}", id, e),
+                )
+            })?
+            .into_iter()
+            .map(|sc| {
+                sc.try_into_condition().map_err(|e| {
+                    RepoError::database("parse", format!("Invalid entry condition: {:?}", e))
+                })
             })
-            .unwrap_or_default();
+            .collect::<Result<Vec<_>, _>>()?;
 
         let featured_characters: Vec<CharacterId> = node
             .get_json_or_default::<Vec<String>>("featured_characters")
             .into_iter()
-            .filter_map(|s| uuid::Uuid::parse_str(&s).ok().map(CharacterId::from))
-            .collect();
+            .map(|s| {
+                uuid::Uuid::parse_str(&s)
+                    .map(CharacterId::from)
+                    .map_err(|_| {
+                        RepoError::database("parse", format!("Invalid CharacterId UUID: {}", s))
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         let backdrop_override = node.get_optional_string("backdrop_override");
 
@@ -481,11 +498,22 @@ impl SceneRepo for Neo4jSceneRepo {
                 uuid::Uuid::parse_str(&char_id_str).map_err(|e| RepoError::database("query", e))?,
             );
 
-            // Parse role from string, defaulting to Secondary if parsing fails
-            let role_str: String = row.get("role").unwrap_or_else(|_| "Secondary".to_string());
-            let role = role_str
-                .parse::<SceneCharacterRole>()
-                .unwrap_or(SceneCharacterRole::Secondary);
+            // Parse role from string - fail-fast on invalid values
+            let role_str: String = row.get("role").map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!("Missing role for FEATURES_CHARACTER relationship: {}", e),
+                )
+            })?;
+            let role: SceneCharacterRole = role_str.parse().map_err(|_| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid SceneCharacterRole for Scene {}: '{}'",
+                        scene_id, role_str
+                    ),
+                )
+            })?;
 
             // Parse entrance_cue, treating empty string as None
             let entrance_cue: Option<String> = row.get("entrance_cue").ok().and_then(

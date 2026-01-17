@@ -197,7 +197,7 @@ impl ProcessPlayerAction {
         let npc_id = action_data
             .target
             .as_deref()
-            .and_then(parse_typed_id::<wrldbldr_domain::CharacterId>);
+            .and_then(try_parse_typed_id::<wrldbldr_domain::CharacterId>);
 
         // Fetch full NPC entity instead of just name
         let npc_entity = match npc_id {
@@ -834,17 +834,17 @@ impl ProcessLlmRequest {
                             .responding_character
                             .character_id
                             .as_deref()
-                            .and_then(parse_typed_id::<wrldbldr_domain::CharacterId>);
+                            .and_then(try_parse_typed_id::<wrldbldr_domain::CharacterId>);
                         let npc_name = prompt.responding_character.name.clone();
                         let player_dialogue = prompt.player_action.dialogue.clone();
                         let scene_id = prompt
                             .scene_id
                             .as_deref()
-                            .and_then(parse_typed_id::<wrldbldr_domain::SceneId>);
+                            .and_then(try_parse_typed_id::<wrldbldr_domain::SceneId>);
                         let location_id = prompt
                             .location_id
                             .as_deref()
-                            .and_then(parse_typed_id::<wrldbldr_domain::LocationId>);
+                            .and_then(try_parse_typed_id::<wrldbldr_domain::LocationId>);
                         let game_time = prompt.game_time.clone();
 
                         (
@@ -962,7 +962,18 @@ fn build_suggestion_prompt(
     }
 }
 
-fn parse_typed_id<T: From<Uuid>>(value: &str) -> Option<T> {
+fn parse_typed_id<T: From<Uuid>>(value: &str, field: &str) -> Result<T, QueueError> {
+    Uuid::parse_str(value)
+        .map(T::from)
+        .map_err(|e| QueueError::ParseError(format!("Invalid UUID for {}: {}", field, e)))
+}
+
+/// Try to parse a typed ID, returning None if the value is empty or invalid.
+/// Use this for optional fields where failure means "no value" rather than "bad data".
+fn try_parse_typed_id<T: From<Uuid>>(value: &str) -> Option<T> {
+    if value.is_empty() {
+        return None;
+    }
     Uuid::parse_str(value).ok().map(T::from)
 }
 
@@ -976,4 +987,6 @@ pub enum QueueError {
     LlmError(String),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
+    #[error("Parse error: {0}")]
+    ParseError(String),
 }

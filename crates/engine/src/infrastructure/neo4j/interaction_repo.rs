@@ -38,25 +38,70 @@ impl Neo4jInteractionRepo {
         let is_available = node.get_bool_or("is_available", true);
         let order_num = node.get_i64_or("order_num", 0);
 
-        let interaction_type = node
-            .get_optional_string("interaction_type")
-            .and_then(|value| serde_json::from_str::<InteractionType>(&value).ok())
-            .unwrap_or_else(|| InteractionType::Custom("Unknown".to_string()));
+        let interaction_type_str =
+            node.get_optional_string("interaction_type")
+                .ok_or_else(|| {
+                    RepoError::database(
+                        "query",
+                        format!("Missing interaction_type for Interaction {}", id),
+                    )
+                })?;
+        let interaction_type: InteractionType = serde_json::from_str(&interaction_type_str)
+            .map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid interaction_type JSON for Interaction {}: {} (value: '{}')",
+                        id, e, interaction_type_str
+                    ),
+                )
+            })?;
 
-        let target = node
-            .get_optional_string("target")
-            .and_then(|value| serde_json::from_str::<InteractionTarget>(&value).ok())
-            .unwrap_or(InteractionTarget::None);
+        let target_str = node.get_optional_string("target").ok_or_else(|| {
+            RepoError::database("query", format!("Missing target for Interaction {}", id))
+        })?;
+        let target: InteractionTarget = serde_json::from_str(&target_str).map_err(|e| {
+            RepoError::database(
+                "parse",
+                format!(
+                    "Invalid target JSON for Interaction {}: {} (value: '{}')",
+                    id, e, target_str
+                ),
+            )
+        })?;
 
-        let allowed_tools = node
-            .get_optional_string("allowed_tools")
-            .and_then(|value| serde_json::from_str::<Vec<String>>(&value).ok())
-            .unwrap_or_default();
+        let allowed_tools_str = node.get_optional_string("allowed_tools").ok_or_else(|| {
+            RepoError::database(
+                "query",
+                format!("Missing allowed_tools for Interaction {}", id),
+            )
+        })?;
+        let allowed_tools: Vec<String> = serde_json::from_str(&allowed_tools_str).map_err(|e| {
+            RepoError::database(
+                "parse",
+                format!(
+                    "Invalid allowed_tools JSON for Interaction {}: {} (value: '{}')",
+                    id, e, allowed_tools_str
+                ),
+            )
+        })?;
 
-        let conditions = node
-            .get_optional_string("conditions")
-            .and_then(|value| serde_json::from_str::<Vec<InteractionCondition>>(&value).ok())
-            .unwrap_or_default();
+        let conditions_str = node.get_optional_string("conditions").ok_or_else(|| {
+            RepoError::database(
+                "query",
+                format!("Missing conditions for Interaction {}", id),
+            )
+        })?;
+        let conditions: Vec<InteractionCondition> =
+            serde_json::from_str(&conditions_str).map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid conditions JSON for Interaction {}: {} (value: '{}')",
+                        id, e, conditions_str
+                    ),
+                )
+            })?;
 
         Ok(InteractionTemplate::from_stored(
             id,

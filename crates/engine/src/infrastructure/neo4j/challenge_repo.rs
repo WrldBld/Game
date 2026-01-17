@@ -95,15 +95,17 @@ impl From<&ChallengeOutcomes> for OutcomesStored {
     }
 }
 
-impl From<OutcomesStored> for ChallengeOutcomes {
-    fn from(value: OutcomesStored) -> Self {
-        ChallengeOutcomes {
-            success: value.success.into(),
-            failure: value.failure.into(),
-            partial: value.partial.map(Into::into),
-            critical_success: value.critical_success.map(Into::into),
-            critical_failure: value.critical_failure.map(Into::into),
-        }
+impl TryFrom<OutcomesStored> for ChallengeOutcomes {
+    type Error = RepoError;
+
+    fn try_from(value: OutcomesStored) -> Result<Self, Self::Error> {
+        Ok(ChallengeOutcomes {
+            success: value.success.try_into()?,
+            failure: value.failure.try_into()?,
+            partial: value.partial.map(TryInto::try_into).transpose()?,
+            critical_success: value.critical_success.map(TryInto::try_into).transpose()?,
+            critical_failure: value.critical_failure.map(TryInto::try_into).transpose()?,
+        })
     }
 }
 
@@ -124,17 +126,24 @@ impl From<&Outcome> for OutcomeStored {
     }
 }
 
-impl From<OutcomeStored> for Outcome {
-    fn from(value: OutcomeStored) -> Self {
-        let triggers: Vec<OutcomeTrigger> = value
-            .triggers_json
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default();
+impl TryFrom<OutcomeStored> for Outcome {
+    type Error = RepoError;
+
+    fn try_from(value: OutcomeStored) -> Result<Self, Self::Error> {
+        let triggers: Vec<OutcomeTrigger> = match value.triggers_json {
+            Some(s) => serde_json::from_str(&s).map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!("Invalid triggers_json in Outcome: {} (value: '{}')", e, s),
+                )
+            })?,
+            None => Vec::new(),
+        };
         let mut outcome = Outcome::new(value.description);
         for trigger in triggers {
             outcome = outcome.with_trigger(trigger);
         }
-        outcome
+        Ok(outcome)
     }
 }
 
@@ -157,15 +166,23 @@ impl From<&TriggerCondition> for TriggerConditionStored {
     }
 }
 
-impl From<TriggerConditionStored> for TriggerCondition {
-    fn from(value: TriggerConditionStored) -> Self {
-        let condition_type =
-            serde_json::from_str(&value.condition_type_json).unwrap_or(TriggerType::Custom {
-                description: value.description.clone(),
-            });
+impl TryFrom<TriggerConditionStored> for TriggerCondition {
+    type Error = RepoError;
+
+    fn try_from(value: TriggerConditionStored) -> Result<Self, Self::Error> {
+        let condition_type: TriggerType = serde_json::from_str(&value.condition_type_json)
+            .map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid condition_type JSON in TriggerCondition: {} (value: '{}')",
+                        e, value.condition_type_json
+                    ),
+                )
+            })?;
         let mut tc = TriggerCondition::new(condition_type, value.description);
         tc.required = value.required;
-        tc
+        Ok(tc)
     }
 }
 
@@ -197,30 +214,60 @@ impl Neo4jChallengeRepo {
         let name = ChallengeName::new(name_str).map_err(|e| RepoError::database("parse", e))?;
         let description: String = node.get_string_or("description", "");
 
-        let challenge_type_str: String = node.get_string_or("challenge_type", "SkillCheck");
+        let challenge_type_str: String = node.get_string_strict("challenge_type").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Missing challenge_type for Challenge {}: {}", id, e),
+            )
+        })?;
         let challenge_type = match challenge_type_str.as_str() {
             "SkillCheck" => ChallengeType::SkillCheck,
             "AbilityCheck" => ChallengeType::AbilityCheck,
             "SavingThrow" => ChallengeType::SavingThrow,
             "OpposedCheck" => ChallengeType::OpposedCheck,
             "ComplexChallenge" => ChallengeType::ComplexChallenge,
-            _ => ChallengeType::SkillCheck,
+            _ => {
+                return Err(RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid ChallengeType for Challenge {}: '{}'",
+                        id, challenge_type_str
+                    ),
+                ));
+            }
         };
 
         let difficulty: Difficulty = node
-            .get_json::<DifficultyStored>("difficulty_json")
-            .map(Into::into)
-            .unwrap_or_default();
+            .get_json_strict::<DifficultyStored>("difficulty_json")
+            .map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!("Invalid difficulty_json for Challenge {}: {}", id, e),
+                )
+            })?
+            .into();
 
         let outcomes: ChallengeOutcomes = node
-            .get_json::<OutcomesStored>("outcomes_json")
-            .map(Into::into)
-            .unwrap_or_default();
+            .get_json_strict::<OutcomesStored>("outcomes_json")
+            .map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!("Invalid outcomes_json for Challenge {}: {}", id, e),
+                )
+            })?
+            .try_into()?;
 
         let trigger_conditions: Vec<TriggerCondition> = node
-            .get_json::<Vec<TriggerConditionStored>>("triggers_json")
-            .map(|stored| stored.into_iter().map(Into::into).collect())
-            .unwrap_or_default();
+            .get_json_strict::<Vec<TriggerConditionStored>>("triggers_json")
+            .map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!("Invalid triggers_json for Challenge {}: {}", id, e),
+                )
+            })?
+            .into_iter()
+            .map(TryInto::try_into)
+            .collect::<Result<Vec<_>, _>>()?;
 
         let active = node.get_bool_or("active", true);
         let order = node.get_i64_or("challenge_order", 0) as u32;

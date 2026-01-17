@@ -1297,9 +1297,32 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
     let selected_outcome = node.get_optional_string("selected_outcome");
 
     let tags_raw: Vec<String> = node.get_json_or_default("tags_json");
-    let stored_triggers: Vec<StoredNarrativeTrigger> = node.get_json_or_default("triggers_json");
-    let stored_outcomes: Vec<StoredEventOutcome> = node.get_json_or_default("outcomes_json");
-    let trigger_logic_str = node.get_string_or("trigger_logic", "All");
+    let stored_triggers: Vec<StoredNarrativeTrigger> =
+        node.get_json_strict("triggers_json").map_err(|e| {
+            RepoError::database(
+                "parse",
+                format!(
+                    "Failed to parse triggers_json for NarrativeEvent {}: {}",
+                    id, e
+                ),
+            )
+        })?;
+    let stored_outcomes: Vec<StoredEventOutcome> =
+        node.get_json_strict("outcomes_json").map_err(|e| {
+            RepoError::database(
+                "parse",
+                format!(
+                    "Failed to parse outcomes_json for NarrativeEvent {}: {}",
+                    id, e
+                ),
+            )
+        })?;
+    let trigger_logic_str = node.get_string_strict("trigger_logic").map_err(|e| {
+        RepoError::database(
+            "parse",
+            format!("Missing trigger_logic for NarrativeEvent {}: {}", id, e),
+        )
+    })?;
 
     let is_active = node.get_bool_or("is_active", true);
     let is_triggered = node.get_bool_or("is_triggered", false);
@@ -1319,9 +1342,16 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
         .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
         .map(|dt| dt.with_timezone(&Utc));
 
-    let trigger_conditions: Vec<NarrativeTrigger> =
-        stored_triggers.into_iter().map(|t| t.into()).collect();
-    let outcomes: Vec<EventOutcome> = stored_outcomes.into_iter().map(|o| o.into()).collect();
+    let trigger_conditions: Vec<NarrativeTrigger> = stored_triggers
+        .into_iter()
+        .map(NarrativeTrigger::try_from)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| RepoError::database("parse", e.to_string()))?;
+    let outcomes: Vec<EventOutcome> = stored_outcomes
+        .into_iter()
+        .map(EventOutcome::try_from)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| RepoError::database("parse", e.to_string()))?;
 
     let trigger_logic = match trigger_logic_str.as_str() {
         "Any" => TriggerLogic::Any,
@@ -1384,10 +1414,23 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
         .map_err(|e| RepoError::database("query", e))?;
 
     let description: String = node.get_string_or("description", "");
-    let events_strs: Vec<String> = node.get("events").unwrap_or_default();
+    let events_strs: Vec<String> = node.get("events").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Missing required 'events' for EventChain {}: {}", id, e),
+        )
+    })?;
     let is_active: bool = node.get_bool_or("is_active", true);
     let current_position: i64 = node.get_i64_or("current_position", 0);
-    let completed_strs: Vec<String> = node.get("completed_events").unwrap_or_default();
+    let completed_strs: Vec<String> = node.get("completed_events").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!(
+                "Missing required 'completed_events' for EventChain {}: {}",
+                id, e
+            ),
+        )
+    })?;
     let act_id: Option<ActId> =
         parse_optional_typed_id(&node, "act_id").map_err(|e| RepoError::database("query", e))?;
     let tags_raw: Vec<String> = node.get_json_or_default("tags_json");
@@ -1398,13 +1441,24 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
 
     let events: Vec<NarrativeEventId> = events_strs
         .iter()
-        .filter_map(|s| Uuid::parse_str(s).ok().map(NarrativeEventId::from))
-        .collect();
+        .map(|s| {
+            Uuid::parse_str(s).map(NarrativeEventId::from).map_err(|_| {
+                RepoError::database("parse", format!("Invalid event UUID in chain: {}", s))
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     let completed_events: Vec<NarrativeEventId> = completed_strs
         .iter()
-        .filter_map(|s| Uuid::parse_str(s).ok().map(NarrativeEventId::from))
-        .collect();
+        .map(|s| {
+            Uuid::parse_str(s).map(NarrativeEventId::from).map_err(|_| {
+                RepoError::database(
+                    "parse",
+                    format!("Invalid completed event UUID in chain: {}", s),
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     let tags: Vec<wrldbldr_domain::Tag> = tags_raw
         .into_iter()
@@ -1454,7 +1508,9 @@ fn row_to_story_event(row: Row, fallback: DateTime<Utc>) -> Result<StoryEvent, R
 
     let stored_event_type: StoredStoryEventType = serde_json::from_str(&event_type_json)
         .map_err(|e| RepoError::Serialization(e.to_string()))?;
-    let event_type: StoryEventType = stored_event_type.into();
+    let event_type: StoryEventType = stored_event_type
+        .try_into()
+        .map_err(|e: StoredTypeParseError| RepoError::database("parse", e.to_string()))?;
 
     Ok(StoryEvent::from_parts(
         id, world_id, event_type, timestamp, game_time, summary, is_hidden, tags,
@@ -1465,15 +1521,30 @@ fn row_to_story_event(row: Row, fallback: DateTime<Utc>) -> Result<StoryEvent, R
 // Stored types for JSON serialization
 // =============================================================================
 
-/// Parse a UUID string, returning nil UUID on error
-fn parse_uuid_or_nil(s: &str, field: &str) -> Uuid {
-    match Uuid::parse_str(s) {
-        Ok(uuid) => uuid,
-        Err(e) => {
-            tracing::warn!(field = %field, input = %s, error = %e, "Failed to parse UUID, using nil");
-            Uuid::nil()
-        }
+/// Error type for stored type parsing failures
+#[derive(Debug)]
+struct StoredTypeParseError(String);
+
+impl std::fmt::Display for StoredTypeParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
+}
+
+impl std::error::Error for StoredTypeParseError {}
+
+impl StoredTypeParseError {
+    fn invalid_uuid(field: &str, value: &str, err: uuid::Error) -> Self {
+        Self(format!(
+            "Invalid UUID for field '{}': {} (value: '{}')",
+            field, err, value
+        ))
+    }
+}
+
+/// Parse a UUID string, returning error on failure (fail-fast)
+fn parse_uuid(s: &str, field: &str) -> Result<Uuid, StoredTypeParseError> {
+    Uuid::parse_str(s).map_err(|e| StoredTypeParseError::invalid_uuid(field, s, e))
 }
 
 // ---------------------------------------------------------------------------
@@ -2638,28 +2709,29 @@ impl From<DmMarkerType> for StoredDmMarkerType {
 // Stored -> Domain conversions
 // =============================================================================
 
-impl From<StoredNarrativeTrigger> for NarrativeTrigger {
-    fn from(s: StoredNarrativeTrigger) -> Self {
-        let mut trigger = NarrativeTrigger::new(
-            NarrativeTriggerType::from(s.trigger_type),
-            s.description,
-            s.trigger_id,
-        );
+impl TryFrom<StoredNarrativeTrigger> for NarrativeTrigger {
+    type Error = StoredTypeParseError;
+
+    fn try_from(s: StoredNarrativeTrigger) -> Result<Self, Self::Error> {
+        let trigger_type = s.trigger_type.try_into()?;
+        let mut trigger = NarrativeTrigger::new(trigger_type, s.description, s.trigger_id);
         trigger.is_required = s.is_required;
-        trigger
+        Ok(trigger)
     }
 }
 
-impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
-    fn from(s: StoredNarrativeTriggerType) -> Self {
-        match s {
+impl TryFrom<StoredNarrativeTriggerType> for NarrativeTriggerType {
+    type Error = StoredTypeParseError;
+
+    fn try_from(s: StoredNarrativeTriggerType) -> Result<Self, Self::Error> {
+        Ok(match s {
             StoredNarrativeTriggerType::NpcAction {
                 npc_id,
                 npc_name,
                 action_keywords,
                 action_description,
             } => NarrativeTriggerType::NpcAction {
-                npc_id: CharacterId::from(parse_uuid_or_nil(&npc_id, "npc_id")),
+                npc_id: CharacterId::from(parse_uuid(&npc_id, "npc_id")?),
                 npc_name,
                 action_keywords,
                 action_description,
@@ -2668,7 +2740,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 location_id,
                 location_name,
             } => NarrativeTriggerType::PlayerEntersLocation {
-                location_id: LocationId::from(parse_uuid_or_nil(&location_id, "location_id")),
+                location_id: LocationId::from(parse_uuid(&location_id, "location_id")?),
                 location_name,
             },
             StoredNarrativeTriggerType::TimeAtLocation {
@@ -2676,7 +2748,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 location_name,
                 time_context,
             } => NarrativeTriggerType::TimeAtLocation {
-                location_id: LocationId::from(parse_uuid_or_nil(&location_id, "location_id")),
+                location_id: LocationId::from(parse_uuid(&location_id, "location_id")?),
                 location_name,
                 time_context,
             },
@@ -2686,6 +2758,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 npc_name,
             } => NarrativeTriggerType::DialogueTopic {
                 keywords,
+                // Optional field - use lenient parsing
                 with_npc: with_npc.and_then(|id| Uuid::parse_str(&id).ok().map(CharacterId::from)),
                 npc_name,
             },
@@ -2694,7 +2767,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 challenge_name,
                 requires_success,
             } => NarrativeTriggerType::ChallengeCompleted {
-                challenge_id: ChallengeId::from(parse_uuid_or_nil(&challenge_id, "challenge_id")),
+                challenge_id: ChallengeId::from(parse_uuid(&challenge_id, "challenge_id")?),
                 challenge_name,
                 requires_success,
             },
@@ -2706,12 +2779,9 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 min_sentiment,
                 max_sentiment,
             } => NarrativeTriggerType::RelationshipThreshold {
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
                 character_name,
-                with_character: CharacterId::from(parse_uuid_or_nil(
-                    &with_character,
-                    "with_character",
-                )),
+                with_character: CharacterId::from(parse_uuid(&with_character, "with_character")?),
                 with_character_name,
                 min_sentiment,
                 max_sentiment,
@@ -2731,13 +2801,14 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 event_name,
                 outcome_name,
             } => NarrativeTriggerType::EventCompleted {
-                event_id: NarrativeEventId::from(parse_uuid_or_nil(&event_id, "event_id")),
+                event_id: NarrativeEventId::from(parse_uuid(&event_id, "event_id")?),
                 event_name,
                 outcome_name,
             },
             StoredNarrativeTriggerType::TurnCount { turns, since_event } => {
                 NarrativeTriggerType::TurnCount {
                     turns,
+                    // Optional field - use lenient parsing
                     since_event: since_event
                         .and_then(|id| Uuid::parse_str(&id).ok().map(NarrativeEventId::from)),
                 }
@@ -2754,7 +2825,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 min_value,
                 max_value,
             } => NarrativeTriggerType::StatThreshold {
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
                 stat_name,
                 min_value,
                 max_value,
@@ -2764,6 +2835,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 involved_npc,
             } => NarrativeTriggerType::CombatResult {
                 victory,
+                // Optional field - use lenient parsing
                 involved_npc: involved_npc
                     .and_then(|id| Uuid::parse_str(&id).ok().map(CharacterId::from)),
             },
@@ -2774,7 +2846,7 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 description,
                 llm_evaluation,
             },
-            // Compendium-based triggers
+            // Compendium-based triggers (no UUIDs)
             StoredNarrativeTriggerType::KnowsSpell {
                 spell_id,
                 spell_name,
@@ -2808,18 +2880,28 @@ impl From<StoredNarrativeTriggerType> for NarrativeTriggerType {
                 creature_id,
                 creature_name,
             },
-        }
+        })
     }
 }
 
-impl From<StoredEventOutcome> for EventOutcome {
-    fn from(s: StoredEventOutcome) -> Self {
+impl TryFrom<StoredEventOutcome> for EventOutcome {
+    type Error = StoredTypeParseError;
+
+    fn try_from(s: StoredEventOutcome) -> Result<Self, Self::Error> {
         let mut outcome = EventOutcome::new(s.name, s.label, s.description);
-        outcome.effects = s.effects.into_iter().map(EventEffect::from).collect();
-        outcome.chain_events = s.chain_events.into_iter().map(ChainedEvent::from).collect();
+        outcome.effects = s
+            .effects
+            .into_iter()
+            .map(EventEffect::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+        outcome.chain_events = s
+            .chain_events
+            .into_iter()
+            .map(ChainedEvent::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
         outcome.condition = s.condition.map(OutcomeCondition::from);
         outcome.timeline_summary = s.timeline_summary;
-        outcome
+        Ok(outcome)
     }
 }
 
@@ -2854,9 +2936,11 @@ impl From<StoredOutcomeCondition> for OutcomeCondition {
     }
 }
 
-impl From<StoredEventEffect> for EventEffect {
-    fn from(s: StoredEventEffect) -> Self {
-        match s {
+impl TryFrom<StoredEventEffect> for EventEffect {
+    type Error = StoredTypeParseError;
+
+    fn try_from(s: StoredEventEffect) -> Result<Self, Self::Error> {
+        Ok(match s {
             StoredEventEffect::ModifyRelationship {
                 from_character,
                 from_name,
@@ -2865,12 +2949,9 @@ impl From<StoredEventEffect> for EventEffect {
                 sentiment_change,
                 reason,
             } => EventEffect::ModifyRelationship {
-                from_character: CharacterId::from(parse_uuid_or_nil(
-                    &from_character,
-                    "from_character",
-                )),
+                from_character: CharacterId::from(parse_uuid(&from_character, "from_character")?),
                 from_name,
-                to_character: CharacterId::from(parse_uuid_or_nil(&to_character, "to_character")),
+                to_character: CharacterId::from(parse_uuid(&to_character, "to_character")?),
                 to_name,
                 sentiment_change,
                 reason,
@@ -2909,56 +2990,64 @@ impl From<StoredEventEffect> for EventEffect {
                 challenge_id,
                 challenge_name,
             } => EventEffect::EnableChallenge {
-                challenge_id: ChallengeId::from(parse_uuid_or_nil(&challenge_id, "challenge_id")),
+                challenge_id: ChallengeId::from(parse_uuid(&challenge_id, "challenge_id")?),
                 challenge_name,
             },
             StoredEventEffect::DisableChallenge {
                 challenge_id,
                 challenge_name,
             } => EventEffect::DisableChallenge {
-                challenge_id: ChallengeId::from(parse_uuid_or_nil(&challenge_id, "challenge_id")),
+                challenge_id: ChallengeId::from(parse_uuid(&challenge_id, "challenge_id")?),
                 challenge_name,
             },
             StoredEventEffect::EnableEvent {
                 event_id,
                 event_name,
             } => EventEffect::EnableEvent {
-                event_id: NarrativeEventId::from(parse_uuid_or_nil(&event_id, "event_id")),
+                event_id: NarrativeEventId::from(parse_uuid(&event_id, "event_id")?),
                 event_name,
             },
             StoredEventEffect::DisableEvent {
                 event_id,
                 event_name,
             } => EventEffect::DisableEvent {
-                event_id: NarrativeEventId::from(parse_uuid_or_nil(&event_id, "event_id")),
+                event_id: NarrativeEventId::from(parse_uuid(&event_id, "event_id")?),
                 event_name,
             },
             StoredEventEffect::TriggerScene {
                 scene_id,
                 scene_name,
             } => EventEffect::TriggerScene {
-                scene_id: SceneId::from(parse_uuid_or_nil(&scene_id, "scene_id")),
+                scene_id: SceneId::from(parse_uuid(&scene_id, "scene_id")?),
                 scene_name,
             },
             StoredEventEffect::StartCombat {
                 participants,
                 participant_names,
                 combat_description,
-            } => EventEffect::StartCombat {
-                participants: participants
-                    .into_iter()
-                    .filter_map(|id| Uuid::parse_str(&id).ok().map(CharacterId::from))
-                    .collect(),
-                participant_names,
-                combat_description,
-            },
+            } => {
+                // Parse all participant UUIDs, fail if any are invalid
+                let parsed_participants: Result<Vec<CharacterId>, StoredTypeParseError> =
+                    participants
+                        .iter()
+                        .enumerate()
+                        .map(|(i, id)| {
+                            parse_uuid(id, &format!("participants[{}]", i)).map(CharacterId::from)
+                        })
+                        .collect();
+                EventEffect::StartCombat {
+                    participants: parsed_participants?,
+                    participant_names,
+                    combat_description,
+                }
+            }
             StoredEventEffect::ModifyStat {
                 character_id,
                 character_name,
                 stat_name,
                 modifier,
             } => EventEffect::ModifyStat {
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
                 character_name,
                 stat_name,
                 modifier,
@@ -2979,36 +3068,44 @@ impl From<StoredEventEffect> for EventEffect {
                 description,
                 requires_dm_action,
             },
-        }
+        })
     }
 }
 
-impl From<StoredChainedEvent> for ChainedEvent {
-    fn from(s: StoredChainedEvent) -> Self {
+impl TryFrom<StoredChainedEvent> for ChainedEvent {
+    type Error = StoredTypeParseError;
+
+    fn try_from(s: StoredChainedEvent) -> Result<Self, Self::Error> {
         let mut chained = ChainedEvent::new(
-            NarrativeEventId::from(parse_uuid_or_nil(&s.event_id, "event_id")),
+            NarrativeEventId::from(parse_uuid(&s.event_id, "event_id")?),
             s.event_name,
         );
         chained.delay_turns = s.delay_turns;
-        chained.additional_trigger = s.additional_trigger.map(|t| NarrativeTriggerType::from(*t));
+        chained.additional_trigger = s
+            .additional_trigger
+            .map(|t| NarrativeTriggerType::try_from(*t))
+            .transpose()?;
         chained.chain_reason = s.chain_reason;
-        chained
+        Ok(chained)
     }
 }
 
-impl From<StoredStoryEventType> for StoryEventType {
-    fn from(s: StoredStoryEventType) -> Self {
-        match s {
+impl TryFrom<StoredStoryEventType> for StoryEventType {
+    type Error = StoredTypeParseError;
+
+    fn try_from(s: StoredStoryEventType) -> Result<Self, Self::Error> {
+        Ok(match s {
             StoredStoryEventType::LocationChange {
                 from_location,
                 to_location,
                 character_id,
                 travel_method,
             } => StoryEventType::LocationChange {
+                // Optional field - use lenient parsing
                 from_location: from_location
                     .and_then(|id| Uuid::parse_str(&id).ok().map(LocationId::from)),
-                to_location: LocationId::from(parse_uuid_or_nil(&to_location, "to_location")),
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
+                to_location: LocationId::from(parse_uuid(&to_location, "to_location")?),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
                 travel_method,
             },
             StoredStoryEventType::DialogueExchange {
@@ -3019,7 +3116,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 topics_discussed,
                 tone,
             } => StoryEventType::DialogueExchange {
-                npc_id: CharacterId::from(parse_uuid_or_nil(&npc_id, "npc_id")),
+                npc_id: CharacterId::from(parse_uuid(&npc_id, "npc_id")?),
                 npc_name,
                 player_dialogue,
                 npc_response,
@@ -3033,17 +3130,25 @@ impl From<StoredStoryEventType> for StoryEventType {
                 outcome,
                 location_id,
                 rounds,
-            } => StoryEventType::CombatEvent {
-                combat_type: combat_type.into(),
-                participants: participants
-                    .into_iter()
-                    .filter_map(|id| Uuid::parse_str(&id).ok().map(CharacterId::from))
-                    .collect(),
-                enemies,
-                outcome: outcome.map(|o| o.into()),
-                location_id: LocationId::from(parse_uuid_or_nil(&location_id, "location_id")),
-                rounds,
-            },
+            } => {
+                // Parse all participant UUIDs, fail if any are invalid
+                let parsed_participants: Result<Vec<CharacterId>, StoredTypeParseError> =
+                    participants
+                        .iter()
+                        .enumerate()
+                        .map(|(i, id)| {
+                            parse_uuid(id, &format!("participants[{}]", i)).map(CharacterId::from)
+                        })
+                        .collect();
+                StoryEventType::CombatEvent {
+                    combat_type: combat_type.into(),
+                    participants: parsed_participants?,
+                    enemies,
+                    outcome: outcome.map(|o| o.into()),
+                    location_id: LocationId::from(parse_uuid(&location_id, "location_id")?),
+                    rounds,
+                }
+            }
             StoredStoryEventType::ChallengeAttempted {
                 challenge_id,
                 challenge_name,
@@ -3054,10 +3159,11 @@ impl From<StoredStoryEventType> for StoryEventType {
                 modifier,
                 outcome,
             } => StoryEventType::ChallengeAttempted {
+                // Optional field - use lenient parsing
                 challenge_id: challenge_id
                     .and_then(|id| Uuid::parse_str(&id).ok().map(ChallengeId::from)),
                 challenge_name,
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
                 skill_used,
                 difficulty,
                 roll_result,
@@ -3073,8 +3179,8 @@ impl From<StoredStoryEventType> for StoryEventType {
             } => StoryEventType::ItemAcquired {
                 item_name,
                 item_description,
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
-                source: source.into(),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
+                source: source.try_into()?,
                 quantity,
             },
             StoredStoryEventType::ItemTransferred {
@@ -3085,9 +3191,10 @@ impl From<StoredStoryEventType> for StoryEventType {
                 reason,
             } => StoryEventType::ItemTransferred {
                 item_name,
+                // Optional field - use lenient parsing
                 from_character: from_character
                     .and_then(|id| Uuid::parse_str(&id).ok().map(CharacterId::from)),
-                to_character: CharacterId::from(parse_uuid_or_nil(&to_character, "to_character")),
+                to_character: CharacterId::from(parse_uuid(&to_character, "to_character")?),
                 quantity,
                 reason,
             },
@@ -3099,7 +3206,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 consumed,
             } => StoryEventType::ItemUsed {
                 item_name,
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
                 target,
                 effect,
                 consumed,
@@ -3112,11 +3219,8 @@ impl From<StoredStoryEventType> for StoryEventType {
                 sentiment_change,
                 reason,
             } => StoryEventType::RelationshipChanged {
-                from_character: CharacterId::from(parse_uuid_or_nil(
-                    &from_character,
-                    "from_character",
-                )),
-                to_character: CharacterId::from(parse_uuid_or_nil(&to_character, "to_character")),
+                from_character: CharacterId::from(parse_uuid(&from_character, "from_character")?),
+                to_character: CharacterId::from(parse_uuid(&to_character, "to_character")?),
                 previous_sentiment,
                 new_sentiment,
                 sentiment_change,
@@ -3129,8 +3233,9 @@ impl From<StoredStoryEventType> for StoryEventType {
                 to_scene_name,
                 trigger_reason,
             } => StoryEventType::SceneTransition {
+                // Optional field - use lenient parsing
                 from_scene: from_scene.and_then(|id| Uuid::parse_str(&id).ok().map(SceneId::from)),
-                to_scene: SceneId::from(parse_uuid_or_nil(&to_scene, "to_scene")),
+                to_scene: SceneId::from(parse_uuid(&to_scene, "to_scene")?),
                 from_scene_name,
                 to_scene_name,
                 trigger_reason,
@@ -3146,6 +3251,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 info_type: info_type.into(),
                 title,
                 content,
+                // Optional field - use lenient parsing
                 source: source.and_then(|id| Uuid::parse_str(&id).ok().map(CharacterId::from)),
                 importance: importance.into(),
                 persist_to_journal,
@@ -3158,7 +3264,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 dm_approved,
                 dm_modified,
             } => StoryEventType::NpcAction {
-                npc_id: CharacterId::from(parse_uuid_or_nil(&npc_id, "npc_id")),
+                npc_id: CharacterId::from(parse_uuid(&npc_id, "npc_id")?),
                 npc_name,
                 action_type,
                 description,
@@ -3182,10 +3288,10 @@ impl From<StoredStoryEventType> for StoryEventType {
                 outcome_branch,
                 effects_applied,
             } => StoryEventType::NarrativeEventTriggered {
-                narrative_event_id: NarrativeEventId::from(parse_uuid_or_nil(
+                narrative_event_id: NarrativeEventId::from(parse_uuid(
                     &narrative_event_id,
                     "narrative_event_id",
-                )),
+                )?),
                 narrative_event_name,
                 outcome_branch,
                 effects_applied,
@@ -3197,7 +3303,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 new_value,
                 reason,
             } => StoryEventType::StatModified {
-                character_id: CharacterId::from(parse_uuid_or_nil(&character_id, "character_id")),
+                character_id: CharacterId::from(parse_uuid(&character_id, "character_id")?),
                 stat_name,
                 previous_value,
                 new_value,
@@ -3239,7 +3345,7 @@ impl From<StoredStoryEventType> for StoryEventType {
                 description,
                 data,
             },
-        }
+        })
     }
 }
 
@@ -3280,20 +3386,22 @@ impl From<StoredChallengeEventOutcome> for ChallengeEventOutcome {
     }
 }
 
-impl From<StoredItemSource> for ItemSource {
-    fn from(s: StoredItemSource) -> Self {
-        match s {
+impl TryFrom<StoredItemSource> for ItemSource {
+    type Error = StoredTypeParseError;
+
+    fn try_from(s: StoredItemSource) -> Result<Self, Self::Error> {
+        Ok(match s {
             StoredItemSource::Found { location } => ItemSource::Found { location },
             StoredItemSource::Purchased { from, cost } => ItemSource::Purchased { from, cost },
             StoredItemSource::Gifted { from } => ItemSource::Gifted {
-                from: CharacterId::from(parse_uuid_or_nil(&from, "from")),
+                from: CharacterId::from(parse_uuid(&from, "from")?),
             },
             StoredItemSource::Looted { from } => ItemSource::Looted { from },
             StoredItemSource::Crafted => ItemSource::Crafted,
             StoredItemSource::Reward { for_what } => ItemSource::Reward { for_what },
             StoredItemSource::Stolen { from } => ItemSource::Stolen { from },
             StoredItemSource::Custom { description } => ItemSource::Custom { description },
-        }
+        })
     }
 }
 

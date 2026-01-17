@@ -57,16 +57,44 @@ impl Neo4jLocationStateRepo {
             .transpose()
             .map_err(|e| RepoError::database("parse", e))?;
 
-        // Parse activation rules from JSON
-        let activation_rules: Vec<ActivationRule> = node
-            .get_optional_string("activation_rules")
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default();
+        // Parse activation rules from JSON - fail-fast on invalid JSON
+        let activation_rules_str =
+            node.get_optional_string("activation_rules")
+                .ok_or_else(|| {
+                    RepoError::database(
+                        "query",
+                        format!("Missing activation_rules for LocationState {}", id),
+                    )
+                })?;
+        let activation_rules: Vec<ActivationRule> = serde_json::from_str(&activation_rules_str)
+            .map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid activation_rules JSON for LocationState {}: {} (value: '{}')",
+                        id, e, activation_rules_str
+                    ),
+                )
+            })?;
 
-        let activation_logic: ActivationLogic = node
-            .get_optional_string("activation_logic")
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or(ActivationLogic::All);
+        let activation_logic_str =
+            node.get_optional_string("activation_logic")
+                .ok_or_else(|| {
+                    RepoError::database(
+                        "query",
+                        format!("Missing activation_logic for LocationState {}", id),
+                    )
+                })?;
+        let activation_logic: ActivationLogic = serde_json::from_str(&activation_logic_str)
+            .map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid ActivationLogic JSON for LocationState {}: {} (value: '{}')",
+                        id, e, activation_logic_str
+                    ),
+                )
+            })?;
 
         let priority: i32 = node.get_i64_or("priority", 0) as i32;
         let is_default: bool = node.get_bool_or("is_default", false);

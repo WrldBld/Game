@@ -449,8 +449,25 @@ impl StagingRepo for Neo4jStagingRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
-            let mood_str: String = row.get("mood").unwrap_or_else(|_| "calm".to_string());
-            Ok(mood_str.parse().unwrap_or(MoodState::Calm))
+            let mood_str: String = row.get("mood").map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!(
+                        "Missing mood for NPC {} in region {}: {}",
+                        npc_id, region_id, e
+                    ),
+                )
+            })?;
+            let mood: MoodState = mood_str.parse().map_err(|_| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid MoodState for NPC {} in region {}: '{}'",
+                        npc_id, region_id, mood_str
+                    ),
+                )
+            })?;
+            Ok(mood)
         } else {
             // NPC not staged in this region, try to get their default mood
             let default_q = query(
@@ -470,8 +487,19 @@ impl StagingRepo for Neo4jStagingRepo {
                 .await
                 .map_err(|e| RepoError::database("query", e))?
             {
-                let mood_str: String = row.get("mood").unwrap_or_else(|_| "calm".to_string());
-                Ok(mood_str.parse().unwrap_or(MoodState::Calm))
+                let mood_str: String = row.get("mood").map_err(|e| {
+                    RepoError::database(
+                        "query",
+                        format!("Missing default_mood for NPC {}: {}", npc_id, e),
+                    )
+                })?;
+                let mood: MoodState = mood_str.parse().map_err(|_| {
+                    RepoError::database(
+                        "parse",
+                        format!("Invalid MoodState for NPC {}: '{}'", npc_id, mood_str),
+                    )
+                })?;
+                Ok(mood)
             } else {
                 Err(RepoError::not_found("Entity", "unknown"))
             }
@@ -586,9 +614,22 @@ fn row_to_staged_npc(row: Row) -> Result<StagedNpc, RepoError> {
         .ok()
         .filter(|s: &String| !s.is_empty());
 
-    // Parse mood - defaults to Calm if not present or invalid
-    let mood_str: String = row.get("mood").unwrap_or_else(|_| "calm".to_string());
-    let mood: MoodState = mood_str.parse().unwrap_or(MoodState::Calm);
+    // Parse mood - fail-fast on invalid values
+    let mood_str: String = row.get("mood").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Missing mood for staged NPC {}: {}", character_id_str, e),
+        )
+    })?;
+    let mood: MoodState = mood_str.parse().map_err(|_| {
+        RepoError::database(
+            "parse",
+            format!(
+                "Invalid MoodState for staged NPC {}: '{}'",
+                character_id_str, mood_str
+            ),
+        )
+    })?;
 
     // Parse has_incomplete_data flag - defaults to false for existing data
     let has_incomplete_data: bool = row.get("has_incomplete_data").unwrap_or(false);
@@ -635,7 +676,12 @@ fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging
 
     let game_time = node.get_datetime_or("game_time", fallback);
     let approved_at = node.get_datetime_or("approved_at", fallback);
-    let source = source_str.parse().unwrap_or(StagingSource::RuleBased);
+    let source: StagingSource = source_str.parse().map_err(|_| {
+        RepoError::database(
+            "parse",
+            format!("Invalid StagingSource for staging {}: '{}'", id, source_str),
+        )
+    })?;
     let dm_guidance = node.get_optional_string("dm_guidance");
 
     // Parse collected NPCs from the row
@@ -681,7 +727,15 @@ fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
             .map(CharacterId::from)
             .map_err(|e| RepoError::database("query", format!("Invalid character_id: {}", e)))?;
 
-        let name: String = npc_map.get("name").unwrap_or_default();
+        let name: String = npc_map.get("name").map_err(|_| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Missing required NPC name for character_id: {}",
+                    character_id_str
+                ),
+            )
+        })?;
         let sprite_asset: Option<String> = npc_map
             .get("sprite_asset")
             .ok()
@@ -693,8 +747,21 @@ fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
         let is_present: bool = npc_map.get("is_present").unwrap_or(true);
         let is_hidden_from_players: bool = npc_map.get("is_hidden_from_players").unwrap_or(false);
         let reasoning: String = npc_map.get("reasoning").unwrap_or_default();
-        let mood_str: String = npc_map.get("mood").unwrap_or_else(|_| "calm".to_string());
-        let mood: MoodState = mood_str.parse().unwrap_or(MoodState::Calm);
+        let mood_str: String = npc_map.get("mood").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Missing mood for collected NPC {}: {}", character_id_str, e),
+            )
+        })?;
+        let mood: MoodState = mood_str.parse().map_err(|_| {
+            RepoError::database(
+                "parse",
+                format!(
+                    "Invalid MoodState for collected NPC {}: '{}'",
+                    character_id_str, mood_str
+                ),
+            )
+        })?;
         let has_incomplete_data: bool = npc_map.get("has_incomplete_data").unwrap_or(false);
 
         let mut npc = StagedNpc::new(character_id, name, is_present, reasoning)
@@ -743,7 +810,12 @@ fn row_to_staging(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoErro
 
     let game_time = node.get_datetime_or("game_time", fallback);
     let approved_at = node.get_datetime_or("approved_at", fallback);
-    let source = source_str.parse().unwrap_or(StagingSource::RuleBased);
+    let source: StagingSource = source_str.parse().map_err(|_| {
+        RepoError::database(
+            "parse",
+            format!("Invalid StagingSource for staging {}: '{}'", id, source_str),
+        )
+    })?;
     let dm_guidance = node.get_optional_string("dm_guidance");
 
     Ok(Staging::from_stored(

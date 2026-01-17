@@ -32,10 +32,20 @@ impl Neo4jContentRepo {
             .get("name")
             .map_err(|e| RepoError::database("query", e))?;
         let description: String = node.get_string_or("description", "");
-        let category_str = node.get_string_or("category", "other");
-        let category = category_str
-            .parse::<SkillCategory>()
-            .unwrap_or(SkillCategory::Other);
+        let category_str = node.get_string_or("category", "");
+        let category: SkillCategory = if category_str.is_empty() {
+            return Err(RepoError::database(
+                "parse",
+                format!("Missing required field 'category' for skill: {}", id),
+            ));
+        } else {
+            category_str.parse().map_err(|_| {
+                RepoError::database(
+                    "parse",
+                    format!("Invalid SkillCategory: '{}'", category_str),
+                )
+            })?
+        };
         let base_attribute = node.get_optional_string("base_attribute");
         let is_custom = node.get_bool_or("is_custom", false);
         let is_hidden = node.get_bool_or("is_hidden", false);

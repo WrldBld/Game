@@ -158,18 +158,32 @@ impl From<ArchetypeChange> for ArchetypeChangeStored {
     }
 }
 
-impl From<ArchetypeChangeStored> for ArchetypeChange {
-    fn from(value: ArchetypeChangeStored) -> Self {
+impl TryFrom<ArchetypeChangeStored> for ArchetypeChange {
+    type Error = RepoError;
+
+    fn try_from(value: ArchetypeChangeStored) -> Result<Self, Self::Error> {
         let timestamp = wrldbldr_domain::common::parse_datetime_or(
             &value.timestamp,
             chrono::DateTime::UNIX_EPOCH,
         );
-        ArchetypeChange::new(
-            value.from.parse().unwrap_or(CampbellArchetype::Ally),
-            value.to.parse().unwrap_or(CampbellArchetype::Ally),
+        let from_archetype: CampbellArchetype = value.from.parse().map_err(|_| {
+            RepoError::database(
+                "parse",
+                format!("Invalid 'from' archetype in history: '{}'", value.from),
+            )
+        })?;
+        let to_archetype: CampbellArchetype = value.to.parse().map_err(|_| {
+            RepoError::database(
+                "parse",
+                format!("Invalid 'to' archetype in history: '{}'", value.to),
+            )
+        })?;
+        Ok(ArchetypeChange::new(
+            from_archetype,
+            to_archetype,
             value.reason,
             timestamp,
-        )
+        ))
     }
 }
 
@@ -212,19 +226,31 @@ impl Neo4jCharacterRepo {
             .get("default_disposition")
             .map_err(|e| RepoError::database("query", e))?;
 
-        let base_archetype: CampbellArchetype = base_archetype_str
-            .parse()
-            .unwrap_or(CampbellArchetype::Ally);
-        let current_archetype: CampbellArchetype = current_archetype_str
-            .parse()
-            .unwrap_or(CampbellArchetype::Ally);
+        let base_archetype: CampbellArchetype = base_archetype_str.parse().map_err(|_| {
+            RepoError::database(
+                "parse",
+                format!(
+                    "Invalid base_archetype for Character {}: '{}'",
+                    id, base_archetype_str
+                ),
+            )
+        })?;
+        let current_archetype: CampbellArchetype = current_archetype_str.parse().map_err(|_| {
+            RepoError::database(
+                "parse",
+                format!(
+                    "Invalid current_archetype for Character {}: '{}'",
+                    id, current_archetype_str
+                ),
+            )
+        })?;
 
         let archetype_history: Vec<ArchetypeChange> = node
             .get_json::<Vec<ArchetypeChangeStored>>("archetype_history")
             .map_err(|e| RepoError::database("query", e))?
             .into_iter()
-            .map(Into::into)
-            .collect();
+            .map(ArchetypeChange::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
 
         let stats: StatBlock = node
             .get_json::<StatBlockStored>("stats")
@@ -235,18 +261,40 @@ impl Neo4jCharacterRepo {
             .parse()
             .map_err(|e: DomainError| RepoError::database("query", e.to_string()))?;
 
-        // Parse default_mood from stored string (falls back to Calm)
-        let default_mood_str: String = node
-            .get("default_mood")
-            .unwrap_or_else(|_| "calm".to_string());
-        let default_mood: MoodState = default_mood_str.parse().unwrap_or(MoodState::Calm);
+        // Parse default_mood from stored string - fail-fast on invalid values
+        let default_mood_str: String = node.get("default_mood").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Missing default_mood for Character {}: {}", id, e),
+            )
+        })?;
+        let default_mood: MoodState = default_mood_str.parse().map_err(|_| {
+            RepoError::database(
+                "parse",
+                format!(
+                    "Invalid MoodState for Character {}: '{}'",
+                    id, default_mood_str
+                ),
+            )
+        })?;
 
-        // Parse expression_config from JSON (falls back to default)
+        // Parse expression_config from JSON - fail-fast on invalid JSON
         let expression_config: ExpressionConfig = node
             .get::<String>("expression_config")
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default();
+            .map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!("Missing expression_config for Character {}: {}", id, e),
+                )
+            })
+            .and_then(|s| {
+                serde_json::from_str(&s).map_err(|e| {
+                    RepoError::database(
+                        "parse",
+                        format!("Invalid expression_config JSON for Character {}: {}", id, e),
+                    )
+                })
+            })?;
 
         // Determine state from legacy is_alive/is_active booleans
         let is_alive = node.get_bool_or("is_alive", true);
@@ -573,9 +621,15 @@ impl CharacterRepo for Neo4jCharacterRepo {
             let rel_type_str: String = row
                 .get("rel_type")
                 .map_err(|e| RepoError::database("query", e))?;
-            let relationship_type: RelationshipType = rel_type_str
-                .parse()
-                .unwrap_or(RelationshipType::Custom(rel_type_str));
+            let relationship_type: RelationshipType = rel_type_str.parse().map_err(|_| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid RelationshipType for relationship {}: '{}'",
+                        rel_id, rel_type_str
+                    ),
+                )
+            })?;
 
             let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
             let known_to_player: bool = row.get("known_to_player").unwrap_or(true);
@@ -968,12 +1022,24 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 .parse()
                 .map_err(|e: DomainError| RepoError::database("query", e.to_string()))?;
 
-            let relationship_str: String = row
-                .get("relationship")
-                .unwrap_or_else(|_| "Stranger".to_string());
-            let relationship: RelationshipLevel = relationship_str
-                .parse()
-                .unwrap_or(RelationshipLevel::Stranger);
+            let relationship_str: String = row.get("relationship").map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!(
+                        "Missing relationship for disposition (npc_id: {}, pc_id: {}): {}",
+                        npc_id, pc_id, e
+                    ),
+                )
+            })?;
+            let relationship: RelationshipLevel = relationship_str.parse().map_err(|_| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid RelationshipLevel for disposition (npc_id: {}, pc_id: {}): '{}'",
+                        npc_id, pc_id, relationship_str
+                    ),
+                )
+            })?;
 
             let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
             let updated_at_str: String = row.get("updated_at").unwrap_or_default();
@@ -1078,12 +1144,24 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 .parse()
                 .map_err(|e: DomainError| RepoError::database("query", e.to_string()))?;
 
-            let relationship_str: String = row
-                .get("relationship")
-                .unwrap_or_else(|_| "Stranger".to_string());
-            let relationship: RelationshipLevel = relationship_str
-                .parse()
-                .unwrap_or(RelationshipLevel::Stranger);
+            let relationship_str: String = row.get("relationship").map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!(
+                        "Missing relationship for disposition (npc_id: {}, pc_id: {}): {}",
+                        npc_id, pc_id, e
+                    ),
+                )
+            })?;
+            let relationship: RelationshipLevel = relationship_str.parse().map_err(|_| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid RelationshipLevel for disposition (npc_id: {}, pc_id: {}): '{}'",
+                        npc_id, pc_id, relationship_str
+                    ),
+                )
+            })?;
 
             let sentiment: f64 = row.get("sentiment").unwrap_or(0.0);
             let updated_at_str: String = row.get("updated_at").unwrap_or_default();
@@ -1276,21 +1354,32 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
-            let role_str: String = row.get("role").unwrap_or_default();
+            let role_str: String = row
+                .get("role")
+                .map_err(|e| RepoError::database("query", format!("Missing role: {}", e)))?;
             let role = match role_str.as_str() {
                 "VIEWS_AS_HELPER" => ActantialRole::Helper,
                 "VIEWS_AS_OPPONENT" => ActantialRole::Opponent,
                 "VIEWS_AS_SENDER" => ActantialRole::Sender,
                 "VIEWS_AS_RECEIVER" => ActantialRole::Receiver,
-                _ => ActantialRole::Unknown,
+                other => {
+                    return Err(RepoError::database(
+                        "parse",
+                        format!("Invalid actantial role: '{}'", other),
+                    ));
+                }
             };
 
-            let want_id_str: String = row.get("want_id").unwrap_or_default();
+            let want_id_str: String = row
+                .get("want_id")
+                .map_err(|e| RepoError::database("query", format!("Missing want_id: {}", e)))?;
             let want_uuid =
                 Uuid::parse_str(&want_id_str).map_err(|e| RepoError::database("query", e))?;
             let want_id = WantId::from_uuid(want_uuid);
 
-            let target_id_str: String = row.get("target_id").unwrap_or_default();
+            let target_id_str: String = row
+                .get("target_id")
+                .map_err(|e| RepoError::database("query", format!("Missing target_id: {}", e)))?;
             let target_uuid =
                 Uuid::parse_str(&target_id_str).map_err(|e| RepoError::database("query", e))?;
             let target_labels: Vec<String> = row.get("target_labels").unwrap_or_default();
@@ -1750,11 +1839,25 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 _ => continue,
             };
 
-            // Parse default_mood from string
-            let default_mood_str: String = row
-                .get("default_mood")
-                .unwrap_or_else(|_| "calm".to_string());
-            let default_mood: MoodState = default_mood_str.parse().unwrap_or(MoodState::Calm);
+            // Parse default_mood from string - fail-fast on invalid values
+            let default_mood_str: String = row.get("default_mood").map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!(
+                        "Missing default_mood for NPC {} in region {}: {}",
+                        character_id, region_id, e
+                    ),
+                )
+            })?;
+            let default_mood: MoodState = default_mood_str.parse().map_err(|_| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid MoodState for NPC {} in region {}: '{}'",
+                        character_id, region_id, default_mood_str
+                    ),
+                )
+            })?;
 
             npcs.push(NpcWithRegionInfo {
                 character_id,

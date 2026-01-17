@@ -84,6 +84,15 @@ pub trait NodeExt {
 
     /// Get an f64 field with a default value if missing.
     fn get_f64_or(&self, field: &str, default: f64) -> f64;
+
+    /// Get a required JSON field with strict error handling (fail-fast).
+    fn get_json_strict<T: serde::de::DeserializeOwned>(&self, field: &str) -> Result<T, RepoError>;
+
+    /// Get a required string field with strict error handling (fail-fast).
+    fn get_string_strict(&self, field: &str) -> Result<String, RepoError>;
+
+    /// Get a required datetime field with strict error handling (fail-fast).
+    fn get_datetime_strict(&self, field: &str) -> Result<DateTime<Utc>, RepoError>;
 }
 
 impl NodeExt for Node {
@@ -143,6 +152,40 @@ impl NodeExt for Node {
     fn get_f64_or(&self, field: &str, default: f64) -> f64 {
         self.get(field).unwrap_or(default)
     }
+
+    fn get_json_strict<T: serde::de::DeserializeOwned>(&self, field: &str) -> Result<T, RepoError> {
+        let s: String = self.get(field).map_err(|_| {
+            RepoError::database("query", format!("Missing required field: {}", field))
+        })?;
+        serde_json::from_str(&s).map_err(|e| {
+            RepoError::database(
+                "parse",
+                format!("Invalid JSON in field '{}': {} (value: '{}')", field, e, s),
+            )
+        })
+    }
+
+    fn get_string_strict(&self, field: &str) -> Result<String, RepoError> {
+        self.get(field)
+            .map_err(|_| RepoError::database("query", format!("Missing required field: {}", field)))
+    }
+
+    fn get_datetime_strict(&self, field: &str) -> Result<DateTime<Utc>, RepoError> {
+        let s: String = self.get(field).map_err(|_| {
+            RepoError::database("query", format!("Missing required field: {}", field))
+        })?;
+        DateTime::parse_from_rfc3339(&s)
+            .map(|dt| dt.with_timezone(&Utc))
+            .map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid datetime in field '{}': {} (value: '{}')",
+                        field, e, s
+                    ),
+                )
+            })
+    }
 }
 
 /// Extension trait for Neo4j Row to simplify common deserialization patterns.
@@ -171,6 +214,13 @@ pub trait RowExt {
 
     /// Get an f64 column with a default value if missing.
     fn get_f64_or(&self, column: &str, default: f64) -> f64;
+
+    /// Get a required JSON column with strict error handling (fail-fast).
+    fn get_json_strict<T: serde::de::DeserializeOwned>(&self, column: &str)
+        -> Result<T, RepoError>;
+
+    /// Get a required string column with strict error handling (fail-fast).
+    fn get_string_strict(&self, column: &str) -> Result<String, RepoError>;
 }
 
 impl RowExt for Row {
@@ -220,6 +270,30 @@ impl RowExt for Row {
 
     fn get_f64_or(&self, column: &str, default: f64) -> f64 {
         self.get(column).unwrap_or(default)
+    }
+
+    fn get_json_strict<T: serde::de::DeserializeOwned>(
+        &self,
+        column: &str,
+    ) -> Result<T, RepoError> {
+        let s: String = self.get(column).map_err(|_| {
+            RepoError::database("query", format!("Missing required column: {}", column))
+        })?;
+        serde_json::from_str(&s).map_err(|e| {
+            RepoError::database(
+                "parse",
+                format!(
+                    "Invalid JSON in column '{}': {} (value: '{}')",
+                    column, e, s
+                ),
+            )
+        })
+    }
+
+    fn get_string_strict(&self, column: &str) -> Result<String, RepoError> {
+        self.get(column).map_err(|_| {
+            RepoError::database("query", format!("Missing required column: {}", column))
+        })
     }
 }
 
