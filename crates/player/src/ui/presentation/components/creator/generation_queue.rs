@@ -926,8 +926,11 @@ fn SuggestionViewModal(
         "characters" // Default fallback
     };
 
-    let can_navigate = suggestion.entity_id.is_some() && on_navigate.is_some();
-    let entity_id_for_nav = suggestion.entity_id.clone();
+    let navigate_data = suggestion
+        .entity_id
+        .clone()
+        .zip(on_navigate)
+        .map(|(id, handler)| (id, entity_type.to_string(), handler));
 
     rsx! {
         // Backdrop
@@ -994,16 +997,11 @@ fn SuggestionViewModal(
 
                 div {
                     class: "flex justify-end gap-2 mt-3",
-                    if can_navigate {
+                    if let Some((entity_id, entity_type, handler)) = navigate_data.clone() {
                         button {
-                            onclick: {
-                                let entity_id = entity_id_for_nav.clone().unwrap();
-                                let entity_type = entity_type.to_string();
-                                let handler = on_navigate.unwrap();
-                                move |_| {
-                                    handler.call((entity_type.clone(), entity_id.clone()));
-                                    on_close.call(());
-                                }
+                            onclick: move |_| {
+                                handler.call((entity_type.clone(), entity_id.clone()));
+                                on_close.call(());
                             },
                             class: "px-3 py-1 bg-blue-600 text-white border-none rounded-md text-[0.8rem] cursor-pointer",
                             "Go to Form"
