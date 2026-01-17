@@ -2,7 +2,7 @@
 
 Status: Active
 Owner: Team
-Last updated: 2026-01-17 (Phase 14 COMPLETE - Dependency + lint hygiene)
+Last updated: 2026-01-17 (Phase 15 COMPLETE - Security tech debt checks)
 
 Goal: remediate all findings from the latest full code review and establish a clean baseline with no new tech debt.
 
@@ -630,10 +630,20 @@ Acceptance:
 
 ## Phase 15: Security Tech Debt Checks
 
-### 15.1 Add security review tasks
-- [ ] Add secrets scan to review checklist or CI script.
-- [ ] Audit auth/authz boundaries and document expected access controls.
-- [ ] Ensure user-input validation is explicit at API boundaries (aligns with Phase 10).
+### 15.1 Add security review tasks - COMPLETE
+- [x] Add secrets scan to review checklist or CI script.
+- [x] Audit auth/authz boundaries and document expected access controls.
+- [x] Ensure user-input validation is explicit at API boundaries (aligns with Phase 10).
+
+**Implementation details:**
+- **Secrets scan**: Added concrete `rg` commands to `docs/architecture/review.md` for auditing secrets
+- **Secrets audit result**: No real secrets found in codebase - only test/dev defaults (acceptable)
+- **Auth documentation**: Added "Authentication State (Pre-Auth)" section documenting:
+  - Current trust model (client-generated UUIDs, no server auth)
+  - Trust boundaries and limitations
+  - Code locations to audit when implementing auth
+- **Input validation**: Already complete from Phase 10 (UUID parsing, content filters, field validation)
+- **`.env` protection**: Already in `.gitignore`, `.env.example` has placeholders
 
 Acceptance:
 - Security review tasks are documented and repeatable.
@@ -665,7 +675,7 @@ Acceptance:
 - [x] Phase 12.1 complete (error taxonomy: typed ErrorCode, #[from] chains, 10 mapping tests)
 - [x] Phase 13.1 complete (observability: contextual logging in parse_id, ApiError, LLM, 16 repo not_found sites)
 - [x] Phase 14.1 complete (lint hygiene: unwrap_used=deny, unsafe_code=deny, ~180 auto-fixes, 3 manual unwrap fixes)
-- [ ] Phase 15.1 complete
+- [x] Phase 15.1 complete (security: secrets scan commands, auth state docs, no secrets found)
 
 
 ## Validity Review (Self-check)

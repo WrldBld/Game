@@ -646,6 +646,46 @@ Use this checklist when doing a comprehensive review of the entire codebase.
 - [ ] All user input validated at API boundaries
 - [ ] No `.unwrap()` on user-provided data parsing
 
+#### Secrets Scan Commands
+
+Run when auditing for secrets:
+
+```bash
+# Search for potential secrets (review matches manually)
+rg -i "password|secret|api_key|apikey|token|credential" \
+   --type rust -g '!*.md' -g '!target/*' \
+   -g '!*test*.rs' -g '!*fixture*.rs'
+
+# Verify .env is not tracked
+git ls-files | grep -E '\.env$'  # Should return nothing
+
+# Check for high-entropy strings (potential keys)
+rg '[A-Za-z0-9/+=]{32,}' --type rust -g '!target/*'
+```
+
+**Acceptable patterns:**
+- `TEST_*_PASSWORD` in test harnesses
+- `wrldbldr123` default in docker-compose (local dev only)
+- `secret_agenda`, `LoreCategory::Secret` - domain terminology
+- `TokenUsage`, `max_tokens` - LLM context budgets (not auth tokens)
+
+#### Authentication State (Pre-Auth)
+
+**Current implementation:**
+- No server-side authentication
+- User identity is client-generated UUID stored in browser localStorage
+- `user_id` in `ConnectionInfo` set from client during `JoinWorld`
+- DM role check (`require_dm()`) validates connection role, not user identity
+
+**Trust boundary:**
+- Client-provided `user_id` is trusted for session continuity only
+- Not suitable for access control without server-side verification
+
+**Code locations to audit when implementing auth:**
+- `api/connections.rs`: `set_user_id()` should validate tokens
+- `api/websocket/mod.rs`: WebSocket upgrade should verify auth
+- `use_cases/session/join_world_flow.rs`: Trust server identity, not client
+
 ### Consistency
 
 - [ ] Aggregate constructors follow `::new()` + `.with_*()` pattern
