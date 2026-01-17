@@ -188,11 +188,7 @@ impl ContinueConversation {
             conversation_id: resolved_conversation_id,
         };
 
-        let action_queue_id = self
-            .queue
-            .enqueue_player_action(&action_data)
-            .await
-            .map_err(|e| ConversationError::QueueError(e.to_string()))?;
+        let action_queue_id = self.queue.enqueue_player_action(&action_data).await?;
 
         Ok(ConversationContinued {
             action_queue_id,

@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 
+use crate::infrastructure::ports::QueueError;
 use crate::queue_types::PlayerActionData;
 
 use crate::repositories::{ClockService, QueueService};
@@ -82,17 +83,9 @@ impl HandlePlayerAction {
             conversation_id: None,
         };
 
-        let action_id = self
-            .queue
-            .enqueue_player_action(&action_data)
-            .await
-            .map_err(|e| PlayerActionError::Queue(e.to_string()))?;
+        let action_id = self.queue.enqueue_player_action(&action_data).await?;
 
-        let queue_depth = self
-            .queue
-            .get_pending_count("player_action")
-            .await
-            .map_err(|e| PlayerActionError::Queue(format!("Failed to get queue depth: {}", e)))?;
+        let queue_depth = self.queue.get_pending_count("player_action").await?;
 
         Ok(PlayerActionProcessed {
             action_id,
@@ -124,5 +117,5 @@ pub enum PlayerActionError {
     #[error("Conversation failed: {0}")]
     Conversation(#[from] ConversationError),
     #[error("Queue error: {0}")]
-    Queue(String),
+    Queue(#[from] QueueError),
 }

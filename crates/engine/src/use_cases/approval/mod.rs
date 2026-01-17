@@ -11,7 +11,7 @@ use wrldbldr_domain::{CharacterId, RegionId, WorldId};
 
 use crate::queue_types::DmApprovalDecision;
 
-use crate::infrastructure::ports::RepoError;
+use crate::infrastructure::ports::{QueueError, RepoError};
 use crate::repositories::{QueueService, StagingRepository};
 
 /// Container for approval use cases.
@@ -139,11 +139,8 @@ impl ApproveSuggestion {
         decision: DmApprovalDecision,
     ) -> Result<SuggestionApprovalResult, ApprovalError> {
         // Get the queue item first to extract NPC info
-        let queue_item: Option<crate::queue_types::ApprovalRequestData> = self
-            .queue
-            .get_approval_request(approval_queue_id)
-            .await
-            .map_err(|e| ApprovalError::QueueError(e.to_string()))?;
+        let queue_item: Option<crate::queue_types::ApprovalRequestData> =
+            self.queue.get_approval_request(approval_queue_id).await?;
 
         let (npc_id, npc_name, original_dialogue, conversation_id) = queue_item
             .map(|data| {
@@ -179,15 +176,11 @@ impl ApproveSuggestion {
 
         // Mark the queue item based on decision
         if approved {
-            self.queue
-                .mark_complete(approval_queue_id)
-                .await
-                .map_err(|e| ApprovalError::QueueError(e.to_string()))?;
+            self.queue.mark_complete(approval_queue_id).await?;
         } else {
             self.queue
                 .mark_failed(approval_queue_id, "Rejected by DM")
-                .await
-                .map_err(|e| ApprovalError::QueueError(e.to_string()))?;
+                .await?;
         }
 
         Ok(SuggestionApprovalResult {
@@ -230,8 +223,7 @@ impl ApprovalDecisionFlow {
         let approval_data: crate::queue_types::ApprovalRequestData = self
             .queue
             .get_approval_request(approval_id)
-            .await
-            .map_err(|e| ApprovalDecisionError::QueueError(e.to_string()))?
+            .await?
             .ok_or(ApprovalDecisionError::ApprovalNotFound)?;
 
         let result = self
@@ -298,7 +290,7 @@ pub enum ApprovalError {
     #[error("Staging was rejected")]
     Rejected,
     #[error("Queue error: {0}")]
-    QueueError(String),
+    Queue(#[from] QueueError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }
@@ -308,7 +300,7 @@ pub enum ApprovalDecisionError {
     #[error("Approval request not found")]
     ApprovalNotFound,
     #[error("Queue error: {0}")]
-    QueueError(String),
+    Queue(#[from] QueueError),
     #[error("Approval error: {0}")]
     Approval(#[from] ApprovalError),
 }

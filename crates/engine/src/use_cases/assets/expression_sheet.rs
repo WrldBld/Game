@@ -24,7 +24,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{AssetId, CharacterId};
 
-use crate::infrastructure::ports::RepoError;
+use crate::infrastructure::ports::{QueueError, RepoError};
 use crate::repositories::{AssetsRepository, CharacterRepository, ClockService, QueueService};
 
 /// Standard expression order in a 4x4 grid
@@ -187,8 +187,7 @@ impl GenerateExpressionSheet {
                 prompt,
                 count: 1, // Expression sheet is a single image
             })
-            .await
-            .map_err(|e| ExpressionSheetError::QueueFailed(e.to_string()))?;
+            .await?;
 
         Ok(ExpressionSheetResult {
             batch_id,
@@ -244,7 +243,7 @@ pub enum ExpressionSheetError {
     CharacterNotFound,
 
     #[error("Failed to queue generation: {0}")]
-    QueueFailed(String),
+    Queue(#[from] QueueError),
 
     #[error("Failed to slice image: {0}")]
     SliceFailed(String),

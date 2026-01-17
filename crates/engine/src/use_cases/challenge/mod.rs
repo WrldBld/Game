@@ -35,7 +35,7 @@ pub use types::{
     OutcomesSummary, TriggerConditionSummary, TriggerTypeData, TriggerTypeSummary,
 };
 
-use crate::infrastructure::ports::RepoError;
+use crate::infrastructure::ports::{QueueError, RepoError};
 use crate::repositories::{
     ChallengeRepository, ClockService, InventoryRepository, ObservationRepository,
     PlayerCharacterRepository, QueueService, RandomService, SceneRepository,
@@ -300,11 +300,7 @@ impl RollChallenge {
             conversation_id: None, // Challenges don't have conversation context
         };
 
-        let approval_queue_id = self
-            .queue
-            .enqueue_dm_approval(&approval_data)
-            .await
-            .map_err(|e| ChallengeError::QueueError(e.to_string()))?;
+        let approval_queue_id = self.queue.enqueue_dm_approval(&approval_data).await?;
 
         Ok(RollResult {
             roll,
@@ -583,8 +579,7 @@ impl OutcomeDecision {
         let approval_data: crate::queue_types::ApprovalRequestData = self
             .queue
             .get_approval_request(approval_id)
-            .await
-            .map_err(|e| OutcomeDecisionError::QueueError(e.to_string()))?
+            .await?
             .ok_or(OutcomeDecisionError::ApprovalNotFound)?;
 
         let outcome_data = approval_data
@@ -695,10 +690,7 @@ impl OutcomeDecision {
                     conversation_id: None,
                 };
 
-                self.queue
-                    .enqueue_llm_request(&llm_request)
-                    .await
-                    .map_err(|e| OutcomeDecisionError::QueueError(e.to_string()))?;
+                self.queue.enqueue_llm_request(&llm_request).await?;
 
                 Ok(OutcomeDecisionResult::Queued)
             }
@@ -738,7 +730,7 @@ pub enum OutcomeDecisionError {
     #[error("Invalid decision")]
     InvalidDecision,
     #[error("Queue error: {0}")]
-    QueueError(String),
+    Queue(#[from] QueueError),
     #[error("Resolve error: {0}")]
     Resolve(#[from] ChallengeError),
 }
@@ -792,7 +784,7 @@ pub enum ChallengeError {
     #[error("Dice parse error: {0}")]
     DiceParse(#[from] DiceParseError),
     #[error("Queue error: {0}")]
-    QueueError(String),
+    Queue(#[from] QueueError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }

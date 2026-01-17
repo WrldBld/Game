@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::infrastructure::ports::RepoError;
+use crate::infrastructure::ports::{QueueError, RepoError};
 use crate::repositories::QueueService;
 use crate::use_cases::approval::{ApprovalError, ApproveSuggestion};
 use crate::use_cases::narrative::{EffectExecutionContext, ExecuteEffects};
@@ -44,8 +44,7 @@ impl NarrativeDecisionFlow {
         let approval_data: crate::queue_types::ApprovalRequestData = self
             .queue
             .get_approval_request(approval_id)
-            .await
-            .map_err(|e| NarrativeDecisionError::QueueError(e.to_string()))?
+            .await?
             .ok_or(NarrativeDecisionError::ApprovalNotFound)?;
 
         let result = self
@@ -138,7 +137,7 @@ pub enum NarrativeDecisionError {
     #[error("Approval request not found")]
     ApprovalNotFound,
     #[error("Queue error: {0}")]
-    QueueError(String),
+    Queue(#[from] QueueError),
     #[error("Approval error: {0}")]
     Approval(#[from] ApprovalError),
     #[error("Repository error: {0}")]

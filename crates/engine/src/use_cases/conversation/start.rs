@@ -10,7 +10,7 @@ use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
 
 use crate::queue_types::PlayerActionData;
 
-use crate::infrastructure::ports::RepoError;
+use crate::infrastructure::ports::{QueueError, RepoError};
 use crate::repositories::{
     CharacterRepository, ClockService, PlayerCharacterRepository, QueueService, SceneRepository,
     StagingRepository, WorldRepository,
@@ -154,11 +154,7 @@ impl StartConversation {
             conversation_id: Some(conversation_id),
         };
 
-        let action_queue_id = self
-            .queue
-            .enqueue_player_action(&action_data)
-            .await
-            .map_err(|e| ConversationError::QueueError(e.to_string()))?;
+        let action_queue_id = self.queue.enqueue_player_action(&action_data).await?;
 
         Ok(ConversationStarted {
             conversation_id,
@@ -188,7 +184,7 @@ pub enum ConversationError {
     #[error("No active conversation found")]
     NoActiveConversation,
     #[error("Queue error: {0}")]
-    QueueError(String),
+    Queue(#[from] QueueError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }

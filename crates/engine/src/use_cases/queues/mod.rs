@@ -613,11 +613,7 @@ impl ProcessLlmRequest {
                 .with_system_prompt(system_prompt.to_string())
                 .with_temperature(0.8);
 
-                let llm_response = self
-                    .llm
-                    .generate(llm_request)
-                    .await
-                    .map_err(|e| QueueError::LlmError(e.to_string()))?;
+                let llm_response = self.llm.generate(llm_request).await?;
 
                 // Parse suggestions from response (one per line)
                 let suggestions: Vec<String> = llm_response
@@ -690,11 +686,7 @@ impl ProcessLlmRequest {
                 )
                 .with_temperature(0.8);
 
-                let llm_response = self
-                    .llm
-                    .generate(llm_request)
-                    .await
-                    .map_err(|e| QueueError::LlmError(e.to_string()))?;
+                let llm_response = self.llm.generate(llm_request).await?;
 
                 let suggestions: Vec<String> = llm_response
                     .content
@@ -818,11 +810,7 @@ impl ProcessLlmRequest {
                 // Build tool definitions for function calling
                 let tools = tool_builder::build_game_tool_definitions();
 
-                let llm_response = self
-                    .llm
-                    .generate_with_tools(llm_request, tools)
-                    .await
-                    .map_err(|e| QueueError::LlmError(e.to_string()))?;
+                let llm_response = self.llm.generate(llm_request).await?;
 
                 // Extract proposed tools from LLM response
                 let proposed_tools =
@@ -984,7 +972,7 @@ pub enum QueueError {
     #[error("Invalid queue item type")]
     InvalidItemType,
     #[error("LLM error: {0}")]
-    LlmError(String),
+    Llm(#[from] crate::infrastructure::ports::LlmError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
     #[error("Parse error: {0}")]
