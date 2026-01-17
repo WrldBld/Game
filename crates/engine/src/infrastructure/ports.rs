@@ -128,8 +128,8 @@ pub enum QueueError {
 /// Errors from session/connection operations.
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum SessionError {
-    #[error("Connection not found")]
-    NotFound,
+    #[error("Connection not found: {0}")]
+    NotFound(String),
     #[error("DM already connected to this world")]
     DmAlreadyConnected,
     #[error("Not authorized")]
@@ -1383,6 +1383,27 @@ pub trait FlagRepo: Send + Sync {
         pc_id: PlayerCharacterId,
         flag_name: &str,
     ) -> Result<bool, RepoError>;
+
+    /// Get all flags relevant to a PC (combines world and PC-scoped flags).
+    ///
+    /// Uses HashSet internally to deduplicate flags that may exist at both scopes.
+    /// Default implementation calls get_world_flags and get_pc_flags.
+    async fn get_all_flags_for_pc(
+        &self,
+        world_id: WorldId,
+        pc_id: PlayerCharacterId,
+    ) -> Result<Vec<String>, RepoError> {
+        use std::collections::HashSet;
+        let world_flags = self.get_world_flags(world_id).await?;
+        let pc_flags = self.get_pc_flags(pc_id).await?;
+
+        let mut unique_flags: HashSet<String> =
+            HashSet::with_capacity(world_flags.len() + pc_flags.len());
+        unique_flags.extend(world_flags);
+        unique_flags.extend(pc_flags);
+
+        Ok(unique_flags.into_iter().collect())
+    }
 }
 
 // =============================================================================

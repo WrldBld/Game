@@ -440,7 +440,7 @@ pub(super) async fn handle_respond_to_time_suggestion(
             None
         }
         Ok(None) => None,
-        Err(crate::use_cases::time::TimeSuggestionError::NotFound) => Some(error_response(
+        Err(crate::use_cases::time::TimeSuggestionError::NotFound(_)) => Some(error_response(
             ErrorCode::NotFound,
             "Time suggestion not found",
         )),

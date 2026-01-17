@@ -189,7 +189,7 @@ impl ConnectionManager {
             );
             Ok(())
         } else {
-            Err(ConnectionError::NotFound)
+            Err(ConnectionError::NotFound(connection_id.to_string()))
         }
     }
 
@@ -424,8 +424,8 @@ impl Default for ConnectionManager {
 /// Errors that can occur during connection operations.
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum ConnectionError {
-    #[error("Connection not found")]
-    NotFound,
+    #[error("Connection not found: {0}")]
+    NotFound(String),
     #[error("DM already connected to this world")]
     DmAlreadyConnected,
     #[error("World not found")]
@@ -464,10 +464,10 @@ impl From<&ConnectionInfo> for PortConnectionInfo {
 impl From<ConnectionError> for SessionError {
     fn from(err: ConnectionError) -> Self {
         match err {
-            ConnectionError::NotFound => SessionError::NotFound,
+            ConnectionError::NotFound(id) => SessionError::NotFound(id),
             ConnectionError::DmAlreadyConnected => SessionError::DmAlreadyConnected,
             ConnectionError::Unauthorized => SessionError::Unauthorized,
-            ConnectionError::WorldNotFound => SessionError::NotFound,
+            ConnectionError::WorldNotFound => SessionError::NotFound("world".to_string()),
         }
     }
 }

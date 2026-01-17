@@ -18,7 +18,6 @@ use wrldbldr_domain::{
 };
 
 use crate::infrastructure::ports::{ClockPort, QueueError, RepoError, WorldRepo};
-use crate::repositories::WorldError;
 use crate::stores::TimeSuggestionStore;
 
 /// Container for time use cases.
@@ -183,8 +182,6 @@ pub enum SuggestTimeError {
     WorldNotFound,
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
-    #[error("World error: {0}")]
-    World(#[from] WorldError),
 }
 
 // =============================================================================
@@ -389,8 +386,6 @@ pub enum TimeControlError {
     WorldNotFound,
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
-    #[error("World error: {0}")]
-    World(#[from] WorldError),
 }
 
 // =============================================================================
@@ -416,7 +411,7 @@ impl TimeSuggestions {
     ) -> Result<Option<TimeSuggestionResolution>, TimeSuggestionError> {
         let suggestion = match store.remove(suggestion_id).await {
             Some(s) => s,
-            None => return Err(TimeSuggestionError::NotFound),
+            None => return Err(TimeSuggestionError::NotFound(suggestion_id.to_string())),
         };
 
         if suggestion.world_id != world_id {
@@ -483,16 +478,14 @@ pub struct TimeAdvanceResultData {
 
 #[derive(Debug, thiserror::Error)]
 pub enum TimeSuggestionError {
-    #[error("Time suggestion not found")]
-    NotFound,
+    #[error("Time suggestion not found: {0}")]
+    NotFound(String),
     #[error("Time suggestion world mismatch")]
     WorldMismatch,
     #[error("Time control error: {0}")]
     Control(#[from] TimeControlError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
-    #[error("World error: {0}")]
-    World(#[from] WorldError),
     #[error("Queue error: {0}")]
     Queue(#[from] QueueError),
 }

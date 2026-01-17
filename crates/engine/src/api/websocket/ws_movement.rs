@@ -698,7 +698,7 @@ async fn resolve_interaction_target(
             let name = state
                 .app
                 .repositories
-                .inventory
+                .item
                 .get(*id)
                 .await
                 .ok()

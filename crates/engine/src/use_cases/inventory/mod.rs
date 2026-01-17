@@ -19,10 +19,12 @@ mod unequip_item;
 pub use create_and_place_item::CreateAndPlaceItem;
 pub use drop_item::DropItem;
 pub use equip_item::EquipItem;
+#[allow(unused_imports)] // Public API for error handling
 pub use error::InventoryError;
 pub use give_item::GiveItem;
 pub use pickup_item::PickupItem;
 pub use place_item::PlaceItemInRegion;
+#[allow(unused_imports)] // Public API for return types
 pub use types::InventoryActionResult;
 pub use unequip_item::UnequipItem;
 

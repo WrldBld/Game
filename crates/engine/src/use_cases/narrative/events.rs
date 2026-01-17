@@ -134,7 +134,7 @@ impl NarrativeEventOps {
             .narrative
             .get_event(event_id)
             .await?
-            .ok_or(NarrativeEventError::NotFound)?;
+            .ok_or(NarrativeEventError::NotFound(event_id))?;
 
         if let Some(name) = name {
             let name = NarrativeEventName::new(name)
@@ -169,7 +169,7 @@ impl NarrativeEventOps {
             .narrative
             .get_event(event_id)
             .await?
-            .ok_or(NarrativeEventError::NotFound)?;
+            .ok_or(NarrativeEventError::NotFound(event_id))?;
         event.set_active(active, self.clock.now());
         self.narrative.save_event(&event).await?;
         Ok(())
@@ -184,7 +184,7 @@ impl NarrativeEventOps {
             .narrative
             .get_event(event_id)
             .await?
-            .ok_or(NarrativeEventError::NotFound)?;
+            .ok_or(NarrativeEventError::NotFound(event_id))?;
         event.set_favorite(favorite, self.clock.now());
         self.narrative.save_event(&event).await?;
         Ok(())
@@ -200,7 +200,7 @@ impl NarrativeEventOps {
             .narrative
             .get_event(event_id)
             .await?
-            .ok_or(NarrativeEventError::NotFound)?;
+            .ok_or(NarrativeEventError::NotFound(event_id))?;
 
         if event.world_id() != world_id {
             return Err(NarrativeEventError::WorldMismatch);
@@ -263,7 +263,7 @@ impl NarrativeEventOps {
             .narrative
             .get_event(event_id)
             .await?
-            .ok_or(NarrativeEventError::NotFound)?;
+            .ok_or(NarrativeEventError::NotFound(event_id))?;
         let now = self.clock.now();
         event.reset(now);
         self.narrative.save_event(&event).await?;
@@ -285,8 +285,8 @@ pub struct TriggeredNarrativeEvent {
 
 #[derive(Debug, thiserror::Error)]
 pub enum NarrativeEventError {
-    #[error("Narrative event not found")]
-    NotFound,
+    #[error("Narrative event not found: {0}")]
+    NotFound(NarrativeEventId),
     #[error("Event does not belong to the requested world")]
     WorldMismatch,
     #[error("Invalid input: {0}")]

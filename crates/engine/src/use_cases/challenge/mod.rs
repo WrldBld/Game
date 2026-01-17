@@ -35,10 +35,9 @@ pub use crud::{
 };
 
 use crate::infrastructure::ports::{
-    ChallengeRepo, ClockPort, ObservationRepo, PlayerCharacterRepo, QueueError, QueuePort,
-    RandomPort, RepoError, SceneRepo,
+    ChallengeRepo, ClockPort, ItemRepo, ObservationRepo, PlayerCharacterRepo, QueueError,
+    QueuePort, RandomPort, RepoError, SceneRepo,
 };
-use crate::repositories::InventoryRepository;
 
 /// Container for challenge use cases.
 pub struct ChallengeUseCases {
@@ -345,26 +344,26 @@ impl RollChallenge {
 /// Called after DM approves the outcome to execute triggers.
 pub struct ResolveOutcome {
     challenge: Arc<dyn ChallengeRepo>,
-    inventory: Arc<InventoryRepository>,
+    item: Arc<dyn ItemRepo>,
+    pc: Arc<dyn PlayerCharacterRepo>,
     observation: Arc<dyn ObservationRepo>,
     scene: Arc<dyn SceneRepo>,
-    player_character: Arc<dyn PlayerCharacterRepo>,
 }
 
 impl ResolveOutcome {
     pub fn new(
         challenge: Arc<dyn ChallengeRepo>,
-        inventory: Arc<InventoryRepository>,
+        item: Arc<dyn ItemRepo>,
+        pc: Arc<dyn PlayerCharacterRepo>,
         observation: Arc<dyn ObservationRepo>,
         scene: Arc<dyn SceneRepo>,
-        player_character: Arc<dyn PlayerCharacterRepo>,
     ) -> Self {
         Self {
             challenge,
-            inventory,
+            item,
+            pc,
             observation,
             scene,
-            player_character,
         }
     }
 
@@ -476,11 +475,10 @@ impl ResolveOutcome {
                 );
 
                 // Create a new item and add it to the PC's inventory
-                // TODO: Replace with GiveItem use case
-                #[allow(deprecated)]
-                if let Err(e) = self
-                    .inventory
-                    .give_item_to_pc(target_pc_id, item_name.clone(), item_description.clone())
+                let give_item =
+                    crate::use_cases::inventory::GiveItem::new(self.item.clone(), self.pc.clone());
+                if let Err(e) = give_item
+                    .execute(target_pc_id, item_name.clone(), item_description.clone())
                     .await
                 {
                     tracing::warn!(error = %e, "Failed to give item to player");
@@ -535,11 +533,7 @@ impl ResolveOutcome {
                     "Modifying character stat"
                 );
 
-                if let Err(e) = self
-                    .player_character
-                    .modify_stat(target_pc_id, stat, *modifier)
-                    .await
-                {
+                if let Err(e) = self.pc.modify_stat(target_pc_id, stat, *modifier).await {
                     tracing::warn!(error = %e, "Failed to modify character stat");
                 }
                 Ok(())

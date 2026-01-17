@@ -697,7 +697,7 @@ async fn test_expired_time_decision_returns_error() {
 
     // Should return NotFound error
     assert!(
-        matches!(result, Err(TimeSuggestionError::NotFound)),
+        matches!(result, Err(TimeSuggestionError::NotFound(_))),
         "Should return NotFound error for non-existent suggestion, got: {:?}",
         result
     );

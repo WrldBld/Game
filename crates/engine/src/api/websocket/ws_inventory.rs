@@ -48,41 +48,26 @@ pub(super) async fn handle_inventory_action(
         ));
     }
 
-    // Execute the inventory action via the entity
-    // TODO: Replace with inventory use cases (EquipItem, UnequipItem, DropItem, PickupItem)
-    #[allow(deprecated)]
+    // Execute the inventory action via use cases (ADR-009)
+    let item_repo = state.app.repositories.item.clone();
+    let pc_repo = state.app.repositories.player_character.clone();
+
     let result = match action {
         InventoryAction::Equip => {
-            state
-                .app
-                .repositories
-                .inventory
-                .equip_item(pc_uuid, item_uuid)
-                .await
+            let equip = crate::use_cases::inventory::EquipItem::new(item_repo, pc_repo);
+            equip.execute(pc_uuid, item_uuid).await
         }
         InventoryAction::Unequip => {
-            state
-                .app
-                .repositories
-                .inventory
-                .unequip_item(pc_uuid, item_uuid)
-                .await
+            let unequip = crate::use_cases::inventory::UnequipItem::new(item_repo, pc_repo);
+            unequip.execute(pc_uuid, item_uuid).await
         }
         InventoryAction::Drop => {
-            state
-                .app
-                .repositories
-                .inventory
-                .drop_item(pc_uuid, item_uuid, quantity)
-                .await
+            let drop_item = crate::use_cases::inventory::DropItem::new(item_repo, pc_repo);
+            drop_item.execute(pc_uuid, item_uuid, quantity).await
         }
         InventoryAction::Pickup => {
-            state
-                .app
-                .repositories
-                .inventory
-                .pickup_item(pc_uuid, item_uuid)
-                .await
+            let pickup = crate::use_cases::inventory::PickupItem::new(item_repo, pc_repo);
+            pickup.execute(pc_uuid, item_uuid).await
         }
     };
 

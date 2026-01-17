@@ -15,9 +15,9 @@ use wrldbldr_domain::{
 use wrldbldr_shared::character_sheet::SheetValue;
 
 use crate::infrastructure::ports::{
-    ChallengeRepo, CharacterRepo, ClockPort, ObservationRepo, PlayerCharacterRepo, SceneRepo,
+    ChallengeRepo, CharacterRepo, ClockPort, FlagRepo, ItemRepo, ObservationRepo,
+    PlayerCharacterRepo, SceneRepo, WorldRepo,
 };
-use crate::repositories::{FlagRepository, InventoryRepository, WorldRepository};
 use crate::use_cases::narrative_operations::NarrativeOps;
 
 /// Result of executing a single effect.
@@ -63,48 +63,48 @@ pub struct EffectExecutionContext {
 
 /// Executes event effects when narrative events trigger.
 ///
-/// Orchestrates multiple entity modules to apply effects like:
-/// - GiveItem / TakeItem via Inventory
-/// - EnableChallenge / DisableChallenge via Challenge
-/// - EnableEvent / DisableEvent via Narrative
-/// - ModifyRelationship via Character
-/// - RevealInformation via Observation
-/// - ModifyStat via PlayerCharacter
-/// - TriggerScene via Scene
-/// - SetFlag via Flag
+/// Orchestrates multiple port traits to apply effects like:
+/// - GiveItem / TakeItem via ItemRepo + PlayerCharacterRepo
+/// - EnableChallenge / DisableChallenge via ChallengeRepo
+/// - EnableEvent / DisableEvent via NarrativeOps
+/// - ModifyRelationship via CharacterRepo
+/// - RevealInformation via ObservationRepo
+/// - ModifyStat via PlayerCharacterRepo
+/// - TriggerScene via SceneRepo
+/// - SetFlag via FlagRepo
 pub struct ExecuteEffects {
-    inventory: Arc<InventoryRepository>,
+    item: Arc<dyn ItemRepo>,
+    pc: Arc<dyn PlayerCharacterRepo>,
     challenge: Arc<dyn ChallengeRepo>,
     narrative: Arc<NarrativeOps>,
     character: Arc<dyn CharacterRepo>,
     observation: Arc<dyn ObservationRepo>,
-    player_character: Arc<dyn PlayerCharacterRepo>,
     scene: Arc<dyn SceneRepo>,
-    flag: Arc<FlagRepository>,
-    world: Arc<WorldRepository>,
+    flag: Arc<dyn FlagRepo>,
+    world: Arc<dyn WorldRepo>,
     clock: Arc<dyn ClockPort>,
 }
 
 impl ExecuteEffects {
     pub fn new(
-        inventory: Arc<InventoryRepository>,
+        item: Arc<dyn ItemRepo>,
+        pc: Arc<dyn PlayerCharacterRepo>,
         challenge: Arc<dyn ChallengeRepo>,
         narrative: Arc<NarrativeOps>,
         character: Arc<dyn CharacterRepo>,
         observation: Arc<dyn ObservationRepo>,
-        player_character: Arc<dyn PlayerCharacterRepo>,
         scene: Arc<dyn SceneRepo>,
-        flag: Arc<FlagRepository>,
-        world: Arc<WorldRepository>,
+        flag: Arc<dyn FlagRepo>,
+        world: Arc<dyn WorldRepo>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
-            inventory,
+            item,
+            pc,
             challenge,
             narrative,
             character,
             observation,
-            player_character,
             scene,
             flag,
             world,
@@ -444,11 +444,10 @@ impl ExecuteEffects {
         item_description: Option<String>,
         quantity: u32,
     ) -> EffectExecutionResult {
-        // TODO: Replace with GiveItem use case
-        #[allow(deprecated)]
-        match self
-            .inventory
-            .give_item_to_pc(pc_id, item_name.clone(), item_description)
+        let give_item =
+            crate::use_cases::inventory::GiveItem::new(self.item.clone(), self.pc.clone());
+        match give_item
+            .execute(pc_id, item_name.clone(), item_description)
             .await
         {
             Ok(result) => EffectExecutionResult {
@@ -473,14 +472,16 @@ impl ExecuteEffects {
         quantity: u32,
     ) -> EffectExecutionResult {
         // Find the item in PC's inventory by name
-        match self.inventory.get_pc_inventory(pc_id).await {
+        match self.pc.get_inventory(pc_id).await {
             Ok(inventory) => {
                 if let Some(item) = inventory.iter().find(|i| i.name().as_str() == item_name) {
                     let item_id = item.id();
-                    // For now, just drop it (removes from inventory)
-                    // TODO: Replace with DropItem use case
-                    #[allow(deprecated)]
-                    match self.inventory.drop_item(pc_id, item_id, quantity).await {
+                    // Drop the item (removes from inventory)
+                    let drop_item = crate::use_cases::inventory::DropItem::new(
+                        self.item.clone(),
+                        self.pc.clone(),
+                    );
+                    match drop_item.execute(pc_id, item_id, quantity).await {
                         Ok(_) => EffectExecutionResult {
                             description: format!("Took {} x{} from player", item_name, quantity),
                             success: true,
@@ -758,11 +759,7 @@ impl ExecuteEffects {
         modifier: i32,
     ) -> EffectExecutionResult {
         // Use the PC from context for stat modification
-        match self
-            .player_character
-            .modify_stat(pc_id, stat_name, modifier)
-            .await
-        {
+        match self.pc.modify_stat(pc_id, stat_name, modifier).await {
             Ok(()) => EffectExecutionResult {
                 description: format!(
                     "Modified stat {} by {:+} for {}",
@@ -858,7 +855,7 @@ impl ExecuteEffects {
         description: &str,
     ) -> EffectExecutionResult {
         // Get the PC
-        let pc = match self.player_character.get(pc_id).await {
+        let pc = match self.pc.get(pc_id).await {
             Ok(Some(pc)) => pc,
             Ok(None) => {
                 return EffectExecutionResult {
@@ -898,7 +895,7 @@ impl ExecuteEffects {
         updated_pc.set_sheet_data(Some(sheet_data));
 
         // Save the updated PC
-        match self.player_character.save(&updated_pc).await {
+        match self.pc.save(&updated_pc).await {
             Ok(()) => {
                 tracing::info!(
                     pc_id = %pc_id,

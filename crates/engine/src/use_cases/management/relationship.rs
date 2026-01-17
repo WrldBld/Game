@@ -40,9 +40,7 @@ impl RelationshipCrud {
         relationship_type: String,
         description: Option<String>,
     ) -> Result<wrldbldr_domain::Relationship, ManagementError> {
-        let rel_type = relationship_type
-            .parse::<wrldbldr_domain::RelationshipType>()
-            .map_err(|e| ManagementError::Domain(e.to_string()))?;
+        let rel_type = relationship_type.parse::<wrldbldr_domain::RelationshipType>()?;
 
         let mut relationship = wrldbldr_domain::Relationship::new(from_id, to_id, rel_type);
 

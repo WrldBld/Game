@@ -9,9 +9,10 @@ use crate::infrastructure::{
     clock::{SystemClock, SystemRandom},
     neo4j::Neo4jRepositories,
     ports::{
-        ActRepo, ChallengeRepo, CharacterRepo, ClockPort, ContentRepo, GoalRepo, ImageGenPort,
-        InteractionRepo, ItemRepo, LlmPort, LocationRepo, LocationStateRepo, ObservationRepo,
-        PlayerCharacterRepo, QueuePort, RandomPort, RegionStateRepo, SceneRepo, SettingsRepo,
+        ActRepo, ChallengeRepo, CharacterRepo, ClockPort, ContentRepo, FlagRepo, GoalRepo,
+        ImageGenPort, InteractionRepo, ItemRepo, LlmPort, LocationRepo, LocationStateRepo,
+        LoreRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, QueuePort, RandomPort,
+        RegionStateRepo, SceneRepo, SettingsRepo, StagingRepo, WorldRepo,
     },
 };
 use crate::repositories;
@@ -32,8 +33,8 @@ pub struct App {
 
 /// Container for all repository modules.
 ///
-/// Per ADR-009, most fields are now `Arc<dyn PortTrait>` - port traits injected directly.
-/// Only a few wrapper types remain where they add real business logic beyond delegation.
+/// Per ADR-009, all fields are now `Arc<dyn PortTrait>` - port traits injected directly.
+/// Only AssetsRepository remains as a wrapper because it coordinates 2 ports with real logic.
 pub struct Repositories {
     // Port traits injected directly (ADR-009)
     pub character: Arc<dyn CharacterRepo>,
@@ -49,15 +50,15 @@ pub struct Repositories {
     pub goal: Arc<dyn GoalRepo>,
     pub location_state: Arc<dyn LocationStateRepo>,
     pub region_state: Arc<dyn RegionStateRepo>,
+    pub staging: Arc<dyn StagingRepo>,
+    pub world: Arc<dyn WorldRepo>,
+    pub flag: Arc<dyn FlagRepo>,
+    pub lore: Arc<dyn LoreRepo>,
+    pub narrative_repo: Arc<dyn NarrativeRepo>,
 
     // Wrapper types that add business logic beyond delegation
     pub narrative: Arc<use_cases::Narrative>,
-    pub staging: Arc<repositories::StagingRepository>,
-    pub inventory: Arc<repositories::InventoryRepository>,
     pub assets: Arc<repositories::AssetsRepository>,
-    pub world: Arc<repositories::WorldRepository>,
-    pub flag: Arc<repositories::FlagRepository>,
-    pub lore: Arc<repositories::LoreRepository>,
 }
 
 /// Container for all use cases.
@@ -118,13 +119,19 @@ impl App {
         let location_state_repo: Arc<dyn LocationStateRepo> = repos.location_state.clone();
         let region_state_repo: Arc<dyn RegionStateRepo> = repos.region_state.clone();
 
+        // Port traits for remaining repositories (now injected directly per ADR-009)
+        let staging_repo: Arc<dyn StagingRepo> = repos.staging.clone();
+        let world_repo: Arc<dyn WorldRepo> = repos.world.clone();
+        let flag_repo: Arc<dyn FlagRepo> = repos.flag.clone();
+        let lore_repo: Arc<dyn LoreRepo> = repos.lore.clone();
+        let narrative_repo: Arc<dyn NarrativeRepo> = repos.narrative.clone();
+
         // Wrapper types that add business logic beyond delegation
         let record_visit = Arc::new(use_cases::observation::RecordVisit::new(
             repos.observation.clone(),
             repos.location.clone(),
             clock_port.clone(),
         ));
-        let flag = Arc::new(repositories::FlagRepository::new(repos.flag.clone()));
         let narrative = Arc::new(use_cases::Narrative::new(
             repos.narrative.clone(),
             repos.location.clone(),
@@ -137,23 +144,9 @@ impl App {
             repos.scene.clone(),
             clock_port.clone(),
         ));
-        let staging = Arc::new(repositories::StagingRepository::new(repos.staging.clone()));
-        let inventory = Arc::new(repositories::InventoryRepository::new(
-            repos.item.clone(),
-            repos.character.clone(),
-            repos.player_character.clone(),
-        ));
         let assets = Arc::new(repositories::AssetsRepository::new(
             repos.asset.clone(),
             image_gen,
-        ));
-        let world = Arc::new(repositories::WorldRepository::new(
-            repos.world.clone(),
-            clock_port.clone(),
-        ));
-        let lore = Arc::new(repositories::LoreRepository::new(
-            repos.lore.clone(),
-            clock_port.clone(),
         ));
 
         let repositories_container = Repositories {
@@ -171,14 +164,14 @@ impl App {
             goal: goal_repo.clone(),
             location_state: location_state_repo.clone(),
             region_state: region_state_repo.clone(),
+            staging: staging_repo.clone(),
+            world: world_repo.clone(),
+            flag: flag_repo.clone(),
+            lore: lore_repo.clone(),
+            narrative_repo: narrative_repo.clone(),
             // Wrapper types
             narrative: narrative.clone(),
-            staging: staging.clone(),
-            inventory: inventory.clone(),
             assets: assets.clone(),
-            world: world.clone(),
-            flag: flag.clone(),
-            lore: lore.clone(),
         };
 
         // Create time use case first (needed by movement)
@@ -202,7 +195,6 @@ impl App {
                 narrative.clone(),
                 resolve_scene.clone(),
                 repos.scene.clone(),
-                inventory.clone(),
                 repos.flag.clone(),
                 repos.world.clone(),
                 suggest_time.clone(),
@@ -216,7 +208,6 @@ impl App {
                 narrative.clone(),
                 resolve_scene.clone(),
                 repos.scene.clone(),
-                inventory.clone(),
                 repos.flag.clone(),
                 repos.world.clone(),
                 suggest_time.clone(),
@@ -224,7 +215,7 @@ impl App {
         );
 
         let scene_change =
-            use_cases::SceneChangeBuilder::new(repos.location.clone(), inventory.clone());
+            use_cases::SceneChangeBuilder::new(repos.location.clone(), repos.item.clone());
 
         let conversation_start = Arc::new(use_cases::conversation::StartConversation::new(
             repos.character.clone(),
@@ -277,10 +268,10 @@ impl App {
 
         let resolve_outcome = Arc::new(use_cases::challenge::ResolveOutcome::new(
             repos.challenge.clone(),
-            inventory.clone(),
+            repos.item.clone(),
+            repos.player_character.clone(),
             repos.observation.clone(),
             repos.scene.clone(),
-            repos.player_character.clone(),
         ));
         let outcome_decision = Arc::new(use_cases::challenge::OutcomeDecision::new(
             queue_port.clone(),
@@ -355,9 +346,9 @@ impl App {
                 queue_port.clone(),
                 repos.character.clone(),
                 repos.player_character.clone(),
-                staging.clone(),
+                repos.staging.clone(),
                 repos.scene.clone(),
-                world.clone(),
+                repos.world.clone(),
                 narrative.clone(),
                 repos.location.clone(),
                 repos.challenge.clone(),
@@ -369,15 +360,15 @@ impl App {
         );
 
         let execute_effects = Arc::new(use_cases::narrative::ExecuteEffects::new(
-            inventory.clone(),
+            repos.item.clone(),
+            repos.player_character.clone(),
             repos.challenge.clone(),
             narrative.clone(),
             repos.character.clone(),
             repos.observation.clone(),
-            repos.player_character.clone(),
             repos.scene.clone(),
-            flag.clone(),
-            world.clone(),
+            repos.flag.clone(),
+            repos.world.clone(),
             clock_port.clone(),
         ));
         let narrative_events = Arc::new(use_cases::narrative::NarrativeEventOps::new(

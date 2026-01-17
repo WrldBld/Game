@@ -168,7 +168,7 @@ pub(super) async fn handle_goal_request(
                         description: details.goal.description().map(|s| s.to_string()),
                     }))
                 }
-                Err(crate::use_cases::actantial::ActantialError::NotFound) => {
+                Err(crate::use_cases::actantial::ActantialError::NotFound { .. }) => {
                     Ok(ResponseResult::error(ErrorCode::NotFound, "Goal not found"))
                 }
                 Err(crate::use_cases::actantial::ActantialError::InvalidInput(msg)) => {
@@ -206,7 +206,7 @@ pub(super) async fn handle_goal_request(
                     }
                     Ok(ResponseResult::success_empty())
                 }
-                Err(crate::use_cases::actantial::ActantialError::NotFound) => {
+                Err(crate::use_cases::actantial::ActantialError::NotFound { .. }) => {
                     Ok(ResponseResult::error(ErrorCode::NotFound, "Goal not found"))
                 }
                 Err(e) => Ok(ResponseResult::error(
@@ -352,7 +352,7 @@ pub(super) async fn handle_want_request(
                         .await
                     {
                         Ok(target) => details.target = Some(target),
-                        Err(crate::use_cases::actantial::ActantialError::NotFound) => {
+                        Err(crate::use_cases::actantial::ActantialError::NotFound { .. }) => {
                             return Ok(ResponseResult::error(
                                 ErrorCode::NotFound,
                                 "Target not found",
@@ -410,7 +410,7 @@ pub(super) async fn handle_want_request(
                 .await
             {
                 Ok(details) => details,
-                Err(crate::use_cases::actantial::ActantialError::NotFound) => {
+                Err(crate::use_cases::actantial::ActantialError::NotFound { .. }) => {
                     return Ok(ResponseResult::error(ErrorCode::NotFound, "Want not found"));
                 }
                 Err(crate::use_cases::actantial::ActantialError::InvalidInput(msg)) => {
@@ -519,7 +519,7 @@ pub(super) async fn handle_want_request(
                     }
                     Ok(ResponseResult::success_empty())
                 }
-                Err(crate::use_cases::actantial::ActantialError::NotFound) => Ok(
+                Err(crate::use_cases::actantial::ActantialError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Target not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
@@ -647,7 +647,7 @@ pub(super) async fn handle_actantial_request(
                     }
                     Ok(ResponseResult::success_empty())
                 }
-                Err(crate::use_cases::actantial::ActantialError::NotFound) => Ok(
+                Err(crate::use_cases::actantial::ActantialError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Target not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(

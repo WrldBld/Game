@@ -9,6 +9,9 @@ mod challenge_llm_tests;
 #[cfg(test)]
 mod llm_tool_tests;
 
+#[cfg(test)]
+mod trigger_integration_tests;
+
 pub mod chains;
 pub mod decision;
 pub mod events;

@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use wrldbldr_domain::{LocationId, Region, RegionId, StagedNpc};
 
-use crate::infrastructure::ports::{LocationRepo, RepoError};
-use crate::repositories::InventoryRepository;
+use crate::infrastructure::ports::{ItemRepo, LocationRepo, RepoError};
 
 use super::GetRegionExits;
 
@@ -85,16 +84,16 @@ pub enum SceneChangeError {
 pub struct SceneChangeBuilder {
     location: Arc<dyn LocationRepo>,
     get_exits: GetRegionExits,
-    inventory: Arc<InventoryRepository>,
+    item: Arc<dyn ItemRepo>,
 }
 
 impl SceneChangeBuilder {
-    pub fn new(location: Arc<dyn LocationRepo>, inventory: Arc<InventoryRepository>) -> Self {
+    pub fn new(location: Arc<dyn LocationRepo>, item: Arc<dyn ItemRepo>) -> Self {
         let get_exits = GetRegionExits::new(location.clone());
         Self {
             location,
             get_exits,
-            inventory,
+            item,
         }
     }
 
@@ -193,7 +192,7 @@ impl SceneChangeBuilder {
 
     async fn build_region_items(&self, region_id: RegionId) -> Vec<RegionItemInfo> {
         // Region items are optional/non-critical, keep graceful degradation here
-        match self.inventory.list_in_region(region_id).await {
+        match self.item.list_in_region(region_id).await {
             Ok(items) => items
                 .into_iter()
                 .map(|item| RegionItemInfo {

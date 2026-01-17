@@ -13,7 +13,6 @@ use crate::infrastructure::ports::{
     FlagRepo, LocationRepo, ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo,
     StagingRepo, WorldRepo,
 };
-use crate::repositories::InventoryRepository;
 use crate::use_cases::narrative_operations::Narrative;
 use crate::use_cases::observation::RecordVisit;
 use crate::use_cases::scene::ResolveScene;
@@ -64,7 +63,6 @@ pub struct EnterRegion {
     narrative: Arc<Narrative>,
     resolve_scene: Arc<ResolveScene>,
     scene: Arc<dyn SceneRepo>,
-    inventory: Arc<InventoryRepository>,
     flag: Arc<dyn FlagRepo>,
     world: Arc<dyn WorldRepo>,
     suggest_time: Arc<SuggestTime>,
@@ -80,7 +78,6 @@ impl EnterRegion {
         narrative: Arc<Narrative>,
         resolve_scene: Arc<ResolveScene>,
         scene: Arc<dyn SceneRepo>,
-        inventory: Arc<InventoryRepository>,
         flag: Arc<dyn FlagRepo>,
         world: Arc<dyn WorldRepo>,
         suggest_time: Arc<SuggestTime>,
@@ -94,7 +91,6 @@ impl EnterRegion {
             narrative,
             resolve_scene,
             scene,
-            inventory,
             flag,
             world,
             suggest_time,
@@ -183,7 +179,7 @@ impl EnterRegion {
         let resolved_scene = resolve_scene_for_region(
             &self.resolve_scene,
             self.scene.as_ref(),
-            &self.inventory,
+            self.player_character.as_ref(),
             self.observation.as_ref(),
             self.flag.as_ref(),
             pc_id,
@@ -309,7 +305,7 @@ mod tests {
         MockSceneRepo, MockStagingRepo, MockWorldRepo,
     };
     use crate::repositories;
-    use crate::repositories::InventoryRepository;
+
     use crate::use_cases::scene::ResolveScene;
     use crate::use_cases::Narrative;
 

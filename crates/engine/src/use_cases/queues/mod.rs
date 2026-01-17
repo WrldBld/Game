@@ -28,7 +28,7 @@ use crate::queue_types::{LlmRequestData, LlmRequestType, PlayerActionData};
 
 use crate::infrastructure::ports::{
     ChallengeRepo, CharacterRepo, LlmPort, LocationRepo, PlayerCharacterRepo, QueuePort, RepoError,
-    SceneRepo,
+    SceneRepo, StagingRepo, WorldRepo,
 };
 
 /// Events that need to be broadcast to clients after queue processing.
@@ -93,9 +93,9 @@ pub struct ProcessPlayerAction {
     queue: Arc<dyn QueuePort>,
     character: Arc<dyn CharacterRepo>,
     player_character: Arc<dyn PlayerCharacterRepo>,
-    staging: Arc<crate::repositories::StagingRepository>,
+    staging: Arc<dyn StagingRepo>,
     scene: Arc<dyn SceneRepo>,
-    world: Arc<crate::repositories::WorldRepository>,
+    world: Arc<dyn WorldRepo>,
     narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
     location: Arc<dyn LocationRepo>,
     challenge: Arc<dyn ChallengeRepo>,
@@ -106,9 +106,9 @@ impl ProcessPlayerAction {
         queue: Arc<dyn QueuePort>,
         character: Arc<dyn CharacterRepo>,
         player_character: Arc<dyn PlayerCharacterRepo>,
-        staging: Arc<crate::repositories::StagingRepository>,
+        staging: Arc<dyn StagingRepo>,
         scene: Arc<dyn SceneRepo>,
-        world: Arc<crate::repositories::WorldRepository>,
+        world: Arc<dyn WorldRepo>,
         narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
         location: Arc<dyn LocationRepo>,
         challenge: Arc<dyn ChallengeRepo>,

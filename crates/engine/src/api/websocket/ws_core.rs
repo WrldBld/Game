@@ -473,8 +473,8 @@ pub(super) async fn handle_character_request(
             let items = match state
                 .app
                 .repositories
-                .inventory
-                .get_pc_inventory(pc_id)
+                .player_character
+                .get_inventory(pc_id)
                 .await
             {
                 Ok(items) => items,
@@ -483,8 +483,8 @@ pub(super) async fn handle_character_request(
                     state
                         .app
                         .repositories
-                        .inventory
-                        .get_character_inventory(npc_id)
+                        .character
+                        .get_inventory(npc_id)
                         .await
                         .map_err(|e| ServerMessage::Response {
                             request_id: request_id.to_string(),
@@ -1463,15 +1463,10 @@ pub(super) async fn handle_items_request(
                 Err(e) => return Err(e),
             };
 
-            // TODO: Replace with PlaceItemInRegion use case
-            #[allow(deprecated)]
-            match state
-                .app
-                .repositories
-                .inventory
-                .place_item_in_region(item_uuid, region_uuid)
-                .await
-            {
+            let place_item = crate::use_cases::inventory::PlaceItemInRegion::new(
+                state.app.repositories.item.clone(),
+            );
+            match place_item.execute(item_uuid, region_uuid).await {
                 Ok(()) => Ok(ResponseResult::success(
                     serde_json::json!({"success": true}),
                 )),
@@ -1519,15 +1514,10 @@ pub(super) async fn handle_items_request(
                 item = item.with_properties(serde_json::to_string(&props).unwrap_or_default());
             }
 
-            // TODO: Replace with CreateAndPlaceItem use case
-            #[allow(deprecated)]
-            match state
-                .app
-                .repositories
-                .inventory
-                .create_and_place_in_region(item, region_uuid)
-                .await
-            {
+            let create_and_place = crate::use_cases::inventory::CreateAndPlaceItem::new(
+                state.app.repositories.item.clone(),
+            );
+            match create_and_place.execute(item, region_uuid).await {
                 Ok(item_id) => Ok(ResponseResult::success(serde_json::json!({
                     "success": true,
                     "item_id": item_id.to_string(),

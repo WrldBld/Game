@@ -75,9 +75,9 @@ pub(super) async fn handle_skill_request(
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
-                Err(crate::use_cases::management::ManagementError::Domain(msg)) => {
-                    Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
-                }
+                Err(crate::use_cases::management::ManagementError::Domain(err)) => Ok(
+                    ResponseResult::error(ErrorCode::BadRequest, err.to_string()),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "creating skill"),
@@ -109,9 +109,9 @@ pub(super) async fn handle_skill_request(
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
-                Err(crate::use_cases::management::ManagementError::Domain(msg)) => {
-                    Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
-                }
+                Err(crate::use_cases::management::ManagementError::Domain(err)) => Ok(
+                    ResponseResult::error(ErrorCode::BadRequest, err.to_string()),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "updating skill"),

@@ -97,7 +97,7 @@ pub(super) async fn handle_narrative_event_request(
                 .await
             {
                 Ok(event) => Ok(ResponseResult::success(json!(event))),
-                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => Ok(
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound(_)) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Event not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
@@ -136,7 +136,7 @@ pub(super) async fn handle_narrative_event_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => Ok(
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound(_)) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Event not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
@@ -157,7 +157,7 @@ pub(super) async fn handle_narrative_event_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => Ok(
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound(_)) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Event not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
@@ -217,7 +217,7 @@ pub(super) async fn handle_narrative_event_request(
                         "outcome": result.outcome_name,
                     })))
                 }
-                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => Ok(
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound(_)) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Event not found"),
                 ),
                 Err(crate::use_cases::narrative::NarrativeEventError::WorldMismatch) => {
@@ -244,7 +244,7 @@ pub(super) async fn handle_narrative_event_request(
                 .await
             {
                 Ok(event) => Ok(ResponseResult::success(json!(event))),
-                Err(crate::use_cases::narrative::NarrativeEventError::NotFound) => Ok(
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound(_)) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Event not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(

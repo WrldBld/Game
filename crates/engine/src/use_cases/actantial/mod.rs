@@ -21,8 +21,11 @@ use crate::use_cases::validation::{require_non_empty, ValidationError};
 /// Shared error type for actantial use cases.
 #[derive(Debug, thiserror::Error)]
 pub enum ActantialError {
-    #[error("Not found")]
-    NotFound,
+    #[error("{entity_type} not found: {id}")]
+    NotFound {
+        entity_type: &'static str,
+        id: String,
+    },
     #[error("Invalid input: {0}")]
     InvalidInput(String),
     #[error("Repository error: {0}")]
@@ -107,7 +110,10 @@ impl GoalOps {
             .goal
             .get(goal_id)
             .await?
-            .ok_or(ActantialError::NotFound)?;
+            .ok_or(ActantialError::NotFound {
+                entity_type: "Goal",
+                id: goal_id.to_string(),
+            })?;
 
         // Rebuild the goal with updated values using from_parts
         let new_name = if let Some(name) = name {
@@ -135,7 +141,10 @@ impl GoalOps {
 
     pub async fn delete(&self, goal_id: GoalId) -> Result<(), ActantialError> {
         if self.goal.get(goal_id).await?.is_none() {
-            return Err(ActantialError::NotFound);
+            return Err(ActantialError::NotFound {
+                entity_type: "Goal",
+                id: goal_id.to_string(),
+            });
         }
         self.goal.delete(goal_id).await?;
         Ok(())
@@ -214,11 +223,14 @@ impl WantOps {
         deflection_behavior: Option<String>,
         tells: Option<Vec<String>>,
     ) -> Result<WantDetails, ActantialError> {
-        let mut details = self
-            .character
-            .get_want(want_id)
-            .await?
-            .ok_or(ActantialError::NotFound)?;
+        let mut details =
+            self.character
+                .get_want(want_id)
+                .await?
+                .ok_or(ActantialError::NotFound {
+                    entity_type: "Want",
+                    id: want_id.to_string(),
+                })?;
 
         // Rebuild the want with updated values
         let new_description = if let Some(description) = description {

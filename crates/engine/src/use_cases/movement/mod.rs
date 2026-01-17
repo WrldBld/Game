@@ -11,8 +11,9 @@ pub use exit_location::{ExitLocation, ExitLocationError};
 pub use get_exits::GetRegionExits;
 pub use scene_change::SceneChangeBuilder;
 
-use crate::infrastructure::ports::{FlagRepo, ObservationRepo, RepoError, SceneRepo, StagingRepo};
-use crate::repositories::InventoryRepository;
+use crate::infrastructure::ports::{
+    FlagRepo, ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo, StagingRepo,
+};
 use crate::use_cases::custom_condition::{CustomConditionEvaluator, EvaluationContext};
 use crate::use_cases::scene::{ResolveScene, SceneResolutionContext};
 use crate::use_cases::time::{SuggestTime, SuggestTimeResult, TimeSuggestion};
@@ -166,7 +167,7 @@ pub async fn suggest_time_for_movement(
 pub async fn resolve_scene_for_region(
     resolve_scene: &ResolveScene,
     scene: &dyn SceneRepo,
-    inventory: &InventoryRepository,
+    pc_repo: &dyn PlayerCharacterRepo,
     observation: &dyn ObservationRepo,
     flag: &dyn FlagRepo,
     pc_id: PlayerCharacterId,
@@ -177,7 +178,7 @@ pub async fn resolve_scene_for_region(
     resolve_scene_for_region_with_evaluator(
         resolve_scene,
         scene,
-        inventory,
+        pc_repo,
         observation,
         flag,
         pc_id,
@@ -199,7 +200,7 @@ pub async fn resolve_scene_for_region(
 /// # Arguments
 /// * `resolve_scene` - Scene resolution use case
 /// * `scene` - Scene repository for completion tracking
-/// * `inventory` - Inventory repository for PC items
+/// * `pc_repo` - Player character repository for PC inventory
 /// * `observation` - Observation repository for known characters
 /// * `flag` - Flag repository for flag state
 /// * `pc_id` - Player character ID
@@ -214,7 +215,7 @@ pub async fn resolve_scene_for_region(
 pub async fn resolve_scene_for_region_with_evaluator(
     resolve_scene: &ResolveScene,
     scene: &dyn SceneRepo,
-    inventory: &InventoryRepository,
+    pc_repo: &dyn PlayerCharacterRepo,
     observation: &dyn ObservationRepo,
     flag: &dyn FlagRepo,
     pc_id: PlayerCharacterId,
@@ -229,7 +230,7 @@ pub async fn resolve_scene_for_region_with_evaluator(
 
     // Build the scene resolution context
     let completed_scenes = scene.get_completed_scenes(pc_id).await?;
-    let inventory_items = inventory.get_pc_inventory(pc_id).await?;
+    let inventory_items = pc_repo.get_inventory(pc_id).await?;
     let observations = observation.get_observations(pc_id).await?;
     // Combine world and PC flags
     let world_flags = flag.get_world_flags(world_id).await?;
