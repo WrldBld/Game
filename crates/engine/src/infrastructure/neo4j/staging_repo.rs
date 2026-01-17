@@ -501,7 +501,15 @@ impl StagingRepo for Neo4jStagingRepo {
                 })?;
                 Ok(mood)
             } else {
-                Err(RepoError::not_found("Entity", "unknown"))
+                tracing::warn!(
+                    region_id = %region_id,
+                    npc_id = %npc_id,
+                    "NPC mood not found in active staging"
+                );
+                Err(RepoError::not_found(
+                    "NpcMood",
+                    &format!("region:{}/npc:{}", region_id, npc_id),
+                ))
             }
         }
     }
@@ -537,7 +545,16 @@ impl StagingRepo for Neo4jStagingRepo {
             .is_none()
         {
             // NPC is not staged in this region
-            return Err(RepoError::not_found("Entity", "unknown"));
+            tracing::warn!(
+                region_id = %region_id,
+                npc_id = %npc_id,
+                mood = %mood,
+                "Cannot set NPC mood: NPC not staged in region"
+            );
+            return Err(RepoError::not_found(
+                "StagedNpc",
+                &format!("region:{}/npc:{}", region_id, npc_id),
+            ));
         }
 
         Ok(())

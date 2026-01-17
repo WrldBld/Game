@@ -286,12 +286,18 @@ impl axum::response::IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
         match self {
             ApiError::NotFound => (axum::http::StatusCode::NOT_FOUND, "Not found").into_response(),
-            ApiError::BadRequest(msg) => (axum::http::StatusCode::BAD_REQUEST, msg).into_response(),
-            ApiError::Internal(_) => (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Internal error",
-            )
-                .into_response(),
+            ApiError::BadRequest(msg) => {
+                tracing::warn!(error = %msg, "Bad request");
+                (axum::http::StatusCode::BAD_REQUEST, msg).into_response()
+            }
+            ApiError::Internal(msg) => {
+                tracing::error!(error = %msg, "Internal API error");
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal error",
+                )
+                    .into_response()
+            }
         }
     }
 }

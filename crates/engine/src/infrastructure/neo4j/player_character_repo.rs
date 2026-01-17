@@ -255,7 +255,10 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
                 location_id = %location_id,
                 "update_position failed: PC or Location not found"
             );
-            return Err(RepoError::not_found("Entity", "unknown"));
+            return Err(RepoError::not_found(
+                "PlayerCharacterPosition",
+                &format!("pc:{}/location:{}", id, location_id),
+            ));
         }
 
         Ok(())
@@ -370,7 +373,12 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
             txn.rollback()
                 .await
                 .map_err(|e| RepoError::database("query", e))?;
-            return Err(RepoError::not_found("Entity", "unknown"));
+            tracing::warn!(
+                pc_id = %id,
+                stat = %stat,
+                "modify_stat failed: PlayerCharacter not found"
+            );
+            return Err(RepoError::not_found("PlayerCharacter", &id.to_string()));
         };
 
         // Step 2: Parse JSON, modify stat in Rust

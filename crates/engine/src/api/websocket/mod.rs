@@ -851,9 +851,10 @@ fn parse_id<T, F>(id_str: &str, from_uuid: F, error_msg: &str) -> Result<T, Serv
 where
     F: FnOnce(Uuid) -> T,
 {
-    Uuid::parse_str(id_str)
-        .map(from_uuid)
-        .map_err(|_| error_response(ErrorCode::ValidationError, error_msg))
+    Uuid::parse_str(id_str).map(from_uuid).map_err(|_| {
+        tracing::warn!(input = %id_str, expected = "UUID", "Invalid ID format");
+        error_response(ErrorCode::ValidationError, error_msg)
+    })
 }
 
 // =============================================================================

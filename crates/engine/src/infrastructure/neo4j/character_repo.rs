@@ -449,11 +449,14 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .is_none()
         {
             tracing::warn!(
-                "save failed: World {} not found for character {}",
-                character.world_id(),
-                character.id()
+                world_id = %character.world_id(),
+                character_id = %character.id(),
+                "save failed: World not found for character"
             );
-            return Err(RepoError::not_found("Entity", "unknown"));
+            return Err(RepoError::not_found(
+                "World",
+                &character.world_id().to_string(),
+            ));
         }
 
         tracing::debug!("Saved character: {}", character.name());
@@ -569,11 +572,14 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .is_none()
         {
             tracing::warn!(
-                "update_position failed: Character {} or Region {} not found",
-                id,
-                region_id
+                character_id = %id,
+                region_id = %region_id,
+                "update_position failed: Character or Region not found"
             );
-            return Err(RepoError::not_found("Entity", "unknown"));
+            return Err(RepoError::not_found(
+                "CharacterPosition",
+                &format!("char:{}/region:{}", id, region_id),
+            ));
         }
 
         tracing::debug!("Updated character {} position to region {}", id, region_id);
@@ -952,7 +958,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
             RETURN target, labels(target) as target_labels"
         ))
         .param("want_id", want_id.to_string())
-        .param("target_id", target_id);
+        .param("target_id", target_id.clone());
 
         let mut result = self
             .graph
@@ -965,9 +971,13 @@ impl CharacterRepo for Neo4jCharacterRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
-            parse_want_target_from_row(&row)?.ok_or(RepoError::not_found("Entity", "unknown"))
+            parse_want_target_from_row(&row)?.ok_or_else(|| {
+                tracing::warn!(want_id = %want_id, target_id = %target_id, "Want target parse returned None");
+                RepoError::not_found("WantTarget", &format!("want:{}/target:{}", want_id, target_id))
+            })
         } else {
-            Err(RepoError::not_found("Entity", "unknown"))
+            tracing::warn!(want_id = %want_id, target_id = %target_id, "Want or target not found");
+            Err(RepoError::not_found("Want", &want_id.to_string()))
         }
     }
 
@@ -1459,7 +1469,20 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 reason,
             })
         } else {
-            Err(RepoError::not_found("Entity", "unknown"))
+            tracing::warn!(
+                character_id = %character_id,
+                want_id = %want_id,
+                target_id = %target_id,
+                role = ?role,
+                "add_actantial_view failed: Character or target not found"
+            );
+            Err(RepoError::not_found(
+                "ActantialView",
+                &format!(
+                    "char:{}/want:{}/target:{}",
+                    character_id, want_id, target_id
+                ),
+            ))
         }
     }
 

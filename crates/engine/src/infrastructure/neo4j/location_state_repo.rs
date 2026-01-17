@@ -322,7 +322,15 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
             .map_err(|e| RepoError::database("query", e))?
             .is_none()
         {
-            return Err(RepoError::not_found("Entity", "unknown"));
+            tracing::warn!(
+                location_id = %location_id,
+                state_id = %state_id,
+                "Cannot set active state: location or state not found"
+            );
+            return Err(RepoError::not_found(
+                "LocationState",
+                &format!("location:{}/state:{}", location_id, state_id),
+            ));
         }
 
         tracing::debug!(

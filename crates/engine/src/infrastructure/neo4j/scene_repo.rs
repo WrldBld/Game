@@ -405,11 +405,14 @@ impl SceneRepo for Neo4jSceneRepo {
             .is_none()
         {
             tracing::warn!(
-                "set_current failed: World {} or Scene {} not found",
-                world_id,
-                scene_id
+                world_id = %world_id,
+                scene_id = %scene_id,
+                "set_current failed: World or Scene not found"
             );
-            return Err(RepoError::not_found("Entity", "unknown"));
+            return Err(RepoError::not_found(
+                "Scene",
+                &format!("world:{}/scene:{}", world_id, scene_id),
+            ));
         }
 
         tracing::debug!("Set current scene {} for world {}", scene_id, world_id);
@@ -662,14 +665,14 @@ impl SceneRepo for Neo4jSceneRepo {
 
             if !pc_exists {
                 tracing::warn!(
-                    "mark_scene_completed failed: PlayerCharacter {} not found",
-                    pc_id
+                    pc_id = %pc_id,
+                    "mark_scene_completed failed: PlayerCharacter not found"
                 );
-                return Err(RepoError::not_found("Entity", "unknown"));
+                return Err(RepoError::not_found("PlayerCharacter", &pc_id.to_string()));
             }
             if !scene_exists {
-                tracing::warn!("mark_scene_completed failed: Scene {} not found", scene_id);
-                return Err(RepoError::not_found("Entity", "unknown"));
+                tracing::warn!(scene_id = %scene_id, "mark_scene_completed failed: Scene not found");
+                return Err(RepoError::not_found("Scene", &scene_id.to_string()));
             }
 
             tracing::debug!("Marked scene {} as completed for PC {}", scene_id, pc_id);
@@ -701,15 +704,20 @@ impl SceneRepo for Neo4jSceneRepo {
 
                 if !pc_exists {
                     tracing::warn!(
-                        "mark_scene_completed failed: PlayerCharacter {} not found",
-                        pc_id
+                        pc_id = %pc_id,
+                        "mark_scene_completed failed: PlayerCharacter not found"
                     );
+                    return Err(RepoError::not_found("PlayerCharacter", &pc_id.to_string()));
                 } else if !scene_exists {
-                    tracing::warn!("mark_scene_completed failed: Scene {} not found", scene_id);
+                    tracing::warn!(scene_id = %scene_id, "mark_scene_completed failed: Scene not found");
+                    return Err(RepoError::not_found("Scene", &scene_id.to_string()));
                 }
             }
 
-            Err(RepoError::not_found("Entity", "unknown"))
+            Err(RepoError::not_found(
+                "SceneCompletion",
+                &format!("pc:{}/scene:{}", pc_id, scene_id),
+            ))
         }
     }
 

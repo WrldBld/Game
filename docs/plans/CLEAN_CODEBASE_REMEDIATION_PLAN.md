@@ -2,7 +2,7 @@
 
 Status: Active
 Owner: Team
-Last updated: 2026-01-17 (Phase 11.1 COMPLETE - Repository naming convention)
+Last updated: 2026-01-17 (Phase 13 COMPLETE - Observability tech debt)
 
 Goal: remediate all findings from the latest full code review and establish a clean baseline with no new tech debt.
 
@@ -562,21 +562,42 @@ Acceptance:
 
 ## Phase 12: Error Taxonomy + Mapping Standards
 
-### 12.1 Define cross-layer error mapping guidelines
-- [ ] Define standard error mapping between domain -> use case -> API/protocol.
-- [ ] Ensure error variants carry context (entity, operation, identifiers).
-- [ ] Replace ad-hoc string errors in engine/player with typed errors.
-- [ ] Add tests for error mapping in API/websocket handlers.
+### 12.1 Define cross-layer error mapping guidelines - COMPLETE
+- [x] Define standard error mapping between domain -> use case -> API/protocol.
+- [x] Ensure error variants carry context (entity, operation, identifiers).
+- [x] Replace ad-hoc string errors in engine/player with typed errors.
+- [x] Add tests for error mapping in API/websocket handlers.
+
+**Implementation details:**
+- Added "Error Taxonomy and Mapping" section to AGENTS.md with guidelines
+- Converted ~100 string error codes to typed `ErrorCode` enum across 11 WebSocket handler files
+- Changed `error_response(code: &str)` to `error_response(code: ErrorCode)` in mod.rs
+- Fixed 9 error context loss issues by converting `*Error(String)` to `*Error(#[from] OriginalError)`
+- Added `ConfigValidationError` and `ContentFilterValidationError` enums for validation
+- Created 10 new tests in `error_mapping_tests.rs`
 
 Acceptance:
 - Error mapping is consistent across layers and user-facing errors are typed.
 
 ## Phase 13: Observability Tech Debt
 
-### 13.1 Add contextual logging in error paths
-- [ ] Audit error paths that currently drop context (repo hydration, API validation, LLM parsing).
-- [ ] Add structured logs with identifiers and operation names.
-- [ ] Ensure logging does not leak secrets or user PII.
+### 13.1 Add contextual logging in error paths - COMPLETE
+- [x] Audit error paths that currently drop context (repo hydration, API validation, LLM parsing).
+- [x] Add structured logs with identifiers and operation names.
+- [x] Ensure logging does not leak secrets or user PII.
+
+**Implementation details:**
+- **API validation**: Added logging to `parse_id()` helper in websocket/mod.rs (logs invalid UUID input)
+- **HTTP errors**: Added logging to `ApiError::into_response()` (warns on BadRequest, errors on Internal)
+- **LLM errors**: Added contextual logging to 3 LLM call sites in queues/mod.rs with world_id, npc_name, request context
+- **Repository not_found**: Fixed 16 generic `RepoError::not_found("Entity", "unknown")` to use specific entity types:
+  - `staging_repo.rs`: NpcMood, StagedNpc
+  - `lore_repo.rs`: LoreKnowledge
+  - `region_state_repo.rs`: RegionState
+  - `location_state_repo.rs`: LocationState
+  - `scene_repo.rs`: Scene, PlayerCharacter, SceneCompletion
+  - `character_repo.rs`: World, CharacterPosition, Want, WantTarget, ActantialView
+  - `player_character_repo.rs`: PlayerCharacterPosition, PlayerCharacter
 
 Acceptance:
 - Error paths log context for troubleshooting without leaking sensitive data.
@@ -625,8 +646,8 @@ Acceptance:
 - [x] Phase 10.1 complete (API input validation - conversation_id, grid_layout, staging source)
 - [x] Phase 10.2 complete (serialization errors - snapshot and PC now fail-fast)
 - [x] Phase 11.1 complete (repository naming: 19 repos→*Repository, 4 services→*Service, 70 files)
-- [ ] Phase 12.1 complete
-- [ ] Phase 13.1 complete
+- [x] Phase 12.1 complete (error taxonomy: typed ErrorCode, #[from] chains, 10 mapping tests)
+- [x] Phase 13.1 complete (observability: contextual logging in parse_id, ApiError, LLM, 16 repo not_found sites)
 - [~] Phase 14.1 complete
 - [ ] Phase 15.1 complete
 

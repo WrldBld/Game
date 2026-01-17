@@ -699,7 +699,15 @@ impl LoreRepo for Neo4jLoreRepo {
                 )
             })?
         } else {
-            return Err(RepoError::not_found("Entity", "unknown"));
+            tracing::warn!(
+                character_id = %character_id,
+                lore_id = %lore_id,
+                "Lore knowledge relationship not found"
+            );
+            return Err(RepoError::not_found(
+                "LoreKnowledge",
+                &format!("char:{}/lore:{}", character_id, lore_id),
+            ));
         };
 
         // Merge new chunks with existing, deduplicating

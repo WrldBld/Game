@@ -613,7 +613,16 @@ impl ProcessLlmRequest {
                 .with_system_prompt(system_prompt.to_string())
                 .with_temperature(0.8);
 
-                let llm_response = self.llm.generate(llm_request).await?;
+                let llm_response = self.llm.generate(llm_request).await.map_err(|e| {
+                    tracing::error!(
+                        resolution_id = %resolution_id,
+                        world_id = %world_id,
+                        challenge = %challenge_name,
+                        error = %e,
+                        "LLM outcome suggestion generation failed"
+                    );
+                    e
+                })?;
 
                 // Parse suggestions from response (one per line)
                 let suggestions: Vec<String> = llm_response
@@ -686,7 +695,16 @@ impl ProcessLlmRequest {
                 )
                 .with_temperature(0.8);
 
-                let llm_response = self.llm.generate(llm_request).await?;
+                let llm_response = self.llm.generate(llm_request).await.map_err(|e| {
+                    tracing::error!(
+                        world_id = %world_id,
+                        field_type = ?field_type,
+                        callback_id = %callback_id,
+                        error = %e,
+                        "LLM suggestion generation failed"
+                    );
+                    e
+                })?;
 
                 let suggestions: Vec<String> = llm_response
                     .content
@@ -810,7 +828,24 @@ impl ProcessLlmRequest {
                 // Build tool definitions for function calling
                 let tools = tool_builder::build_game_tool_definitions();
 
-                let llm_response = self.llm.generate(llm_request).await?;
+                // Extract NPC context for error logging
+                let npc_name_for_log = request_data
+                    .prompt
+                    .as_ref()
+                    .map(|p| p.responding_character.name.as_str())
+                    .unwrap_or("unknown");
+                let world_id_for_log = request_data.world_id;
+
+                let llm_response = self.llm.generate(llm_request).await.map_err(|e| {
+                    tracing::error!(
+                        world_id = %world_id_for_log,
+                        npc_name = %npc_name_for_log,
+                        request_id = %item.id,
+                        error = %e,
+                        "LLM NPC response generation failed"
+                    );
+                    e
+                })?;
 
                 // Extract proposed tools from LLM response
                 let proposed_tools =

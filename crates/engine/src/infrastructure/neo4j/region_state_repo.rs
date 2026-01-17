@@ -307,7 +307,15 @@ impl RegionStateRepo for Neo4jRegionStateRepo {
             .map_err(|e| RepoError::database("query", e))?
             .is_none()
         {
-            return Err(RepoError::not_found("Entity", "unknown"));
+            tracing::warn!(
+                region_id = %region_id,
+                state_id = %state_id,
+                "Cannot set active state: region or state not found"
+            );
+            return Err(RepoError::not_found(
+                "RegionState",
+                &format!("region:{}/state:{}", region_id, state_id),
+            ));
         }
 
         tracing::debug!(
