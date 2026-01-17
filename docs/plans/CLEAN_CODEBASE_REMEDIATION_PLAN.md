@@ -2,7 +2,7 @@
 
 Status: Active
 Owner: Team
-Last updated: 2026-01-17 (Phase 10 COMPLETE - API input validation and serialization fail-fast)
+Last updated: 2026-01-17 (Phase 11.1 COMPLETE - Repository naming convention)
 
 Goal: remediate all findings from the latest full code review and establish a clean baseline with no new tech debt.
 
@@ -544,10 +544,18 @@ Acceptance:
 
 ## Phase 11: Repository Naming + Layer Standards
 
-### 11.1 Enforce `*Repository` wrapper naming
-- [ ] Rename repository wrapper structs to `*Repository` for consistency.
-- [ ] Update module exports and app wiring to use renamed types.
-- [ ] Update tests and mocks referencing renamed wrappers.
+### 11.1 Enforce `*Repository` wrapper naming - COMPLETE
+- [x] Rename repository wrapper structs to `*Repository` for consistency.
+- [x] Update module exports and app wiring to use renamed types.
+- [x] Update tests and mocks referencing renamed wrappers.
+
+**Implementation details:**
+- Renamed 19 repository wrappers to `*Repository` (Character→CharacterRepository, etc.)
+- Renamed 4 service wrappers to `*Service` (Clock→ClockService, Llm→LlmService, Queue→QueueService, Random→RandomService)
+- Kept `Location` as-is (re-exported via use_cases)
+- Kept stores unchanged (DirectorialContextStore, PendingStaging, WorldSession, TimeSuggestionStore)
+- Updated 70 files with new naming
+- Added naming convention documentation to repositories/mod.rs
 
 Acceptance:
 - All repository wrappers in `crates/engine/src/repositories` follow `*Repository` naming.
@@ -616,7 +624,7 @@ Acceptance:
 - [x] Phase 9.2 complete (importers already correct - added documentation)
 - [x] Phase 10.1 complete (API input validation - conversation_id, grid_layout, staging source)
 - [x] Phase 10.2 complete (serialization errors - snapshot and PC now fail-fast)
-- [ ] Phase 11.1 complete
+- [x] Phase 11.1 complete (repository naming: 19 repos→*Repository, 4 services→*Service, 70 files)
 - [ ] Phase 12.1 complete
 - [ ] Phase 13.1 complete
 - [~] Phase 14.1 complete
