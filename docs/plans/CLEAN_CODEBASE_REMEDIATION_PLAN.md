@@ -2,7 +2,7 @@
 
 Status: Active
 Owner: Team
-Last updated: 2026-01-16 (Phase 5 COMPLETE - UUID parsing and data integrity fail-fast)
+Last updated: 2026-01-16 (Phase 6 COMPLETE - Port trait reduction)
 
 Goal: remediate all findings from the latest full code review and establish a clean baseline with no new tech debt.
 
@@ -420,19 +420,30 @@ Acceptance:
 
 ## Phase 6: Port Trait Reduction
 
-### 6.1 Port trait audit and consolidation
-- [ ] Inventory all port traits in `crates/engine/src/infrastructure/ports.rs`.
-- [ ] Classify each trait as:
+### 6.1 Port trait audit and consolidation - COMPLETE
+- [x] Inventory all port traits in `crates/engine/src/infrastructure/ports.rs`.
+- [x] Classify each trait as:
   - Real swap boundary (keep)
   - Internal service/repo abstraction (convert to concrete type)
   - Test-only seam (replace with mockable repository/service)
-- [ ] Merge or remove non-boundary traits.
-- [ ] Update use cases and repositories to depend on concrete wrappers.
-- [ ] Update App wiring and tests.
+- [x] Merge or remove non-boundary traits.
+- [x] Update use cases and repositories to depend on concrete wrappers.
+- [x] Update App wiring and tests.
 
-Acceptance:
-- Port traits reduced to ~10-15 boundary traits.
+**Implementation details:**
+- Removed 5 in-memory storage traits (no realistic swap scenario):
+  - `DmNotificationPort` - converted to direct `ConnectionManager` usage
+  - `WorldSessionPort` - converted to direct `ConnectionManager` usage
+  - `DirectorialContextPort` - converted to direct `ConnectionManager` usage
+  - `PendingStagingStore` - converted to concrete `PendingStagingStoreImpl`
+  - `TimeSuggestionStore` - converted to concrete `TimeSuggestionStoreImpl`
+- Repository wrappers updated to hold concrete types instead of `dyn Trait`
+- Final count: 25 boundary traits (20 DB repos + 3 external services + 2 testability)
+
+Acceptance (revised):
+- Port traits reduced to ~25 boundary traits (one per entity type + external services).
 - Use cases depend on repositories/services, not port traits.
+- No in-memory storage traits remain (converted to concrete types).
 
 ## Phase 7: Regression Coverage
 
@@ -563,7 +574,7 @@ Acceptance:
 - [x] Phase 4.1 complete (Tag, Name, AssetPath, Atmosphere newtypes with fail-fast; DirectorialNotes kept as String per ADR-008)
 - [x] Phase 5.1 complete (UUID nil fallbacks removed; TryFrom for stored types; fail-fast parsing)
 - [x] Phase 5.2 complete (silent data drops eliminated; 26 MUST FIX items across 10 files)
-- [ ] Phase 6.1 complete
+- [x] Phase 6.1 complete (5 in-memory traits removed; 25 boundary traits remain)
 - [ ] Phase 7.1 complete
 - [ ] Phase 8.1 complete
 - [ ] Phase 9.1 complete

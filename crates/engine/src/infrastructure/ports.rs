@@ -1397,61 +1397,15 @@ pub trait RandomPort: Send + Sync {
 }
 
 // =============================================================================
-// Session/Connection Ports
+// Session/Connection Data Types
 // =============================================================================
 
-/// Port for notifying DMs of events requiring their attention.
-///
-/// Used by staging use cases to send approval requests to DMs.
-/// This is a focused port with a single responsibility.
-#[async_trait]
-pub trait DmNotificationPort: Send + Sync {
-    /// Broadcast a message to all DMs in a world.
-    async fn notify_dms(&self, world_id: WorldId, message: wrldbldr_shared::ServerMessage);
-}
-
-/// Port for managing world session state (join/leave/query connections).
-///
-/// Used by session use cases to track which users are in which worlds.
-/// This abstracts connection state management from the API layer.
-#[async_trait]
-pub trait WorldSessionPort: Send + Sync {
-    /// Update the user_id for a connection (from client-provided stable identifier).
-    async fn set_user_id(&self, connection_id: Uuid, user_id: String);
-
-    /// Join a world with a specific role.
-    async fn join_world(
-        &self,
-        connection_id: Uuid,
-        world_id: WorldId,
-        role: WorldRole,
-        pc_id: Option<PlayerCharacterId>,
-    ) -> Result<(), SessionError>;
-
-    /// Get all connections in a world.
-    async fn get_world_connections(&self, world_id: WorldId) -> Vec<ConnectionInfo>;
-
-    /// Get connection info by ID.
-    async fn get_connection(&self, connection_id: Uuid) -> Option<ConnectionInfo>;
-}
-
-/// Port for storing DM directorial context (scene notes, NPC motivations).
-///
-/// Used by directorial use cases to provide context for LLM prompts.
-/// This is a synchronous port since context storage is simple key-value.
-pub trait DirectorialContextPort: Send + Sync {
-    /// Set the directorial context for a world.
-    fn set_context(&self, world_id: WorldId, context: DirectorialContext);
-
-    /// Get the directorial context for a world (if set).
-    fn get_context(&self, world_id: WorldId) -> Option<DirectorialContext>;
-
-    /// Clear the directorial context for a world.
-    fn clear_context(&self, world_id: WorldId);
-}
+// Note: DmNotificationPort, WorldSessionPort, and DirectorialContextPort traits were removed.
+// These were in-memory storage abstractions that are now concrete types on ConnectionManager.
+// See api/connections.rs for the concrete implementation.
 
 // =============================================================================
-// Staging Storage Ports
+// Staging Storage Data Types
 // =============================================================================
 
 /// Pending staging request tracking (request_id -> region/location).
@@ -1465,23 +1419,11 @@ pub struct PendingStagingRequest {
     pub created_at: DateTime<Utc>,
 }
 
-/// Port for storing pending staging requests.
-///
-/// Abstracts the storage mechanism so use cases don't depend on tokio::sync::RwLock.
-#[async_trait]
-pub trait PendingStagingStore: Send + Sync {
-    /// Insert a pending staging request.
-    async fn insert(&self, key: String, request: PendingStagingRequest);
-
-    /// Get a pending staging request by key.
-    async fn get(&self, key: &str) -> Option<PendingStagingRequest>;
-
-    /// Remove a pending staging request by key.
-    async fn remove(&self, key: &str) -> Option<PendingStagingRequest>;
-}
+// Note: PendingStagingStore trait was removed.
+// The concrete implementation is PendingStagingStoreImpl in api/websocket/mod.rs.
 
 // =============================================================================
-// Time Suggestion Storage Ports
+// Time Suggestion Data Types
 // =============================================================================
 
 /// A time suggestion generated for DM approval.
@@ -1501,14 +1443,5 @@ pub struct TimeSuggestion {
     pub period_change: Option<(TimeOfDay, TimeOfDay)>,
 }
 
-/// Port for storing time suggestions.
-///
-/// Abstracts the storage mechanism so use cases don't depend on tokio::sync::RwLock.
-#[async_trait]
-pub trait TimeSuggestionStore: Send + Sync {
-    /// Insert a time suggestion.
-    async fn insert(&self, key: Uuid, suggestion: TimeSuggestion);
-
-    /// Remove a time suggestion by key.
-    async fn remove(&self, key: Uuid) -> Option<TimeSuggestion>;
-}
+// Note: TimeSuggestionStore trait was removed.
+// The concrete implementation is TimeSuggestionStoreImpl in api/websocket/mod.rs.

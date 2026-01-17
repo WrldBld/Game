@@ -2,17 +2,19 @@
 
 use std::sync::Arc;
 
-use crate::infrastructure::ports::{
-    TimeSuggestion, TimeSuggestionStore as TimeSuggestionStorePort,
-};
+use crate::api::websocket::TimeSuggestionStoreImpl;
+use crate::infrastructure::ports::TimeSuggestion;
 
 /// Time suggestion store wrapper for use cases.
-pub struct TimeSuggestionStore {
-    store: Arc<dyn TimeSuggestionStorePort>,
+///
+/// Note: This was renamed from `TimeSuggestionStore` to `TimeSuggestionRepository`
+/// to avoid confusion with `TimeSuggestionStoreImpl`.
+pub struct TimeSuggestionRepository {
+    store: Arc<TimeSuggestionStoreImpl>,
 }
 
-impl TimeSuggestionStore {
-    pub fn new(store: Arc<dyn TimeSuggestionStorePort>) -> Self {
+impl TimeSuggestionRepository {
+    pub fn new(store: Arc<TimeSuggestionStoreImpl>) -> Self {
         Self { store }
     }
 
@@ -21,6 +23,9 @@ impl TimeSuggestionStore {
     }
 
     pub async fn remove(&self, key: uuid::Uuid) -> Option<TimeSuggestion> {
-        self.store.remove(key).await
+        self.store.remove(&key).await
     }
 }
+
+// Keep the old name as a type alias for backwards compatibility
+pub type TimeSuggestionStore = TimeSuggestionRepository;

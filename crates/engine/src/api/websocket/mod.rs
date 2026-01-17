@@ -55,9 +55,7 @@ use wrldbldr_shared::{
 use super::connections::ConnectionManager;
 use crate::app::App;
 use crate::infrastructure::cache::TtlCache;
-use crate::infrastructure::ports::{
-    PendingStagingRequest, PendingStagingStore, TimeSuggestion, TimeSuggestionStore,
-};
+use crate::infrastructure::ports::{PendingStagingRequest, TimeSuggestion};
 
 /// Buffer size for per-connection message channel.
 const CONNECTION_CHANNEL_BUFFER: usize = 256;
@@ -144,21 +142,6 @@ impl Default for PendingStagingStoreImpl {
     }
 }
 
-#[async_trait::async_trait]
-impl PendingStagingStore for PendingStagingStoreImpl {
-    async fn insert(&self, key: String, request: PendingStagingRequest) {
-        self.inner.insert(key, request).await;
-    }
-
-    async fn get(&self, key: &str) -> Option<PendingStagingRequest> {
-        self.inner.get(&key.to_string()).await
-    }
-
-    async fn remove(&self, key: &str) -> Option<PendingStagingRequest> {
-        self.inner.remove(&key.to_string()).await
-    }
-}
-
 /// TTL-based implementation of TimeSuggestionStore (30 minute TTL).
 pub struct TimeSuggestionStoreImpl {
     inner: TtlCache<Uuid, TimeSuggestion>,
@@ -207,17 +190,6 @@ impl TimeSuggestionStoreImpl {
 impl Default for TimeSuggestionStoreImpl {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[async_trait::async_trait]
-impl TimeSuggestionStore for TimeSuggestionStoreImpl {
-    async fn insert(&self, key: Uuid, suggestion: TimeSuggestion) {
-        self.inner.insert(key, suggestion).await;
-    }
-
-    async fn remove(&self, key: Uuid) -> Option<TimeSuggestion> {
-        self.inner.remove(&key).await
     }
 }
 

@@ -16,8 +16,7 @@ use wrldbldr_domain::{PlayerCharacterId, WorldId, WorldRole};
 use wrldbldr_shared::ServerMessage;
 
 use crate::infrastructure::ports::{
-    ConnectionInfo as PortConnectionInfo, DirectorialContext, DirectorialContextPort,
-    DmNotificationPort, SessionError, WorldSessionPort,
+    ConnectionInfo as PortConnectionInfo, DirectorialContext, SessionError,
 };
 
 /// Information about a connected client.
@@ -444,7 +443,7 @@ pub enum CriticalSendError {
 }
 
 // =============================================================================
-// Port Implementations
+// Conversions
 // =============================================================================
 
 impl From<&ConnectionInfo> for PortConnectionInfo {
@@ -467,60 +466,5 @@ impl From<ConnectionError> for SessionError {
             ConnectionError::Unauthorized => SessionError::Unauthorized,
             ConnectionError::WorldNotFound => SessionError::NotFound,
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl DmNotificationPort for ConnectionManager {
-    async fn notify_dms(&self, world_id: WorldId, message: ServerMessage) {
-        self.broadcast_to_dms(world_id, message).await;
-    }
-}
-
-#[async_trait::async_trait]
-impl WorldSessionPort for ConnectionManager {
-    async fn set_user_id(&self, connection_id: Uuid, user_id: String) {
-        ConnectionManager::set_user_id(self, connection_id, user_id).await;
-    }
-
-    async fn join_world(
-        &self,
-        connection_id: Uuid,
-        world_id: WorldId,
-        role: WorldRole,
-        pc_id: Option<PlayerCharacterId>,
-    ) -> Result<(), SessionError> {
-        ConnectionManager::join_world(self, connection_id, world_id, role, pc_id)
-            .await
-            .map_err(SessionError::from)
-    }
-
-    async fn get_world_connections(&self, world_id: WorldId) -> Vec<PortConnectionInfo> {
-        ConnectionManager::get_world_connections(self, world_id)
-            .await
-            .iter()
-            .map(PortConnectionInfo::from)
-            .collect()
-    }
-
-    async fn get_connection(&self, connection_id: Uuid) -> Option<PortConnectionInfo> {
-        ConnectionManager::get(self, connection_id)
-            .await
-            .as_ref()
-            .map(PortConnectionInfo::from)
-    }
-}
-
-impl DirectorialContextPort for ConnectionManager {
-    fn set_context(&self, world_id: WorldId, context: DirectorialContext) {
-        self.set_directorial_context(world_id, context);
-    }
-
-    fn get_context(&self, world_id: WorldId) -> Option<DirectorialContext> {
-        self.get_directorial_context(world_id)
-    }
-
-    fn clear_context(&self, world_id: WorldId) {
-        self.clear_directorial_context(world_id);
     }
 }
