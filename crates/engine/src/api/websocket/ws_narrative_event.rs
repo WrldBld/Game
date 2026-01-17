@@ -272,7 +272,12 @@ pub(super) async fn handle_narrative_event_decision(
     // Get connection info - only DMs can make decisions
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -322,11 +327,12 @@ pub(super) async fn handle_narrative_event_decision(
             }
             None
         }
-        Err(NarrativeDecisionError::ApprovalNotFound) => {
-            Some(error_response("NOT_FOUND", "Approval request not found"))
-        }
+        Err(NarrativeDecisionError::ApprovalNotFound) => Some(error_response(
+            ErrorCode::NotFound,
+            "Approval request not found",
+        )),
         Err(e) => Some(error_response(
-            "APPROVAL_ERROR",
+            ErrorCode::InternalError,
             &sanitize_repo_error(&e, "process narrative event decision"),
         )),
     }

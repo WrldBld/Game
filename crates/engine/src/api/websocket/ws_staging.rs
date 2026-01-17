@@ -1,5 +1,6 @@
 use super::*;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use wrldbldr_shared::ErrorCode;
 
 /// Maximum allowed TTL in hours (1 year).
 const MAX_TTL_HOURS: i32 = 8760;
@@ -13,13 +14,13 @@ const MAX_APPROVED_NPCS: usize = 100;
 fn validate_ttl_hours(ttl_hours: i32) -> Result<(), ServerMessage> {
     if ttl_hours <= 0 {
         return Err(error_response(
-            "INVALID_TTL",
+            ErrorCode::ValidationError,
             "TTL hours must be a positive value",
         ));
     }
     if ttl_hours > MAX_TTL_HOURS {
         return Err(error_response(
-            "INVALID_TTL",
+            ErrorCode::ValidationError,
             &format!("TTL hours cannot exceed {} (1 year)", MAX_TTL_HOURS),
         ));
     }
@@ -39,7 +40,12 @@ pub(super) async fn handle_staging_approval(
     // Get connection info - only DMs can approve staging
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -54,7 +60,7 @@ pub(super) async fn handle_staging_approval(
     // Validate input sizes to prevent DoS via oversized payloads
     if approved_npcs.len() > MAX_APPROVED_NPCS {
         return Some(error_response(
-            "BAD_REQUEST",
+            ErrorCode::BadRequest,
             &format!("Too many NPCs (max {})", MAX_APPROVED_NPCS),
         ));
     }
@@ -69,7 +75,7 @@ pub(super) async fn handle_staging_approval(
         // If so, it was likely already processed by timeout or another handler
         if uuid::Uuid::parse_str(&request_id).is_ok() {
             return Some(error_response(
-                "ALREADY_PROCESSED",
+                ErrorCode::Conflict,
                 "Staging request already processed or expired",
             ));
         }
@@ -83,7 +89,7 @@ pub(super) async fn handle_staging_approval(
 
     let world_id = match conn_info.world_id {
         Some(id) => id,
-        None => return Some(error_response("NOT_CONNECTED", "World not joined")),
+        None => return Some(error_response(ErrorCode::BadRequest, "World not joined")),
     };
 
     // Convert protocol types to domain types
@@ -95,7 +101,7 @@ pub(super) async fn handle_staging_approval(
         Ok(npcs) => npcs,
         Err(e) => {
             return Some(error_response(
-                "VALIDATION_ERROR",
+                ErrorCode::ValidationError,
                 &sanitize_repo_error(&e, "validating approved NPCs"),
             ))
         }
@@ -116,14 +122,14 @@ pub(super) async fn handle_staging_approval(
     let payload = match state.app.use_cases.staging.approve.execute(input).await {
         Ok(result) => result,
         Err(crate::use_cases::staging::StagingError::RegionNotFound) => {
-            return Some(error_response("NOT_FOUND", "Region not found"))
+            return Some(error_response(ErrorCode::NotFound, "Region not found"))
         }
         Err(crate::use_cases::staging::StagingError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"))
+            return Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => {
             return Some(error_response(
-                "REPO_ERROR",
+                ErrorCode::InternalError,
                 &sanitize_repo_error(&e, "approving staging"),
             ))
         }
@@ -160,7 +166,12 @@ pub(super) async fn handle_staging_regenerate(
     // Get connection info - only DMs can regenerate staging
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -177,7 +188,7 @@ pub(super) async fn handle_staging_regenerate(
         // If so, it was likely already processed by timeout or another handler
         if uuid::Uuid::parse_str(&request_id).is_ok() {
             return Some(error_response(
-                "ALREADY_PROCESSED",
+                ErrorCode::Conflict,
                 "Staging request already processed or expired",
             ));
         }
@@ -203,11 +214,11 @@ pub(super) async fn handle_staging_regenerate(
     {
         Ok(npcs) => npcs,
         Err(crate::use_cases::staging::StagingError::RegionNotFound) => {
-            return Some(error_response("NOT_FOUND", "Region not found"))
+            return Some(error_response(ErrorCode::NotFound, "Region not found"))
         }
         Err(e) => {
             return Some(error_response(
-                "REPO_ERROR",
+                ErrorCode::InternalError,
                 &sanitize_repo_error(&e, "regenerating staging"),
             ))
         }
@@ -235,7 +246,12 @@ pub(super) async fn handle_pre_stage_region(
     // Get connection info - only DMs can pre-stage
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -250,7 +266,7 @@ pub(super) async fn handle_pre_stage_region(
     // Validate input sizes to prevent DoS via oversized payloads
     if npcs.len() > MAX_APPROVED_NPCS {
         return Some(error_response(
-            "BAD_REQUEST",
+            ErrorCode::BadRequest,
             &format!("Too many NPCs (max {})", MAX_APPROVED_NPCS),
         ));
     }
@@ -263,7 +279,7 @@ pub(super) async fn handle_pre_stage_region(
 
     let world_id = match conn_info.world_id {
         Some(id) => id,
-        None => return Some(error_response("NOT_CONNECTED", "World not joined")),
+        None => return Some(error_response(ErrorCode::BadRequest, "World not joined")),
     };
 
     // Convert protocol types to domain types
@@ -275,7 +291,7 @@ pub(super) async fn handle_pre_stage_region(
         Ok(npcs) => npcs,
         Err(e) => {
             return Some(error_response(
-                "VALIDATION_ERROR",
+                ErrorCode::ValidationError,
                 &sanitize_repo_error(&e, "validating pre-staged NPCs"),
             ))
         }
@@ -296,12 +312,15 @@ pub(super) async fn handle_pre_stage_region(
     if let Err(e) = state.app.use_cases.staging.approve.execute(input).await {
         return Some(match e {
             crate::use_cases::staging::StagingError::RegionNotFound => {
-                error_response("NOT_FOUND", "Region not found")
+                error_response(ErrorCode::NotFound, "Region not found")
             }
             crate::use_cases::staging::StagingError::WorldNotFound => {
-                error_response("NOT_FOUND", "World not found")
+                error_response(ErrorCode::NotFound, "World not found")
             }
-            _ => error_response("REPO_ERROR", &sanitize_repo_error(&e, "pre-staging region")),
+            _ => error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "pre-staging region"),
+            ),
         });
     }
 

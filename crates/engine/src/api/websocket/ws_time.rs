@@ -3,6 +3,7 @@ use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::use_cases::time::TimeAdvanceResultData;
 use wrldbldr_domain::{GameTime, TimeAdvanceReason, TimeOfDay};
 use wrldbldr_shared::types as protocol;
+use wrldbldr_shared::ErrorCode;
 
 pub(super) async fn handle_set_game_time(
     state: &WsState,
@@ -14,7 +15,12 @@ pub(super) async fn handle_set_game_time(
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -36,11 +42,11 @@ pub(super) async fn handle_set_game_time(
     {
         Ok(outcome) => outcome,
         Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"))
+            return Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => {
             return Some(error_response(
-                "TIME_ERROR",
+                ErrorCode::InternalError,
                 &sanitize_repo_error(&e, "setting game time"),
             ))
         }
@@ -74,7 +80,12 @@ pub(super) async fn handle_skip_to_period(
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -90,7 +101,7 @@ pub(super) async fn handle_skip_to_period(
         Some(value) => value,
         None => {
             return Some(error_response(
-                "INVALID_PERIOD",
+                ErrorCode::ValidationError,
                 "Invalid time period value",
             ))
         }
@@ -106,11 +117,11 @@ pub(super) async fn handle_skip_to_period(
     {
         Ok(outcome) => outcome,
         Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"))
+            return Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => {
             return Some(error_response(
-                "TIME_ERROR",
+                ErrorCode::InternalError,
                 &sanitize_repo_error(&e, "skipping to time period"),
             ))
         }
@@ -144,7 +155,12 @@ pub(super) async fn handle_pause_game_time(
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -166,11 +182,11 @@ pub(super) async fn handle_pause_game_time(
     {
         Ok(_time) => {}
         Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"))
+            return Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => {
             return Some(error_response(
-                "TIME_ERROR",
+                ErrorCode::InternalError,
                 &sanitize_repo_error(&e, "pausing game time"),
             ))
         }
@@ -197,7 +213,12 @@ pub(super) async fn handle_set_time_mode(
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -219,11 +240,11 @@ pub(super) async fn handle_set_time_mode(
     {
         Ok(config) => config,
         Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"))
+            return Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => {
             return Some(error_response(
-                "TIME_ERROR",
+                ErrorCode::InternalError,
                 &sanitize_repo_error(&e, "getting time config"),
             ))
         }
@@ -242,11 +263,11 @@ pub(super) async fn handle_set_time_mode(
     {
         Ok(_) => {}
         Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"))
+            return Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => {
             return Some(error_response(
-                "TIME_ERROR",
+                ErrorCode::InternalError,
                 &sanitize_repo_error(&e, "setting time mode"),
             ))
         }
@@ -272,7 +293,12 @@ pub(super) async fn handle_set_time_costs(
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -294,11 +320,11 @@ pub(super) async fn handle_set_time_costs(
     {
         Ok(config) => config,
         Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"))
+            return Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => {
             return Some(error_response(
-                "TIME_ERROR",
+                ErrorCode::InternalError,
                 &sanitize_repo_error(&e, "getting time config"),
             ))
         }
@@ -317,11 +343,11 @@ pub(super) async fn handle_set_time_costs(
     {
         Ok(updated) => updated,
         Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"))
+            return Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => {
             return Some(error_response(
-                "TIME_ERROR",
+                ErrorCode::InternalError,
                 &sanitize_repo_error(&e, "setting time costs"),
             ))
         }
@@ -348,7 +374,12 @@ pub(super) async fn handle_respond_to_time_suggestion(
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -357,12 +388,22 @@ pub(super) async fn handle_respond_to_time_suggestion(
 
     let suggestion_uuid = match Uuid::parse_str(&suggestion_id) {
         Ok(id) => id,
-        Err(_) => return Some(error_response("INVALID_ID", "Invalid time suggestion ID")),
+        Err(_) => {
+            return Some(error_response(
+                ErrorCode::ValidationError,
+                "Invalid time suggestion ID",
+            ))
+        }
     };
 
     let world_id = match conn_info.world_id {
         Some(id) => id,
-        None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must join a world first",
+            ))
+        }
     };
 
     // Convert protocol decision to domain decision at the API boundary
@@ -370,7 +411,7 @@ pub(super) async fn handle_respond_to_time_suggestion(
         Ok(d) => d,
         Err(_) => {
             return Some(error_response(
-                "INVALID_DECISION",
+                ErrorCode::ValidationError,
                 "Unknown time suggestion decision type",
             ))
         }
@@ -400,15 +441,15 @@ pub(super) async fn handle_respond_to_time_suggestion(
         }
         Ok(None) => None,
         Err(crate::use_cases::time::TimeSuggestionError::NotFound) => Some(error_response(
-            "TIME_SUGGESTION_NOT_FOUND",
+            ErrorCode::NotFound,
             "Time suggestion not found",
         )),
         Err(crate::use_cases::time::TimeSuggestionError::WorldMismatch) => Some(error_response(
-            "TIME_SUGGESTION_INVALID",
+            ErrorCode::ValidationError,
             "Time suggestion world mismatch",
         )),
         Err(e) => Some(error_response(
-            "TIME_ERROR",
+            ErrorCode::InternalError,
             &sanitize_repo_error(&e, "responding to time suggestion"),
         )),
     }

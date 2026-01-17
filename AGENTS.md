@@ -591,6 +591,96 @@ let result = repo.get(id).unwrap();
 let result = repo.get(id).await?;
 ```
 
+### Error Taxonomy and Mapping
+
+The codebase uses a layered error system. Follow these standards for consistency:
+
+#### Error Types by Layer
+
+| Layer | Error Type | Purpose |
+|-------|------------|---------|
+| Domain | `DomainError` | Validation failures, business rule violations |
+| Infrastructure | `RepoError`, `LlmError`, `QueueError` | External system failures |
+| Use Cases | Per-use-case enums (`ConversationError`, etc.) | Orchestration failures |
+| API/Protocol | `ErrorCode` enum | Client-facing error codes |
+
+#### Domain → Use Case Mapping
+
+Use `#[from]` to preserve error chains:
+
+```rust
+// CORRECT - preserves error chain
+#[derive(Debug, thiserror::Error)]
+pub enum ConversationError {
+    #[error("Repository error: {0}")]
+    Repo(#[from] RepoError),
+    
+    #[error("Domain error: {0}")]
+    Domain(#[from] DomainError),
+}
+
+// WRONG - loses error context
+pub enum ConversationError {
+    #[error("Queue error: {0}")]
+    QueueError(String),  // Don't stringify!
+}
+```
+
+#### Use Case → API Mapping
+
+Map use case errors to `ErrorCode` consistently:
+
+| Use Case Error Pattern | ErrorCode |
+|------------------------|-----------|
+| `*::NotFound`, `RepoError::NotFound{..}` | `ErrorCode::NotFound` |
+| `*::Unauthorized`, `*::Forbidden` | `ErrorCode::Unauthorized` |
+| `*::Validation*`, `DomainError::Validation*` | `ErrorCode::ValidationError` |
+| `*::Conflict` | `ErrorCode::Conflict` |
+| `*::Timeout`, `LlmError::Timeout` | `ErrorCode::Timeout` |
+| Other/Unknown | `ErrorCode::InternalError` |
+
+#### WebSocket Error Responses
+
+Always use typed `ErrorCode`, never string codes:
+
+```rust
+// CORRECT - typed error code
+use wrldbldr_shared::ErrorCode;
+
+fn handle_error(err: ConversationError) -> ServerMessage {
+    let code = match &err {
+        ConversationError::NotFound(_) => ErrorCode::NotFound,
+        ConversationError::Unauthorized => ErrorCode::Unauthorized,
+        _ => ErrorCode::InternalError,
+    };
+    ServerMessage::Error {
+        code: code.as_str().to_string(),
+        message: error_sanitizer::sanitize(&err),
+    }
+}
+
+// WRONG - string-based error code
+ServerMessage::Error {
+    code: "NOT_FOUND".to_string(),  // Don't use raw strings!
+    message: "...".to_string(),
+}
+```
+
+#### Error Context Requirements
+
+Errors should carry enough context for debugging:
+
+```rust
+// CORRECT - includes entity type and ID
+RepoError::NotFound { 
+    entity_type: "Character", 
+    id: character_id.to_string() 
+}
+
+// WRONG - no context
+RepoError::Generic("not found".to_string())
+```
+
 ### Dioxus Hooks (CRITICAL)
 
 **Hooks must be called unconditionally at the top of components.** Never call hooks inside conditionals, loops, or closures.

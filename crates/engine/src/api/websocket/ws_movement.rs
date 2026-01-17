@@ -7,7 +7,7 @@ use crate::use_cases::movement::scene_change::{
 };
 use crate::use_cases::movement::{EnterRegionError, StagingStatus};
 use wrldbldr_shared::{
-    CharacterData, CharacterPosition, InteractionData, NavigationData, NavigationExit,
+    CharacterData, CharacterPosition, ErrorCode, InteractionData, NavigationData, NavigationExit,
     NavigationTarget, NpcPresenceData, RegionData, RegionItemData, SceneData,
 };
 
@@ -138,12 +138,20 @@ pub(super) async fn handle_move_to_region(
     // Get connection info to verify authorization
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     // Verify the PC belongs to this connection (or is DM)
     if !conn_info.is_dm() && conn_info.pc_id != Some(pc_uuid) {
-        return Some(error_response("UNAUTHORIZED", "Cannot control this PC"));
+        return Some(error_response(
+            ErrorCode::Unauthorized,
+            "Cannot control this PC",
+        ));
     }
 
     // Execute movement use case
@@ -218,7 +226,7 @@ pub(super) async fn handle_move_to_region(
                             None
                         }
                         Err(e) => Some(error_response(
-                            "STAGING_ERROR",
+                            ErrorCode::InternalError,
                             &sanitize_repo_error(&e, "process staging"),
                         )),
                     }
@@ -237,7 +245,7 @@ pub(super) async fn handle_move_to_region(
                         Ok(sc) => sc,
                         Err(e) => {
                             return Some(error_response(
-                                "SCENE_BUILD_ERROR",
+                                ErrorCode::InternalError,
                                 &sanitize_repo_error(&e, "build scene"),
                             ));
                         }
@@ -273,16 +281,17 @@ pub(super) async fn handle_move_to_region(
             }
         }
         Err(EnterRegionError::RegionNotFound) => {
-            Some(error_response("NOT_FOUND", "Region not found"))
+            Some(error_response(ErrorCode::NotFound, "Region not found"))
         }
-        Err(EnterRegionError::PlayerCharacterNotFound) => {
-            Some(error_response("NOT_FOUND", "Player character not found"))
-        }
+        Err(EnterRegionError::PlayerCharacterNotFound) => Some(error_response(
+            ErrorCode::NotFound,
+            "Player character not found",
+        )),
         Err(EnterRegionError::WorldNotFound) => {
-            Some(error_response("NOT_FOUND", "World not found"))
+            Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(EnterRegionError::RegionNotInCurrentLocation) => Some(error_response(
-            "INVALID_MOVE",
+            ErrorCode::BadRequest,
             "Region not in current location",
         )),
         Err(EnterRegionError::NoPathToRegion) => Some(ServerMessage::MovementBlocked {
@@ -293,7 +302,7 @@ pub(super) async fn handle_move_to_region(
             Some(ServerMessage::MovementBlocked { pc_id, reason })
         }
         Err(e) => Some(error_response(
-            "MOVE_ERROR",
+            ErrorCode::InternalError,
             &sanitize_repo_error(&e, "move to region"),
         )),
     }
@@ -326,12 +335,20 @@ pub(super) async fn handle_exit_to_location(
     // Get connection info to verify authorization
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     // Verify the PC belongs to this connection (or is DM)
     if !conn_info.is_dm() && conn_info.pc_id != Some(pc_uuid) {
-        return Some(error_response("UNAUTHORIZED", "Cannot control this PC"));
+        return Some(error_response(
+            ErrorCode::Unauthorized,
+            "Cannot control this PC",
+        ));
     }
 
     match state
@@ -405,7 +422,7 @@ pub(super) async fn handle_exit_to_location(
                             None
                         }
                         Err(e) => Some(error_response(
-                            "STAGING_ERROR",
+                            ErrorCode::InternalError,
                             &sanitize_repo_error(&e, "process staging"),
                         )),
                     }
@@ -424,7 +441,7 @@ pub(super) async fn handle_exit_to_location(
                         Ok(sc) => sc,
                         Err(e) => {
                             return Some(error_response(
-                                "SCENE_BUILD_ERROR",
+                                ErrorCode::InternalError,
                                 &sanitize_repo_error(&e, "build scene"),
                             ));
                         }
@@ -460,22 +477,22 @@ pub(super) async fn handle_exit_to_location(
             }
         }
         Err(crate::use_cases::movement::ExitLocationError::LocationNotFound) => {
-            Some(error_response("NOT_FOUND", "Location not found"))
+            Some(error_response(ErrorCode::NotFound, "Location not found"))
         }
         Err(crate::use_cases::movement::ExitLocationError::RegionNotFound) => {
-            Some(error_response("NOT_FOUND", "Region not found"))
+            Some(error_response(ErrorCode::NotFound, "Region not found"))
         }
-        Err(crate::use_cases::movement::ExitLocationError::PlayerCharacterNotFound) => {
-            Some(error_response("NOT_FOUND", "Player character not found"))
-        }
+        Err(crate::use_cases::movement::ExitLocationError::PlayerCharacterNotFound) => Some(
+            error_response(ErrorCode::NotFound, "Player character not found"),
+        ),
         Err(crate::use_cases::movement::ExitLocationError::RegionLocationMismatch) => Some(
-            error_response("INVALID_MOVE", "Region is not in target location"),
+            error_response(ErrorCode::BadRequest, "Region is not in target location"),
         ),
         Err(crate::use_cases::movement::ExitLocationError::WorldNotFound) => {
-            Some(error_response("NOT_FOUND", "World not found"))
+            Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => Some(error_response(
-            "MOVE_ERROR",
+            ErrorCode::InternalError,
             &sanitize_repo_error(&e, "exit to location"),
         )),
     }

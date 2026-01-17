@@ -1,6 +1,7 @@
 use super::*;
 
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use wrldbldr_shared::ErrorCode;
 
 pub(super) async fn handle_approval_decision(
     state: &WsState,
@@ -11,7 +12,12 @@ pub(super) async fn handle_approval_decision(
     // Get connection info - only DMs can make approval decisions
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     if let Err(e) = require_dm(&conn_info) {
@@ -49,7 +55,7 @@ pub(super) async fn handle_approval_decision(
         }
         wrldbldr_shared::ApprovalDecision::Unknown => {
             return Some(error_response(
-                "INVALID_DECISION",
+                ErrorCode::ValidationError,
                 "Unknown approval decision type",
             ));
         }
@@ -98,11 +104,11 @@ pub(super) async fn handle_approval_decision(
             }
             None
         }
-        Err(crate::use_cases::approval::ApprovalDecisionError::ApprovalNotFound) => {
-            Some(error_response("NOT_FOUND", "Approval request not found"))
-        }
+        Err(crate::use_cases::approval::ApprovalDecisionError::ApprovalNotFound) => Some(
+            error_response(ErrorCode::NotFound, "Approval request not found"),
+        ),
         Err(e) => Some(error_response(
-            "APPROVAL_ERROR",
+            ErrorCode::InternalError,
             &sanitize_repo_error(&e, "process approval decision"),
         )),
     }

@@ -1,4 +1,5 @@
 use super::*;
+use wrldbldr_shared::ErrorCode;
 
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 
@@ -31,12 +32,20 @@ pub(super) async fn handle_inventory_action(
     // Get connection info
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     // Verify authorization
     if !conn_info.is_dm() && conn_info.pc_id != Some(pc_uuid) {
-        return Some(error_response("UNAUTHORIZED", "Cannot control this PC"));
+        return Some(error_response(
+            ErrorCode::Unauthorized,
+            "Cannot control this PC",
+        ));
     }
 
     // Execute the inventory action via the entity
@@ -107,7 +116,7 @@ pub(super) async fn handle_inventory_action(
                 InventoryAction::Pickup => "pickup item",
             };
             Some(error_response(
-                "INVENTORY_ERROR",
+                ErrorCode::InternalError,
                 &sanitize_repo_error(&e, action_desc),
             ))
         }

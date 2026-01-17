@@ -827,9 +827,14 @@ async fn handle_request(
 // Helpers
 // =============================================================================
 
-fn error_response(code: &str, message: &str) -> ServerMessage {
+fn error_response(code: ErrorCode, message: &str) -> ServerMessage {
+    // Serialize ErrorCode to snake_case string (e.g., ErrorCode::NotFound -> "not_found")
+    let code_str = serde_json::to_string(&code)
+        .unwrap_or_else(|_| "\"internal_error\"".to_string())
+        .trim_matches('"')
+        .to_string();
     ServerMessage::Error {
-        code: code.to_string(),
+        code: code_str,
         message: message.to_string(),
     }
 }
@@ -848,7 +853,7 @@ where
 {
     Uuid::parse_str(id_str)
         .map(from_uuid)
-        .map_err(|_| error_response("INVALID_ID", error_msg))
+        .map_err(|_| error_response(ErrorCode::ValidationError, error_msg))
 }
 
 // =============================================================================
@@ -936,7 +941,7 @@ fn require_dm(conn_info: &super::connections::ConnectionInfo) -> Result<(), Serv
         Ok(())
     } else {
         Err(error_response(
-            "UNAUTHORIZED",
+            ErrorCode::Unauthorized,
             "Only DMs can perform this action",
         ))
     }
