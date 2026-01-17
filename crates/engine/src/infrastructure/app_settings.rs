@@ -35,7 +35,24 @@
 //! budget enforcement is not yet wired into `PromptContextService::build_prompt_from_action()`.
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use wrldbldr_domain::WorldId;
+
+// ============================================================================
+// Configuration Validation Errors
+// ============================================================================
+
+/// Errors that can occur when validating configuration.
+#[derive(Debug, Clone, Error, PartialEq, Eq)]
+pub enum ConfigValidationError {
+    /// Total budget must be greater than zero
+    #[error("Total budget must be greater than 0")]
+    ZeroBudget,
+
+    /// Sum of category budgets is unreasonably high relative to total budget
+    #[error("Sum of category budgets ({sum}) is more than 3x total budget ({total})")]
+    ExcessiveCategoryBudgets { sum: usize, total: usize },
+}
 
 // ============================================================================
 // Batch Queue Failure Policy
@@ -412,19 +429,19 @@ impl ContextBudgetConfig {
     }
 
     /// Validate the configuration
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), ConfigValidationError> {
         if self.total_budget_tokens == 0 {
-            return Err("Total budget must be greater than 0".to_string());
+            return Err(ConfigValidationError::ZeroBudget);
         }
 
         // Individual budgets can exceed total (summarization will handle it)
         // but warn if way over
         let sum = self.sum_category_budgets();
         if sum > self.total_budget_tokens * 3 {
-            return Err(format!(
-                "Sum of category budgets ({}) is more than 3x total budget ({})",
-                sum, self.total_budget_tokens
-            ));
+            return Err(ConfigValidationError::ExcessiveCategoryBudgets {
+                sum,
+                total: self.total_budget_tokens,
+            });
         }
 
         Ok(())

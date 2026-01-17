@@ -8,6 +8,7 @@ use super::*;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
+use std::fmt;
 use wrldbldr_shared::game_systems::{ContentFilter, ContentType};
 use wrldbldr_shared::requests::content::ContentRequest;
 use wrldbldr_shared::{ErrorCode, ResponseResult};
@@ -18,6 +19,34 @@ const MAX_LIMIT: usize = 1000;
 const MAX_TAGS: usize = 100;
 const MAX_TAG_LENGTH: usize = 50;
 const MAX_CONTENT_TYPE_LENGTH: usize = 50;
+
+/// Validation errors for content filter inputs.
+///
+/// Used at the API boundary to validate user input before processing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ContentFilterValidationError {
+    /// Search query exceeds maximum length
+    SearchQueryTooLong { max: usize },
+    /// Limit exceeds maximum allowed value
+    LimitTooHigh { max: usize },
+    /// Too many tags provided
+    TooManyTags { max: usize },
+    /// Individual tag exceeds maximum length
+    TagTooLong { max: usize },
+}
+
+impl fmt::Display for ContentFilterValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SearchQueryTooLong { max } => {
+                write!(f, "Search query too long (max {} characters)", max)
+            }
+            Self::LimitTooHigh { max } => write!(f, "Limit too high (max {})", max),
+            Self::TooManyTags { max } => write!(f, "Too many tags (max {})", max),
+            Self::TagTooLong { max } => write!(f, "Tag too long (max {} characters)", max),
+        }
+    }
+}
 
 /// Convert a string content type to the domain ContentType enum.
 fn parse_content_type(content_type: &str) -> Option<ContentType> {
@@ -47,29 +76,30 @@ fn parse_content_type(content_type: &str) -> Option<ContentType> {
 /// Validate filter inputs to prevent DoS attacks.
 fn validate_filter(
     filter: &wrldbldr_shared::requests::content::ContentFilterRequest,
-) -> Result<(), String> {
+) -> Result<(), ContentFilterValidationError> {
     if let Some(ref search) = filter.search {
         if search.len() > MAX_QUERY_LENGTH {
-            return Err(format!(
-                "Search query too long (max {} characters)",
-                MAX_QUERY_LENGTH
-            ));
+            return Err(ContentFilterValidationError::SearchQueryTooLong {
+                max: MAX_QUERY_LENGTH,
+            });
         }
     }
 
     if let Some(limit) = filter.limit {
         if limit > MAX_LIMIT {
-            return Err(format!("Limit too high (max {})", MAX_LIMIT));
+            return Err(ContentFilterValidationError::LimitTooHigh { max: MAX_LIMIT });
         }
     }
 
     if let Some(ref tags) = filter.tags {
         if tags.len() > MAX_TAGS {
-            return Err(format!("Too many tags (max {})", MAX_TAGS));
+            return Err(ContentFilterValidationError::TooManyTags { max: MAX_TAGS });
         }
         for tag in tags {
             if tag.len() > MAX_TAG_LENGTH {
-                return Err(format!("Tag too long (max {} characters)", MAX_TAG_LENGTH));
+                return Err(ContentFilterValidationError::TagTooLong {
+                    max: MAX_TAG_LENGTH,
+                });
             }
         }
     }
@@ -121,7 +151,7 @@ pub(super) async fn handle_content_request(
             // Validate filter if present
             if let Some(ref f) = filter {
                 if let Err(e) = validate_filter(f) {
-                    return Ok(ResponseResult::error(ErrorCode::BadRequest, e));
+                    return Ok(ResponseResult::error(ErrorCode::BadRequest, e.to_string()));
                 }
             }
 
