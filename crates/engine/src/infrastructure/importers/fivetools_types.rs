@@ -3,6 +3,24 @@
 //! These types mirror the 5etools JSON schema for spells, feats, items, etc.
 //! They are used for deserialization and then converted to our domain types.
 //!
+//! # Field Design Philosophy
+//!
+//! Fields are categorized as **required** or **optional** based on the 5etools schema
+//! and our domain needs:
+//!
+//! - **Required fields** have no `#[serde(default)]` attribute. If missing from the JSON,
+//!   deserialization fails immediately with a clear error message. This is intentional
+//!   for fields that are essential to identify or process an entry.
+//!
+//! - **Optional fields** use `#[serde(default)]` which provides:
+//!   - `Vec::new()` for collection types
+//!   - `false` for booleans
+//!   - `None` for `Option<T>` types
+//!   - `Default::default()` for structs with `#[derive(Default)]`
+//!
+//! This design ensures we fail fast on malformed data while being lenient on
+//! legitimately optional content.
+//!
 //! Note: Some fields are parsed but not yet used in the conversion to domain types.
 //! They are kept for future expansion and to maintain compatibility with the JSON schema.
 
@@ -18,7 +36,28 @@ pub struct FiveToolsSpellFile {
     pub spell: Vec<FiveToolsSpell>,
 }
 
-/// A spell in 5etools format.
+/// Raw spell data from 5etools JSON.
+///
+/// # Required Fields (deserialization fails if missing)
+///
+/// - `name`: Spell name (e.g., "Fireball")
+/// - `source`: Source book abbreviation (e.g., "PHB", "XGE")
+/// - `level`: Spell level (0 for cantrips, 1-9 for leveled spells)
+/// - `school`: School of magic code (e.g., "V" for Evocation)
+///
+/// # Optional Fields (use sensible defaults)
+///
+/// - `page`: Page number in source book (`None` if not specified)
+/// - `time`: Casting time array (defaults to empty, handled as 1 action)
+/// - `range`: Spell range (`None` defaults to Touch in converter)
+/// - `components`: V/S/M components (`None` defaults to no components)
+/// - `duration`: Duration array (defaults to empty, handled as Instantaneous)
+/// - `entries`: Spell description text (defaults to empty)
+/// - `entries_higher_level`: At higher levels text (`None` if not applicable)
+/// - `classes`: Class spell lists (`None` = no class restrictions known)
+/// - `meta`: Ritual flag (`None` = not a ritual)
+/// - `misc_tags`, `damage_inflict`, `condition_inflict`: Tags for filtering
+/// - `saving_throw`, `spell_attack`: Combat metadata
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FiveToolsSpell {
@@ -190,7 +229,21 @@ pub struct FiveToolsFeatFile {
     pub feat: Vec<FiveToolsFeat>,
 }
 
-/// A feat in 5etools format.
+/// Raw feat data from 5etools JSON.
+///
+/// # Required Fields (deserialization fails if missing)
+///
+/// - `name`: Feat name (e.g., "Alert", "Great Weapon Master")
+/// - `source`: Source book abbreviation (e.g., "PHB", "XGE")
+///
+/// # Optional Fields (use sensible defaults)
+///
+/// - `page`: Page number in source book
+/// - `prerequisite`: Prerequisites (level, race, ability scores, etc.)
+/// - `entries`: Feat description and benefits
+/// - `ability`: Ability score increases granted
+/// - `category`: Feat category for organization
+/// - `additional_sources`: Other books where this feat appears
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FiveToolsFeat {
@@ -340,7 +393,24 @@ pub struct FiveToolsRaceFile {
     pub subrace: Vec<FiveToolsSubrace>,
 }
 
-/// A race in 5etools format.
+/// Raw race data from 5etools JSON.
+///
+/// # Required Fields (deserialization fails if missing)
+///
+/// - `name`: Race name (e.g., "Elf", "Dwarf")
+/// - `source`: Source book abbreviation
+///
+/// # Optional Fields (use sensible defaults)
+///
+/// - `page`: Page number in source book
+/// - `size`: Size categories (defaults to empty, typically "M")
+/// - `speed`: Movement speeds (defaults to 30 ft walking)
+/// - `ability`: Ability score bonuses
+/// - `darkvision`: Darkvision range in feet
+/// - `entries`: Race description and traits
+/// - `language_proficiencies`: Languages known
+/// - `skill_proficiencies`: Skill proficiencies granted
+/// - `copy`: Reference to another race to copy from
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FiveToolsRace {
@@ -541,7 +611,23 @@ pub struct FiveToolsClassFeatureFile {
     pub subclass_feature: Vec<FiveToolsSubclassFeature>,
 }
 
-/// A class in 5etools format.
+/// Raw class data from 5etools JSON.
+///
+/// # Required Fields (deserialization fails if missing)
+///
+/// - `name`: Class name (e.g., "Fighter", "Wizard")
+/// - `source`: Source book abbreviation
+/// - `hd`: Hit dice specification
+///
+/// # Optional Fields (use sensible defaults)
+///
+/// - `page`: Page number in source book
+/// - `edition`: Game edition (used to filter out 2024 classes)
+/// - `proficiency`: Saving throw proficiencies
+/// - `starting_proficiencies`: Armor, weapon, tool, and skill proficiencies
+/// - `subclass_title`: Name for subclass feature (e.g., "Martial Archetype")
+/// - `spellcasting_ability`: Spellcasting stat if class is a caster
+/// - `caster_progression`: Caster level progression type
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FiveToolsClass {
@@ -729,7 +815,24 @@ pub struct FiveToolsItemFile {
     pub item: Vec<FiveToolsItem>,
 }
 
-/// An item in 5etools format.
+/// Raw item data from 5etools JSON.
+///
+/// # Required Fields (deserialization fails if missing)
+///
+/// - `name`: Item name
+/// - `source`: Source book abbreviation
+///
+/// # Optional Fields (use sensible defaults)
+///
+/// - `page`: Page number in source book
+/// - `item_type`: Item type code (e.g., "W" for wondrous)
+/// - `rarity`: Item rarity (common, uncommon, rare, etc.)
+/// - `weight`: Weight in pounds
+/// - `value`: Value in copper pieces
+/// - `req_attune`: Attunement requirements
+/// - `wondrous`: Whether this is a wondrous item
+/// - `entries`: Item description
+/// - `extra`: Additional properties via `#[serde(flatten)]`
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FiveToolsItem {

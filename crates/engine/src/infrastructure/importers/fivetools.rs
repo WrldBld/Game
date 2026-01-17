@@ -2,6 +2,32 @@
 //!
 //! Imports spell, feat, and class feature data from 5etools JSON files
 //! and converts them to our domain types.
+//!
+//! # Validation Strategy
+//!
+//! This importer uses a **fail-fast approach** for required fields:
+//!
+//! - **Required fields** (e.g., `name`, `source`, `level`, `school` for spells) are
+//!   non-optional in serde types. Missing required fields cause deserialization to
+//!   fail immediately with a clear error.
+//!
+//! - **Optional fields** use `#[serde(default)]` to provide sensible defaults that
+//!   match the 5etools schema conventions:
+//!   - Empty `Vec` for collections (entries, time, duration, classes)
+//!   - `false` for boolean flags (ritual, concentration)
+//!   - `None` for truly optional data (page numbers, higher level descriptions)
+//!
+//! # Error Handling
+//!
+//! Individual entry parse failures are logged and skipped via `filter_map()`,
+//! allowing partial imports when some entries have schema issues. This ensures
+//! that a single malformed spell or feat doesn't prevent importing the rest of
+//! the source file.
+//!
+//! # Type Definitions
+//!
+//! Raw 5etools JSON types are defined in [`fivetools_types`]. These are intermediate
+//! representations that get converted to domain types in the `convert_*` methods.
 
 use super::fivetools_types::*;
 use serde::Serialize;

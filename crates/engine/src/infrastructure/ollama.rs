@@ -104,7 +104,7 @@ impl LlmPort for OllamaClient {
             .await
             .map_err(|e| LlmError::InvalidResponse(e.to_string()))?;
 
-        Ok(convert_response(api_response))
+        convert_response(api_response)
     }
 
     async fn generate_with_tools(
@@ -153,7 +153,7 @@ impl LlmPort for OllamaClient {
             .await
             .map_err(|e| LlmError::InvalidResponse(e.to_string()))?;
 
-        Ok(convert_response(api_response))
+        convert_response(api_response)
     }
 }
 
@@ -185,20 +185,28 @@ fn build_messages(request: &LlmRequest) -> Vec<OpenAIMessage> {
     messages
 }
 
-fn convert_response(response: OpenAIChatResponse) -> LlmResponse {
-    let choice = response.choices.into_iter().next().unwrap_or_default();
-
-    let tool_calls = choice
-        .message
-        .tool_calls
-        .unwrap_or_default()
+fn convert_response(response: OpenAIChatResponse) -> Result<LlmResponse, LlmError> {
+    let choice = response
+        .choices
         .into_iter()
-        .map(|tc| ToolCall {
+        .next()
+        .ok_or_else(|| LlmError::InvalidResponse("No choices in LLM response".to_string()))?;
+
+    let mut tool_calls = Vec::new();
+    for tc in choice.message.tool_calls.unwrap_or_default() {
+        let arguments: serde_json::Value =
+            serde_json::from_str(&tc.function.arguments).map_err(|e| {
+                LlmError::InvalidResponse(format!(
+                    "Invalid tool call arguments for '{}': {}",
+                    tc.function.name, e
+                ))
+            })?;
+        tool_calls.push(ToolCall {
             id: tc.id,
             name: tc.function.name,
-            arguments: serde_json::from_str(&tc.function.arguments).unwrap_or_default(),
-        })
-        .collect();
+            arguments,
+        });
+    }
 
     let finish_reason = match choice.finish_reason.as_deref() {
         Some("stop") => FinishReason::Stop,
@@ -208,7 +216,7 @@ fn convert_response(response: OpenAIChatResponse) -> LlmResponse {
         _ => FinishReason::Stop,
     };
 
-    LlmResponse {
+    Ok(LlmResponse {
         content: choice.message.content.unwrap_or_default(),
         tool_calls,
         finish_reason,
@@ -217,7 +225,7 @@ fn convert_response(response: OpenAIChatResponse) -> LlmResponse {
             completion_tokens: u.completion_tokens,
             total_tokens: u.total_tokens,
         }),
-    }
+    })
 }
 
 // =============================================================================
