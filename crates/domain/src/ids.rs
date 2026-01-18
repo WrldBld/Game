@@ -90,7 +90,6 @@ define_id!(ActionId);
 // Asset and generation IDs
 define_id!(AssetId);
 define_id!(BatchId);
-define_id!(WorkflowConfigId);
 
 // Scene interaction IDs
 define_id!(InteractionId);
@@ -114,3 +113,9 @@ define_id!(RegionStateId);
 
 // Misc IDs (present in codebase)
 define_id!(WorkflowId);
+
+// Stat system IDs
+define_id!(StatModifierId);
+
+// Conversation IDs
+define_id!(ConversationId);

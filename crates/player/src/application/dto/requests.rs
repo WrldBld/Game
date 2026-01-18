@@ -25,7 +25,7 @@ pub struct CreateWorldRequest {
     pub setting: Option<String>,
 }
 
-impl From<CreateWorldRequest> for wrldbldr_protocol::CreateWorldData {
+impl From<CreateWorldRequest> for wrldbldr_shared::CreateWorldData {
     fn from(req: CreateWorldRequest) -> Self {
         Self {
             name: req.name,
@@ -49,7 +49,7 @@ pub struct CreateCharacterRequest {
     pub portrait_asset: Option<String>,
 }
 
-impl From<CreateCharacterRequest> for wrldbldr_protocol::requests::CreateCharacterData {
+impl From<CreateCharacterRequest> for wrldbldr_shared::requests::CreateCharacterData {
     fn from(req: CreateCharacterRequest) -> Self {
         Self {
             name: req.name,
@@ -72,7 +72,7 @@ pub struct UpdateCharacterRequest {
     pub is_active: Option<bool>,
 }
 
-impl From<UpdateCharacterRequest> for wrldbldr_protocol::requests::UpdateCharacterData {
+impl From<UpdateCharacterRequest> for wrldbldr_shared::requests::UpdateCharacterData {
     fn from(req: UpdateCharacterRequest) -> Self {
         Self {
             name: req.name,
@@ -92,7 +92,7 @@ pub struct ChangeArchetypeRequest {
     pub reason: String,
 }
 
-impl From<ChangeArchetypeRequest> for wrldbldr_protocol::requests::ChangeArchetypeData {
+impl From<ChangeArchetypeRequest> for wrldbldr_shared::requests::ChangeArchetypeData {
     fn from(req: ChangeArchetypeRequest) -> Self {
         Self {
             new_archetype: req.new_archetype,
@@ -116,7 +116,7 @@ pub struct SuggestionContext {
     pub world_id: Option<uuid::Uuid>,
 }
 
-impl From<SuggestionContext> for wrldbldr_protocol::SuggestionContextData {
+impl From<SuggestionContext> for wrldbldr_shared::SuggestionContextData {
     fn from(ctx: SuggestionContext) -> Self {
         Self {
             entity_type: ctx.entity_type,
@@ -144,7 +144,7 @@ pub struct CreateChallengeRequest {
     pub failure_outcome: Option<String>,
 }
 
-impl From<CreateChallengeRequest> for wrldbldr_protocol::CreateChallengeData {
+impl From<CreateChallengeRequest> for wrldbldr_shared::CreateChallengeData {
     fn from(req: CreateChallengeRequest) -> Self {
         Self {
             name: req.name,
@@ -168,7 +168,7 @@ pub struct UpdateChallengeRequest {
     pub failure_outcome: Option<String>,
 }
 
-impl From<UpdateChallengeRequest> for wrldbldr_protocol::UpdateChallengeData {
+impl From<UpdateChallengeRequest> for wrldbldr_shared::UpdateChallengeData {
     fn from(req: UpdateChallengeRequest) -> Self {
         Self {
             name: req.name,

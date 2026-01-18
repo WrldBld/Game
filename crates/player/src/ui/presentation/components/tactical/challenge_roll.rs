@@ -352,13 +352,13 @@ fn RollInputPhase(
 
                                 // Roll using domain's DiceFormula with platform RNG
                                 let result = dice_formula.roll(|min, max| platform.random_range(min, max));
-                                let total = result.total + character_modifier;
+                                let total = result.total() + character_modifier;
 
                                 roll_result.set(Some(RollDisplayState {
                                     formula: dice_formula.display(),
-                                    individual_rolls: result.individual_rolls,
-                                    dice_total: result.dice_total,
-                                    formula_modifier: result.modifier_applied,
+                                    individual_rolls: result.individual_rolls().to_vec(),
+                                    dice_total: result.dice_total(),
+                                    formula_modifier: result.modifier_applied(),
                                     character_modifier,
                                     total,
                                     is_manual: false,

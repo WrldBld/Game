@@ -1,3 +1,5 @@
+//! Form field wrapper component with label and required indicator.
+
 use dioxus::prelude::*;
 
 #[component]

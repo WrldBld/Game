@@ -14,6 +14,8 @@ thiserror = { workspace = true }
 # NOTE: anyhow removed for hexagonal architecture purity - domain uses thiserror instead
 # NOTE: rand removed for hexagonal architecture purity - RNG is now injected via closure
 serde = { workspace = true }
+
+[dev-dependencies]
 serde_json = { workspace = true }
 
 [features]

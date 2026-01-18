@@ -1,0 +1,235 @@
+{
+  "_comment": "Thornhaven location visual states for LLM integration testing",
+  "location_states": [
+    {
+      "id": "00000000-0000-0000-8000-000000000001",
+      "location_id": "00000000-0000-0000-1000-000000000001",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Morning Quiet",
+      "description": "The inn in the calm morning hours before the bustle begins",
+      "backdrop_override": "inn_morning.png",
+      "atmosphere_override": "Sunlight streams through dusty windows. The common room is quiet, with only the occasional clink of dishes from the kitchen. The smell of fresh bread mixes with the lingering scent of last night's ale.",
+      "ambient_sound": "morning_inn_ambient.ogg",
+      "map_overlay": null,
+      "activation_rules": [
+        { "time_of_day": { "period": "morning" } }
+      ],
+      "activation_logic": "all",
+      "priority": 10,
+      "is_default": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-8000-000000000002",
+      "location_id": "00000000-0000-0000-1000-000000000001",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Evening Rush",
+      "description": "The inn at its busiest during evening hours",
+      "backdrop_override": "inn_evening.png",
+      "atmosphere_override": "The common room is alive with conversation, laughter, and the clatter of tankards. A roaring fire casts dancing shadows on the walls. Marta moves efficiently between tables, always with a warm word and a full pitcher.",
+      "ambient_sound": "busy_tavern.ogg",
+      "map_overlay": null,
+      "activation_rules": [
+        { "time_of_day": { "period": "evening" } }
+      ],
+      "activation_logic": "all",
+      "priority": 20,
+      "is_default": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-8000-000000000003",
+      "location_id": "00000000-0000-0000-1000-000000000001",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Default Inn",
+      "description": "Standard inn atmosphere for other times",
+      "backdrop_override": null,
+      "atmosphere_override": null,
+      "ambient_sound": "tavern_ambient.ogg",
+      "map_overlay": null,
+      "activation_rules": [
+        { "always": null }
+      ],
+      "activation_logic": "all",
+      "priority": 0,
+      "is_default": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-8000-000000000004",
+      "location_id": "00000000-0000-0000-1000-000000000005",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Shadow Stirring",
+      "description": "The mill at night when the shadow presence is active",
+      "backdrop_override": "mill_shadow_active.png",
+      "atmosphere_override": "An unnatural chill permeates the air. Shadows seem to move at the edge of vision, and the creaking of old timbers sounds almost like whispered words. The moonlight that filters through the broken roof seems dimmer than it should be.",
+      "ambient_sound": "shadow_presence.ogg",
+      "map_overlay": "shadow_overlay.png",
+      "activation_rules": [
+        { "time_of_day": { "period": "night" } },
+        { "flag_set": { "flag_name": "shadow_awakened" } }
+      ],
+      "activation_logic": "all",
+      "priority": 100,
+      "is_default": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-8000-000000000005",
+      "location_id": "00000000-0000-0000-1000-000000000005",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Mill Night",
+      "description": "The mill at night before shadow awakening",
+      "backdrop_override": "mill_night.png",
+      "atmosphere_override": "The abandoned mill is eerie in the moonlight. The frozen waterwheel casts long shadows, and the building groans with each gust of wind. Something about this place feels deeply wrong.",
+      "ambient_sound": "creepy_mill.ogg",
+      "map_overlay": null,
+      "activation_rules": [
+        { "time_of_day": { "period": "night" } }
+      ],
+      "activation_logic": "all",
+      "priority": 50,
+      "is_default": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-8000-000000000006",
+      "location_id": "00000000-0000-0000-1000-000000000005",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Mill Day",
+      "description": "The mill during daylight - abandoned but less threatening",
+      "backdrop_override": "mill_day.png",
+      "atmosphere_override": "In daylight, the mill is merely sad rather than sinister. Dust motes float in beams of light. The decay is evident - rotting sacks, rusted machinery, signs of years of neglect. Yet even now, something feels off.",
+      "ambient_sound": "abandoned_building.ogg",
+      "map_overlay": null,
+      "activation_rules": [
+        { "always": null }
+      ],
+      "activation_logic": "all",
+      "priority": 0,
+      "is_default": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-8000-000000000007",
+      "location_id": "00000000-0000-0000-1000-000000000003",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Busy Market",
+      "description": "The village square during busy market hours",
+      "backdrop_override": "square_market.png",
+      "atmosphere_override": "The square is alive with activity. Merchants hawk their wares, villagers gossip by the well, and the smell of fresh produce fills the air. Children dart between the stalls while guards keep a watchful eye.",
+      "ambient_sound": "busy_market.ogg",
+      "map_overlay": null,
+      "activation_rules": [
+        { "time_of_day": { "period": "morning" } }
+      ],
+      "activation_logic": "all",
+      "priority": 20,
+      "is_default": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-8000-000000000008",
+      "location_id": "00000000-0000-0000-1000-000000000003",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Quiet Square",
+      "description": "The village square in quiet evening hours",
+      "backdrop_override": "square_evening.png",
+      "atmosphere_override": "The market stalls are closed for the day. A few villagers linger by the well, exchanging the day's gossip in hushed tones. Torches are being lit around the square as twilight deepens.",
+      "ambient_sound": "evening_village.ogg",
+      "map_overlay": null,
+      "activation_rules": [
+        { "time_of_day": { "period": "evening" } }
+      ],
+      "activation_logic": "all",
+      "priority": 15,
+      "is_default": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-8000-000000000009",
+      "location_id": "00000000-0000-0000-1000-000000000003",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Default Square",
+      "description": "Standard village square state",
+      "backdrop_override": null,
+      "atmosphere_override": null,
+      "ambient_sound": "village_ambient.ogg",
+      "map_overlay": null,
+      "activation_rules": [
+        { "always": null }
+      ],
+      "activation_logic": "all",
+      "priority": 0,
+      "is_default": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-8000-000000000010",
+      "location_id": "00000000-0000-0000-1000-000000000004",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Morning Prayers",
+      "description": "The temple during morning worship service",
+      "backdrop_override": "temple_morning_light.png",
+      "atmosphere_override": "Golden morning light pours through the stained glass windows, painting the sanctuary in warm colors. The sound of hymns and prayers fills the air. Brother Aldric leads a small congregation in the morning devotions.",
+      "ambient_sound": "temple_morning.ogg",
+      "map_overlay": null,
+      "activation_rules": [
+        { "time_of_day": { "period": "morning" } }
+      ],
+      "activation_logic": "all",
+      "priority": 15,
+      "is_default": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-8000-000000000011",
+      "location_id": "00000000-0000-0000-1000-000000000004",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Temple Default",
+      "description": "Standard temple atmosphere",
+      "backdrop_override": null,
+      "atmosphere_override": null,
+      "ambient_sound": "temple_ambient.ogg",
+      "map_overlay": null,
+      "activation_rules": [
+        { "always": null }
+      ],
+      "activation_logic": "all",
+      "priority": 0,
+      "is_default": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-8000-000000000012",
+      "location_id": "00000000-0000-0000-1000-000000000003",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Village Under Threat",
+      "description": "The square when the shadow threat is known - villagers are nervous",
+      "backdrop_override": "square_tense.png",
+      "atmosphere_override": "The mood in the square is subdued. Villagers cluster in small groups, speaking in hushed, worried tones. Guards patrol more frequently. Eyes keep drifting toward the distant mill, then quickly looking away.",
+      "ambient_sound": "tense_village.ogg",
+      "map_overlay": "worried_overlay.png",
+      "activation_rules": [
+        { "flag_set": { "flag_name": "shadow_threat_public" } },
+        { "custom": { "description": "The general mood is tense due to the shadow threat", "llm_prompt": "Evaluate if the village should feel threatened based on recent events and player actions" } }
+      ],
+      "activation_logic": "any",
+      "priority": 50,
+      "is_default": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  ]
+}

@@ -5,8 +5,10 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
     let now = chrono::Utc::now();
 
     let world_id = WorldId::new();
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
-    world.id = world_id;
+    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let world = wrldbldr_domain::World::new(world_name, now)
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(world_id);
 
     // World repo mock: always returns the same world and accepts saves.
     let mut world_repo = MockWorldRepo::new();
@@ -24,9 +26,9 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
-        pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
-        generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -40,6 +42,7 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Dm,
+            user_id: "dm-user".to_string(),
             pc_id: None,
             spectate_pc_id: None,
         },
@@ -57,6 +60,7 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Spectator,
+            user_id: "spectator-user".to_string(),
             pc_id: None,
             spectate_pc_id: None,
         },
@@ -78,7 +82,7 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
     let suggestion_id = Uuid::new_v4();
     let pc_id = PlayerCharacterId::new();
 
-    let current_time = world.game_time.clone();
+    let current_time = world.game_time().clone();
     let mut resulting_time = current_time.clone();
     resulting_time.advance_minutes(15);
 
@@ -95,17 +99,17 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
         period_change: None,
     };
 
-    {
-        let mut guard = ws_state.pending_time_suggestions.write().await;
-        guard.insert(suggestion_id, suggestion);
-    }
+    ws_state
+        .pending_time_suggestions
+        .insert(suggestion_id, suggestion)
+        .await;
 
     // DM approves the suggestion (no direct response; only broadcast).
     ws_send_client(
         &mut dm_ws,
         &ClientMessage::RespondToTimeSuggestion {
             suggestion_id: suggestion_id.to_string(),
-            decision: wrldbldr_protocol::types::TimeSuggestionDecision::Approve,
+            decision: wrldbldr_shared::types::TimeSuggestionDecision::Approve,
         },
     )
     .await;

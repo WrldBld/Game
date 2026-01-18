@@ -1,8 +1,9 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 
-use wrldbldr_protocol::StoryEventRequest;
+use wrldbldr_shared::StoryEventRequest;
 
 pub(super) async fn handle_story_event_request(
     state: &WsState,
@@ -29,15 +30,13 @@ pub(super) async fn handle_story_event_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "getting story event"),
                 )),
             }
         }
 
         StoryEventRequest::UpdateStoryEvent { event_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let event_uuid = match parse_uuid_for_request(&event_id, request_id, "Invalid event_id")
             {
@@ -50,7 +49,7 @@ pub(super) async fn handle_story_event_request(
                 .use_cases
                 .story_events
                 .ops
-                .update(event_uuid, data)
+                .update(event_uuid, data.summary, data.tags)
                 .await
             {
                 Ok(event) => Ok(ResponseResult::success(event)),
@@ -59,7 +58,7 @@ pub(super) async fn handle_story_event_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "updating story event"),
                 )),
             }
         }
@@ -88,15 +87,13 @@ pub(super) async fn handle_story_event_request(
                 Ok(events) => Ok(ResponseResult::success(events)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "listing story events"),
                 )),
             }
         }
 
         StoryEventRequest::CreateDmMarker { world_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_uuid = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
@@ -108,7 +105,7 @@ pub(super) async fn handle_story_event_request(
                 .use_cases
                 .story_events
                 .ops
-                .create_dm_marker(world_uuid, data)
+                .create_dm_marker(world_uuid, data.title, data.content)
                 .await
             {
                 Ok(event_id) => Ok(ResponseResult::success(serde_json::json!({
@@ -116,15 +113,13 @@ pub(super) async fn handle_story_event_request(
                 }))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "creating DM marker"),
                 )),
             }
         }
 
         StoryEventRequest::SetStoryEventVisibility { event_id, visible } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let event_uuid = match parse_uuid_for_request(&event_id, request_id, "Invalid event_id")
             {
@@ -146,7 +141,7 @@ pub(super) async fn handle_story_event_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "setting story event visibility"),
                 )),
             }
         }

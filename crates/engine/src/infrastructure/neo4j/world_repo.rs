@@ -2,8 +2,9 @@
 
 use std::sync::Arc;
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Row};
+use neo4rs::{query, Row};
 use wrldbldr_domain::*;
 
 use super::helpers::{parse_typed_id, NodeExt};
@@ -11,45 +12,41 @@ use crate::infrastructure::ports::{ClockPort, RepoError, WorldRepo};
 
 /// Repository for World aggregate operations.
 pub struct Neo4jWorldRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
     clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jWorldRepo {
-    pub fn new(graph: Graph, clock: Arc<dyn ClockPort>) -> Self {
+    pub fn new(graph: Neo4jGraph, clock: Arc<dyn ClockPort>) -> Self {
         Self { graph, clock }
     }
 
     fn row_to_world(&self, row: Row) -> Result<World, RepoError> {
-        let node: neo4rs::Node = row
-            .get("w")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+        let node: neo4rs::Node = row.get("w").map_err(|e| RepoError::database("query", e))?;
         let fallback = self.clock.now();
 
         let id: WorldId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
         let name: String = node
             .get("name")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let description: String = node
             .get("description")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let rule_system: RuleSystemConfig = node
             .get_json("rule_system")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let created_at = node.get_datetime_or("created_at", fallback);
         let updated_at = node.get_datetime_or("updated_at", fallback);
 
         // GameTime fields - use defaults for backwards compatibility
         let game_time_paused = node.get_bool_or("game_time_paused", true);
 
-        // Parse game time or create new with current time via injected clock
-        let mut game_time = if node.get_optional_string("game_time").is_some() {
-            let dt = node.get_datetime_or("game_time", fallback);
-            GameTime::starting_at(dt)
-        } else {
-            GameTime::new(fallback)
-        };
+        // Parse game time as total minutes since epoch
+        // For backwards compatibility: if stored as DateTime string, default to 0
+        // New storage format uses game_time_minutes (i64)
+        let total_minutes = node.get_i64_or("game_time_minutes", 0);
+        let mut game_time = GameTime::from_minutes(total_minutes);
         game_time.set_paused(game_time_paused);
 
         // Parse time config or use defaults
@@ -58,16 +55,19 @@ impl Neo4jWorldRepo {
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
 
-        Ok(World {
-            id,
-            name,
-            description,
-            rule_system,
-            game_time,
-            time_config,
-            created_at,
-            updated_at,
-        })
+        let name = WorldName::new(&name)
+            .map_err(|e| RepoError::database("query", format!("Invalid world name: {}", e)))?;
+        let description = Description::new(&description)
+            .map_err(|e| RepoError::database("query", format!("Invalid description: {}", e)))?;
+
+        Ok(World::new(name, created_at)
+            .with_id(id)
+            .with_description(description)
+            .with_rule_system(rule_system)
+            .with_game_time(game_time)
+            .with_time_config(time_config)
+            .with_created_at(created_at)
+            .with_updated_at(updated_at))
     }
 }
 
@@ -80,12 +80,12 @@ impl WorldRepo for Neo4jWorldRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_world(row)?))
         } else {
@@ -94,9 +94,9 @@ impl WorldRepo for Neo4jWorldRepo {
     }
 
     async fn save(&self, world: &World) -> Result<(), RepoError> {
-        let rule_system_json = serde_json::to_string(&world.rule_system)
+        let rule_system_json = serde_json::to_string(world.rule_system())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let time_config_json = serde_json::to_string(&world.time_config)
+        let time_config_json = serde_json::to_string(world.time_config())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         // MERGE to handle both create and update
@@ -105,29 +105,29 @@ impl WorldRepo for Neo4jWorldRepo {
             SET w.name = $name,
                 w.description = $description,
                 w.rule_system = $rule_system,
-                w.game_time = $game_time,
+                w.game_time_minutes = $game_time_minutes,
                 w.game_time_paused = $game_time_paused,
                 w.time_config = $time_config,
                 w.created_at = $created_at,
                 w.updated_at = $updated_at
             RETURN w.id as id",
         )
-        .param("id", world.id.to_string())
-        .param("name", world.name.clone())
-        .param("description", world.description.clone())
+        .param("id", world.id().to_string())
+        .param("name", world.name().as_str().to_owned())
+        .param("description", world.description().as_str().to_owned())
         .param("rule_system", rule_system_json)
-        .param("game_time", world.game_time.current().to_rfc3339())
-        .param("game_time_paused", world.game_time.is_paused())
+        .param("game_time_minutes", world.game_time().total_minutes())
+        .param("game_time_paused", world.game_time().is_paused())
         .param("time_config", time_config_json)
-        .param("created_at", world.created_at.to_rfc3339())
-        .param("updated_at", world.updated_at.to_rfc3339());
+        .param("created_at", world.created_at().to_rfc3339())
+        .param("updated_at", world.updated_at().to_rfc3339());
 
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
-        tracing::debug!("Saved world: {}", world.name);
+        tracing::debug!("Saved world: {}", world.name().as_str());
         Ok(())
     }
 
@@ -138,13 +138,13 @@ impl WorldRepo for Neo4jWorldRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut worlds = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             worlds.push(self.row_to_world(row)?);
         }
@@ -166,7 +166,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q1)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // 2. Delete NarrativeEvents, EventChains, StoryEvents
         let q2 = query(
@@ -177,7 +177,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q2)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let q2b = query(
             "MATCH (ec:EventChain {world_id: $id})
@@ -187,7 +187,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q2b)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let q2c = query(
             "MATCH (se:StoryEvent {world_id: $id})
@@ -197,7 +197,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q2c)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // 3. Delete Scenes
         let q3 = query(
@@ -208,7 +208,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q3)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // 4. Delete Challenges
         let q4 = query(
@@ -219,7 +219,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q4)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // 5. Delete RegionStates, then Regions
         let q5a = query(
@@ -230,7 +230,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q5a)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let q5b = query(
             "MATCH (r:Region)-[:WITHIN]->(l:Location {world_id: $id})
@@ -240,7 +240,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q5b)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // 6. Delete LocationStates, then Locations
         let q6a = query(
@@ -251,7 +251,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q6a)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let q6b = query(
             "MATCH (l:Location {world_id: $id})
@@ -261,7 +261,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q6b)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // 7. Delete Character relationships (Wants, NpcDispositions), then Characters
         let q7a = query(
@@ -272,7 +272,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q7a)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let q7b = query(
             "MATCH (c:Character {world_id: $id})
@@ -282,7 +282,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q7b)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // 8. Delete PlayerCharacters
         let q8 = query(
@@ -293,7 +293,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q8)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // 9. Delete Items
         let q9 = query(
@@ -304,7 +304,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q9)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // 10. Delete Acts
         let q10 = query(
@@ -315,7 +315,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q10)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // 11. Delete Lore and LoreChunks
         let q11a = query(
@@ -326,7 +326,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q11a)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let q11b = query(
             "MATCH (l:Lore {world_id: $id})
@@ -336,7 +336,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q11b)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // 12. Delete Observations
         let q12 = query(
@@ -347,7 +347,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q12)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // 13. Delete Flags
         let q13 = query(
@@ -358,7 +358,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q13)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // 14. Finally delete the World itself
         let q14 = query(
@@ -369,7 +369,7 @@ impl WorldRepo for Neo4jWorldRepo {
         self.graph
             .run(q14)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::info!(world_id = %id, "Deleted world and all related entities");
         Ok(())

@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 
 /// Status of a generation batch
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum BatchStatus {
     /// Waiting in queue to be processed
     Queued,

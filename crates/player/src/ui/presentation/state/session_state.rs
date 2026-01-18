@@ -217,7 +217,6 @@ impl SessionState {
             .add_log_entry(speaker, text, is_system, platform);
     }
 
-
     /// Set active challenge prompt
     pub fn set_active_challenge(&mut self, challenge: ChallengePromptData) {
         self.challenge.set_active_challenge(challenge);

@@ -1,6 +1,10 @@
 use super::*;
 use chrono::Utc;
-use wrldbldr_domain::{InteractionTarget, InteractionType, PlayerActionData};
+use wrldbldr_domain::{ConversationId, InteractionTarget, InteractionType};
+
+use crate::queue_types::PlayerActionData;
+
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 
 pub(super) async fn handle_start_conversation(
     state: &WsState,
@@ -10,17 +14,32 @@ pub(super) async fn handle_start_conversation(
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     let world_id = match conn_info.world_id {
         Some(id) => id,
-        None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must join a world first",
+            ))
+        }
     };
 
     let pc_id = match conn_info.pc_id {
         Some(id) => id,
-        None => return Some(error_response("NO_PC", "Must have a PC to start conversation")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must have a PC to start conversation",
+            ))
+        }
     };
 
     let npc_uuid = match parse_character_id(&npc_id) {
@@ -44,19 +63,36 @@ pub(super) async fn handle_start_conversation(
         .await
     {
         Ok(result) => result,
-        Err(crate::use_cases::conversation::ConversationError::PlayerCharacterNotFound) => {
-            return Some(error_response("NOT_FOUND", "Player character not found"))
+        Err(crate::use_cases::conversation::ConversationError::PlayerCharacterNotFound(id)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                &format!("Player character not found: {}", id),
+            ))
         }
-        Err(crate::use_cases::conversation::ConversationError::NpcNotFound) => {
-            return Some(error_response("NOT_FOUND", "NPC not found"))
+        Err(crate::use_cases::conversation::ConversationError::NpcNotFound(id)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                &format!("NPC not found: {}", id),
+            ))
         }
-        Err(crate::use_cases::conversation::ConversationError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"))
+        Err(crate::use_cases::conversation::ConversationError::WorldNotFound(id)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                &format!("World not found: {}", id),
+            ))
         }
         Err(crate::use_cases::conversation::ConversationError::NpcNotInRegion) => {
-            return Some(error_response("INVALID_TARGET", "NPC is not in this region"))
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "NPC is not in this region",
+            ))
         }
-        Err(e) => return Some(error_response("CONVERSATION_ERROR", &e.to_string())),
+        Err(e) => {
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "start conversation"),
+            ))
+        }
     };
 
     broadcast_action_queued(
@@ -87,17 +123,32 @@ pub(super) async fn handle_continue_conversation(
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     let world_id = match conn_info.world_id {
         Some(id) => id,
-        None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must join a world first",
+            ))
+        }
     };
 
     let pc_id = match conn_info.pc_id {
         Some(id) => id,
-        None => return Some(error_response("NO_PC", "Must have a PC to continue conversation")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must have a PC to continue conversation",
+            ))
+        }
     };
 
     let npc_uuid = match parse_character_id(&npc_id) {
@@ -105,13 +156,24 @@ pub(super) async fn handle_continue_conversation(
         Err(e) => return Some(e),
     };
 
-    // Parse optional conversation_id from string to UUID
-    let conversation_uuid = conversation_id.and_then(|id| Uuid::parse_str(&id).ok());
+    // Parse optional conversation_id from string to ConversationId
+    let conversation_uuid = match conversation_id {
+        Some(id_str) => match Uuid::parse_str(&id_str) {
+            Ok(uuid) => Some(ConversationId::from(uuid)),
+            Err(_) => {
+                return Some(error_response(
+                    ErrorCode::ValidationError,
+                    &format!("Invalid conversation_id format: {}", id_str),
+                ))
+            }
+        },
+        None => None,
+    };
 
     let message = message.trim().to_string();
     if message.is_empty() {
         return Some(error_response(
-            "INVALID_MESSAGE",
+            ErrorCode::ValidationError,
             "Conversation message cannot be empty",
         ));
     }
@@ -133,18 +195,26 @@ pub(super) async fn handle_continue_conversation(
     {
         Ok(result) => result,
         Err(crate::use_cases::conversation::ConversationError::NpcLeftRegion) => {
+            return Some(error_response(ErrorCode::BadRequest, "NPC left the region"))
+        }
+        Err(crate::use_cases::conversation::ConversationError::NpcNotFound(id)) => {
             return Some(error_response(
-                "CONVERSATION_ENDED",
-                "NPC left the region",
+                ErrorCode::NotFound,
+                &format!("NPC not found: {}", id),
             ))
         }
-        Err(crate::use_cases::conversation::ConversationError::NpcNotFound) => {
-            return Some(error_response("NOT_FOUND", "NPC not found"))
+        Err(crate::use_cases::conversation::ConversationError::WorldNotFound(id)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                &format!("World not found: {}", id),
+            ))
         }
-        Err(crate::use_cases::conversation::ConversationError::WorldNotFound) => {
-            return Some(error_response("NOT_FOUND", "World not found"))
+        Err(e) => {
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "continue conversation"),
+            ))
         }
-        Err(e) => return Some(error_response("CONVERSATION_ERROR", &e.to_string())),
     };
 
     broadcast_action_queued(
@@ -171,17 +241,32 @@ pub(super) async fn handle_perform_interaction(
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
-        None => return Some(error_response("NOT_CONNECTED", "Connection not found")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
     };
 
     let world_id = match conn_info.world_id {
         Some(id) => id,
-        None => return Some(error_response("NOT_IN_WORLD", "Must join a world first")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must join a world first",
+            ))
+        }
     };
 
     let pc_id = match conn_info.pc_id {
         Some(id) => id,
-        None => return Some(error_response("NO_PC", "Must have a PC to act")),
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must have a PC to act",
+            ))
+        }
     };
 
     let interaction_uuid = match parse_id(
@@ -193,18 +278,29 @@ pub(super) async fn handle_perform_interaction(
         Err(e) => return Some(e),
     };
 
-    let interaction = match state.app.entities.interaction.get(interaction_uuid).await {
+    let interaction = match state
+        .app
+        .repositories
+        .interaction
+        .get(interaction_uuid)
+        .await
+    {
         Ok(Some(interaction)) => interaction,
-        Ok(None) => return Some(error_response("NOT_FOUND", "Interaction not found")),
-        Err(e) => return Some(error_response("REPO_ERROR", &e.to_string())),
+        Ok(None) => return Some(error_response(ErrorCode::NotFound, "Interaction not found")),
+        Err(e) => {
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "fetch interaction"),
+            ))
+        }
     };
 
-    if matches!(interaction.interaction_type, InteractionType::Dialogue) {
-        let npc_id = match interaction.target {
-            InteractionTarget::Character(id) => id,
+    if matches!(interaction.interaction_type(), InteractionType::Dialogue) {
+        let npc_id = match interaction.target() {
+            InteractionTarget::Character(id) => *id,
             _ => {
                 return Some(error_response(
-                    "INVALID_TARGET",
+                    ErrorCode::BadRequest,
                     "Dialogue interaction missing NPC target",
                 ))
             }
@@ -225,7 +321,12 @@ pub(super) async fn handle_perform_interaction(
             .await
         {
             Ok(result) => result,
-            Err(e) => return Some(error_response("CONVERSATION_ERROR", &e.to_string())),
+            Err(e) => {
+                return Some(error_response(
+                    ErrorCode::InternalError,
+                    &sanitize_repo_error(&e, "start conversation from interaction"),
+                ))
+            }
         };
 
         broadcast_action_queued(
@@ -246,8 +347,8 @@ pub(super) async fn handle_perform_interaction(
         });
     }
 
-    let target = interaction_target_label(&interaction.target);
-    let action_type = interaction_action_type(&interaction.interaction_type);
+    let target = interaction_target_label(interaction.target());
+    let action_type = interaction_action_type(interaction.interaction_type());
 
     let action_data = PlayerActionData {
         world_id,
@@ -262,7 +363,12 @@ pub(super) async fn handle_perform_interaction(
 
     let action_id = match state.app.queue.enqueue_player_action(&action_data).await {
         Ok(id) => id,
-        Err(e) => return Some(error_response("QUEUE_ERROR", &e.to_string())),
+        Err(e) => {
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "enqueue player action"),
+            ))
+        }
     };
 
     let queue_depth = state
@@ -334,5 +440,8 @@ async fn broadcast_action_queued(
         action_type: action_type.to_string(),
         queue_depth,
     };
-    state.connections.broadcast_to_dms(world_id, queue_msg).await;
+    state
+        .connections
+        .broadcast_to_dms(world_id, queue_msg)
+        .await;
 }

@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use wrldbldr_protocol::ResponseResult;
+use wrldbldr_shared::ResponseResult;
 
 use super::shared::{
     BACKOFF_MULTIPLIER, INITIAL_RETRY_DELAY_MS, MAX_RETRY_ATTEMPTS, MAX_RETRY_DELAY_MS,
@@ -26,6 +26,7 @@ pub struct PendingRequests {
 
 impl PendingRequests {
     /// Insert a pending request callback.
+    #[allow(dead_code)]
     pub fn insert(&mut self, request_id: String, callback: PendingCallback) {
         self.inner.insert(request_id, callback);
     }

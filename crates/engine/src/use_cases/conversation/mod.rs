@@ -1,3 +1,6 @@
+// Conversation use cases - fields for future conversation features
+#![allow(dead_code)]
+
 //! Conversation use cases.
 //!
 //! Handles player-NPC dialogue interactions. The conversation flow is:
@@ -15,9 +18,12 @@ mod continue_conversation;
 mod end;
 mod start;
 
-pub use continue_conversation::{ContinueConversation, ConversationContinued};
-pub use end::{ConversationEnded, EndConversation, EndConversationError};
-pub use start::{ConversationError, ConversationStarted, StartConversation};
+#[cfg(test)]
+mod llm_context_tests;
+
+pub use continue_conversation::ContinueConversation;
+pub use end::EndConversation;
+pub use start::{ConversationError, StartConversation};
 
 /// Container for conversation use cases.
 pub struct ConversationUseCases {

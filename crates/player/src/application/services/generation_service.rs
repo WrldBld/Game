@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
-use wrldbldr_protocol::{GenerationRequest, RequestPayload};
+use wrldbldr_shared::{GenerationRequest, RequestPayload};
 
 /// DTO for batch status information from the Engine
 #[derive(Clone, Debug, Deserialize, Serialize)]

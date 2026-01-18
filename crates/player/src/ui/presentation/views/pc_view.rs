@@ -6,11 +6,12 @@
 use dioxus::prelude::*;
 use std::collections::HashMap;
 
+use crate::application::dto::CharacterSheetSchema;
 use crate::application::dto::InventoryItemData;
+use crate::application::dto::{DiceInput, InteractionData, PlayerAction};
+use crate::infrastructure::messaging::CommandBus;
 use crate::infrastructure::spawn_task;
-use crate::application::dto::{
-    DiceInput, FieldValue, InteractionData, PlayerAction, SheetTemplate,
-};
+use crate::infrastructure::websocket::ClientMessageBuilder;
 use crate::presentation::components::action_panel::ActionPanel;
 use crate::presentation::components::character_sheet_viewer::CharacterSheetViewer;
 use crate::presentation::components::event_overlays::{ApproachEventOverlay, LocationEventBanner};
@@ -25,8 +26,6 @@ use crate::presentation::components::tactical::{
 use crate::presentation::components::visual_novel::{
     Backdrop, CharacterLayer, DialogueBox, EmptyDialogueBox,
 };
-use crate::infrastructure::messaging::CommandBus;
-use crate::infrastructure::websocket::ClientMessageBuilder;
 use crate::presentation::services::{
     use_character_service, use_command_bus, use_location_service, use_observation_service,
     use_skill_service, use_world_service,
@@ -35,6 +34,7 @@ use crate::presentation::state::{
     use_dialogue_state, use_game_state, use_session_state, use_typewriter_effect,
     RollSubmissionStatus,
 };
+use wrldbldr_shared::character_sheet::SheetValue;
 
 /// Player Character View - visual novel gameplay interface
 ///
@@ -45,6 +45,7 @@ pub fn PCView() -> Element {
     let game_state = use_game_state();
     let mut dialogue_state = use_dialogue_state();
     let session_state = use_session_state();
+    let navigator = use_navigator();
 
     // Get command bus for sending messages
     let command_bus = use_command_bus();
@@ -58,8 +59,8 @@ pub fn PCView() -> Element {
 
     // Character sheet viewer state
     let mut show_character_sheet = use_signal(|| false);
-    let mut character_sheet_template: Signal<Option<SheetTemplate>> = use_signal(|| None);
-    let mut character_sheet_values: Signal<HashMap<String, FieldValue>> = use_signal(HashMap::new);
+    let mut character_sheet_schema: Signal<Option<CharacterSheetSchema>> = use_signal(|| None);
+    let mut character_sheet_values: Signal<HashMap<String, SheetValue>> = use_signal(HashMap::new);
     let mut player_character_name = use_signal(|| "Your Character".to_string());
     let mut selected_character_id: Signal<Option<String>> = use_signal(|| None);
     let mut is_loading_sheet = use_signal(|| false);
@@ -372,21 +373,24 @@ pub fn PCView() -> Element {
                             let world_svc = world_service.clone();
                             let char_svc = character_service.clone();
                             spawn_task(async move {
-                                // Load template
+                                // Load schema
                                 match world_svc.get_sheet_template(&wid).await {
-                                    Ok(template_json) => {
-                                        if let Ok(template) = serde_json::from_value::<SheetTemplate>(template_json) {
-                                            character_sheet_template.set(Some(template));
-                                        }
+                                    Ok(schema) => {
+                                        character_sheet_schema.set(Some(schema));
                                     }
-                                    Err(e) => tracing::warn!("Failed to load sheet template: {}", e),
+                                    Err(e) => tracing::warn!("Failed to load sheet schema: {}", e),
                                 }
                                 // Load character data
                                 match char_svc.get_character(&cid).await {
                                     Ok(char_data) => {
                                         player_character_name.set(char_data.name);
                                         if let Some(sheet_data) = char_data.sheet_data {
-                                            character_sheet_values.set(sheet_data.values);
+                                            character_sheet_values.set(
+                                                sheet_data
+                                                    .values
+                                                    .into_iter()
+                                                    .collect::<HashMap<_, _>>()
+                                            );
                                         }
                                     }
                                     Err(e) => tracing::warn!("Failed to load character: {}", e),
@@ -528,10 +532,7 @@ pub fn PCView() -> Element {
                                                 let modifier = sheet_values
                                                     .get(&format!("skill_{}", s.name.to_lowercase().replace(' ', "_")))
                                                     .or_else(|| sheet_values.get(&s.name.to_lowercase()))
-                                                    .and_then(|v| match v {
-                                                        crate::application::dto::FieldValue::Number(n) => Some(*n),
-                                                        _ => None,
-                                                    })
+                                                    .and_then(|v| v.as_i64().map(|n| n as i32))
                                                     .unwrap_or(0);
 
                                                 PlayerSkillData {
@@ -582,19 +583,24 @@ pub fn PCView() -> Element {
                             }
                         }
                     }
-                } else if let Some(template) = character_sheet_template.read().as_ref() {
+                } else if let Some(schema) = character_sheet_schema.read().as_ref() {
                     CharacterSheetViewer {
                         character_name: player_character_name.read().clone(),
-                        template: template.clone(),
+                        schema: schema.clone(),
                         values: character_sheet_values.read().clone(),
                         on_close: move |_| show_character_sheet.set(false),
                     }
                 } else {
                     // No template loaded - show placeholder with character selection
                     {
-                        let characters = game_state.world.read().as_ref()
+                        // Read world state once to avoid multiple borrows
+                        let world_read = game_state.world.read();
+                        let characters = world_read.as_ref()
                             .map(|w| w.characters.clone())
                             .unwrap_or_default();
+                        let world_id_for_create = world_read.as_ref()
+                            .map(|w| w.world.id.clone());
+                        drop(world_read); // Explicitly drop the borrow before rsx!
                         rsx! {
                             div {
                                 class: "character-sheet-overlay fixed inset-0 bg-black/85 z-[1000] flex items-center justify-center p-8",
@@ -612,7 +618,16 @@ pub fn PCView() -> Element {
                                     if characters.is_empty() {
                                         p {
                                             class: "text-gray-400 m-0 mb-6",
-                                            "No characters available in this world."
+                                            "No player character created yet."
+                                        }
+                                        if let Some(wid) = world_id_for_create.clone() {
+                                            button {
+                                                onclick: move |_| {
+                                                    navigator.push(crate::routes::Route::PCCreationRoute { world_id: wid.clone() });
+                                                },
+                                                class: "py-2 px-6 bg-blue-500 text-white border-0 rounded-lg cursor-pointer mb-4",
+                                                "Create Character"
+                                            }
                                         }
                                     } else {
                                         p {
@@ -943,11 +958,7 @@ pub fn PCView() -> Element {
 
 /// Overlay shown when player is waiting for DM to approve staging
 #[component]
-fn StagingPendingOverlay(
-    region_name: String,
-    started_at_ms: u64,
-    timeout_seconds: u64,
-) -> Element {
+fn StagingPendingOverlay(region_name: String, started_at_ms: u64, timeout_seconds: u64) -> Element {
     let platform = use_context::<std::sync::Arc<dyn crate::ports::outbound::PlatformPort>>();
     let mut remaining_seconds = use_signal(|| {
         // Calculate initial remaining time
@@ -1206,7 +1217,10 @@ fn handle_advance(dialogue_state: &mut crate::presentation::state::DialogueState
 
 /// Handle an interaction being selected from the action panel
 /// Returns Ok(()) on success, Err(message) on failure
-fn handle_interaction(command_bus: &CommandBus, interaction: &InteractionData) -> Result<(), String> {
+fn handle_interaction(
+    command_bus: &CommandBus,
+    interaction: &InteractionData,
+) -> Result<(), String> {
     tracing::info!(
         "Selected interaction: {} ({})",
         interaction.name,
@@ -1246,7 +1260,11 @@ fn send_challenge_roll_input(
 
 /// Send a move to region command via CommandBus
 /// Returns Ok(()) on success, Err(message) on failure
-fn send_move_to_region(command_bus: &CommandBus, pc_id: &str, region_id: &str) -> Result<(), String> {
+fn send_move_to_region(
+    command_bus: &CommandBus,
+    pc_id: &str,
+    region_id: &str,
+) -> Result<(), String> {
     let msg = ClientMessageBuilder::move_to_region(pc_id, region_id);
     command_bus
         .send(msg)

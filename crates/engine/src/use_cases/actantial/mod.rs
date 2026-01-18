@@ -1,3 +1,6 @@
+// Actantial use cases - methods for future motivation features
+#![allow(dead_code)]
+
 //! Actantial (motivations) use cases.
 //!
 //! Handles goals, wants, and actantial context operations.
@@ -5,24 +8,34 @@
 use std::sync::Arc;
 
 use wrldbldr_domain::{
-    ActantialContext, ActantialRole, ActantialTarget, CharacterId, GoalId, Want, WantId,
+    ActantialContext, ActantialRole, ActantialTarget, CharacterId, GoalId, GoalName, Want, WantId,
     WantTarget, WantVisibility, WorldId,
 };
 
-use crate::entities::{Character, Goal};
 use crate::infrastructure::ports::{
-    ActantialViewRecord, ClockPort, GoalDetails, RepoError, WantDetails, WantTargetRef,
+    ActantialViewRecord, CharacterRepo, ClockPort, GoalDetails, GoalRepo, RepoError, WantDetails,
+    WantTargetRef,
 };
+use crate::use_cases::validation::{require_non_empty, ValidationError};
 
 /// Shared error type for actantial use cases.
 #[derive(Debug, thiserror::Error)]
 pub enum ActantialError {
-    #[error("Not found")]
-    NotFound,
+    #[error("{entity_type} not found: {id}")]
+    NotFound {
+        entity_type: &'static str,
+        id: String,
+    },
     #[error("Invalid input: {0}")]
     InvalidInput(String),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
+}
+
+impl From<ValidationError> for ActantialError {
+    fn from(err: ValidationError) -> Self {
+        ActantialError::InvalidInput(err.to_string())
+    }
 }
 
 /// Container for actantial use cases.
@@ -47,11 +60,11 @@ impl ActantialUseCases {
 // =============================================================================
 
 pub struct GoalOps {
-    goal: Arc<Goal>,
+    goal: Arc<dyn GoalRepo>,
 }
 
 impl GoalOps {
-    pub fn new(goal: Arc<Goal>) -> Self {
+    pub fn new(goal: Arc<dyn GoalRepo>) -> Self {
         Self { goal }
     }
 
@@ -69,13 +82,10 @@ impl GoalOps {
         name: String,
         description: Option<String>,
     ) -> Result<GoalDetails, ActantialError> {
-        if name.trim().is_empty() {
-            return Err(ActantialError::InvalidInput(
-                "Goal name cannot be empty".to_string(),
-            ));
-        }
+        let goal_name =
+            GoalName::new(&name).map_err(|e| ActantialError::InvalidInput(e.to_string()))?;
 
-        let mut goal = wrldbldr_domain::Goal::new(world_id, name);
+        let mut goal = wrldbldr_domain::Goal::new(world_id, goal_name);
         if let Some(description) = description {
             if !description.trim().is_empty() {
                 goal = goal.with_description(description);
@@ -96,24 +106,34 @@ impl GoalOps {
         name: Option<String>,
         description: Option<String>,
     ) -> Result<GoalDetails, ActantialError> {
-        let mut details = self.goal.get(goal_id).await?.ok_or(ActantialError::NotFound)?;
+        let mut details = self
+            .goal
+            .get(goal_id)
+            .await?
+            .ok_or(ActantialError::NotFound {
+                entity_type: "Goal",
+                id: goal_id.to_string(),
+            })?;
 
-        if let Some(name) = name {
-            if name.trim().is_empty() {
-                return Err(ActantialError::InvalidInput(
-                    "Goal name cannot be empty".to_string(),
-                ));
-            }
-            details.goal.name = name;
-        }
+        // Rebuild the goal with updated values using from_parts
+        let new_name = if let Some(name) = name {
+            GoalName::new(&name).map_err(|e| ActantialError::InvalidInput(e.to_string()))?
+        } else {
+            details.goal.name().clone()
+        };
 
-        if let Some(description) = description {
-            if description.trim().is_empty() {
-                details.goal.description = None;
-            } else {
-                details.goal.description = Some(description);
-            }
-        }
+        let new_description = match description {
+            Some(desc) if desc.trim().is_empty() => None,
+            Some(desc) => Some(desc),
+            None => details.goal.description().map(|s| s.to_string()),
+        };
+
+        details.goal = wrldbldr_domain::Goal::from_parts(
+            details.goal.id(),
+            details.goal.world_id(),
+            new_name,
+            new_description,
+        );
 
         self.goal.save(&details.goal).await?;
         Ok(details)
@@ -121,7 +141,10 @@ impl GoalOps {
 
     pub async fn delete(&self, goal_id: GoalId) -> Result<(), ActantialError> {
         if self.goal.get(goal_id).await?.is_none() {
-            return Err(ActantialError::NotFound);
+            return Err(ActantialError::NotFound {
+                entity_type: "Goal",
+                id: goal_id.to_string(),
+            });
         }
         self.goal.delete(goal_id).await?;
         Ok(())
@@ -133,16 +156,19 @@ impl GoalOps {
 // =============================================================================
 
 pub struct WantOps {
-    character: Arc<Character>,
+    character: Arc<dyn CharacterRepo>,
     clock: Arc<dyn ClockPort>,
 }
 
 impl WantOps {
-    pub fn new(character: Arc<Character>, clock: Arc<dyn ClockPort>) -> Self {
+    pub fn new(character: Arc<dyn CharacterRepo>, clock: Arc<dyn ClockPort>) -> Self {
         Self { character, clock }
     }
 
-    pub async fn list(&self, character_id: CharacterId) -> Result<Vec<WantDetails>, ActantialError> {
+    pub async fn list(
+        &self,
+        character_id: CharacterId,
+    ) -> Result<Vec<WantDetails>, ActantialError> {
         Ok(self.character.get_wants(character_id).await?)
     }
 
@@ -160,11 +186,7 @@ impl WantOps {
         deflection_behavior: Option<String>,
         tells: Vec<String>,
     ) -> Result<WantDetails, ActantialError> {
-        if description.trim().is_empty() {
-            return Err(ActantialError::InvalidInput(
-                "Want description cannot be empty".to_string(),
-            ));
-        }
+        require_non_empty(&description, "Want description")?;
 
         let now = self.clock.now();
         let mut want = Want::new(description, now)
@@ -177,7 +199,7 @@ impl WantOps {
             }
         }
 
-        want.tells = tells;
+        want = want.with_tells(tells);
 
         self.character
             .save_want(character_id, &want, priority)
@@ -201,36 +223,45 @@ impl WantOps {
         deflection_behavior: Option<String>,
         tells: Option<Vec<String>>,
     ) -> Result<WantDetails, ActantialError> {
-        let mut details = self.character.get_want(want_id).await?.ok_or(ActantialError::NotFound)?;
+        let mut details =
+            self.character
+                .get_want(want_id)
+                .await?
+                .ok_or(ActantialError::NotFound {
+                    entity_type: "Want",
+                    id: want_id.to_string(),
+                })?;
 
-        if let Some(description) = description {
-            if description.trim().is_empty() {
-                return Err(ActantialError::InvalidInput(
-                    "Want description cannot be empty".to_string(),
-                ));
+        // Rebuild the want with updated values
+        let new_description = if let Some(description) = description {
+            require_non_empty(&description, "Want description")?;
+            description
+        } else {
+            details.want.description().to_string()
+        };
+
+        let new_intensity = intensity.unwrap_or_else(|| details.want.intensity());
+        let new_visibility = visibility.unwrap_or_else(|| details.want.visibility());
+        let new_tells = tells.unwrap_or_else(|| details.want.tells().to_vec());
+
+        // Rebuild the want using builder pattern
+        let mut updated_want = Want::new(new_description, details.want.created_at())
+            .with_id(details.want.id())
+            .with_intensity(new_intensity)
+            .with_visibility(new_visibility)
+            .with_tells(new_tells);
+
+        // Handle deflection behavior - if explicitly provided, use it; otherwise keep existing
+        if let Some(deflection) = deflection_behavior {
+            if !deflection.trim().is_empty() {
+                updated_want = updated_want.with_deflection(deflection);
             }
-            details.want.description = description;
+            // If empty string provided, leave deflection as None (cleared)
+        } else if let Some(existing_deflection) = details.want.deflection_behavior() {
+            updated_want = updated_want.with_deflection(existing_deflection);
         }
 
-        if let Some(intensity) = intensity {
-            details.want = details.want.with_intensity(intensity);
-        }
-
-        if let Some(visibility) = visibility {
-            details.want = details.want.with_visibility(visibility);
-        }
-
-        if let Some(deflection_behavior) = deflection_behavior {
-            if deflection_behavior.trim().is_empty() {
-                details.want.deflection_behavior = None;
-            } else {
-                details.want.deflection_behavior = Some(deflection_behavior);
-            }
-        }
-
-        if let Some(tells) = tells {
-            details.want.tells = tells;
-        }
+        details.want = updated_want;
 
         if let Some(priority) = priority {
             details.priority = priority.max(1);
@@ -267,11 +298,11 @@ impl WantOps {
 // =============================================================================
 
 pub struct ActantialContextOps {
-    character: Arc<Character>,
+    character: Arc<dyn CharacterRepo>,
 }
 
 impl ActantialContextOps {
-    pub fn new(character: Arc<Character>) -> Self {
+    pub fn new(character: Arc<dyn CharacterRepo>) -> Self {
         Self { character }
     }
 
@@ -307,5 +338,235 @@ impl ActantialContextOps {
             .remove_actantial_view(character_id, want_id, target, role)
             .await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infrastructure::clock::FixedClock;
+    use crate::infrastructure::ports::{ClockPort, MockCharacterRepo, MockGoalRepo};
+    use chrono::TimeZone;
+    use std::sync::Arc;
+
+    fn fixed_time() -> chrono::DateTime<chrono::Utc> {
+        chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
+
+    fn create_test_goal(world_id: WorldId) -> wrldbldr_domain::Goal {
+        wrldbldr_domain::Goal::new(world_id, GoalName::new("Test Goal").unwrap())
+            .with_description("A test goal for testing")
+    }
+
+    fn create_test_want() -> Want {
+        Want::new("Test want description", fixed_time())
+            .with_intensity(0.7)
+            .with_visibility(WantVisibility::Known)
+    }
+
+    mod goal_ops {
+        use super::*;
+
+        #[tokio::test]
+        async fn when_create_goal_succeeds() {
+            let world_id = WorldId::new();
+
+            let mut goal_repo = MockGoalRepo::new();
+            goal_repo.expect_save().returning(|_| Ok(()));
+
+            let ops = GoalOps::new(Arc::new(goal_repo) as Arc<dyn GoalRepo>);
+
+            let result = ops
+                .create(
+                    world_id,
+                    "Power".to_string(),
+                    Some("The pursuit of power".to_string()),
+                )
+                .await;
+
+            assert!(result.is_ok());
+            let goal_details = result.unwrap();
+            assert_eq!(goal_details.goal.name().as_str(), "Power");
+            assert_eq!(
+                goal_details.goal.description(),
+                Some("The pursuit of power")
+            );
+            assert_eq!(goal_details.usage_count, 0);
+        }
+
+        #[tokio::test]
+        async fn when_list_goals_succeeds() {
+            let world_id = WorldId::new();
+            let goal = create_test_goal(world_id);
+
+            let mut goal_repo = MockGoalRepo::new();
+            goal_repo
+                .expect_list_in_world()
+                .withf(move |w| *w == world_id)
+                .returning(move |_| {
+                    Ok(vec![GoalDetails {
+                        goal: goal.clone(),
+                        usage_count: 5,
+                    }])
+                });
+
+            let ops = GoalOps::new(Arc::new(goal_repo) as Arc<dyn GoalRepo>);
+
+            let result = ops.list(world_id).await;
+            assert!(result.is_ok());
+            let goals = result.unwrap();
+            assert_eq!(goals.len(), 1);
+            assert_eq!(goals[0].goal.name().as_str(), "Test Goal");
+            assert_eq!(goals[0].usage_count, 5);
+        }
+
+        #[tokio::test]
+        async fn when_get_goal_not_found_returns_none() {
+            let goal_id = GoalId::new();
+
+            let mut goal_repo = MockGoalRepo::new();
+            goal_repo
+                .expect_get()
+                .withf(move |id| *id == goal_id)
+                .returning(|_| Ok(None));
+
+            let ops = GoalOps::new(Arc::new(goal_repo) as Arc<dyn GoalRepo>);
+
+            let result = ops.get(goal_id).await;
+            assert!(result.is_ok());
+            assert!(result.unwrap().is_none());
+        }
+    }
+
+    mod want_ops {
+        use super::*;
+
+        #[tokio::test]
+        async fn when_create_want_succeeds() {
+            let character_id = CharacterId::new();
+
+            let mut character_repo = MockCharacterRepo::new();
+            character_repo
+                .expect_save_want()
+                .returning(|_, _, _| Ok(()));
+
+            let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+
+            let ops = WantOps::new(Arc::new(character_repo) as Arc<dyn CharacterRepo>, clock);
+
+            let result = ops
+                .create(
+                    character_id,
+                    "Find the treasure".to_string(),
+                    0.8,
+                    1,
+                    WantVisibility::Known,
+                    Some("Nervously change the subject".to_string()),
+                    vec!["Fidgets when gold is mentioned".to_string()],
+                )
+                .await;
+
+            assert!(result.is_ok());
+            let want_details = result.unwrap();
+            assert_eq!(want_details.want.description(), "Find the treasure");
+            assert!((want_details.want.intensity() - 0.8).abs() < 0.001);
+            assert_eq!(want_details.want.visibility(), WantVisibility::Known);
+            assert_eq!(want_details.priority, 1);
+        }
+
+        #[tokio::test]
+        async fn when_list_wants_succeeds() {
+            let character_id = CharacterId::new();
+            let want = create_test_want();
+
+            let mut character_repo = MockCharacterRepo::new();
+            character_repo
+                .expect_get_wants()
+                .withf(move |id| *id == character_id)
+                .returning(move |cid| {
+                    Ok(vec![WantDetails {
+                        character_id: cid,
+                        want: want.clone(),
+                        priority: 1,
+                        target: None,
+                    }])
+                });
+
+            let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+
+            let ops = WantOps::new(Arc::new(character_repo) as Arc<dyn CharacterRepo>, clock);
+
+            let result = ops.list(character_id).await;
+            assert!(result.is_ok());
+            let wants = result.unwrap();
+            assert_eq!(wants.len(), 1);
+            assert_eq!(wants[0].want.description(), "Test want description");
+            assert_eq!(wants[0].priority, 1);
+        }
+
+        #[tokio::test]
+        async fn when_create_want_empty_description_returns_error() {
+            let character_id = CharacterId::new();
+
+            let character_repo = MockCharacterRepo::new();
+            let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+
+            let ops = WantOps::new(Arc::new(character_repo) as Arc<dyn CharacterRepo>, clock);
+
+            let result = ops
+                .create(
+                    character_id,
+                    "   ".to_string(), // Empty after trim
+                    0.5,
+                    1,
+                    WantVisibility::Hidden,
+                    None,
+                    vec![],
+                )
+                .await;
+
+            assert!(matches!(result, Err(ActantialError::InvalidInput(_))));
+        }
+    }
+
+    mod actantial_context_ops {
+        use super::*;
+
+        #[tokio::test]
+        async fn when_get_context_succeeds() {
+            let character_id = CharacterId::new();
+            let context = ActantialContext::new(character_id, "Test Character");
+
+            let mut character_repo = MockCharacterRepo::new();
+            character_repo
+                .expect_get_actantial_context()
+                .withf(move |id| *id == character_id)
+                .returning(move |_| Ok(Some(context.clone())));
+
+            let ops = ActantialContextOps::new(Arc::new(character_repo) as Arc<dyn CharacterRepo>);
+
+            let result = ops.get_context(character_id).await;
+            assert!(result.is_ok());
+            let ctx = result.unwrap();
+            assert!(ctx.is_some());
+            assert_eq!(ctx.unwrap().character_name(), "Test Character");
+        }
+
+        #[tokio::test]
+        async fn when_get_context_not_found_returns_none() {
+            let character_id = CharacterId::new();
+
+            let mut character_repo = MockCharacterRepo::new();
+            character_repo
+                .expect_get_actantial_context()
+                .withf(move |id| *id == character_id)
+                .returning(|_| Ok(None));
+
+            let ops = ActantialContextOps::new(Arc::new(character_repo) as Arc<dyn CharacterRepo>);
+
+            let result = ops.get_context(character_id).await;
+            assert!(result.is_ok());
+            assert!(result.unwrap().is_none());
+        }
     }
 }

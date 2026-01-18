@@ -1,3 +1,6 @@
+// Visual State use cases - methods for future state resolution
+#![allow(dead_code)]
+
 //! Visual State use cases - State resolution for locations and regions.
 //!
 //! This module handles determining which LocationState and RegionState
@@ -5,10 +8,10 @@
 
 mod resolve_state;
 
-pub use resolve_state::{
-    ResolveVisualState, ResolvedStateInfo, SoftRuleContext, StateResolutionContext,
-    StateResolutionResult,
-};
+#[cfg(test)]
+mod llm_condition_tests;
+
+pub use resolve_state::{ResolveVisualState, StateResolutionContext};
 
 use std::sync::Arc;
 

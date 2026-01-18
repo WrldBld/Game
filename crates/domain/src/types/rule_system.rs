@@ -5,9 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 /// The type of rule system (determines dice mechanics and success calculation)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum RuleSystemType {
     /// Roll d20 + modifier vs DC (D&D, Pathfinder)
     #[default]
@@ -24,9 +22,7 @@ pub enum RuleSystemType {
 }
 
 /// Known presets for rule systems
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum RuleSystemVariant {
     // D20 variants
     Dnd5e,
@@ -102,7 +98,6 @@ impl RuleSystemVariant {
 
 /// Configuration for a game's rule system
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub struct RuleSystemConfig {
     /// Display name for this configuration
     pub name: String,
@@ -416,15 +411,12 @@ impl RuleSystemConfig {
 
     /// Get the narrative resolution config, or a default if not set
     pub fn narrative_config_or_default(&self) -> NarrativeResolutionConfig {
-        self.narrative_config
-            .clone()
-            .unwrap_or_else(NarrativeResolutionConfig::default)
+        self.narrative_config.clone().unwrap_or_default()
     }
 }
 
 /// How success is determined
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum SuccessComparison {
     /// Roll must be >= target (D20 systems)
     GreaterOrEqual,
@@ -439,7 +431,6 @@ pub enum SuccessComparison {
 
 /// Definition of a character stat
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub struct StatDefinition {
     pub name: String,
     pub abbreviation: String,
@@ -468,7 +459,6 @@ impl StatDefinition {
 
 /// The dice system used for resolution
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum DiceSystem {
     /// Classic d20 system (D&D, Pathfinder)
     D20,
@@ -493,7 +483,6 @@ pub enum DiceSystem {
 /// - Ladder: Descriptor maps to target number, NdF+skill vs target (Fate)
 /// - Blades: Position determines consequences, Effect determines progress
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct NarrativeResolutionConfig {
     /// The narrative resolution style
     pub style: NarrativeResolutionStyle,
@@ -563,7 +552,6 @@ impl NarrativeResolutionConfig {
 
 /// The narrative resolution style determines how rolls are evaluated
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
 pub enum NarrativeResolutionStyle {
     /// PbtA: Fixed thresholds (10+/7-9/6-), descriptor affects narrative only
     #[default]
@@ -605,7 +593,6 @@ impl NarrativeResolutionStyle {
 
 /// Configurable thresholds for PbtA-style resolution
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct NarrativeThresholds {
     /// Total needed for critical success (optional, default: None)
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -652,7 +639,6 @@ impl NarrativeThresholds {
 
 /// Dice configuration for narrative systems
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct NarrativeDiceConfig {
     /// Type of dice system
     pub dice_type: NarrativeDiceType,
@@ -710,7 +696,6 @@ impl NarrativeDiceConfig {
 
 /// Types of dice for narrative systems
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum NarrativeDiceType {
     /// Standard numbered dice (d6, d10, etc.) - sum all dice
     Standard { sides: u8 },
@@ -735,7 +720,6 @@ impl NarrativeDiceType {
 
 /// Difficulty ladder for Fate-style systems
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DifficultyLadder {
     /// Ladder entries mapping descriptors to values
     pub entries: Vec<LadderEntry>,
@@ -792,7 +776,6 @@ impl DifficultyLadder {
 
 /// Single entry in a difficulty ladder
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LadderEntry {
     /// The difficulty descriptor this maps
     pub descriptor: DifficultyDescriptor,
@@ -820,7 +803,6 @@ impl LadderEntry {
 
 /// Descriptive difficulty for narrative systems (also used as ladder keys)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum DifficultyDescriptor {
     Trivial,
     Easy,
@@ -887,7 +869,6 @@ impl DifficultyDescriptor {
 
 /// Position/Effect configuration for Blades-style resolution
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct PositionEffectConfig {
     /// Thresholds for Blades-style d6 pool (highest die)
     pub pool_thresholds: BladesPoolThresholds,
@@ -915,7 +896,6 @@ impl Default for PositionEffectConfig {
 
 /// Thresholds for Blades d6 pool resolution
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct BladesPoolThresholds {
     /// Highest die value for full success (default: 6)
     pub full_success: i32,
@@ -940,7 +920,6 @@ impl Default for BladesPoolThresholds {
 
 /// Effect tick configuration for progress clocks
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct EffectTickConfig {
     pub extreme_ticks: u8,
     pub great_ticks: u8,
@@ -964,7 +943,6 @@ impl Default for EffectTickConfig {
 /// Position level for Blades-style resolution.
 /// Determines consequence severity on partial success or failure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
 pub enum Position {
     /// You act on your terms, exploit dominant advantage. Minor consequences.
     Controlled,
@@ -1019,7 +997,6 @@ impl Position {
 /// Effect level for Blades-style resolution.
 /// Determines how much progress is made on success.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
 pub enum EffectLevel {
     /// No effect possible
     Zero,

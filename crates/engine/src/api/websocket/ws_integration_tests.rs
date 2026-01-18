@@ -8,6 +8,8 @@ use std::{
 };
 
 mod approval_suggestions;
+mod character_sheet;
+mod e2e_conversation;
 mod staging_approval;
 mod staging_prestage;
 mod staging_regenerate;

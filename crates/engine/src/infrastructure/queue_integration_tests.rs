@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use chrono::{TimeZone, Utc};
 use uuid::Uuid;
-use wrldbldr_domain::{ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency, WorldId};
+use wrldbldr_domain::WorldId;
+
+use crate::queue_types::{ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency};
 
 use crate::infrastructure::{
     clock::FixedClock, ports::QueueItemData, ports::QueuePort, queue::SqliteQueue,

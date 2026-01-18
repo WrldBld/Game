@@ -5,73 +5,13 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::use_cases::character_sheet::{CharacterSheetError, FieldUpdate};
 use serde_json::json;
-use wrldbldr_domain::{CharacterSheetProvider, CharacterSheetSchema, GameSystemRegistry};
-use wrldbldr_protocol::{CharacterSheetRequest, ErrorCode, ResponseResult};
+use wrldbldr_shared::game_systems::GameSystemRegistry;
+use wrldbldr_shared::{CharacterSheetRequest, ErrorCode, ResponseResult};
 
-// Import all game systems that implement CharacterSheetProvider
-use wrldbldr_domain::game_systems::{
-    BladesSystem, Coc7eSystem, Dnd5eSystem, FateCoreSystem, PbtaSystem, Pf2eSystem,
-};
-
-/// Check if a game system has a character sheet schema implementation.
-fn has_schema_for_system(system_id: &str) -> bool {
-    matches!(
-        system_id,
-        "dnd5e" | "pf2e" | "coc7e" | "fate_core" | "blades" | "pbta" | "pbta_aw" | "pbta_dw" | "pbta_motw"
-    )
-}
-
-/// Get the character sheet schema for a game system.
-fn get_schema_for_system(system_id: &str) -> Option<CharacterSheetSchema> {
-    match system_id {
-        "dnd5e" => Some(Dnd5eSystem::new().character_sheet_schema()),
-        "pf2e" => Some(Pf2eSystem::new().character_sheet_schema()),
-        "coc7e" => Some(Coc7eSystem::new().character_sheet_schema()),
-        "fate_core" => Some(FateCoreSystem::new().character_sheet_schema()),
-        "blades" => Some(BladesSystem::new().character_sheet_schema()),
-        "pbta" => Some(PbtaSystem::generic().character_sheet_schema()),
-        "pbta_aw" => Some(PbtaSystem::apocalypse_world().character_sheet_schema()),
-        "pbta_dw" => Some(PbtaSystem::dungeon_world().character_sheet_schema()),
-        "pbta_motw" => Some(PbtaSystem::monster_of_the_week().character_sheet_schema()),
-        _ => None,
-    }
-}
-
-/// Get a CharacterSheetProvider for calculating derived values and validation.
-fn get_provider_for_system(system_id: &str) -> Option<Box<dyn CharacterSheetProvider>> {
-    match system_id {
-        "dnd5e" => Some(Box::new(Dnd5eSystem::new())),
-        "pf2e" => Some(Box::new(Pf2eSystem::new())),
-        "coc7e" => Some(Box::new(Coc7eSystem::new())),
-        "fate_core" => Some(Box::new(FateCoreSystem::new())),
-        "blades" => Some(Box::new(BladesSystem::new())),
-        "pbta" => Some(Box::new(PbtaSystem::generic())),
-        "pbta_aw" => Some(Box::new(PbtaSystem::apocalypse_world())),
-        "pbta_dw" => Some(Box::new(PbtaSystem::dungeon_world())),
-        "pbta_motw" => Some(Box::new(PbtaSystem::monster_of_the_week())),
-        _ => None,
-    }
-}
-
-/// Convert a RuleSystemVariant to the corresponding system ID string.
-fn variant_to_system_id(variant: &wrldbldr_domain::RuleSystemVariant) -> String {
-    use wrldbldr_domain::RuleSystemVariant;
-    match variant {
-        RuleSystemVariant::Dnd5e => "dnd5e".to_string(),
-        RuleSystemVariant::Pathfinder2e => "pf2e".to_string(),
-        RuleSystemVariant::CallOfCthulhu7e => "coc7e".to_string(),
-        RuleSystemVariant::FateCore => "fate_core".to_string(),
-        RuleSystemVariant::BladesInTheDark => "blades".to_string(),
-        RuleSystemVariant::PoweredByApocalypse => "pbta".to_string(),
-        RuleSystemVariant::KidsOnBikes => "pbta".to_string(), // Use generic PbtA
-        RuleSystemVariant::RuneQuest => "coc7e".to_string(),  // Similar to CoC (percentile)
-        RuleSystemVariant::GenericD20 => "dnd5e".to_string(), // Closest to D&D
-        RuleSystemVariant::GenericD100 => "coc7e".to_string(), // Percentile system
-        RuleSystemVariant::Custom(_) => "dnd5e".to_string(),  // Default to D&D for custom systems
-        RuleSystemVariant::Unknown => "dnd5e".to_string(),    // Default to D&D for unknown
-    }
-}
+// Import helper functions from use case module for pure operations
+use crate::use_cases::character_sheet::{get_schema_for_system, has_schema_for_system};
 
 pub(super) async fn handle_character_sheet_request(
     state: &WsState,
@@ -82,21 +22,16 @@ pub(super) async fn handle_character_sheet_request(
     let registry = GameSystemRegistry::new();
 
     match request {
+        // Pure functions - no repo access, keep in handler
         CharacterSheetRequest::GetSchema { system_id } => {
-            let _system = match registry.get(&system_id) {
-                Some(sys) => sys,
-                None => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::NotFound,
-                        format!("Unknown game system: {}", system_id),
-                    ));
-                }
-            };
+            if registry.get(&system_id).is_none() {
+                return Ok(ResponseResult::error(
+                    ErrorCode::NotFound,
+                    format!("Unknown game system: {}", system_id),
+                ));
+            }
 
-            // Get the schema from the CharacterSheetProvider trait
-            let schema = get_schema_for_system(&system_id);
-
-            match schema {
+            match get_schema_for_system(&system_id) {
                 Some(schema) => {
                     tracing::debug!(
                         system_id = %system_id,
@@ -105,36 +40,31 @@ pub(super) async fn handle_character_sheet_request(
                     );
 
                     Ok(ResponseResult::success(
-                        serde_json::to_value(&schema).unwrap_or_else(|e| {
-                            json!({"error": format!("Failed to serialize schema: {}", e)})
-                        }),
-                    ))
-                }
-                None => {
-                    Ok(ResponseResult::error(
-                        ErrorCode::BadRequest,
-                        format!(
-                            "Character sheet schema not available for system: {}",
-                            system_id
+                        serde_json::to_value(&schema).unwrap_or_else(
+                            |e| json!({"error": format!("Failed to serialize schema: {}", e)}),
                         ),
                     ))
                 }
+                None => Ok(ResponseResult::error(
+                    ErrorCode::BadRequest,
+                    format!(
+                        "Character sheet schema not available for system: {}",
+                        system_id
+                    ),
+                )),
             }
         }
 
+        // Pure function - no repo access, keep in handler
         CharacterSheetRequest::ListSystems => {
             let systems: Vec<serde_json::Value> = registry
                 .list_systems_with_names()
                 .iter()
                 .map(|(id, name)| {
-                    let sys = registry.get(id);
                     json!({
                         "id": id,
                         "name": name,
-                        "has_spellcasting": sys
-                            .as_ref()
-                            .map(|s| s.spellcasting_system().is_some())
-                            .unwrap_or(false),
+                        "has_spellcasting": false,
                         "has_sheet_schema": has_schema_for_system(id),
                     })
                 })
@@ -155,15 +85,6 @@ pub(super) async fn handle_character_sheet_request(
             system_id,
             name,
         } => {
-            // Verify the system exists
-            if registry.get(&system_id).is_none() {
-                return Ok(ResponseResult::error(
-                    ErrorCode::NotFound,
-                    format!("Unknown game system: {}", system_id),
-                ));
-            }
-
-            // Parse world ID
             let world_id_typed = match Uuid::parse_str(&world_id) {
                 Ok(id) => wrldbldr_domain::WorldId::from(id),
                 Err(_) => {
@@ -174,57 +95,20 @@ pub(super) async fn handle_character_sheet_request(
                 }
             };
 
-            // Verify the world exists
-            match state.app.entities.world.get(world_id_typed).await {
-                Ok(Some(_)) => {}
-                Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
-                }
-                Err(e) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::InternalError,
-                        e.to_string(),
-                    ));
-                }
+            match state
+                .app
+                .use_cases
+                .character_sheet
+                .start_creation(world_id_typed, &system_id, name)
+                .await
+            {
+                Ok(result) => Ok(ResponseResult::success(json!({
+                    "character_id": result.character_id.to_string(),
+                    "schema": result.schema,
+                    "defaults": result.defaults,
+                }))),
+                Err(e) => Ok(map_character_sheet_error(e)),
             }
-
-            // Create a draft character
-            let character_name = name.unwrap_or_else(|| "New Character".to_string());
-            let character = wrldbldr_domain::Character::new(
-                world_id_typed,
-                character_name,
-                wrldbldr_domain::CampbellArchetype::Hero,
-            );
-            let character_id = character.id;
-
-            // Save the draft character
-            if let Err(e) = state.app.entities.character.save(&character).await {
-                return Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    format!("Failed to create character: {}", e),
-                ));
-            }
-
-            // Get the schema if available
-            let schema = get_schema_for_system(&system_id);
-
-            // Get default values from the provider
-            let defaults = get_provider_for_system(&system_id)
-                .map(|p| p.default_values())
-                .unwrap_or_default();
-
-            tracing::info!(
-                character_id = %character_id,
-                world_id = %world_id,
-                system_id = %system_id,
-                "Started character creation"
-            );
-
-            Ok(ResponseResult::success(json!({
-                "character_id": character_id.to_string(),
-                "schema": schema,
-                "defaults": defaults,
-            })))
         }
 
         CharacterSheetRequest::UpdateCreationField {
@@ -234,261 +118,20 @@ pub(super) async fn handle_character_sheet_request(
         } => {
             let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
 
-            let mut character = match state
+            match state
                 .app
-                .entities
-                .character
-                .get(character_id_typed)
+                .use_cases
+                .character_sheet
+                .update_field(character_id_typed, field_id.clone(), value.clone())
                 .await
             {
-                Ok(Some(c)) => c,
-                Ok(None) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::NotFound,
-                        "Character not found",
-                    ));
-                }
-                Err(e) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::InternalError,
-                        e.to_string(),
-                    ));
-                }
-            };
-
-            // Get the world to determine the system
-            let world = match state.app.entities.world.get(character.world_id).await {
-                Ok(Some(w)) => w,
-                Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
-                }
-                Err(e) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::InternalError,
-                        e.to_string(),
-                    ));
-                }
-            };
-
-            // Get the system ID from the world's rule system
-            let system_id = variant_to_system_id(&world.rule_system.variant);
-            let provider = get_provider_for_system(&system_id);
-
-            // Validate the field if we have a provider
-            let all_values = get_character_values(&character);
-            if let Some(ref p) = provider {
-                if let Some(error_msg) = p.validate_field(&field_id, &value, &all_values) {
-                    return Ok(ResponseResult::error(ErrorCode::ValidationError, error_msg));
-                }
+                Ok(result) => Ok(ResponseResult::success(json!({
+                    "field_id": result.field_id,
+                    "value": result.value,
+                    "calculated": result.calculated,
+                }))),
+                Err(e) => Ok(map_character_sheet_error(e)),
             }
-
-            // Update the field
-            update_character_field(&mut character, &field_id, &value);
-
-            // Recalculate derived values
-            let updated_values = get_character_values(&character);
-            let calculated = provider
-                .as_ref()
-                .map(|p| p.calculate_derived_values(&updated_values))
-                .unwrap_or_default();
-
-            // Apply calculated values back to the character
-            for (field, val) in &calculated {
-                update_character_field(&mut character, field, val);
-            }
-
-            // Save the character
-            if let Err(e) = state.app.entities.character.save(&character).await {
-                return Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    format!("Failed to save character: {}", e),
-                ));
-            }
-
-            tracing::debug!(
-                character_id = %character_id,
-                field_id = %field_id,
-                system_id = %system_id,
-                "Updated creation field"
-            );
-
-            Ok(ResponseResult::success(json!({
-                "field_id": field_id,
-                "value": value,
-                "calculated": calculated,
-            })))
-        }
-
-        CharacterSheetRequest::CompleteCreation { character_id } => {
-            let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
-
-            let character = match state
-                .app
-                .entities
-                .character
-                .get(character_id_typed)
-                .await
-            {
-                Ok(Some(c)) => c,
-                Ok(None) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::NotFound,
-                        "Character not found",
-                    ));
-                }
-                Err(e) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::InternalError,
-                        e.to_string(),
-                    ));
-                }
-            };
-
-            // Get the world to determine the system
-            let world = match state.app.entities.world.get(character.world_id).await {
-                Ok(Some(w)) => w,
-                Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
-                }
-                Err(e) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::InternalError,
-                        e.to_string(),
-                    ));
-                }
-            };
-
-            // Get the system ID from the world's rule system
-            let system_id = variant_to_system_id(&world.rule_system.variant);
-            let schema = get_schema_for_system(&system_id);
-
-            // Validate required fields
-            let values = get_character_values(&character);
-
-            let mut missing_required = Vec::new();
-            if let Some(ref schema) = schema {
-                for section in &schema.sections {
-                    for field in &section.fields {
-                        if field.required {
-                            if !values.contains_key(&field.id)
-                                || values.get(&field.id) == Some(&serde_json::Value::Null)
-                            {
-                                missing_required.push(field.id.clone());
-                            }
-                        }
-                    }
-                }
-            }
-
-            if !missing_required.is_empty() {
-                return Ok(ResponseResult::error(
-                    ErrorCode::ValidationError,
-                    format!("Missing required fields: {}", missing_required.join(", ")),
-                ));
-            }
-
-            tracing::info!(
-                character_id = %character_id,
-                name = %character.name,
-                "Completed character creation"
-            );
-
-            Ok(ResponseResult::success(json!({
-                "character_id": character_id,
-                "name": character.name,
-                "status": "created",
-            })))
-        }
-
-        CharacterSheetRequest::CancelCreation { character_id } => {
-            let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
-
-            // Delete the draft character
-            if let Err(e) = state
-                .app
-                .entities
-                .character
-                .delete(character_id_typed)
-                .await
-            {
-                return Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    format!("Failed to delete character: {}", e),
-                ));
-            }
-
-            tracing::info!(
-                character_id = %character_id,
-                "Cancelled character creation"
-            );
-
-            Ok(ResponseResult::success(json!({
-                "character_id": character_id,
-                "status": "cancelled",
-            })))
-        }
-
-        CharacterSheetRequest::GetSheet { character_id } => {
-            let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
-
-            let character = match state
-                .app
-                .entities
-                .character
-                .get(character_id_typed)
-                .await
-            {
-                Ok(Some(c)) => c,
-                Ok(None) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::NotFound,
-                        "Character not found",
-                    ));
-                }
-                Err(e) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::InternalError,
-                        e.to_string(),
-                    ));
-                }
-            };
-
-            // Get the world to determine the system
-            let world = match state.app.entities.world.get(character.world_id).await {
-                Ok(Some(w)) => w,
-                Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
-                }
-                Err(e) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::InternalError,
-                        e.to_string(),
-                    ));
-                }
-            };
-
-            let system_id = variant_to_system_id(&world.rule_system.variant);
-
-            // Get schema and calculate derived values
-            let schema = get_schema_for_system(&system_id);
-            let values = get_character_values(&character);
-            let calculated = get_provider_for_system(&system_id)
-                .map(|p| p.calculate_derived_values(&values))
-                .unwrap_or_default();
-
-            tracing::debug!(
-                character_id = %character_id,
-                system_id = %system_id,
-                "Retrieved character sheet"
-            );
-
-            Ok(ResponseResult::success(json!({
-                "character_id": character_id,
-                "name": character.name,
-                "schema": schema,
-                "values": values,
-                "calculated": calculated,
-            })))
         }
 
         CharacterSheetRequest::UpdateField {
@@ -496,87 +139,22 @@ pub(super) async fn handle_character_sheet_request(
             field_id,
             value,
         } => {
-            // Same as UpdateCreationField for now
             let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
 
-            let mut character = match state
+            match state
                 .app
-                .entities
-                .character
-                .get(character_id_typed)
+                .use_cases
+                .character_sheet
+                .update_field(character_id_typed, field_id.clone(), value.clone())
                 .await
             {
-                Ok(Some(c)) => c,
-                Ok(None) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::NotFound,
-                        "Character not found",
-                    ));
-                }
-                Err(e) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::InternalError,
-                        e.to_string(),
-                    ));
-                }
-            };
-
-            // Get the world to determine the system
-            let world = match state.app.entities.world.get(character.world_id).await {
-                Ok(Some(w)) => w,
-                Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
-                }
-                Err(e) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::InternalError,
-                        e.to_string(),
-                    ));
-                }
-            };
-
-            // Get the system ID from the world's rule system
-            let system_id = variant_to_system_id(&world.rule_system.variant);
-            let provider = get_provider_for_system(&system_id);
-
-            // Validate and update
-            let all_values = get_character_values(&character);
-            if let Some(ref p) = provider {
-                if let Some(error_msg) = p.validate_field(&field_id, &value, &all_values) {
-                    return Ok(ResponseResult::error(ErrorCode::ValidationError, error_msg));
-                }
+                Ok(result) => Ok(ResponseResult::success(json!({
+                    "field_id": result.field_id,
+                    "value": result.value,
+                    "calculated": result.calculated,
+                }))),
+                Err(e) => Ok(map_character_sheet_error(e)),
             }
-
-            update_character_field(&mut character, &field_id, &value);
-
-            let updated_values = get_character_values(&character);
-            let calculated = provider
-                .as_ref()
-                .map(|p| p.calculate_derived_values(&updated_values))
-                .unwrap_or_default();
-
-            for (field, val) in &calculated {
-                update_character_field(&mut character, field, val);
-            }
-
-            if let Err(e) = state.app.entities.character.save(&character).await {
-                return Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    format!("Failed to save character: {}", e),
-                ));
-            }
-
-            tracing::debug!(
-                character_id = %character_id,
-                field_id = %field_id,
-                "Updated character field"
-            );
-
-            Ok(ResponseResult::success(json!({
-                "field_id": field_id,
-                "value": value,
-                "calculated": calculated,
-            })))
         }
 
         CharacterSheetRequest::UpdateFields {
@@ -585,316 +163,148 @@ pub(super) async fn handle_character_sheet_request(
         } => {
             let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
 
-            let mut character = match state
+            // Convert from wire format to use case format
+            let field_updates: Vec<FieldUpdate> = updates
+                .into_iter()
+                .map(|u| FieldUpdate {
+                    field_id: u.field_id,
+                    value: u.value,
+                })
+                .collect();
+
+            match state
                 .app
-                .entities
-                .character
-                .get(character_id_typed)
+                .use_cases
+                .character_sheet
+                .update_fields(character_id_typed, field_updates)
                 .await
             {
-                Ok(Some(c)) => c,
-                Ok(None) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::NotFound,
-                        "Character not found",
-                    ));
-                }
-                Err(e) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::InternalError,
-                        e.to_string(),
-                    ));
-                }
-            };
-
-            // Get the world to determine the system
-            let world = match state.app.entities.world.get(character.world_id).await {
-                Ok(Some(w)) => w,
-                Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
-                }
-                Err(e) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::InternalError,
-                        e.to_string(),
-                    ));
-                }
-            };
-
-            // Get the system ID from the world's rule system
-            let system_id = variant_to_system_id(&world.rule_system.variant);
-            let provider = get_provider_for_system(&system_id);
-
-            // Validate all fields first
-            let all_values = get_character_values(&character);
-            if let Some(ref p) = provider {
-                for update in &updates {
-                    if let Some(error_msg) =
-                        p.validate_field(&update.field_id, &update.value, &all_values)
-                    {
-                        return Ok(ResponseResult::error(
-                            ErrorCode::ValidationError,
-                            format!("{}: {}", update.field_id, error_msg),
-                        ));
-                    }
-                }
+                Ok(result) => Ok(ResponseResult::success(json!({
+                    "updated": result.updated_count,
+                    "calculated": result.calculated,
+                }))),
+                Err(e) => Ok(map_character_sheet_error(e)),
             }
-
-            // Apply all updates
-            for update in &updates {
-                update_character_field(&mut character, &update.field_id, &update.value);
-            }
-
-            // Recalculate
-            let updated_values = get_character_values(&character);
-            let calculated = provider
-                .as_ref()
-                .map(|p| p.calculate_derived_values(&updated_values))
-                .unwrap_or_default();
-
-            for (field, val) in &calculated {
-                update_character_field(&mut character, field, val);
-            }
-
-            if let Err(e) = state.app.entities.character.save(&character).await {
-                return Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    format!("Failed to save character: {}", e),
-                ));
-            }
-
-            tracing::debug!(
-                character_id = %character_id,
-                fields_updated = %updates.len(),
-                "Updated multiple character fields"
-            );
-
-            Ok(ResponseResult::success(json!({
-                "updated": updates.len(),
-                "calculated": calculated,
-            })))
         }
 
-        CharacterSheetRequest::GetCalculatedValues { character_id } => {
+        CharacterSheetRequest::CompleteCreation { character_id } => {
             let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
 
-            let character = match state
+            match state
                 .app
-                .entities
-                .character
-                .get(character_id_typed)
+                .use_cases
+                .character_sheet
+                .complete_creation(character_id_typed)
                 .await
             {
-                Ok(Some(c)) => c,
-                Ok(None) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::NotFound,
-                        "Character not found",
-                    ));
-                }
-                Err(e) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::InternalError,
-                        e.to_string(),
-                    ));
-                }
-            };
+                Ok(result) => Ok(ResponseResult::success(json!({
+                    "character_id": result.character_id.to_string(),
+                    "name": result.name,
+                    "status": "created",
+                }))),
+                Err(e) => Ok(map_character_sheet_error(e)),
+            }
+        }
 
-            // Get the world to determine the system
-            let world = match state.app.entities.world.get(character.world_id).await {
-                Ok(Some(w)) => w,
-                Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
-                }
-                Err(e) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::InternalError,
-                        e.to_string(),
-                    ));
-                }
-            };
+        CharacterSheetRequest::GetSheet { character_id } => {
+            let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
 
-            // Get the system ID from the world's rule system
-            let system_id = variant_to_system_id(&world.rule_system.variant);
-            let values = get_character_values(&character);
-            let calculated = get_provider_for_system(&system_id)
-                .map(|p| p.calculate_derived_values(&values))
-                .unwrap_or_default();
-
-            Ok(ResponseResult::success(json!({
-                "calculated": calculated,
-            })))
+            match state
+                .app
+                .use_cases
+                .character_sheet
+                .get_sheet(character_id_typed)
+                .await
+            {
+                Ok(result) => Ok(ResponseResult::success(json!({
+                    "character_id": character_id,
+                    "name": result.character.name().to_string(),
+                    "schema": result.schema,
+                    "values": result.values,
+                    "calculated": result.calculated,
+                }))),
+                Err(e) => Ok(map_character_sheet_error(e)),
+            }
         }
 
         CharacterSheetRequest::RecalculateAll { character_id } => {
             let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
 
-            let mut character = match state
+            match state
                 .app
-                .entities
-                .character
-                .get(character_id_typed)
+                .use_cases
+                .character_sheet
+                .recalculate_all(character_id_typed)
                 .await
             {
-                Ok(Some(c)) => c,
-                Ok(None) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::NotFound,
-                        "Character not found",
-                    ));
-                }
-                Err(e) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::InternalError,
-                        e.to_string(),
-                    ));
-                }
-            };
-
-            // Get the world to determine the system
-            let world = match state.app.entities.world.get(character.world_id).await {
-                Ok(Some(w)) => w,
-                Ok(None) => {
-                    return Ok(ResponseResult::error(ErrorCode::NotFound, "World not found"));
-                }
-                Err(e) => {
-                    return Ok(ResponseResult::error(
-                        ErrorCode::InternalError,
-                        e.to_string(),
-                    ));
-                }
-            };
-
-            // Get the system ID from the world's rule system
-            let system_id = variant_to_system_id(&world.rule_system.variant);
-            let values = get_character_values(&character);
-            let calculated = get_provider_for_system(&system_id)
-                .map(|p| p.calculate_derived_values(&values))
-                .unwrap_or_default();
-
-            // Apply calculated values
-            for (field, val) in &calculated {
-                update_character_field(&mut character, field, val);
+                Ok(result) => Ok(ResponseResult::success(json!({
+                    "calculated": result.calculated,
+                }))),
+                Err(e) => Ok(map_character_sheet_error(e)),
             }
+        }
 
-            if let Err(e) = state.app.entities.character.save(&character).await {
-                return Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    format!("Failed to save character: {}", e),
-                ));
+        CharacterSheetRequest::GetCalculatedValues { character_id } => {
+            let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
+
+            match state
+                .app
+                .use_cases
+                .character_sheet
+                .get_calculated_values(character_id_typed)
+                .await
+            {
+                Ok(calculated) => Ok(ResponseResult::success(json!({
+                    "calculated": calculated,
+                }))),
+                Err(e) => Ok(map_character_sheet_error(e)),
             }
+        }
 
-            tracing::debug!(
-                character_id = %character_id,
-                system_id = %system_id,
-                "Recalculated all derived values"
-            );
+        CharacterSheetRequest::CancelCreation { character_id } => {
+            let character_id_typed = parse_character_id_for_request(&character_id, request_id)?;
 
-            Ok(ResponseResult::success(json!({
-                "calculated": calculated,
-            })))
+            match state
+                .app
+                .use_cases
+                .character_sheet
+                .cancel_creation(character_id_typed)
+                .await
+            {
+                Ok(()) => Ok(ResponseResult::success(json!({
+                    "character_id": character_id,
+                    "status": "cancelled",
+                }))),
+                Err(e) => Ok(map_character_sheet_error(e)),
+            }
         }
     }
 }
 
-/// Extract character values into a HashMap for schema operations.
-fn get_character_values(
-    character: &wrldbldr_domain::Character,
-) -> std::collections::HashMap<String, serde_json::Value> {
-    let mut values = std::collections::HashMap::new();
+/// Map CharacterSheetError to ResponseResult with appropriate ErrorCode.
+fn map_character_sheet_error(err: CharacterSheetError) -> ResponseResult {
+    let (code, message) = match &err {
+        CharacterSheetError::CharacterNotFound(_) => (ErrorCode::NotFound, err.to_string()),
+        CharacterSheetError::WorldNotFound(_) => (ErrorCode::NotFound, err.to_string()),
+        CharacterSheetError::GameSystemNotFound(_) => (ErrorCode::NotFound, err.to_string()),
+        CharacterSheetError::SchemaNotAvailable(_) => (ErrorCode::BadRequest, err.to_string()),
+        CharacterSheetError::FieldValidation { .. } => {
+            (ErrorCode::ValidationError, err.to_string())
+        }
+        CharacterSheetError::MissingRequiredFields(_) => {
+            (ErrorCode::ValidationError, err.to_string())
+        }
+        CharacterSheetError::InvalidCharacterId => (ErrorCode::BadRequest, err.to_string()),
+        CharacterSheetError::InvalidWorldId => (ErrorCode::BadRequest, err.to_string()),
+        CharacterSheetError::Domain(_) => (ErrorCode::ValidationError, err.to_string()),
+        CharacterSheetError::Repo(_) => {
+            // Don't expose internal repo errors to clients
+            (
+                ErrorCode::InternalError,
+                "An internal error occurred".to_string(),
+            )
+        }
+    };
 
-    // Add character name
-    values.insert("NAME".to_string(), json!(character.name));
-
-    // Add stats
-    for (name, stat) in character.stats.get_all_stats() {
-        values.insert(name.clone(), json!(stat.effective));
-    }
-
-    values
-}
-
-/// Update a character field based on field ID.
-fn update_character_field(
-    character: &mut wrldbldr_domain::Character,
-    field_id: &str,
-    value: &serde_json::Value,
-) {
-    match field_id {
-        "NAME" => {
-            if let Some(name) = value.as_str() {
-                character.name = name.to_string();
-            }
-        }
-        // Stats
-        "STR" | "DEX" | "CON" | "INT" | "WIS" | "CHA" | "LEVEL" | "CURRENT_HP" | "MAX_HP"
-        | "TEMP_HP" | "AC" | "SPEED" => {
-            if let Some(val) = value.as_i64() {
-                character.stats.set_stat(field_id, val as i32);
-            }
-        }
-        // Derived/calculated stats
-        "PROF_BONUS" | "INITIATIVE" | "PASSIVE_PERCEPTION" => {
-            if let Some(val) = value.as_i64() {
-                character.stats.set_stat(field_id, val as i32);
-            }
-        }
-        // Skill proficiencies
-        field if field.ends_with("_PROF") => {
-            if let Some(val) = value.as_str() {
-                // Store as a stat for simplicity (could use a separate map)
-                let prof_value = match val {
-                    "expert" => 2,
-                    "proficient" => 1,
-                    "half" => -1, // Use negative as flag for half
-                    _ => 0,
-                };
-                character.stats.set_stat(field_id, prof_value);
-            }
-        }
-        // Saving throw proficiencies
-        field if field.ends_with("_SAVE_PROF") => {
-            if let Some(val) = value.as_bool() {
-                character.stats.set_stat(field_id, if val { 1 } else { 0 });
-            }
-        }
-        // Saving throw modifiers (calculated)
-        field if field.ends_with("_SAVE") => {
-            if let Some(val) = value.as_i64() {
-                character.stats.set_stat(field_id, val as i32);
-            }
-        }
-        // Skill modifiers (calculated)
-        field if field.ends_with("_MOD") => {
-            if let Some(val) = value.as_i64() {
-                character.stats.set_stat(field_id, val as i32);
-            }
-        }
-        // Identity fields (CLASS, RACE, BACKGROUND)
-        "CLASS" | "RACE" | "BACKGROUND" => {
-            // These would go in CharacterIdentity when we implement it fully
-            // For now, store as a stat for simplicity
-            if let Some(val) = value.as_str() {
-                // Can't store strings directly in stats, so we'll need to extend the model
-                // For now, log it
-                tracing::debug!(field_id = %field_id, value = %val, "Identity field set (not yet persisted)");
-            }
-        }
-        // Text fields (store in description for now)
-        "FEATURES" => {
-            if let Some(text) = value.as_str() {
-                // Append to description for now until we have a proper features field
-                if !character.description.is_empty() {
-                    character.description.push_str("\n\nFeatures:\n");
-                }
-                character.description.push_str(text);
-            }
-        }
-        _ => {
-            tracing::debug!(field_id = %field_id, "Unknown field, storing as stat if numeric");
-            if let Some(val) = value.as_i64() {
-                character.stats.set_stat(field_id, val as i32);
-            }
-        }
-    }
+    ResponseResult::error(code, message)
 }

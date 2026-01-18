@@ -143,7 +143,7 @@ WrldBldr uses a **simplified hexagonal architecture**: we keep port traits only 
 │  ┌────────────────────────────────────────────────────────────────────────────┐ │
 │  │                           SHARED KERNEL                                     │ │
 │  │  ┌─────────────────────────────────────────────────────────────────────┐   │ │
-│  │  │  protocol (wrldbldr-protocol)                                        │   │ │
+│  │  │  protocol (wrldbldr-shared)                                        │   │ │
 │  │  │  ├── Wire-format DTOs (REST + WebSocket)                             │   │ │
 │  │  │  ├── ClientMessage / ServerMessage enums                             │   │ │
 │  │  │  └── RequestPayload / ResponseResult                                 │   │ │
@@ -179,7 +179,7 @@ WrldBldr uses a **simplified hexagonal architecture**: we keep port traits only 
 | Crate               | Layer         | Purpose                                                        |
 | ------------------- | ------------- | -------------------------------------------------------------- |
 | `wrldbldr-domain`   | Domain        | Pure business types (entities, value objects, typed IDs)       |
-| `wrldbldr-protocol` | Shared Kernel | Wire-format types for Engine↔Player communication              |
+| `wrldbldr-shared` | Shared Kernel | Wire-format types for Engine↔Player communication              |
 | `wrldbldr-engine`   | Engine        | Server-side code (entities/use_cases/api + infra behind ports) |
 | `wrldbldr-player`   | Player        | Client UI + application + infrastructure (web/WASM + desktop)  |
 

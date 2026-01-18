@@ -158,7 +158,7 @@ See individual system documents for detailed user stories.
 | HTTP Settings Endpoints | /api/settings + per-world settings + metadata | High | **COMPLETE** (2026-01-07) |
 | Rule System Presets | Presets endpoint used by player | Medium | **COMPLETE** (2026-01-07) |
 
-See `docs/plans/IMPLEMENTATION_GAPS_PLAN.md` for the active remediation plan.
+See `docs/plans/STRICT_REVIEW_REMEDIATION_PLAN.md` for the active remediation plan.
 
 ### Code Quality Items
 
@@ -172,7 +172,7 @@ See `docs/plans/IMPLEMENTATION_GAPS_PLAN.md` for the active remediation plan.
 
 ### Documentation Updates Needed
 
-Some system documentation files still reference legacy paths or claim APIs that are not wired yet. See `docs/plans/IMPLEMENTATION_GAPS_PLAN.md` for the active cleanup checklist.
+Some system documentation files still reference legacy paths or claim APIs that are not wired yet. See `docs/plans/SYSTEMS_REVIEW_AND_FIXES.md` for the active cleanup checklist.
 
 ---
 
@@ -248,7 +248,7 @@ A task is complete when:
 | 2025-12-26 | LLM context wiring complete: mood, actantial context, featured NPC names |
 | 2025-12-26 | WebSocket migration Phases 1-5 complete: ~10,100 lines removed |
 | 2025-12-26 | Code quality audit complete: 6 categories, 53-80h estimated remediation |
-| 2025-12-26 | Created CONSOLIDATED_IMPLEMENTATION_PLAN.md |
+| 2025-12-26 | Created architecture remediation plan (superseded by strict review plan) |
 | 2025-12-25 | Sprint 4 UX Polish complete (Split Party Warning, Location Preview, View-as-Character, Style Reference, Visual Timeline) |
 | 2025-12-25 | Session ID refactor: removed session_id from story events (world-scoped only) |
 | 2025-12-25 | US-STG-013 (hidden NPCs) and US-OBS-006 (unrevealed interactions) complete |
@@ -271,8 +271,8 @@ A task is complete when:
 |----------|---------|
 | [_index.md](../_index.md) | Documentation overview |
 | [MVP.md](./MVP.md) | Vision and acceptance criteria |
-| [CONSOLIDATED_IMPLEMENTATION_PLAN.md](./CONSOLIDATED_IMPLEMENTATION_PLAN.md) | Prioritized remaining work |
-| [CODE_QUALITY_REMEDIATION_PLAN.md](./CODE_QUALITY_REMEDIATION_PLAN.md) | Technical debt audit |
+| [STRICT_REVIEW_REMEDIATION_PLAN.md](../plans/STRICT_REVIEW_REMEDIATION_PLAN.md) | Active remediation plan (strict layering) |
+| [IMPLEMENTATION_GAPS_PLAN.md](../plans/IMPLEMENTATION_GAPS_PLAN.md) | Wiring gaps and remaining UX validation |
 | [ACTIVE_DEVELOPMENT.md](./ACTIVE_DEVELOPMENT.md) | Current sprint tracking |
 | [systems/](../systems/) | Game system specifications |
 | [architecture/](../architecture/) | Technical architecture docs |

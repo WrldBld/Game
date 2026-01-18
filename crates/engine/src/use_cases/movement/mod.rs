@@ -1,18 +1,21 @@
 //! Movement use cases.
 
+mod can_move;
 mod enter_region;
 mod exit_location;
-mod scene_change;
+mod get_exits;
+pub mod scene_change;
 
-pub use enter_region::{EnterRegion, EnterRegionError, EnterRegionResult, StagingStatus};
+pub use enter_region::{EnterRegion, EnterRegionError, StagingStatus};
 pub use exit_location::{ExitLocation, ExitLocationError};
-pub use scene_change::{SceneChangeBuilder, SceneChangeData};
+pub use get_exits::GetRegionExits;
+pub use scene_change::SceneChangeBuilder;
 
-use crate::entities::{
-    Flag, Inventory, Observation, Scene, SceneResolutionContext, Staging as StagingEntity,
+use crate::infrastructure::ports::{
+    FlagRepo, ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo, StagingRepo,
 };
-use crate::infrastructure::ports::RepoError;
 use crate::use_cases::custom_condition::{CustomConditionEvaluator, EvaluationContext};
+use crate::use_cases::scene::{ResolveScene, SceneResolutionContext};
 use crate::use_cases::time::{SuggestTime, SuggestTimeResult, TimeSuggestion};
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
@@ -40,26 +43,36 @@ impl MovementUseCases {
 ///
 /// This is shared logic between EnterRegion and ExitLocation use cases.
 ///
+/// # Arguments
+/// * `staging` - The staging repository
+/// * `region_id` - The region to resolve staging for
+/// * `location_id` - The location containing the region
+/// * `world_id` - The world containing the location
+/// * `current_game_time_minutes` - Current game time in total minutes since epoch
+/// * `real_timestamp` - Real-world timestamp for audit purposes
+///
 /// # Returns
 /// A tuple of (visible NPCs, staging status)
 pub async fn resolve_staging_for_region(
-    staging: &StagingEntity,
+    staging: &dyn StagingRepo,
     region_id: RegionId,
     location_id: LocationId,
     world_id: WorldId,
-    current_game_time: DateTime<Utc>,
+    current_game_time_minutes: i64,
+    real_timestamp: DateTime<Utc>,
 ) -> Result<(Vec<StagedNpc>, StagingStatus), RepoError> {
     let active_staging = staging
-        .get_active_staging(region_id, current_game_time)
+        .get_active_staging(region_id, current_game_time_minutes)
         .await?;
 
     match active_staging {
         Some(s) => {
             // Valid staging exists - resolve NPCs visible to players
             let visible_npcs: Vec<StagedNpc> = s
-                .npcs
-                .into_iter()
+                .npcs()
+                .iter()
                 .filter(|npc| npc.is_visible_to_players())
+                .cloned()
                 .collect();
             Ok((visible_npcs, StagingStatus::Ready))
         }
@@ -75,20 +88,20 @@ pub async fn resolve_staging_for_region(
                         region_id,
                         location_id,
                         world_id,
-                        current_game_time,
+                        current_game_time_minutes,
                         "expired",
                         StagingSource::RuleBased,
                         0,
-                        current_game_time,
+                        real_timestamp,
                     )
                     .with_npcs(npcs)
                 })
-                .filter(|s| !s.npcs.is_empty());
+                .filter(|s| !s.npcs().is_empty());
 
             Ok((
                 vec![],
                 StagingStatus::Pending {
-                    previous_staging: previous,
+                    previous_staging: Box::new(previous),
                 },
             ))
         }
@@ -145,13 +158,14 @@ pub async fn suggest_time_for_movement(
 /// This is shared logic between EnterRegion and ExitLocation use cases.
 ///
 /// Builds the evaluation context from the PC's state (inventory, observations, completed scenes, flags)
-/// and calls the scene resolution service.
+/// and calls the scene resolution use case.
 ///
 /// # Arguments
-/// * `scene` - Scene entity for resolution
-/// * `inventory` - Inventory entity for PC items
-/// * `observation` - Observation entity for known characters
-/// * `flag` - Flag entity for flag state
+/// * `resolve_scene` - Scene resolution use case
+/// * `scene` - Scene repository for completion tracking
+/// * `inventory` - Inventory repository for PC items
+/// * `observation` - Observation repository for known characters
+/// * `flag` - Flag repository for flag state
 /// * `pc_id` - Player character ID
 /// * `world_id` - World ID for flags
 /// * `region_id` - Region to resolve scene for
@@ -160,18 +174,20 @@ pub async fn suggest_time_for_movement(
 /// # Returns
 /// The resolved scene, if any matches the conditions
 pub async fn resolve_scene_for_region(
-    scene: &Scene,
-    inventory: &Inventory,
-    observation: &Observation,
-    flag: &Flag,
+    resolve_scene: &ResolveScene,
+    scene: &dyn SceneRepo,
+    pc_repo: &dyn PlayerCharacterRepo,
+    observation: &dyn ObservationRepo,
+    flag: &dyn FlagRepo,
     pc_id: PlayerCharacterId,
     world_id: WorldId,
     region_id: RegionId,
     game_time: &GameTime,
 ) -> Result<Option<DomainScene>, RepoError> {
     resolve_scene_for_region_with_evaluator(
+        resolve_scene,
         scene,
-        inventory,
+        pc_repo,
         observation,
         flag,
         pc_id,
@@ -191,10 +207,11 @@ pub async fn resolve_scene_for_region(
 /// be evaluated via LLM instead of being treated as unmet.
 ///
 /// # Arguments
-/// * `scene` - Scene entity for resolution
-/// * `inventory` - Inventory entity for PC items
-/// * `observation` - Observation entity for known characters
-/// * `flag` - Flag entity for flag state
+/// * `resolve_scene` - Scene resolution use case
+/// * `scene` - Scene repository for completion tracking
+/// * `pc_repo` - Player character repository for PC inventory
+/// * `observation` - Observation repository for known characters
+/// * `flag` - Flag repository for flag state
 /// * `pc_id` - Player character ID
 /// * `world_id` - World ID for flags
 /// * `region_id` - Region to resolve scene for
@@ -205,10 +222,11 @@ pub async fn resolve_scene_for_region(
 /// # Returns
 /// The resolved scene, if any matches the conditions
 pub async fn resolve_scene_for_region_with_evaluator(
-    scene: &Scene,
-    inventory: &Inventory,
-    observation: &Observation,
-    flag: &Flag,
+    resolve_scene: &ResolveScene,
+    scene: &dyn SceneRepo,
+    pc_repo: &dyn PlayerCharacterRepo,
+    observation: &dyn ObservationRepo,
+    flag: &dyn FlagRepo,
     pc_id: PlayerCharacterId,
     world_id: WorldId,
     region_id: RegionId,
@@ -221,29 +239,45 @@ pub async fn resolve_scene_for_region_with_evaluator(
 
     // Build the scene resolution context
     let completed_scenes = scene.get_completed_scenes(pc_id).await?;
-    let inventory_items = inventory.get_pc_inventory(pc_id).await?;
+    let inventory_items = pc_repo.get_inventory(pc_id).await?;
     let observations = observation.get_observations(pc_id).await?;
-    let flags = flag.get_all_flags_for_pc(world_id, pc_id).await?;
+    // Combine world and PC flags
+    let world_flags = flag.get_world_flags(world_id).await?;
+    let pc_flags = flag.get_pc_flags(pc_id).await?;
+    let mut flags: Vec<String> = world_flags;
+    for f in pc_flags {
+        if !flags.contains(&f) {
+            flags.push(f);
+        }
+    }
 
     // Extract item names and flag names for LLM context
-    let inventory_names: Vec<String> = inventory_items.iter().map(|i| i.name.clone()).collect();
+    let inventory_names: Vec<String> = inventory_items
+        .iter()
+        .map(|i| i.name().to_string())
+        .collect();
     // LIMITATION: We use character IDs (UUIDs) instead of names because NpcObservation
     // only stores IDs. Fetching names would require an additional repository call per
     // character. This is acceptable for now as the LLM can still match conditions like
     // "has met the blacksmith" if the ID is consistent. Future improvement: batch fetch
     // character names via a dedicated method on the Character entity.
-    let known_character_ids: Vec<String> = observations.iter().map(|o| o.npc_id.to_string()).collect();
+    let known_character_ids: Vec<String> = observations
+        .iter()
+        .map(|o| o.npc_id().to_string())
+        .collect();
     let flag_names: Vec<String> = flags.clone();
 
     let mut context = SceneResolutionContext::new(time_of_day)
         .with_completed_scenes(completed_scenes)
-        .with_inventory(inventory_items.into_iter().map(|item| item.id))
-        .with_known_characters(observations.into_iter().map(|obs| obs.npc_id))
+        .with_inventory(inventory_items.into_iter().map(|item| item.id()))
+        .with_known_characters(observations.into_iter().map(|obs| obs.npc_id()))
         .with_flags(flags);
 
     // If custom evaluator is provided, pre-evaluate custom conditions via LLM
     if let Some(evaluator) = custom_evaluator {
-        let custom_conditions = scene.get_custom_conditions_for_region(region_id).await?;
+        let custom_conditions = resolve_scene
+            .get_custom_conditions_for_region(region_id)
+            .await?;
 
         if !custom_conditions.is_empty() {
             tracing::debug!(
@@ -290,7 +324,7 @@ pub async fn resolve_scene_for_region_with_evaluator(
     }
 
     // Resolve the scene
-    let result = scene.resolve_scene(region_id, &context).await?;
+    let result = resolve_scene.execute(region_id, &context).await?;
 
     // Log considered scenes for debugging
     for consideration in &result.considered_scenes {

@@ -41,7 +41,7 @@ pub enum SessionEvent {
     /// Connection state changed
     StateChanged(ConnectionState),
     /// Server event received (application-layer type)
-    MessageReceived(PlayerEvent),
+    MessageReceived(Box<PlayerEvent>),
 }
 
 /// Session service for managing Engine connection.
@@ -113,8 +113,13 @@ impl SessionService {
         let world_id = uuid::Uuid::parse_str(world_id)?;
         let world_role = participant_role_to_world_role(role.into());
 
-        self.command_bus
-            .send(ClientMessageBuilder::join_world(world_id, world_role, user_id.to_string(), None, None))
+        self.command_bus.send(ClientMessageBuilder::join_world(
+            world_id,
+            world_role,
+            user_id.to_string(),
+            None,
+            None,
+        ))
     }
 
     /// Subscribe to session events and set up automatic world join on connect.
@@ -133,7 +138,8 @@ impl SessionService {
         let tx_for_events = tx.clone();
         self.event_bus
             .subscribe(move |event| {
-                let _ = tx_for_events.unbounded_send(SessionEvent::MessageReceived(event));
+                let _ =
+                    tx_for_events.unbounded_send(SessionEvent::MessageReceived(Box::new(event)));
             })
             .await;
 
@@ -150,7 +156,7 @@ impl SessionService {
             // If already connected, send JoinWorld immediately
             if last_state == ConnectionState::Connected {
                 if let Ok(world_uuid) = uuid::Uuid::parse_str(&world_id) {
-                    let proto_role: wrldbldr_protocol::ParticipantRole = role.into();
+                    let proto_role: wrldbldr_shared::ParticipantRole = role.into();
                     let world_role = participant_role_to_world_role(proto_role);
                     tracing::info!(
                         ?role,
@@ -161,7 +167,11 @@ impl SessionService {
                         "Sending JoinWorld message (native) - already connected"
                     );
                     let _ = command_bus.send(ClientMessageBuilder::join_world(
-                        world_uuid, world_role, user_id_for_task.clone(), None, None,
+                        world_uuid,
+                        world_role,
+                        user_id_for_task.clone(),
+                        None,
+                        None,
                     ));
                     join_sent = true;
                 }
@@ -175,7 +185,7 @@ impl SessionService {
                     // Auto-join when connected (if not already sent)
                     if current_state == ConnectionState::Connected && !join_sent {
                         if let Ok(world_uuid) = uuid::Uuid::parse_str(&world_id) {
-                            let proto_role: wrldbldr_protocol::ParticipantRole = role.into();
+                            let proto_role: wrldbldr_shared::ParticipantRole = role.into();
                             let world_role = participant_role_to_world_role(proto_role);
                             tracing::info!(
                                 ?role,
@@ -186,7 +196,11 @@ impl SessionService {
                                 "Sending JoinWorld message (native)"
                             );
                             let _ = command_bus.send(ClientMessageBuilder::join_world(
-                                world_uuid, world_role, user_id_for_task.clone(), None, None,
+                                world_uuid,
+                                world_role,
+                                user_id_for_task.clone(),
+                                None,
+                                None,
                             ));
                             join_sent = true;
                         }
@@ -242,7 +256,7 @@ impl SessionService {
             // If already connected, send JoinWorld immediately
             if last_state == ConnectionState::Connected {
                 if let Ok(world_uuid) = uuid::Uuid::parse_str(&world_id) {
-                    let proto_role: wrldbldr_protocol::ParticipantRole = role.into();
+                    let proto_role: wrldbldr_shared::ParticipantRole = role.into();
                     let world_role = participant_role_to_world_role(proto_role);
                     tracing::info!(
                         ?role,
@@ -253,7 +267,11 @@ impl SessionService {
                         "Sending JoinWorld message (WASM) - already connected"
                     );
                     let _ = command_bus.send(ClientMessageBuilder::join_world(
-                        world_uuid, world_role, user_id_for_task.clone(), None, None,
+                        world_uuid,
+                        world_role,
+                        user_id_for_task.clone(),
+                        None,
+                        None,
                     ));
                     join_sent = true;
                 }
@@ -267,7 +285,7 @@ impl SessionService {
                     // Auto-join when connected (if not already sent)
                     if current_state == ConnectionState::Connected && !join_sent {
                         if let Ok(world_uuid) = uuid::Uuid::parse_str(&world_id) {
-                            let proto_role: wrldbldr_protocol::ParticipantRole = role.into();
+                            let proto_role: wrldbldr_shared::ParticipantRole = role.into();
                             let world_role = participant_role_to_world_role(proto_role);
                             tracing::info!(
                                 ?role,
@@ -278,7 +296,11 @@ impl SessionService {
                                 "Sending JoinWorld message (WASM)"
                             );
                             let _ = command_bus.send(ClientMessageBuilder::join_world(
-                                world_uuid, world_role, user_id_for_task.clone(), None, None,
+                                world_uuid,
+                                world_role,
+                                user_id_for_task.clone(),
+                                None,
+                                None,
                             ));
                             join_sent = true;
                         }

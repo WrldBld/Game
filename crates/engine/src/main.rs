@@ -4,6 +4,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::Context;
 use axum::http::header::HeaderName;
 use axum::http::{HeaderValue, Method};
 use axum::routing::get;
@@ -13,17 +14,32 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod api;
 mod app;
-mod entities;
+mod game_tools;
 mod infrastructure;
+mod llm_context;
+mod prompt_templates;
+mod queue_types;
+mod repositories;
+mod stores;
 mod use_cases;
 
-use api::{websocket::WsState, ConnectionManager};
+#[cfg(test)]
+pub mod e2e_tests;
+#[cfg(test)]
+pub mod test_fixtures;
+
+use api::{
+    websocket::{
+        GenerationStateStoreImpl, PendingStagingStoreImpl, TimeSuggestionStoreImpl, WsState,
+    },
+    ConnectionManager,
+};
 use app::App;
 use infrastructure::{
     clock::SystemClock,
     comfyui::ComfyUIClient,
-    neo4j::Neo4jRepositories,
-    ollama::OllamaClient,
+    neo4j::{Neo4jGraph, Neo4jRepositories},
+    openai_compatible::OpenAICompatibleClient,
     queue::SqliteQueue,
     resilient_llm::{ResilientLlmClient, RetryConfig},
     settings::SqliteSettingsRepo,
@@ -48,7 +64,8 @@ async fn main() -> anyhow::Result<()> {
     // Load configuration
     let neo4j_uri = std::env::var("NEO4J_URI").unwrap_or_else(|_| "bolt://localhost:7687".into());
     let neo4j_user = std::env::var("NEO4J_USER").unwrap_or_else(|_| "neo4j".into());
-    let neo4j_pass = std::env::var("NEO4J_PASSWORD").unwrap_or_else(|_| "password".into());
+    let neo4j_pass = std::env::var("NEO4J_PASSWORD")
+        .context("NEO4J_PASSWORD is required (set it in your environment or .env)")?;
     let ollama_url = std::env::var("OLLAMA_URL")
         .or_else(|_| std::env::var("OLLAMA_BASE_URL"))
         .unwrap_or_else(|_| "http://localhost:11434".into());
@@ -62,6 +79,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "3000".into())
         .parse()
         .unwrap_or(3000);
+    let fivetools_path = std::env::var("FIVETOOLS_DATA_PATH").ok();
 
     // Create clock for repositories
     let clock: Arc<dyn infrastructure::ports::ClockPort> = Arc::new(SystemClock);
@@ -69,6 +87,7 @@ async fn main() -> anyhow::Result<()> {
     // Connect to Neo4j
     tracing::info!("Connecting to Neo4j at {}", neo4j_uri);
     let graph = neo4rs::Graph::new(&neo4j_uri, &neo4j_user, &neo4j_pass).await?;
+    let graph = Neo4jGraph::new(graph);
 
     // Ensure database schema (constraints and indexes)
     infrastructure::neo4j::ensure_schema(&graph).await?;
@@ -76,7 +95,7 @@ async fn main() -> anyhow::Result<()> {
     let repos = Neo4jRepositories::new(graph, clock.clone());
 
     // Create infrastructure clients
-    let ollama_client = Arc::new(OllamaClient::new(&ollama_url, &ollama_model));
+    let ollama_client = Arc::new(OpenAICompatibleClient::new(&ollama_url, &ollama_model));
     let retry_config = RetryConfig::default();
     tracing::info!(
         "LLM client configured with retry: max_retries={}, base_delay_ms={}",
@@ -91,8 +110,26 @@ async fn main() -> anyhow::Result<()> {
     let queue = Arc::new(SqliteQueue::new(&queue_db, clock.clone()).await?);
     let settings_repo = Arc::new(SqliteSettingsRepo::new(&queue_db, clock.clone()).await?);
 
+    // Configure content service
+    let content_config = use_cases::content::ContentServiceConfig {
+        fivetools_path: fivetools_path.map(std::path::PathBuf::from),
+    };
+    if content_config.fivetools_path.is_some() {
+        tracing::info!(
+            path = ?content_config.fivetools_path,
+            "FIVETOOLS_DATA_PATH configured, will register D&D 5e content provider"
+        );
+    }
+
     // Create application
-    let app = Arc::new(App::new(repos, llm, image_gen, queue, settings_repo));
+    let app = Arc::new(App::new(
+        repos,
+        llm,
+        image_gen,
+        queue,
+        settings_repo,
+        content_config,
+    ));
 
     // Create connection manager
     let connections = Arc::new(ConnectionManager::new());
@@ -101,9 +138,9 @@ async fn main() -> anyhow::Result<()> {
     let ws_state = Arc::new(WsState {
         app: app.clone(),
         connections,
-        pending_time_suggestions: tokio::sync::RwLock::new(std::collections::HashMap::new()),
-        pending_staging_requests: tokio::sync::RwLock::new(std::collections::HashMap::new()),
-        generation_read_state: tokio::sync::RwLock::new(std::collections::HashMap::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     // Spawn queue processor
@@ -141,7 +178,7 @@ async fn main() -> anyhow::Result<()> {
                                     request_id,
                                 } => {
                                     let msg =
-                                        wrldbldr_protocol::ServerMessage::SuggestionProgress {
+                                        wrldbldr_shared::ServerMessage::SuggestionProgress {
                                             request_id,
                                             status: "processing".to_string(),
                                         };
@@ -168,7 +205,7 @@ async fn main() -> anyhow::Result<()> {
                                 suggestions,
                             } => {
                                 let msg =
-                                    wrldbldr_protocol::ServerMessage::OutcomeSuggestionReady {
+                                    wrldbldr_shared::ServerMessage::OutcomeSuggestionReady {
                                         resolution_id: resolution_id.to_string(),
                                         suggestions,
                                     };
@@ -186,7 +223,7 @@ async fn main() -> anyhow::Result<()> {
                             } => {
                                 // This shouldn't happen anymore (progress is now immediate)
                                 // but handle it for safety
-                                let msg = wrldbldr_protocol::ServerMessage::SuggestionProgress {
+                                let msg = wrldbldr_shared::ServerMessage::SuggestionProgress {
                                     request_id,
                                     status: "processing".to_string(),
                                 };
@@ -199,7 +236,7 @@ async fn main() -> anyhow::Result<()> {
                                 request_id,
                                 suggestions,
                             } => {
-                                let msg = wrldbldr_protocol::ServerMessage::SuggestionComplete {
+                                let msg = wrldbldr_shared::ServerMessage::SuggestionComplete {
                                     request_id,
                                     suggestions,
                                 };
@@ -216,18 +253,14 @@ async fn main() -> anyhow::Result<()> {
             }
 
             // Process DM approval requests - send to DMs for review
-            match queue_app
-                .queue
-                .dequeue_dm_approval()
-                .await
-            {
+            match queue_app.queue.dequeue_dm_approval().await {
                 Ok(Some(item)) => {
                     if let infrastructure::ports::QueueItemData::DmApproval(data) = item.data {
                         // Convert domain types to protocol types
-                        let proposed_tools: Vec<wrldbldr_protocol::ProposedToolInfo> = data
+                        let proposed_tools: Vec<wrldbldr_shared::ProposedToolInfo> = data
                             .proposed_tools
                             .into_iter()
-                            .map(|t| wrldbldr_protocol::ProposedToolInfo {
+                            .map(|t| wrldbldr_shared::ProposedToolInfo {
                                 id: t.id,
                                 name: t.name,
                                 description: t.description,
@@ -236,7 +269,7 @@ async fn main() -> anyhow::Result<()> {
                             .collect();
 
                         let challenge_suggestion = data.challenge_suggestion.map(|cs| {
-                            wrldbldr_protocol::ChallengeSuggestionInfo {
+                            wrldbldr_shared::ChallengeSuggestionInfo {
                                 challenge_id: cs.challenge_id,
                                 challenge_name: cs.challenge_name,
                                 skill_name: cs.skill_name,
@@ -245,7 +278,7 @@ async fn main() -> anyhow::Result<()> {
                                 reasoning: cs.reasoning,
                                 target_pc_id: cs.target_pc_id.map(|id| id.to_string()),
                                 outcomes: cs.outcomes.map(|o| {
-                                    wrldbldr_protocol::ChallengeSuggestionOutcomes {
+                                    wrldbldr_shared::ChallengeSuggestionOutcomes {
                                         success: o.success,
                                         failure: o.failure,
                                         critical_success: o.critical_success,
@@ -255,21 +288,22 @@ async fn main() -> anyhow::Result<()> {
                             }
                         });
 
-                        let narrative_event_suggestion = data.narrative_event_suggestion.map(|nes| {
-                            wrldbldr_protocol::NarrativeEventSuggestionInfo {
-                                event_id: nes.event_id,
-                                event_name: nes.event_name,
-                                description: nes.description,
-                                scene_direction: nes.scene_direction,
-                                confidence: nes.confidence,
-                                reasoning: nes.reasoning,
-                                matched_triggers: nes.matched_triggers,
-                                suggested_outcome: nes.suggested_outcome,
-                            }
-                        });
+                        let narrative_event_suggestion =
+                            data.narrative_event_suggestion.map(|nes| {
+                                wrldbldr_shared::NarrativeEventSuggestionInfo {
+                                    event_id: nes.event_id,
+                                    event_name: nes.event_name,
+                                    description: nes.description,
+                                    scene_direction: nes.scene_direction,
+                                    confidence: nes.confidence,
+                                    reasoning: nes.reasoning,
+                                    matched_triggers: nes.matched_triggers,
+                                    suggested_outcome: nes.suggested_outcome,
+                                }
+                            });
 
                         // Build and broadcast ApprovalRequired message to DMs
-                        let msg = wrldbldr_protocol::ServerMessage::ApprovalRequired {
+                        let msg = wrldbldr_shared::ServerMessage::ApprovalRequired {
                             request_id: item.id.to_string(),
                             npc_name: data.npc_name,
                             proposed_dialogue: data.proposed_dialogue,
@@ -305,38 +339,13 @@ async fn main() -> anyhow::Result<()> {
             let now = chrono::Utc::now();
 
             // Collect all pending requests with their world IDs
-            let pending_requests: Vec<(String, use_cases::staging::PendingStagingRequest)> = {
-                let guard = staging_ws_state.pending_staging_requests.read().await;
-                guard
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect()
-            };
+            let pending_requests = staging_ws_state.pending_staging_requests.entries().await;
 
             // Process each pending request, checking world-specific settings
             for (request_id, pending) in pending_requests {
                 let world_id = pending.world_id;
 
-                // Fetch world settings to get timeout configuration
-                let settings = match staging_ws_state
-                    .app
-                    .use_cases
-                    .settings
-                    .get_for_world(world_id)
-                    .await
-                {
-                    Ok(s) => s,
-                    Err(e) => {
-                        tracing::warn!(
-                            error = %e,
-                            world_id = %world_id,
-                            "Failed to fetch world settings for staging timeout, using defaults"
-                        );
-                        Default::default()
-                    }
-                };
-
-                let timeout_seconds = settings.staging_timeout_seconds;
+                let timeout_seconds = crate::use_cases::staging::DEFAULT_STAGING_TIMEOUT_SECONDS;
 
                 // Skip if timeout is disabled (0) or not yet expired
                 if timeout_seconds == 0 {
@@ -350,10 +359,11 @@ async fn main() -> anyhow::Result<()> {
 
                 // Request has expired - atomically remove from pending
                 // Only process if we successfully removed it (prevents double processing)
-                let was_removed = {
-                    let mut guard = staging_ws_state.pending_staging_requests.write().await;
-                    guard.remove(&request_id).is_some()
-                };
+                let was_removed = staging_ws_state
+                    .pending_staging_requests
+                    .remove(&request_id)
+                    .await
+                    .is_some();
 
                 if !was_removed {
                     // Another task (e.g., manual DM approval) already handled this request
@@ -361,30 +371,6 @@ async fn main() -> anyhow::Result<()> {
                         request_id = %request_id,
                         "Staging request already removed by another handler, skipping timeout processing"
                     );
-                    continue;
-                }
-
-                // Check if auto-approve is enabled for this world
-                if !settings.auto_approve_on_timeout {
-                    // Notify all players in the world that staging for this region timed out
-                    // Players waiting for this region will see it and can retry
-                    let region_id_str = pending.region_id.to_string();
-                    tracing::info!(
-                        request_id = %request_id,
-                        world_id = %world_id,
-                        region_id = %region_id_str,
-                        "Staging timeout without auto-approve, broadcasting timeout notification"
-                    );
-                    staging_ws_state
-                        .connections
-                        .broadcast_to_world(
-                            world_id,
-                            wrldbldr_protocol::ServerMessage::StagingTimedOut {
-                                region_id: region_id_str.clone(),
-                                region_name: region_id_str, // Use ID as name (player has region info)
-                            },
-                        )
-                        .await;
                     continue;
                 }
 
@@ -398,15 +384,22 @@ async fn main() -> anyhow::Result<()> {
                     .await
                 {
                     Ok(payload) => {
+                        // Convert domain types to protocol types
+                        let npcs_present_proto: Vec<wrldbldr_shared::NpcPresentInfo> = payload
+                            .npcs_present
+                            .iter()
+                            .map(|n| n.to_protocol())
+                            .collect();
+
                         // Broadcast StagingReady to all players in world
                         staging_ws_state
                             .connections
                             .broadcast_to_world(
                                 world_id,
-                                wrldbldr_protocol::ServerMessage::StagingReady {
+                                wrldbldr_shared::ServerMessage::StagingReady {
                                     region_id: payload.region_id.to_string(),
-                                    npcs_present: payload.npcs_present,
-                                    visual_state: payload.visual_state,
+                                    npcs_present: npcs_present_proto,
+                                    visual_state: payload.visual_state.map(|vs| vs.to_protocol()),
                                 },
                             )
                             .await;
@@ -429,6 +422,19 @@ async fn main() -> anyhow::Result<()> {
 
             // Check every 5 seconds
             tokio::time::sleep(Duration::from_secs(5)).await;
+        }
+    });
+
+    // Spawn TTL cache cleanup task
+    let cleanup_ws_state = ws_state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(300)); // 5 minutes
+        loop {
+            interval.tick().await;
+            let cleaned = cleanup_ws_state.cleanup_expired().await;
+            if cleaned > 0 {
+                tracing::info!(entries_cleaned = cleaned, "TTL cache cleanup");
+            }
         }
     });
 
@@ -472,9 +478,7 @@ fn build_cors_layer_from_env() -> Option<CorsLayer> {
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
 
-    let Some(allowed_origins) = allowed_origins else {
-        return None;
-    };
+    let allowed_origins = allowed_origins?;
 
     let mut cors = CorsLayer::new()
         .allow_methods([

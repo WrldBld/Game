@@ -20,7 +20,6 @@ use wrldbldr_domain::{PlayerCharacterId, WorldId};
 
 /// A game flag with its current value
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GameFlag {
     /// The flag name (unique within scope)
     pub name: String,
@@ -59,4 +58,32 @@ pub enum FlagScope {
     World(WorldId),
     /// PC-scoped flag (specific to one player character)
     PlayerCharacter(PlayerCharacterId),
+}
+
+impl FlagScope {
+    /// Returns the WorldId if this is a World scope
+    pub fn world_id(&self) -> Option<WorldId> {
+        match self {
+            FlagScope::World(id) => Some(*id),
+            FlagScope::PlayerCharacter(_) => None,
+        }
+    }
+
+    /// Returns the PlayerCharacterId if this is a PlayerCharacter scope
+    pub fn player_character_id(&self) -> Option<PlayerCharacterId> {
+        match self {
+            FlagScope::World(_) => None,
+            FlagScope::PlayerCharacter(id) => Some(*id),
+        }
+    }
+
+    /// Returns true if this is a world-scoped flag
+    pub fn is_world(&self) -> bool {
+        matches!(self, FlagScope::World(_))
+    }
+
+    /// Returns true if this is a player-character-scoped flag
+    pub fn is_player_character(&self) -> bool {
+        matches!(self, FlagScope::PlayerCharacter(_))
+    }
 }

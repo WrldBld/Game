@@ -8,7 +8,7 @@ use serde::Serialize;
 use crate::application::dto::{SkillCategory, SkillData};
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
-use wrldbldr_protocol::{RequestPayload, SkillRequest};
+use wrldbldr_shared::{RequestPayload, SkillRequest};
 
 /// Request to create a new skill
 #[derive(Clone, Debug, Serialize)]
@@ -36,7 +36,7 @@ pub struct UpdateSkillRequest {
 }
 
 // From impls for protocol conversion at the boundary
-impl From<&CreateSkillRequest> for wrldbldr_protocol::requests::CreateSkillData {
+impl From<&CreateSkillRequest> for wrldbldr_shared::requests::CreateSkillData {
     fn from(req: &CreateSkillRequest) -> Self {
         Self {
             name: req.name.clone(),
@@ -51,7 +51,7 @@ impl From<&CreateSkillRequest> for wrldbldr_protocol::requests::CreateSkillData 
     }
 }
 
-impl From<&UpdateSkillRequest> for wrldbldr_protocol::requests::UpdateSkillData {
+impl From<&UpdateSkillRequest> for wrldbldr_shared::requests::UpdateSkillData {
     fn from(req: &UpdateSkillRequest) -> Self {
         Self {
             name: req.name.clone(),

@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Character System manages all characters in the game world: NPCs (Non-Player Characters) controlled by the AI/DM, and PCs (Player Characters) controlled by players. It implements Campbell's Hero's Journey archetypes for character roles and Greimas' Actantial Model for character motivations. The system also handles social relationships with sentiment tracking and item inventory.
 
 ---
@@ -41,23 +52,23 @@ The key insight is that the same person can be a HELPER in one character's model
 
 - [x] **US-CHAR-005**: As a DM, I can change a character's archetype and track the history
   - *Implementation*: `ARCHETYPE_CHANGED` self-referential edge with timestamp
-  - *Files*: `crates/engine/src/entities/character.rs`
+  - *Files*: `crates/domain/src/aggregates/character.rs`
 
 - [x] **US-CHAR-006**: As a player, I can create a PC and bind it to a session
-  - *Implementation*: PlayerCharacter entity with session binding, character sheet data
-  - *Files*: `crates/domain/src/entities/player_character.rs`
+  - *Implementation*: PlayerCharacter aggregate with session binding, character sheet data
+  - *Files*: `crates/domain/src/aggregates/player_character.rs`
 
 - [x] **US-CHAR-007**: As a player, I can give/receive items from NPCs
   - *Implementation*: `POSSESSES` edge with quantity, equipped, acquisition_method
-  - *Files*: `crates/domain/src/entities/item.rs`, `crates/engine/src/use_cases/conversation/tool_execution.rs`
+  - *Files*: `crates/domain/src/entities/item.rs`, `crates/engine/src/use_cases/queues/tool_extractor.rs`
 
 - [x] **US-CHAR-008**: As a DM, I can view and edit character sheets based on rule system
-  - *Implementation*: CharacterSheetTemplate with dynamic field types
-  - *Files*: `crates/domain/src/entities/sheet_template.rs`, `crates/player-ui/src/presentation/components/character_sheet_viewer.rs`
+  - *Implementation*: CharacterSheetSchema with dynamic field types from game system providers
+  - *Files*: `crates/domain/src/character_sheet.rs`, `crates/player/src/ui/presentation/components/schema_character_sheet.rs`
 
 - [x] **US-CHAR-009**: As a player, I can view my character's inventory
   - *Implementation*: Full inventory panel with item categories (All/Equipped/Consumables/Key) and actions
-  - *Files*: `crates/player-ui/src/presentation/components/inventory_panel.rs`, `crates/engine/src/entities/inventory.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/inventory_panel.rs`, `crates/engine/src/repositories/inventory.rs`
 
 ### Pending
 
@@ -128,7 +139,7 @@ The key insight is that the same person can be a HELPER in one character's model
 ```
 
 **Status**: ✅ Implemented (basic structure, refinement pending)
-- Component: `crates/player-ui/src/presentation/components/creator/motivations_tab.rs`
+- Component: `crates/player/src/ui/presentation/components/creator/motivations_tab.rs`
 - Integrated into character_form.rs for existing characters
 
 ### Actantial Model Viewer
@@ -419,16 +430,16 @@ The key insight is that the same person can be a HELPER in one character's model
 | Layer | File | Purpose |
 |-------|------|---------|
 | Domain | `crates/domain/src/entities/character.rs` | Character entity |
-| Domain | `crates/domain/src/entities/player_character.rs` | PC entity |
+| Domain | `crates/domain/src/aggregates/player_character.rs` | PC aggregate |
 | Domain | `crates/domain/src/entities/want.rs` | Want entity with visibility, deflection, tells |
 | Domain | `crates/domain/src/entities/goal.rs` | Goal entity with common goals |
 | Domain | `crates/domain/src/entities/item.rs` | Item entity |
 | Domain | `crates/domain/src/value_objects/archetype.rs` | CampbellArchetype |
 | Domain | `crates/domain/src/value_objects/actantial_context.rs` | ActantialContext, WantContext |
-| Domain | `crates/domain/src/value_objects/llm_context.rs` | MotivationsContext for LLM |
+| Engine | `crates/engine/src/llm_context.rs` | MotivationsContext for LLM |
 | Domain | `crates/domain/src/value_objects/relationship.rs` | Relationship types |
-| Entity | `crates/engine/src/entities/character.rs` | Character operations |
-| Entity | `crates/engine/src/entities/player_character.rs` | PC operations |
+| Repository | `crates/engine/src/repositories/character.rs` | Character operations |
+| Repository | `crates/engine/src/repositories/player_character.rs` | PC operations |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/character_repo.rs` | Neo4j character persistence |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/goal_repo.rs` | Neo4j goal persistence |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/player_character_repo.rs` | Neo4j PC persistence |

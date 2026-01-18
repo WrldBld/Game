@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Observation System tracks what players know about NPC whereabouts. When a player sees an NPC, learns about them from dialogue, or deduces their location through investigation, that information is recorded. This creates a "fog of war" where player knowledge differs from reality, enabling mystery and investigation gameplay.
 
 ---
@@ -37,11 +48,11 @@ This supports mystery scenarios where players must investigate to find people.
 
 - [x] **US-OBS-004**: As a player, I can see a panel showing NPCs I know about
   - *Implementation*: `KnownNpcsPanel` component with observation cards and type icons
-  - *Files*: `crates/player-ui/src/presentation/components/known_npcs_panel.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/known_npcs_panel.rs`
 
 - [x] **US-OBS-005**: As a player, I can see where/when I last saw each NPC
   - *Implementation*: Observation cards display last seen location and game time
-  - *Files*: `crates/player-ui/src/presentation/components/known_npcs_panel.rs`, `crates/player-app/src/application/services/observation_service.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/known_npcs_panel.rs`, `crates/player/src/application/services/observation_service.rs`
 
 ### Implemented (Unrevealed Interactions)
 

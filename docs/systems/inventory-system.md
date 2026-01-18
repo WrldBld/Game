@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Inventory System manages **items owned by player characters and NPCs**, including equipment, containers, and region item placement. Items can be equipped, dropped, picked up, and organized in containers.
 
 ---

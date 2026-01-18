@@ -14,27 +14,49 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     let pc_id = PlayerCharacterId::new();
     let npc_id = CharacterId::new();
 
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
-    world.id = world_id;
+    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let mut world = wrldbldr_domain::World::new(world_name, now)
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(world_id);
     world.set_time_mode(TimeMode::Manual, now);
 
-    let mut location = wrldbldr_domain::Location::new(
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location = wrldbldr_domain::Location::new(
         world_id,
-        "Test Location",
+        location_name,
         wrldbldr_domain::LocationType::Exterior,
+    )
+    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_id(location_id);
+
+    let region = wrldbldr_domain::Region::from_parts(
+        region_id,
+        location_id,
+        wrldbldr_domain::value_objects::RegionName::new("Region").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None,
+        None,
+        None,
+        false,
+        0,
     );
-    location.id = location_id;
 
-    let mut region = wrldbldr_domain::Region::new(location_id, "Region");
-    region.id = region_id;
+    let pc = wrldbldr_domain::PlayerCharacter::new(
+        "player-1",
+        world_id,
+        wrldbldr_domain::CharacterName::new("PC").unwrap(),
+        location_id,
+        now,
+    )
+    .with_id(pc_id);
+    // initial spawn - PC starts with no current_region_id
 
-    let mut pc =
-        wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now);
-    pc.id = pc_id;
-    pc.current_region_id = None;
-
-    let mut npc = wrldbldr_domain::Character::new(world_id, "NPC", CampbellArchetype::Hero);
-    npc.id = npc_id;
+    let mut npc = wrldbldr_domain::Character::new(
+        world_id,
+        wrldbldr_domain::CharacterName::new("NPC").unwrap(),
+        CampbellArchetype::Hero,
+    );
+    npc = npc.with_id(npc_id);
 
     let mut world_repo = MockWorldRepo::new();
     let world_for_get = world.clone();
@@ -149,7 +171,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     // Character details used by PreStageRegion.
     let npc_for_get = npc.clone();
     repos.character_repo.expect_get().returning(move |id| {
-        if id == npc_for_get.id {
+        if id == npc_for_get.id() {
             Ok(Some(npc_for_get.clone()))
         } else {
             Ok(None)
@@ -193,7 +215,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         .returning(move |rid, _now| {
             let guard = shared_for_get_active.lock().unwrap();
             if guard.activated {
-                Ok(guard.pending.clone().filter(|s| s.region_id == rid))
+                Ok(guard.pending.clone().filter(|s| s.region_id() == rid))
             } else {
                 Ok(None)
             }
@@ -215,9 +237,9 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
-        pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
-        generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -230,6 +252,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Dm,
+            user_id: "dm-user".to_string(),
             pc_id: None,
             spectate_pc_id: None,
         },
@@ -246,6 +269,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Player,
+            user_id: "player-user".to_string(),
             pc_id: Some(*pc_id.as_uuid()),
             spectate_pc_id: None,
         },
@@ -267,7 +291,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         &mut dm_ws,
         &ClientMessage::PreStageRegion {
             region_id: region_id.to_string(),
-            npcs: vec![wrldbldr_protocol::ApprovedNpcInfo {
+            npcs: vec![wrldbldr_shared::ApprovedNpcInfo {
                 character_id: npc_id.to_string(),
                 is_present: true,
                 reasoning: Some("pre-staged".to_string()),

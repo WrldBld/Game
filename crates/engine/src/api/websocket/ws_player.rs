@@ -1,7 +1,9 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
-use wrldbldr_protocol::{ObservationRequest, PlayerCharacterRequest, RelationshipRequest};
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use wrldbldr_shared::character_sheet::CharacterSheetValues;
+use wrldbldr_shared::{ObservationRequest, PlayerCharacterRequest, RelationshipRequest};
 
 pub(super) async fn handle_player_character_request(
     state: &WsState,
@@ -30,7 +32,7 @@ pub(super) async fn handle_player_character_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list player characters"),
                 )),
             }
         }
@@ -56,7 +58,7 @@ pub(super) async fn handle_player_character_request(
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get player character"),
                 )),
             }
         }
@@ -76,10 +78,10 @@ pub(super) async fn handle_player_character_request(
                 .await
             {
                 Ok(Some(pc)) => Ok(ResponseResult::success(pc_to_json(pc))),
-                Ok(None) => Ok(ResponseResult::success(serde_json::Value::Null)),
+                Ok(None) => Ok(ResponseResult::success(None::<CharacterSheetValues>)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get my player character"),
                 )),
             }
         }
@@ -115,7 +117,7 @@ pub(super) async fn handle_player_character_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create player character"),
                 )),
             }
         }
@@ -135,7 +137,7 @@ pub(super) async fn handle_player_character_request(
                 .await
             {
                 Ok(pc) => Ok(ResponseResult::success(pc_to_json(pc))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Player character not found"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
@@ -143,7 +145,7 @@ pub(super) async fn handle_player_character_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update player character"),
                 )),
             }
         }
@@ -163,12 +165,12 @@ pub(super) async fn handle_player_character_request(
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Player character not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete player character"),
                 )),
             }
         }
@@ -195,12 +197,12 @@ pub(super) async fn handle_player_character_request(
                     "success": true,
                     "scene_id": serde_json::Value::Null,
                 }))),
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Player character not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "update player character location"),
                 )),
             }
         }
@@ -233,12 +235,12 @@ pub(super) async fn handle_relationship_request(
                         .into_iter()
                         .map(|r| {
                             serde_json::json!({
-                                "id": r.id.to_string(),
-                                "from_character_id": r.from_character.to_string(),
-                                "to_character_id": r.to_character.to_string(),
-                                "relationship_type": relationship_type_to_string(&r.relationship_type),
-                                "sentiment": r.sentiment,
-                                "known_to_player": r.known_to_player,
+                                "id": r.id().to_string(),
+                                "from_character_id": r.from_character().to_string(),
+                                "to_character_id": r.to_character().to_string(),
+                                "relationship_type": relationship_type_to_string(r.relationship_type()),
+                                "sentiment": r.sentiment(),
+                                "known_to_player": r.known_to_player(),
                             })
                         })
                         .collect();
@@ -246,15 +248,13 @@ pub(super) async fn handle_relationship_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get social network"),
                 )),
             }
         }
 
         RelationshipRequest::CreateRelationship { data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let from_id = match parse_character_id_for_request(&data.from_character_id, request_id)
             {
@@ -275,22 +275,20 @@ pub(super) async fn handle_relationship_request(
                 .await
             {
                 Ok(relationship) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": relationship.id.to_string(),
+                    "id": relationship.id().to_string(),
                 }))),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create relationship"),
                 )),
             }
         }
 
         RelationshipRequest::DeleteRelationship { relationship_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let rel_id = match parse_uuid_for_request(
                 &relationship_id,
@@ -312,7 +310,7 @@ pub(super) async fn handle_relationship_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete relationship"),
                 )),
             }
         }
@@ -343,15 +341,13 @@ pub(super) async fn handle_observation_request(
                 Ok(observations) => Ok(ResponseResult::success(serde_json::json!(observations))),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list observations"),
                 )),
             }
         }
 
         ObservationRequest::CreateObservation { pc_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let pc_id_typed = match parse_pc_id(&pc_id) {
                 Ok(id) => id,
@@ -386,28 +382,26 @@ pub(super) async fn handle_observation_request(
                 .await
             {
                 Ok(observation) => Ok(ResponseResult::success(serde_json::json!({
-                    "npc_id": observation.npc_id.to_string(),
-                    "location_id": observation.location_id.to_string(),
-                    "region_id": observation.region_id.to_string(),
-                    "observation_type": format!("{:?}", observation.observation_type),
+                    "npc_id": observation.npc_id().to_string(),
+                    "location_id": observation.location_id().to_string(),
+                    "region_id": observation.region_id().to_string(),
+                    "observation_type": format!("{:?}", observation.observation_type()),
                 }))),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
-                Err(crate::use_cases::management::ManagementError::NotFound) => Ok(
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Observation target not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "create observation"),
                 )),
             }
         }
 
         ObservationRequest::DeleteObservation { pc_id, npc_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let pc_id_typed = match parse_pc_id(&pc_id) {
                 Ok(id) => id,
@@ -429,7 +423,7 @@ pub(super) async fn handle_observation_request(
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "delete observation"),
                 )),
             }
         }
@@ -437,19 +431,20 @@ pub(super) async fn handle_observation_request(
 }
 
 fn pc_to_json(pc: wrldbldr_domain::PlayerCharacter) -> serde_json::Value {
+    let sheet_data = pc.sheet_data().cloned();
     serde_json::json!({
-        "id": pc.id.to_string(),
-        "user_id": pc.user_id,
-        "world_id": pc.world_id.to_string(),
-        "name": pc.name,
-        "description": pc.description,
-        "sheet_data": pc.sheet_data,
-        "current_location_id": pc.current_location_id.to_string(),
-        "starting_location_id": pc.starting_location_id.to_string(),
-        "sprite_asset": pc.sprite_asset,
-        "portrait_asset": pc.portrait_asset,
-        "created_at": pc.created_at.to_rfc3339(),
-        "last_active_at": pc.last_active_at.to_rfc3339(),
+        "id": pc.id().to_string(),
+        "user_id": pc.user_id(),
+        "world_id": pc.world_id().to_string(),
+        "name": pc.name().to_string(),
+        "description": pc.description(),
+        "sheet_data": sheet_data,
+        "current_location_id": pc.current_location_id().to_string(),
+        "starting_location_id": pc.starting_location_id().to_string(),
+        "sprite_asset": pc.sprite_asset(),
+        "portrait_asset": pc.portrait_asset(),
+        "created_at": pc.created_at().to_rfc3339(),
+        "last_active_at": pc.last_active_at().to_rfc3339(),
     })
 }
 

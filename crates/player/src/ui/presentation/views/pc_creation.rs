@@ -1,17 +1,20 @@
 //! PC Creation View - Multi-step form for creating a player character
 
 use dioxus::prelude::*;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::infrastructure::spawn_task;
+use crate::use_platform;
 
-use crate::application::dto::{FieldValue, SheetTemplate};
+use crate::application::dto::CharacterSheetSchema;
 use crate::application::services::CreatePlayerCharacterRequest;
+use crate::presentation::components::schema_character_sheet::SchemaCharacterSheet;
 use crate::presentation::services::{
-    use_location_service, use_player_character_service, use_world_service,
+    use_character_sheet_service, use_location_service, use_player_character_service,
+    use_world_service,
 };
 use crate::presentation::state::use_session_state;
-use crate::use_platform;
+use wrldbldr_shared::character_sheet::{CharacterSheetValues, SheetValue};
 
 /// Wizard step enum
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -38,6 +41,7 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
     let pc_service = use_player_character_service();
     let location_service = use_location_service();
     let world_service = use_world_service();
+    let sheet_service = use_character_sheet_service();
 
     // Step tracking
     let mut current_step = use_signal(|| CreationStep::Basics);
@@ -47,8 +51,8 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
     let mut description = use_signal(String::new);
 
     // Form state - Step 2: Character Sheet
-    let mut sheet_template: Signal<Option<SheetTemplate>> = use_signal(|| None);
-    let mut sheet_values: Signal<HashMap<String, FieldValue>> = use_signal(HashMap::new);
+    let mut sheet_schema: Signal<Option<CharacterSheetSchema>> = use_signal(|| None);
+    let sheet_values: Signal<HashMap<String, SheetValue>> = use_signal(HashMap::new);
     let mut sheet_loading = use_signal(|| false);
 
     // Form state - Step 3: Starting Location
@@ -61,30 +65,45 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
     let mut is_creating = use_signal(|| false);
     let mut error_message: Signal<Option<String>> = use_signal(|| None);
 
-    // Load sheet template
+    // Load character sheet schema from the game system
     {
         let world_id = props.world_id.clone();
         let world_svc = world_service.clone();
+        let sheet_svc = sheet_service.clone();
         let platform_clone = platform.clone();
         use_effect(move || {
-            let svc = world_svc.clone();
+            let world_svc = world_svc.clone();
+            let sheet_svc = sheet_svc.clone();
             let world_id_clone = world_id.clone();
             let plat = platform_clone.clone();
             sheet_loading.set(true);
             spawn_task(async move {
-                match svc.get_sheet_template(&world_id_clone).await {
-                    Ok(template_json) => {
-                        match serde_json::from_value::<SheetTemplate>(template_json) {
-                            Ok(template) => {
-                                sheet_template.set(Some(template));
-                            }
-                            Err(e) => {
-                                plat.log_warn(&format!("Failed to parse sheet template: {}", e));
-                            }
-                        }
+                // Try to get the schema from the world's sheet template endpoint
+                match world_svc.get_sheet_template(&world_id_clone).await {
+                    Ok(schema) => {
+                        plat.log_info(&format!(
+                            "Loaded character sheet schema for system: {}",
+                            schema.system_id
+                        ));
+                        sheet_schema.set(Some(schema));
                     }
                     Err(e) => {
-                        plat.log_warn(&format!("Failed to load sheet template: {}", e));
+                        // Fallback: try listing systems and use the first available
+                        plat.log_info(&format!(
+                            "Sheet template not available ({}), trying system list",
+                            e
+                        ));
+                        if let Ok(systems) = sheet_svc.list_systems().await {
+                            if let Some(system) = systems.iter().find(|s| s.has_sheet_schema) {
+                                if let Ok(schema) = sheet_svc.get_schema(&system.id).await {
+                                    plat.log_info(&format!(
+                                        "Using fallback schema: {}",
+                                        schema.system_id
+                                    ));
+                                    sheet_schema.set(Some(schema));
+                                }
+                            }
+                        }
                     }
                 }
                 sheet_loading.set(false);
@@ -186,11 +205,14 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
         error_message.set(None);
 
         spawn_task(async move {
-            // Convert sheet values to JSON if present
+            // Convert sheet values into CharacterSheetValues if present
             let sheet_data = if sheet_vals.is_empty() {
                 None
             } else {
-                serde_json::to_value(&sheet_vals).ok()
+                Some(CharacterSheetValues {
+                    values: sheet_vals.into_iter().collect::<BTreeMap<_, _>>(),
+                    last_updated: None,
+                })
             };
 
             let starting_region_id = match location_id {
@@ -293,10 +315,9 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
                     },
                     CreationStep::CharacterSheet => rsx! {
                         CharacterSheetStep {
-                            template: sheet_template.read().clone(),
-                            values: sheet_values.read().clone(),
+                            schema: sheet_schema.read().clone(),
+                            values: sheet_values,
                             loading: *sheet_loading.read(),
-                            on_values_change: move |v| sheet_values.set(v),
                         }
                     },
                     CreationStep::StartingLocation => rsx! {
@@ -307,17 +328,22 @@ pub fn PCCreationView(props: PCCreationProps) -> Element {
                             on_select: move |id| selected_location_id.set(Some(id)),
                         }
                     },
-                    CreationStep::Review => rsx! {
-                        ReviewStep {
-                            name: name.read().clone(),
-                            description: description.read().clone(),
-                            location: available_locations.read().iter()
-                                .find(|l| l.id == selected_location_id.read().as_ref().map(|s| s.as_str()).unwrap_or(""))
-                                .map(|l| l.name.clone())
-                                .unwrap_or_default(),
-                            has_sheet: !sheet_values.read().is_empty(),
+                    CreationStep::Review => {
+                        // Read signals before the iterator to avoid nested borrows
+                        let selected_id = selected_location_id.read().clone();
+                        let location_name = available_locations.read().iter()
+                            .find(|l| Some(l.id.as_str()) == selected_id.as_deref())
+                            .map(|l| l.name.clone())
+                            .unwrap_or_default();
+                        rsx! {
+                            ReviewStep {
+                                name: name.read().clone(),
+                                description: description.read().clone(),
+                                location: location_name,
+                                has_sheet: !sheet_values.read().is_empty(),
+                            }
                         }
-                    },
+                    }
                 }
             }
 
@@ -451,10 +477,11 @@ fn BasicsStep(props: BasicsStepProps) -> Element {
 /// Step 2: Character Sheet
 #[derive(Props, Clone, PartialEq)]
 struct CharacterSheetStepProps {
-    template: Option<SheetTemplate>,
-    values: HashMap<String, FieldValue>,
+    /// Character sheet schema from game system
+    schema: Option<CharacterSheetSchema>,
+    /// Signal for field values - child components read/write directly
+    values: Signal<HashMap<String, SheetValue>>,
     loading: bool,
-    on_values_change: EventHandler<HashMap<String, FieldValue>>,
 }
 
 #[component]
@@ -469,18 +496,17 @@ fn CharacterSheetStep(props: CharacterSheetStepProps) -> Element {
             if props.loading {
                 div {
                     class: "text-center p-8 text-gray-400",
-                    "Loading character sheet template..."
+                    "Loading character sheet..."
                 }
-            } else if let Some(template) = props.template.as_ref() {
-                crate::presentation::components::creator::sheet_field_input::CharacterSheetForm {
-                    template: template.clone(),
-                    values: props.values.clone(),
-                    on_values_change: move |v| props.on_values_change.call(v),
+            } else if let Some(schema) = props.schema.as_ref() {
+                SchemaCharacterSheet {
+                    schema: schema.clone(),
+                    values: props.values,
                 }
             } else {
                 div {
                     class: "p-6 bg-dark-surface rounded-lg border border-gray-700 text-center text-gray-400",
-                    "No character sheet template available for this world. You can skip this step."
+                    "No character sheet schema available for this world. You can skip this step."
                 }
             }
         }

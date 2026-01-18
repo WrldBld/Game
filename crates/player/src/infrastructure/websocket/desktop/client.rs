@@ -8,7 +8,7 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-use wrldbldr_protocol::{ClientMessage, ServerMessage};
+use wrldbldr_shared::{ClientMessage, ServerMessage};
 
 use crate::infrastructure::messaging::ConnectionState;
 use crate::infrastructure::websocket::shared::{parse_server_message, ParsedServerMessage};
@@ -104,7 +104,7 @@ impl EngineClient {
                                 Ok(ParsedServerMessage::Other(server_msg)) => {
                                     let callback = on_message.lock().await;
                                     if let Some(ref cb) = *callback {
-                                        cb(server_msg);
+                                        cb(*server_msg);
                                     }
                                 }
                                 Err(e) => {

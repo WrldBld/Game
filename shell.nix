@@ -130,6 +130,10 @@ pkgs.mkShell {
     echo "  task check       - Check all crates"
     echo "  task build       - Build all crates"
     echo ""
+    echo "LLM Serving (macOS Apple Silicon):"
+    echo "  ./scripts/serve-llm.sh              - Serve local LLM with OpenAI-compatible API"
+    echo "  ./scripts/serve-llm.sh --help       - Show LLM server options"
+    echo ""
   '';
 
   # Use lld for faster linking (optional, remove if causing issues)

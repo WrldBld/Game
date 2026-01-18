@@ -336,17 +336,15 @@ fn DMHeaderTabLink(
     world_id: String,
     active: bool,
 ) -> Element {
-    // Get generation state for queue badge (only for Creator tab)
-    let generation_state = if tab == "creator" {
-        Some(crate::presentation::state::use_generation_state())
-    } else {
-        None
-    };
+    // CRITICAL: Hooks must be called unconditionally at the top of the component
+    let generation_state = crate::presentation::state::use_generation_state();
 
-    let queue_badge_count = generation_state
-        .as_ref()
-        .map(|gs| gs.active_count() + gs.active_suggestion_count())
-        .unwrap_or(0);
+    // Only compute badge count for creator tab
+    let queue_badge_count = if tab == "creator" {
+        generation_state.active_count() + generation_state.active_suggestion_count()
+    } else {
+        0
+    };
 
     // Determine the correct route based on tab - link directly to subtab routes
     // to avoid use_effect redirect race conditions

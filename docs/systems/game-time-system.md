@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Game Time System manages in-game time progression for narrative TTRPGs. Unlike real-time systems, game time advances through player actions and DM decisions, creating a "suggested time" model where the system proposes time costs for actions and the DM approves, modifies, or skips them. This enables time-sensitive mechanics (NPC schedules, scene availability, staging TTL) while keeping the DM in control of narrative pacing.
 
 ---
@@ -29,6 +40,45 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
 - **Periods**: Morning (5-11), Afternoon (12-17), Evening (18-21), Night (22-4)
 - **Day tracking**: Day counter (Day 1, Day 2, etc.)
 - **Display**: "Day 3, Evening (19:00)" or "Day 3, 7:00 PM"
+
+### Calendar System
+
+#### Calendar-Agnostic Time Tracking
+
+- **Internal representation**: All time is stored as `total_minutes: i64` since epoch
+- **Epoch (minute 0)**: Configured per-world to represent any starting point in the campaign
+- **Negative time support**: Historical events before the campaign start can use negative minute values
+- **Conversion on display**: Minutes are converted to calendar dates only at display time
+
+#### Built-in Calendars
+
+| Calendar ID | Name | Description |
+|-------------|------|-------------|
+| `gregorian` | Gregorian | Standard real-world calendar (default) |
+| `harptos` | Calendar of Harptos | Forgotten Realms calendar with 12 months of 30 days plus 5 festival days |
+
+**Gregorian**: 12 months (28-31 days), leap years, standard week days.
+
+**Harptos**: 12 months of exactly 30 days (Hammer, Alturiak, Ches, Tarsakh, Mirtul, Kythorn, Flamerule, Eleasis, Eleint, Marpenoth, Uktar, Nightal) plus 5 intercalary festival days (Midwinter, Greengrass, Midsummer, Highharvestide, Feast of the Moon). Shieldmeet occurs every 4 years after Midsummer.
+
+#### Epoch Configuration
+
+DMs configure what "minute 0" represents when setting up or importing a world:
+
+- **Purpose**: Anchors abstract time to meaningful campaign dates
+- **Example**: For a Forgotten Realms campaign starting in 1492 DR, configure epoch as "1st of Hammer, 1492 DR, 00:00"
+- **Flexibility**: Can represent any date/time in the chosen calendar system
+
+#### Calendar Display
+
+`GameTime.to_calendar_date(calendar, epoch_config)` converts internal minutes to named dates:
+
+| Format | Example (Gregorian) | Example (Harptos) |
+|--------|---------------------|-------------------|
+| Full date | "March 15, 1492, 2:00 PM" | "15th of Ches, 1492 DR, 14:00" |
+| Short date | "Mar 15, 1492" | "Ches 15, 1492 DR" |
+| Time only | "2:00 PM" or "14:00" | "2:00 PM" or "14:00" |
+| Period | "Afternoon" | "Afternoon" |
 
 ---
 
@@ -239,13 +289,14 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
 
 ### Neo4j Nodes (GameTime)
 
+`GameTime` now stores time as total minutes since epoch, enabling calendar-agnostic time tracking:
+
 ```cypher
 (:GameTime {
     id: "uuid",
-    day: 3,
-    hour: 19,
-    period: "Evening",
-    label: "Day 3, Evening (19:00)"
+    total_minutes: 4179,          -- Minutes since epoch (replaces day/hour)
+    period: "Evening",            -- Derived from total_minutes
+    label: "Day 3, Evening (19:00)"  -- Cached display string
 })
 ```
 
@@ -262,6 +313,18 @@ The Game Time System manages in-game time progression for narrative TTRPGs. Unli
 ```rust
 // crates/domain/src/game_time.rs (existing, to be extended)
 
+/// Game time - stored as total minutes since epoch
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GameTime {
+    /// Total minutes since epoch (can be negative for historical events)
+    total_minutes: i64,
+}
+
+impl GameTime {
+    /// Convert to a calendar date using the specified calendar and epoch
+    pub fn to_calendar_date(&self, calendar: &Calendar, epoch: &EpochConfig) -> CalendarDate { ... }
+}
+
 /// Game time configuration for a world
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameTimeConfig {
@@ -273,6 +336,35 @@ pub struct GameTimeConfig {
     pub show_time_to_players: bool,
     /// Time format preference
     pub time_format: TimeFormat,
+    /// Calendar system to use for display
+    pub calendar_id: CalendarId,
+    /// What minute 0 represents in the campaign
+    pub epoch_config: EpochConfig,
+}
+
+/// Identifies which calendar system to use
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub enum CalendarId {
+    #[default]
+    Gregorian,
+    Harptos,
+}
+
+/// Configuration for what "minute 0" represents
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EpochConfig {
+    /// Description shown to DM (e.g., "1st of Hammer, 1492 DR")
+    pub epoch_description: String,
+    /// Year in the calendar system
+    pub epoch_year: i32,
+    /// Month (1-12 for Gregorian, 1-12 for Harptos months, 13-17 for festivals)
+    pub epoch_month: u8,
+    /// Day of month (1-31)
+    pub epoch_day: u8,
+    /// Hour (0-23)
+    pub epoch_hour: u8,
+    /// Minute (0-59)
+    pub epoch_minute: u8,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
@@ -466,8 +558,9 @@ pub struct TimeAdvanceData {
 
 | Component                 | Status | Notes                           |
 | ------------------------- | ------ | ------------------------------- |
-| `GameTime` struct         | ✅     | Exists in domain                |
+| `GameTime` struct         | ✅     | Uses total_minutes internally   |
 | `TimeOfDay` enum          | ✅     | Exists in domain                |
+| Calendar system           | ✅     | Gregorian + Harptos calendars   |
 | `World.game_time`         | ✅     | Persisted                       |
 | `AdvanceGameTime`         | ✅     | DM can advance hours            |
 | `GameTimeUpdated`         | ✅     | Broadcast exists                |
@@ -494,7 +587,7 @@ pub struct TimeAdvanceData {
 | Domain    | `crates/domain/src/game_time.rs`                       | GameTime, TimeOfDay, config types |
 | Domain    | `crates/domain/src/entities/world.rs`                  | World with game_time field        |
 | Ports     | `crates/engine/src/infrastructure/ports.rs`            | WorldRepo with time methods       |
-| Entities  | `crates/engine/src/entities/world.rs`                  | World entity operations           |
+| Repository | `crates/engine/src/repositories/world.rs`              | World persistence + time updates |
 | Use Cases | `crates/engine/src/use_cases/time/mod.rs`              | Time suggestion use cases         |
 | API       | `crates/engine/src/api/websocket/mod.rs`               | Time-related handlers             |
 | Neo4j     | `crates/engine/src/infrastructure/neo4j/world_repo.rs` | Persist time config               |
@@ -551,17 +644,18 @@ No migration needed - new fields have defaults. Old worlds will use default conf
 ### Not In Scope (v1)
 
 1. **Undo time changes** - Would require event sourcing architecture
-2. **Calendar system** - Named days/months, holidays
-3. **Weather tied to time** - Atmospheric changes
-4. **Automatic long rest** - "Rest until morning" button
-5. **Time-locked items** - Items that only appear at certain times
+2. **Weather tied to time** - Atmospheric changes
+3. **Automatic long rest** - "Rest until morning" button
+4. **Time-locked items** - Items that only appear at certain times
 
 ### Potential v2 Features
 
-1. **Time presets** - DM saves "dawn at the docks" for quick recall
-2. **Scheduled events** - "At midnight, trigger event X"
-3. **Time-based NPC dialogue** - Different greetings by time of day
-4. **Session time tracking** - How much game time passed this session
+1. **Custom calendars** - DMs define their own calendar systems
+2. **Time presets** - DM saves "dawn at the docks" for quick recall
+3. **Scheduled events** - "At midnight, trigger event X"
+4. **Time-based NPC dialogue** - Different greetings by time of day
+5. **Session time tracking** - How much game time passed this session
+6. **Holiday/festival awareness** - Calendar-aware special day detection
 
 ---
 
@@ -569,4 +663,5 @@ No migration needed - new fields have defaults. Old worlds will use default conf
 
 | Date       | Change                  |
 | ---------- | ----------------------- |
+| 2026-01-18 | Added Calendar System section (Gregorian + Harptos), updated GameTime to use total_minutes, added EpochConfig |
 | 2026-01-04 | Initial design document |

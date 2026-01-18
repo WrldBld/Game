@@ -4,8 +4,9 @@
 //! - World flags: (World)-[:HAS_FLAG {name: "flag_name"}]->()
 //! - PC flags: (PlayerCharacter)-[:HAS_FLAG {name: "flag_name"}]->()
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
-use neo4rs::{query, Graph};
+use neo4rs::query;
 use std::sync::Arc;
 
 use wrldbldr_domain::{PlayerCharacterId, WorldId};
@@ -13,11 +14,11 @@ use wrldbldr_domain::{PlayerCharacterId, WorldId};
 use crate::infrastructure::ports::{FlagRepo, RepoError};
 
 pub struct Neo4jFlagRepo {
-    graph: Arc<Graph>,
+    graph: Arc<Neo4jGraph>,
 }
 
 impl Neo4jFlagRepo {
-    pub fn new(graph: Arc<Graph>) -> Self {
+    pub fn new(graph: Arc<Neo4jGraph>) -> Self {
         Self { graph }
     }
 }
@@ -35,13 +36,13 @@ impl FlagRepo for Neo4jFlagRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut flags = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             if let Ok(name) = row.get::<String>("name") {
                 flags.push(name);
@@ -62,13 +63,13 @@ impl FlagRepo for Neo4jFlagRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut flags = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             if let Ok(name) = row.get::<String>("name") {
                 flags.push(name);
@@ -92,7 +93,7 @@ impl FlagRepo for Neo4jFlagRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -110,7 +111,7 @@ impl FlagRepo for Neo4jFlagRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -130,7 +131,7 @@ impl FlagRepo for Neo4jFlagRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -152,7 +153,7 @@ impl FlagRepo for Neo4jFlagRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -172,12 +173,12 @@ impl FlagRepo for Neo4jFlagRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(row.get::<bool>("is_set").unwrap_or(false))
         } else {
@@ -201,12 +202,12 @@ impl FlagRepo for Neo4jFlagRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(row.get::<bool>("is_set").unwrap_or(false))
         } else {

@@ -372,7 +372,7 @@ pub struct GameTimeDisplayProps {
 /// Compact game time display (for top-right corner)
 #[component]
 pub fn GameTimeDisplay(props: GameTimeDisplayProps) -> Element {
-    let time_icon = match game_time_format::time_of_day(props.time) {
+    let time_icon = match game_time_format::time_of_day(&props.time) {
         game_time_format::TimeOfDay::Morning => "🌅",
         game_time_format::TimeOfDay::Afternoon => "☀️",
         game_time_format::TimeOfDay::Evening => "🌆",
@@ -380,7 +380,7 @@ pub fn GameTimeDisplay(props: GameTimeDisplayProps) -> Element {
     };
 
     let pause_indicator = if props.time.is_paused { " ⏸" } else { "" };
-    let display = game_time_format::display_date(props.time);
+    let display = game_time_format::display_date(&props.time);
 
     rsx! {
         div {

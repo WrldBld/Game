@@ -1,3 +1,6 @@
+// ComfyUI client - prepared for future image generation integration
+#![allow(dead_code)]
+
 //! ComfyUI image generation client
 //!
 //! Implements the ImageGenPort trait for AI asset generation using ComfyUI's API.
@@ -262,7 +265,10 @@ impl ImageGenPort for ComfyUIClient {
             .timeout(Duration::from_secs(5))
             .send()
             .await
-            .map_err(|_| ImageGenError::Unavailable)?;
+            .map_err(|e| {
+                tracing::warn!(error = %e, "ComfyUI health check failed");
+                ImageGenError::Unavailable
+            })?;
 
         Ok(response.status().is_success())
     }

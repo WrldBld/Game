@@ -1,14 +1,13 @@
 //! Campbell's character archetypes from "The Hero with a Thousand Faces"
 
+use crate::error::DomainError;
 use serde::{Deserialize, Serialize};
 
 /// Character archetypes based on Joseph Campbell's monomyth
 ///
 /// These represent the archetypal roles characters can play in a narrative,
 /// providing guidance for NPC behavior and story function.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum CampbellArchetype {
     /// The protagonist of the story
     Hero,
@@ -116,7 +115,7 @@ impl std::fmt::Display for CampbellArchetype {
 }
 
 impl std::str::FromStr for CampbellArchetype {
-    type Err = String;
+    type Err = DomainError;
 
     /// Parse an archetype from a string (case-insensitive)
     ///

@@ -7,6 +7,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use wrldbldr_shared::character_sheet::SheetValue;
+
 // Import rule system types from domain (canonical source)
 // These have serde derives and are re-exported for player-app consumers
 pub use wrldbldr_domain::value_objects::{
@@ -416,7 +418,6 @@ pub struct ChallengeData {
 
 /// Types of challenges
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
 pub enum ChallengeType {
     #[default]
     SkillCheck,
@@ -450,7 +451,7 @@ impl ChallengeType {
 
 /// Challenge difficulty representation
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum ChallengeDifficulty {
     Dc { value: u32 },
     Percentage { value: u32 },
@@ -501,7 +502,7 @@ pub struct Outcome {
 
 /// Effects triggered by challenge outcomes
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum OutcomeTrigger {
     RevealInformation {
         info: String,
@@ -540,7 +541,7 @@ pub struct TriggerCondition {
 
 /// Types of trigger conditions
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum TriggerType {
     ObjectInteraction {
         keywords: Vec<String>,
@@ -602,7 +603,7 @@ pub struct CharacterData {
     pub portrait_asset: Option<String>,
     pub is_alive: bool,
     pub is_active: bool,
-    pub stats: serde_json::Value,
+    pub stats: SheetValue,
     pub wants: Vec<WantData>,
 }
 
@@ -675,153 +676,14 @@ pub struct ConnectionData {
 }
 
 // ============================================================================
-// Character Sheet Template Types
+// Character Sheet Data Types
 // ============================================================================
 
-/// A character sheet template
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SheetTemplate {
-    pub id: String,
-    pub world_id: String,
-    pub name: String,
-    pub description: String,
-    pub variant: String,
-    pub sections: Vec<SheetSection>,
-    pub is_default: bool,
-}
-
-/// A section in the character sheet
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SheetSection {
-    pub id: String,
-    pub name: String,
-    #[serde(default)]
-    pub description: Option<String>,
-    pub fields: Vec<SheetField>,
-    pub layout: SectionLayout,
-    #[serde(default)]
-    pub collapsible: bool,
-    #[serde(default)]
-    pub collapsed_by_default: bool,
-    #[serde(default)]
-    pub order: u32,
-}
-
-/// Layout for a section
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-#[derive(Default)]
-pub enum SectionLayout {
-    #[default]
-    Vertical,
-    Grid {
-        columns: u8,
-    },
-    Flow,
-    TwoColumn,
-}
-
-/// A field in the character sheet
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SheetField {
-    pub id: String,
-    pub name: String,
-    #[serde(default)]
-    pub description: Option<String>,
-    pub field_type: FieldType,
-    #[serde(default)]
-    pub required: bool,
-    #[serde(default)]
-    pub read_only: bool,
-    #[serde(default)]
-    pub order: u32,
-}
-
-/// Field type with configuration
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum FieldType {
-    Number {
-        min: Option<i32>,
-        max: Option<i32>,
-        default: Option<i32>,
-    },
-    Text {
-        multiline: bool,
-        max_length: Option<usize>,
-    },
-    Checkbox {
-        default: bool,
-    },
-    Select {
-        options: Vec<SelectOption>,
-    },
-    SkillReference {
-        categories: Option<Vec<String>>,
-        show_attribute: bool,
-    },
-    Derived {
-        formula: String,
-        depends_on: Vec<String>,
-    },
-    Resource {
-        max_field: Option<String>,
-        default_max: Option<i32>,
-    },
-    ItemList {
-        item_type: ItemListType,
-        max_items: Option<usize>,
-    },
-    SkillList {
-        show_modifier: bool,
-        show_proficiency: bool,
-    },
-}
-
-/// Option for select fields
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SelectOption {
-    pub value: String,
-    pub label: String,
-    #[serde(default)]
-    pub description: Option<String>,
-}
-
-/// Type of items in an item list
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ItemListType {
-    Inventory,
-    Features,
-    Spells,
-    Notes,
-}
-
 /// Character sheet data (actual values)
+/// Uses SheetValue for flexibility across different game systems
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct CharacterSheetData {
-    pub values: std::collections::HashMap<String, FieldValue>,
-}
-
-/// API-facing character sheet data (same structure, explicit naming for service layer)
-pub type CharacterSheetDataApi = CharacterSheetData;
-
-/// A value stored for a field
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", content = "value", rename_all = "snake_case")]
-pub enum FieldValue {
-    Number(i32),
-    Text(String),
-    Boolean(bool),
-    Resource {
-        current: i32,
-        max: i32,
-    },
-    List(Vec<String>),
-    SkillEntry {
-        skill_id: String,
-        proficient: bool,
-        bonus: i32,
-    },
+    pub values: std::collections::BTreeMap<String, SheetValue>,
 }
 
 // =============================================================================
@@ -850,7 +712,7 @@ pub struct StoryEventData {
 
 /// Categories of story events
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum StoryEventTypeData {
     LocationChange {
         from_location: Option<String>,
@@ -1127,4 +989,315 @@ impl InventoryItemData {
     pub fn is_quest(&self) -> bool {
         self.item.item_type.as_deref() == Some("Quest")
     }
+}
+
+// =============================================================================
+// Character Sheet Schema Types (matches domain CharacterSheetSchema)
+// =============================================================================
+
+/// Complete schema for rendering a character sheet from the game system.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CharacterSheetSchema {
+    /// Game system ID (e.g., "dnd5e", "pf2e", "blades")
+    pub system_id: String,
+    /// Human-readable system name
+    pub system_name: String,
+    /// Ordered list of sections to display
+    pub sections: Vec<SchemaSection>,
+    /// Character creation steps (if applicable)
+    #[serde(default)]
+    pub creation_steps: Vec<CreationStep>,
+}
+
+/// A section of the character sheet (e.g., "Ability Scores", "Skills", "Combat").
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SchemaSection {
+    /// Unique section identifier
+    pub id: String,
+    /// Display label for the section header
+    pub label: String,
+    /// Type of section (affects layout)
+    pub section_type: SchemaSectionType,
+    /// Fields within this section
+    pub fields: Vec<SchemaFieldDefinition>,
+    /// Whether this section is collapsible
+    #[serde(default)]
+    pub collapsible: bool,
+    /// Whether collapsed by default
+    #[serde(default)]
+    pub collapsed_default: bool,
+    /// Help text for the section
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+/// Type of section, affects rendering layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SchemaSectionType {
+    AbilityScores,
+    Skills,
+    Combat,
+    Spellcasting,
+    Resources,
+    Inventory,
+    Identity,
+    Features,
+    Clocks,
+    Moves,
+    Modifiers,
+    Advancement,
+    Custom,
+    #[serde(other)]
+    Unknown,
+}
+
+/// Definition of a single field in the character sheet.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SchemaFieldDefinition {
+    /// Unique field identifier
+    pub id: String,
+    /// Display label
+    pub label: String,
+    /// Field data type and rendering hints
+    pub field_type: SchemaFieldType,
+    /// Whether this field can be edited by players
+    #[serde(default = "default_true")]
+    pub editable: bool,
+    /// Whether this field is required
+    #[serde(default)]
+    pub required: bool,
+    /// If this is a calculated field, the derivation info
+    #[serde(default)]
+    pub derived_from: Option<DerivedFieldInfo>,
+    /// Validation rules
+    #[serde(default)]
+    pub validation: Option<SchemaFieldValidation>,
+    /// Layout hints
+    #[serde(default)]
+    pub layout: SchemaFieldLayout,
+    /// Help text / tooltip
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Placeholder text for empty fields
+    #[serde(default)]
+    pub placeholder: Option<String>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// Type of field data and how to render it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum SchemaFieldType {
+    /// Plain text input
+    Text {
+        #[serde(default)]
+        multiline: bool,
+        #[serde(default)]
+        max_length: Option<usize>,
+    },
+    /// Integer number
+    Integer {
+        #[serde(default)]
+        min: Option<i32>,
+        #[serde(default)]
+        max: Option<i32>,
+        #[serde(default)]
+        show_modifier: bool,
+    },
+    /// D&D-style ability score with modifier display
+    AbilityScore {
+        #[serde(default)]
+        min: Option<i32>,
+        #[serde(default)]
+        max: Option<i32>,
+    },
+    /// Skill with proficiency level
+    Skill {
+        ability: String,
+        proficiency_levels: Vec<SchemaProficiencyOption>,
+    },
+    /// Saving throw
+    SavingThrow { ability: String },
+    /// Boolean checkbox
+    Boolean {
+        #[serde(default)]
+        checked_label: Option<String>,
+        #[serde(default)]
+        unchecked_label: Option<String>,
+    },
+    /// Selection from options
+    Select {
+        options: Vec<SchemaSelectOption>,
+        #[serde(default)]
+        allow_custom: bool,
+    },
+    /// Multiple selection
+    MultiSelect {
+        options: Vec<SchemaSelectOption>,
+        #[serde(default)]
+        max_selections: Option<usize>,
+    },
+    /// HP / resource bar
+    ResourceBar {
+        max_field: String,
+        #[serde(default)]
+        color: SchemaResourceColor,
+    },
+    /// Dice pool (Blades, WoD)
+    DicePool { max_dice: u8, die_type: u8 },
+    /// Ladder rating (FATE)
+    LadderRating {
+        min: i32,
+        max: i32,
+        labels: Vec<SchemaLadderLabel>,
+    },
+    /// Percentile skill (CoC)
+    PercentileSkill {
+        #[serde(default)]
+        show_derived: bool,
+    },
+    /// Progress clock (Blades)
+    Clock { segments: u8 },
+    /// Harm/condition track
+    ConditionTrack { levels: Vec<SchemaConditionLevel> },
+    /// Reference to another entity
+    EntityRef { entity_type: SchemaEntityRefType },
+    /// Tags/keywords list
+    Tags,
+    /// XP progress bar
+    XpProgress {
+        current_field: String,
+        next_level_field: String,
+    },
+    /// List of active stat modifiers
+    ModifierList {
+        #[serde(default)]
+        filter_stat: Option<String>,
+    },
+    /// Unknown for forward compatibility
+    #[serde(other)]
+    Unknown,
+}
+
+/// Option for select fields.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SchemaSelectOption {
+    pub value: String,
+    pub label: String,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+/// Proficiency option for skills.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SchemaProficiencyOption {
+    pub value: String,
+    pub label: String,
+    pub multiplier: f32,
+}
+
+/// Label for ladder ratings.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SchemaLadderLabel {
+    pub value: i32,
+    pub label: String,
+}
+
+/// Level in a condition/harm track.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SchemaConditionLevel {
+    pub level: u8,
+    pub label: String,
+    #[serde(default)]
+    pub effect: Option<String>,
+}
+
+/// Color theme for resource bars.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum SchemaResourceColor {
+    #[default]
+    Red,
+    Blue,
+    Green,
+    Purple,
+    Orange,
+    Gray,
+}
+
+/// Type of entity reference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SchemaEntityRefType {
+    Class,
+    Race,
+    Background,
+    Playbook,
+    Archetype,
+    Occupation,
+    Custom,
+}
+
+/// Specification for a calculated/derived field.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DerivedFieldInfo {
+    pub derivation_type: DerivationType,
+    pub dependencies: Vec<String>,
+    #[serde(default)]
+    pub display_format: Option<String>,
+}
+
+/// How a field is derived.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DerivationType {
+    AbilityModifier,
+    ProficiencyBonus,
+    SkillModifier,
+    SaveModifier,
+    SpellSaveDc,
+    SpellAttack,
+    Sum,
+    Max,
+    HalfDown,
+    Fifth,
+    Custom,
+}
+
+/// Validation rules for a field.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SchemaFieldValidation {
+    #[serde(default)]
+    pub min: Option<i32>,
+    #[serde(default)]
+    pub max: Option<i32>,
+    #[serde(default)]
+    pub pattern: Option<String>,
+    #[serde(default)]
+    pub error_message: Option<String>,
+}
+
+/// Layout hints for field rendering.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct SchemaFieldLayout {
+    #[serde(default)]
+    pub width: Option<u8>,
+    #[serde(default)]
+    pub new_row: bool,
+    #[serde(default)]
+    pub css_class: Option<String>,
+    #[serde(default)]
+    pub order: Option<i32>,
+}
+
+/// A step in the character creation process.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CreationStep {
+    pub id: String,
+    pub label: String,
+    pub description: String,
+    pub section_ids: Vec<String>,
+    pub order: u8,
+    #[serde(default = "default_true")]
+    pub required: bool,
 }

@@ -1,11 +1,15 @@
+// Asset repo - some helper functions for future use
+#![allow(dead_code)]
+
 //! Neo4j asset repository implementation.
 //!
 //! Handles GalleryAsset persistence for character portraits, location backdrops, etc.
 
 use std::str::FromStr;
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Node, Row};
+use neo4rs::{query, Node, Row};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use wrldbldr_domain::*;
@@ -14,11 +18,11 @@ use super::helpers::{parse_typed_id, NodeExt};
 use crate::infrastructure::ports::{AssetRepo, RepoError};
 
 pub struct Neo4jAssetRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
 }
 
 impl Neo4jAssetRepo {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(graph: Neo4jGraph) -> Self {
         Self { graph }
     }
 }
@@ -33,12 +37,12 @@ impl AssetRepo for Neo4jAssetRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(row_to_gallery_asset(row)?))
         } else {
@@ -49,9 +53,8 @@ impl AssetRepo for Neo4jAssetRepo {
     /// Save an asset (upsert) and create relationship to owning entity
     async fn save(&self, asset: &GalleryAsset) -> Result<(), RepoError> {
         let generation_metadata_json = asset
-            .generation_metadata
-            .as_ref()
-            .map(|m| serde_json::to_string(&GenerationMetadataStored::from(m.clone())))
+            .generation_metadata()
+            .map(|m| serde_json::to_string(&GenerationMetadataStored::from_metadata(m)))
             .transpose()
             .map_err(|e| RepoError::Serialization(e.to_string()))?
             .unwrap_or_default();
@@ -77,25 +80,25 @@ impl AssetRepo for Neo4jAssetRepo {
                 a.label = $label,
                 a.generation_metadata = $generation_metadata",
         )
-        .param("id", asset.id.to_string())
-        .param("entity_type", asset.entity_type.to_string())
-        .param("entity_id", asset.entity_id.clone())
-        .param("asset_type", asset.asset_type.to_string())
-        .param("file_path", asset.file_path.clone())
-        .param("is_active", asset.is_active)
-        .param("label", asset.label.clone().unwrap_or_default())
+        .param("id", asset.id().to_string())
+        .param("entity_type", asset.entity_type().to_string())
+        .param("entity_id", asset.entity_id().to_string())
+        .param("asset_type", asset.asset_type().to_string())
+        .param("file_path", asset.file_path().as_str().to_string())
+        .param("is_active", asset.is_active())
+        .param("label", asset.label().unwrap_or_default().to_string())
         .param("generation_metadata", generation_metadata_json)
-        .param("created_at", asset.created_at.to_rfc3339());
+        .param("created_at", asset.created_at().to_rfc3339());
 
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // Create relationship to owning entity based on entity_type
         // Only create relationship if asset can have assets
-        if asset.entity_type.has_assets() {
-            let relationship_query = match asset.entity_type {
+        if asset.entity_type().has_assets() {
+            let relationship_query = match asset.entity_type() {
                 EntityType::Character => query(
                     "MATCH (e:Character {id: $entity_id}), (a:GalleryAsset {id: $asset_id})
                     MERGE (e)-[:HAS_ASSET]->(a)",
@@ -114,11 +117,11 @@ impl AssetRepo for Neo4jAssetRepo {
             self.graph
                 .run(
                     relationship_query
-                        .param("entity_id", asset.entity_id.clone())
-                        .param("asset_id", asset.id.to_string()),
+                        .param("entity_id", asset.entity_id().to_string())
+                        .param("asset_id", asset.id().to_string()),
                 )
                 .await
-                .map_err(|e| RepoError::Database(e.to_string()))?;
+                .map_err(|e| RepoError::database("query", e))?;
         }
 
         Ok(())
@@ -135,7 +138,7 @@ impl AssetRepo for Neo4jAssetRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted asset: {}", id);
         Ok(())
@@ -159,13 +162,13 @@ impl AssetRepo for Neo4jAssetRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut assets = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             assets.push(row_to_gallery_asset(row)?);
         }
@@ -181,10 +184,9 @@ impl AssetRepo for Neo4jAssetRepo {
         asset_id: AssetId,
     ) -> Result<(), RepoError> {
         // First, get the asset to determine its asset_type
-        let asset = self
-            .get(asset_id)
-            .await?
-            .ok_or_else(|| RepoError::Database(format!("Asset not found: {}", asset_id)))?;
+        let asset = self.get(asset_id).await?.ok_or_else(|| {
+            RepoError::database("query", format!("Asset not found: {}", asset_id))
+        })?;
 
         // Deactivate all assets of the same type for this entity
         let deactivate_q = query(
@@ -197,12 +199,12 @@ impl AssetRepo for Neo4jAssetRepo {
         )
         .param("entity_type", entity_type)
         .param("entity_id", entity_id.to_string())
-        .param("asset_type", asset.asset_type.to_string());
+        .param("asset_type", asset.asset_type().to_string());
 
         self.graph
             .run(deactivate_q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // Activate the specified asset
         let activate_q = query("MATCH (a:GalleryAsset {id: $id}) SET a.is_active = true")
@@ -211,7 +213,7 @@ impl AssetRepo for Neo4jAssetRepo {
         self.graph
             .run(activate_q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }
@@ -222,43 +224,42 @@ impl AssetRepo for Neo4jAssetRepo {
 // =============================================================================
 
 fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset, RepoError> {
-    let node: Node = row
-        .get("a")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+    let node: Node = row.get("a").map_err(|e| RepoError::database("query", e))?;
 
-    let id: AssetId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+    let id: AssetId = parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
     let entity_type_str: String = node
         .get("entity_type")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
     let entity_id: String = node
         .get("entity_id")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
     let asset_type_str: String = node
         .get("asset_type")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
-    let file_path: String = node
+        .map_err(|e| RepoError::database("query", e))?;
+    let file_path_str: String = node
         .get("file_path")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
+    let file_path = AssetPath::new(file_path_str)
+        .map_err(|e| RepoError::database("query", format!("Invalid asset path: {}", e)))?;
     let is_active: bool = node.get_bool_or("is_active", false);
     let label = node.get_optional_string("label");
     let created_at_str: String = node
         .get("created_at")
-        .map_err(|e| RepoError::Database(e.to_string()))?;
+        .map_err(|e| RepoError::database("query", e))?;
 
-    let entity_type = parse_entity_type(&entity_type_str);
+    let entity_type = parse_entity_type(&entity_type_str)?;
     let asset_type = AssetType::from_str(&asset_type_str)
-        .map_err(|e| RepoError::Database(format!("Invalid asset type: {}", e)))?;
+        .map_err(|e| RepoError::database("query", format!("Invalid asset type: {}", e)))?;
 
     let generation_metadata: Option<GenerationMetadata> = node
         .get_json_or_default::<Option<GenerationMetadataStored>>("generation_metadata")
         .map(Into::into);
 
     let created_at = chrono::DateTime::parse_from_rfc3339(&created_at_str)
-        .map_err(|e| RepoError::Database(format!("Invalid datetime: {}", e)))?
+        .map_err(|e| RepoError::database("query", format!("Invalid datetime: {}", e)))?
         .with_timezone(&chrono::Utc);
 
-    Ok(GalleryAsset {
+    Ok(GalleryAsset::reconstruct(
         id,
         entity_type,
         entity_id,
@@ -268,15 +269,18 @@ fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset, RepoError> {
         label,
         generation_metadata,
         created_at,
-    })
+    ))
 }
 
-fn parse_entity_type(s: &str) -> EntityType {
+fn parse_entity_type(s: &str) -> Result<EntityType, RepoError> {
     match s {
-        "Character" => EntityType::Character,
-        "Location" => EntityType::Location,
-        "Item" => EntityType::Item,
-        _ => EntityType::Character, // Default fallback
+        "Character" => Ok(EntityType::Character),
+        "Location" => Ok(EntityType::Location),
+        "Item" => Ok(EntityType::Item),
+        _ => Err(RepoError::database(
+            "parse",
+            format!("Unknown EntityType: '{}'", s),
+        )),
     }
 }
 
@@ -294,12 +298,12 @@ struct GenerationMetadataStored {
     pub batch_id: String,
 }
 
-impl From<GenerationMetadata> for GenerationMetadataStored {
-    fn from(value: GenerationMetadata) -> Self {
+impl GenerationMetadataStored {
+    fn from_metadata(value: &GenerationMetadata) -> Self {
         Self {
-            workflow: value.workflow,
-            prompt: value.prompt,
-            negative_prompt: value.negative_prompt,
+            workflow: value.workflow.clone(),
+            prompt: value.prompt.clone(),
+            negative_prompt: value.negative_prompt.clone(),
             seed: value.seed,
             style_reference_id: value.style_reference_id.map(|id| id.to_string()),
             batch_id: value.batch_id.to_string(),
@@ -318,7 +322,7 @@ impl From<GenerationMetadataStored> for GenerationMetadata {
             .map(BatchId::from_uuid)
             .unwrap_or_default();
 
-        Self {
+        GenerationMetadata {
             workflow: value.workflow,
             prompt: value.prompt,
             negative_prompt: value.negative_prompt,

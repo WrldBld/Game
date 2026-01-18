@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::error::DomainError;
+
 /// Unified entity type enum for the entire WrldBldr system
 ///
 /// This enum represents all types of entities in the game. It serves two purposes:
@@ -10,7 +12,6 @@ use serde::{Deserialize, Serialize};
 ///
 /// Use `has_assets()` to check if an entity type can have gallery assets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum EntityType {
     // === Asset-bearing entities ===
     /// Character entity (NPCs and PCs) - can have assets
@@ -141,7 +142,7 @@ impl EntityType {
 }
 
 impl std::str::FromStr for EntityType {
-    type Err = String;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().replace('-', "_").as_str() {
@@ -166,14 +167,13 @@ impl std::str::FromStr for EntityType {
             "actantial_view" | "actantialview" => Ok(Self::ActantialView),
             "game_time" | "gametime" => Ok(Self::GameTime),
             "unknown" => Ok(Self::Unknown),
-            _ => Err(format!("Unknown entity type: {}", s)),
+            _ => Err(DomainError::parse(format!("Unknown entity type: {}", s))),
         }
     }
 }
 
 /// Types of entity changes for broadcast notifications
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum ChangeType {
     /// Entity was created
     Created,
@@ -199,7 +199,6 @@ impl std::fmt::Display for ChangeType {
 
 /// Type of asset (determines which slot it occupies)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum AssetType {
     /// Character face portrait (256x256)
     Portrait,
@@ -236,7 +235,7 @@ impl std::fmt::Display for AssetType {
 }
 
 impl std::str::FromStr for AssetType {
-    type Err = String;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s.to_lowercase().as_str() {

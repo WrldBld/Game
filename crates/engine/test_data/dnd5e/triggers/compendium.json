@@ -1,0 +1,138 @@
+{
+  "_comment": "Example compendium-based narrative triggers for testing",
+  "triggers": [
+    {
+      "name": "fighter_class_check",
+      "description": "Triggers when character is a Fighter of at least level 3",
+      "trigger_type": {
+        "HasClass": {
+          "class_id": "fighter",
+          "min_level": 3
+        }
+      },
+      "expected_matches": ["fighter_5", "multiclass"],
+      "expected_misses": ["wizard_3"]
+    },
+    {
+      "name": "wizard_class_check",
+      "description": "Triggers when character is a Wizard of any level",
+      "trigger_type": {
+        "HasClass": {
+          "class_id": "wizard",
+          "min_level": null
+        }
+      },
+      "expected_matches": ["wizard_3", "multiclass"],
+      "expected_misses": ["fighter_5"]
+    },
+    {
+      "name": "elf_origin_check",
+      "description": "Triggers when character is an Elf",
+      "trigger_type": {
+        "HasOrigin": {
+          "origin_id": "elf"
+        }
+      },
+      "expected_matches": ["wizard_3"],
+      "expected_misses": ["fighter_5", "multiclass"]
+    },
+    {
+      "name": "human_origin_check",
+      "description": "Triggers when character is a Human",
+      "trigger_type": {
+        "HasOrigin": {
+          "origin_id": "human"
+        }
+      },
+      "expected_matches": ["fighter_5", "multiclass"],
+      "expected_misses": ["wizard_3"]
+    },
+    {
+      "name": "knows_fireball",
+      "description": "Triggers when character knows the Fireball spell",
+      "trigger_type": {
+        "KnowsSpell": {
+          "spell_id": "fireball"
+        }
+      },
+      "expected_matches": ["wizard_3"],
+      "expected_misses": ["fighter_5", "multiclass"]
+    },
+    {
+      "name": "knows_shield",
+      "description": "Triggers when character knows the Shield spell",
+      "trigger_type": {
+        "KnowsSpell": {
+          "spell_id": "shield"
+        }
+      },
+      "expected_matches": ["wizard_3", "multiclass"],
+      "expected_misses": ["fighter_5"]
+    },
+    {
+      "name": "has_great_weapon_master",
+      "description": "Triggers when character has the Great Weapon Master feat",
+      "trigger_type": {
+        "HasFeat": {
+          "feat_id": "great_weapon_master"
+        }
+      },
+      "expected_matches": ["fighter_5"],
+      "expected_misses": ["wizard_3", "multiclass"]
+    },
+    {
+      "name": "has_war_caster",
+      "description": "Triggers when character has the War Caster feat",
+      "trigger_type": {
+        "HasFeat": {
+          "feat_id": "war_caster"
+        }
+      },
+      "expected_matches": ["multiclass"],
+      "expected_misses": ["fighter_5", "wizard_3"]
+    },
+    {
+      "name": "high_level_fighter",
+      "description": "Triggers when character is a Fighter of level 5 or higher",
+      "trigger_type": {
+        "HasClass": {
+          "class_id": "fighter",
+          "min_level": 5
+        }
+      },
+      "expected_matches": ["fighter_5"],
+      "expected_misses": ["wizard_3", "multiclass"]
+    },
+    {
+      "name": "any_spellcaster",
+      "description": "Triggers when character knows any spell (has spellcasting)",
+      "trigger_type": {
+        "KnowsSpell": {
+          "spell_id": "magic_missile"
+        }
+      },
+      "expected_matches": ["wizard_3", "multiclass"],
+      "expected_misses": ["fighter_5"]
+    }
+  ],
+  "test_contexts": {
+    "fighter_5": {
+      "origin_id": "human",
+      "class_levels": { "fighter": 5 },
+      "known_spells": [],
+      "character_feats": ["great_weapon_master"]
+    },
+    "wizard_3": {
+      "origin_id": "elf",
+      "class_levels": { "wizard": 3 },
+      "known_spells": ["magic_missile", "shield", "burning_hands", "detect_magic", "mage_armor", "identify", "fireball", "scorching_ray"],
+      "character_feats": []
+    },
+    "multiclass": {
+      "origin_id": "human",
+      "class_levels": { "fighter": 3, "wizard": 2 },
+      "known_spells": ["shield", "absorb_elements", "find_familiar", "magic_missile", "sleep", "detect_magic"],
+      "character_feats": ["war_caster"]
+    }
+  }
+}

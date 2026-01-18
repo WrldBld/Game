@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 
 /// Types of actions a player can perform
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum PlayerActionType {
     /// Speak to an NPC
     Talk,

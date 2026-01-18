@@ -12,44 +12,45 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{LocationId, RegionId, RegionStateId, WorldId};
-use crate::value_objects::{ActivationLogic, ActivationRule};
+use crate::value_objects::{
+    ActivationLogic, ActivationRule, AssetPath, Atmosphere, Description, StateName,
+};
 
 /// A visual configuration for a region
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RegionState {
-    pub id: RegionStateId,
-    pub region_id: RegionId,
+    id: RegionStateId,
+    region_id: RegionId,
     /// Denormalized for efficient queries
-    pub location_id: LocationId,
-    pub world_id: WorldId,
+    location_id: LocationId,
+    world_id: WorldId,
 
     /// Name of this state (e.g., "Tavern Morning", "Post-Explosion")
-    pub name: String,
+    name: StateName,
     /// Description for DM reference
-    pub description: String,
+    description: Description,
 
     // Visual Configuration
     /// Override the region's default backdrop
-    pub backdrop_override: Option<String>,
+    backdrop_override: Option<AssetPath>,
     /// Override the region's atmosphere text
-    pub atmosphere_override: Option<String>,
+    atmosphere_override: Option<Atmosphere>,
     /// Ambient sound asset path
-    pub ambient_sound: Option<String>,
+    ambient_sound: Option<AssetPath>,
 
     // Activation Rules
     /// Rules that determine when this state is active
-    pub activation_rules: Vec<ActivationRule>,
+    activation_rules: Vec<ActivationRule>,
     /// How rules are combined
-    pub activation_logic: ActivationLogic,
+    activation_logic: ActivationLogic,
 
     /// Priority when multiple states match (higher = preferred)
-    pub priority: i32,
+    priority: i32,
     /// If true, use when no other state matches
-    pub is_default: bool,
+    is_default: bool,
 
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
 }
 
 impl RegionState {
@@ -65,8 +66,8 @@ impl RegionState {
             region_id,
             location_id,
             world_id,
-            name: name.into(),
-            description: String::new(),
+            name: StateName::new(name).unwrap_or_default(),
+            description: Description::default(),
             backdrop_override: None,
             atmosphere_override: None,
             ambient_sound: None,
@@ -94,23 +95,125 @@ impl RegionState {
         }
     }
 
+    /// Reconstruct from stored data
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_parts(
+        id: RegionStateId,
+        region_id: RegionId,
+        location_id: LocationId,
+        world_id: WorldId,
+        name: StateName,
+        description: Description,
+        backdrop_override: Option<AssetPath>,
+        atmosphere_override: Option<Atmosphere>,
+        ambient_sound: Option<AssetPath>,
+        activation_rules: Vec<ActivationRule>,
+        activation_logic: ActivationLogic,
+        priority: i32,
+        is_default: bool,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            id,
+            region_id,
+            location_id,
+            world_id,
+            name,
+            description,
+            backdrop_override,
+            atmosphere_override,
+            ambient_sound,
+            activation_rules,
+            activation_logic,
+            priority,
+            is_default,
+            created_at,
+            updated_at,
+        }
+    }
+
+    // Read-only accessors
+
+    pub fn id(&self) -> RegionStateId {
+        self.id
+    }
+
+    pub fn region_id(&self) -> RegionId {
+        self.region_id
+    }
+
+    pub fn location_id(&self) -> LocationId {
+        self.location_id
+    }
+
+    pub fn world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    pub fn description(&self) -> &str {
+        self.description.as_str()
+    }
+
+    pub fn backdrop_override(&self) -> Option<&AssetPath> {
+        self.backdrop_override.as_ref()
+    }
+
+    pub fn atmosphere_override(&self) -> Option<&Atmosphere> {
+        self.atmosphere_override.as_ref()
+    }
+
+    pub fn ambient_sound(&self) -> Option<&AssetPath> {
+        self.ambient_sound.as_ref()
+    }
+
+    pub fn activation_rules(&self) -> &[ActivationRule] {
+        &self.activation_rules
+    }
+
+    pub fn activation_logic(&self) -> ActivationLogic {
+        self.activation_logic
+    }
+
+    pub fn priority(&self) -> i32 {
+        self.priority
+    }
+
+    pub fn is_default(&self) -> bool {
+        self.is_default
+    }
+
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
+    }
+
+    // Builder-style methods
+
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = description.into();
+        self.description = Description::new(description).unwrap_or_default();
         self
     }
 
-    pub fn with_backdrop(mut self, asset_path: impl Into<String>) -> Self {
-        self.backdrop_override = Some(asset_path.into());
+    pub fn with_backdrop(mut self, asset_path: AssetPath) -> Self {
+        self.backdrop_override = Some(asset_path);
         self
     }
 
-    pub fn with_atmosphere(mut self, atmosphere: impl Into<String>) -> Self {
-        self.atmosphere_override = Some(atmosphere.into());
+    pub fn with_atmosphere(mut self, atmosphere: Atmosphere) -> Self {
+        self.atmosphere_override = Some(atmosphere);
         self
     }
 
-    pub fn with_ambient_sound(mut self, sound_path: impl Into<String>) -> Self {
-        self.ambient_sound = Some(sound_path.into());
+    pub fn with_ambient_sound(mut self, sound_path: AssetPath) -> Self {
+        self.ambient_sound = Some(sound_path);
         self
     }
 
@@ -127,6 +230,11 @@ impl RegionState {
 
     pub fn with_priority(mut self, priority: i32) -> Self {
         self.priority = priority;
+        self
+    }
+
+    pub fn with_is_default(mut self, is_default: bool) -> Self {
+        self.is_default = is_default;
         self
     }
 
@@ -155,10 +263,10 @@ impl RegionState {
     pub fn summary(&self) -> RegionStateSummary {
         RegionStateSummary {
             id: self.id,
-            name: self.name.clone(),
-            backdrop_override: self.backdrop_override.clone(),
-            atmosphere_override: self.atmosphere_override.clone(),
-            ambient_sound: self.ambient_sound.clone(),
+            name: self.name.to_string(),
+            backdrop_override: self.backdrop_override.as_ref().map(|p| p.to_string()),
+            atmosphere_override: self.atmosphere_override.as_ref().map(|a| a.to_string()),
+            ambient_sound: self.ambient_sound.as_ref().map(|p| p.to_string()),
             priority: self.priority,
             is_default: self.is_default,
         }
@@ -167,7 +275,6 @@ impl RegionState {
 
 /// Summary of a region state for display/wire transfer
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RegionStateSummary {
     pub id: RegionStateId,
     pub name: String,
@@ -182,10 +289,17 @@ pub struct RegionStateSummary {
 mod tests {
     use super::*;
     use crate::game_time::TimeOfDay;
+    use crate::value_objects::AssetPath;
+    use chrono::TimeZone;
+
+    fn fixed_time() -> DateTime<Utc> {
+        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
 
     #[test]
     fn test_region_state_creation() {
-        let now = Utc::now();
+        let now = fixed_time();
+        let atm = Atmosphere::new("Warm candlelight flickers across polished brass...").unwrap();
         let state = RegionState::new(
             RegionId::new(),
             LocationId::new(),
@@ -194,23 +308,23 @@ mod tests {
             now,
         )
         .with_description("Warm evening atmosphere")
-        .with_backdrop("/assets/tavern_evening.png")
-        .with_atmosphere("Warm candlelight flickers across polished brass...")
+        .with_backdrop(AssetPath::new("/assets/tavern_evening.png").unwrap())
+        .with_atmosphere(atm)
         .with_rule(ActivationRule::TimeOfDay {
             period: TimeOfDay::Evening,
         })
         .with_priority(10);
 
-        assert_eq!(state.name, "Evening");
-        assert!(state.backdrop_override.is_some());
-        assert_eq!(state.priority, 10);
-        assert!(!state.is_default);
-        assert_eq!(state.activation_rules.len(), 1);
+        assert_eq!(state.name(), "Evening");
+        assert!(state.backdrop_override().is_some());
+        assert_eq!(state.priority(), 10);
+        assert!(!state.is_default());
+        assert_eq!(state.activation_rules().len(), 1);
     }
 
     #[test]
     fn test_default_state() {
-        let now = Utc::now();
+        let now = fixed_time();
         let state = RegionState::default_state(
             RegionId::new(),
             LocationId::new(),
@@ -219,15 +333,18 @@ mod tests {
             now,
         );
 
-        assert!(state.is_default);
-        assert_eq!(state.activation_rules.len(), 1);
-        assert!(matches!(state.activation_rules[0], ActivationRule::Always));
+        assert!(state.is_default());
+        assert_eq!(state.activation_rules().len(), 1);
+        assert!(matches!(
+            state.activation_rules()[0],
+            ActivationRule::Always
+        ));
     }
 
     #[test]
     fn test_soft_rules_detection() {
-        let now = Utc::now();
-        let mut state = RegionState::new(
+        let now = fixed_time();
+        let state = RegionState::new(
             RegionId::new(),
             LocationId::new(),
             WorldId::new(),
@@ -239,13 +356,13 @@ mod tests {
         assert!(!state.has_soft_rules());
 
         // Add hard rule
-        state.activation_rules.push(ActivationRule::TimeOfDay {
+        let state = state.with_rule(ActivationRule::TimeOfDay {
             period: TimeOfDay::Morning,
         });
         assert!(!state.has_soft_rules());
 
         // Add soft rule
-        state.activation_rules.push(ActivationRule::Custom {
+        let state = state.with_rule(ActivationRule::Custom {
             description: "When the party is celebrating".to_string(),
             llm_prompt: None,
         });
@@ -256,7 +373,7 @@ mod tests {
 
     #[test]
     fn test_summary() {
-        let now = Utc::now();
+        let now = fixed_time();
         let state = RegionState::new(
             RegionId::new(),
             LocationId::new(),
@@ -264,14 +381,14 @@ mod tests {
             "Morning",
             now,
         )
-        .with_backdrop("/assets/tavern_morning.png")
+        .with_backdrop(AssetPath::new("/assets/tavern_morning.png").unwrap())
         .with_priority(10);
 
         let summary = state.summary();
         assert_eq!(summary.name, "Morning");
         assert_eq!(
-            summary.backdrop_override,
-            Some("/assets/tavern_morning.png".to_string())
+            summary.backdrop_override.as_deref(),
+            Some("/assets/tavern_morning.png")
         );
         assert_eq!(summary.priority, 10);
     }

@@ -1,3 +1,6 @@
+// Challenge use cases - methods for future skill check resolution
+#![allow(dead_code)]
+
 //! Challenge use cases.
 //!
 //! Handles challenge (skill check) resolution. The flow is:
@@ -10,18 +13,31 @@
 use std::sync::Arc;
 
 use uuid::Uuid;
-use wrldbldr_domain::{
-    ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency, ChallengeId, ChallengeOutcomeData,
-    DiceRollInput, OutcomeTrigger, OutcomeType, PlayerCharacterId, ProposedTool, WorldId,
-};
 use wrldbldr_domain::value_objects::DiceParseError;
+use wrldbldr_domain::{
+    ChallengeId, ChallengeOutcomeDecision, DiceRollInput, OutcomeTrigger, OutcomeType,
+    PlayerCharacterId, WorldId,
+};
+
+use crate::queue_types::{
+    ApprovalDecisionType, ApprovalRequestData, ApprovalUrgency, ChallengeOutcomeData,
+    LlmRequestData, LlmRequestType, ProposedTool, SuggestionContext,
+};
 
 mod crud;
+mod types;
 
-pub use crud::{ChallengeError as ChallengeCrudError, ChallengeOps};
+#[cfg(test)]
+mod llm_context_tests;
 
-use crate::entities::{Challenge, Inventory, Observation, PlayerCharacter, Scene};
-use crate::infrastructure::ports::{ClockPort, QueuePort, RandomPort, RepoError};
+pub use crud::{
+    ChallengeError as ChallengeCrudError, ChallengeOps, CreateChallengeInput, UpdateChallengeInput,
+};
+
+use crate::infrastructure::ports::{
+    ChallengeRepo, ClockPort, ItemRepo, ObservationRepo, PlayerCharacterRepo, QueueError,
+    QueuePort, RandomPort, RepoError, SceneRepo,
+};
 
 /// Container for challenge use cases.
 pub struct ChallengeUseCases {
@@ -96,11 +112,11 @@ pub struct ChallengePromptData {
 
 /// Build a challenge prompt for a player.
 pub struct TriggerChallengePrompt {
-    challenge: Arc<Challenge>,
+    challenge: Arc<dyn ChallengeRepo>,
 }
 
 impl TriggerChallengePrompt {
-    pub fn new(challenge: Arc<Challenge>) -> Self {
+    pub fn new(challenge: Arc<dyn ChallengeRepo>) -> Self {
         Self { challenge }
     }
 
@@ -112,16 +128,16 @@ impl TriggerChallengePrompt {
             .challenge
             .get(challenge_id)
             .await?
-            .ok_or(ChallengeError::NotFound)?;
+            .ok_or(ChallengeError::NotFound(challenge_id))?;
 
         // Use the built-in display() method for consistent formatting
-        let difficulty_display = challenge.difficulty.display();
+        let difficulty_display = challenge.difficulty().display();
 
         Ok(ChallengePromptData {
             challenge_id,
-            challenge_name: challenge.name.clone(),
+            challenge_name: challenge.name().to_string(),
             difficulty_display,
-            description: challenge.description.clone(),
+            description: challenge.description().to_string(),
             skill_name: String::new(),
             character_modifier: 0,
             suggested_dice: Some("1d20".to_string()),
@@ -135,8 +151,8 @@ impl TriggerChallengePrompt {
 /// Handles dice rolling and outcome determination. The outcome is then
 /// queued for DM approval before effects are applied.
 pub struct RollChallenge {
-    challenge: Arc<Challenge>,
-    player_character: Arc<PlayerCharacter>,
+    challenge: Arc<dyn ChallengeRepo>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
     queue: Arc<dyn QueuePort>,
     random: Arc<dyn RandomPort>,
     clock: Arc<dyn ClockPort>,
@@ -144,8 +160,8 @@ pub struct RollChallenge {
 
 impl RollChallenge {
     pub fn new(
-        challenge: Arc<Challenge>,
-        player_character: Arc<PlayerCharacter>,
+        challenge: Arc<dyn ChallengeRepo>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
         queue: Arc<dyn QueuePort>,
         random: Arc<dyn RandomPort>,
         clock: Arc<dyn ClockPort>,
@@ -184,13 +200,13 @@ impl RollChallenge {
             .challenge
             .get(challenge_id)
             .await?
-            .ok_or(ChallengeError::NotFound)?;
+            .ok_or(ChallengeError::NotFound(challenge_id))?;
 
         // 2. Validate challenge ownership and status (defense in depth - also validated at handler)
-        if challenge.world_id != world_id {
+        if challenge.world_id() != world_id {
             return Err(ChallengeError::InvalidWorld);
         }
-        if !challenge.active {
+        if !challenge.active() {
             return Err(ChallengeError::ChallengeInactive);
         }
 
@@ -199,14 +215,14 @@ impl RollChallenge {
             .player_character
             .get(pc_id)
             .await?
-            .ok_or(ChallengeError::PlayerCharacterNotFound)?;
+            .ok_or(ChallengeError::PlayerCharacterNotFound(pc_id))?;
 
         // 3. Determine the roll value
         let roll = if let Some(r) = client_roll {
             r
         } else {
             // Server-side roll based on difficulty type
-            match &challenge.difficulty {
+            match challenge.difficulty() {
                 wrldbldr_domain::Difficulty::DC(_) => self.random.gen_range(1, 20),
                 wrldbldr_domain::Difficulty::Percentage(_) => self.random.gen_range(1, 100),
                 _ => self.random.gen_range(1, 20), // Default to d20
@@ -222,11 +238,11 @@ impl RollChallenge {
             resolution_id: uuid::Uuid::new_v4().to_string(),
             world_id,
             challenge_id: challenge_id.to_string(),
-            challenge_name: challenge.name.clone(),
-            challenge_description: challenge.description.clone(),
+            challenge_name: challenge.name().to_string(),
+            challenge_description: challenge.description().to_string(),
             skill_name: None, // Would need to fetch from edge
             character_id: wrldbldr_domain::CharacterId::from_uuid(*pc_id.as_uuid()), // Use same UUID
-            character_name: pc.name.clone(),
+            character_name: pc.name().to_string(),
             roll,
             modifier,
             total,
@@ -263,7 +279,11 @@ impl RollChallenge {
             proposed_dialogue: outcome.description.clone(),
             internal_reasoning: format!(
                 "Challenge '{}' - Roll: {} + {} = {} -> {}",
-                challenge.name, roll, modifier, total, outcome_type
+                challenge.name(),
+                roll,
+                modifier,
+                total,
+                outcome_type
             ),
             proposed_tools: outcome_data.outcome_triggers.clone(),
             retry_count: 0,
@@ -278,11 +298,7 @@ impl RollChallenge {
             conversation_id: None, // Challenges don't have conversation context
         };
 
-        let approval_queue_id = self
-            .queue
-            .enqueue_dm_approval(&approval_data)
-            .await
-            .map_err(|e| ChallengeError::QueueError(e.to_string()))?;
+        let approval_queue_id = self.queue.enqueue_dm_approval(&approval_data).await?;
 
         Ok(RollResult {
             roll,
@@ -293,9 +309,9 @@ impl RollChallenge {
             requires_approval: true,
             approval_queue_id: Some(approval_queue_id),
             challenge_id,
-            challenge_name: challenge.name.clone(),
+            challenge_name: challenge.name().to_string(),
             character_id: pc_id,
-            character_name: pc.name.clone(),
+            character_name: pc.name().to_string(),
             outcome_triggers: outcome_data.outcome_triggers,
             roll_breakdown: outcome_data.roll_breakdown,
         })
@@ -316,8 +332,8 @@ impl RollChallenge {
             world_id,
             challenge_id,
             pc_id,
-            Some(roll_result.dice_total),
-            roll_result.modifier_applied,
+            Some(roll_result.dice_total()),
+            roll_result.modifier_applied(),
         )
         .await
     }
@@ -327,27 +343,27 @@ impl RollChallenge {
 ///
 /// Called after DM approves the outcome to execute triggers.
 pub struct ResolveOutcome {
-    challenge: Arc<Challenge>,
-    inventory: Arc<Inventory>,
-    observation: Arc<Observation>,
-    scene: Arc<Scene>,
-    player_character: Arc<PlayerCharacter>,
+    challenge: Arc<dyn ChallengeRepo>,
+    item: Arc<dyn ItemRepo>,
+    pc: Arc<dyn PlayerCharacterRepo>,
+    observation: Arc<dyn ObservationRepo>,
+    scene: Arc<dyn SceneRepo>,
 }
 
 impl ResolveOutcome {
     pub fn new(
-        challenge: Arc<Challenge>,
-        inventory: Arc<Inventory>,
-        observation: Arc<Observation>,
-        scene: Arc<Scene>,
-        player_character: Arc<PlayerCharacter>,
+        challenge: Arc<dyn ChallengeRepo>,
+        item: Arc<dyn ItemRepo>,
+        pc: Arc<dyn PlayerCharacterRepo>,
+        observation: Arc<dyn ObservationRepo>,
+        scene: Arc<dyn SceneRepo>,
     ) -> Self {
         Self {
             challenge,
-            inventory,
+            item,
+            pc,
             observation,
             scene,
-            player_character,
         }
     }
 
@@ -365,41 +381,41 @@ impl ResolveOutcome {
             .challenge
             .get(challenge_id)
             .await?
-            .ok_or(ChallengeError::NotFound)?;
+            .ok_or(ChallengeError::NotFound(challenge_id))?;
 
         // Find the matching outcome based on outcome_type
+        let outcomes = challenge.outcomes();
         let outcome = match outcome_type {
-            OutcomeType::CriticalSuccess => challenge
-                .outcomes
+            OutcomeType::CriticalSuccess => outcomes
                 .critical_success
                 .as_ref()
-                .unwrap_or(&challenge.outcomes.success),
-            OutcomeType::Success => &challenge.outcomes.success,
-            OutcomeType::Partial => challenge
-                .outcomes
-                .partial
-                .as_ref()
-                .unwrap_or(&challenge.outcomes.success),
-            OutcomeType::Failure => &challenge.outcomes.failure,
-            OutcomeType::CriticalFailure => challenge
-                .outcomes
+                .unwrap_or(&outcomes.success),
+            OutcomeType::Success => &outcomes.success,
+            OutcomeType::Partial => outcomes.partial.as_ref().unwrap_or(&outcomes.success),
+            OutcomeType::Failure => &outcomes.failure,
+            OutcomeType::CriticalFailure => outcomes
                 .critical_failure
                 .as_ref()
-                .unwrap_or(&challenge.outcomes.failure),
+                .unwrap_or(&outcomes.failure),
         };
 
         // Execute each trigger in the outcome
         for trigger in &outcome.triggers {
-            self.execute_trigger(trigger, &challenge.name, challenge.world_id, target_pc_id)
-                .await
-                .map_err(|e| {
-                    tracing::error!(
-                        challenge = %challenge.name,
-                        error = %e,
-                        "Failed to execute trigger"
-                    );
-                    ChallengeError::TriggerExecutionFailed(e.to_string())
-                })?;
+            self.execute_trigger(
+                trigger,
+                challenge.name().as_str(),
+                challenge.world_id(),
+                target_pc_id,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    challenge = %challenge.name(),
+                    error = %e,
+                    "Failed to execute trigger"
+                );
+                ChallengeError::TriggerExecutionFailed(e.to_string())
+            })?;
         }
 
         // Mark the challenge as resolved
@@ -438,7 +454,7 @@ impl ResolveOutcome {
                     // This records that the PC learned this information
                     if let Err(e) = self
                         .observation
-                        .record_deduced_info(target_pc_id, info.clone())
+                        .save_deduced_info(target_pc_id, info.clone())
                         .await
                     {
                         tracing::warn!(error = %e, "Failed to persist revealed information");
@@ -459,9 +475,10 @@ impl ResolveOutcome {
                 );
 
                 // Create a new item and add it to the PC's inventory
-                if let Err(e) = self
-                    .inventory
-                    .give_item_to_pc(target_pc_id, item_name.clone(), item_description.clone())
+                let give_item =
+                    crate::use_cases::inventory::GiveItem::new(self.item.clone(), self.pc.clone());
+                if let Err(e) = give_item
+                    .execute(target_pc_id, item_name.clone(), item_description.clone())
                     .await
                 {
                     tracing::warn!(error = %e, "Failed to give item to player");
@@ -516,11 +533,7 @@ impl ResolveOutcome {
                     "Modifying character stat"
                 );
 
-                if let Err(e) = self
-                    .player_character
-                    .modify_stat(target_pc_id, stat, *modifier)
-                    .await
-                {
+                if let Err(e) = self.pc.modify_stat(target_pc_id, stat, *modifier).await {
                     tracing::warn!(error = %e, "Failed to modify character stat");
                 }
                 Ok(())
@@ -553,16 +566,15 @@ impl OutcomeDecision {
         &self,
         world_id: WorldId,
         resolution_id: String,
-        decision: wrldbldr_protocol::ChallengeOutcomeDecisionData,
+        decision: ChallengeOutcomeDecision,
     ) -> Result<OutcomeDecisionResult, OutcomeDecisionError> {
         let approval_id = Uuid::parse_str(&resolution_id)
             .map_err(|_| OutcomeDecisionError::InvalidResolutionId)?;
 
-        let approval_data = self
+        let approval_data: crate::queue_types::ApprovalRequestData = self
             .queue
             .get_approval_request(approval_id)
-            .await
-            .map_err(|e| OutcomeDecisionError::QueueError(e.to_string()))?
+            .await?
             .ok_or(OutcomeDecisionError::ApprovalNotFound)?;
 
         let outcome_data = approval_data
@@ -574,10 +586,12 @@ impl OutcomeDecision {
         let outcome_type = parse_outcome_type(&outcome_data.outcome_type);
 
         match decision {
-            wrldbldr_protocol::ChallengeOutcomeDecisionData::Accept => {
-                let pc_id = approval_data.pc_id.ok_or(OutcomeDecisionError::MissingPcId)?;
+            ChallengeOutcomeDecision::Accept => {
+                let pc_id = approval_data
+                    .pc_id
+                    .ok_or(OutcomeDecisionError::MissingPcId)?;
                 self.resolve
-                    .execute_for_pc(challenge_id, outcome_type.clone(), pc_id)
+                    .execute_for_pc(challenge_id, outcome_type, pc_id)
                     .await
                     .map_err(OutcomeDecisionError::Resolve)?;
 
@@ -605,10 +619,14 @@ impl OutcomeDecision {
                     roll_breakdown: outcome_data.roll_breakdown.clone(),
                 }))
             }
-            wrldbldr_protocol::ChallengeOutcomeDecisionData::Edit { modified_description } => {
-                let pc_id = approval_data.pc_id.ok_or(OutcomeDecisionError::MissingPcId)?;
+            ChallengeOutcomeDecision::Edit {
+                modified_description,
+            } => {
+                let pc_id = approval_data
+                    .pc_id
+                    .ok_or(OutcomeDecisionError::MissingPcId)?;
                 self.resolve
-                    .execute_for_pc(challenge_id, outcome_type.clone(), pc_id)
+                    .execute_for_pc(challenge_id, outcome_type, pc_id)
                     .await
                     .map_err(OutcomeDecisionError::Resolve)?;
 
@@ -636,9 +654,9 @@ impl OutcomeDecision {
                     roll_breakdown: outcome_data.roll_breakdown.clone(),
                 }))
             }
-            wrldbldr_protocol::ChallengeOutcomeDecisionData::Suggest { guidance } => {
-                let llm_request = wrldbldr_domain::LlmRequestData {
-                    request_type: wrldbldr_domain::LlmRequestType::OutcomeSuggestion {
+            ChallengeOutcomeDecision::Suggest { guidance } => {
+                let llm_request = LlmRequestData {
+                    request_type: LlmRequestType::OutcomeSuggestion {
                         resolution_id: approval_id,
                         world_id,
                         challenge_name: outcome_data.challenge_name.clone(),
@@ -648,7 +666,7 @@ impl OutcomeDecision {
                     world_id,
                     pc_id: approval_data.pc_id,
                     prompt: None,
-                    suggestion_context: Some(wrldbldr_domain::SuggestionContext {
+                    suggestion_context: Some(SuggestionContext {
                         entity_type: Some("challenge_outcome".to_string()),
                         entity_name: Some(outcome_data.challenge_name.clone()),
                         world_setting: None,
@@ -667,15 +685,9 @@ impl OutcomeDecision {
                     conversation_id: None,
                 };
 
-                self.queue
-                    .enqueue_llm_request(&llm_request)
-                    .await
-                    .map_err(|e| OutcomeDecisionError::QueueError(e.to_string()))?;
+                self.queue.enqueue_llm_request(&llm_request).await?;
 
                 Ok(OutcomeDecisionResult::Queued)
-            }
-            wrldbldr_protocol::ChallengeOutcomeDecisionData::Unknown => {
-                Err(OutcomeDecisionError::InvalidDecision)
             }
         }
     }
@@ -713,15 +725,13 @@ pub enum OutcomeDecisionError {
     #[error("Invalid decision")]
     InvalidDecision,
     #[error("Queue error: {0}")]
-    QueueError(String),
+    Queue(#[from] QueueError),
     #[error("Resolve error: {0}")]
     Resolve(#[from] ChallengeError),
 }
 
 fn parse_challenge_id_str(id_str: &str) -> Option<ChallengeId> {
-    Uuid::parse_str(id_str)
-        .ok()
-        .map(ChallengeId::from_uuid)
+    Uuid::parse_str(id_str).ok().map(ChallengeId::from_uuid)
 }
 
 fn parse_outcome_type(outcome_type: &str) -> OutcomeType {
@@ -754,14 +764,14 @@ fn outcome_type_to_str(outcome_type: &OutcomeType) -> &'static str {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ChallengeError {
-    #[error("Challenge not found")]
-    NotFound,
+    #[error("Challenge not found: {0}")]
+    NotFound(ChallengeId),
     #[error("Challenge does not belong to this world")]
     InvalidWorld,
     #[error("Challenge is not active")]
     ChallengeInactive,
-    #[error("Player character not found")]
-    PlayerCharacterNotFound,
+    #[error("Player character not found: {0}")]
+    PlayerCharacterNotFound(PlayerCharacterId),
     #[error("Missing target player character for challenge outcome")]
     MissingTargetPc,
     #[error("Trigger execution failed: {0}")]
@@ -769,7 +779,7 @@ pub enum ChallengeError {
     #[error("Dice parse error: {0}")]
     DiceParse(#[from] DiceParseError),
     #[error("Queue error: {0}")]
-    QueueError(String),
+    Queue(#[from] QueueError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }
@@ -780,12 +790,11 @@ mod tests {
 
     use chrono::Utc;
     use wrldbldr_domain::{
-        Challenge as DomainChallenge, ChallengeId, ChallengeOutcomes, Difficulty, ItemId,
-        LocationId, Outcome, OutcomeTrigger, OutcomeType, PlayerCharacter as DomainPc,
-        PlayerCharacterId, SceneId, WorldId,
+        Challenge as DomainChallenge, ChallengeId, ChallengeName, ChallengeOutcomes, CharacterName,
+        Difficulty, ItemId, LocationId, Outcome, OutcomeTrigger, OutcomeType,
+        PlayerCharacter as DomainPc, PlayerCharacterId, SceneId, WorldId,
     };
 
-    use crate::entities;
     use crate::infrastructure::ports::{
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockItemRepo, MockLocationRepo,
         MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
@@ -807,8 +816,15 @@ mod tests {
         let scene_id = SceneId::new();
         let now = Utc::now();
 
-        let pc = DomainPc::new("user-1", world_id, "PC", LocationId::new(), now);
+        let pc = DomainPc::new(
+            "user-1",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            LocationId::new(),
+            now,
+        );
 
+        // Build success outcome with triggers using builder pattern
         let success_outcome = Outcome::new("success")
             .with_trigger(OutcomeTrigger::reveal_persistent("secret"))
             .with_trigger(OutcomeTrigger::GiveItem {
@@ -818,16 +834,26 @@ mod tests {
             .with_trigger(OutcomeTrigger::modify_stat("hp", -1))
             .with_trigger(OutcomeTrigger::scene(scene_id));
 
-        let outcomes = ChallengeOutcomes {
-            success: success_outcome,
-            failure: Outcome::new("failure"),
-            partial: None,
-            critical_success: None,
-            critical_failure: None,
+        // ChallengeOutcomes doesn't have a constructor that takes Outcome objects directly,
+        // so we use serde roundtrip to construct it with our custom success outcome.
+        let failure_outcome = Outcome::new("failure");
+        let outcomes: ChallengeOutcomes = {
+            let json = serde_json::json!({
+                "success": serde_json::to_value(&success_outcome).unwrap(),
+                "failure": serde_json::to_value(&failure_outcome).unwrap(),
+                "partial": null,
+                "criticalSuccess": null,
+                "criticalFailure": null
+            });
+            serde_json::from_value(json).expect("valid outcomes json")
         };
 
-        let challenge = DomainChallenge::new(world_id, "Test Challenge", Difficulty::DC(10))
-            .with_outcomes(outcomes);
+        let challenge = DomainChallenge::new(
+            world_id,
+            ChallengeName::new("Test Challenge").unwrap(),
+            Difficulty::DC(10),
+        )
+        .with_outcomes(outcomes);
 
         // ---------------------------------------------------------------------
         // Challenge repo expectations
@@ -860,10 +886,10 @@ mod tests {
         let mut item_repo = MockItemRepo::new();
         item_repo
             .expect_save()
-            .withf(|item| item.name == "Key" && item.description.as_deref() == Some("Rusty"))
+            .withf(|item| item.name().as_str() == "Key" && item.description() == Some("Rusty"))
             .returning(move |item| {
                 let expected_item_id_for_save = expected_item_id_for_save.clone();
-                let item_id = item.id;
+                let item_id = item.id();
                 *expected_item_id_for_save.lock().unwrap() = Some(item_id);
                 Ok(())
             });
@@ -897,36 +923,15 @@ mod tests {
             .withf(move |w, s| *w == world_id && *s == scene_id)
             .returning(|_, _| Ok(()));
 
-        // Observation entity needs LocationRepo + ClockPort, but this test only
-        // exercises record_deduced_info, so provide dummies.
-        let location_repo = MockLocationRepo::new();
-        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-
-        // ---------------------------------------------------------------------
-        // Wire entities + use case
-        // ---------------------------------------------------------------------
-        let challenge_entity = Arc::new(entities::Challenge::new(Arc::new(challenge_repo)));
-
+        // ResolveOutcome takes port traits directly
         let pc_repo: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> = Arc::new(pc_repo);
-        let inventory_entity = Arc::new(entities::Inventory::new(
-            Arc::new(item_repo),
-            Arc::new(character_repo),
-            pc_repo.clone(),
-        ));
-        let observation_entity = Arc::new(entities::Observation::new(
-            Arc::new(observation_repo),
-            Arc::new(location_repo),
-            clock,
-        ));
-        let scene_entity = Arc::new(entities::Scene::new(Arc::new(scene_repo)));
-        let player_character_entity = Arc::new(entities::PlayerCharacter::new(pc_repo));
 
         let resolve = super::ResolveOutcome::new(
-            challenge_entity,
-            inventory_entity,
-            observation_entity,
-            scene_entity,
-            player_character_entity,
+            Arc::new(challenge_repo),
+            Arc::new(item_repo),
+            pc_repo,
+            Arc::new(observation_repo),
+            Arc::new(scene_repo),
         );
 
         resolve

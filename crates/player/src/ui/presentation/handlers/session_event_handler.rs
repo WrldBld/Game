@@ -67,7 +67,7 @@ pub fn handle_session_event(
         }
         SessionEvent::MessageReceived(message) => {
             handle_server_message(
-                message,
+                *message,
                 session_state,
                 game_state,
                 dialogue_state,

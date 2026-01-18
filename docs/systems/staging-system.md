@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Staging System manages **which NPCs are present in a region** at any given time, combining rule-based logic with LLM reasoning and requiring DM approval. Unlike simple presence calculation, staging provides a complete workflow where the DM reviews and approves NPC presence before players see them, with results cached based on configurable TTL. The term "staging" comes from theatre, representing "who is on stage" in a scene.
 
 ---
@@ -13,9 +24,10 @@ The Staging System creates a living, coherent world while maintaining DM control
 1. **DM-Approved Presence**: Every NPC appearance goes through DM approval, ensuring narrative consistency
 2. **Dual Decision Modes**: Rule-based (deterministic) and LLM-enhanced (contextual) options give DMs flexibility
 3. **Pre-Staging**: DMs can set up regions before players arrive for seamless gameplay
-4. **Smart Caching**: Approved stagings persist with configurable TTL to reduce repetitive approvals
-5. **Story-Aware LLM**: The LLM considers active narrative events and recent dialogues when suggesting presence
-6. **Background Workflow**: Players see a brief loading state while DM approves, minimizing interruption
+4. **Smart Caching**: Approved stagings persist with configurable TTL (in game-time hours) to reduce repetitive approvals
+5. **Story-Aware LLM**: The LLM considers active narrative events, recent dialogue turns, time of day, and location context when suggesting presence
+6. **Hidden NPC Control**: Hidden NPC interactions are DM-triggered (e.g., DM can surface an approach event from the staging panel)
+7. **Background Workflow**: Players see a brief loading state while DM approves, minimizing interruption
 
 ### Theatre Language
 
@@ -32,43 +44,43 @@ WrldBldr uses theatre and story terminology throughout:
 
 - [x] **US-STG-001**: As a player, I see NPCs appear after entering a region when the DM approves
   - *Implementation*: Background approval workflow with StagingPending → StagingReady messages
-  - *Files*: `crates/engine/src/api/websocket/mod.rs`, `crates/player-ui/src/presentation/views/pc_view.rs`
+  - *Files*: `crates/engine/src/api/websocket/mod.rs`, `crates/player/src/ui/presentation/views/pc_view.rs`
 
 - [x] **US-STG-002**: As a DM, I see a staging approval popup when a player enters an unstaged region
   - *Implementation*: StagingApprovalRequired message triggers popup with rule/LLM options
-  - *Files*: `crates/player-ui/src/presentation/components/dm_panel/staging_approval.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/dm_panel/staging_approval.rs`
 
 - [x] **US-STG-003**: As a DM, I can choose between rule-based and LLM-based NPC suggestions
   - *Implementation*: Both options shown side-by-side with reasoning
-  - *Files*: `crates/engine/src/entities/staging.rs`
+  - *Files*: `crates/engine/src/use_cases/staging/mod.rs`, `crates/engine/src/repositories/staging.rs`
 
 - [x] **US-STG-004**: As a DM, I can customize which NPCs are present by toggling checkboxes
   - *Implementation*: Manual override of any suggestion before approval
-  - *Files*: `crates/player-ui/src/presentation/components/dm_panel/staging_approval.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/dm_panel/staging_approval.rs`
 
 - [x] **US-STG-005**: As a DM, I can regenerate LLM suggestions with additional guidance
   - *Implementation*: Text field for DM guidance, re-query LLM with context
-  - *Files*: `crates/engine/src/entities/staging.rs`
+  - *Files*: `crates/engine/src/use_cases/staging/mod.rs`
 
 - [x] **US-STG-006**: As a DM, I can use the previous staging if it's still relevant
   - *Implementation*: Previous staging shown with "Use Previous" button
-  - *Files*: `crates/player-ui/src/presentation/components/dm_panel/staging_approval.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/dm_panel/staging_approval.rs`
 
 - [x] **US-STG-007**: As a DM, I can pre-stage regions before players arrive
   - *Implementation*: Dedicated pre-staging UI in location view
-  - *Files*: `crates/player-ui/src/presentation/components/dm_panel/location_staging.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/dm_panel/location_staging.rs`
 
 - [x] **US-STG-008**: As a DM, I can view and manage stagings for all regions in a location
   - *Implementation*: Location staging tab showing all regions with status
-  - *Files*: `crates/player-ui/src/presentation/components/dm_panel/location_staging.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/dm_panel/location_staging.rs`
 
 - [x] **US-STG-009**: As a DM, I can configure default staging TTL per location
   - *Implementation*: Location settings with `presence_cache_ttl_hours` field
-  - *Files*: `crates/player-app/src/application/services/location_service.rs` (LocationFormData)
+  - *Files*: `crates/player/src/application/services/location_service.rs` (LocationFormData)
 
 - [x] **US-STG-010**: As a DM, I can set the cache duration when approving a staging
   - *Implementation*: TTL dropdown in approval popup
-  - *Files*: `crates/player-ui/src/presentation/components/dm_panel/staging_approval.rs`
+  - *Files*: `crates/player/src/ui/presentation/components/dm_panel/staging_approval.rs`
 
 - [x] **US-STG-011**: As a DM, I can view staging history for a region
   - *Implementation*: History list in pre-staging UI (via StagingRepository.get_history)
@@ -187,7 +199,7 @@ WrldBldr uses theatre and story terminology throughout:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ✅ Implemented (`crates/player-ui/src/presentation/components/dm_panel/staging_approval.rs`)
+**Status**: ✅ Implemented (`crates/player/src/ui/presentation/components/dm_panel/staging_approval.rs`)
 
 ### Pre-Staging UI (Location View)
 
@@ -234,7 +246,7 @@ WrldBldr uses theatre and story terminology throughout:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ✅ Implemented (basic) (`crates/player-ui/src/presentation/components/dm_panel/location_staging.rs`)
+**Status**: ✅ Implemented (basic) (`crates/player/src/ui/presentation/components/dm_panel/location_staging.rs`)
 
 ### Pre-Staging Editor Modal
 
@@ -273,7 +285,7 @@ WrldBldr uses theatre and story terminology throughout:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Status**: ✅ Implemented (basic) (`crates/player-ui/src/presentation/components/dm_panel/location_staging.rs`)
+**Status**: ✅ Implemented (basic) (`crates/player/src/ui/presentation/components/dm_panel/location_staging.rs`)
 
 ### Location Settings (TTL Configuration)
 
@@ -481,7 +493,7 @@ pub struct StagingContext {
 |-------|------|---------|
 | Domain | `crates/domain/src/entities/staging.rs` | Staging entity |
 | Domain | `crates/domain/src/value_objects/staging_context.rs` | LLM context types |
-| Entity | `crates/engine/src/entities/staging.rs` | Core staging logic |
+| Repository | `crates/engine/src/repositories/staging.rs` | Core staging persistence |
 | Infrastructure | `crates/engine/src/infrastructure/ports.rs` | Repository trait |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/staging_repo.rs` | Neo4j implementation |
 | API | `crates/engine/src/api/websocket/mod.rs` | Staging message handlers |
@@ -491,12 +503,12 @@ pub struct StagingContext {
 | Layer | File | Purpose |
 |-------|------|---------|
 | Protocol | `crates/protocol/src/messages.rs` | Staging DTOs/messages |
-| Presentation | `crates/player-ui/src/presentation/state/game_state.rs` | Staging state signals |
-| Presentation | `crates/player-ui/src/presentation/handlers/session_message_handler.rs` | Handle staging messages |
-| Presentation | `crates/player-ui/src/presentation/components/dm_panel/staging_approval.rs` | Approval popup |
-| Presentation | `crates/player-ui/src/presentation/components/dm_panel/location_staging.rs` | Pre-staging UI |
-| Presentation | `crates/player-ui/src/presentation/views/pc_view.rs` | StagingPending overlay |
-| Presentation | `crates/player-ui/src/presentation/components/creator/location_form.rs` | TTL settings |
+| Presentation | `crates/player/src/ui/presentation/state/game_state.rs` | Staging state signals |
+| Presentation | `crates/player/src/ui/presentation/handlers/session_message_handler.rs` | Handle staging messages |
+| Presentation | `crates/player/src/ui/presentation/components/dm_panel/staging_approval.rs` | Approval popup |
+| Presentation | `crates/player/src/ui/presentation/components/dm_panel/location_staging.rs` | Pre-staging UI |
+| Presentation | `crates/player/src/ui/presentation/views/pc_view.rs` | StagingPending overlay |
+| Presentation | `crates/player/src/ui/presentation/components/creator/location_form.rs` | TTL settings |
 
 ---
 

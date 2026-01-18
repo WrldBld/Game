@@ -1,3 +1,6 @@
+// Approval use cases - methods for future DM approval workflows
+#![allow(dead_code)]
+
 //! DM approval use cases.
 //!
 //! Handles approval workflows for:
@@ -5,12 +8,15 @@
 //! - LLM suggestions (NPC dialogue, tool calls)
 //! - Challenge outcomes
 
+pub mod tool_executor;
+
 use std::sync::Arc;
 use uuid::Uuid;
-use wrldbldr_domain::{CharacterId, DmApprovalDecision, RegionId, WorldId};
+use wrldbldr_domain::{CharacterId, ConversationId, RegionId, WorldId};
 
-use crate::entities::Staging;
-use crate::infrastructure::ports::{QueuePort, RepoError};
+use crate::queue_types::DmApprovalDecision;
+
+use crate::infrastructure::ports::{QueueError, QueuePort, RepoError, StagingRepo};
 
 /// Container for approval use cases.
 pub struct ApprovalUseCases {
@@ -46,11 +52,11 @@ pub struct StagingApprovalResult {
 ///
 /// Handles DM approval of which NPCs appear in a region.
 pub struct ApproveStaging {
-    staging: Arc<Staging>,
+    staging: Arc<dyn StagingRepo>,
 }
 
 impl ApproveStaging {
-    pub fn new(staging: Arc<Staging>) -> Self {
+    pub fn new(staging: Arc<dyn StagingRepo>) -> Self {
         Self { staging }
     }
 
@@ -107,7 +113,7 @@ pub struct SuggestionApprovalResult {
     /// NPC name (speaker)
     pub npc_name: Option<String>,
     /// Conversation ID (for dialogue tracking)
-    pub conversation_id: Option<Uuid>,
+    pub conversation_id: Option<ConversationId>,
 }
 
 /// Approve LLM suggestion use case.
@@ -137,11 +143,8 @@ impl ApproveSuggestion {
         decision: DmApprovalDecision,
     ) -> Result<SuggestionApprovalResult, ApprovalError> {
         // Get the queue item first to extract NPC info
-        let queue_item = self
-            .queue
-            .get_approval_request(approval_queue_id)
-            .await
-            .map_err(|e| ApprovalError::QueueError(e.to_string()))?;
+        let queue_item: Option<crate::queue_types::ApprovalRequestData> =
+            self.queue.get_approval_request(approval_queue_id).await?;
 
         let (npc_id, npc_name, original_dialogue, conversation_id) = queue_item
             .map(|data| {
@@ -149,7 +152,7 @@ impl ApproveSuggestion {
                     data.npc_id.map(|id| id.to_string()),
                     Some(data.npc_name),
                     Some(data.proposed_dialogue),
-                    data.conversation_id,
+                    data.conversation_id.map(ConversationId::from),
                 )
             })
             .unwrap_or((None, None, None, None));
@@ -177,15 +180,11 @@ impl ApproveSuggestion {
 
         // Mark the queue item based on decision
         if approved {
-            self.queue
-                .mark_complete(approval_queue_id)
-                .await
-                .map_err(|e| ApprovalError::QueueError(e.to_string()))?;
+            self.queue.mark_complete(approval_queue_id).await?;
         } else {
             self.queue
                 .mark_failed(approval_queue_id, "Rejected by DM")
-                .await
-                .map_err(|e| ApprovalError::QueueError(e.to_string()))?;
+                .await?;
         }
 
         Ok(SuggestionApprovalResult {
@@ -200,23 +199,26 @@ impl ApproveSuggestion {
     }
 }
 
-/// Full approval decision flow (approval + dialogue persistence).
+/// Full approval decision flow (approval + dialogue persistence + tool execution).
 pub struct ApprovalDecisionFlow {
     approve_suggestion: Arc<ApproveSuggestion>,
-    narrative: Arc<crate::entities::Narrative>,
+    narrative: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
     queue: Arc<dyn QueuePort>,
+    tool_executor: Arc<tool_executor::ToolExecutor>,
 }
 
 impl ApprovalDecisionFlow {
     pub fn new(
         approve_suggestion: Arc<ApproveSuggestion>,
-        narrative: Arc<crate::entities::Narrative>,
+        narrative: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
         queue: Arc<dyn QueuePort>,
+        tool_executor: Arc<tool_executor::ToolExecutor>,
     ) -> Self {
         Self {
             approve_suggestion,
             narrative,
             queue,
+            tool_executor,
         }
     }
 
@@ -225,12 +227,11 @@ impl ApprovalDecisionFlow {
         approval_id: Uuid,
         decision: DmApprovalDecision,
     ) -> Result<ApprovalDecisionOutcome, ApprovalDecisionError> {
-        let approval_data = self
+        let approval_data: crate::queue_types::ApprovalRequestData = self
             .queue
             .get_approval_request(approval_id)
-            .await
-            .map_err(|e| ApprovalDecisionError::QueueError(e.to_string()))?
-            .ok_or(ApprovalDecisionError::ApprovalNotFound)?;
+            .await?
+            .ok_or(ApprovalDecisionError::ApprovalNotFound(approval_id))?;
 
         let result = self
             .approve_suggestion
@@ -239,11 +240,11 @@ impl ApprovalDecisionFlow {
             .map_err(ApprovalDecisionError::Approval)?;
 
         if result.approved {
+            // Record dialogue exchange
             let dialogue = result.final_dialogue.clone().unwrap_or_default();
             if !dialogue.is_empty() {
                 if let (Some(pc_id), Some(npc_id)) = (approval_data.pc_id, approval_data.npc_id) {
-                    let player_dialogue =
-                        approval_data.player_dialogue.clone().unwrap_or_default();
+                    let player_dialogue = approval_data.player_dialogue.clone().unwrap_or_default();
                     if let Err(e) = self
                         .narrative
                         .record_dialogue_exchange(
@@ -262,6 +263,27 @@ impl ApprovalDecisionFlow {
                     {
                         tracing::error!(error = %e, "Failed to record dialogue exchange");
                     }
+                }
+            }
+
+            // Execute approved tools
+            if !result.approved_tools.is_empty() {
+                let tool_results = self
+                    .tool_executor
+                    .execute_approved(
+                        &result.approved_tools,
+                        &approval_data.proposed_tools,
+                        approval_data.pc_id,
+                        approval_data.npc_id,
+                    )
+                    .await;
+
+                if !tool_results.is_empty() {
+                    tracing::info!(
+                        approval_id = %approval_id,
+                        tools_executed = tool_results.len(),
+                        "Executed approved tools"
+                    );
                 }
             }
         }
@@ -285,7 +307,7 @@ pub struct ApprovalDecisionOutcome {
     pub approved_tools: Vec<String>,
     pub npc_id: Option<String>,
     pub npc_name: Option<String>,
-    pub conversation_id: Option<Uuid>,
+    pub conversation_id: Option<ConversationId>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -297,17 +319,17 @@ pub enum ApprovalError {
     #[error("Staging was rejected")]
     Rejected,
     #[error("Queue error: {0}")]
-    QueueError(String),
+    Queue(#[from] QueueError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ApprovalDecisionError {
-    #[error("Approval request not found")]
-    ApprovalNotFound,
+    #[error("Approval request not found: {0}")]
+    ApprovalNotFound(Uuid),
     #[error("Queue error: {0}")]
-    QueueError(String),
+    Queue(#[from] QueueError),
     #[error("Approval error: {0}")]
     Approval(#[from] ApprovalError),
 }

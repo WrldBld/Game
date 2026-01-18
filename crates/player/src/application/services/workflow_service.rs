@@ -9,7 +9,6 @@ use crate::ports::outbound::{ApiError, ApiPort};
 
 /// Summary of a workflow slot with its configuration status
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowSlotStatus {
     pub slot: String,
     pub display_name: String,
@@ -21,14 +20,12 @@ pub struct WorkflowSlotStatus {
 
 /// Brief workflow configuration info
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowConfigBrief {
     pub name: String,
 }
 
 /// A category of workflow slots
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowSlotCategory {
     pub name: String,
     pub slots: Vec<WorkflowSlotStatus>,
@@ -36,14 +33,12 @@ pub struct WorkflowSlotCategory {
 
 /// Response from listing workflow slots
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowSlotsResponse {
     pub categories: Vec<WorkflowSlotCategory>,
 }
 
 /// Full workflow configuration data
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowConfig {
     pub id: String,
     pub slot: String,
@@ -59,7 +54,6 @@ pub struct WorkflowConfig {
 
 /// Workflow analysis data
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowAnalysis {
     pub node_count: usize,
     pub inputs: Vec<WorkflowInput>,
@@ -68,7 +62,6 @@ pub struct WorkflowAnalysis {
 
 /// Workflow input information
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowInput {
     pub node_id: String,
     pub node_type: String,
@@ -80,7 +73,6 @@ pub struct WorkflowInput {
 
 /// Prompt mapping configuration
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct PromptMapping {
     pub node_id: String,
     pub input_name: String,
@@ -89,7 +81,6 @@ pub struct PromptMapping {
 
 /// Input default value
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct InputDefault {
     pub node_id: String,
     pub input_name: String,
@@ -98,7 +89,6 @@ pub struct InputDefault {
 
 /// Workflow analysis result from analyze endpoint
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct AnalyzeWorkflowResponse {
     pub is_valid: bool,
     pub analysis: WorkflowAnalysis,
@@ -109,7 +99,6 @@ pub struct AnalyzeWorkflowResponse {
 
 /// Request to save a workflow configuration
 #[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SaveWorkflowRequest {
     pub name: String,
     pub workflow_json: serde_json::Value,
@@ -120,7 +109,6 @@ pub struct SaveWorkflowRequest {
 
 /// Request to test a workflow
 #[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TestWorkflowRequest {
     pub prompt: String,
 }

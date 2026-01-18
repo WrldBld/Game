@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 One paragraph explaining what this system does and why it exists in the game.
 
 ---
@@ -120,10 +131,10 @@ How this system affects player experience. What gameplay loop it enables. Why it
 |-------|------|---------|
 | Domain | `crates/domain/src/entities/xxx.rs` | Entity definition |
 | Domain | `crates/domain/src/value_objects/xxx.rs` | Value objects |
-| Entity | `crates/engine/src/entities/xxx.rs` | Entity operations (wraps repo) |
+| Repository | `crates/engine/src/repositories/xxx.rs` | Repository wrapper |
 | Use Case | `crates/engine/src/use_cases/xxx/mod.rs` | Orchestration logic |
 | Ports | `crates/engine/src/infrastructure/ports.rs` | All port traits |
-| Repository | `crates/engine/src/infrastructure/neo4j/xxx_repo.rs` | Neo4j implementation |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/xxx_repo.rs` | Neo4j implementation |
 | API | `crates/engine/src/api/websocket/mod.rs` | WebSocket handlers |
 | API | `crates/engine/src/api/http.rs` | HTTP routes |
 
@@ -131,18 +142,18 @@ How this system affects player experience. What gameplay loop it enables. Why it
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Ports | `crates/player-ports/src/outbound/*.rs` | Port traits |
-| Application | `crates/player-app/src/application/services/xxx_service.rs` | Client service |
-| Adapters | `crates/player-adapters/src/infrastructure/*.rs` | API/WS/platform impls |
-| UI | `crates/player-ui/src/presentation/components/xxx.rs` | UI component |
-| UI | `crates/player-ui/src/presentation/state/xxx_state.rs` | Reactive state |
+| Ports | `crates/player/src/ports/outbound/*.rs` | Port traits |
+| Application | `crates/player/src/application/services/xxx_service.rs` | Client service |
+| Infrastructure | `crates/player/src/infrastructure/*.rs` | API/WS/platform impls |
+| UI | `crates/player/src/ui/presentation/components/xxx.rs` | UI component |
+| UI | `crates/player/src/ui/presentation/state/xxx_state.rs` | Reactive state |
 
 ---
 
 ## Related Systems
 
-- **Depends on**: [System A](./system-a.md), [System B](./system-b.md)
-- **Used by**: [System C](./system-c.md), [System D](./system-d.md)
+- **Depends on**: System A, System B
+- **Used by**: System C, System D
 
 ---
 

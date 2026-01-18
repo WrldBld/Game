@@ -4,7 +4,7 @@
 //! free of transport concerns and to centralize command semantics.
 
 use anyhow::Result;
-use wrldbldr_protocol::ClientMessage;
+use wrldbldr_shared::ClientMessage;
 
 use crate::application::dto::{ApprovalDecision, DiceInput, DirectorialContext};
 use crate::infrastructure::messaging::CommandBus;

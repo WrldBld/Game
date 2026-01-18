@@ -5,7 +5,7 @@
 //! construction logic - only the send mechanism differs.
 
 use uuid::Uuid;
-use wrldbldr_protocol::{
+use wrldbldr_shared::{
     AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecisionData, ClientMessage,
     DiceInputType, DirectorialContext, NpcRequest, RequestPayload, TimeRequest, WorldRole,
 };
@@ -379,7 +379,7 @@ impl ClientMessageBuilder {
         decision: &str,
         modified_minutes: Option<u32>,
     ) -> ClientMessage {
-        use wrldbldr_protocol::types::TimeSuggestionDecision;
+        use wrldbldr_shared::types::TimeSuggestionDecision;
 
         let decision = match decision {
             "approve" => TimeSuggestionDecision::Approve,
@@ -415,7 +415,7 @@ impl ClientMessageBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrldbldr_protocol::ApprovalDecision;
+    use wrldbldr_shared::ApprovalDecision;
 
     #[test]
     fn test_move_to_region() {

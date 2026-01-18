@@ -1,3 +1,6 @@
+// World management - variants for future export features
+#![allow(dead_code)]
+
 //! World management use cases.
 //!
 //! Handles world export and import for backup/sharing.
@@ -5,8 +8,8 @@
 use std::sync::Arc;
 use wrldbldr_domain::WorldId;
 
-use crate::entities::{Character, Inventory, Location, Narrative, World};
-use crate::infrastructure::ports::RepoError;
+use crate::infrastructure::ports::{CharacterRepo, ItemRepo, LocationRepo, RepoError, WorldRepo};
+use crate::use_cases::narrative_operations::NarrativeOps;
 
 /// Container for world use cases.
 pub struct WorldUseCases {
@@ -43,20 +46,20 @@ pub struct WorldExport {
 ///
 /// Exports a world and all its contents to a portable format.
 pub struct ExportWorld {
-    world: Arc<World>,
-    location: Arc<Location>,
-    character: Arc<Character>,
-    inventory: Arc<Inventory>,
-    narrative: Arc<Narrative>,
+    world: Arc<dyn WorldRepo>,
+    location: Arc<dyn LocationRepo>,
+    character: Arc<dyn CharacterRepo>,
+    inventory: Arc<dyn ItemRepo>,
+    narrative: Arc<NarrativeOps>,
 }
 
 impl ExportWorld {
     pub fn new(
-        world: Arc<World>,
-        location: Arc<Location>,
-        character: Arc<Character>,
-        inventory: Arc<Inventory>,
-        narrative: Arc<Narrative>,
+        world: Arc<dyn WorldRepo>,
+        location: Arc<dyn LocationRepo>,
+        character: Arc<dyn CharacterRepo>,
+        inventory: Arc<dyn ItemRepo>,
+        narrative: Arc<NarrativeOps>,
     ) -> Self {
         Self {
             world,
@@ -84,12 +87,12 @@ impl ExportWorld {
             .ok_or(WorldError::NotFound)?;
 
         // Get all locations
-        let locations = self.location.list_in_world(world_id).await?;
+        let locations = self.location.list_locations_in_world(world_id).await?;
 
         // Get all regions
         let mut regions = Vec::new();
         for loc in &locations {
-            let loc_regions = self.location.list_regions_in_location(loc.id).await?;
+            let loc_regions = self.location.list_regions_in_location(loc.id()).await?;
             regions.extend(loc_regions);
         }
 
@@ -118,20 +121,20 @@ impl ExportWorld {
 ///
 /// Imports a world from an exported format.
 pub struct ImportWorld {
-    world: Arc<World>,
-    location: Arc<Location>,
-    character: Arc<Character>,
-    inventory: Arc<Inventory>,
-    narrative: Arc<Narrative>,
+    world: Arc<dyn WorldRepo>,
+    location: Arc<dyn LocationRepo>,
+    character: Arc<dyn CharacterRepo>,
+    inventory: Arc<dyn ItemRepo>,
+    narrative: Arc<NarrativeOps>,
 }
 
 impl ImportWorld {
     pub fn new(
-        world: Arc<World>,
-        location: Arc<Location>,
-        character: Arc<Character>,
-        inventory: Arc<Inventory>,
-        narrative: Arc<Narrative>,
+        world: Arc<dyn WorldRepo>,
+        location: Arc<dyn LocationRepo>,
+        character: Arc<dyn CharacterRepo>,
+        inventory: Arc<dyn ItemRepo>,
+        narrative: Arc<NarrativeOps>,
     ) -> Self {
         Self {
             world,
@@ -160,7 +163,7 @@ impl ImportWorld {
         }
 
         // Create the world
-        let world_id = data.world.id;
+        let world_id = data.world.id();
         self.world.save(&data.world).await?;
 
         // Create locations

@@ -2,12 +2,45 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use wrldbldr_domain::{CharacterId, LlmRequestData, LlmRequestType, SuggestionContext, WorldId};
-use wrldbldr_protocol::messages::ActantialRoleData;
-use wrldbldr_protocol::requests::SuggestionContextData;
+use wrldbldr_domain::{CharacterId, WorldId};
 
-use crate::entities::{Character, World};
-use crate::infrastructure::ports::{QueueError, QueuePort, RepoError};
+use crate::queue_types::{LlmRequestData, LlmRequestType, SuggestionContext};
+
+use crate::infrastructure::ports::{CharacterRepo, QueueError, QueuePort, RepoError, WorldRepo};
+
+/// Actantial role for NPC want relationships (domain representation).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActantialRole {
+    Helper,
+    Opponent,
+    Sender,
+    Receiver,
+    Unknown,
+}
+
+impl ActantialRole {
+    /// Convert to JSON-compatible string representation.
+    pub fn as_json_str(&self) -> &'static str {
+        match self {
+            ActantialRole::Helper => "\"Helper\"",
+            ActantialRole::Opponent => "\"Opponent\"",
+            ActantialRole::Sender => "\"Sender\"",
+            ActantialRole::Receiver => "\"Receiver\"",
+            ActantialRole::Unknown => "\"Unknown\"",
+        }
+    }
+}
+
+/// Input for content suggestion requests (domain representation).
+#[derive(Debug, Clone, Default)]
+pub struct SuggestionContextInput {
+    pub entity_type: Option<String>,
+    pub entity_name: Option<String>,
+    pub world_setting: Option<String>,
+    pub hints: Option<String>,
+    pub additional_context: Option<String>,
+    pub world_id: Option<Uuid>,
+}
 
 pub struct AiUseCases {
     pub suggestions: Arc<SuggestionOps>,
@@ -21,15 +54,15 @@ impl AiUseCases {
 
 pub struct SuggestionOps {
     queue: Arc<dyn QueuePort>,
-    world: Arc<World>,
-    character: Arc<Character>,
+    world: Arc<dyn WorldRepo>,
+    character: Arc<dyn CharacterRepo>,
 }
 
 impl SuggestionOps {
     pub fn new(
         queue: Arc<dyn QueuePort>,
-        world: Arc<World>,
-        character: Arc<Character>,
+        world: Arc<dyn WorldRepo>,
+        character: Arc<dyn CharacterRepo>,
     ) -> Self {
         Self {
             queue,
@@ -42,28 +75,23 @@ impl SuggestionOps {
         &self,
         world_id: WorldId,
         suggestion_type: String,
-        context: SuggestionContextData,
+        context: SuggestionContextInput,
     ) -> Result<SuggestionQueued, SuggestionError> {
         let world_setting = self
             .enrich_world_setting(world_id, context.world_setting.clone())
             .await?;
 
         let suggestion_context = SuggestionContext {
-            entity_type: context.entity_type.clone(),
-            entity_name: context.entity_name.clone(),
+            entity_type: context.entity_type,
+            entity_name: context.entity_name,
             world_setting,
-            hints: context.hints.clone(),
-            additional_context: context.additional_context.clone(),
+            hints: context.hints,
+            additional_context: context.additional_context,
             world_id: context.world_id.map(WorldId::from_uuid),
         };
 
-        self.queue_suggestion(
-            world_id,
-            suggestion_type,
-            None,
-            Some(suggestion_context),
-        )
-        .await
+        self.queue_suggestion(world_id, suggestion_type, None, Some(suggestion_context))
+            .await
     }
 
     pub async fn cancel_content_suggestion(
@@ -162,13 +190,15 @@ impl SuggestionOps {
         npc_id: CharacterId,
         want_id: String,
         target_id: String,
-        role: ActantialRoleData,
+        role: ActantialRole,
     ) -> Result<SuggestionQueued, SuggestionError> {
         let world_setting = self.enrich_world_setting(world_id, None).await?;
-        let role_json = serde_json::to_string(&role).unwrap_or_else(|_| "null".into());
         let extra = format!(
             "npc_id={}; want_id={}; target_id={}; role={}",
-            npc_id, want_id, target_id, role_json
+            npc_id,
+            want_id,
+            target_id,
+            role.as_json_str()
         );
         let suggestion_context = SuggestionContext {
             entity_type: Some("npc".to_string()),
@@ -234,19 +264,16 @@ impl SuggestionOps {
             .world
             .get(world_id)
             .await?
-            .map(|world| world.name);
+            .map(|world| world.name().as_str().to_string());
         Ok(world_name)
     }
 
-    async fn load_npc_name(
-        &self,
-        npc_id: CharacterId,
-    ) -> Result<Option<String>, SuggestionError> {
+    async fn load_npc_name(&self, npc_id: CharacterId) -> Result<Option<String>, SuggestionError> {
         let name = self
             .character
             .get(npc_id)
             .await?
-            .map(|npc| npc.name);
+            .map(|npc| npc.name().to_string());
         Ok(name)
     }
 }

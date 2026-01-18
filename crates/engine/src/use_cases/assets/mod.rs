@@ -1,3 +1,6 @@
+// Asset generation use cases - methods for future image generation
+#![allow(dead_code)]
+
 //! Asset generation use cases.
 //!
 //! Handles image generation for game entities (characters, locations, items).
@@ -7,17 +10,19 @@ pub mod expression_sheet;
 use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{
-    AssetGenerationData, AssetId, AssetType, BatchId, EntityType, GalleryAsset, GenerationMetadata,
-    WorldId,
+    AssetId, AssetPath, AssetType, BatchId, EntityType, GalleryAsset, GenerationMetadata, WorldId,
 };
 
-use crate::entities::Assets;
+use crate::queue_types::AssetGenerationData;
+
 use crate::infrastructure::ports::{ClockPort, ImageGenError, ImageRequest, QueuePort, RepoError};
+use crate::repositories::AssetsRepository;
 
-pub use expression_sheet::{
-    ExpressionSheetError, ExpressionSheetRequest, ExpressionSheetResult, GenerateExpressionSheet,
-    SlicedExpression, STANDARD_EXPRESSION_ORDER,
-};
+// Type aliases for old names to maintain compatibility
+type QueueService = dyn QueuePort;
+type ClockService = dyn ClockPort;
+
+pub use expression_sheet::GenerateExpressionSheet;
 
 /// Container for asset use cases.
 pub struct AssetUseCases {
@@ -52,13 +57,17 @@ pub struct GenerateResult {
 ///
 /// Orchestrates image generation for game entities.
 pub struct GenerateAsset {
-    assets: Arc<Assets>,
-    queue: Arc<dyn QueuePort>,
-    clock: Arc<dyn ClockPort>,
+    assets: Arc<AssetsRepository>,
+    queue: Arc<QueueService>,
+    clock: Arc<ClockService>,
 }
 
 impl GenerateAsset {
-    pub fn new(assets: Arc<Assets>, queue: Arc<dyn QueuePort>, clock: Arc<dyn ClockPort>) -> Self {
+    pub fn new(
+        assets: Arc<AssetsRepository>,
+        queue: Arc<QueueService>,
+        clock: Arc<ClockService>,
+    ) -> Self {
         Self {
             assets,
             queue,
@@ -87,7 +96,14 @@ impl GenerateAsset {
         workflow: &str,
     ) -> Result<GenerateResult, GenerateError> {
         // Check if service is available
-        if !self.assets.check_health().await.unwrap_or(false) {
+        let is_healthy = match self.assets.check_health().await {
+            Ok(healthy) => healthy,
+            Err(e) => {
+                tracing::warn!(error = %e, "Asset generation health check failed, treating as unavailable");
+                false
+            }
+        };
+        if !is_healthy {
             return Err(GenerateError::Unavailable);
         }
 
@@ -108,11 +124,20 @@ impl GenerateAsset {
         // Create generation metadata
         let batch_id = BatchId::new();
         let seed = rand::random::<i64>().abs(); // Random seed
-        let metadata = GenerationMetadata::new(workflow, prompt, seed, batch_id);
+        let metadata = GenerationMetadata {
+            workflow: workflow.to_string(),
+            prompt: prompt.to_string(),
+            negative_prompt: None,
+            seed,
+            style_reference_id: None,
+            batch_id,
+        };
 
         // Create the asset
         let now = self.clock.now();
-        let file_path = format!("assets/{:?}/{}.png", entity_type, entity_id);
+        let file_path_str = format!("assets/{:?}/{}.png", entity_type, entity_id);
+        let file_path = AssetPath::new(file_path_str)
+            .map_err(|e| GenerateError::Failed(format!("Invalid asset path: {}", e)))?;
         let asset = GalleryAsset::new_generated(
             entity_type,
             entity_id.to_string(),
@@ -122,7 +147,7 @@ impl GenerateAsset {
             now,
         );
 
-        let asset_id = asset.id;
+        let asset_id = asset.id();
 
         self.assets
             .save(&asset)

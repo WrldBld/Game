@@ -1,3 +1,6 @@
+// Connection manager - some methods prepared for future use
+#![allow(dead_code)]
+
 //! Connection management for WebSocket clients.
 //!
 //! Tracks connected clients and their world associations.
@@ -12,19 +15,12 @@ use uuid::Uuid;
 /// Timeout for critical message sends (5 seconds)
 const CRITICAL_SEND_TIMEOUT: Duration = Duration::from_secs(5);
 
-use wrldbldr_domain::{PlayerCharacterId, WorldId};
-use wrldbldr_protocol::{DirectorialContext, ServerMessage};
+use wrldbldr_domain::{PlayerCharacterId, WorldId, WorldRole};
+use wrldbldr_shared::ServerMessage;
 
-/// Represents a connected client's role in a world.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WorldRole {
-    /// Dungeon Master - can approve suggestions, control NPCs
-    Dm,
-    /// Player - controls a player character
-    Player,
-    /// Spectator - can view but not interact
-    Spectator,
-}
+use crate::infrastructure::ports::{
+    ConnectionInfo as PortConnectionInfo, DirectorialContext, SessionError,
+};
 
 /// Information about a connected client.
 #[derive(Debug, Clone)]
@@ -193,7 +189,7 @@ impl ConnectionManager {
             );
             Ok(())
         } else {
-            Err(ConnectionError::NotFound)
+            Err(ConnectionError::NotFound(connection_id.to_string()))
         }
     }
 
@@ -428,8 +424,8 @@ impl Default for ConnectionManager {
 /// Errors that can occur during connection operations.
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum ConnectionError {
-    #[error("Connection not found")]
-    NotFound,
+    #[error("Connection not found: {0}")]
+    NotFound(String),
     #[error("DM already connected to this world")]
     DmAlreadyConnected,
     #[error("World not found")]
@@ -447,4 +443,31 @@ pub enum CriticalSendError {
     ChannelClosed,
     #[error("Send timeout - client may be slow or unresponsive")]
     Timeout,
+}
+
+// =============================================================================
+// Conversions
+// =============================================================================
+
+impl From<&ConnectionInfo> for PortConnectionInfo {
+    fn from(info: &ConnectionInfo) -> Self {
+        PortConnectionInfo {
+            connection_id: info.connection_id,
+            user_id: info.user_id.clone(),
+            world_id: info.world_id,
+            role: info.role,
+            pc_id: info.pc_id,
+        }
+    }
+}
+
+impl From<ConnectionError> for SessionError {
+    fn from(err: ConnectionError) -> Self {
+        match err {
+            ConnectionError::NotFound(id) => SessionError::NotFound(id),
+            ConnectionError::DmAlreadyConnected => SessionError::DmAlreadyConnected,
+            ConnectionError::Unauthorized => SessionError::Unauthorized,
+            ConnectionError::WorldNotFound => SessionError::NotFound("world".to_string()),
+        }
+    }
 }

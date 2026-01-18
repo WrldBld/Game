@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::{get_request_timeout_ms, ParseResponse, ServiceError};
 use crate::infrastructure::messaging::CommandBus;
-use wrldbldr_protocol::{LocationRequest, RegionListItemData, RegionRequest, RequestPayload};
+use wrldbldr_shared::{LocationRequest, RegionListItemData, RegionRequest, RequestPayload};
 
 /// Location summary for list views
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -66,16 +66,16 @@ fn default_bidirectional() -> bool {
 
 // From impls for protocol conversion at the boundary
 impl LocationFormData {
-    fn to_create_data(&self) -> wrldbldr_protocol::requests::CreateLocationData {
-        wrldbldr_protocol::requests::CreateLocationData {
+    fn to_create_data(&self) -> wrldbldr_shared::requests::CreateLocationData {
+        wrldbldr_shared::requests::CreateLocationData {
             name: self.name.clone(),
             description: self.description.clone(),
             setting: self.atmosphere.clone(),
         }
     }
 
-    fn to_update_data(&self) -> wrldbldr_protocol::requests::UpdateLocationData {
-        wrldbldr_protocol::requests::UpdateLocationData {
+    fn to_update_data(&self) -> wrldbldr_shared::requests::UpdateLocationData {
+        wrldbldr_shared::requests::UpdateLocationData {
             name: Some(self.name.clone()),
             description: self.description.clone(),
             setting: self.atmosphere.clone(),
@@ -84,8 +84,8 @@ impl LocationFormData {
 }
 
 impl ConnectionData {
-    fn to_create_data(&self) -> wrldbldr_protocol::requests::CreateLocationConnectionData {
-        wrldbldr_protocol::requests::CreateLocationConnectionData {
+    fn to_create_data(&self) -> wrldbldr_shared::requests::CreateLocationConnectionData {
+        wrldbldr_shared::requests::CreateLocationConnectionData {
             from_id: self.from_location_id.clone(),
             to_id: self.to_location_id.clone(),
             bidirectional: Some(self.bidirectional),
@@ -93,7 +93,7 @@ impl ConnectionData {
     }
 }
 
-// RegionListItemData and MapBoundsData are imported from wrldbldr_protocol
+// RegionListItemData and MapBoundsData are imported from wrldbldr_shared
 
 /// Location service for managing locations
 ///

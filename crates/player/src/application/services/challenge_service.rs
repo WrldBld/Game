@@ -4,7 +4,7 @@
 //! updating, and managing challenges. It uses WebSocket for real-time
 //! communication with the Engine.
 
-use wrldbldr_protocol::{ChallengeRequest, RequestPayload};
+use wrldbldr_shared::{ChallengeRequest, RequestPayload};
 
 use crate::application::dto::ChallengeData;
 use crate::application::error::{get_request_timeout_ms, ParseResponse, ServiceError};
@@ -60,7 +60,7 @@ impl ChallengeService {
         world_id: &str,
         challenge: &ChallengeData,
     ) -> Result<ChallengeData, ServiceError> {
-        let data = wrldbldr_protocol::CreateChallengeData {
+        let data = wrldbldr_shared::CreateChallengeData {
             name: challenge.name.clone(),
             description: Some(challenge.description.clone()),
             skill_id: challenge.skill_id.clone(),
@@ -85,7 +85,7 @@ impl ChallengeService {
         &self,
         challenge: &ChallengeData,
     ) -> Result<ChallengeData, ServiceError> {
-        let data = wrldbldr_protocol::UpdateChallengeData {
+        let data = wrldbldr_shared::UpdateChallengeData {
             name: Some(challenge.name.clone()),
             description: Some(challenge.description.clone()),
             skill_id: Some(challenge.skill_id.clone()),

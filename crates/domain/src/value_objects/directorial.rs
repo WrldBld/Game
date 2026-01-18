@@ -10,7 +10,6 @@ use wrldbldr_domain::CharacterId;
 
 /// Structured directorial notes for a scene
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub struct DirectorialNotes {
     /// General notes about the scene (free-form text)
     pub general_notes: String,
@@ -32,6 +31,8 @@ impl DirectorialNotes {
     pub fn new() -> Self {
         Self::default()
     }
+
+    // ── Builder Methods ──────────────────────────────────────────────────
 
     pub fn with_general_notes(mut self, notes: impl Into<String>) -> Self {
         self.general_notes = notes.into();
@@ -91,7 +92,7 @@ impl DirectorialNotes {
                     "  - {}: {} (Mood: {})",
                     char_id, motivation.immediate_goal, motivation.current_mood
                 ));
-                if let Some(ref secret) = motivation.secret_agenda {
+                if let Some(secret) = &motivation.secret_agenda {
                     parts.push(format!("    [Hidden agenda: {}]", secret));
                 }
             }
@@ -117,7 +118,6 @@ impl DirectorialNotes {
 
 /// Tone guidance for the scene
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum ToneGuidance {
     /// Default neutral tone
     #[default]
@@ -164,7 +164,6 @@ impl ToneGuidance {
 
 /// Pacing guidance for the scene
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum PacingGuidance {
     /// Let conversation flow naturally
     #[default]
@@ -193,7 +192,6 @@ impl PacingGuidance {
 
 /// Motivation hints for an NPC
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub struct NpcMotivation {
     /// Current emotional state
     pub current_mood: String,
@@ -217,6 +215,8 @@ impl NpcMotivation {
             speech_patterns: Vec::new(),
         }
     }
+
+    // ── Builder Methods ──────────────────────────────────────────────────
 
     pub fn with_secret(mut self, secret: impl Into<String>) -> Self {
         self.secret_agenda = Some(secret.into());

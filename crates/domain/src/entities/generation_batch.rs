@@ -13,37 +13,38 @@ pub use crate::types::BatchStatus;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GenerationBatch {
-    pub id: BatchId,
+    id: BatchId,
     /// World this batch belongs to
-    pub world_id: WorldId,
+    world_id: WorldId,
     /// Type of entity this batch is for
-    pub entity_type: EntityType,
+    entity_type: EntityType,
     /// ID of the entity (Character, Location, or Item)
-    pub entity_id: String,
+    entity_id: String,
     /// Type of asset being generated
-    pub asset_type: AssetType,
+    asset_type: AssetType,
     /// ComfyUI workflow to use
-    pub workflow: String,
+    workflow: String,
     /// Prompt for generation
-    pub prompt: String,
+    prompt: String,
     /// Negative prompt (if any)
-    pub negative_prompt: Option<String>,
+    negative_prompt: Option<String>,
     /// Number of variations to generate
-    pub count: u8,
+    count: u8,
     /// Current status
-    pub status: BatchStatus,
+    status: BatchStatus,
     /// Generated asset IDs (populated when complete)
-    pub assets: Vec<AssetId>,
+    assets: Vec<AssetId>,
     /// Style reference asset ID (if using consistent style)
-    pub style_reference_id: Option<AssetId>,
+    style_reference_id: Option<AssetId>,
     /// When the batch was requested
-    pub requested_at: DateTime<Utc>,
+    requested_at: DateTime<Utc>,
     /// When the batch completed (success or failure)
-    pub completed_at: Option<DateTime<Utc>>,
+    completed_at: Option<DateTime<Utc>>,
 }
 
 impl GenerationBatch {
     /// Create a new generation batch request
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         world_id: WorldId,
         entity_type: EntityType,
@@ -72,6 +73,66 @@ impl GenerationBatch {
         }
     }
 
+    // --- Accessors ---
+
+    pub fn id(&self) -> BatchId {
+        self.id
+    }
+
+    pub fn world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    pub fn entity_type(&self) -> EntityType {
+        self.entity_type
+    }
+
+    pub fn entity_id(&self) -> &str {
+        &self.entity_id
+    }
+
+    pub fn asset_type(&self) -> AssetType {
+        self.asset_type
+    }
+
+    pub fn workflow(&self) -> &str {
+        &self.workflow
+    }
+
+    pub fn prompt(&self) -> &str {
+        &self.prompt
+    }
+
+    pub fn negative_prompt(&self) -> Option<&str> {
+        self.negative_prompt.as_deref()
+    }
+
+    pub fn count(&self) -> u8 {
+        self.count
+    }
+
+    pub fn status(&self) -> &BatchStatus {
+        &self.status
+    }
+
+    pub fn assets(&self) -> &[AssetId] {
+        &self.assets
+    }
+
+    pub fn style_reference_id(&self) -> Option<AssetId> {
+        self.style_reference_id
+    }
+
+    pub fn requested_at(&self) -> DateTime<Utc> {
+        self.requested_at
+    }
+
+    pub fn completed_at(&self) -> Option<DateTime<Utc>> {
+        self.completed_at
+    }
+
+    // --- Builder methods ---
+
     pub fn with_negative_prompt(mut self, negative_prompt: impl Into<String>) -> Self {
         self.negative_prompt = Some(negative_prompt.into());
         self
@@ -81,6 +142,8 @@ impl GenerationBatch {
         self.style_reference_id = Some(style_reference_id);
         self
     }
+
+    // --- Mutation methods ---
 
     /// Start generating this batch
     pub fn start_generating(&mut self) {
@@ -137,26 +200,4 @@ pub struct GenerationRequest {
     pub negative_prompt: Option<String>,
     pub count: u8,
     pub style_reference_id: Option<AssetId>,
-}
-
-impl GenerationRequest {
-    pub fn into_batch(self, now: DateTime<Utc>) -> GenerationBatch {
-        let mut batch = GenerationBatch::new(
-            self.world_id,
-            self.entity_type,
-            self.entity_id,
-            self.asset_type,
-            self.workflow,
-            self.prompt,
-            self.count,
-            now,
-        );
-        if let Some(neg) = self.negative_prompt {
-            batch = batch.with_negative_prompt(neg);
-        }
-        if let Some(style_ref) = self.style_reference_id {
-            batch = batch.with_style_reference(style_ref);
-        }
-        batch
-    }
 }

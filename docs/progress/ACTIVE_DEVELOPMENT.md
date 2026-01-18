@@ -215,7 +215,7 @@ All 14 system documentation files updated to use simplified architecture paths:
 
 For architecture remediation, code quality, and cleanup work, see:
 
-**[HEXAGONAL_ARCHITECTURE_REFACTOR_MASTER_PLAN.md](../plans/HEXAGONAL_ARCHITECTURE_REFACTOR_MASTER_PLAN.md)**
+**[STRICT_REVIEW_REMEDIATION_PLAN.md](../plans/STRICT_REVIEW_REMEDIATION_PLAN.md)**
 
 Current architecture score: 92/100 → Target: 98/100
 

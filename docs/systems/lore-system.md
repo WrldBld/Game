@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Lore System manages **world knowledge** that characters can discover, including historical events, legends, secrets, and common knowledge. Lore entries contain **chunks** that can be discovered individually or together, enabling gradual revelation of information through gameplay. Characters (both PCs and NPCs) track which lore they know via graph relationships.
 
 ---
@@ -29,6 +40,16 @@ The Lore System enriches worldbuilding and enables knowledge-based gameplay:
 | Political | Factions, alliances | "The Three Great Houses" |
 | Natural | Geography, flora/fauna | "The Creatures of the Darkwood" |
 | Religious | Beliefs, prophecies | "The Prophecy of the Chosen" |
+
+### Common Knowledge Rules
+
+- Common knowledge is **chunk-aware**: a lore entry can mark specific chunks as common knowledge.
+- If no chunk overrides are set, **all chunks default to common** when `is_common_knowledge` is enabled.
+
+### Discovery Limits
+
+- A single discovery action should grant **no more than 1–2 chunks** by default.
+- LLM-triggered discoveries must go through **DM approval** before granting knowledge.
 
 ---
 
@@ -300,14 +321,14 @@ The Lore System enriches worldbuilding and enables knowledge-based gameplay:
 
 | Method | Path | Description | Status |
 |--------|------|-------------|--------|
-| GET | `/api/worlds/{id}/lore` | List all lore in world | Pending |
-| POST | `/api/worlds/{id}/lore` | Create lore entry | Pending |
-| GET | `/api/lore/{id}` | Get lore by ID | Pending |
-| PUT | `/api/lore/{id}` | Update lore | Pending |
-| DELETE | `/api/lore/{id}` | Delete lore | Pending |
-| GET | `/api/characters/{id}/lore` | Get character's known lore | Pending |
-| POST | `/api/characters/{id}/lore` | Grant lore to character | Pending |
-| DELETE | `/api/characters/{id}/lore/{lore_id}` | Revoke lore from character | Pending |
+| GET | `/api/worlds/{id}/lore` | List all lore in world | Planned (HTTP) |
+| POST | `/api/worlds/{id}/lore` | Create lore entry | Planned (HTTP) |
+| GET | `/api/lore/{id}` | Get lore by ID | Planned (HTTP) |
+| PUT | `/api/lore/{id}` | Update lore | Planned (HTTP) |
+| DELETE | `/api/lore/{id}` | Delete lore | Planned (HTTP) |
+| GET | `/api/characters/{id}/lore` | Get character's known lore | Planned (HTTP) |
+| POST | `/api/characters/{id}/lore` | Grant lore to character | Planned (HTTP) |
+| DELETE | `/api/characters/{id}/lore/{lore_id}` | Revoke lore from character | Planned (HTTP) |
 
 ### WebSocket Messages
 
@@ -315,14 +336,24 @@ The Lore System enriches worldbuilding and enables knowledge-based gameplay:
 
 | Message | Fields | Purpose |
 |---------|--------|---------|
-| `GrantLore` | `character_id`, `lore_id`, `chunk_ids`, `source`, `notes` | DM grants lore |
-| `RevokeLore` | `character_id`, `lore_id` | DM revokes lore |
+| `LoreRequest::ListLore` | `world_id` | List all lore in world |
+| `LoreRequest::GetLore` | `lore_id` | Fetch lore detail |
+| `LoreRequest::CreateLore` | `world_id`, `data` | Create lore entry |
+| `LoreRequest::UpdateLore` | `lore_id`, `data` | Update lore entry |
+| `LoreRequest::DeleteLore` | `lore_id` | Delete lore entry |
+| `LoreRequest::AddLoreChunk` | `lore_id`, `data` | Add lore chunk |
+| `LoreRequest::UpdateLoreChunk` | `chunk_id`, `data` | Update lore chunk |
+| `LoreRequest::DeleteLoreChunk` | `chunk_id` | Delete lore chunk |
+| `LoreRequest::GrantLoreKnowledge` | `character_id`, `lore_id`, `chunk_ids`, `discovery_source` | DM grants lore |
+| `LoreRequest::RevokeLoreKnowledge` | `character_id`, `lore_id`, `chunk_ids` | DM revokes lore |
+| `LoreRequest::GetCharacterLore` | `character_id` | Get character's known lore |
+| `LoreRequest::GetLoreKnowers` | `lore_id` | List characters who know lore |
 
 #### Server -> Client
 
 | Message | Fields | Purpose |
 |---------|--------|---------|
-| `LoreDiscovered` | `character_id`, `lore`, `chunks`, `source` | Character discovered lore |
+| `LoreDiscovered` | `character_id`, `lore`, `discovered_chunk_ids`, `discovery_source` | Character discovered lore |
 | `LoreRevoked` | `character_id`, `lore_id` | Character lost lore knowledge |
 | `LoreUpdated` | `lore` | Lore entry was modified |
 
@@ -332,13 +363,13 @@ The Lore System enriches worldbuilding and enables knowledge-based gameplay:
 
 | Component | Engine | Player | Notes |
 |-----------|--------|--------|-------|
-| Lore Entity | Pending | - | `entities/lore.rs` |
-| LoreChunk Value Object | Pending | - | Part of Lore entity |
-| LoreKnowledge Edge | Pending | - | KNOWS_LORE edge data |
-| LoreRepository | Pending | - | Neo4j CRUD |
-| LoreService | Pending | - | Business logic |
-| Protocol Messages | Pending | Pending | Lore-specific messages |
-| WebSocket Handlers | Pending | Pending | Grant/revoke handlers |
+| Lore Entity | ✅ | - | `crates/domain/src/entities/lore.rs` |
+| LoreChunk Value Object | ✅ | - | Part of Lore entity |
+| LoreKnowledge Edge | ✅ | - | KNOWS_LORE edge data |
+| LoreRepository | ✅ | - | `crates/engine/src/repositories/lore.rs` |
+| LoreService | ✅ | - | `crates/engine/src/use_cases/lore/mod.rs` |
+| Protocol Messages | ✅ | ⏳ | Lore-specific messages |
+| WebSocket Handlers | ✅ | ⏳ | Lore request handlers |
 | Lore Editor UI | - | Pending | Creator mode |
 | Lore Journal UI | - | Pending | Player codex |
 | DM Grant Modal | - | Pending | Manual grant UI |
@@ -354,13 +385,16 @@ The Lore System enriches worldbuilding and enables knowledge-based gameplay:
 |-------|------|---------|
 | Domain | `crates/domain/src/entities/lore.rs` | Lore, LoreChunk, LoreKnowledge |
 | Domain | `crates/domain/src/ids.rs` | LoreId, LoreChunkId |
+| Repository | `crates/engine/src/repositories/lore.rs` | Lore repository wrapper |
+| Infrastructure | `crates/engine/src/infrastructure/neo4j/lore_repo.rs` | Neo4j lore persistence |
+| API | `crates/engine/src/api/websocket/ws_lore.rs` | Lore WebSocket handlers |
 
 ### Player
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| UI | `crates/player-ui/src/presentation/components/creator/lore_editor.rs` | Lore editor (pending) |
-| UI | `crates/player-ui/src/presentation/components/lore_journal.rs` | Player codex (pending) |
+| UI | Planned (TBD) | Lore editor |
+| UI | Planned (TBD) | Player codex |
 
 ---
 
@@ -373,7 +407,7 @@ The Lore System enriches worldbuilding and enables knowledge-based gameplay:
 
 ## LLM Integration
 
-The LLM has access to a `discover_lore` tool during conversations:
+The LLM has access to a `discover_lore` tool during conversations. All LLM-driven discovery requires DM approval, and chunk grants should follow the discovery limit rules.
 
 ```json
 {

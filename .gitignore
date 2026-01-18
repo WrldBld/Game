@@ -67,3 +67,8 @@ crates/player/package-lock.json
 
 # Log files
 *.log
+llm_test_logs/
+**/llm_test_logs/
+
+# E2E test event logs (keep .gitkeep)
+crates/engine/src/e2e_tests/logs/*.json

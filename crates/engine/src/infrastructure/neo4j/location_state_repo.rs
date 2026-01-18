@@ -2,63 +2,111 @@
 
 use std::sync::Arc;
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
-use neo4rs::{query, Graph, Row};
-use wrldbldr_domain::*;
+use neo4rs::{query, Row};
+use wrldbldr_domain::{
+    value_objects::{Description, StateName},
+    *,
+};
 
 use super::helpers::{parse_typed_id, NodeExt};
 use crate::infrastructure::ports::{ClockPort, LocationStateRepo, RepoError};
 
 /// Repository for LocationState operations.
 pub struct Neo4jLocationStateRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
     clock: Arc<dyn ClockPort>,
 }
 
 impl Neo4jLocationStateRepo {
-    pub fn new(graph: Graph, clock: Arc<dyn ClockPort>) -> Self {
+    pub fn new(graph: Neo4jGraph, clock: Arc<dyn ClockPort>) -> Self {
         Self { graph, clock }
     }
 
     fn row_to_state(&self, row: Row) -> Result<LocationState, RepoError> {
-        let node: neo4rs::Node = row
-            .get("s")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+        let node: neo4rs::Node = row.get("s").map_err(|e| RepoError::database("query", e))?;
         let fallback = self.clock.now();
 
         let id: LocationStateId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
         let location_id: LocationId =
-            parse_typed_id(&node, "location_id").map_err(|e| RepoError::Database(e.to_string()))?;
+            parse_typed_id(&node, "location_id").map_err(|e| RepoError::database("query", e))?;
         let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::Database(e.to_string()))?;
-        let name: String = node
+            parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
+        let name_str: String = node
             .get("name")
-            .map_err(|e| RepoError::Database(e.to_string()))?;
-        let description: String = node.get_string_or("description", "");
+            .map_err(|e| RepoError::database("query", e))?;
+        let name = StateName::new(&name_str).map_err(|e| RepoError::database("parse", e))?;
+        let description =
+            Description::new(node.get_string_or("description", "")).unwrap_or_default();
 
-        let backdrop_override: Option<String> = node.get_optional_string("backdrop_override");
-        let atmosphere_override: Option<String> = node.get_optional_string("atmosphere_override");
-        let ambient_sound: Option<String> = node.get_optional_string("ambient_sound");
-        let map_overlay: Option<String> = node.get_optional_string("map_overlay");
+        let backdrop_override: Option<AssetPath> = node
+            .get_optional_string("backdrop_override")
+            .map(AssetPath::new)
+            .transpose()
+            .map_err(|e| RepoError::database("parse", e))?;
+        let atmosphere_override: Option<Atmosphere> = node
+            .get_optional_string("atmosphere_override")
+            .map(Atmosphere::new)
+            .transpose()
+            .map_err(|e| RepoError::database("parse", e))?;
+        let ambient_sound: Option<AssetPath> = node
+            .get_optional_string("ambient_sound")
+            .map(AssetPath::new)
+            .transpose()
+            .map_err(|e| RepoError::database("parse", e))?;
+        let map_overlay: Option<AssetPath> = node
+            .get_optional_string("map_overlay")
+            .map(AssetPath::new)
+            .transpose()
+            .map_err(|e| RepoError::database("parse", e))?;
 
-        // Parse activation rules from JSON
-        let activation_rules: Vec<ActivationRule> = node
-            .get_optional_string("activation_rules")
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default();
+        // Parse activation rules from JSON - fail-fast on invalid JSON
+        let activation_rules_str =
+            node.get_optional_string("activation_rules")
+                .ok_or_else(|| {
+                    RepoError::database(
+                        "query",
+                        format!("Missing activation_rules for LocationState {}", id),
+                    )
+                })?;
+        let activation_rules: Vec<ActivationRule> = serde_json::from_str(&activation_rules_str)
+            .map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid activation_rules JSON for LocationState {}: {} (value: '{}')",
+                        id, e, activation_rules_str
+                    ),
+                )
+            })?;
 
-        let activation_logic: ActivationLogic = node
-            .get_optional_string("activation_logic")
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or(ActivationLogic::All);
+        let activation_logic_str =
+            node.get_optional_string("activation_logic")
+                .ok_or_else(|| {
+                    RepoError::database(
+                        "query",
+                        format!("Missing activation_logic for LocationState {}", id),
+                    )
+                })?;
+        let activation_logic: ActivationLogic = serde_json::from_str(&activation_logic_str)
+            .map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid ActivationLogic JSON for LocationState {}: {} (value: '{}')",
+                        id, e, activation_logic_str
+                    ),
+                )
+            })?;
 
         let priority: i32 = node.get_i64_or("priority", 0) as i32;
         let is_default: bool = node.get_bool_or("is_default", false);
         let created_at = node.get_datetime_or("created_at", fallback);
         let updated_at = node.get_datetime_or("updated_at", fallback);
 
-        Ok(LocationState {
+        Ok(LocationState::from_parts(
             id,
             location_id,
             world_id,
@@ -74,7 +122,7 @@ impl Neo4jLocationStateRepo {
             is_default,
             created_at,
             updated_at,
-        })
+        ))
     }
 }
 
@@ -87,12 +135,12 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_state(row)?))
         } else {
@@ -101,9 +149,9 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
     }
 
     async fn save(&self, state: &LocationState) -> Result<(), RepoError> {
-        let activation_rules_json = serde_json::to_string(&state.activation_rules)
+        let activation_rules_json = serde_json::to_string(state.activation_rules())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let activation_logic_json = serde_json::to_string(&state.activation_logic)
+        let activation_logic_json = serde_json::to_string(&state.activation_logic())
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         let q = query(
@@ -127,37 +175,52 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
             MERGE (loc)-[:HAS_STATE]->(s)
             RETURN s.id as id",
         )
-        .param("id", state.id.to_string())
-        .param("location_id", state.location_id.to_string())
-        .param("world_id", state.world_id.to_string())
-        .param("name", state.name.clone())
-        .param("description", state.description.clone())
+        .param("id", state.id().to_string())
+        .param("location_id", state.location_id().to_string())
+        .param("world_id", state.world_id().to_string())
+        .param("name", state.name().to_string())
+        .param("description", state.description().to_string())
         .param(
             "backdrop_override",
-            state.backdrop_override.clone().unwrap_or_default(),
+            state
+                .backdrop_override()
+                .map(|p| p.to_string())
+                .unwrap_or_default(),
         )
         .param(
             "atmosphere_override",
-            state.atmosphere_override.clone().unwrap_or_default(),
+            state
+                .atmosphere_override()
+                .map(|a| a.as_str().to_string())
+                .unwrap_or_default(),
         )
         .param(
             "ambient_sound",
-            state.ambient_sound.clone().unwrap_or_default(),
+            state
+                .ambient_sound()
+                .map(|p| p.to_string())
+                .unwrap_or_default(),
         )
-        .param("map_overlay", state.map_overlay.clone().unwrap_or_default())
+        .param(
+            "map_overlay",
+            state
+                .map_overlay()
+                .map(|p| p.to_string())
+                .unwrap_or_default(),
+        )
         .param("activation_rules", activation_rules_json)
         .param("activation_logic", activation_logic_json)
-        .param("priority", state.priority as i64)
-        .param("is_default", state.is_default)
-        .param("created_at", state.created_at.to_rfc3339())
-        .param("updated_at", state.updated_at.to_rfc3339());
+        .param("priority", state.priority() as i64)
+        .param("is_default", state.is_default())
+        .param("created_at", state.created_at().to_rfc3339())
+        .param("updated_at", state.updated_at().to_rfc3339());
 
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
-        tracing::debug!("Saved location state: {}", state.name);
+        tracing::debug!("Saved location state: {}", state.name());
         Ok(())
     }
 
@@ -171,7 +234,7 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted location state: {}", id);
         Ok(())
@@ -191,13 +254,13 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         let mut states = Vec::new();
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             states.push(self.row_to_state(row)?);
         }
@@ -219,12 +282,12 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_state(row)?))
         } else {
@@ -255,16 +318,24 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         // Check if the query matched anything (location and state both exist)
         if result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
             .is_none()
         {
-            return Err(RepoError::NotFound);
+            tracing::warn!(
+                location_id = %location_id,
+                state_id = %state_id,
+                "Cannot set active state: location or state not found"
+            );
+            return Err(RepoError::not_found(
+                "LocationState",
+                format!("location:{}/state:{}", location_id, state_id),
+            ));
         }
 
         tracing::debug!(
@@ -289,12 +360,12 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(self.row_to_state(row)?))
         } else {
@@ -312,7 +383,7 @@ impl LocationStateRepo for Neo4jLocationStateRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Cleared active location state for location {}", location_id);
         Ok(())

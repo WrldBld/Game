@@ -1,8 +1,34 @@
 use super::*;
 
 use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use crate::use_cases::lore::{
+    CreateLoreChunkInput, CreateLoreInput, LoreDiscoverySourceInput, UpdateLoreChunkInput,
+    UpdateLoreInput,
+};
 
-use wrldbldr_protocol::LoreRequest;
+use wrldbldr_shared::{LoreDiscoverySourceData, LoreRequest};
+
+/// Convert protocol discovery source to domain input type.
+fn proto_discovery_source_to_domain(source: LoreDiscoverySourceData) -> LoreDiscoverySourceInput {
+    match source {
+        LoreDiscoverySourceData::ReadBook { book_name } => {
+            LoreDiscoverySourceInput::ReadBook { book_name }
+        }
+        LoreDiscoverySourceData::Conversation { npc_id, npc_name } => {
+            LoreDiscoverySourceInput::Conversation { npc_id, npc_name }
+        }
+        LoreDiscoverySourceData::Investigation => LoreDiscoverySourceInput::Investigation,
+        LoreDiscoverySourceData::DmGranted { reason } => {
+            LoreDiscoverySourceInput::DmGranted { reason }
+        }
+        LoreDiscoverySourceData::CommonKnowledge => LoreDiscoverySourceInput::CommonKnowledge,
+        LoreDiscoverySourceData::LlmDiscovered { context } => {
+            LoreDiscoverySourceInput::LlmDiscovered { context }
+        }
+        LoreDiscoverySourceData::Unknown => LoreDiscoverySourceInput::Unknown,
+    }
+}
 
 pub(super) async fn handle_lore_request(
     state: &WsState,
@@ -21,7 +47,7 @@ pub(super) async fn handle_lore_request(
                 Ok(data) => Ok(ResponseResult::success(data)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list lore"),
                 )),
             }
         }
@@ -40,22 +66,39 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    sanitize_repo_error(&e, "get lore"),
                 )),
             }
         }
 
         LoreRequest::CreateLore { world_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let world_uuid = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
 
-            match state.app.use_cases.lore.ops.create(world_uuid, data).await {
+            // Convert protocol data to domain input
+            let input = CreateLoreInput {
+                title: data.title,
+                summary: data.summary,
+                category: data.category,
+                tags: data.tags,
+                is_common_knowledge: data.is_common_knowledge,
+                chunks: data.chunks.map(|chunks| {
+                    chunks
+                        .into_iter()
+                        .map(|c| CreateLoreChunkInput {
+                            title: c.title,
+                            content: c.content,
+                            order: c.order,
+                            discovery_hint: c.discovery_hint,
+                        })
+                        .collect()
+                }),
+            };
+            match state.app.use_cases.lore.ops.create(world_uuid, input).await {
                 Ok(result) => Ok(ResponseResult::success(result)),
                 Err(crate::use_cases::lore::LoreError::InvalidCategory(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
@@ -68,22 +111,28 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    sanitize_repo_error(&e, "create lore"),
                 )),
             }
         }
 
         LoreRequest::UpdateLore { lore_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(e) => return Err(e),
             };
 
-            match state.app.use_cases.lore.ops.update(lore_uuid, data).await {
+            // Convert protocol data to domain input
+            let input = UpdateLoreInput {
+                title: data.title,
+                summary: data.summary,
+                category: data.category,
+                tags: data.tags,
+                is_common_knowledge: data.is_common_knowledge,
+            };
+            match state.app.use_cases.lore.ops.update(lore_uuid, input).await {
                 Ok(result) => Ok(ResponseResult::success(result)),
                 Err(crate::use_cases::lore::LoreError::NotFound) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
@@ -97,15 +146,16 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+                    result: ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "update lore"),
+                    ),
                 }),
             }
         }
 
         LoreRequest::DeleteLore { lore_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
@@ -116,27 +166,32 @@ pub(super) async fn handle_lore_request(
                 Ok(result) => Ok(ResponseResult::success(result)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    sanitize_repo_error(&e, "delete lore"),
                 )),
             }
         }
 
         LoreRequest::AddLoreChunk { lore_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let lore_uuid = match parse_uuid_for_request(&lore_id, request_id, "Invalid lore_id") {
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(e) => return Err(e),
             };
 
+            // Convert protocol data to domain input
+            let input = CreateLoreChunkInput {
+                title: data.title,
+                content: data.content,
+                order: data.order,
+                discovery_hint: data.discovery_hint,
+            };
             match state
                 .app
                 .use_cases
                 .lore
                 .ops
-                .add_chunk(lore_uuid, data)
+                .add_chunk(lore_uuid, input)
                 .await
             {
                 Ok(result) => Ok(ResponseResult::success(result)),
@@ -155,15 +210,16 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+                    result: ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "add lore chunk"),
+                    ),
                 }),
             }
         }
 
         LoreRequest::UpdateLoreChunk { chunk_id, data } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let chunk_uuid = match parse_uuid_for_request(&chunk_id, request_id, "Invalid chunk_id")
             {
@@ -184,12 +240,19 @@ pub(super) async fn handle_lore_request(
                 }
             };
 
+            // Convert protocol data to domain input
+            let input = UpdateLoreChunkInput {
+                title: data.title,
+                content: data.content,
+                order: data.order,
+                discovery_hint: data.discovery_hint,
+            };
             match state
                 .app
                 .use_cases
                 .lore
                 .ops
-                .update_chunk(world_id, chunk_uuid, data)
+                .update_chunk(world_id, chunk_uuid, input)
                 .await
             {
                 Ok(result) => Ok(ResponseResult::success(result)),
@@ -210,15 +273,16 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+                    result: ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "update lore chunk"),
+                    ),
                 }),
             }
         }
 
         LoreRequest::DeleteLoreChunk { chunk_id } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let chunk_uuid = match parse_uuid_for_request(&chunk_id, request_id, "Invalid chunk_id")
             {
@@ -256,7 +320,10 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Err(ServerMessage::Response {
                     request_id: request_id.to_string(),
-                    result: ResponseResult::error(ErrorCode::InternalError, &e.to_string()),
+                    result: ResponseResult::error(
+                        ErrorCode::InternalError,
+                        sanitize_repo_error(&e, "delete lore chunk"),
+                    ),
                 }),
             }
         }
@@ -267,9 +334,7 @@ pub(super) async fn handle_lore_request(
             chunk_ids,
             discovery_source,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let char_uuid = match parse_character_id_for_request(&character_id, request_id) {
                 Ok(id) => id,
@@ -306,12 +371,14 @@ pub(super) async fn handle_lore_request(
                 None => None,
             };
 
+            // Convert protocol discovery source to domain input
+            let source_input = proto_discovery_source_to_domain(discovery_source);
             match state
                 .app
                 .use_cases
                 .lore
                 .ops
-                .grant_knowledge(char_uuid, lore_uuid, chunk_uuids, discovery_source)
+                .grant_knowledge(char_uuid, lore_uuid, chunk_uuids, source_input)
                 .await
             {
                 Ok(result) => Ok(ResponseResult::success(result)),
@@ -332,7 +399,7 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    sanitize_repo_error(&e, "grant lore knowledge"),
                 )),
             }
         }
@@ -342,9 +409,7 @@ pub(super) async fn handle_lore_request(
             lore_id,
             chunk_ids,
         } => {
-            if let Err(e) = require_dm_for_request(conn_info, request_id) {
-                return Err(e);
-            }
+            require_dm_for_request(conn_info, request_id)?;
 
             let char_uuid = match parse_character_id_for_request(&character_id, request_id) {
                 Ok(id) => id,
@@ -408,7 +473,7 @@ pub(super) async fn handle_lore_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    sanitize_repo_error(&e, "revoke lore knowledge"),
                 )),
             }
         }
@@ -430,7 +495,7 @@ pub(super) async fn handle_lore_request(
                 Ok(data) => Ok(ResponseResult::success(data)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    sanitize_repo_error(&e, "get character lore"),
                 )),
             }
         }
@@ -452,7 +517,7 @@ pub(super) async fn handle_lore_request(
                 Ok(data) => Ok(ResponseResult::success(data)),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    &e.to_string(),
+                    sanitize_repo_error(&e, "get lore knowers"),
                 )),
             }
         }

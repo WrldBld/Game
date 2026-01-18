@@ -77,12 +77,12 @@ pub fn LoreForm(props: LoreFormProps) -> Element {
 
     // Handle save
     let handle_save = {
-        let title = title.clone();
-        let summary = summary.clone();
-        let category = category.clone();
-        let tags_input = tags_input.clone();
-        let is_common_knowledge = is_common_knowledge.clone();
-        let chunks = chunks.clone();
+        let title = title;
+        let summary = summary;
+        let category = category;
+        let tags_input = tags_input;
+        let is_common_knowledge = is_common_knowledge;
+        let chunks = chunks;
         let lore_id = props.lore_id.clone();
         let on_save = props.on_save;
 
@@ -376,7 +376,7 @@ fn LoreChunkEditor(props: LoreChunkEditorProps) -> Element {
                 placeholder: "Chunk title (optional)",
                 value: "{chunk.title}",
                 oninput: {
-                    let mut update = update_field.clone();
+                    let mut update = update_field;
                     move |e| update("title", e.value().clone())
                 },
             }
@@ -388,7 +388,7 @@ fn LoreChunkEditor(props: LoreChunkEditorProps) -> Element {
                 placeholder: "Lore content for this chunk...",
                 value: "{chunk.content}",
                 oninput: {
-                    let mut update = update_field.clone();
+                    let mut update = update_field;
                     move |e| update("content", e.value().clone())
                 },
             }
@@ -400,7 +400,7 @@ fn LoreChunkEditor(props: LoreChunkEditorProps) -> Element {
                 placeholder: "Discovery hint (e.g., 'Found in ancient library')",
                 value: "{chunk.discovery_hint}",
                 oninput: {
-                    let mut update = update_field.clone();
+                    let mut update = update_field;
                     move |e| update("discovery_hint", e.value().clone())
                 },
             }

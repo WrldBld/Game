@@ -3,16 +3,20 @@
 //! Handles player character movement to a region within the same location.
 //! Coordinates with staging, observation, scene resolution, narrative, and time systems.
 
+use chrono::Utc;
 use std::sync::Arc;
 use wrldbldr_domain::{
     NarrativeEvent, PlayerCharacter as DomainPlayerCharacter, PlayerCharacterId, Region, RegionId,
-    Scene as DomainScene, StagedNpc, Staging as DomainStaging,
+    Scene as DomainScene, StagedNpc, Staging as DomainStaging, WorldId,
 };
 
-use crate::entities::{
-    Flag, Inventory, Location, Narrative, Observation, PlayerCharacter, Scene, Staging, World,
+use crate::infrastructure::ports::{
+    FlagRepo, LocationRepo, ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo,
+    StagingRepo, WorldRepo,
 };
-use crate::infrastructure::ports::RepoError;
+use crate::use_cases::narrative_operations::NarrativeOps;
+use crate::use_cases::observation::RecordVisit;
+use crate::use_cases::scene::ResolveScene;
 use crate::use_cases::time::{SuggestTime, TimeSuggestion};
 
 use super::{resolve_scene_for_region, resolve_staging_for_region, suggest_time_for_movement};
@@ -44,7 +48,7 @@ pub enum StagingStatus {
     /// No valid staging, DM approval required
     Pending {
         /// Previous staging if it exists (may be expired)
-        previous_staging: Option<DomainStaging>,
+        previous_staging: Box<Option<DomainStaging>>,
     },
 }
 
@@ -52,29 +56,31 @@ pub enum StagingStatus {
 ///
 /// Orchestrates: Movement validation, staging resolution, scene resolution, observation updates, trigger checks, time suggestions.
 pub struct EnterRegion {
-    player_character: Arc<PlayerCharacter>,
-    location: Arc<Location>,
-    staging: Arc<Staging>,
-    observation: Arc<Observation>,
-    narrative: Arc<Narrative>,
-    scene: Arc<Scene>,
-    inventory: Arc<Inventory>,
-    flag: Arc<Flag>,
-    world: Arc<World>,
+    player_character: Arc<dyn PlayerCharacterRepo>,
+    location: Arc<dyn LocationRepo>,
+    staging: Arc<dyn StagingRepo>,
+    observation: Arc<dyn ObservationRepo>,
+    record_visit: Arc<RecordVisit>,
+    narrative: Arc<NarrativeOps>,
+    resolve_scene: Arc<ResolveScene>,
+    scene: Arc<dyn SceneRepo>,
+    flag: Arc<dyn FlagRepo>,
+    world: Arc<dyn WorldRepo>,
     suggest_time: Arc<SuggestTime>,
 }
 
 impl EnterRegion {
     pub fn new(
-        player_character: Arc<PlayerCharacter>,
-        location: Arc<Location>,
-        staging: Arc<Staging>,
-        observation: Arc<Observation>,
-        narrative: Arc<Narrative>,
-        scene: Arc<Scene>,
-        inventory: Arc<Inventory>,
-        flag: Arc<Flag>,
-        world: Arc<World>,
+        player_character: Arc<dyn PlayerCharacterRepo>,
+        location: Arc<dyn LocationRepo>,
+        staging: Arc<dyn StagingRepo>,
+        observation: Arc<dyn ObservationRepo>,
+        record_visit: Arc<RecordVisit>,
+        narrative: Arc<NarrativeOps>,
+        resolve_scene: Arc<ResolveScene>,
+        scene: Arc<dyn SceneRepo>,
+        flag: Arc<dyn FlagRepo>,
+        world: Arc<dyn WorldRepo>,
         suggest_time: Arc<SuggestTime>,
     ) -> Self {
         Self {
@@ -82,9 +88,10 @@ impl EnterRegion {
             location,
             staging,
             observation,
+            record_visit,
             narrative,
+            resolve_scene,
             scene,
-            inventory,
             flag,
             world,
             suggest_time,
@@ -110,23 +117,23 @@ impl EnterRegion {
             .player_character
             .get(pc_id)
             .await?
-            .ok_or(EnterRegionError::PlayerCharacterNotFound)?;
+            .ok_or(EnterRegionError::PlayerCharacterNotFound(pc_id))?;
 
         // 2. Get the target region
         let region = self
             .location
             .get_region(region_id)
             .await?
-            .ok_or(EnterRegionError::RegionNotFound)?;
+            .ok_or(EnterRegionError::RegionNotFound(region_id))?;
 
         // 3. Verify region is in the same location (for move_to_region)
-        if region.location_id != pc.current_location_id {
+        if region.location_id() != pc.current_location_id() {
             return Err(EnterRegionError::RegionNotInCurrentLocation);
         }
 
         // 4. Validate connection exists and is not locked (if PC has a current region)
         // Skip validation for initial spawn when PC has no current region
-        if let Some(current_region_id) = pc.current_region_id {
+        if let Some(current_region_id) = pc.current_region_id() {
             // Don't require path if already in target region
             if current_region_id != region_id {
                 match self.check_connection(current_region_id, region_id).await {
@@ -146,47 +153,50 @@ impl EnterRegion {
         // 5. Get the world to access game time for TTL checks and observations
         let world_data = self
             .world
-            .get(pc.world_id)
+            .get(pc.world_id())
             .await?
-            .ok_or(EnterRegionError::WorldNotFound)?;
-        let current_game_time = world_data.game_time.current();
+            .ok_or(EnterRegionError::WorldNotFound(pc.world_id()))?;
+        let current_game_time_minutes = world_data.game_time().total_minutes();
+        let real_timestamp = Utc::now();
 
         // 6. Check for valid staging (with TTL check using game time)
         let (npcs, staging_status) = resolve_staging_for_region(
-            &self.staging,
+            self.staging.as_ref(),
             region_id,
-            region.location_id,
-            pc.world_id,
-            current_game_time,
+            region.location_id(),
+            pc.world_id(),
+            current_game_time_minutes,
+            real_timestamp,
         )
         .await?;
 
         // 7. Update player's observation state (even if staging pending, record the visit)
         // Use game time for when the observation occurred in-game
         if !npcs.is_empty() {
-            self.observation
-                .record_visit(pc_id, region_id, &npcs, current_game_time)
+            self.record_visit
+                .execute(pc_id, region_id, &npcs, current_game_time_minutes)
                 .await?;
         }
 
         // 8. Resolve scene for this region (use world's game time for time-of-day checks)
         let resolved_scene = resolve_scene_for_region(
-            &self.scene,
-            &self.inventory,
-            &self.observation,
-            &self.flag,
+            &self.resolve_scene,
+            self.scene.as_ref(),
+            self.player_character.as_ref(),
+            self.observation.as_ref(),
+            self.flag.as_ref(),
             pc_id,
-            pc.world_id,
+            pc.world_id(),
             region_id,
-            &world_data.game_time,
+            world_data.game_time(),
         )
         .await?;
         if let Some(ref scene) = resolved_scene {
             tracing::info!(
                 pc_id = %pc_id,
                 region_id = %region_id,
-                scene_id = %scene.id,
-                scene_name = %scene.name,
+                scene_id = %scene.id(),
+                scene_name = %scene.name(),
                 "Scene resolved for region entry"
             );
         }
@@ -196,18 +206,18 @@ impl EnterRegion {
 
         // 10. Update player character position
         self.player_character
-            .update_position(pc_id, pc.current_location_id, region_id)
+            .update_position(pc_id, pc.current_location_id(), region_id)
             .await?;
 
         // 11. Generate time suggestion for movement
         // This is a region-to-region move within the same location (travel_region)
         let time_suggestion = suggest_time_for_movement(
             &self.suggest_time,
-            pc.world_id,
+            pc.world_id(),
             pc_id,
-            pc.name.clone(),
+            pc.name().to_string(),
             "travel_region",
-            &region.name,
+            region.name().as_str(),
         )
         .await;
 
@@ -243,7 +253,8 @@ impl EnterRegion {
             Some(connection) if connection.is_locked => {
                 let reason = connection
                     .lock_description
-                    .clone()
+                    .as_ref()
+                    .map(|s| s.to_string())
                     .unwrap_or_else(|| "The way is blocked".to_string());
                 ConnectionCheckResult::Locked(reason)
             }
@@ -265,12 +276,12 @@ enum ConnectionCheckResult {
 
 #[derive(Debug, thiserror::Error)]
 pub enum EnterRegionError {
-    #[error("Player character not found")]
-    PlayerCharacterNotFound,
-    #[error("Region not found")]
-    RegionNotFound,
-    #[error("World not found")]
-    WorldNotFound,
+    #[error("Player character not found: {0}")]
+    PlayerCharacterNotFound(PlayerCharacterId),
+    #[error("Region not found: {0}")]
+    RegionNotFound(RegionId),
+    #[error("World not found: {0}")]
+    WorldNotFound(WorldId),
     #[error("Region is not in the current location")]
     RegionNotInCurrentLocation,
     #[error("No path exists to that region")]
@@ -287,15 +298,18 @@ mod tests {
 
     use chrono::Utc;
     use wrldbldr_domain::{
-        LocationId, PlayerCharacterId, Region, RegionConnection, RegionId, WorldId,
+        value_objects::RegionName, CharacterName, Description, LocationId, PlayerCharacterId,
+        Region, RegionConnection, RegionId, WorldId,
     };
 
-    use crate::entities;
     use crate::infrastructure::ports::{
-        ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockItemRepo,
-        MockLocationRepo, MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
-        MockSceneRepo, MockStagingRepo, MockWorldRepo,
+        ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockLocationRepo,
+        MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
+        MockStagingRepo, MockWorldRepo,
     };
+
+    use crate::use_cases::scene::ResolveScene;
+    use crate::use_cases::NarrativeOps;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -309,61 +323,60 @@ mod tests {
         player_character_repo: MockPlayerCharacterRepo,
         location_repo: MockLocationRepo,
         world_repo: MockWorldRepo,
-        clock: Arc<dyn ClockPort>,
+        clock_port: Arc<dyn ClockPort>,
     ) -> super::EnterRegion {
-        let player_character = Arc::new(entities::PlayerCharacter::new(Arc::new(
-            player_character_repo,
-        )));
+        let player_character_repo: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> =
+            Arc::new(player_character_repo);
 
         let location_repo: Arc<dyn crate::infrastructure::ports::LocationRepo> =
             Arc::new(location_repo);
-        let location = Arc::new(entities::Location::new(location_repo.clone()));
 
-        let staging = Arc::new(entities::Staging::new(Arc::new(MockStagingRepo::new())));
+        let staging_repo: Arc<dyn crate::infrastructure::ports::StagingRepo> =
+            Arc::new(MockStagingRepo::new());
 
-        let observation = Arc::new(entities::Observation::new(
-            Arc::new(MockObservationRepo::new()),
+        let observation_repo: Arc<dyn crate::infrastructure::ports::ObservationRepo> =
+            Arc::new(MockObservationRepo::new());
+        let record_visit = Arc::new(crate::use_cases::observation::RecordVisit::new(
+            observation_repo.clone(),
             location_repo.clone(),
-            clock.clone(),
+            clock_port.clone(),
         ));
 
-        let narrative = Arc::new(entities::Narrative::new(
+        let scene_repo: Arc<dyn crate::infrastructure::ports::SceneRepo> =
+            Arc::new(MockSceneRepo::new());
+        let resolve_scene = Arc::new(ResolveScene::new(scene_repo.clone()));
+        let flag_repo: Arc<dyn crate::infrastructure::ports::FlagRepo> =
+            Arc::new(MockFlagRepo::new());
+
+        let world_repo: Arc<dyn crate::infrastructure::ports::WorldRepo> = Arc::new(world_repo);
+        let narrative = Arc::new(NarrativeOps::new(
             Arc::new(MockNarrativeRepo::new()),
             location_repo.clone(),
-            Arc::new(MockWorldRepo::new()),
-            Arc::new(MockPlayerCharacterRepo::new()),
+            world_repo.clone(),
+            player_character_repo.clone(),
             Arc::new(MockCharacterRepo::new()),
-            Arc::new(MockObservationRepo::new()),
+            observation_repo.clone(),
             Arc::new(MockChallengeRepo::new()),
-            Arc::new(MockFlagRepo::new()),
-            Arc::new(MockSceneRepo::new()),
-            clock.clone(),
+            flag_repo.clone(),
+            scene_repo.clone(),
+            clock_port.clone(),
         ));
-
-        let scene = Arc::new(entities::Scene::new(Arc::new(MockSceneRepo::new())));
-        let inventory = Arc::new(entities::Inventory::new(
-            Arc::new(MockItemRepo::new()),
-            Arc::new(MockCharacterRepo::new()),
-            Arc::new(MockPlayerCharacterRepo::new()),
-        ));
-        let flag = Arc::new(entities::Flag::new(Arc::new(MockFlagRepo::new())));
-
-        let world = Arc::new(entities::World::new(Arc::new(world_repo), clock.clone()));
         let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
-            world.clone(),
-            clock,
+            world_repo.clone(),
+            clock_port,
         ));
 
         super::EnterRegion::new(
-            player_character,
-            location,
-            staging,
-            observation,
+            player_character_repo,
+            location_repo,
+            staging_repo,
+            observation_repo,
+            record_visit,
             narrative,
-            scene,
-            inventory,
-            flag,
-            world,
+            resolve_scene,
+            scene_repo,
+            flag_repo,
+            world_repo,
             suggest_time,
         )
     }
@@ -389,7 +402,7 @@ mod tests {
         let err = use_case.execute(pc_id, region_id).await.unwrap_err();
         assert!(matches!(
             err,
-            super::EnterRegionError::PlayerCharacterNotFound
+            super::EnterRegionError::PlayerCharacterNotFound(_)
         ));
     }
 
@@ -401,7 +414,13 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
         let region_id = RegionId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            location_id,
+            now,
+        );
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -424,7 +443,7 @@ mod tests {
         );
 
         let err = use_case.execute(pc_id, region_id).await.unwrap_err();
-        assert!(matches!(err, super::EnterRegionError::RegionNotFound));
+        assert!(matches!(err, super::EnterRegionError::RegionNotFound(_)));
     }
 
     #[tokio::test]
@@ -435,13 +454,25 @@ mod tests {
         let other_location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", pc_location_id, now);
-        let region = {
-            let mut r = Region::new(other_location_id, "Target");
-            r.id = RegionId::new();
-            r
-        };
-        let region_id = region.id;
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            pc_location_id,
+            now,
+        );
+        let region_id = RegionId::new();
+        let region = Region::from_parts(
+            region_id,
+            other_location_id,
+            RegionName::new("Target").unwrap(),
+            Description::default(),
+            None,
+            None,
+            None,
+            false,
+            0,
+        );
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -479,15 +510,27 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
 
         let from_region_id = RegionId::new();
-        let to_region = {
-            let mut r = Region::new(location_id, "Target");
-            r.id = RegionId::new();
-            r
-        };
-        let to_region_id = to_region.id;
+        let to_region_id = RegionId::new();
+        let to_region = Region::from_parts(
+            to_region_id,
+            location_id,
+            RegionName::new("Target").unwrap(),
+            Description::default(),
+            None,
+            None,
+            None,
+            false,
+            0,
+        );
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
-            .with_starting_region(from_region_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            location_id,
+            now,
+        )
+        .with_starting_region(from_region_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -526,15 +569,27 @@ mod tests {
         let pc_id = PlayerCharacterId::new();
 
         let from_region_id = RegionId::new();
-        let to_region = {
-            let mut r = Region::new(location_id, "Target");
-            r.id = RegionId::new();
-            r
-        };
-        let to_region_id = to_region.id;
+        let to_region_id = RegionId::new();
+        let to_region = Region::from_parts(
+            to_region_id,
+            location_id,
+            RegionName::new("Target").unwrap(),
+            Description::default(),
+            None,
+            None,
+            None,
+            false,
+            0,
+        );
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now)
-            .with_starting_region(from_region_id);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            location_id,
+            now,
+        )
+        .with_starting_region(from_region_id);
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -550,9 +605,14 @@ mod tests {
             .withf(move |id| *id == to_region_id)
             .returning(move |_| Ok(Some(to_region_for_get.clone())));
 
-        let conn = RegionConnection::new(from_region_id, to_region_id)
-            .expect("test regions are distinct")
-            .locked("Locked");
+        let conn = RegionConnection {
+            from_region: from_region_id,
+            to_region: to_region_id,
+            description: None,
+            bidirectional: false,
+            is_locked: true,
+            lock_description: Some("Locked".to_string()),
+        };
         location_repo
             .expect_get_connections()
             .withf(move |id| *id == from_region_id)
@@ -579,14 +639,26 @@ mod tests {
         let location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
 
-        let region = {
-            let mut r = Region::new(location_id, "Target");
-            r.id = RegionId::new();
-            r
-        };
-        let region_id = region.id;
+        let region_id = RegionId::new();
+        let region = Region::from_parts(
+            region_id,
+            location_id,
+            RegionName::new("Target").unwrap(),
+            Description::default(),
+            None,
+            None,
+            None,
+            false,
+            0,
+        );
 
-        let pc = wrldbldr_domain::PlayerCharacter::new("user", world_id, "PC", location_id, now);
+        let pc = wrldbldr_domain::PlayerCharacter::new(
+            "user",
+            world_id,
+            CharacterName::new("PC").unwrap(),
+            location_id,
+            now,
+        );
 
         let mut pc_repo = MockPlayerCharacterRepo::new();
         let pc_for_get = pc.clone();
@@ -616,6 +688,6 @@ mod tests {
         );
 
         let err = use_case.execute(pc_id, region_id).await.unwrap_err();
-        assert!(matches!(err, super::EnterRegionError::WorldNotFound));
+        assert!(matches!(err, super::EnterRegionError::WorldNotFound(_)));
     }
 }

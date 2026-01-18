@@ -16,32 +16,56 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let hidden_npc_id = CharacterId::new();
 
     // World (manual time, so movement doesn't generate time suggestions).
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
-    world.id = world_id;
+    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let mut world = wrldbldr_domain::World::new(world_name, now)
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(world_id);
     world.set_time_mode(TimeMode::Manual, now);
 
     // Domain fixtures.
-    let mut location = wrldbldr_domain::Location::new(
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location = wrldbldr_domain::Location::new(
         world_id,
-        "Test Location",
+        location_name,
         wrldbldr_domain::LocationType::Exterior,
+    )
+    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_id(location_id);
+
+    let region = wrldbldr_domain::Region::from_parts(
+        region_id,
+        location_id,
+        wrldbldr_domain::value_objects::RegionName::new("Unstaged Region").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None,
+        None,
+        None,
+        false,
+        0,
     );
-    location.id = location_id;
 
-    let mut region = wrldbldr_domain::Region::new(location_id, "Unstaged Region");
-    region.id = region_id;
+    let pc = wrldbldr_domain::PlayerCharacter::new(
+        "player-1",
+        world_id,
+        wrldbldr_domain::CharacterName::new("PC").unwrap(),
+        location_id,
+        now,
+    )
+    .with_id(pc_id);
+    // initial spawn - PC starts with no current_region_id, skip connection validation
 
-    let mut pc =
-        wrldbldr_domain::PlayerCharacter::new("player-1", world_id, "PC", location_id, now);
-    pc.id = pc_id;
-    pc.current_region_id = None; // initial spawn; skip connection validation
-
-    let mut visible_npc =
-        wrldbldr_domain::Character::new(world_id, "Visible NPC", CampbellArchetype::Hero);
-    visible_npc.id = visible_npc_id;
-    let mut hidden_npc =
-        wrldbldr_domain::Character::new(world_id, "Hidden NPC", CampbellArchetype::Herald);
-    hidden_npc.id = hidden_npc_id;
+    let mut visible_npc = wrldbldr_domain::Character::new(
+        world_id,
+        wrldbldr_domain::CharacterName::new("Visible NPC").unwrap(),
+        CampbellArchetype::Hero,
+    );
+    visible_npc = visible_npc.with_id(visible_npc_id);
+    let mut hidden_npc = wrldbldr_domain::Character::new(
+        world_id,
+        wrldbldr_domain::CharacterName::new("Hidden NPC").unwrap(),
+        CampbellArchetype::Herald,
+    );
+    hidden_npc = hidden_npc.with_id(hidden_npc_id);
 
     // World repo: serve the world for both time + visual state resolution.
     let mut world_repo = MockWorldRepo::new();
@@ -177,10 +201,11 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         .returning(|_| Ok(vec![]));
 
     // Settings: return defaults (default_presence_cache_ttl_hours = 3)
-    repos
-        .settings_repo
-        .expect_get_for_world()
-        .returning(|_| Ok(Some(wrldbldr_domain::AppSettings::default())));
+    repos.settings_repo.expect_get_for_world().returning(|_| {
+        Ok(Some(
+            crate::infrastructure::app_settings::AppSettings::default(),
+        ))
+    });
 
     // Staging approval persists full per-NPC info (including hidden flags).
     let region_id_for_staging = region_id;
@@ -192,16 +217,16 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         .staging_repo
         .expect_save_pending_staging()
         .withf(move |s| {
-            s.region_id == region_id_for_staging
-                && s.location_id == location_id_for_staging
-                && s.world_id == world_id_for_staging
-                && s.ttl_hours == 24 // DM-specified TTL (overrides default from settings)
-                && s.npcs.iter().any(|n| {
+            s.region_id() == region_id_for_staging
+                && s.location_id() == location_id_for_staging
+                && s.world_id() == world_id_for_staging
+                && s.ttl_hours() == 24 // DM-specified TTL (overrides default from settings)
+                && s.npcs().iter().any(|n| {
                     n.character_id == visible_npc_id_for_staging
                         && n.is_present
                         && !n.is_hidden_from_players
                 })
-                && s.npcs.iter().any(|n| {
+                && s.npcs().iter().any(|n| {
                     n.character_id == hidden_npc_id_for_staging
                         && n.is_present
                         && n.is_hidden_from_players
@@ -219,9 +244,9 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let visible_npc_for_get = visible_npc.clone();
     let hidden_npc_for_get = hidden_npc.clone();
     repos.character_repo.expect_get().returning(move |id| {
-        if id == visible_npc_for_get.id {
+        if id == visible_npc_for_get.id() {
             Ok(Some(visible_npc_for_get.clone()))
-        } else if id == hidden_npc_for_get.id {
+        } else if id == hidden_npc_for_get.id() {
             Ok(Some(hidden_npc_for_get.clone()))
         } else {
             Ok(None)
@@ -239,9 +264,9 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
-        pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
-        generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;
@@ -255,6 +280,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Dm,
+            user_id: "dm-user".to_string(),
             pc_id: None,
             spectate_pc_id: None,
         },
@@ -271,6 +297,7 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Player,
+            user_id: "player-user".to_string(),
             pc_id: Some(*pc_id.as_uuid()),
             spectate_pc_id: None,
         },
@@ -319,14 +346,14 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         &ClientMessage::StagingApprovalResponse {
             request_id: approval_request_id,
             approved_npcs: vec![
-                wrldbldr_protocol::ApprovedNpcInfo {
+                wrldbldr_shared::ApprovedNpcInfo {
                     character_id: visible_npc_id.to_string(),
                     is_present: true,
                     reasoning: None,
                     is_hidden_from_players: false,
                     mood: None,
                 },
-                wrldbldr_protocol::ApprovedNpcInfo {
+                wrldbldr_shared::ApprovedNpcInfo {
                     character_id: hidden_npc_id.to_string(),
                     is_present: true,
                     reasoning: None,
@@ -381,24 +408,37 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
     let region_id = RegionId::new();
 
     // World (manual time)
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
-    world.id = world_id;
+    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let mut world = wrldbldr_domain::World::new(world_name, now)
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(world_id);
     world.set_time_mode(TimeMode::Manual, now);
 
     // Domain fixtures
-    let mut location = wrldbldr_domain::Location::new(
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location = wrldbldr_domain::Location::new(
         world_id,
-        "Test Location",
+        location_name,
         wrldbldr_domain::LocationType::Exterior,
-    );
-    location.id = location_id;
+    )
+    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_id(location_id);
 
-    let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");
-    region.id = region_id;
+    let region = wrldbldr_domain::Region::from_parts(
+        region_id,
+        location_id,
+        wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None,
+        None,
+        None,
+        false,
+        0,
+    );
 
     // Custom settings with non-default TTL (7 hours instead of default 3)
-    let mut custom_settings = wrldbldr_domain::AppSettings::default();
-    custom_settings.default_presence_cache_ttl_hours = 7;
+    let custom_settings = crate::infrastructure::app_settings::AppSettings::default()
+        .with_default_presence_cache_ttl_hours(7);
 
     // World repo
     let mut world_repo = MockWorldRepo::new();
@@ -448,11 +488,11 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
         .staging_repo
         .expect_save_pending_staging()
         .withf(move |s| {
-            s.region_id == region_id_for_staging
-                && s.location_id == location_id_for_staging
-                && s.world_id == world_id_for_staging
-                && s.ttl_hours == 7 // Custom TTL from settings (not default 3)
-                && s.source == wrldbldr_domain::StagingSource::AutoApproved
+            s.region_id() == region_id_for_staging
+                && s.location_id() == location_id_for_staging
+                && s.world_id() == world_id_for_staging
+                && s.ttl_hours() == 7 // Custom TTL from settings (not default 3)
+                && s.source() == wrldbldr_domain::StagingSource::AutoApproved
         })
         .returning(|_| Ok(()));
 
@@ -480,7 +520,7 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
     let app = build_test_app(repos, now);
 
     // Create a pending staging request
-    let pending = crate::use_cases::staging::PendingStagingRequest {
+    let pending = crate::infrastructure::ports::PendingStagingRequest {
         region_id,
         location_id,
         world_id,
@@ -516,20 +556,33 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
     let region_id = RegionId::new();
 
     // World (manual time)
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
-    world.id = world_id;
+    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let mut world = wrldbldr_domain::World::new(world_name, now)
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(world_id);
     world.set_time_mode(TimeMode::Manual, now);
 
     // Domain fixtures
-    let mut location = wrldbldr_domain::Location::new(
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location = wrldbldr_domain::Location::new(
         world_id,
-        "Test Location",
+        location_name,
         wrldbldr_domain::LocationType::Exterior,
-    );
-    location.id = location_id;
+    )
+    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_id(location_id);
 
-    let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");
-    region.id = region_id;
+    let region = wrldbldr_domain::Region::from_parts(
+        region_id,
+        location_id,
+        wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None,
+        None,
+        None,
+        false,
+        0,
+    );
 
     // World repo
     let mut world_repo = MockWorldRepo::new();
@@ -555,10 +608,11 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
         .returning(move |_| Ok(Some(location_for_get.clone())));
 
     // Settings repo: simulate error (settings unavailable)
-    repos
-        .settings_repo
-        .expect_get_for_world()
-        .returning(|_| Err(crate::infrastructure::ports::RepoError::NotFound));
+    repos.settings_repo.expect_get_for_world().returning(|_| {
+        Err(crate::infrastructure::ports::RepoError::not_found(
+            "Entity", "unknown",
+        ))
+    });
 
     // Staging repo
     repos
@@ -579,11 +633,11 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
         .staging_repo
         .expect_save_pending_staging()
         .withf(move |s| {
-            s.region_id == region_id_for_staging
-                && s.location_id == location_id_for_staging
-                && s.world_id == world_id_for_staging
-                && s.ttl_hours == 3 // Default TTL (settings fetch failed)
-                && s.source == wrldbldr_domain::StagingSource::AutoApproved
+            s.region_id() == region_id_for_staging
+                && s.location_id() == location_id_for_staging
+                && s.world_id() == world_id_for_staging
+                && s.ttl_hours() == 3 // Default TTL (settings fetch failed)
+                && s.source() == wrldbldr_domain::StagingSource::AutoApproved
         })
         .returning(|_| Ok(()));
 
@@ -611,7 +665,7 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
     let app = build_test_app(repos, now);
 
     // Create a pending staging request
-    let pending = crate::use_cases::staging::PendingStagingRequest {
+    let pending = crate::infrastructure::ports::PendingStagingRequest {
         region_id,
         location_id,
         world_id,

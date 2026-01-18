@@ -19,34 +19,33 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use wrldbldr_domain::{ItemId, WorldId};
+use wrldbldr_domain::{ItemId, ItemName, WorldId};
 
 /// An object that can be possessed or interacted with
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Item {
-    pub id: ItemId,
-    pub world_id: WorldId,
-    pub name: String,
-    pub description: Option<String>,
+    id: ItemId,
+    world_id: WorldId,
+    name: ItemName,
+    description: Option<String>,
     /// Type of item (e.g., "Weapon", "Consumable", "Key", "Quest")
-    pub item_type: Option<String>,
+    item_type: Option<String>,
     /// Whether only one of this item can exist
-    pub is_unique: bool,
+    is_unique: bool,
     /// Item-specific properties (JSON - acceptable per ADR)
-    pub properties: Option<String>,
+    properties: Option<String>,
     /// Whether this item can contain other items (bag, chest, etc.)
-    pub can_contain_items: bool,
+    can_contain_items: bool,
     /// Maximum number of items this container can hold (None = unlimited)
-    pub container_limit: Option<u32>,
+    container_limit: Option<u32>,
 }
 
 impl Item {
-    pub fn new(world_id: WorldId, name: impl Into<String>) -> Self {
+    pub fn new(world_id: WorldId, name: ItemName) -> Self {
         Self {
             id: ItemId::new(),
             world_id,
-            name: name.into(),
+            name,
             description: None,
             item_type: None,
             is_unique: false,
@@ -54,6 +53,49 @@ impl Item {
             can_contain_items: false,
             container_limit: None,
         }
+    }
+
+    // Read accessors
+    pub fn id(&self) -> ItemId {
+        self.id
+    }
+
+    pub fn world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    pub fn name(&self) -> &ItemName {
+        &self.name
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    pub fn item_type(&self) -> Option<&str> {
+        self.item_type.as_deref()
+    }
+
+    pub fn is_unique(&self) -> bool {
+        self.is_unique
+    }
+
+    pub fn properties(&self) -> Option<&str> {
+        self.properties.as_deref()
+    }
+
+    pub fn can_contain_items(&self) -> bool {
+        self.can_contain_items
+    }
+
+    pub fn container_limit(&self) -> Option<u32> {
+        self.container_limit
+    }
+
+    // Builder methods
+    pub fn with_id(mut self, id: ItemId) -> Self {
+        self.id = id;
+        self
     }
 
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
@@ -92,7 +134,6 @@ impl Item {
 
 /// Data for the POSSESSES edge between Character/PlayerCharacter and Item
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct InventoryItem {
     /// The item being possessed
     pub item: Item,
@@ -106,31 +147,8 @@ pub struct InventoryItem {
     pub acquisition_method: Option<AcquisitionMethod>,
 }
 
-impl InventoryItem {
-    pub fn new(item: Item, quantity: u32, now: DateTime<Utc>) -> Self {
-        Self {
-            item,
-            quantity,
-            equipped: false,
-            acquired_at: now,
-            acquisition_method: None,
-        }
-    }
-
-    pub fn equipped(mut self) -> Self {
-        self.equipped = true;
-        self
-    }
-
-    pub fn with_acquisition(mut self, method: AcquisitionMethod) -> Self {
-        self.acquisition_method = Some(method);
-        self
-    }
-}
-
 /// How an item was acquired
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum AcquisitionMethod {
     Found,
     Purchased,
@@ -175,7 +193,6 @@ impl std::str::FromStr for AcquisitionMethod {
 
 /// How often a character frequents a location
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum FrequencyLevel {
     Rarely,
     Sometimes,

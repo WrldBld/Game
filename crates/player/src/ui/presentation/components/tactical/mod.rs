@@ -1,4 +1,6 @@
-//! Tactical combat components - Grid map, unit sprites, challenge rolls
+//! Tactical gameplay components for skill checks and challenges.
+//!
+//! Includes challenge roll modals, skills display, and dice roll visualization.
 
 pub mod challenge_roll;
 pub mod skills_display;

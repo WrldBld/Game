@@ -14,33 +14,35 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::error::DomainError;
 use crate::ids::{CharacterId, LoreChunkId, LoreId, WorldId};
+use crate::value_objects::Tag;
 
 /// A piece of world knowledge that can be discovered
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Lore {
-    pub id: LoreId,
-    pub world_id: WorldId,
+    id: LoreId,
+    world_id: WorldId,
 
     /// Title of the lore entry (e.g., "The Fall of House Valeren")
-    pub title: String,
+    title: String,
     /// Brief summary for DM reference
-    pub summary: String,
+    summary: String,
     /// Category of knowledge
-    pub category: LoreCategory,
+    category: LoreCategory,
 
     /// Discoverable pieces of this lore
-    pub chunks: Vec<LoreChunk>,
+    chunks: Vec<LoreChunk>,
 
     /// If true, all characters in the world know this lore
-    pub is_common_knowledge: bool,
+    is_common_knowledge: bool,
 
     /// Tags for filtering/searching
-    pub tags: Vec<String>,
+    tags: Vec<Tag>,
 
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
 }
 
 /// A discoverable piece of lore
@@ -142,6 +144,53 @@ impl Lore {
         }
     }
 
+    // Read accessors
+    pub fn id(&self) -> LoreId {
+        self.id
+    }
+
+    pub fn world_id(&self) -> WorldId {
+        self.world_id
+    }
+
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    pub fn summary(&self) -> &str {
+        &self.summary
+    }
+
+    pub fn category(&self) -> LoreCategory {
+        self.category
+    }
+
+    pub fn chunks(&self) -> &[LoreChunk] {
+        &self.chunks
+    }
+
+    pub fn is_common_knowledge(&self) -> bool {
+        self.is_common_knowledge
+    }
+
+    pub fn tags(&self) -> &[Tag] {
+        &self.tags
+    }
+
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+
+    pub fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
+    }
+
+    // Builder methods
+    pub fn with_id(mut self, id: LoreId) -> Self {
+        self.id = id;
+        self
+    }
+
     pub fn with_summary(mut self, summary: impl Into<String>) -> Self {
         self.summary = summary.into();
         self
@@ -169,8 +218,19 @@ impl Lore {
         self
     }
 
-    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+    pub fn with_tags(mut self, tags: Vec<Tag>) -> Self {
         self.tags = tags;
+        self
+    }
+
+    pub fn with_tag(mut self, tag: Tag) -> Self {
+        self.tags.push(tag);
+        self
+    }
+
+    pub fn with_timestamps(mut self, created_at: DateTime<Utc>, updated_at: DateTime<Utc>) -> Self {
+        self.created_at = created_at;
+        self.updated_at = updated_at;
         self
     }
 
@@ -213,6 +273,12 @@ impl LoreChunk {
             content: content.into(),
             discovery_hint: None,
         }
+    }
+
+    // Builder methods
+    pub fn with_id(mut self, id: LoreChunkId) -> Self {
+        self.id = id;
+        self
     }
 
     pub fn with_title(mut self, title: impl Into<String>) -> Self {
@@ -267,6 +333,7 @@ impl LoreKnowledge {
         }
     }
 
+    // Builder methods
     pub fn with_notes(mut self, notes: impl Into<String>) -> Self {
         self.notes = Some(notes.into());
         self
@@ -333,7 +400,7 @@ impl LoreCategory {
 }
 
 impl std::str::FromStr for LoreCategory {
-    type Err = String;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
@@ -346,10 +413,10 @@ impl std::str::FromStr for LoreCategory {
             "natural" => Ok(LoreCategory::Natural),
             "religious" => Ok(LoreCategory::Religious),
             "unknown" => Ok(LoreCategory::Unknown),
-            _ => Err(format!(
+            _ => Err(DomainError::parse(format!(
                 "Invalid lore category '{}'. Valid categories: historical, legend, secret, common, technical, political, natural, religious",
                 s
-            )),
+            ))),
         }
     }
 }
@@ -357,27 +424,37 @@ impl std::str::FromStr for LoreCategory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+
+    fn fixed_time() -> DateTime<Utc> {
+        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
 
     #[test]
     fn test_lore_creation() {
-        let now = Utc::now();
+        let now = fixed_time();
         let lore = Lore::new(WorldId::new(), "Test Lore", LoreCategory::Historical, now)
             .with_summary("A test lore entry")
             .with_chunk("First chunk of content")
             .with_chunk("Second chunk of content")
-            .with_tags(vec!["test".to_string(), "history".to_string()]);
+            .with_tag(Tag::new("test").unwrap())
+            .with_tag(Tag::new("history").unwrap());
 
-        assert_eq!(lore.title, "Test Lore");
-        assert_eq!(lore.summary, "A test lore entry");
-        assert_eq!(lore.chunks.len(), 2);
-        assert_eq!(lore.chunks[0].order, 0);
-        assert_eq!(lore.chunks[1].order, 1);
-        assert_eq!(lore.tags.len(), 2);
+        assert_eq!(lore.title(), "Test Lore");
+        assert_eq!(lore.summary(), "A test lore entry");
+        assert_eq!(lore.chunks().len(), 2);
+        assert_eq!(lore.chunks()[0].order, 0);
+        assert_eq!(lore.chunks()[1].order, 1);
+        assert_eq!(lore.tags().len(), 2);
+        assert_eq!(
+            lore.tags(),
+            &[Tag::new("test").unwrap(), Tag::new("history").unwrap()]
+        );
     }
 
     #[test]
     fn test_lore_full_text() {
-        let now = Utc::now();
+        let now = fixed_time();
         let lore = Lore::new(WorldId::new(), "Test", LoreCategory::Historical, now)
             .with_chunk("First part")
             .with_chunk("Second part");
@@ -387,7 +464,7 @@ mod tests {
 
     #[test]
     fn test_lore_knowledge_full() {
-        let now = Utc::now();
+        let now = fixed_time();
         let knowledge = LoreKnowledge::full(
             LoreId::new(),
             CharacterId::new(),
@@ -400,7 +477,7 @@ mod tests {
 
     #[test]
     fn test_lore_knowledge_partial() {
-        let now = Utc::now();
+        let now = fixed_time();
         let chunk_id = LoreChunkId::new();
         let knowledge = LoreKnowledge::partial(
             LoreId::new(),

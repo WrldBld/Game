@@ -12,18 +12,31 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
     let region_id = RegionId::new();
     let npc_id = CharacterId::new();
 
-    let mut world = wrldbldr_domain::World::new("Test World", "desc", now);
-    world.id = world_id;
+    let world_name = wrldbldr_domain::WorldName::new("Test World").unwrap();
+    let world = wrldbldr_domain::World::new(world_name, now)
+        .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+        .with_id(world_id);
 
-    let mut location = wrldbldr_domain::Location::new(
+    let location_name = wrldbldr_domain::value_objects::LocationName::new("Test Location").unwrap();
+    let location = wrldbldr_domain::Location::new(
         world_id,
-        "Test Location",
+        location_name,
         wrldbldr_domain::LocationType::Exterior,
-    );
-    location.id = location_id;
+    )
+    .with_description(wrldbldr_domain::Description::new("desc").unwrap())
+    .with_id(location_id);
 
-    let mut region = wrldbldr_domain::Region::new(location_id, "Test Region");
-    region.id = region_id;
+    let region = wrldbldr_domain::Region::from_parts(
+        region_id,
+        location_id,
+        wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None,
+        None,
+        None,
+        false,
+        0,
+    );
 
     let mut world_repo = MockWorldRepo::new();
     let world_for_get = world.clone();
@@ -79,16 +92,16 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
     let ws_state = Arc::new(WsState {
         app,
         connections,
-        pending_time_suggestions: tokio::sync::RwLock::new(HashMap::new()),
-        pending_staging_requests: tokio::sync::RwLock::new(HashMap::new()),
-        generation_read_state: tokio::sync::RwLock::new(HashMap::new()),
+        pending_time_suggestions: Arc::new(TimeSuggestionStoreImpl::new()),
+        pending_staging_requests: Arc::new(PendingStagingStoreImpl::new()),
+        generation_read_state: GenerationStateStoreImpl::new(),
     });
 
     // Seed a pending staging request correlation.
     let request_id = "req-123".to_string();
-    {
-        let mut guard = ws_state.pending_staging_requests.write().await;
-        guard.insert(
+    ws_state
+        .pending_staging_requests
+        .insert(
             request_id.clone(),
             PendingStagingRequest {
                 region_id,
@@ -96,8 +109,8 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
                 world_id,
                 created_at: now,
             },
-        );
-    }
+        )
+        .await;
 
     let (addr, server) = spawn_ws_server(ws_state.clone()).await;
     let mut dm_ws = ws_connect(addr).await;
@@ -108,6 +121,7 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
         &ClientMessage::JoinWorld {
             world_id: *world_id.as_uuid(),
             role: ProtoWorldRole::Dm,
+            user_id: "dm-user".to_string(),
             pc_id: None,
             spectate_pc_id: None,
         },

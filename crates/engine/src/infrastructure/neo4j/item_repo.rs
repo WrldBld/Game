@@ -2,8 +2,9 @@
 //!
 //! Handles item persistence in the game world.
 
+use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
-use neo4rs::{query, Graph};
+use neo4rs::query;
 use wrldbldr_domain::*;
 
 use super::helpers::row_to_item;
@@ -13,11 +14,11 @@ use crate::infrastructure::ports::{ItemRepo, RepoError};
 use wrldbldr_domain::PlayerCharacterId;
 
 pub struct Neo4jItemRepo {
-    graph: Graph,
+    graph: Neo4jGraph,
 }
 
 impl Neo4jItemRepo {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(graph: Neo4jGraph) -> Self {
         Self { graph }
     }
 }
@@ -32,12 +33,12 @@ impl ItemRepo for Neo4jItemRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         if let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             Ok(Some(row_to_item(row)?))
         } else {
@@ -70,23 +71,32 @@ impl ItemRepo for Neo4jItemRepo {
             MATCH (w:World {id: $world_id})
             MERGE (w)-[:CONTAINS_ITEM]->(i)",
         )
-        .param("id", item.id.to_string())
-        .param("world_id", item.world_id.to_string())
-        .param("name", item.name.clone())
-        .param("description", item.description.clone().unwrap_or_default())
-        .param("item_type", item.item_type.clone().unwrap_or_default())
-        .param("is_unique", item.is_unique)
-        .param("properties", item.properties.clone().unwrap_or_default())
-        .param("can_contain_items", item.can_contain_items)
+        .param("id", item.id().to_string())
+        .param("world_id", item.world_id().to_string())
+        .param("name", item.name().to_string())
+        .param(
+            "description",
+            item.description().unwrap_or_default().to_string(),
+        )
+        .param(
+            "item_type",
+            item.item_type().unwrap_or_default().to_string(),
+        )
+        .param("is_unique", item.is_unique())
+        .param(
+            "properties",
+            item.properties().unwrap_or_default().to_string(),
+        )
+        .param("can_contain_items", item.can_contain_items())
         .param(
             "container_limit",
-            item.container_limit.map(|l| l as i64).unwrap_or(-1),
+            item.container_limit().map(|l| l as i64).unwrap_or(-1),
         );
 
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         Ok(())
     }
 
@@ -102,7 +112,7 @@ impl ItemRepo for Neo4jItemRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         tracing::debug!("Deleted item: {}", id);
         Ok(())
@@ -128,13 +138,13 @@ impl ItemRepo for Neo4jItemRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut items = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             items.push(row_to_item(row)?);
         }
@@ -155,13 +165,13 @@ impl ItemRepo for Neo4jItemRepo {
             .graph
             .execute(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
         let mut items = Vec::new();
 
         while let Some(row) = result
             .next()
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?
+            .map_err(|e| RepoError::database("query", e))?
         {
             items.push(row_to_item(row)?);
         }
@@ -186,7 +196,7 @@ impl ItemRepo for Neo4jItemRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }
@@ -207,7 +217,7 @@ impl ItemRepo for Neo4jItemRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }
@@ -225,7 +235,7 @@ impl ItemRepo for Neo4jItemRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }
@@ -241,7 +251,7 @@ impl ItemRepo for Neo4jItemRepo {
         self.graph
             .run(q)
             .await
-            .map_err(|e| RepoError::Database(e.to_string()))?;
+            .map_err(|e| RepoError::database("query", e))?;
 
         Ok(())
     }

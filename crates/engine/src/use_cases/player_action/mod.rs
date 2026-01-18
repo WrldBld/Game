@@ -1,10 +1,15 @@
+// Player action - fields for future player action features
+#![allow(dead_code)]
+
 use std::sync::Arc;
 
 use uuid::Uuid;
 
-use wrldbldr_domain::{CharacterId, PlayerActionData, PlayerCharacterId, WorldId};
+use wrldbldr_domain::{CharacterId, ConversationId, PlayerCharacterId, WorldId};
 
-use crate::infrastructure::ports::{ClockPort, QueuePort};
+use crate::infrastructure::ports::{ClockPort, QueueError, QueuePort};
+use crate::queue_types::PlayerActionData;
+
 use crate::use_cases::conversation::{ConversationError, StartConversation};
 
 pub struct PlayerActionUseCases {
@@ -80,17 +85,9 @@ impl HandlePlayerAction {
             conversation_id: None,
         };
 
-        let action_id = self
-            .queue
-            .enqueue_player_action(&action_data)
-            .await
-            .map_err(|e| PlayerActionError::Queue(e.to_string()))?;
+        let action_id = self.queue.enqueue_player_action(&action_data).await?;
 
-        let queue_depth = self
-            .queue
-            .get_pending_count("player_action")
-            .await
-            .unwrap_or(1);
+        let queue_depth = self.queue.get_pending_count("player_action").await?;
 
         Ok(PlayerActionProcessed {
             action_id,
@@ -111,7 +108,7 @@ pub struct PlayerActionProcessed {
     pub player_id: String,
     pub world_id: WorldId,
     pub queue_depth: usize,
-    pub conversation_id: Option<Uuid>,
+    pub conversation_id: Option<ConversationId>,
     pub npc_name: Option<String>,
 }
 
@@ -122,5 +119,5 @@ pub enum PlayerActionError {
     #[error("Conversation failed: {0}")]
     Conversation(#[from] ConversationError),
     #[error("Queue error: {0}")]
-    Queue(String),
+    Queue(#[from] QueueError),
 }

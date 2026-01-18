@@ -8,6 +8,7 @@ pub mod storage;
 pub mod url_handler;
 pub mod websocket;
 
+#[cfg(test)]
 pub mod testing;
 
 // Re-export messaging types

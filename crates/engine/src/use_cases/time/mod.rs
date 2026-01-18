@@ -1,3 +1,6 @@
+// Time use cases - fields for future time advancement
+#![allow(dead_code)]
+
 //! Time use cases.
 //!
 //! Handles game time operations including:
@@ -10,12 +13,12 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use wrldbldr_domain::{
-    GameTime, PlayerCharacterId, TimeAdvanceReason, TimeMode, TimeOfDay, WorldId,
+    GameTime, PlayerCharacterId, TimeAdvanceReason, TimeMode, TimeOfDay, TimeSuggestionDecision,
+    WorldId,
 };
 
-use crate::entities::{World, WorldError};
-use crate::infrastructure::ports::QueueError;
-use crate::infrastructure::ports::{ClockPort, RepoError};
+use crate::infrastructure::ports::{ClockPort, QueueError, RepoError, WorldRepo};
+use crate::stores::TimeSuggestionStore;
 
 /// Container for time use cases.
 pub struct TimeUseCases {
@@ -42,20 +45,8 @@ impl TimeUseCases {
 // Time Suggestion
 // =============================================================================
 
-/// Data for a pending time suggestion.
-#[derive(Debug, Clone)]
-pub struct TimeSuggestion {
-    pub id: Uuid,
-    pub world_id: WorldId,
-    pub pc_id: PlayerCharacterId,
-    pub pc_name: String,
-    pub action_type: String,
-    pub action_description: String,
-    pub suggested_minutes: u32,
-    pub current_time: GameTime,
-    pub resulting_time: GameTime,
-    pub period_change: Option<(TimeOfDay, TimeOfDay)>,
-}
+// Re-export TimeSuggestion from ports for backwards compatibility
+pub use crate::infrastructure::ports::TimeSuggestion;
 
 /// Result of suggesting time passage.
 #[derive(Debug)]
@@ -75,13 +66,14 @@ pub enum SuggestTimeResult {
 /// 2. Based on time mode:
 ///    - Suggested: Creates a suggestion for DM approval
 ///    - Manual: Does nothing (DM advances manually)
+#[allow(dead_code)]
 pub struct SuggestTime {
-    world: Arc<World>,
+    world: Arc<dyn WorldRepo>,
     clock: Arc<dyn ClockPort>,
 }
 
 impl SuggestTime {
-    pub fn new(world: Arc<World>, clock: Arc<dyn ClockPort>) -> Self {
+    pub fn new(world: Arc<dyn WorldRepo>, clock: Arc<dyn ClockPort>) -> Self {
         Self { world, clock }
     }
 
@@ -111,9 +103,9 @@ impl SuggestTime {
             .world
             .get(world_id)
             .await?
-            .ok_or(SuggestTimeError::WorldNotFound)?;
+            .ok_or(SuggestTimeError::WorldNotFound(world_id))?;
 
-        let config = &world.time_config;
+        let config = world.time_config();
         let cost_minutes = config.time_costs.cost_for_action(action_type);
 
         // If no cost, nothing to do
@@ -129,7 +121,7 @@ impl SuggestTime {
             }
             TimeMode::Auto | TimeMode::Suggested => {
                 // Create suggestion for DM approval
-                let mut resulting_time = world.game_time.clone();
+                let mut resulting_time = world.game_time().clone();
                 let previous_period = resulting_time.time_of_day();
                 resulting_time.advance_minutes(cost_minutes);
                 let new_period = resulting_time.time_of_day();
@@ -148,7 +140,7 @@ impl SuggestTime {
                     action_type: action_type.to_string(),
                     action_description,
                     suggested_minutes: cost_minutes,
-                    current_time: world.game_time.clone(),
+                    current_time: world.game_time().clone(),
                     resulting_time,
                     period_change,
                 };
@@ -186,12 +178,10 @@ pub fn time_advance_reason_for_action(action_type: &str, description: &str) -> T
 
 #[derive(Debug, thiserror::Error)]
 pub enum SuggestTimeError {
-    #[error("World not found")]
-    WorldNotFound,
+    #[error("World not found: {0}")]
+    WorldNotFound(WorldId),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
-    #[error("World error: {0}")]
-    World(#[from] WorldError),
 }
 
 // =============================================================================
@@ -200,19 +190,23 @@ pub enum SuggestTimeError {
 
 /// Consolidated use case for time control operations (get/advance/set/config).
 pub struct TimeControl {
-    world: Arc<World>,
+    world: Arc<dyn WorldRepo>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl TimeControl {
-    pub fn new(world: Arc<World>) -> Self {
-        Self { world }
+    pub fn new(world: Arc<dyn WorldRepo>, clock: Arc<dyn ClockPort>) -> Self {
+        Self { world, clock }
     }
 
     pub async fn get_game_time(&self, world_id: WorldId) -> Result<GameTime, TimeControlError> {
-        self.world
-            .get_current_time(world_id)
-            .await
-            .map_err(TimeControlError::from)
+        let world = self
+            .world
+            .get(world_id)
+            .await?
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
+
+        Ok(world.game_time().clone())
     }
 
     pub async fn advance_hours(
@@ -224,17 +218,17 @@ impl TimeControl {
             .world
             .get(world_id)
             .await?
-            .ok_or(TimeControlError::WorldNotFound)?;
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
-        let previous_time = world.game_time.clone();
-        world.game_time.advance_hours(hours);
-        world.updated_at = chrono::Utc::now();
+        let previous_time = world.game_time().clone();
+        // Use the aggregate's advance_hours which auto-updates updated_at
+        let _ = world.advance_hours(hours, self.clock.now());
 
         self.world.save(&world).await?;
 
         Ok(TimeAdvanceOutcome {
             previous_time,
-            new_time: world.game_time,
+            new_time: world.game_time().clone(),
             minutes_advanced: hours * 60,
         })
     }
@@ -245,11 +239,20 @@ impl TimeControl {
         minutes: u32,
         reason: TimeAdvanceReason,
     ) -> Result<TimeAdvanceOutcome, TimeControlError> {
-        let result = self.world.advance_time(world_id, minutes, reason).await?;
+        let mut world = self
+            .world
+            .get(world_id)
+            .await?
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
+
+        let previous_time = world.game_time().clone();
+        let result = world.advance_time(minutes, reason, self.clock.now());
+
+        self.world.save(&world).await?;
 
         Ok(TimeAdvanceOutcome {
-            previous_time: result.previous_time,
-            new_time: result.new_time,
+            previous_time,
+            new_time: result.new_time.clone(),
             minutes_advanced: result.minutes_advanced,
         })
     }
@@ -264,17 +267,17 @@ impl TimeControl {
             .world
             .get(world_id)
             .await?
-            .ok_or(TimeControlError::WorldNotFound)?;
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
-        let previous_time = world.game_time.clone();
-        world.game_time.set_day_and_hour(day, hour as u32);
-        world.updated_at = chrono::Utc::now();
+        let previous_time = world.game_time().clone();
+        // Mutate game time directly - aggregate setters auto-update updated_at
+        world.game_time_mut().set_day_and_hour(day, hour as u32);
 
         self.world.save(&world).await?;
 
         Ok(TimeAdvanceOutcome {
             previous_time,
-            new_time: world.game_time,
+            new_time: world.game_time().clone(),
             minutes_advanced: 0,
         })
     }
@@ -288,18 +291,17 @@ impl TimeControl {
             .world
             .get(world_id)
             .await?
-            .ok_or(TimeControlError::WorldNotFound)?;
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
-        let previous_time = world.game_time.clone();
-        let minutes_until = world.game_time.minutes_until_period(period);
-        world.game_time.skip_to_period(period);
-        world.updated_at = chrono::Utc::now();
+        let previous_time = world.game_time().clone();
+        let minutes_until = world.game_time().minutes_until_period(period);
+        world.game_time_mut().skip_to_period(period);
 
         self.world.save(&world).await?;
 
         Ok(TimeAdvanceOutcome {
             previous_time,
-            new_time: world.game_time,
+            new_time: world.game_time().clone(),
             minutes_advanced: minutes_until,
         })
     }
@@ -313,45 +315,45 @@ impl TimeControl {
             .world
             .get(world_id)
             .await?
-            .ok_or(TimeControlError::WorldNotFound)?;
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
-        world.game_time.set_paused(paused);
-        world.updated_at = chrono::Utc::now();
+        world.game_time_mut().set_paused(paused);
 
         self.world.save(&world).await?;
 
-        Ok(world.game_time)
+        Ok(world.game_time().clone())
     }
 
     pub async fn get_time_config(
         &self,
         world_id: WorldId,
-    ) -> Result<wrldbldr_protocol::types::GameTimeConfig, TimeControlError> {
+    ) -> Result<wrldbldr_domain::GameTimeConfig, TimeControlError> {
         let world = self
             .world
             .get(world_id)
             .await?
-            .ok_or(TimeControlError::WorldNotFound)?;
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
-        Ok(domain_time_config_to_protocol(&world.time_config))
+        Ok(world.time_config().clone())
     }
 
     pub async fn update_time_config(
         &self,
         world_id: WorldId,
-        config: wrldbldr_protocol::types::GameTimeConfig,
+        config: wrldbldr_domain::GameTimeConfig,
     ) -> Result<TimeConfigUpdate, TimeControlError> {
         let mut world = self
             .world
             .get(world_id)
             .await?
-            .ok_or(TimeControlError::WorldNotFound)?;
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
-        let normalized_config = normalize_protocol_time_config(config);
-        let domain_config = protocol_time_config_to_domain(&normalized_config);
+        let normalized_config = normalize_domain_time_config(config);
 
-        world.time_config = domain_config;
-        world.updated_at = chrono::Utc::now();
+        // Update via the individual setters (which auto-update updated_at)
+        let now = self.clock.now();
+        world.set_time_mode(normalized_config.mode, now);
+        world.set_time_costs(normalized_config.time_costs.clone(), now);
 
         self.world.save(&world).await?;
 
@@ -369,20 +371,21 @@ pub struct TimeAdvanceOutcome {
     pub minutes_advanced: u32,
 }
 
+/// Result of updating time configuration.
+///
+/// Contains the world ID and the normalized domain config after update.
 #[derive(Debug, Clone)]
 pub struct TimeConfigUpdate {
     pub world_id: WorldId,
-    pub normalized_config: wrldbldr_protocol::types::GameTimeConfig,
+    pub normalized_config: wrldbldr_domain::GameTimeConfig,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum TimeControlError {
-    #[error("World not found")]
-    WorldNotFound,
+    #[error("World not found: {0}")]
+    WorldNotFound(WorldId),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
-    #[error("World error: {0}")]
-    World(#[from] WorldError),
 }
 
 // =============================================================================
@@ -401,29 +404,21 @@ impl TimeSuggestions {
 
     pub async fn resolve(
         &self,
-        store: &tokio::sync::RwLock<std::collections::HashMap<Uuid, TimeSuggestion>>,
+        store: &TimeSuggestionStore,
         world_id: WorldId,
         suggestion_id: Uuid,
-        decision: wrldbldr_protocol::types::TimeSuggestionDecision,
+        decision: TimeSuggestionDecision,
     ) -> Result<Option<TimeSuggestionResolution>, TimeSuggestionError> {
-        let suggestion = {
-            let mut guard = store.write().await;
-            match guard.remove(&suggestion_id) {
-                Some(s) => s,
-                None => return Err(TimeSuggestionError::NotFound),
-            }
+        let suggestion = match store.remove(suggestion_id).await {
+            Some(s) => s,
+            None => return Err(TimeSuggestionError::NotFound(suggestion_id.to_string())),
         };
 
         if suggestion.world_id != world_id {
             return Err(TimeSuggestionError::WorldMismatch);
         }
 
-        let minutes_to_advance: u32 = match decision {
-            wrldbldr_protocol::types::TimeSuggestionDecision::Skip
-            | wrldbldr_protocol::types::TimeSuggestionDecision::Unknown => 0,
-            wrldbldr_protocol::types::TimeSuggestionDecision::Approve => suggestion.suggested_minutes,
-            wrldbldr_protocol::types::TimeSuggestionDecision::Modify { minutes } => minutes,
-        };
+        let minutes_to_advance = decision.resolved_minutes(suggestion.suggested_minutes);
 
         if minutes_to_advance == 0 {
             return Ok(None);
@@ -455,31 +450,47 @@ impl TimeSuggestions {
     }
 }
 
+/// Result of resolving a time suggestion.
+///
+/// Contains all the data needed to broadcast the time advance event.
 #[derive(Debug, Clone)]
 pub struct TimeSuggestionResolution {
     pub world_id: WorldId,
     pub suggestion_id: Uuid,
     pub minutes_advanced: u32,
-    pub advance_data: wrldbldr_protocol::types::TimeAdvanceData,
+    /// Domain-level time advance data (convert to protocol at API boundary)
+    pub advance_data: TimeAdvanceResultData,
+}
+
+/// Domain-level time advance result data.
+///
+/// Contains all information about a time advancement for use within the engine.
+/// Converted to `wrldbldr_shared::types::TimeAdvanceData` at the API boundary.
+#[derive(Debug, Clone)]
+pub struct TimeAdvanceResultData {
+    pub previous_time: GameTime,
+    pub new_time: GameTime,
+    pub minutes_advanced: u32,
+    pub reason: String,
+    pub period_changed: bool,
+    pub new_period: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum TimeSuggestionError {
-    #[error("Time suggestion not found")]
-    NotFound,
+    #[error("Time suggestion not found: {0}")]
+    NotFound(String),
     #[error("Time suggestion world mismatch")]
     WorldMismatch,
     #[error("Time control error: {0}")]
     Control(#[from] TimeControlError),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
-    #[error("World error: {0}")]
-    World(#[from] WorldError),
     #[error("Queue error: {0}")]
     Queue(#[from] QueueError),
 }
 
-/// Normalize protocol time config, handling the Auto -> Suggested transition.
+/// Normalize domain time config, handling the Auto -> Suggested transition.
 ///
 /// # TimeMode::Auto Behavior
 ///
@@ -506,119 +517,35 @@ pub enum TimeSuggestionError {
 /// 2. Remove the `Auto` variant from the protocol and mark it as deprecated in domain types
 ///
 /// See: https://github.com/WrldBldr/Game/issues/XXX (replace with actual tracking issue)
-fn normalize_protocol_time_config(
-    mut config: wrldbldr_protocol::types::GameTimeConfig,
-) -> wrldbldr_protocol::types::GameTimeConfig {
-    if matches!(config.mode, wrldbldr_protocol::types::TimeMode::Auto) {
+fn normalize_domain_time_config(
+    mut config: wrldbldr_domain::GameTimeConfig,
+) -> wrldbldr_domain::GameTimeConfig {
+    if matches!(config.mode, wrldbldr_domain::TimeMode::Auto) {
         tracing::warn!(
             "TimeMode::Auto is not fully implemented - normalizing to TimeMode::Suggested. \
              Time suggestions will still require DM approval."
         );
-        config.mode = wrldbldr_protocol::types::TimeMode::Suggested;
+        config.mode = wrldbldr_domain::TimeMode::Suggested;
     }
     config
 }
 
-fn protocol_time_config_to_domain(
-    config: &wrldbldr_protocol::types::GameTimeConfig,
-) -> wrldbldr_domain::GameTimeConfig {
-    let mode = match config.mode {
-        wrldbldr_protocol::types::TimeMode::Manual => wrldbldr_domain::TimeMode::Manual,
-        wrldbldr_protocol::types::TimeMode::Suggested => wrldbldr_domain::TimeMode::Suggested,
-        wrldbldr_protocol::types::TimeMode::Auto => wrldbldr_domain::TimeMode::Suggested,
-    };
-
-    let time_costs = wrldbldr_domain::TimeCostConfig {
-        travel_location: config.time_costs.travel_location,
-        travel_region: config.time_costs.travel_region,
-        rest_short: config.time_costs.rest_short,
-        rest_long: config.time_costs.rest_long,
-        conversation: config.time_costs.conversation,
-        challenge: config.time_costs.challenge,
-        scene_transition: config.time_costs.scene_transition,
-    };
-
-    wrldbldr_domain::GameTimeConfig {
-        mode,
-        time_costs,
-        show_time_to_players: config.show_time_to_players,
-        time_format: wrldbldr_domain::TimeFormat::TwelveHour,
-    }
-}
-
-fn domain_time_config_to_protocol(
-    config: &wrldbldr_domain::GameTimeConfig,
-) -> wrldbldr_protocol::types::GameTimeConfig {
-    wrldbldr_protocol::types::GameTimeConfig {
-        mode: match config.mode {
-            wrldbldr_domain::TimeMode::Manual => wrldbldr_protocol::types::TimeMode::Manual,
-            wrldbldr_domain::TimeMode::Suggested => wrldbldr_protocol::types::TimeMode::Suggested,
-            wrldbldr_domain::TimeMode::Auto => wrldbldr_protocol::types::TimeMode::Suggested,
-        },
-        time_costs: wrldbldr_protocol::types::TimeCostConfig {
-            travel_location: config.time_costs.travel_location,
-            travel_region: config.time_costs.travel_region,
-            rest_short: config.time_costs.rest_short,
-            rest_long: config.time_costs.rest_long,
-            conversation: config.time_costs.conversation,
-            challenge: config.time_costs.challenge,
-            scene_transition: config.time_costs.scene_transition,
-        },
-        show_time_to_players: config.show_time_to_players,
-        time_format: wrldbldr_protocol::types::TimeFormat::TwelveHour,
-    }
-}
-
-// =============================================================================
-// Conversion to Protocol Types
-// =============================================================================
-
-impl TimeSuggestion {
-    /// Convert to protocol type for sending to client.
-    pub fn to_protocol(&self) -> wrldbldr_protocol::types::TimeSuggestionData {
-        wrldbldr_protocol::types::TimeSuggestionData {
-            suggestion_id: self.id.to_string(),
-            pc_id: self.pc_id.to_string(),
-            pc_name: self.pc_name.clone(),
-            action_type: self.action_type.clone(),
-            action_description: self.action_description.clone(),
-            suggested_minutes: self.suggested_minutes,
-            current_time: game_time_to_protocol(&self.current_time),
-            resulting_time: game_time_to_protocol(&self.resulting_time),
-            period_change: self.period_change.as_ref().map(|(from, to)| {
-                (
-                    from.display_name().to_string(),
-                    to.display_name().to_string(),
-                )
-            }),
-        }
-    }
-}
-
-/// Convert domain GameTime to protocol GameTime.
-pub fn game_time_to_protocol(gt: &GameTime) -> wrldbldr_protocol::types::GameTime {
-    wrldbldr_protocol::types::GameTime {
-        day: gt.day(),
-        hour: gt.hour(),
-        minute: gt.minute(),
-        is_paused: gt.is_paused(),
-    }
-}
-
-/// Build TimeAdvanceData for broadcasting.
+/// Build domain-level time advance result data.
+///
+/// This returns a domain type that can be converted to protocol format at the API boundary.
 pub fn build_time_advance_data(
     previous: &GameTime,
     new: &GameTime,
     minutes: u32,
     reason: &TimeAdvanceReason,
-) -> wrldbldr_protocol::types::TimeAdvanceData {
+) -> TimeAdvanceResultData {
     let previous_period = previous.time_of_day();
     let new_period = new.time_of_day();
     let period_changed = previous_period != new_period;
 
-    wrldbldr_protocol::types::TimeAdvanceData {
-        previous_time: game_time_to_protocol(previous),
-        new_time: game_time_to_protocol(new),
+    TimeAdvanceResultData {
+        previous_time: previous.clone(),
+        new_time: new.clone(),
         minutes_advanced: minutes,
         reason: reason.description(),
         period_changed,
@@ -635,9 +562,9 @@ mod tests {
     use std::sync::Arc;
 
     use chrono::Utc;
+    use wrldbldr_domain::value_objects::WorldName;
     use wrldbldr_domain::{GameTimeConfig, TimeMode, WorldId};
 
-    use crate::entities;
     use crate::infrastructure::ports::{ClockPort, MockWorldRepo};
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -648,6 +575,10 @@ mod tests {
         }
     }
 
+    fn build_clock(now: chrono::DateTime<chrono::Utc>) -> Arc<dyn ClockPort> {
+        Arc::new(FixedClock(now))
+    }
+
     #[tokio::test]
     async fn when_time_mode_auto_then_suggests_time_and_does_not_persist() {
         let now = Utc::now();
@@ -656,9 +587,10 @@ mod tests {
         let mut time_config = GameTimeConfig::default();
         time_config.mode = TimeMode::Auto;
 
-        let mut domain_world = wrldbldr_domain::World::new("World", "Desc", now);
-        domain_world.id = world_id;
-        domain_world.time_config = time_config;
+        let world_name = WorldName::new("World").unwrap();
+        let domain_world = wrldbldr_domain::World::new(world_name, now)
+            .with_id(world_id)
+            .with_time_config(time_config);
 
         let mut world_repo = MockWorldRepo::new();
         let domain_world_for_get = domain_world.clone();
@@ -668,9 +600,8 @@ mod tests {
             .returning(move |_| Ok(Some(domain_world_for_get.clone())));
         world_repo.expect_save().times(0);
 
-        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let world_entity = Arc::new(entities::World::new(Arc::new(world_repo), clock.clone()));
-        let suggest_time = super::SuggestTime::new(world_entity, clock);
+        let clock = build_clock(now);
+        let suggest_time = super::SuggestTime::new(Arc::new(world_repo), clock);
 
         let result = suggest_time
             .execute(
@@ -690,15 +621,15 @@ mod tests {
         assert_eq!(suggestion.world_id, world_id);
         assert_eq!(suggestion.action_type, "challenge");
         assert_eq!(suggestion.suggested_minutes, 10);
-        assert_eq!(suggestion.current_time, domain_world.game_time);
+        assert_eq!(suggestion.current_time, *domain_world.game_time());
         assert_eq!(
             suggestion.resulting_time.day(),
-            domain_world.game_time.day(),
+            domain_world.game_time().day(),
             "time suggestion should not change day for small increments"
         );
         assert_ne!(
             suggestion.resulting_time.minute(),
-            domain_world.game_time.minute()
+            domain_world.game_time().minute()
         );
     }
 
@@ -710,9 +641,10 @@ mod tests {
         let mut time_config = GameTimeConfig::default();
         time_config.mode = TimeMode::Manual;
 
-        let mut domain_world = wrldbldr_domain::World::new("World", "Desc", now);
-        domain_world.id = world_id;
-        domain_world.time_config = time_config;
+        let world_name = WorldName::new("World").unwrap();
+        let domain_world = wrldbldr_domain::World::new(world_name, now)
+            .with_id(world_id)
+            .with_time_config(time_config);
 
         let mut world_repo = MockWorldRepo::new();
         let domain_world_for_get = domain_world.clone();
@@ -722,9 +654,8 @@ mod tests {
             .returning(move |_| Ok(Some(domain_world_for_get.clone())));
         world_repo.expect_save().times(0);
 
-        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let world_entity = Arc::new(entities::World::new(Arc::new(world_repo), clock.clone()));
-        let suggest_time = super::SuggestTime::new(world_entity, clock);
+        let clock = build_clock(now);
+        let suggest_time = super::SuggestTime::new(Arc::new(world_repo), clock);
 
         let result = suggest_time
             .execute(
@@ -746,11 +677,8 @@ mod tests {
         let world_id = WorldId::new();
 
         // Default config cost for unknown action types is 0.
-        let domain_world = {
-            let mut w = wrldbldr_domain::World::new("World", "Desc", now);
-            w.id = world_id;
-            w
-        };
+        let world_name = WorldName::new("World").unwrap();
+        let domain_world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
 
         let mut world_repo = MockWorldRepo::new();
         let domain_world_for_get = domain_world.clone();
@@ -760,9 +688,8 @@ mod tests {
             .returning(move |_| Ok(Some(domain_world_for_get.clone())));
         world_repo.expect_save().times(0);
 
-        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let world_entity = Arc::new(entities::World::new(Arc::new(world_repo), clock.clone()));
-        let suggest_time = super::SuggestTime::new(world_entity, clock);
+        let clock = build_clock(now);
+        let suggest_time = super::SuggestTime::new(Arc::new(world_repo), clock);
 
         let result = suggest_time
             .execute(

@@ -71,13 +71,12 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
         let session_state = session_state.clone();
         let game_state = game_state.clone();
         let dialogue_state = dialogue_state.clone();
-        let generation_state = generation_state;
         let lore_state = lore_state.clone();
         use_effect(move || {
             // If we're already connected to a different world (e.g., deep link without a full reload),
             // reset the session first so we can join the requested world.
             let requested_world = Uuid::parse_str(&world_id).ok();
-            let current_world = session_state.world_id().read().clone();
+            let current_world = *session_state.world_id().read();
 
             if *session_state.connection_status().read() == ConnectionStatus::Connected
                 && requested_world.is_some()
@@ -107,7 +106,7 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
 
     let connection_status = *session_state.connection_status().read();
     let requested_world = Uuid::parse_str(&props.world_id).ok();
-    let current_world = session_state.world_id().read().clone();
+    let current_world = *session_state.world_id().read();
     let is_connected_to_requested_world = connection_status == ConnectionStatus::Connected
         && requested_world.is_some()
         && current_world == requested_world;
@@ -131,7 +130,6 @@ pub fn WorldSessionLayout(props: WorldSessionLayoutProps) -> Element {
                         let mut session_state = session_state.clone();
                         let game_state = game_state.clone();
                         let dialogue_state = dialogue_state.clone();
-                        let generation_state = generation_state;
                         let lore_state = lore_state.clone();
                         move |_| {
                             // Force reconnection attempt by setting disconnected first

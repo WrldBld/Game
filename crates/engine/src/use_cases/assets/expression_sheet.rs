@@ -1,3 +1,6 @@
+// Expression sheet generation - methods for future sprite sheet features
+#![allow(dead_code)]
+
 //! Expression sheet generation use case.
 //!
 //! Handles generating expression sprite sheets for characters and slicing
@@ -24,8 +27,13 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{AssetId, CharacterId};
 
-use crate::entities::{Assets, Character};
-use crate::infrastructure::ports::{ClockPort, QueuePort, RepoError};
+use crate::infrastructure::ports::{CharacterRepo, ClockPort, QueueError, QueuePort, RepoError};
+use crate::repositories::AssetsRepository;
+
+// Type aliases for old names to maintain compatibility
+type CharacterRepository = dyn CharacterRepo;
+type QueueService = dyn QueuePort;
+type ClockService = dyn ClockPort;
 
 /// Standard expression order in a 4x4 grid
 pub const STANDARD_EXPRESSION_ORDER: [&str; 16] = [
@@ -123,19 +131,20 @@ pub struct SlicedExpression {
 }
 
 /// Generate expression sheet use case.
+#[allow(dead_code)]
 pub struct GenerateExpressionSheet {
-    assets: Arc<Assets>,
-    character: Arc<Character>,
-    queue: Arc<dyn QueuePort>,
-    clock: Arc<dyn ClockPort>,
+    assets: Arc<AssetsRepository>,
+    character: Arc<CharacterRepository>,
+    queue: Arc<QueueService>,
+    clock: Arc<ClockService>,
 }
 
 impl GenerateExpressionSheet {
     pub fn new(
-        assets: Arc<Assets>,
-        character: Arc<Character>,
-        queue: Arc<dyn QueuePort>,
-        clock: Arc<dyn ClockPort>,
+        assets: Arc<AssetsRepository>,
+        character: Arc<CharacterRepository>,
+        queue: Arc<QueueService>,
+        clock: Arc<ClockService>,
     ) -> Self {
         Self {
             assets,
@@ -164,7 +173,10 @@ impl GenerateExpressionSheet {
         let expressions_list = request.expressions.join(", ");
         let base_prompt = format!(
             "Expression sheet for character '{}'. Grid layout {}x{}. Expressions: {}",
-            character.name, request.grid_layout.0, request.grid_layout.1, expressions_list
+            character.name(),
+            request.grid_layout.0,
+            request.grid_layout.1,
+            expressions_list
         );
 
         let prompt = match request.style_prompt {
@@ -175,16 +187,15 @@ impl GenerateExpressionSheet {
         // Queue the generation
         let batch_id = self
             .queue
-            .enqueue_asset_generation(&wrldbldr_domain::AssetGenerationData {
-                world_id: Some(character.world_id),
+            .enqueue_asset_generation(&crate::queue_types::AssetGenerationData {
+                world_id: Some(character.world_id()),
                 entity_type: "character".to_string(),
                 entity_id: request.character_id.to_string(),
                 workflow_id: request.workflow,
                 prompt,
                 count: 1, // Expression sheet is a single image
             })
-            .await
-            .map_err(|e| ExpressionSheetError::QueueFailed(e.to_string()))?;
+            .await?;
 
         Ok(ExpressionSheetResult {
             batch_id,
@@ -240,7 +251,7 @@ pub enum ExpressionSheetError {
     CharacterNotFound,
 
     #[error("Failed to queue generation: {0}")]
-    QueueFailed(String),
+    Queue(#[from] QueueError),
 
     #[error("Failed to slice image: {0}")]
     SliceFailed(String),

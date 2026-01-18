@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Actantial Model System implements a **structured NPC motivation framework** based on Greimas's actantial model from semiotics. It defines what NPCs want, who helps or opposes them, and provides behavioral guidance for the LLM to generate consistent, motivated dialogue.
 
 ---
@@ -285,11 +296,11 @@ Opponents:
 | Domain | `crates/domain/src/entities/want.rs` | Want entity |
 | Domain | `crates/domain/src/entities/goal.rs` | Goal entity |
 | Domain | `crates/domain/src/value_objects/actantial_context.rs` | Actantial context types |
-| Domain | `crates/domain/src/value_objects/llm_context.rs` | MotivationsContext for LLM |
+| Engine | `crates/engine/src/llm_context.rs` | MotivationsContext for LLM |
 | Infrastructure | `crates/engine/src/infrastructure/ports.rs` | Want, actantial, goal port traits |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/character_repo.rs` | Want/actantial persistence |
 | Infrastructure | `crates/engine/src/infrastructure/neo4j/goal_repo.rs` | Goal persistence |
-| Entity | `crates/engine/src/entities/character.rs` | Actantial context operations |
+| Use Case | `crates/engine/src/use_cases/actantial/mod.rs` | Actantial context operations |
 
 ### Player
 

@@ -2,8 +2,9 @@
 
 use dioxus::prelude::*;
 
-use crate::infrastructure::spawn_task;
 use crate::application::dto::{ApprovalDecision, ApprovedNpcInfo, ChallengeData, SkillData};
+use crate::infrastructure::spawn_task;
+use crate::infrastructure::websocket::ClientMessageBuilder;
 use crate::presentation::components::dm_panel::challenge_library::ChallengeLibrary;
 use crate::presentation::components::dm_panel::character_perspective::ViewAsData;
 use crate::presentation::components::dm_panel::decision_queue::DecisionQueuePanel;
@@ -18,7 +19,6 @@ use crate::presentation::components::dm_panel::staging_approval::{
 };
 use crate::presentation::components::dm_panel::time_control::TimeControlPanel;
 use crate::presentation::components::dm_panel::trigger_challenge_modal::TriggerChallengeModal;
-use crate::infrastructure::websocket::ClientMessageBuilder;
 use crate::presentation::services::{use_challenge_service, use_command_bus, use_skill_service};
 use crate::presentation::state::{
     use_game_state, use_generation_state, use_session_state, GameState, PendingApproval,
@@ -28,11 +28,17 @@ use crate::presentation::state::{
 /// The original Director mode content (directing gameplay)
 #[component]
 pub fn DirectorModeContent() -> Element {
+    // CRITICAL: All hooks must be called unconditionally at the top
     let session_state = use_session_state();
     let game_state = use_game_state();
     let skill_service = use_skill_service();
     let challenge_service = use_challenge_service();
     let _generation_state = use_generation_state();
+    let command_bus_disposition = use_command_bus();
+    let command_bus_rel = use_command_bus();
+    let command_bus_trigger = use_command_bus();
+    let command_bus_approve = use_command_bus();
+    let command_bus_regenerate = use_command_bus();
     let mut show_queue_panel = use_signal(|| false);
 
     // Local state for directorial inputs
@@ -302,8 +308,7 @@ pub fn DirectorModeContent() -> Element {
                             })
                             .collect();
 
-                        let command_bus_disposition = use_command_bus();
-                        let command_bus_rel = use_command_bus();
+                        // NOTE: command_bus hooks are now called at the top of the component
 
                         rsx! {
                             div {
@@ -572,22 +577,20 @@ pub fn DirectorModeContent() -> Element {
                             }
                         }
                     } else {
-                        {
-                            let command_bus_trigger = use_command_bus();
-                            rsx! {
-                                TriggerChallengeModal {
-                                    challenges: active_challenges,
-                                    scene_characters: chars,
-                                    on_trigger: move |(challenge_id, character_id): (String, String)| {
-                                        tracing::info!("Triggering challenge {} for character {}", challenge_id, character_id);
-                                        let msg = ClientMessageBuilder::trigger_challenge(&challenge_id, &character_id);
-                                        if let Err(e) = command_bus_trigger.send(msg) {
-                                            tracing::error!("Failed to trigger challenge: {}", e);
-                                        }
-                                        show_trigger_challenge.set(false);
-                                    },
-                                    on_close: move |_| show_trigger_challenge.set(false),
-                                }
+                        // NOTE: command_bus_trigger hook is now called at the top of the component
+                        rsx! {
+                            TriggerChallengeModal {
+                                challenges: active_challenges,
+                                scene_characters: chars,
+                                on_trigger: move |(challenge_id, character_id): (String, String)| {
+                                    tracing::info!("Triggering challenge {} for character {}", challenge_id, character_id);
+                                    let msg = ClientMessageBuilder::trigger_challenge(&challenge_id, &character_id);
+                                    if let Err(e) = command_bus_trigger.send(msg) {
+                                        tracing::error!("Failed to trigger challenge: {}", e);
+                                    }
+                                    show_trigger_challenge.set(false);
+                                },
+                                on_close: move |_| show_trigger_challenge.set(false),
                             }
                         }
                     }
@@ -614,9 +617,7 @@ pub fn DirectorModeContent() -> Element {
             // Staging Approval Popup - shown when a PC is trying to enter a region
             if let Some(staging_data) = game_state.pending_staging_approval.read().as_ref() {
                 {
-                    // Get command bus for the closures
-                    let command_bus_approve = use_command_bus();
-                    let command_bus_regenerate = use_command_bus();
+                    // NOTE: command_bus hooks are now called at the top of the component
                     let mut game_state_for_approve = game_state.clone();
                     let mut game_state_for_close = game_state.clone();
 
@@ -628,7 +629,7 @@ pub fn DirectorModeContent() -> Element {
                                     result.request_id, result.approved_npcs.len(), result.ttl_hours);
 
                                 // Send approval to engine
-                                let approved_npcs: Vec<wrldbldr_protocol::ApprovedNpcInfo> = result.approved_npcs
+                                let approved_npcs: Vec<wrldbldr_shared::ApprovedNpcInfo> = result.approved_npcs
                                     .into_iter()
                                     .map(|(character_id, is_present, is_hidden_from_players)| {
                                         let local = ApprovedNpcInfo {

@@ -10,7 +10,7 @@ use crate::ids::{CharacterId, NarrativeEventId};
 
 /// A rule that determines when a state should be activated
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "type")]
+#[serde(tag = "type")]
 pub enum ActivationRule {
     // ==========================================================================
     // Hard Rules (engine-evaluated)
@@ -71,7 +71,6 @@ pub enum ActivationRule {
 
 /// How multiple activation rules are combined
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum ActivationLogic {
     /// All rules must match (AND)
     #[default]
@@ -130,7 +129,6 @@ impl ActivationRule {
 
 /// Result of evaluating activation rules
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ActivationEvaluation {
     /// Whether the state should be activated
     pub is_active: bool,

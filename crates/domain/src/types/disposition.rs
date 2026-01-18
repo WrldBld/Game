@@ -2,6 +2,7 @@
 //!
 //! These represent the emotional stance and social distance between NPCs and PCs.
 
+use crate::error::DomainError;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -12,7 +13,6 @@ use std::fmt;
 ///
 /// This is SEPARATE from RelationshipLevel (social distance).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
 pub enum DispositionLevel {
     /// Actively wants to harm/hinder the PC
     Hostile,
@@ -111,7 +111,7 @@ impl fmt::Display for DispositionLevel {
 }
 
 impl std::str::FromStr for DispositionLevel {
-    type Err = String;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s.to_lowercase().as_str() {
@@ -134,7 +134,6 @@ impl std::str::FromStr for DispositionLevel {
 ///
 /// This is SEPARATE from DispositionLevel (emotional stance).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
 pub enum RelationshipLevel {
     /// Close bond, trusted ally
     Ally,
@@ -220,7 +219,7 @@ impl fmt::Display for RelationshipLevel {
 }
 
 impl std::str::FromStr for RelationshipLevel {
-    type Err = String;
+    type Err = DomainError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s.to_lowercase().as_str() {

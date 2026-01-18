@@ -2,6 +2,17 @@
 
 ## Overview
 
+## Canonical vs Implementation
+
+This document is canonical for how the system *should* behave in gameplay.
+Implementation notes are included to track current status and may lag behind the spec.
+
+**Legend**
+- **Canonical**: Desired gameplay rule or behavior (source of truth)
+- **Implemented**: Verified in code and wired end-to-end
+- **Planned**: Designed but not fully implemented yet
+
+
 The Narrative Resolution System provides configurable mechanics for fiction-first tabletop RPG systems. It supports three major resolution styles:
 
 1. **PbtA (Powered by the Apocalypse)** - Fixed thresholds with 2d6+stat

@@ -1,0 +1,35 @@
+{
+  "id": "00000000-0000-0000-0000-000000000001",
+  "name": "The Realm of Shadows",
+  "description": "A classic fantasy world for testing D&D 5e mechanics. Features a starting tavern, a nearby dungeon, and various NPCs.",
+  "ruleSystem": {
+    "name": "D&D 5th Edition",
+    "description": "Dungeons & Dragons 5th Edition rules with standard ability scores and skill checks.",
+    "system_type": "d20",
+    "variant": "dnd5e",
+    "stat_definitions": [
+      { "id": "STR", "name": "Strength", "default_value": 10 },
+      { "id": "DEX", "name": "Dexterity", "default_value": 10 },
+      { "id": "CON", "name": "Constitution", "default_value": 10 },
+      { "id": "INT", "name": "Intelligence", "default_value": 10 },
+      { "id": "WIS", "name": "Wisdom", "default_value": 10 },
+      { "id": "CHA", "name": "Charisma", "default_value": 10 }
+    ],
+    "dice_system": {
+      "type": "standard",
+      "base_die": 20
+    },
+    "success_comparison": "greater_equal",
+    "skill_check_formula": "1d20 + ability modifier + proficiency bonus (if proficient)"
+  },
+  "gameTime": {
+    "calendarSystem": "gregorian",
+    "currentTime": "2024-01-01T09:00:00Z",
+    "timeScale": 1.0
+  },
+  "timeConfig": {
+    "mode": "free_flow"
+  },
+  "createdAt": "2024-01-01T00:00:00Z",
+  "updatedAt": "2024-01-01T00:00:00Z"
+}

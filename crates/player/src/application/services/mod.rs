@@ -9,6 +9,7 @@ pub mod action_service;
 pub mod asset_service;
 pub mod challenge_service;
 pub mod character_service;
+pub mod character_sheet_service;
 pub mod event_chain_service;
 pub mod generation_service;
 pub mod location_service;
@@ -41,8 +42,6 @@ pub use world_service::WorldService;
 
 // Re-export character service types
 pub use character_service::{CharacterFormData, CharacterService, CharacterSummary};
-// CharacterSheetDataApi is shared - export from dto
-pub use crate::application::dto::CharacterSheetDataApi;
 
 // Re-export player character service types
 pub use player_character_service::{
@@ -53,7 +52,7 @@ pub use player_character_service::{
 // Re-export location service types
 pub use location_service::{LocationFormData, LocationService, LocationSummary};
 // Map-related types from protocol
-pub use wrldbldr_protocol::{MapBoundsData, RegionListItemData};
+pub use wrldbldr_shared::{MapBoundsData, RegionListItemData};
 
 // Re-export skill service types
 pub use skill_service::{CreateSkillRequest, SkillService, UpdateSkillRequest};
@@ -103,3 +102,9 @@ pub use actantial_service::{
 
 // Re-export user service types
 pub use user_service::UserService;
+
+// Re-export character sheet service types
+pub use character_sheet_service::{
+    CharacterSheetService, CompleteCreationResponse, GameSystemInfo, GetSheetResponse,
+    StartCreationResponse, UpdateFieldResponse,
+};
