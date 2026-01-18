@@ -313,6 +313,7 @@ pub use value_objects::{
     StatDefinition,
     StatModifier,
     StatValue,
+    StateName,
     SuccessComparison,
     Tag,
     ToneGuidance,

@@ -5,7 +5,10 @@ use std::sync::Arc;
 use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
 use neo4rs::{query, Row};
-use wrldbldr_domain::*;
+use wrldbldr_domain::{
+    value_objects::{Description, StateName},
+    *,
+};
 
 use super::helpers::{parse_typed_id, NodeExt};
 use crate::infrastructure::ports::{ClockPort, RegionStateRepo, RepoError};
@@ -33,10 +36,12 @@ impl Neo4jRegionStateRepo {
             parse_typed_id(&node, "location_id").map_err(|e| RepoError::database("query", e))?;
         let world_id: WorldId =
             parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-        let name: String = node
+        let name_str: String = node
             .get("name")
             .map_err(|e| RepoError::database("query", e))?;
-        let description: String = node.get_string_or("description", "");
+        let name = StateName::new(&name_str).map_err(|e| RepoError::database("parse", e))?;
+        let description =
+            Description::new(node.get_string_or("description", "")).unwrap_or_default();
 
         let backdrop_override: Option<AssetPath> = node
             .get_optional_string("backdrop_override")

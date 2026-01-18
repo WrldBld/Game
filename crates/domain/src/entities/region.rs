@@ -15,7 +15,7 @@
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::{LocationId, RegionId};
 
-use crate::value_objects::{AssetPath, Atmosphere, RegionName};
+use crate::value_objects::{AssetPath, Atmosphere, Description, RegionName};
 
 /// A region within a location - represents a distinct "screen" or area
 ///
@@ -27,7 +27,7 @@ pub struct Region {
     id: RegionId,
     location_id: LocationId,
     name: RegionName,
-    description: String,
+    description: Description,
 
     // Scene display (visual novel view)
     /// Path to backdrop image for this region's scene
@@ -52,7 +52,7 @@ impl Region {
             id: RegionId::new(),
             location_id,
             name,
-            description: String::new(),
+            description: Description::default(),
             backdrop_asset: None,
             atmosphere: None,
             map_bounds: None,
@@ -66,7 +66,7 @@ impl Region {
         id: RegionId,
         location_id: LocationId,
         name: RegionName,
-        description: String,
+        description: Description,
         backdrop_asset: Option<AssetPath>,
         atmosphere: Option<Atmosphere>,
         map_bounds: Option<MapBounds>,
@@ -101,7 +101,7 @@ impl Region {
     }
 
     pub fn description(&self) -> &str {
-        &self.description
+        self.description.as_str()
     }
 
     pub fn backdrop_asset(&self) -> Option<&AssetPath> {
@@ -127,7 +127,7 @@ impl Region {
     // Builder methods
 
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = description.into();
+        self.description = Description::new(description).unwrap_or_default();
         self
     }
 

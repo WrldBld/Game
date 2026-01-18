@@ -118,7 +118,8 @@ impl Neo4jLocationRepo {
             .map_err(|e| RepoError::database("query", e))?;
         let name = value_objects::RegionName::new(name_str)
             .map_err(|e| RepoError::database("parse", e))?;
-        let description = node.get_string_or("description", "");
+        let description = value_objects::Description::new(node.get_string_or("description", ""))
+            .unwrap_or_default();
         let backdrop_asset = node
             .get_optional_string("backdrop_asset")
             .map(value_objects::AssetPath::new)

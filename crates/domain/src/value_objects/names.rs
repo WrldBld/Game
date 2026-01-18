@@ -866,6 +866,81 @@ impl From<Atmosphere> for String {
 }
 
 // ============================================================================
+// StateName
+// ============================================================================
+
+/// Maximum length for state name fields
+const MAX_STATE_NAME_LENGTH: usize = 100;
+
+/// A validated state name (non-empty, <=100 chars, trimmed)
+///
+/// Used for LocationState and RegionState names.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct StateName(String);
+
+impl StateName {
+    /// Create a new validated state name.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DomainError::Validation` if:
+    /// - The name is empty after trimming
+    /// - The name exceeds 100 characters after trimming
+    pub fn new(name: impl Into<String>) -> Result<Self, DomainError> {
+        let name = name.into();
+        let trimmed = name.trim();
+        if trimmed.is_empty() {
+            return Err(DomainError::validation("State name cannot be empty"));
+        }
+        if trimmed.len() > MAX_STATE_NAME_LENGTH {
+            return Err(DomainError::validation(format!(
+                "State name cannot exceed {} characters",
+                MAX_STATE_NAME_LENGTH
+            )));
+        }
+        Ok(Self(trimmed.to_string()))
+    }
+
+    /// Returns the name as a string slice.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Default for StateName {
+    fn default() -> Self {
+        Self(String::new())
+    }
+}
+
+impl fmt::Display for StateName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl TryFrom<String> for StateName {
+    type Error = DomainError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Self::new(s)
+    }
+}
+
+impl From<StateName> for String {
+    fn from(name: StateName) -> String {
+        name.0
+    }
+}
+
+impl AsRef<str> for StateName {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -1513,6 +1588,83 @@ mod tests {
             let atm = Atmosphere::new("Damp and cold").unwrap();
             let cloned = atm.clone();
             assert_eq!(cloned.as_str(), "Damp and cold");
+        }
+    }
+
+    mod state_name {
+        use super::*;
+
+        #[test]
+        fn valid_name() {
+            let name = StateName::new("Evening State").unwrap();
+            assert_eq!(name.as_str(), "Evening State");
+            assert_eq!(name.to_string(), "Evening State");
+        }
+
+        #[test]
+        fn empty_name_rejected() {
+            let result = StateName::new("");
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            assert!(matches!(err, DomainError::Validation(_)));
+            assert!(err.to_string().contains("cannot be empty"));
+        }
+
+        #[test]
+        fn whitespace_only_rejected() {
+            let result = StateName::new("   ");
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            assert!(matches!(err, DomainError::Validation(_)));
+        }
+
+        #[test]
+        fn name_is_trimmed() {
+            let name = StateName::new("  Festival Day  ").unwrap();
+            assert_eq!(name.as_str(), "Festival Day");
+        }
+
+        #[test]
+        fn too_long_rejected() {
+            let long_name = "a".repeat(101);
+            let result = StateName::new(long_name);
+            assert!(result.is_err());
+            let err = result.unwrap_err();
+            assert!(matches!(err, DomainError::Validation(_)));
+            assert!(err.to_string().contains("100"));
+        }
+
+        #[test]
+        fn max_length_accepted() {
+            let max_name = "a".repeat(100);
+            let name = StateName::new(max_name).unwrap();
+            assert_eq!(name.as_str().len(), 100);
+        }
+
+        #[test]
+        fn try_from_string() {
+            let name: StateName = "Morning State".to_string().try_into().unwrap();
+            assert_eq!(name.as_str(), "Morning State");
+        }
+
+        #[test]
+        fn into_string() {
+            let name = StateName::new("Under Siege").unwrap();
+            let s: String = name.into();
+            assert_eq!(s, "Under Siege");
+        }
+
+        #[test]
+        fn clone_preserves_name() {
+            let name = StateName::new("Holiday").unwrap();
+            let cloned = name.clone();
+            assert_eq!(cloned.as_str(), "Holiday");
+        }
+
+        #[test]
+        fn default_is_empty() {
+            let name = StateName::default();
+            assert_eq!(name.as_str(), "");
         }
     }
 }

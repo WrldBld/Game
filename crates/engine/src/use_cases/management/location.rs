@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::value_objects::RegionName;
+use wrldbldr_domain::value_objects::{Description, RegionName};
 use wrldbldr_domain::{value_objects, LocationId, RegionId, WorldId};
 
 use crate::infrastructure::ports::LocationRepo;
@@ -162,7 +162,9 @@ impl LocationManagement {
         } else {
             region.name().clone()
         };
-        let new_description = description.unwrap_or_else(|| region.description().to_string());
+        let new_description =
+            Description::new(description.unwrap_or_else(|| region.description().to_string()))
+                .unwrap_or_default();
         let new_is_spawn_point = is_spawn_point.unwrap_or_else(|| region.is_spawn_point());
 
         let region = wrldbldr_domain::Region::from_parts(

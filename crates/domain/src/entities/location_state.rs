@@ -12,7 +12,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{LocationId, LocationStateId, WorldId};
-use crate::value_objects::{ActivationLogic, ActivationRule, AssetPath, Atmosphere};
+use crate::value_objects::{
+    ActivationLogic, ActivationRule, AssetPath, Atmosphere, Description, StateName,
+};
 
 /// A visual configuration for a location
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -22,9 +24,9 @@ pub struct LocationState {
     world_id: WorldId,
 
     /// Name of this state (e.g., "City Holiday", "Under Siege")
-    name: String,
+    name: StateName,
     /// Description for DM reference
-    description: String,
+    description: Description,
 
     // Visual Configuration
     /// Override the location's default backdrop
@@ -62,8 +64,8 @@ impl LocationState {
             id: LocationStateId::new(),
             location_id,
             world_id,
-            name: name.into(),
-            description: String::new(),
+            name: StateName::new(name).unwrap_or_default(),
+            description: Description::default(),
             backdrop_override: None,
             atmosphere_override: None,
             ambient_sound: None,
@@ -97,8 +99,8 @@ impl LocationState {
         id: LocationStateId,
         location_id: LocationId,
         world_id: WorldId,
-        name: String,
-        description: String,
+        name: StateName,
+        description: Description,
         backdrop_override: Option<AssetPath>,
         atmosphere_override: Option<Atmosphere>,
         ambient_sound: Option<AssetPath>,
@@ -144,11 +146,11 @@ impl LocationState {
     }
 
     pub fn name(&self) -> &str {
-        &self.name
+        self.name.as_str()
     }
 
     pub fn description(&self) -> &str {
-        &self.description
+        self.description.as_str()
     }
 
     pub fn backdrop_override(&self) -> Option<&AssetPath> {
@@ -194,7 +196,7 @@ impl LocationState {
     // Builder-style methods
 
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = description.into();
+        self.description = Description::new(description).unwrap_or_default();
         self
     }
 
@@ -264,7 +266,7 @@ impl LocationState {
     pub fn summary(&self) -> LocationStateSummary {
         LocationStateSummary {
             id: self.id,
-            name: self.name.clone(),
+            name: self.name.to_string(),
             backdrop_override: self.backdrop_override.as_ref().map(|p| p.to_string()),
             atmosphere_override: self.atmosphere_override.as_ref().map(|a| a.to_string()),
             ambient_sound: self.ambient_sound.as_ref().map(|p| p.to_string()),
