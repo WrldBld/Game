@@ -365,6 +365,44 @@ impl Drop for E2ETestContext {
 // World Seeding
 // =============================================================================
 
+/// Convert difficulty from test fixture format to DifficultyStored format.
+///
+/// Test fixtures use lowercase type names: `{"type": "dc", "value": 18}`
+/// DifficultyStored expects PascalCase: `{"type": "Dc", "value": 18}`
+fn convert_difficulty_to_stored_format(difficulty: &serde_json::Value) -> String {
+    if let Some(obj) = difficulty.as_object() {
+        if let Some(type_val) = obj.get("type").and_then(|v| v.as_str()) {
+            let converted_type = match type_val.to_lowercase().as_str() {
+                "dc" => "Dc",
+                "percentage" => "Percentage",
+                "descriptor" => "Descriptor",
+                "opposed" => "Opposed",
+                "custom" => "Custom",
+                _ => "Dc", // Default fallback
+            };
+
+            // Build the converted JSON
+            let mut new_obj = serde_json::Map::new();
+            new_obj.insert(
+                "type".to_string(),
+                serde_json::Value::String(converted_type.to_string()),
+            );
+
+            // Copy other fields (value, descriptor, description)
+            for (key, val) in obj {
+                if key != "type" {
+                    new_obj.insert(key.clone(), val.clone());
+                }
+            }
+
+            return serde_json::to_string(&serde_json::Value::Object(new_obj))
+                .unwrap_or_else(|_| r#"{"type":"Dc","value":15}"#.to_string());
+        }
+    }
+    // Fallback to default DC 15
+    r#"{"type":"Dc","value":15}"#.to_string()
+}
+
 /// Seed the Thornhaven test world to Neo4j.
 ///
 /// Creates all entities from the JSON fixtures in the database with proper relationships.
@@ -810,9 +848,10 @@ pub async fn seed_thornhaven_to_neo4j(
     for challenge in &test_world.challenges {
         let new_id = ChallengeId::from(Uuid::new_v4());
 
-        // Serialize difficulty, outcomes, and trigger_conditions as JSON
-        let difficulty_json = serde_json::to_string(&challenge.difficulty)
-            .unwrap_or_else(|_| r#"{"DC":15}"#.to_string());
+        // Convert difficulty from test fixture format to DifficultyStored format
+        // Test fixtures use {"type": "dc", "value": 18}
+        // DifficultyStored expects {"type": "Dc", "value": 18} (PascalCase)
+        let difficulty_json = convert_difficulty_to_stored_format(&challenge.difficulty);
         let outcomes_json = serde_json::to_string(&challenge.outcomes)
             .unwrap_or_else(|_| r#"{"success":{"description":"Success","triggers":[]},"failure":{"description":"Failure","triggers":[]}}"#.to_string());
         let triggers_json = serde_json::to_string(&challenge.trigger_conditions)
@@ -857,6 +896,18 @@ pub async fn seed_thornhaven_to_neo4j(
             )
             .await?;
 
+        // Create CONTAINS_CHALLENGE relationship from World to Challenge
+        graph
+            .run(
+                query(
+                    "MATCH (ch:Challenge {id: $challenge_id}), (w:World {id: $world_id})
+                     CREATE (w)-[:CONTAINS_CHALLENGE]->(ch)",
+                )
+                .param("challenge_id", new_id.to_string())
+                .param("world_id", world_id.to_string()),
+            )
+            .await?;
+
         challenge_ids.insert(challenge.name.clone(), new_id);
     }
 
@@ -891,6 +942,18 @@ pub async fn seed_thornhaven_to_neo4j(
                 .param("is_repeatable", event.is_repeatable)
                 .param("priority", event.priority as i64)
                 .param("is_favorite", event.is_favorite),
+            )
+            .await?;
+
+        // Create HAS_NARRATIVE_EVENT relationship from World to NarrativeEvent
+        graph
+            .run(
+                query(
+                    "MATCH (e:NarrativeEvent {id: $event_id}), (w:World {id: $world_id})
+                     CREATE (w)-[:HAS_NARRATIVE_EVENT]->(e)",
+                )
+                .param("event_id", new_id.to_string())
+                .param("world_id", world_id.to_string()),
             )
             .await?;
 
@@ -950,7 +1013,7 @@ pub async fn create_test_player(
                     world_id: $world_id,
                     name: $name,
                     description: '',
-                    sheet_data: '{}',
+                    sheet_data: $sheet_data,
                     current_location_id: $location_id,
                     current_region_id: $region_id,
                     starting_location_id: $location_id,
@@ -966,6 +1029,7 @@ pub async fn create_test_player(
             .param("user_id", user_id.clone())
             .param("world_id", world_id.to_string())
             .param("name", name)
+            .param("sheet_data", r#"{"values": {}}"#)
             .param("location_id", location_id.clone())
             .param("region_id", starting_region_id.to_string())
             .param("created_at", now.to_rfc3339())

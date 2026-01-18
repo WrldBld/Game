@@ -1,0 +1,43 @@
+{
+  "version": "2.0",
+  "recorded_at": "2026-01-18T17:01:02.071776+00:00",
+  "llm_model": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+  "recordings": {
+    "839cdc792fa1ae30c22b494c7c5269d66d6ffa86d93322aed31cb778ea1b4699": [
+      {
+        "fingerprint": "839cdc792fa1ae30c22b494c7c5269d66d6ffa86d93322aed31cb778ea1b4699",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to answer YES or NO. The question: \"Is this a greeting, welcome, or friendly acknowledgment of someone's arrival or hello?\" The text: \"*smiles* \"Good day to you, traveler. The Drowsy Dragon is always open for a good story or a warm drink—what brings you to our inn?\" This is indeed a greeting/welcome. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "tool_calls": [],
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-18T17:01:27.173581+00:00"
+      }
+    ],
+    "835e1379d15cddfdb1778f5faa3bfcba9efe134cbefcee814b58f97bb3e08fd5": [
+      {
+        "fingerprint": "835e1379d15cddfdb1778f5faa3bfcba9efe134cbefcee814b58f97bb3e08fd5",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to 3...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to respond as Marta Hearthwood. She is a mentor archetype, friendly, calm. Player says \"Hello!\" We respond concisely 1-3 sentences, stay in character. No active challenge triggered by simple greeting. Might mention Drowsy Dragon Inn. Possibly express friendliness.\n\nWe must use the response format. Include reasoning, dialogue, topics, suggested beats. No tool calls necessary.\n\nCheck expression markers: available expressions? Not listed but we can guess generic: *friendly*, *smiles*, etc. Use *smiles* action.\n\nResponse: maybe: *smiles* \"Welcome to the Drowsy Dragon, stranger. How may I assist you today?\" Keep 2 sentences. Provide topics: greeting, local info. No challenge suggestion.\n\nLet's craft.<|end|><|start|>assistant<|channel|>final<|message|><reasoning>\nMarta Hearthwood is a calm, friendly mentor. The player simply greets her, so the appropriate response is warm and welcoming, offering assistance and establishing her role as a helpful guide. No game mechanics or challenges are triggered by a simple “Hello.” She should keep it concise.\n</reasoning>\n\n<dialogue>\n*smiles* \"Good day to you, traveler. The Drowsy Dragon is always open for a good story or a warm drink—what brings you to our inn?\"\n</dialogue>\n\n<topics>\ngreeting\nlocal_information\n</topics>\n\n<suggested_beats>\n- Offer the player a seat at the hearth and ask what they need help with or if they’re looking for information about the town.",
+          "tool_calls": [],
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-18T17:01:22.606984+00:00"
+      }
+    ],
+    "7d5fffae5800e87b27b7582e0b2db9bde65491676452ecfd803422d11964598c": [
+      {
+        "fingerprint": "7d5fffae5800e87b27b7582e0b2db9bde65491676452ecfd803422d11964598c",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to answer YES or NO. The question: \"Does this dialogue have a friendly or welcoming tone or emotional quality?\" The text: \"*smiles* \"Good day to you, traveler. The Drowsy Dragon is always open for a good story or a warm drink—what brings you to our inn?\" This is friendly, welcoming. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "tool_calls": [],
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-18T17:01:31.167456+00:00"
+      }
+    ]
+  }
+}

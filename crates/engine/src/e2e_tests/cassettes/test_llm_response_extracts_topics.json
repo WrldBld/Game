@@ -1,0 +1,43 @@
+{
+  "version": "2.0",
+  "recorded_at": "2026-01-18T16:59:03.707432+00:00",
+  "llm_model": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+  "recordings": {
+    "d6f223a90aa52c54b2672593277f696e7f2c11b17c601082de82fd47d9c2ec2a": [
+      {
+        "fingerprint": "d6f223a90aa52c54b2672593277f696e7f2c11b17c601082de82fd47d9c2ec2a",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to evaluate if the text mentions any of the subjects: artifact, magic, discovery, ancient, village, found. The text: \"*smiles* \"Ah, the Shadowheart Stone, unearthed beneath the old mill last spring. It hums with a faint blue glow and can amplify any spell cast near it, but those who use it too long have reported unsettling visions. Careful, it's both a boon and a burden, so tread wisely.\"\"\n\nCheck each subject:\n\n- artifact: The text refers to \"Shadowheart Stone\" which is an artifact. So yes.\n\n- magic: \"can amplify any spell cast near it\" indicates magic. So yes.\n\n- discovery: \"unearthed beneath the old mill last spring\" indicates discovery. So yes.\n\n- ancient: Not explicitly \"ancient\" but \"Shadowheart Stone\" maybe ancient? But not explicitly. But we only need any of them. Already yes.\n\n- village: Not mentioned.\n\n- found: \"unearthed\" implies found. So yes.\n\nThus answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "tool_calls": [],
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-18T16:59:57.447606+00:00"
+      }
+    ],
+    "5eba30ef97fa2cc2d1a1b4739cf9baa84e96cb9783e16886ad05ce59f564c51c": [
+      {
+        "fingerprint": "5eba30ef97fa2cc2d1a1b4739cf9baa84e96cb9783e16886ad05ce59f564c51c",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to evaluate if NPC's response is relevant and appropriate to the player's question. The player asked: \"Tell me about the ancient artifact that was discovered near the village. I've heard it has magical properties.\" NPC responded with details about the Shadowheart Stone, discovered near the village, magical properties, etc. That seems relevant and appropriate. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "tool_calls": [],
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-18T16:59:49.159541+00:00"
+      }
+    ],
+    "74c7c5178911b89b2c80c9b827e3a5047ee352dd6b89aa98337843432cb4507f": [
+      {
+        "fingerprint": "74c7c5178911b89b2c80c9b827e3a5047ee352dd6b89aa98337843432cb4507f",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to f...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to respond as Marta Hearthwood. She is a friendly mentor, calm mood. Scene at The Drowsy Dragon Inn. NPC must answer in 1-3 sentences. Also consider active challenges: Investigate the Mill Basement, Expose Vera's true intentions, etc. The player's question might trigger the \"Decipher the Ritual Journal\" if they ask about artifact. But the current question is general. We could provide a brief info. She might mention \"the Shadowheart Stone\" discovered near the village, with magical properties, possibly linked to the mill. She might hint at the mill basement. Could also mention that it might be in the mill basement. But we must keep concise.\n\nWe need to include <reasoning> hidden. Then <dialogue> with expression markers. Then <topics>. Then optional suggested beats.\n\nAlso, check if any trigger for challenge suggestion: The player's action matches triggers? The question \"Tell me about the ancient artifact...\" could be considered \"artifact\" trigger for Decipher the Ritual Journal? The trigger says: \"Decipher the Ritual Journal [b6e06a66-5b8e-4ec4-890b-6c3b874c7779]: Study the ancient journal to understand how the Shadowheart Stone works and how it might be stopped. - INT DC 16 (triggers: journal, book, tome, ritual journal)\". Not triggered. There's no trigger for artifact. There's maybe \"Investigate the Mill Basement\" with triggers: Search the mill basement for clues about the ritual that took place and the artifact's location. That is triggered by action \"Investigate the Mill Basement\". Not triggered.\n\n\"Expose Vera's True Intentions\" triggers: Vera, merchant, suspicious, questions, mill. Not triggered.\n\n\"Calm Old Tom's Ravings\" triggers: mill, family, accident, twenty years, what happened. Not triggered.\n\n\"Convince Grom to Share His Past\" triggers: adventure, past, shadow, cavern, party, loss. Not triggered.\n\nThus no challenge suggestion. So we produce normal response.\n\nWe should mention \"Shadowheart Stone\" or \"Heartstone\". She could say: \"*smiles* The stone was unearthed near the old mill by a group of miners last spring. It's said to glow with a faint blue light and can amplify magic, but it's also rumored to attract dark forces.\" Keep 2-3 sentences. Let's do 2.\n\nWe must keep <dialogue> with expression markers. Use *smiles* or *nods* etc. She is calm.\n\nLet's craft:\n\n<dialogue>\n*smiles* \"Ah, the Shadowheart Stone, discovered beneath the old mill last spring. It hums with a faint blue glow and can amplify any spell cast near it, but those who use it too long have reported unsettling visions. Careful, it's both a boon and a burden, so tread wisely.\"\n</dialogue>\n\nThree sentences. That works.\n\nTopics: local_history, rumors, threat_warning maybe. We'll list: local_history, rumors, threat_warning. Might also include request_for_help. But likely local_history, rumors, threat_warning.\n\nSuggested beats: maybe mention that the stone is in the mill basement, hinting at investigation. Also maybe mention that the stone is sought by Vera? No. Suggest the DM to hint at the mill basement. So we can suggest: \"The DM could hint that the stone is at the mill basement, prompting investigation.\" Also \"DM could introduce the idea that the stone is attracting a new threat.\" Provide suggestions.\n\nWe don't need tool calls. So no propose tool calls.\n\nNow produce final.<|end|><|start|>assistant<|channel|>final<|message|><reasoning>\nMarta Hearthwood is a calm, friendly mentor who wants to share knowledge without giving away too much. The player asks about an ancient artifact with magical properties, so she should give a brief, intriguing description and hint at potential dangers or next steps. No active challenge is triggered by this question, so a simple informative reply is appropriate. The response should stay within 1–3 sentences and include a friendly expression marker. No tool calls are needed.\n</reasoning>\n\n<dialogue>\n*smiles* \"Ah, the Shadowheart Stone, unearthed beneath the old mill last spring. It hums with a faint blue glow and can amplify any spell cast near it, but those who use it too long have reported unsettling visions. Careful, it's both a boon and a burden, so tread wisely.\"\n</dialogue>\n\n<topics>\nlocal_history\nrumors\nthreat_warning\n</topics>\n\n<suggested_beats>\n- Suggest the DM hint that the stone may still be hidden in the mill basement, encouraging an investigation.\n- Hint that the stone’s power attracts shadow creatures, setting up a looming threat.\n</suggested_beats>",
+          "tool_calls": [],
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-18T16:59:43.510038+00:00"
+      }
+    ]
+  }
+}
