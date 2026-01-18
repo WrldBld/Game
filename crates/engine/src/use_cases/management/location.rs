@@ -268,7 +268,7 @@ impl LocationManagement {
         let connection = wrldbldr_domain::RegionConnection {
             from_region,
             to_region,
-            description,
+            description: description.map(|s| Description::new(s).unwrap_or_default()),
             bidirectional: bidirectional.unwrap_or(true),
             is_locked,
             lock_description: if is_locked {
@@ -404,7 +404,7 @@ impl LocationManagement {
             from_region: region_id,
             to_location: location_id,
             arrival_region_id,
-            description,
+            description: description.map(|s| Description::new(s).unwrap_or_default()),
             bidirectional: is_bidirectional,
         };
         self.location.save_region_exit(&exit).await?;

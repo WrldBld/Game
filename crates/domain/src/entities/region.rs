@@ -222,7 +222,7 @@ pub struct RegionConnection {
     pub from_region: RegionId,
     pub to_region: RegionId,
     /// Description of the path/transition (e.g., "A door leads to...")
-    pub description: Option<String>,
+    pub description: Option<Description>,
     /// Whether this connection works both ways
     pub bidirectional: bool,
     /// Whether this connection is currently locked
@@ -236,7 +236,7 @@ impl RegionConnection {
     pub fn from_parts(
         from_region: RegionId,
         to_region: RegionId,
-        description: Option<String>,
+        description: Option<Description>,
         bidirectional: bool,
         is_locked: bool,
         lock_description: Option<String>,
@@ -264,7 +264,7 @@ pub struct RegionExit {
     /// Which region in the target location the player arrives at
     pub arrival_region_id: RegionId,
     /// Description of the exit (e.g., "Step outside into the market")
-    pub description: Option<String>,
+    pub description: Option<Description>,
     /// Whether this exit works both ways (can enter from that location)
     pub bidirectional: bool,
 }
@@ -275,7 +275,7 @@ impl RegionExit {
         from_region: RegionId,
         to_location: LocationId,
         arrival_region_id: RegionId,
-        description: Option<String>,
+        description: Option<Description>,
         bidirectional: bool,
     ) -> Self {
         Self {
@@ -424,7 +424,7 @@ mod tests {
         let connection = RegionConnection {
             from_region,
             to_region,
-            description: Some("A narrow passage".to_string()),
+            description: Some(Description::new("A narrow passage").unwrap()),
             bidirectional: false,
             is_locked: true,
             lock_description: Some("Requires a key".to_string()),
@@ -433,7 +433,10 @@ mod tests {
         assert_eq!(connection.from_region, from_region);
         assert_eq!(connection.to_region, to_region);
         assert!(!connection.bidirectional);
-        assert_eq!(connection.description.as_deref(), Some("A narrow passage"));
+        assert_eq!(
+            connection.description.as_ref().map(|d| d.as_str()),
+            Some("A narrow passage")
+        );
         assert!(connection.is_locked);
         assert_eq!(
             connection.lock_description.as_deref(),

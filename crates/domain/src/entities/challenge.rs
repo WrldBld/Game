@@ -16,7 +16,7 @@
 //! DEPRECATED and kept only for backward compatibility during migration.
 
 use crate::error::DomainError;
-use crate::value_objects::{ChallengeName, Tag};
+use crate::value_objects::{ChallengeName, Description, Tag};
 use crate::{ChallengeId, LocationId, RegionId, SceneId, WorldId};
 use serde::{Deserialize, Serialize};
 
@@ -40,7 +40,7 @@ pub struct Challenge {
     id: ChallengeId,
     world_id: WorldId,
     name: ChallengeName,
-    description: String,
+    description: Description,
     challenge_type: ChallengeType,
     difficulty: Difficulty,
     outcomes: ChallengeOutcomes,
@@ -70,7 +70,7 @@ impl Challenge {
             id: ChallengeId::new(),
             world_id,
             name,
-            description: String::new(),
+            description: Description::default(),
             challenge_type: ChallengeType::SkillCheck,
             difficulty,
             outcomes: ChallengeOutcomes::default(),
@@ -97,7 +97,7 @@ impl Challenge {
         &self.name
     }
 
-    pub fn description(&self) -> &str {
+    pub fn description(&self) -> &Description {
         &self.description
     }
 
@@ -151,8 +151,8 @@ impl Challenge {
         self
     }
 
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = description.into();
+    pub fn with_description(mut self, description: Description) -> Self {
+        self.description = description;
         self
     }
 
@@ -1309,7 +1309,7 @@ impl ChallengeUnlock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::value_objects::ChallengeName;
+    use crate::value_objects::{ChallengeName, Description};
 
     #[test]
     fn test_challenge_creation() {
@@ -1320,7 +1320,9 @@ mod tests {
             ChallengeName::new("Investigate the Statue").unwrap(),
             Difficulty::d20_medium(),
         )
-        .with_description("Examine the ancient statue for hidden compartments")
+        .with_description(
+            Description::new("Examine the ancient statue for hidden compartments").unwrap(),
+        )
         .with_outcomes(ChallengeOutcomes::simple(
             "You find a hidden mechanism in the statue's base",
             "The statue appears to be solid stone",
@@ -1618,7 +1620,7 @@ mod tests {
 
     #[test]
     fn test_challenge_accessors() {
-        use crate::value_objects::Tag;
+        use crate::value_objects::{Description, Tag};
 
         let world_id = WorldId::new();
         let combat_tag = Tag::new("combat").unwrap();
@@ -1627,7 +1629,7 @@ mod tests {
             ChallengeName::new("Test Challenge").unwrap(),
             Difficulty::DC(15),
         )
-        .with_description("A test")
+        .with_description(Description::new("A test").unwrap())
         .with_tag(combat_tag.clone())
         .with_check_stat("STR")
         .with_active(false)
@@ -1635,7 +1637,7 @@ mod tests {
         .with_is_favorite(true);
 
         assert_eq!(challenge.name().as_str(), "Test Challenge");
-        assert_eq!(challenge.description(), "A test");
+        assert_eq!(challenge.description().as_str(), "A test");
         assert_eq!(challenge.tags(), &[combat_tag]);
         assert_eq!(challenge.check_stat(), Some("STR"));
         assert!(!challenge.active());

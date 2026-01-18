@@ -7,6 +7,8 @@
 use serde::{Deserialize, Serialize};
 use wrldbldr_domain::LocationId;
 
+use crate::value_objects::Description;
+
 /// The type of location
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -91,7 +93,7 @@ pub struct LocationConnection {
     /// Type of connection (Door, Path, Stairs, Portal, Hidden, or Other)
     pub connection_type: ConnectionType,
     /// Description of the path/transition
-    pub description: Option<String>,
+    pub description: Option<Description>,
     /// Whether this connection works both ways
     pub bidirectional: bool,
     /// Travel time in game-time units (0 = instant)
@@ -121,7 +123,7 @@ impl LocationConnection {
         from_location: LocationId,
         to_location: LocationId,
         connection_type: ConnectionType,
-        description: Option<String>,
+        description: Option<Description>,
         bidirectional: bool,
         travel_time: u32,
         is_locked: bool,

@@ -8,7 +8,7 @@ use neo4rs::{query, Row};
 use uuid::Uuid;
 use wrldbldr_domain::*;
 
-use super::helpers::{parse_typed_id, NodeExt, RowExt};
+use super::helpers::{parse_optional_description, parse_typed_id, NodeExt, RowExt};
 use crate::infrastructure::ports::{LocationRepo, RepoError};
 
 /// Repository for Location and Region operations.
@@ -167,7 +167,7 @@ impl Neo4jLocationRepo {
         let to_id_str: String = row
             .get("to_id")
             .map_err(|e| RepoError::database("query", e))?;
-        let description = row.get_optional_string("description");
+        let description = parse_optional_description(row.get_optional_string("description"));
         let bidirectional: bool = row.get("bidirectional").unwrap_or(true);
         let is_locked: bool = row.get("is_locked").unwrap_or(false);
         let lock_description = row.get_optional_string("lock_description");
@@ -200,7 +200,7 @@ impl Neo4jLocationRepo {
         let bidirectional: bool = row.get("bidirectional").unwrap_or(true);
         let travel_time: i64 = row.get("travel_time").unwrap_or(0);
         let is_locked: bool = row.get("is_locked").unwrap_or(false);
-        let description = row.get_optional_string("description");
+        let description = parse_optional_description(row.get_optional_string("description"));
         let lock_description = row.get_optional_string("lock_description");
 
         let from_id =
@@ -552,7 +552,8 @@ impl LocationRepo for Neo4jLocationRepo {
             "description",
             connection
                 .description
-                .as_deref()
+                .as_ref()
+                .map(|d| d.as_str())
                 .unwrap_or_default()
                 .to_string(),
         )
@@ -590,7 +591,8 @@ impl LocationRepo for Neo4jLocationRepo {
                 "description",
                 connection
                     .description
-                    .as_deref()
+                    .as_ref()
+                    .map(|d| d.as_str())
                     .unwrap_or_default()
                     .to_string(),
             )
@@ -711,7 +713,8 @@ impl LocationRepo for Neo4jLocationRepo {
             "description",
             connection
                 .description
-                .as_deref()
+                .as_ref()
+                .map(|d| d.as_str())
                 .unwrap_or_default()
                 .to_string(),
         )
@@ -751,7 +754,8 @@ impl LocationRepo for Neo4jLocationRepo {
                 "description",
                 connection
                     .description
-                    .as_deref()
+                    .as_ref()
+                    .map(|d| d.as_str())
                     .unwrap_or_default()
                     .to_string(),
             )
@@ -853,11 +857,11 @@ impl LocationRepo for Neo4jLocationRepo {
                     Uuid::parse_str(&arrival_region)
                         .map_err(|e| RepoError::database("query", e))?,
                 ),
-                if description.is_empty() {
+                parse_optional_description(if description.is_empty() {
                     None
                 } else {
                     Some(description)
-                },
+                }),
                 bidirectional,
             ));
         }
@@ -877,7 +881,7 @@ impl LocationRepo for Neo4jLocationRepo {
         .param("from_id", exit.from_region.to_string())
         .param("to_id", exit.to_location.to_string())
         .param("arrival_region_id", exit.arrival_region_id.to_string())
-        .param("description", exit.description.as_deref().unwrap_or_default().to_string())
+        .param("description", exit.description.as_ref().map(|d| d.as_str()).unwrap_or_default().to_string())
         .param("bidirectional", exit.bidirectional);
 
         self.graph
@@ -897,7 +901,7 @@ impl LocationRepo for Neo4jLocationRepo {
             .param("from_id", exit.from_region.to_string())
             .param("to_id", exit.to_location.to_string())
             .param("arrival_region_id", exit.arrival_region_id.to_string())
-            .param("description", exit.description.as_deref().unwrap_or_default().to_string())
+            .param("description", exit.description.as_ref().map(|d| d.as_str()).unwrap_or_default().to_string())
             .param("bidirectional", exit.bidirectional);
 
             self.graph

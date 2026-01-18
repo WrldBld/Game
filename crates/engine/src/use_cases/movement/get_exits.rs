@@ -99,7 +99,7 @@ impl GetRegionExits {
                     location_id: exit.to_location,
                     location_name: target_location.name().to_string(),
                     arrival_region_id: exit.arrival_region_id,
-                    description: exit.description.clone(),
+                    description: exit.description.as_ref().map(|d| d.to_string()),
                 });
             } else {
                 let reason = "Target location not found".to_string();
@@ -180,7 +180,7 @@ impl GetRegionExits {
                     location_id: exit.to_location,
                     location_name: target_location.name().to_string(),
                     arrival_region_id,
-                    description: exit.description.clone(),
+                    description: exit.description.as_ref().map(|d| d.to_string()),
                 });
             }
         }

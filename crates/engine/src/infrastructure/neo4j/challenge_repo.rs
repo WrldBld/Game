@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use neo4rs::{query, Row};
 use wrldbldr_domain::*;
 
-use super::helpers::{parse_typed_id, NodeExt};
+use super::helpers::{parse_description_or_default, parse_typed_id, NodeExt};
 use crate::infrastructure::ports::{ChallengeRepo, RepoError};
 
 // =============================================================================
@@ -197,7 +197,7 @@ impl Neo4jChallengeRepo {
             .get("name")
             .map_err(|e| RepoError::database("query", e))?;
         let name = ChallengeName::new(name_str).map_err(|e| RepoError::database("parse", e))?;
-        let description: String = node.get_string_or("description", "");
+        let description = parse_description_or_default(node.get_optional_string("description"));
 
         let challenge_type_str: String = node.get_string_strict("challenge_type").map_err(|e| {
             RepoError::database(

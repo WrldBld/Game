@@ -67,6 +67,7 @@ pub fn ExpressionSheetModal(props: ExpressionSheetModalProps) -> Element {
     let mut style_prompt = use_signal(String::new);
     let mut use_standard_grid = use_signal(|| true);
     let mut is_generating = use_signal(|| false);
+    let mut custom_expr_input = use_signal(String::new);
 
     // Calculate grid layout based on expression count
     let grid_layout = use_memo(move || {
@@ -184,49 +185,44 @@ pub fn ExpressionSheetModal(props: ExpressionSheetModalProps) -> Element {
                     }
 
                     // Custom expression input
-                    {
-                        let mut custom_expr_input = use_signal(String::new);
-                        rsx! {
-                            div {
-                                class: "mt-2 flex gap-2",
+                    div {
+                        class: "mt-2 flex gap-2",
 
-                                input {
-                                    class: "flex-1 p-2 bg-dark-bg border border-gray-700 rounded text-white text-sm",
-                                    r#type: "text",
-                                    placeholder: "Add custom expression...",
-                                    value: "{custom_expr_input}",
-                                    oninput: move |e| custom_expr_input.set(e.value()),
-                                    onkeypress: move |e: KeyboardEvent| {
-                                        if e.key() == Key::Enter {
-                                            let expr = custom_expr_input.read().trim().to_string();
-                                            if !expr.is_empty() {
-                                                let mut current = selected_expressions.read().clone();
-                                                if !current.iter().any(|e: &String| e.eq_ignore_ascii_case(&expr)) {
-                                                    current.push(expr);
-                                                    selected_expressions.set(current);
-                                                }
-                                                custom_expr_input.set(String::new());
-                                            }
+                        input {
+                            class: "flex-1 p-2 bg-dark-bg border border-gray-700 rounded text-white text-sm",
+                            r#type: "text",
+                            placeholder: "Add custom expression...",
+                            value: "{custom_expr_input}",
+                            oninput: move |e| custom_expr_input.set(e.value()),
+                            onkeypress: move |e: KeyboardEvent| {
+                                if e.key() == Key::Enter {
+                                    let expr = custom_expr_input.read().trim().to_string();
+                                    if !expr.is_empty() {
+                                        let mut current = selected_expressions.read().clone();
+                                        if !current.iter().any(|e: &String| e.eq_ignore_ascii_case(&expr)) {
+                                            current.push(expr);
+                                            selected_expressions.set(current);
                                         }
-                                    },
+                                        custom_expr_input.set(String::new());
+                                    }
                                 }
+                            },
+                        }
 
-                                button {
-                                    class: "px-3 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-500",
-                                    onclick: move |_| {
-                                        let expr = custom_expr_input.read().trim().to_string();
-                                        if !expr.is_empty() {
-                                            let mut current = selected_expressions.read().clone();
-                                            if !current.iter().any(|e: &String| e.eq_ignore_ascii_case(&expr)) {
-                                                current.push(expr);
-                                                selected_expressions.set(current);
-                                            }
-                                            custom_expr_input.set(String::new());
-                                        }
-                                    },
-                                    "Add"
+                        button {
+                            class: "px-3 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-500",
+                            onclick: move |_| {
+                                let expr = custom_expr_input.read().trim().to_string();
+                                if !expr.is_empty() {
+                                    let mut current = selected_expressions.read().clone();
+                                    if !current.iter().any(|e: &String| e.eq_ignore_ascii_case(&expr)) {
+                                        current.push(expr);
+                                        selected_expressions.set(current);
+                                    }
+                                    custom_expr_input.set(String::new());
                                 }
-                            }
+                            },
+                            "Add"
                         }
                     }
                 }

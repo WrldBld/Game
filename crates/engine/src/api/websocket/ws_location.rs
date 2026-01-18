@@ -201,7 +201,7 @@ pub(super) async fn handle_location_request(
                                 "from_location_id": c.from_location.to_string(),
                                 "to_location_id": c.to_location.to_string(),
                                 "connection_type": &c.connection_type,
-                                "description": c.description.as_deref().unwrap_or_default(),
+                                "description": c.description.as_ref().map(|d| d.as_str()).unwrap_or_default(),
                                 "bidirectional": c.bidirectional,
                                 "travel_time": &c.travel_time,
                             })

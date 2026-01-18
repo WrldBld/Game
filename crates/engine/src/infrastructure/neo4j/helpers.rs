@@ -389,3 +389,24 @@ pub fn row_to_item(row: Row) -> Result<Item, RepoError> {
     }
     Ok(item)
 }
+
+// =============================================================================
+// Description Parsing Helpers
+// =============================================================================
+
+use wrldbldr_domain::value_objects::Description;
+
+/// Convert an optional string to an optional Description.
+///
+/// Since descriptions are loaded from the database (already validated on save),
+/// we use `unwrap_or_default()` for any validation failures. This should never
+/// happen in practice, but provides a safe fallback.
+pub fn parse_optional_description(s: Option<String>) -> Option<Description> {
+    s.map(|text| Description::new(text).unwrap_or_default())
+}
+
+/// Convert an optional string to a Description, returning default if None.
+pub fn parse_description_or_default(s: Option<String>) -> Description {
+    s.map(|text| Description::new(text).unwrap_or_default())
+        .unwrap_or_default()
+}

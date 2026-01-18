@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use wrldbldr_domain::{self as domain, ChallengeId, ChallengeName, Difficulty, WorldId};
+use wrldbldr_domain::{
+    self as domain, ChallengeId, ChallengeName, Description, Difficulty, WorldId,
+};
 
 use crate::infrastructure::ports::{ChallengeRepo, RepoError};
 use crate::use_cases::validation::ValidationError;
@@ -69,7 +71,9 @@ impl ChallengeOps {
             challenge_name,
             Difficulty::parse(&input.difficulty),
         )
-        .with_description(input.description.unwrap_or_default())
+        .with_description(
+            Description::new(input.description.unwrap_or_default()).unwrap_or_default(),
+        )
         .with_outcomes(domain::ChallengeOutcomes::simple(
             input.success_outcome.unwrap_or_default(),
             input.failure_outcome.unwrap_or_default(),
@@ -109,9 +113,11 @@ impl ChallengeOps {
             challenge.name().clone()
         };
 
-        let description = input
-            .description
-            .unwrap_or_else(|| challenge.description().to_string());
+        let description = if let Some(desc_str) = input.description {
+            Description::new(desc_str).unwrap_or_default()
+        } else {
+            challenge.description().clone()
+        };
 
         let difficulty = if let Some(diff_str) = input.difficulty {
             // Note: Difficulty::parse never fails - invalid formats become Difficulty::Custom(string)
@@ -174,7 +180,7 @@ impl ChallengeOps {
             challenge.difficulty().clone(),
         )
         .with_id(challenge.id())
-        .with_description(challenge.description())
+        .with_description(challenge.description().clone())
         .with_outcomes(challenge.outcomes().clone())
         .with_active(active)
         .with_order(challenge.order())
@@ -200,7 +206,7 @@ impl ChallengeOps {
             challenge.difficulty().clone(),
         )
         .with_id(challenge.id())
-        .with_description(challenge.description())
+        .with_description(challenge.description().clone())
         .with_outcomes(challenge.outcomes().clone())
         .with_active(challenge.active())
         .with_order(challenge.order())
