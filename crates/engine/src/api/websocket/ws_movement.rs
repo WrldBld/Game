@@ -478,21 +478,24 @@ pub(super) async fn handle_exit_to_location(
                 }
             }
         }
-        Err(crate::use_cases::movement::ExitLocationError::LocationNotFound) => {
-            Some(error_response(ErrorCode::NotFound, "Location not found"))
-        }
-        Err(crate::use_cases::movement::ExitLocationError::RegionNotFound) => {
-            Some(error_response(ErrorCode::NotFound, "Region not found"))
-        }
-        Err(crate::use_cases::movement::ExitLocationError::PlayerCharacterNotFound) => Some(
-            error_response(ErrorCode::NotFound, "Player character not found"),
+        Err(crate::use_cases::movement::ExitLocationError::LocationNotFound(id)) => Some(
+            error_response(ErrorCode::NotFound, &format!("Location not found: {}", id)),
         ),
+        Err(crate::use_cases::movement::ExitLocationError::RegionNotFound(id)) => Some(
+            error_response(ErrorCode::NotFound, &format!("Region not found: {}", id)),
+        ),
+        Err(crate::use_cases::movement::ExitLocationError::PlayerCharacterNotFound(id)) => {
+            Some(error_response(
+                ErrorCode::NotFound,
+                &format!("Player character not found: {}", id),
+            ))
+        }
         Err(crate::use_cases::movement::ExitLocationError::RegionLocationMismatch) => Some(
             error_response(ErrorCode::BadRequest, "Region is not in target location"),
         ),
-        Err(crate::use_cases::movement::ExitLocationError::WorldNotFound) => {
-            Some(error_response(ErrorCode::NotFound, "World not found"))
-        }
+        Err(crate::use_cases::movement::ExitLocationError::WorldNotFound(id)) => Some(
+            error_response(ErrorCode::NotFound, &format!("World not found: {}", id)),
+        ),
         Err(e) => Some(error_response(
             ErrorCode::InternalError,
             &sanitize_repo_error(&e, "exit to location"),

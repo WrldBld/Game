@@ -30,7 +30,7 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
         region_id,
         location_id,
         wrldbldr_domain::value_objects::RegionName::new("Test Region").unwrap(),
-        String::new(),
+        wrldbldr_domain::Description::default(),
         None,
         None,
         None,

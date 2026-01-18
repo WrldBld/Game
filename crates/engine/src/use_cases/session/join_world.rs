@@ -49,7 +49,7 @@ impl JoinWorld {
             .world
             .get(world_id)
             .await?
-            .ok_or(JoinWorldError::WorldNotFound)?;
+            .ok_or(JoinWorldError::WorldNotFound(world_id))?;
 
         let locations = self.location.list_locations_in_world(world_id).await?;
         let characters = self.character.list_in_world(world_id).await?;
@@ -193,8 +193,8 @@ pub struct JoinWorldResult {
 
 #[derive(Debug, thiserror::Error)]
 pub enum JoinWorldError {
-    #[error("World not found")]
-    WorldNotFound,
+    #[error("World not found: {0}")]
+    WorldNotFound(WorldId),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }

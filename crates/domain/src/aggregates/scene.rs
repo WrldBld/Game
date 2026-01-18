@@ -20,7 +20,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use wrldbldr_domain::{ActId, SceneId};
 
 use crate::events::SceneUpdate;
-use crate::value_objects::SceneName;
+use crate::value_objects::{AssetPath, SceneName};
 
 // Re-export from entities for now (TimeContext, SceneCondition, SceneCharacter, SceneCharacterRole)
 pub use crate::entities::{SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext};
@@ -61,7 +61,7 @@ pub struct Scene {
     // Time and visual settings
     time_context: TimeContext,
     /// Override backdrop (if different from location default)
-    backdrop_override: Option<String>,
+    backdrop_override: Option<AssetPath>,
 
     // Entry conditions
     /// Conditions that must be met to enter this scene (stored as JSON)
@@ -148,7 +148,7 @@ impl Scene {
     /// Returns the scene's backdrop override, if any.
     #[inline]
     pub fn backdrop_override(&self) -> Option<&str> {
-        self.backdrop_override.as_deref()
+        self.backdrop_override.as_ref().map(|a| a.as_str())
     }
 
     // =========================================================================
@@ -211,7 +211,7 @@ impl Scene {
 
     /// Set the scene's backdrop override.
     pub fn with_backdrop_override(mut self, backdrop: impl Into<String>) -> Self {
-        self.backdrop_override = Some(backdrop.into());
+        self.backdrop_override = AssetPath::new(backdrop).ok();
         self
     }
 
@@ -251,8 +251,9 @@ impl Scene {
     }
 
     /// Set the scene's backdrop override.
-    pub fn set_backdrop_override(&mut self, backdrop: Option<String>) -> SceneUpdate {
-        let previous = std::mem::replace(&mut self.backdrop_override, backdrop);
+    pub fn set_backdrop_override(&mut self, backdrop: Option<impl Into<String>>) -> SceneUpdate {
+        let new_path = backdrop.and_then(|b| AssetPath::new(b).ok());
+        let previous = std::mem::replace(&mut self.backdrop_override, new_path);
         SceneUpdate::BackdropOverrideChanged {
             from: previous,
             to: self.backdrop_override.clone(),
@@ -323,7 +324,7 @@ impl Serialize for Scene {
             act_id: self.act_id,
             name: self.name.to_string(),
             time_context: self.time_context.clone(),
-            backdrop_override: self.backdrop_override.clone(),
+            backdrop_override: self.backdrop_override.as_ref().map(|a| a.to_string()),
             entry_conditions: self.entry_conditions.clone(),
             directorial_notes: self.directorial_notes.clone(),
             order: self.order,
@@ -346,7 +347,7 @@ impl<'de> Deserialize<'de> for Scene {
             act_id: wire.act_id,
             name,
             time_context: wire.time_context,
-            backdrop_override: wire.backdrop_override,
+            backdrop_override: wire.backdrop_override.and_then(|s| AssetPath::new(s).ok()),
             entry_conditions: wire.entry_conditions,
             directorial_notes: wire.directorial_notes,
             order: wire.order,
@@ -423,10 +424,10 @@ mod tests {
         fn set_backdrop_override_works() {
             let mut scene = create_test_scene();
 
-            scene.set_backdrop_override(Some("new_backdrop.png".to_string()));
+            scene.set_backdrop_override(Some("new_backdrop.png"));
             assert_eq!(scene.backdrop_override(), Some("new_backdrop.png"));
 
-            scene.set_backdrop_override(None);
+            scene.set_backdrop_override(None::<String>);
             assert!(scene.backdrop_override().is_none());
         }
     }

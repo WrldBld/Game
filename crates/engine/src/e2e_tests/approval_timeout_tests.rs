@@ -345,7 +345,7 @@ async fn test_player_can_interact_after_auto_staging() {
 
         // Verify conversation was successful
         assert!(
-            !conversation_id.is_nil(),
+            !conversation_id.as_uuid().is_nil(),
             "Conversation ID should not be nil"
         );
         assert!(!response.is_empty(), "NPC should respond to player");

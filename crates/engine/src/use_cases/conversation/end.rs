@@ -8,8 +8,7 @@
 //! is responsible for broadcasting to clients.
 
 use std::sync::Arc;
-use uuid::Uuid;
-use wrldbldr_domain::{CharacterId, PlayerCharacterId};
+use wrldbldr_domain::{CharacterId, ConversationId, PlayerCharacterId};
 
 use crate::infrastructure::ports::{CharacterRepo, PlayerCharacterRepo, RepoError};
 use crate::use_cases::narrative_operations::NarrativeOps;
@@ -26,7 +25,7 @@ pub struct ConversationEnded {
     /// Optional summary of the conversation
     pub summary: Option<String>,
     /// The conversation ID that was ended (if any)
-    pub conversation_id: Option<Uuid>,
+    pub conversation_id: Option<ConversationId>,
 }
 
 /// End conversation use case.
@@ -79,14 +78,14 @@ impl EndConversation {
             .player_character
             .get(pc_id)
             .await?
-            .ok_or(EndConversationError::PlayerCharacterNotFound)?;
+            .ok_or(EndConversationError::PlayerCharacterNotFound(pc_id))?;
 
         // 2. Get the NPC
         let npc = self
             .character
             .get(npc_id)
             .await?
-            .ok_or(EndConversationError::NpcNotFound)?;
+            .ok_or(EndConversationError::NpcNotFound(npc_id))?;
 
         // 3. End the active conversation tracking (clear active conversation state)
         // This atomically finds and ends the active conversation between PC and NPC
@@ -144,10 +143,10 @@ impl EndConversation {
 
 #[derive(Debug, thiserror::Error)]
 pub enum EndConversationError {
-    #[error("Player character not found")]
-    PlayerCharacterNotFound,
-    #[error("NPC not found")]
-    NpcNotFound,
+    #[error("Player character not found: {0}")]
+    PlayerCharacterNotFound(PlayerCharacterId),
+    #[error("NPC not found: {0}")]
+    NpcNotFound(CharacterId),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }
@@ -157,10 +156,9 @@ mod tests {
     use std::sync::Arc;
 
     use chrono::Utc;
-    use uuid::Uuid;
     use wrldbldr_domain::{
-        CampbellArchetype, Character, CharacterId, CharacterName, LocationId, PlayerCharacterId,
-        WorldId,
+        CampbellArchetype, Character, CharacterId, CharacterName, ConversationId, LocationId,
+        PlayerCharacterId, WorldId,
     };
 
     use crate::infrastructure::ports::{
@@ -222,7 +220,7 @@ mod tests {
 
         assert!(matches!(
             err,
-            super::EndConversationError::PlayerCharacterNotFound
+            super::EndConversationError::PlayerCharacterNotFound(_)
         ));
     }
 
@@ -264,7 +262,7 @@ mod tests {
 
         let err = use_case.execute(pc_id, npc_id, None).await.unwrap_err();
 
-        assert!(matches!(err, super::EndConversationError::NpcNotFound));
+        assert!(matches!(err, super::EndConversationError::NpcNotFound(_)));
     }
 
     #[tokio::test]
@@ -274,7 +272,7 @@ mod tests {
         let location_id = LocationId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
-        let conversation_id = Uuid::new_v4();
+        let conversation_id = ConversationId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
             "user",

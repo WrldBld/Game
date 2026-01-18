@@ -4,7 +4,7 @@
 //! Determines the arrival region and coordinates with staging/narrative/scene/time systems.
 
 use std::sync::Arc;
-use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
 
 use crate::infrastructure::ports::{
     FlagRepo, LocationRepo, ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo,
@@ -85,14 +85,14 @@ impl ExitLocation {
             .player_character
             .get(pc_id)
             .await?
-            .ok_or(ExitLocationError::PlayerCharacterNotFound)?;
+            .ok_or(ExitLocationError::PlayerCharacterNotFound(pc_id))?;
 
         // 2. Get the target location
         let location = self
             .location
             .get_location(target_location_id)
             .await?
-            .ok_or(ExitLocationError::LocationNotFound)?;
+            .ok_or(ExitLocationError::LocationNotFound(target_location_id))?;
 
         // 3. Determine arrival region
         let region_id = self
@@ -104,7 +104,7 @@ impl ExitLocation {
             .location
             .get_region(region_id)
             .await?
-            .ok_or(ExitLocationError::RegionNotFound)?;
+            .ok_or(ExitLocationError::RegionNotFound(region_id))?;
 
         // Verify region belongs to target location
         if region.location_id() != location.id() {
@@ -121,14 +121,15 @@ impl ExitLocation {
             .player_character
             .get(pc_id)
             .await?
-            .ok_or(ExitLocationError::PlayerCharacterNotFound)?;
+            .ok_or(ExitLocationError::PlayerCharacterNotFound(pc_id))?;
 
         // 7. Get the world to access game time for TTL checks and observations
+        let world_id = pc.world_id();
         let world_data = self
             .world
-            .get(pc.world_id())
+            .get(world_id)
             .await?
-            .ok_or(ExitLocationError::WorldNotFound)?;
+            .ok_or(ExitLocationError::WorldNotFound(world_id))?;
         let current_game_time = world_data.game_time().current();
 
         // 8. Check for valid staging (with TTL check using game time)
@@ -210,7 +211,7 @@ impl ExitLocation {
                 .location
                 .get_region(region_id)
                 .await?
-                .ok_or(ExitLocationError::RegionNotFound)?;
+                .ok_or(ExitLocationError::RegionNotFound(region_id))?;
 
             if region.location_id() != location_id {
                 return Err(ExitLocationError::RegionLocationMismatch);
@@ -224,7 +225,7 @@ impl ExitLocation {
             .location
             .get_location(location_id)
             .await?
-            .ok_or(ExitLocationError::LocationNotFound)?;
+            .ok_or(ExitLocationError::LocationNotFound(location_id))?;
 
         if let Some(default_region_id) = location.default_region_id() {
             if self.location.get_region(default_region_id).await?.is_some() {
@@ -245,14 +246,14 @@ impl ExitLocation {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ExitLocationError {
-    #[error("Player character not found")]
-    PlayerCharacterNotFound,
-    #[error("Location not found")]
-    LocationNotFound,
-    #[error("World not found")]
-    WorldNotFound,
-    #[error("Region not found")]
-    RegionNotFound,
+    #[error("Player character not found: {0}")]
+    PlayerCharacterNotFound(PlayerCharacterId),
+    #[error("Location not found: {0}")]
+    LocationNotFound(LocationId),
+    #[error("World not found: {0}")]
+    WorldNotFound(WorldId),
+    #[error("Region not found: {0}")]
+    RegionNotFound(RegionId),
     #[error("No arrival region specified and no default found")]
     NoArrivalRegion,
     #[error("Region does not belong to target location")]
@@ -373,7 +374,7 @@ mod tests {
             .unwrap_err();
         assert!(matches!(
             err,
-            super::ExitLocationError::PlayerCharacterNotFound
+            super::ExitLocationError::PlayerCharacterNotFound(_)
         ));
     }
 
@@ -418,7 +419,7 @@ mod tests {
             .execute(pc_id, target_location_id, None)
             .await
             .unwrap_err();
-        assert!(matches!(err, super::ExitLocationError::LocationNotFound));
+        assert!(matches!(err, super::ExitLocationError::LocationNotFound(_)));
     }
 
     #[tokio::test]
@@ -451,7 +452,7 @@ mod tests {
             arrival_region_id,
             other_location_id,
             RegionName::new("Arrival").unwrap(),
-            String::new(),
+            Description::default(),
             None,
             None,
             None,
@@ -579,7 +580,7 @@ mod tests {
             arrival_region_id,
             target_location_id,
             RegionName::new("Arrival").unwrap(),
-            String::new(),
+            Description::default(),
             None,
             None,
             None,
@@ -656,6 +657,6 @@ mod tests {
             .execute(pc_id, target_location_id, Some(arrival_region_id))
             .await
             .unwrap_err();
-        assert!(matches!(err, super::ExitLocationError::WorldNotFound));
+        assert!(matches!(err, super::ExitLocationError::WorldNotFound(_)));
     }
 }

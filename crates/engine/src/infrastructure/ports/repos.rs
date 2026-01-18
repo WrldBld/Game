@@ -1,89 +1,19 @@
 // Port traits define the full contract - many methods are for future use
 #![allow(dead_code)]
 
-//! Port traits for infrastructure boundaries.
-//!
-//! These are the ONLY abstractions in the engine. Everything else is concrete types.
-//! Ports exist for:
-//! - Database access (could swap Neo4j -> Postgres)
-//! - LLM calls (could swap Ollama -> Claude/OpenAI)
-//! - Image generation (could swap ComfyUI -> other)
-//! - Queues (could swap SQLite -> Redis)
-//! - Clock/Random (for testing)
+//! Repository port traits for database access.
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use wrldbldr_domain::*;
 
-use crate::infrastructure::app_settings::AppSettings;
-use crate::queue_types::{
-    ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
+use super::error::RepoError;
+use super::types::{
+    ActantialViewRecord, ConversationTurnRecord, GoalDetails, NpcRegionRelationType,
+    NpcWithRegionInfo, WantDetails, WantTargetRef,
 };
-
-// =============================================================================
-// Error Types
-// =============================================================================
-
-/// Repository operation errors with context for debugging.
-#[derive(Debug, thiserror::Error)]
-pub enum RepoError {
-    /// Entity not found - includes entity type and ID for actionable error messages.
-    #[error("{entity_type} not found: {id}")]
-    NotFound {
-        entity_type: &'static str,
-        id: String,
-    },
-
-    /// Database operation failed - includes operation name for tracing.
-    #[error("Database error in {operation}: {message}")]
-    Database {
-        operation: &'static str,
-        message: String,
-    },
-
-    /// Serialization/deserialization failed.
-    #[error("Serialization error: {0}")]
-    Serialization(String),
-
-    /// Business constraint violated.
-    #[error("Constraint violation: {0}")]
-    ConstraintViolation(String),
-}
-
-impl RepoError {
-    /// Create a NotFound error with entity type and ID context.
-    pub fn not_found(entity_type: &'static str, id: impl ToString) -> Self {
-        Self::NotFound {
-            entity_type,
-            id: id.to_string(),
-        }
-    }
-
-    /// Create a Database error with operation context.
-    pub fn database(operation: &'static str, message: impl ToString) -> Self {
-        Self::Database {
-            operation,
-            message: message.to_string(),
-        }
-    }
-
-    /// Create a Serialization error.
-    pub fn serialization(message: impl ToString) -> Self {
-        Self::Serialization(message.to_string())
-    }
-
-    /// Create a ConstraintViolation error.
-    pub fn constraint(message: impl ToString) -> Self {
-        Self::ConstraintViolation(message.to_string())
-    }
-
-    /// Check if this is a NotFound error.
-    pub fn is_not_found(&self) -> bool {
-        matches!(self, Self::NotFound { .. })
-    }
-}
+use crate::infrastructure::app_settings::AppSettings;
 
 // =============================================================================
 // Settings Storage
@@ -101,249 +31,6 @@ pub trait SettingsRepo: Send + Sync {
         settings: &AppSettings,
     ) -> Result<(), RepoError>;
     async fn delete_for_world(&self, world_id: WorldId) -> Result<(), RepoError>;
-}
-
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum LlmError {
-    #[error("LLM request failed: {0}")]
-    RequestFailed(String),
-    #[error("Invalid response: {0}")]
-    InvalidResponse(String),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ImageGenError {
-    #[error("Generation failed: {0}")]
-    GenerationFailed(String),
-    #[error("Service unavailable")]
-    Unavailable,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum QueueError {
-    #[error("Queue error: {0}")]
-    Error(String),
-}
-
-/// Errors from session/connection operations.
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum SessionError {
-    #[error("Connection not found: {0}")]
-    NotFound(String),
-    #[error("DM already connected to this world")]
-    DmAlreadyConnected,
-    #[error("Not authorized")]
-    Unauthorized,
-}
-
-// =============================================================================
-// Session/Connection Types
-// =============================================================================
-
-// WorldRole is re-exported from wrldbldr_domain (imported via `use wrldbldr_domain::*`)
-// This ensures the domain owns the canonical definition of this concept.
-pub use wrldbldr_domain::WorldRole;
-
-/// Information about a connected client (for use case queries).
-#[derive(Debug, Clone)]
-pub struct ConnectionInfo {
-    /// Unique ID for this connection
-    pub connection_id: Uuid,
-    /// User identifier (may be anonymous)
-    pub user_id: String,
-    /// The world this connection is associated with (if joined)
-    pub world_id: Option<WorldId>,
-    /// The role in the world
-    pub role: WorldRole,
-    /// Player character ID (if role is Player)
-    pub pc_id: Option<PlayerCharacterId>,
-}
-
-// =============================================================================
-// Directorial Context Types (DM guidance for scenes)
-// =============================================================================
-
-/// NPC motivation guidance from the DM.
-#[derive(Debug, Clone, PartialEq)]
-pub struct NpcMotivation {
-    /// Character ID as string (for flexibility with external IDs)
-    pub character_id: String,
-    /// Free-form emotional guidance (e.g., "Conflicted about revealing secrets")
-    pub emotional_guidance: String,
-    /// What the NPC is trying to achieve right now
-    pub immediate_goal: String,
-    /// Hidden agenda the NPC may have
-    pub secret_agenda: Option<String>,
-}
-
-/// DM directorial context for guiding AI responses.
-#[derive(Debug, Clone, PartialEq)]
-pub struct DirectorialContext {
-    /// Scene notes and setting description
-    pub scene_notes: String,
-    /// Desired tone for responses
-    pub tone: String,
-    /// Per-NPC motivation overrides
-    pub npc_motivations: Vec<NpcMotivation>,
-    /// Topics the AI should avoid
-    pub forbidden_topics: Vec<String>,
-}
-
-// =============================================================================
-// Session Result Types (for use case return values)
-// =============================================================================
-
-/// A user connected to a world (domain representation).
-#[derive(Debug, Clone)]
-pub struct ConnectedUserInfo {
-    pub user_id: String,
-    pub username: Option<String>,
-    pub role: WorldRole,
-    pub pc_id: Option<PlayerCharacterId>,
-    pub connection_count: u32,
-}
-
-/// Payload for user joined notification.
-#[derive(Debug, Clone)]
-pub struct UserJoinedInfo {
-    pub user_id: String,
-    pub role: WorldRole,
-    pub pc: Option<serde_json::Value>,
-}
-
-/// Errors specific to joining a world.
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum JoinWorldError {
-    #[error("DM already connected: {existing_user_id}")]
-    DmAlreadyConnected { existing_user_id: String },
-    #[error("Player character not found: pc_id={pc_id} in world_id={world_id}")]
-    PcNotFound { world_id: String, pc_id: String },
-    #[error("Unknown error")]
-    Unknown,
-}
-
-/// NPC disposition information for a specific PC (domain representation).
-#[derive(Debug, Clone)]
-pub struct NpcDispositionInfo {
-    pub npc_id: String,
-    pub npc_name: String,
-    pub disposition: String,
-    pub relationship: String,
-    pub sentiment: f32,
-    pub last_reason: Option<String>,
-}
-
-// =============================================================================
-// Infrastructure Types
-// =============================================================================
-
-/// NPC-Region relationship for staging suggestions
-#[derive(Debug, Clone)]
-pub struct NpcRegionRelationship {
-    pub region_id: RegionId,
-    pub relationship_type: NpcRegionRelationType,
-    pub shift: Option<String>,     // For WORKS_AT: "day", "night", "always"
-    pub frequency: Option<String>, // For FREQUENTS: "always", "often", "sometimes", "rarely"
-    pub time_of_day: Option<String>, // For FREQUENTS: "morning", "afternoon", "evening", "night"
-    pub reason: Option<String>,    // For AVOIDS: why they avoid it
-}
-
-/// Type of NPC-Region relationship
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NpcRegionRelationType {
-    HomeRegion,
-    WorksAt,
-    Frequents,
-    Avoids,
-}
-
-impl std::fmt::Display for NpcRegionRelationType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::HomeRegion => write!(f, "HOME_REGION"),
-            Self::WorksAt => write!(f, "WORKS_AT_REGION"),
-            Self::Frequents => write!(f, "FREQUENTS_REGION"),
-            Self::Avoids => write!(f, "AVOIDS_REGION"),
-        }
-    }
-}
-
-impl std::str::FromStr for NpcRegionRelationType {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_uppercase().as_str() {
-            "HOME_REGION" | "HOME" | "HOMEREGION" => Ok(Self::HomeRegion),
-            "WORKS_AT_REGION" | "WORKS_AT" | "WORK" | "WORKSAT" => Ok(Self::WorksAt),
-            "FREQUENTS_REGION" | "FREQUENTS" | "FREQUENTSREGION" => Ok(Self::Frequents),
-            "AVOIDS_REGION" | "AVOIDS" | "AVOIDSREGION" => Ok(Self::Avoids),
-            _ => Err(format!("Unknown NPC region relationship type: '{}'", s)),
-        }
-    }
-}
-
-/// NPC with their region relationship info (for staging suggestions)
-#[derive(Debug, Clone)]
-pub struct NpcWithRegionInfo {
-    pub character_id: CharacterId,
-    pub name: String,
-    pub sprite_asset: Option<String>,
-    pub portrait_asset: Option<String>,
-    pub relationship_type: NpcRegionRelationType,
-    pub shift: Option<String>,
-    pub frequency: Option<String>,
-    pub time_of_day: Option<String>,
-    pub reason: Option<String>,
-    /// NPC's default mood (used when staging doesn't override)
-    pub default_mood: MoodState,
-}
-
-/// Want details with relationship metadata and resolved target.
-#[derive(Debug, Clone)]
-pub struct WantDetails {
-    pub character_id: CharacterId,
-    pub want: Want,
-    pub priority: u32,
-    pub target: Option<WantTarget>,
-}
-
-/// Goal details with usage statistics.
-#[derive(Debug, Clone)]
-pub struct GoalDetails {
-    pub goal: Goal,
-    pub usage_count: u32,
-}
-
-/// Reference to a want target by type.
-#[derive(Debug, Clone)]
-pub enum WantTargetRef {
-    Character(CharacterId),
-    Item(ItemId),
-    Goal(GoalId),
-}
-
-/// Actantial view record for a specific want and target.
-#[derive(Debug, Clone)]
-pub struct ActantialViewRecord {
-    pub want_id: WantId,
-    pub target: ActantialTarget,
-    pub target_name: String,
-    pub role: ActantialRole,
-    pub reason: String,
-}
-
-/// A dialogue turn record from the database.
-///
-/// Used for building conversation history in LLM prompts.
-/// Contains speaker name and text, ready for ConversationTurn conversion.
-#[derive(Debug, Clone)]
-pub struct ConversationTurnRecord {
-    /// Speaker name (PC name or NPC name)
-    pub speaker: String,
-    /// The dialogue text
-    pub text: String,
-    /// Order in the conversation (for sorting)
-    pub order: i64,
 }
 
 // =============================================================================
@@ -448,7 +135,7 @@ pub trait CharacterRepo: Send + Sync {
     async fn get_region_relationships(
         &self,
         id: CharacterId,
-    ) -> Result<Vec<NpcRegionRelationship>, RepoError>;
+    ) -> Result<Vec<super::types::NpcRegionRelationship>, RepoError>;
     /// Set an NPC's home region
     async fn set_home_region(&self, id: CharacterId, region_id: RegionId) -> Result<(), RepoError>;
     /// Set an NPC's work region with optional shift (day/night/always)
@@ -783,20 +470,23 @@ pub trait NarrativeRepo: Send + Sync {
         &self,
         pc_id: PlayerCharacterId,
         npc_id: CharacterId,
-    ) -> Result<Option<Uuid>, RepoError>;
+    ) -> Result<Option<ConversationId>, RepoError>;
 
     /// Check if a specific conversation is still active (not ended).
     ///
     /// Returns true if the conversation exists and has is_active = true.
     /// Returns false if the conversation doesn't exist or has been ended.
-    async fn is_conversation_active(&self, conversation_id: Uuid) -> Result<bool, RepoError>;
+    async fn is_conversation_active(
+        &self,
+        conversation_id: ConversationId,
+    ) -> Result<bool, RepoError>;
 
     /// End a conversation by setting is_active = false.
     ///
     /// This marks the conversation as ended so it cannot be resumed.
     /// Returns Ok(true) if the conversation was found and ended,
     /// Ok(false) if the conversation was not found or already ended.
-    async fn end_conversation(&self, conversation_id: Uuid) -> Result<bool, RepoError>;
+    async fn end_conversation(&self, conversation_id: ConversationId) -> Result<bool, RepoError>;
 
     /// End the active conversation between PC and NPC (if one exists).
     ///
@@ -806,7 +496,7 @@ pub trait NarrativeRepo: Send + Sync {
         &self,
         pc_id: PlayerCharacterId,
         npc_id: CharacterId,
-    ) -> Result<Option<Uuid>, RepoError>;
+    ) -> Result<Option<ConversationId>, RepoError>;
 
     // Triggers
     async fn get_triggers_for_region(
@@ -1083,289 +773,6 @@ pub trait AssetRepo: Send + Sync {
 }
 
 // =============================================================================
-// External Service Ports
-// =============================================================================
-
-/// LLM request/response types
-#[derive(Debug, Clone)]
-pub struct LlmRequest {
-    /// The conversation history
-    pub messages: Vec<ChatMessage>,
-    /// System prompt / context
-    pub system_prompt: Option<String>,
-    /// Temperature for response generation (0.0 - 2.0)
-    pub temperature: Option<f32>,
-    /// Maximum tokens to generate
-    pub max_tokens: Option<u32>,
-    /// Optional images for multimodal models
-    pub images: Vec<ImageData>,
-}
-
-impl LlmRequest {
-    pub fn new(messages: Vec<ChatMessage>) -> Self {
-        Self {
-            messages,
-            system_prompt: None,
-            temperature: None,
-            max_tokens: None,
-            images: Vec::new(),
-        }
-    }
-
-    pub fn with_system_prompt(mut self, prompt: impl Into<String>) -> Self {
-        self.system_prompt = Some(prompt.into());
-        self
-    }
-
-    pub fn with_temperature(mut self, temp: f32) -> Self {
-        self.temperature = Some(temp);
-        self
-    }
-
-    pub fn with_max_tokens(mut self, max_tokens: Option<u32>) -> Self {
-        self.max_tokens = max_tokens;
-        self
-    }
-}
-
-/// A message in the conversation
-#[derive(Debug, Clone)]
-pub struct ChatMessage {
-    pub role: MessageRole,
-    pub content: String,
-}
-
-impl ChatMessage {
-    pub fn user(content: impl Into<String>) -> Self {
-        Self {
-            role: MessageRole::User,
-            content: content.into(),
-        }
-    }
-
-    pub fn assistant(content: impl Into<String>) -> Self {
-        Self {
-            role: MessageRole::Assistant,
-            content: content.into(),
-        }
-    }
-
-    pub fn system(content: impl Into<String>) -> Self {
-        Self {
-            role: MessageRole::System,
-            content: content.into(),
-        }
-    }
-}
-
-/// Role of a message sender
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MessageRole {
-    User,
-    Assistant,
-    System,
-    Unknown,
-}
-
-/// Image data for multimodal requests
-#[derive(Debug, Clone)]
-pub struct ImageData {
-    /// Base64-encoded image data
-    pub data: String,
-    /// MIME type (e.g., "image/png")
-    pub media_type: String,
-}
-
-/// Response from the LLM
-#[derive(Debug, Clone)]
-pub struct LlmResponse {
-    /// The generated text content
-    pub content: String,
-    /// Tool calls proposed by the model
-    pub tool_calls: Vec<ToolCall>,
-    /// Finish reason
-    pub finish_reason: FinishReason,
-    /// Token usage
-    pub usage: Option<TokenUsage>,
-}
-
-/// Definition of a tool the LLM can call
-#[derive(Debug, Clone)]
-pub struct ToolDefinition {
-    pub name: String,
-    pub description: String,
-    pub parameters: serde_json::Value,
-}
-
-/// A tool call proposed by the LLM
-#[derive(Debug, Clone)]
-pub struct ToolCall {
-    pub id: String,
-    pub name: String,
-    pub arguments: serde_json::Value,
-}
-
-/// Reason the generation finished
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FinishReason {
-    Stop,
-    Length,
-    ToolCalls,
-    ContentFilter,
-    Unknown,
-}
-
-/// Token usage information
-#[derive(Debug, Clone)]
-pub struct TokenUsage {
-    pub prompt_tokens: u32,
-    pub completion_tokens: u32,
-    pub total_tokens: u32,
-}
-
-#[async_trait]
-pub trait LlmPort: Send + Sync {
-    async fn generate(&self, request: LlmRequest) -> Result<LlmResponse, LlmError>;
-    async fn generate_with_tools(
-        &self,
-        request: LlmRequest,
-        tools: Vec<ToolDefinition>,
-    ) -> Result<LlmResponse, LlmError>;
-}
-
-/// Image generation request/response types
-#[derive(Debug, Clone)]
-pub struct ImageRequest {
-    pub prompt: String,
-    pub workflow: String,
-    pub width: u32,
-    pub height: u32,
-}
-
-#[derive(Debug, Clone)]
-pub struct ImageResult {
-    pub image_data: Vec<u8>,
-    pub format: String,
-}
-
-#[async_trait]
-pub trait ImageGenPort: Send + Sync {
-    async fn generate(&self, request: ImageRequest) -> Result<ImageResult, ImageGenError>;
-    async fn check_health(&self) -> Result<bool, ImageGenError>;
-}
-
-// =============================================================================
-// Queue Port
-// =============================================================================
-
-/// Queue item wrapper with metadata.
-#[derive(Debug, Clone)]
-pub struct QueueItem {
-    pub id: Uuid,
-    pub data: QueueItemData,
-    pub created_at: DateTime<Utc>,
-    pub status: QueueItemStatus,
-    pub error_message: Option<String>,
-    /// Optional JSON result payload for completed items.
-    ///
-    /// Used for queued suggestion results so the Creator UI can hydrate after reload.
-    pub result_json: Option<String>,
-}
-
-/// Concrete queue item data - avoids generics for dyn compatibility.
-#[derive(Debug, Clone)]
-pub enum QueueItemData {
-    PlayerAction(PlayerActionData),
-    LlmRequest(LlmRequestData),
-    DmApproval(ApprovalRequestData),
-    AssetGeneration(AssetGenerationData),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum QueueItemStatus {
-    Pending,
-    Processing,
-    Completed,
-    Failed,
-}
-
-#[async_trait]
-pub trait QueuePort: Send + Sync {
-    // Player action queue
-    async fn enqueue_player_action(&self, data: &PlayerActionData) -> Result<Uuid, QueueError>;
-    async fn dequeue_player_action(&self) -> Result<Option<QueueItem>, QueueError>;
-
-    // LLM request queue
-    async fn enqueue_llm_request(&self, data: &LlmRequestData) -> Result<Uuid, QueueError>;
-    async fn dequeue_llm_request(&self) -> Result<Option<QueueItem>, QueueError>;
-
-    // DM approval queue
-    async fn enqueue_dm_approval(&self, data: &ApprovalRequestData) -> Result<Uuid, QueueError>;
-    async fn dequeue_dm_approval(&self) -> Result<Option<QueueItem>, QueueError>;
-
-    // Asset generation queue
-    async fn enqueue_asset_generation(
-        &self,
-        data: &AssetGenerationData,
-    ) -> Result<Uuid, QueueError>;
-    async fn dequeue_asset_generation(&self) -> Result<Option<QueueItem>, QueueError>;
-
-    // Common operations
-    async fn mark_complete(&self, id: Uuid) -> Result<(), QueueError>;
-    async fn mark_failed(&self, id: Uuid, error: &str) -> Result<(), QueueError>;
-    async fn get_pending_count(&self, queue_type: &str) -> Result<usize, QueueError>;
-
-    /// List queue items by type (newest first).
-    ///
-    /// This is used by the WebSocket Creator UI to hydrate a unified generation queue.
-    async fn list_by_type(
-        &self,
-        queue_type: &str,
-        limit: usize,
-    ) -> Result<Vec<QueueItem>, QueueError>;
-
-    /// Persist a JSON result payload for a queue item.
-    async fn set_result_json(&self, id: Uuid, result_json: &str) -> Result<(), QueueError>;
-
-    /// Cancel a pending LLM request by callback_id.
-    ///
-    /// Returns true if a matching pending request was found and cancelled.
-    async fn cancel_pending_llm_request_by_callback_id(
-        &self,
-        callback_id: &str,
-    ) -> Result<bool, QueueError>;
-
-    /// Get an approval request by ID (for extracting NPC info when processing decision)
-    async fn get_approval_request(
-        &self,
-        id: Uuid,
-    ) -> Result<Option<ApprovalRequestData>, QueueError>;
-
-    /// Get the persisted generation queue read-state for a user in a world.
-    ///
-    /// Returns (read_batches, read_suggestions) if present.
-    async fn get_generation_read_state(
-        &self,
-        user_id: &str,
-        world_id: WorldId,
-    ) -> Result<Option<(Vec<String>, Vec<String>)>, QueueError>;
-
-    /// Upsert the persisted generation queue read-state for a user in a world.
-    async fn upsert_generation_read_state(
-        &self,
-        user_id: &str,
-        world_id: WorldId,
-        read_batches: &[String],
-        read_suggestions: &[String],
-    ) -> Result<(), QueueError>;
-
-    /// Delete a queue item by callback_id (used for dismissing suggestions).
-    ///
-    /// This scans pending/completed LLM requests to find one with matching callback_id.
-    async fn delete_by_callback_id(&self, callback_id: &str) -> Result<bool, QueueError>;
-}
-
-// =============================================================================
 // Flag Storage Port
 // =============================================================================
 
@@ -1431,67 +838,3 @@ pub trait FlagRepo: Send + Sync {
         Ok(unique_flags.into_iter().collect())
     }
 }
-
-// =============================================================================
-// Testability Ports
-// =============================================================================
-
-#[cfg_attr(test, mockall::automock)]
-pub trait ClockPort: Send + Sync {
-    fn now(&self) -> DateTime<Utc>;
-}
-
-pub trait RandomPort: Send + Sync {
-    fn gen_range(&self, min: i32, max: i32) -> i32;
-    fn gen_uuid(&self) -> Uuid;
-}
-
-// =============================================================================
-// Session/Connection Data Types
-// =============================================================================
-
-// Note: DmNotificationPort, WorldSessionPort, and DirectorialContextPort traits were removed.
-// These were in-memory storage abstractions that are now concrete types on ConnectionManager.
-// See api/connections.rs for the concrete implementation.
-
-// =============================================================================
-// Staging Storage Data Types
-// =============================================================================
-
-/// Pending staging request tracking (request_id -> region/location).
-///
-/// Used to track staging approval requests while waiting for DM response.
-#[derive(Debug, Clone)]
-pub struct PendingStagingRequest {
-    pub region_id: RegionId,
-    pub location_id: LocationId,
-    pub world_id: WorldId,
-    pub created_at: DateTime<Utc>,
-}
-
-// Note: PendingStagingStore trait was removed.
-// The concrete implementation is PendingStagingStoreImpl in api/websocket/mod.rs.
-
-// =============================================================================
-// Time Suggestion Data Types
-// =============================================================================
-
-/// A time suggestion generated for DM approval.
-///
-/// Contains the suggested time advancement and context about the action.
-#[derive(Debug, Clone)]
-pub struct TimeSuggestion {
-    pub id: Uuid,
-    pub world_id: WorldId,
-    pub pc_id: PlayerCharacterId,
-    pub pc_name: String,
-    pub action_type: String,
-    pub action_description: String,
-    pub suggested_minutes: u32,
-    pub current_time: GameTime,
-    pub resulting_time: GameTime,
-    pub period_change: Option<(TimeOfDay, TimeOfDay)>,
-}
-
-// Note: TimeSuggestionStore trait was removed.
-// The concrete implementation is TimeSuggestionStoreImpl in api/websocket/mod.rs.

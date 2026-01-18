@@ -15,7 +15,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::error::DomainError;
 use crate::types::character_sheet::CharacterSheetValues;
-use crate::value_objects::{AssetPath, CharacterName, CharacterState};
+use crate::value_objects::{AssetPath, CharacterName, CharacterState, Description};
 use crate::{LocationId, PlayerCharacterId, RegionId, WorldId};
 
 // ============================================================================
@@ -96,7 +96,7 @@ pub struct PlayerCharacter {
 
     // Character identity
     name: CharacterName,
-    description: Option<String>,
+    description: Option<Description>,
 
     // Character sheet data (wire format values + timestamp)
     sheet_data: Option<CharacterSheetValues>,
@@ -204,7 +204,7 @@ impl PlayerCharacter {
     /// Returns the character's description.
     #[inline]
     pub fn description(&self) -> Option<&str> {
-        self.description.as_deref()
+        self.description.as_ref().map(|d| d.as_str())
     }
 
     // =========================================================================
@@ -330,7 +330,7 @@ impl PlayerCharacter {
 
     /// Set the character description.
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = Some(description.into());
+        self.description = Description::new(description).ok();
         self
     }
 
@@ -446,8 +446,8 @@ impl PlayerCharacter {
     }
 
     /// Set the character's description.
-    pub fn set_description(&mut self, description: Option<String>) {
-        self.description = description;
+    pub fn set_description(&mut self, description: Option<impl Into<String>>) {
+        self.description = description.and_then(|d| Description::new(d).ok());
     }
 
     /// Set the character sheet data.
@@ -675,7 +675,7 @@ impl Serialize for PlayerCharacter {
             user_id: self.user_id.clone(),
             world_id: self.world_id,
             name: self.name.clone(),
-            description: self.description.clone(),
+            description: self.description.as_ref().map(|d| d.to_string()),
             sheet_data: self.sheet_data.clone(),
             current_location_id: self.current_location_id,
             current_region_id: self.current_region_id,
@@ -706,7 +706,7 @@ impl<'de> Deserialize<'de> for PlayerCharacter {
             user_id: wire.user_id,
             world_id: wire.world_id,
             name: wire.name,
-            description: wire.description,
+            description: wire.description.and_then(|d| Description::new(d).ok()),
             sheet_data: wire.sheet_data,
             current_location_id: wire.current_location_id,
             current_region_id: wire.current_region_id,

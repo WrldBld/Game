@@ -1212,7 +1212,7 @@ pub fn create_e2e_llm(test_name: &str) -> Arc<VcrLlm> {
 // Gameplay Flow Helpers
 // =============================================================================
 
-use wrldbldr_domain::{PlayerCharacterId, StagingSource};
+use wrldbldr_domain::{ConversationId, PlayerCharacterId, StagingSource};
 
 use crate::queue_types::DmApprovalDecision;
 
@@ -1337,7 +1337,7 @@ pub async fn run_conversation_turn(
     npc_id: CharacterId,
     player_id: &str,
     dialogue: &str,
-    conversation_id: Option<Uuid>,
+    conversation_id: Option<ConversationId>,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     use super::event_log::E2EEvent;
 
@@ -1353,7 +1353,7 @@ pub async fn run_conversation_turn(
     // Log player turn (we don't know exact turn number in continue, use 0 as placeholder)
     if let Some(conv_id) = conversation_id {
         ctx.log_event(E2EEvent::ConversationTurn {
-            id: conv_id,
+            id: conv_id.to_uuid(),
             speaker: "player".to_string(),
             content: dialogue.to_string(),
             turn_number: 0, // Turn number not tracked in continue
@@ -1416,7 +1416,7 @@ pub async fn run_conversation_turn(
         // Log NPC response turn
         if let Some(conv_id) = conversation_id {
             ctx.log_event(E2EEvent::ConversationTurn {
-                id: conv_id,
+                id: conv_id.to_uuid(),
                 speaker: npc.name().to_string(),
                 content: npc_response.clone(),
                 turn_number: 0, // Turn number not tracked in continue
@@ -1438,7 +1438,7 @@ pub async fn start_conversation_with_npc(
     npc_id: CharacterId,
     player_id: &str,
     dialogue: &str,
-) -> Result<(Uuid, String), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(ConversationId, String), Box<dyn std::error::Error + Send + Sync>> {
     use super::event_log::E2EEvent;
 
     // Get NPC name for logging
@@ -1469,7 +1469,7 @@ pub async fn start_conversation_with_npc(
 
     // Log conversation start
     ctx.log_event(E2EEvent::ConversationStarted {
-        id: conversation_id,
+        id: conversation_id.to_uuid(),
         pc_id: pc_id.to_string(),
         npc_id: npc_id.to_string(),
         npc_name: npc.name().to_string(),
@@ -1477,7 +1477,7 @@ pub async fn start_conversation_with_npc(
 
     // Log player turn
     ctx.log_event(E2EEvent::ConversationTurn {
-        id: conversation_id,
+        id: conversation_id.to_uuid(),
         speaker: "player".to_string(),
         content: dialogue.to_string(),
         turn_number: 1,
@@ -1523,7 +1523,7 @@ pub async fn start_conversation_with_npc(
 
         // Log NPC response turn
         ctx.log_event(E2EEvent::ConversationTurn {
-            id: conversation_id,
+            id: conversation_id.to_uuid(),
             speaker: npc.name().to_string(),
             content: npc_response.clone(),
             turn_number: 2,

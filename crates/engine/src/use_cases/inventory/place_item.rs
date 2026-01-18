@@ -56,3 +56,75 @@ impl PlaceItemInRegion {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infrastructure::ports::{MockItemRepo, RepoError};
+    use std::sync::Arc;
+    use wrldbldr_domain::{Item, ItemId, ItemName, RegionId, WorldId};
+
+    fn test_item(world_id: WorldId) -> Item {
+        Item::new(world_id, ItemName::new("Test Sword").unwrap())
+    }
+
+    #[tokio::test]
+    async fn when_item_not_found_returns_error() {
+        let item_id = ItemId::new();
+        let region_id = RegionId::new();
+
+        let mut item_repo = MockItemRepo::new();
+        item_repo
+            .expect_get()
+            .withf(move |id| *id == item_id)
+            .returning(|_| Ok(None));
+
+        let use_case = PlaceItemInRegion::new(Arc::new(item_repo));
+        let result = use_case.execute(item_id, region_id).await;
+
+        assert!(matches!(result, Err(InventoryError::ItemNotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn when_valid_input_succeeds() {
+        let world_id = WorldId::new();
+        let item_id = ItemId::new();
+        let region_id = RegionId::new();
+
+        let mut item_repo = MockItemRepo::new();
+        let item = test_item(world_id).with_id(item_id);
+        let item_clone = item.clone();
+        item_repo
+            .expect_get()
+            .withf(move |id| *id == item_id)
+            .returning(move |_| Ok(Some(item_clone.clone())));
+        item_repo
+            .expect_place_in_region()
+            .withf(move |iid, rid| *iid == item_id && *rid == region_id)
+            .returning(|_, _| Ok(()));
+
+        let use_case = PlaceItemInRegion::new(Arc::new(item_repo));
+        let result = use_case.execute(item_id, region_id).await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn when_repo_error_propagates() {
+        let item_id = ItemId::new();
+        let region_id = RegionId::new();
+
+        let mut item_repo = MockItemRepo::new();
+        item_repo.expect_get().returning(|_| {
+            Err(RepoError::Database {
+                operation: "get",
+                message: "Database unavailable".to_string(),
+            })
+        });
+
+        let use_case = PlaceItemInRegion::new(Arc::new(item_repo));
+        let result = use_case.execute(item_id, region_id).await;
+
+        assert!(matches!(result, Err(InventoryError::Repo(_))));
+    }
+}

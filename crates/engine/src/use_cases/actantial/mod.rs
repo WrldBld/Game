@@ -340,3 +340,233 @@ impl ActantialContextOps {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infrastructure::clock::FixedClock;
+    use crate::infrastructure::ports::{ClockPort, MockCharacterRepo, MockGoalRepo};
+    use chrono::TimeZone;
+    use std::sync::Arc;
+
+    fn fixed_time() -> chrono::DateTime<chrono::Utc> {
+        chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
+
+    fn create_test_goal(world_id: WorldId) -> wrldbldr_domain::Goal {
+        wrldbldr_domain::Goal::new(world_id, GoalName::new("Test Goal").unwrap())
+            .with_description("A test goal for testing")
+    }
+
+    fn create_test_want() -> Want {
+        Want::new("Test want description", fixed_time())
+            .with_intensity(0.7)
+            .with_visibility(WantVisibility::Known)
+    }
+
+    mod goal_ops {
+        use super::*;
+
+        #[tokio::test]
+        async fn when_create_goal_succeeds() {
+            let world_id = WorldId::new();
+
+            let mut goal_repo = MockGoalRepo::new();
+            goal_repo.expect_save().returning(|_| Ok(()));
+
+            let ops = GoalOps::new(Arc::new(goal_repo) as Arc<dyn GoalRepo>);
+
+            let result = ops
+                .create(
+                    world_id,
+                    "Power".to_string(),
+                    Some("The pursuit of power".to_string()),
+                )
+                .await;
+
+            assert!(result.is_ok());
+            let goal_details = result.unwrap();
+            assert_eq!(goal_details.goal.name().as_str(), "Power");
+            assert_eq!(
+                goal_details.goal.description(),
+                Some("The pursuit of power")
+            );
+            assert_eq!(goal_details.usage_count, 0);
+        }
+
+        #[tokio::test]
+        async fn when_list_goals_succeeds() {
+            let world_id = WorldId::new();
+            let goal = create_test_goal(world_id);
+
+            let mut goal_repo = MockGoalRepo::new();
+            goal_repo
+                .expect_list_in_world()
+                .withf(move |w| *w == world_id)
+                .returning(move |_| {
+                    Ok(vec![GoalDetails {
+                        goal: goal.clone(),
+                        usage_count: 5,
+                    }])
+                });
+
+            let ops = GoalOps::new(Arc::new(goal_repo) as Arc<dyn GoalRepo>);
+
+            let result = ops.list(world_id).await;
+            assert!(result.is_ok());
+            let goals = result.unwrap();
+            assert_eq!(goals.len(), 1);
+            assert_eq!(goals[0].goal.name().as_str(), "Test Goal");
+            assert_eq!(goals[0].usage_count, 5);
+        }
+
+        #[tokio::test]
+        async fn when_get_goal_not_found_returns_none() {
+            let goal_id = GoalId::new();
+
+            let mut goal_repo = MockGoalRepo::new();
+            goal_repo
+                .expect_get()
+                .withf(move |id| *id == goal_id)
+                .returning(|_| Ok(None));
+
+            let ops = GoalOps::new(Arc::new(goal_repo) as Arc<dyn GoalRepo>);
+
+            let result = ops.get(goal_id).await;
+            assert!(result.is_ok());
+            assert!(result.unwrap().is_none());
+        }
+    }
+
+    mod want_ops {
+        use super::*;
+
+        #[tokio::test]
+        async fn when_create_want_succeeds() {
+            let character_id = CharacterId::new();
+
+            let mut character_repo = MockCharacterRepo::new();
+            character_repo
+                .expect_save_want()
+                .returning(|_, _, _| Ok(()));
+
+            let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+
+            let ops = WantOps::new(Arc::new(character_repo) as Arc<dyn CharacterRepo>, clock);
+
+            let result = ops
+                .create(
+                    character_id,
+                    "Find the treasure".to_string(),
+                    0.8,
+                    1,
+                    WantVisibility::Known,
+                    Some("Nervously change the subject".to_string()),
+                    vec!["Fidgets when gold is mentioned".to_string()],
+                )
+                .await;
+
+            assert!(result.is_ok());
+            let want_details = result.unwrap();
+            assert_eq!(want_details.want.description(), "Find the treasure");
+            assert!((want_details.want.intensity() - 0.8).abs() < 0.001);
+            assert_eq!(want_details.want.visibility(), WantVisibility::Known);
+            assert_eq!(want_details.priority, 1);
+        }
+
+        #[tokio::test]
+        async fn when_list_wants_succeeds() {
+            let character_id = CharacterId::new();
+            let want = create_test_want();
+
+            let mut character_repo = MockCharacterRepo::new();
+            character_repo
+                .expect_get_wants()
+                .withf(move |id| *id == character_id)
+                .returning(move |cid| {
+                    Ok(vec![WantDetails {
+                        character_id: cid,
+                        want: want.clone(),
+                        priority: 1,
+                        target: None,
+                    }])
+                });
+
+            let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+
+            let ops = WantOps::new(Arc::new(character_repo) as Arc<dyn CharacterRepo>, clock);
+
+            let result = ops.list(character_id).await;
+            assert!(result.is_ok());
+            let wants = result.unwrap();
+            assert_eq!(wants.len(), 1);
+            assert_eq!(wants[0].want.description(), "Test want description");
+            assert_eq!(wants[0].priority, 1);
+        }
+
+        #[tokio::test]
+        async fn when_create_want_empty_description_returns_error() {
+            let character_id = CharacterId::new();
+
+            let character_repo = MockCharacterRepo::new();
+            let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+
+            let ops = WantOps::new(Arc::new(character_repo) as Arc<dyn CharacterRepo>, clock);
+
+            let result = ops
+                .create(
+                    character_id,
+                    "   ".to_string(), // Empty after trim
+                    0.5,
+                    1,
+                    WantVisibility::Hidden,
+                    None,
+                    vec![],
+                )
+                .await;
+
+            assert!(matches!(result, Err(ActantialError::InvalidInput(_))));
+        }
+    }
+
+    mod actantial_context_ops {
+        use super::*;
+
+        #[tokio::test]
+        async fn when_get_context_succeeds() {
+            let character_id = CharacterId::new();
+            let context = ActantialContext::new(character_id, "Test Character");
+
+            let mut character_repo = MockCharacterRepo::new();
+            character_repo
+                .expect_get_actantial_context()
+                .withf(move |id| *id == character_id)
+                .returning(move |_| Ok(Some(context.clone())));
+
+            let ops = ActantialContextOps::new(Arc::new(character_repo) as Arc<dyn CharacterRepo>);
+
+            let result = ops.get_context(character_id).await;
+            assert!(result.is_ok());
+            let ctx = result.unwrap();
+            assert!(ctx.is_some());
+            assert_eq!(ctx.unwrap().character_name(), "Test Character");
+        }
+
+        #[tokio::test]
+        async fn when_get_context_not_found_returns_none() {
+            let character_id = CharacterId::new();
+
+            let mut character_repo = MockCharacterRepo::new();
+            character_repo
+                .expect_get_actantial_context()
+                .withf(move |id| *id == character_id)
+                .returning(|_| Ok(None));
+
+            let ops = ActantialContextOps::new(Arc::new(character_repo) as Arc<dyn CharacterRepo>);
+
+            let result = ops.get_context(character_id).await;
+            assert!(result.is_ok());
+            assert!(result.unwrap().is_none());
+        }
+    }
+}

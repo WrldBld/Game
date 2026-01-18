@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 use uuid::Uuid;
-use wrldbldr_domain::{CharacterId, RegionId, WorldId};
+use wrldbldr_domain::{CharacterId, ConversationId, RegionId, WorldId};
 
 use crate::queue_types::DmApprovalDecision;
 
@@ -111,7 +111,7 @@ pub struct SuggestionApprovalResult {
     /// NPC name (speaker)
     pub npc_name: Option<String>,
     /// Conversation ID (for dialogue tracking)
-    pub conversation_id: Option<Uuid>,
+    pub conversation_id: Option<ConversationId>,
 }
 
 /// Approve LLM suggestion use case.
@@ -150,7 +150,7 @@ impl ApproveSuggestion {
                     data.npc_id.map(|id| id.to_string()),
                     Some(data.npc_name),
                     Some(data.proposed_dialogue),
-                    data.conversation_id,
+                    data.conversation_id.map(ConversationId::from),
                 )
             })
             .unwrap_or((None, None, None, None));
@@ -280,7 +280,7 @@ pub struct ApprovalDecisionOutcome {
     pub approved_tools: Vec<String>,
     pub npc_id: Option<String>,
     pub npc_name: Option<String>,
-    pub conversation_id: Option<Uuid>,
+    pub conversation_id: Option<ConversationId>,
 }
 
 #[derive(Debug, thiserror::Error)]

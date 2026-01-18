@@ -211,9 +211,9 @@ pub use game_time::{
 
 // Re-export ID types
 pub use ids::{
-    ActId, ActionId, AssetId, BatchId, ChallengeId, CharacterId, ConnectionId, EventChainId,
-    EventId, GoalId, GridMapId, InteractionId, ItemId, LocationId, LocationStateId, LoreChunkId,
-    LoreId, NarrativeEventId, ParticipantId, PlayerCharacterId, QueueItemId, RegionId,
+    ActId, ActionId, AssetId, BatchId, ChallengeId, CharacterId, ConnectionId, ConversationId,
+    EventChainId, EventId, GoalId, GridMapId, InteractionId, ItemId, LocationId, LocationStateId,
+    LoreChunkId, LoreId, NarrativeEventId, ParticipantId, PlayerCharacterId, QueueItemId, RegionId,
     RegionStateId, RelationshipId, SceneId, SkillId, StagingId, StatModifierId, StoryEventId,
     UserId, WantId, WorkflowId, WorldId,
 };

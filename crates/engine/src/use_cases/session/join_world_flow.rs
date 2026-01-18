@@ -259,7 +259,7 @@ pub enum JoinWorldFlowError {
 impl From<JoinWorldError> for JoinWorldFlowError {
     fn from(err: JoinWorldError) -> Self {
         match err {
-            JoinWorldError::WorldNotFound => JoinWorldFlowError::WorldNotFound,
+            JoinWorldError::WorldNotFound(_) => JoinWorldFlowError::WorldNotFound,
             JoinWorldError::Repo(e) => JoinWorldFlowError::Repo(e),
         }
     }

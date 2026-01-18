@@ -116,3 +116,6 @@ define_id!(WorkflowId);
 
 // Stat system IDs
 define_id!(StatModifierId);
+
+// Conversation IDs
+define_id!(ConversationId);

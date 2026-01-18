@@ -89,7 +89,7 @@ async fn test_grateful_disposition_in_prompt() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.conversation_id.is_nil());
+        assert!(!started.conversation_id.as_uuid().is_nil());
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }
@@ -167,7 +167,7 @@ async fn test_hostile_disposition_in_prompt() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.conversation_id.is_nil());
+        assert!(!started.conversation_id.as_uuid().is_nil());
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }

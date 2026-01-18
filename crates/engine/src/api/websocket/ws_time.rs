@@ -45,13 +45,13 @@ pub(super) async fn handle_set_game_time(
         .await
     {
         Ok(outcome) => outcome,
-        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+        Err(crate::use_cases::time::TimeControlError::WorldNotFound(_)) => {
             return Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => {
             return Some(error_response(
                 ErrorCode::InternalError,
-                &sanitize_repo_error(&e, "setting game time"),
+                &sanitize_repo_error(&e, "getting time config"),
             ))
         }
     };
@@ -120,7 +120,7 @@ pub(super) async fn handle_skip_to_period(
         .await
     {
         Ok(outcome) => outcome,
-        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+        Err(crate::use_cases::time::TimeControlError::WorldNotFound(_)) => {
             return Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => {
@@ -185,7 +185,7 @@ pub(super) async fn handle_pause_game_time(
         .await
     {
         Ok(_time) => {}
-        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+        Err(crate::use_cases::time::TimeControlError::WorldNotFound(_)) => {
             return Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => {
@@ -243,7 +243,7 @@ pub(super) async fn handle_set_time_mode(
         .await
     {
         Ok(config) => config,
-        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+        Err(crate::use_cases::time::TimeControlError::WorldNotFound(_)) => {
             return Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => {
@@ -266,7 +266,7 @@ pub(super) async fn handle_set_time_mode(
         .await
     {
         Ok(_) => {}
-        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+        Err(crate::use_cases::time::TimeControlError::WorldNotFound(_)) => {
             return Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => {
@@ -323,7 +323,7 @@ pub(super) async fn handle_set_time_costs(
         .await
     {
         Ok(config) => config,
-        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+        Err(crate::use_cases::time::TimeControlError::WorldNotFound(_)) => {
             return Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => {
@@ -346,7 +346,7 @@ pub(super) async fn handle_set_time_costs(
         .await
     {
         Ok(updated) => updated,
-        Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+        Err(crate::use_cases::time::TimeControlError::WorldNotFound(_)) => {
             return Some(error_response(ErrorCode::NotFound, "World not found"))
         }
         Err(e) => {
@@ -483,7 +483,7 @@ pub(super) async fn handle_time_request(
                 Ok(game_time) => Ok(ResponseResult::success(serde_json::json!({
                     "game_time": game_time_to_protocol(&game_time),
                 }))),
-                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => Ok(
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound(_)) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "World not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
@@ -511,7 +511,7 @@ pub(super) async fn handle_time_request(
                 .await
             {
                 Ok(result) => result,
-                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound(_)) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
                         result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
@@ -576,7 +576,7 @@ pub(super) async fn handle_time_request(
                 .await
             {
                 Ok(result) => result,
-                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound(_)) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
                         result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
@@ -642,7 +642,7 @@ pub(super) async fn handle_time_request(
                 .await
             {
                 Ok(result) => result,
-                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound(_)) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
                         result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
@@ -722,7 +722,7 @@ pub(super) async fn handle_time_request(
                 .await
             {
                 Ok(result) => result,
-                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound(_)) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
                         result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
@@ -796,7 +796,7 @@ pub(super) async fn handle_time_request(
                     },
                     "show_time_to_players": config.show_time_to_players,
                 }))),
-                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => Ok(
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound(_)) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "World not found"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
@@ -827,7 +827,7 @@ pub(super) async fn handle_time_request(
                 .await
             {
                 Ok(result) => result,
-                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound(_)) => {
                     return Err(ServerMessage::Response {
                         request_id: request_id.to_string(),
                         result: ResponseResult::error(ErrorCode::NotFound, "World not found"),

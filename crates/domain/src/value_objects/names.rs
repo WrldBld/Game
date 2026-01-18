@@ -875,7 +875,7 @@ const MAX_STATE_NAME_LENGTH: usize = 100;
 /// A validated state name (non-empty, <=100 chars, trimmed)
 ///
 /// Used for LocationState and RegionState names.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct StateName(String);
 
@@ -905,12 +905,6 @@ impl StateName {
     /// Returns the name as a string slice.
     pub fn as_str(&self) -> &str {
         &self.0
-    }
-}
-
-impl Default for StateName {
-    fn default() -> Self {
-        Self(String::new())
     }
 }
 

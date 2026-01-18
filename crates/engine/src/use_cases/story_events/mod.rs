@@ -187,3 +187,155 @@ fn story_event_to_summary(event: wrldbldr_domain::StoryEvent) -> StoryEventSumma
         type_name,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infrastructure::clock::FixedClock;
+    use crate::infrastructure::ports::{
+        ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockLocationRepo,
+        MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
+        MockWorldRepo,
+    };
+    use chrono::TimeZone;
+    use std::sync::Arc;
+
+    fn fixed_time() -> chrono::DateTime<chrono::Utc> {
+        chrono::Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    }
+
+    fn create_test_story_event(world_id: WorldId) -> wrldbldr_domain::StoryEvent {
+        wrldbldr_domain::StoryEvent::new(
+            world_id,
+            StoryEventType::DmMarker {
+                title: "Test marker".to_string(),
+                note: "Test note".to_string(),
+                importance: wrldbldr_domain::MarkerImportance::Notable,
+                marker_type: wrldbldr_domain::DmMarkerType::Note,
+            },
+            fixed_time(),
+        )
+        .with_summary("Test summary")
+    }
+
+    fn create_narrative_ops(narrative_repo: MockNarrativeRepo) -> Arc<NarrativeOps> {
+        let location_repo: Arc<dyn crate::infrastructure::ports::LocationRepo> =
+            Arc::new(MockLocationRepo::new());
+        let world_repo: Arc<dyn crate::infrastructure::ports::WorldRepo> =
+            Arc::new(MockWorldRepo::new());
+        let player_character_repo: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> =
+            Arc::new(MockPlayerCharacterRepo::new());
+        let character_repo: Arc<dyn crate::infrastructure::ports::CharacterRepo> =
+            Arc::new(MockCharacterRepo::new());
+        let observation_repo: Arc<dyn crate::infrastructure::ports::ObservationRepo> =
+            Arc::new(MockObservationRepo::new());
+        let challenge_repo: Arc<dyn crate::infrastructure::ports::ChallengeRepo> =
+            Arc::new(MockChallengeRepo::new());
+        let flag_repo: Arc<dyn crate::infrastructure::ports::FlagRepo> =
+            Arc::new(MockFlagRepo::new());
+        let scene_repo: Arc<dyn crate::infrastructure::ports::SceneRepo> =
+            Arc::new(MockSceneRepo::new());
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(fixed_time()));
+
+        Arc::new(NarrativeOps::new(
+            Arc::new(narrative_repo),
+            location_repo,
+            world_repo,
+            player_character_repo,
+            character_repo,
+            observation_repo,
+            challenge_repo,
+            flag_repo,
+            scene_repo,
+            clock,
+        ))
+    }
+
+    mod story_event_ops {
+        use super::*;
+
+        #[tokio::test]
+        async fn when_list_returns_events() {
+            let world_id = WorldId::new();
+            let event = create_test_story_event(world_id);
+
+            let mut narrative_repo = MockNarrativeRepo::new();
+            narrative_repo
+                .expect_list_story_events()
+                .withf(move |w, l| *w == world_id && *l == 10)
+                .returning(move |_, _| Ok(vec![event.clone()]));
+
+            let narrative = create_narrative_ops(narrative_repo);
+            let ops = StoryEventOps::new(narrative);
+
+            let result = ops.list(world_id, 10).await;
+            assert!(result.is_ok());
+            let events = result.unwrap();
+            assert_eq!(events.len(), 1);
+            assert_eq!(events[0].summary, "Test summary");
+        }
+
+        #[tokio::test]
+        async fn when_get_not_found_returns_none() {
+            let event_id = wrldbldr_domain::StoryEventId::new();
+
+            let mut narrative_repo = MockNarrativeRepo::new();
+            narrative_repo
+                .expect_get_story_event()
+                .withf(move |id| *id == event_id)
+                .returning(|_| Ok(None));
+
+            let narrative = create_narrative_ops(narrative_repo);
+            let ops = StoryEventOps::new(narrative);
+
+            let result = ops.get(event_id).await;
+            assert!(result.is_ok());
+            assert!(result.unwrap().is_none());
+        }
+
+        #[tokio::test]
+        async fn when_update_succeeds() {
+            let world_id = WorldId::new();
+            let event = create_test_story_event(world_id);
+            let event_id = event.id();
+
+            let mut narrative_repo = MockNarrativeRepo::new();
+            narrative_repo
+                .expect_get_story_event()
+                .withf(move |id| *id == event_id)
+                .returning(move |_| Ok(Some(event.clone())));
+            narrative_repo
+                .expect_save_story_event()
+                .returning(|_| Ok(()));
+
+            let narrative = create_narrative_ops(narrative_repo);
+            let ops = StoryEventOps::new(narrative);
+
+            let result = ops
+                .update(event_id, Some("Updated summary".to_string()), None)
+                .await;
+            assert!(result.is_ok());
+            let updated = result.unwrap();
+            assert_eq!(updated.summary, "Updated summary");
+        }
+
+        #[tokio::test]
+        async fn when_update_not_found_returns_error() {
+            let event_id = wrldbldr_domain::StoryEventId::new();
+
+            let mut narrative_repo = MockNarrativeRepo::new();
+            narrative_repo
+                .expect_get_story_event()
+                .withf(move |id| *id == event_id)
+                .returning(|_| Ok(None));
+
+            let narrative = create_narrative_ops(narrative_repo);
+            let ops = StoryEventOps::new(narrative);
+
+            let result = ops
+                .update(event_id, Some("Updated summary".to_string()), None)
+                .await;
+            assert!(matches!(result, Err(StoryEventError::NotFound)));
+        }
+    }
+}

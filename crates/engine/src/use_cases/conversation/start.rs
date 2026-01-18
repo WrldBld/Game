@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 use uuid::Uuid;
-use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
+use wrldbldr_domain::{CharacterId, ConversationId, PlayerCharacterId, WorldId};
 
 use crate::queue_types::PlayerActionData;
 
@@ -19,7 +19,7 @@ use crate::infrastructure::ports::{
 #[derive(Debug)]
 pub struct ConversationStarted {
     /// Unique ID for this conversation session
-    pub conversation_id: Uuid,
+    pub conversation_id: ConversationId,
     /// ID of the queued player action
     pub action_queue_id: Uuid,
     /// NPC name for display
@@ -134,7 +134,7 @@ impl StartConversation {
         }
 
         // 4. Generate conversation ID
-        let conversation_id = Uuid::new_v4();
+        let conversation_id = ConversationId::new();
 
         // 5. Get NPC's current disposition toward the PC if available
         let npc_disposition = match self.character.get_disposition(npc_id, pc_id).await {
@@ -160,7 +160,7 @@ impl StartConversation {
             target: Some(npc_id.to_string()),
             dialogue: Some(initial_dialogue),
             timestamp: self.clock.now(),
-            conversation_id: Some(conversation_id),
+            conversation_id: Some(conversation_id.to_uuid()),
         };
 
         let action_queue_id = self.queue.enqueue_player_action(&action_data).await?;
@@ -538,7 +538,7 @@ mod tests {
             .expect("StartConversation should succeed");
 
         assert_eq!(result.action_queue_id, queue_id);
-        assert!(!result.conversation_id.is_nil());
+        assert!(!result.conversation_id.as_uuid().is_nil());
         assert_eq!(result.npc_name, "NPC".to_string());
 
         let recorded = queue_port.recorded_player_actions();

@@ -1,7 +1,7 @@
 //! Scene mutation outcomes.
 
 use crate::entities::{SceneCondition, TimeContext};
-use crate::value_objects::SceneName;
+use crate::value_objects::{AssetPath, SceneName};
 
 /// Outcome of updating scene fields or state.
 ///
@@ -19,8 +19,8 @@ pub enum SceneUpdate {
         to: TimeContext,
     },
     BackdropOverrideChanged {
-        from: Option<String>,
-        to: Option<String>,
+        from: Option<AssetPath>,
+        to: Option<AssetPath>,
     },
     DirectorialNotesChanged {
         from: String,

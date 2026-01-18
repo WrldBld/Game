@@ -193,7 +193,7 @@ async fn test_start_conversation_with_staged_npc() {
 
         // Verify we got a response
         assert!(
-            !conversation_id.is_nil(),
+            !conversation_id.as_uuid().is_nil(),
             "Conversation ID should not be nil"
         );
         assert!(!response.is_empty(), "Response should not be empty");

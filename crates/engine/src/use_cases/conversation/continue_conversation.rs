@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 use uuid::Uuid;
-use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
+use wrldbldr_domain::{CharacterId, ConversationId, PlayerCharacterId, WorldId};
 
 use crate::queue_types::PlayerActionData;
 
@@ -29,7 +29,7 @@ pub struct ConversationContinued {
     /// The conversation is still active
     pub conversation_active: bool,
     /// The conversation ID for tracking
-    pub conversation_id: Option<Uuid>,
+    pub conversation_id: Option<ConversationId>,
 }
 
 /// Continue conversation use case.
@@ -86,7 +86,7 @@ impl ContinueConversation {
         npc_id: CharacterId,
         player_id: String,
         player_message: String,
-        conversation_id: Option<Uuid>,
+        conversation_id: Option<ConversationId>,
     ) -> Result<ConversationContinued, ConversationError> {
         // 1. Validate the player character exists
         let pc = self
@@ -197,7 +197,7 @@ impl ContinueConversation {
             target: Some(npc_id.to_string()),
             dialogue: Some(player_message),
             timestamp: self.clock.now(),
-            conversation_id: resolved_conversation_id,
+            conversation_id: resolved_conversation_id.map(|id| id.to_uuid()),
         };
 
         let action_queue_id = self.queue.enqueue_player_action(&action_data).await?;
@@ -218,8 +218,9 @@ mod tests {
     use chrono::Utc;
     use uuid::Uuid;
     use wrldbldr_domain::{
-        CampbellArchetype, Character, CharacterId, CharacterName, LocationId, MoodState,
-        PlayerCharacterId, RegionId, StagedNpc, Staging, StagingSource, WorldId, WorldName,
+        CampbellArchetype, Character, CharacterId, CharacterName, ConversationId, LocationId,
+        MoodState, PlayerCharacterId, RegionId, StagedNpc, Staging, StagingSource, WorldId,
+        WorldName,
     };
 
     use crate::queue_types::{
@@ -759,7 +760,7 @@ mod tests {
         let region_id = RegionId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
-        let conversation_id = Uuid::new_v4();
+        let conversation_id = ConversationId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
             "user",
@@ -981,7 +982,7 @@ mod tests {
         let region_id = RegionId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
-        let conversation_id = Uuid::new_v4();
+        let conversation_id = ConversationId::new();
 
         let player_id = "player".to_string();
         let player_message = "Hello again!".to_string();
@@ -1094,7 +1095,7 @@ mod tests {
         assert_eq!(action.action_type, "talk".to_string());
         assert_eq!(action.target, Some(npc_id.to_string())); // target is NPC ID
         assert_eq!(action.dialogue, Some(player_message));
-        assert_eq!(action.conversation_id, Some(conversation_id));
+        assert_eq!(action.conversation_id, Some(conversation_id.to_uuid()));
         assert_eq!(action.timestamp, now);
     }
 
@@ -1106,7 +1107,7 @@ mod tests {
         let region_id = RegionId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
-        let found_conversation_id = Uuid::new_v4();
+        let found_conversation_id = ConversationId::new();
 
         let player_id = "player".to_string();
         let player_message = "Continuing...".to_string();
@@ -1213,6 +1214,9 @@ mod tests {
         let recorded = queue_port.recorded_player_actions();
         assert_eq!(recorded.len(), 1);
         let action = &recorded[0];
-        assert_eq!(action.conversation_id, Some(found_conversation_id));
+        assert_eq!(
+            action.conversation_id,
+            Some(found_conversation_id.to_uuid())
+        );
     }
 }

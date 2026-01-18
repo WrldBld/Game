@@ -33,7 +33,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         region_id,
         location_id,
         wrldbldr_domain::value_objects::RegionName::new("Region").unwrap(),
-        String::new(),
+        wrldbldr_domain::Description::default(),
         None,
         None,
         None,

@@ -28,7 +28,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use wrldbldr_domain::{NarrativeEventId, WorldId};
 
 use crate::events::NarrativeEventUpdate;
-use crate::value_objects::{NarrativeEventName, Tag};
+use crate::value_objects::{Description, NarrativeEventName, Tag};
 
 // Re-export complex types from entities that are used within the aggregate
 pub use crate::entities::{
@@ -129,7 +129,7 @@ pub struct NarrativeEvent {
     /// Name of the event (for DM reference)
     name: NarrativeEventName,
     /// Detailed description of what this event represents
-    description: String,
+    description: Description,
     /// Tags for organization and filtering
     tags: Vec<Tag>,
 
@@ -217,7 +217,7 @@ impl NarrativeEvent {
             id: NarrativeEventId::new(),
             world_id,
             name,
-            description: String::new(),
+            description: Description::empty(),
             tags: Vec::new(),
             trigger_conditions: Vec::new(),
             trigger_logic: TriggerLogic::All,
@@ -267,7 +267,7 @@ impl NarrativeEvent {
     /// Returns the event's description.
     #[inline]
     pub fn description(&self) -> &str {
-        &self.description
+        self.description.as_str()
     }
 
     /// Returns the event's tags.
@@ -432,7 +432,7 @@ impl NarrativeEvent {
 
     /// Set the event's description.
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = description.into();
+        self.description = Description::new(description).unwrap_or_default();
         self
     }
 
@@ -598,12 +598,12 @@ impl NarrativeEvent {
         description: impl Into<String>,
         now: DateTime<Utc>,
     ) -> NarrativeEventUpdate {
-        let next = description.into();
+        let next = Description::new(description).unwrap_or_default();
         let previous = std::mem::replace(&mut self.description, next);
         self.updated_at = now;
         NarrativeEventUpdate::DescriptionChanged {
-            from: previous,
-            to: self.description.clone(),
+            from: previous.to_string(),
+            to: self.description.to_string(),
         }
     }
 
@@ -1018,7 +1018,7 @@ impl Serialize for NarrativeEvent {
             id: self.id,
             world_id: self.world_id,
             name: self.name.to_string(),
-            description: self.description.clone(),
+            description: self.description.to_string(),
             tags: self.tags.iter().map(|t| t.to_string()).collect(),
             trigger_conditions: self.trigger_conditions.clone(),
             trigger_logic: self.trigger_logic,
@@ -1063,7 +1063,7 @@ impl<'de> Deserialize<'de> for NarrativeEvent {
             id: wire.id,
             world_id: wire.world_id,
             name,
-            description: wire.description,
+            description: Description::new(wire.description).unwrap_or_default(),
             tags,
             trigger_conditions: wire.trigger_conditions,
             trigger_logic: wire.trigger_logic,

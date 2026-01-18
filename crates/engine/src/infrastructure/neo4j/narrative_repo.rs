@@ -1158,7 +1158,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         &self,
         pc_id: PlayerCharacterId,
         npc_id: CharacterId,
-    ) -> Result<Option<Uuid>, RepoError> {
+    ) -> Result<Option<ConversationId>, RepoError> {
         let q = query(
             "MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation {is_active: true})<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
             RETURN c.id AS conversation_id
@@ -1183,13 +1183,16 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 .get("conversation_id")
                 .map_err(|e| RepoError::database("query", e))?;
             let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::database("query", e))?;
-            Ok(Some(uuid))
+            Ok(Some(ConversationId::from(uuid)))
         } else {
             Ok(None)
         }
     }
 
-    async fn is_conversation_active(&self, conversation_id: Uuid) -> Result<bool, RepoError> {
+    async fn is_conversation_active(
+        &self,
+        conversation_id: ConversationId,
+    ) -> Result<bool, RepoError> {
         let q = query(
             "MATCH (c:Conversation {id: $conversation_id})
             RETURN c.is_active AS is_active",
@@ -1215,7 +1218,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         }
     }
 
-    async fn end_conversation(&self, conversation_id: Uuid) -> Result<bool, RepoError> {
+    async fn end_conversation(&self, conversation_id: ConversationId) -> Result<bool, RepoError> {
         let q = query(
             "MATCH (c:Conversation {id: $conversation_id, is_active: true})
             SET c.is_active = false, c.ended_at = datetime()
@@ -1243,7 +1246,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         &self,
         pc_id: PlayerCharacterId,
         npc_id: CharacterId,
-    ) -> Result<Option<Uuid>, RepoError> {
+    ) -> Result<Option<ConversationId>, RepoError> {
         // Find and end the active conversation between PC and NPC atomically
         let q = query(
             "MATCH (pc:PlayerCharacter {id: $pc_id})-[:PARTICIPATED_IN]->(c:Conversation {is_active: true})<-[:PARTICIPATED_IN]-(npc:Character {id: $npc_id})
@@ -1268,7 +1271,7 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
                 .get("conversation_id")
                 .map_err(|e| RepoError::database("query", e))?;
             let uuid = Uuid::parse_str(&id_str).map_err(|e| RepoError::database("query", e))?;
-            Ok(Some(uuid))
+            Ok(Some(ConversationId::from(uuid)))
         } else {
             Ok(None)
         }

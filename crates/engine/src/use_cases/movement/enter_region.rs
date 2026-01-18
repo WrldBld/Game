@@ -295,8 +295,8 @@ mod tests {
 
     use chrono::Utc;
     use wrldbldr_domain::{
-        value_objects::RegionName, CharacterName, LocationId, PlayerCharacterId, Region,
-        RegionConnection, RegionId, WorldId,
+        value_objects::RegionName, CharacterName, Description, LocationId, PlayerCharacterId,
+        Region, RegionConnection, RegionId, WorldId,
     };
 
     use crate::infrastructure::ports::{
@@ -463,7 +463,7 @@ mod tests {
             region_id,
             other_location_id,
             RegionName::new("Target").unwrap(),
-            String::new(),
+            Description::default(),
             None,
             None,
             None,
@@ -512,7 +512,7 @@ mod tests {
             to_region_id,
             location_id,
             RegionName::new("Target").unwrap(),
-            String::new(),
+            Description::default(),
             None,
             None,
             None,
@@ -571,7 +571,7 @@ mod tests {
             to_region_id,
             location_id,
             RegionName::new("Target").unwrap(),
-            String::new(),
+            Description::default(),
             None,
             None,
             None,
@@ -641,7 +641,7 @@ mod tests {
             region_id,
             location_id,
             RegionName::new("Target").unwrap(),
-            String::new(),
+            Description::default(),
             None,
             None,
             None,

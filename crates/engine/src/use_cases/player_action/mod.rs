@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use wrldbldr_domain::{CharacterId, PlayerCharacterId, WorldId};
+use wrldbldr_domain::{CharacterId, ConversationId, PlayerCharacterId, WorldId};
 
 use crate::infrastructure::ports::{ClockPort, QueueError, QueuePort};
 use crate::queue_types::PlayerActionData;
@@ -108,7 +108,7 @@ pub struct PlayerActionProcessed {
     pub player_id: String,
     pub world_id: WorldId,
     pub queue_depth: usize,
-    pub conversation_id: Option<Uuid>,
+    pub conversation_id: Option<ConversationId>,
     pub npc_name: Option<String>,
 }
 

@@ -103,7 +103,7 @@ impl SuggestTime {
             .world
             .get(world_id)
             .await?
-            .ok_or(SuggestTimeError::WorldNotFound)?;
+            .ok_or(SuggestTimeError::WorldNotFound(world_id))?;
 
         let config = world.time_config();
         let cost_minutes = config.time_costs.cost_for_action(action_type);
@@ -178,8 +178,8 @@ pub fn time_advance_reason_for_action(action_type: &str, description: &str) -> T
 
 #[derive(Debug, thiserror::Error)]
 pub enum SuggestTimeError {
-    #[error("World not found")]
-    WorldNotFound,
+    #[error("World not found: {0}")]
+    WorldNotFound(WorldId),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }
@@ -204,7 +204,7 @@ impl TimeControl {
             .world
             .get(world_id)
             .await?
-            .ok_or(TimeControlError::WorldNotFound)?;
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
         Ok(world.game_time().clone())
     }
@@ -218,7 +218,7 @@ impl TimeControl {
             .world
             .get(world_id)
             .await?
-            .ok_or(TimeControlError::WorldNotFound)?;
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
         let previous_time = world.game_time().clone();
         // Use the aggregate's advance_hours which auto-updates updated_at
@@ -243,7 +243,7 @@ impl TimeControl {
             .world
             .get(world_id)
             .await?
-            .ok_or(TimeControlError::WorldNotFound)?;
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
         let previous_time = world.game_time().clone();
         let result = world.advance_time(minutes, reason, self.clock.now());
@@ -267,7 +267,7 @@ impl TimeControl {
             .world
             .get(world_id)
             .await?
-            .ok_or(TimeControlError::WorldNotFound)?;
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
         let previous_time = world.game_time().clone();
         // Mutate game time directly - aggregate setters auto-update updated_at
@@ -291,7 +291,7 @@ impl TimeControl {
             .world
             .get(world_id)
             .await?
-            .ok_or(TimeControlError::WorldNotFound)?;
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
         let previous_time = world.game_time().clone();
         let minutes_until = world.game_time().minutes_until_period(period);
@@ -315,7 +315,7 @@ impl TimeControl {
             .world
             .get(world_id)
             .await?
-            .ok_or(TimeControlError::WorldNotFound)?;
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
         world.game_time_mut().set_paused(paused);
 
@@ -332,7 +332,7 @@ impl TimeControl {
             .world
             .get(world_id)
             .await?
-            .ok_or(TimeControlError::WorldNotFound)?;
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
         Ok(world.time_config().clone())
     }
@@ -346,7 +346,7 @@ impl TimeControl {
             .world
             .get(world_id)
             .await?
-            .ok_or(TimeControlError::WorldNotFound)?;
+            .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
         let normalized_config = normalize_domain_time_config(config);
 
@@ -382,8 +382,8 @@ pub struct TimeConfigUpdate {
 
 #[derive(Debug, thiserror::Error)]
 pub enum TimeControlError {
-    #[error("World not found")]
-    WorldNotFound,
+    #[error("World not found: {0}")]
+    WorldNotFound(WorldId),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }

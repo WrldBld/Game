@@ -265,7 +265,7 @@ impl NarrativeOps {
         &self,
         pc_id: PlayerCharacterId,
         npc_id: CharacterId,
-    ) -> Result<Option<uuid::Uuid>, RepoError> {
+    ) -> Result<Option<domain::ConversationId>, RepoError> {
         self.narrative
             .get_active_conversation_id(pc_id, npc_id)
             .await
@@ -273,12 +273,15 @@ impl NarrativeOps {
 
     pub async fn is_conversation_active(
         &self,
-        conversation_id: uuid::Uuid,
+        conversation_id: domain::ConversationId,
     ) -> Result<bool, RepoError> {
         self.narrative.is_conversation_active(conversation_id).await
     }
 
-    pub async fn end_conversation(&self, conversation_id: uuid::Uuid) -> Result<bool, RepoError> {
+    pub async fn end_conversation(
+        &self,
+        conversation_id: domain::ConversationId,
+    ) -> Result<bool, RepoError> {
         self.narrative.end_conversation(conversation_id).await
     }
 
@@ -286,7 +289,7 @@ impl NarrativeOps {
         &self,
         pc_id: PlayerCharacterId,
         npc_id: CharacterId,
-    ) -> Result<Option<uuid::Uuid>, RepoError> {
+    ) -> Result<Option<domain::ConversationId>, RepoError> {
         self.narrative.end_active_conversation(pc_id, npc_id).await
     }
 

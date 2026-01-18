@@ -433,7 +433,7 @@ async fn test_conversation_does_not_block_other_players() {
 
         // The conversation has been started and queued, but approval is pending
         assert!(
-            !conversation_started.conversation_id.is_nil(),
+            !conversation_started.conversation_id.as_uuid().is_nil(),
             "Conversation ID should be valid"
         );
 
@@ -657,7 +657,7 @@ async fn test_dm_sees_player_actions_in_queue() {
 
         // The conversation has been started
         assert!(
-            !conversation_started.conversation_id.is_nil(),
+            !conversation_started.conversation_id.as_uuid().is_nil(),
             "Conversation ID should be valid"
         );
 

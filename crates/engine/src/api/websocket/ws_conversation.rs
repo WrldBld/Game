@@ -1,6 +1,6 @@
 use super::*;
 use chrono::Utc;
-use wrldbldr_domain::{InteractionTarget, InteractionType};
+use wrldbldr_domain::{ConversationId, InteractionTarget, InteractionType};
 
 use crate::queue_types::PlayerActionData;
 
@@ -156,10 +156,10 @@ pub(super) async fn handle_continue_conversation(
         Err(e) => return Some(e),
     };
 
-    // Parse optional conversation_id from string to UUID
+    // Parse optional conversation_id from string to ConversationId
     let conversation_uuid = match conversation_id {
         Some(id_str) => match Uuid::parse_str(&id_str) {
-            Ok(uuid) => Some(uuid),
+            Ok(uuid) => Some(ConversationId::from(uuid)),
             Err(_) => {
                 return Some(error_response(
                     ErrorCode::ValidationError,

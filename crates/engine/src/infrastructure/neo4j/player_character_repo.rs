@@ -487,7 +487,7 @@ fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
     .with_id(id)
     .with_current_location(current_location_id)
     .with_current_region(current_region_id)
-    .with_description(description.unwrap_or_default())
+    .with_description(description.unwrap_or_default().as_str())
     .with_state(CharacterState::from_legacy(is_alive, is_active))
     .with_last_active_at(last_active_at);
 
