@@ -78,6 +78,12 @@
       "role": "Blacksmith - works the forge"
     },
     {
+      "character_id": "00000000-0000-0000-2000-000000000009",
+      "region_id": "00000000-0000-0000-1100-000000000004",
+      "shift": "day",
+      "role": "Smith Apprentice - assists at the forge"
+    },
+    {
       "character_id": "00000000-0000-0000-2000-000000000004",
       "region_id": "00000000-0000-0000-1100-000000000009",
       "shift": "always",

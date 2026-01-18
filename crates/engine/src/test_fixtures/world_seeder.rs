@@ -140,7 +140,7 @@ impl TestWorld {
             .collect()
     }
 
-    /// Get relationships from a specific character.
+    /// Get relationships from a specific character by ID.
     pub fn relationships_from(&self, character_id: CharacterId) -> Vec<&RelationshipData> {
         self.relationships
             .iter()
@@ -148,12 +148,34 @@ impl TestWorld {
             .collect()
     }
 
-    /// Get wants for a specific character.
+    /// Get relationships from a character by name.
+    ///
+    /// This is useful in E2E tests where fresh IDs are generated for Neo4j isolation.
+    pub fn relationships_from_name(&self, name: &str) -> Vec<&RelationshipData> {
+        if let Some(id) = self.npc(name) {
+            self.relationships_from(id)
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Get wants for a specific character by ID.
     pub fn wants_for(&self, character_id: CharacterId) -> Vec<&WantData> {
         self.wants
             .iter()
             .filter(|w| w.character_id == character_id)
             .collect()
+    }
+
+    /// Get wants for a character by name.
+    ///
+    /// This is useful in E2E tests where fresh IDs are generated for Neo4j isolation.
+    pub fn wants_for_name(&self, name: &str) -> Vec<&WantData> {
+        if let Some(id) = self.npc(name) {
+            self.wants_for(id)
+        } else {
+            Vec::new()
+        }
     }
 
     /// Get featured characters for a scene.
@@ -720,10 +742,11 @@ mod tests {
         assert!(world.location("The Old Mill").is_some());
 
         // Verify NPCs loaded
-        assert_eq!(world.npcs.len(), 8);
+        assert_eq!(world.npcs.len(), 9);
         assert!(world.npc("Marta Hearthwood").is_some());
         assert!(world.npc("Grom Ironhand").is_some());
         assert!(world.npc("Old Tom").is_some());
+        assert!(world.npc("Mira Thornwood").is_some());
 
         // Verify scenes loaded
         assert!(world.scenes.len() >= 8);

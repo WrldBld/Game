@@ -20,7 +20,7 @@ use crate::queue_types::DmApprovalDecision;
 use super::{
     approve_staging_with_npc, create_player_character_via_use_case, create_shared_log,
     create_test_player, start_conversation_with_npc, E2ETestContext, LoggingLlmDecorator,
-    TestOutcome, VcrLlm,
+    SemanticAssert, TestOutcome, VcrLlm,
 };
 
 // =============================================================================
@@ -33,7 +33,15 @@ use super::{
 async fn test_grateful_disposition_in_prompt() {
     const TEST_NAME: &str = "test_grateful_disposition_in_prompt";
     let event_log = create_shared_log(TEST_NAME);
-    let ctx = E2ETestContext::setup_with_logging(event_log.clone())
+
+    let vcr = Arc::new(VcrLlm::from_env(std::path::PathBuf::from(format!(
+        "{}/src/e2e_tests/cassettes/{}.json",
+        env!("CARGO_MANIFEST_DIR"),
+        TEST_NAME
+    ))));
+    let llm = Arc::new(LoggingLlmDecorator::new(vcr.clone(), event_log.clone()));
+
+    let ctx = E2ETestContext::setup_with_llm_and_logging(llm.clone(), event_log.clone())
         .await
         .expect("Failed to setup E2E context");
 
@@ -103,6 +111,7 @@ async fn test_grateful_disposition_in_prompt() {
     ctx.finalize_event_log(outcome);
     ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME))
         .expect("save log");
+    vcr.save_cassette().expect("Failed to save cassette");
     test_result.expect("Test failed");
 }
 
@@ -116,7 +125,15 @@ async fn test_grateful_disposition_in_prompt() {
 async fn test_hostile_disposition_in_prompt() {
     const TEST_NAME: &str = "test_hostile_disposition_in_prompt";
     let event_log = create_shared_log(TEST_NAME);
-    let ctx = E2ETestContext::setup_with_logging(event_log.clone())
+
+    let vcr = Arc::new(VcrLlm::from_env(std::path::PathBuf::from(format!(
+        "{}/src/e2e_tests/cassettes/{}.json",
+        env!("CARGO_MANIFEST_DIR"),
+        TEST_NAME
+    ))));
+    let llm = Arc::new(LoggingLlmDecorator::new(vcr.clone(), event_log.clone()));
+
+    let ctx = E2ETestContext::setup_with_llm_and_logging(llm.clone(), event_log.clone())
         .await
         .expect("Failed to setup E2E context");
 
@@ -141,7 +158,10 @@ async fn test_hostile_disposition_in_prompt() {
         );
 
         // Create player and stage NPC at Grom's location
-        let forge = ctx.world.region("The Forge").expect("Forge not found");
+        let forge = ctx
+            .world
+            .region("Forge Floor")
+            .expect("Forge Floor not found");
         approve_staging_with_npc(&ctx, forge, grom_id)
             .await
             .expect("Failed to stage NPC");
@@ -181,6 +201,7 @@ async fn test_hostile_disposition_in_prompt() {
     ctx.finalize_event_log(outcome);
     ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME))
         .expect("save log");
+    vcr.save_cassette().expect("Failed to save cassette");
     test_result.expect("Test failed");
 }
 
@@ -200,10 +221,8 @@ async fn test_npc_motivations_in_prompt() {
 
     let test_result = async {
         // Marta has wants defined in the test data
-        let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");
-
-        // Check wants in the test world
-        let marta_wants = ctx.test_world.wants_for(marta_id);
+        // Use name-based lookup since E2E tests use fresh IDs for Neo4j isolation
+        let marta_wants = ctx.test_world.wants_for_name("Marta Hearthwood");
         assert!(!marta_wants.is_empty(), "Marta should have wants defined");
 
         // Verify different visibility levels exist
@@ -414,21 +433,47 @@ async fn test_grateful_npc_offers_item() {
                 .expect("Failed to create player");
 
         // Ask for help - a friendly NPC might offer an item
-        let (_conversation_id, response) = start_conversation_with_npc(
-            &ctx,
-            pc_id,
-            marta_id,
-            &player_id,
-            "I'm feeling unwell. Do you have anything that could help me?",
-        )
-        .await
-        .expect("Failed to start conversation");
+        let player_question = "I'm feeling unwell. Do you have anything that could help me?";
+        let (_conversation_id, response) =
+            start_conversation_with_npc(&ctx, pc_id, marta_id, &player_id, player_question)
+                .await
+                .expect("Failed to start conversation");
 
         // Verify we got a response
         assert!(
             !response.is_empty(),
             "Should get a response from friendly NPC"
         );
+
+        // SEMANTIC ASSERTIONS: Validate content makes sense
+        let semantic = SemanticAssert::new(vcr.clone());
+
+        // Response should be relevant to the player's request for help
+        semantic
+            .assert_responds_to_question(
+                player_question,
+                &response,
+                "NPC should respond to the player's request for help when feeling unwell",
+            )
+            .await?;
+
+        // A friendly NPC should indicate willingness to help
+        semantic
+            .assert_custom(
+                &response,
+                "Does this response indicate willingness to help or offer something?",
+                "Friendly NPC should show willingness to help or offer assistance",
+            )
+            .await?;
+
+        // Response should be in character for Marta (friendly mentor/innkeeper)
+        semantic
+            .assert_in_character(
+                &response,
+                "Marta Hearthwood, a friendly village innkeeper and mentor who cares for visitors",
+                "Response should match Marta's caring, helpful personality",
+            )
+            .await?;
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }
@@ -471,7 +516,7 @@ async fn test_hostile_npc_refuses_help() {
     let test_result = async {
         // Grom is cautious/unfriendly
         let grom_id = ctx.world.npc("Grom Ironhand").expect("Grom not found");
-        let forge = ctx.world.region("The Forge").expect("Forge not found");
+        let forge = ctx.world.region("Forge Floor").expect("Forge Floor not found");
 
         approve_staging_with_npc(&ctx, forge, grom_id)
             .await
@@ -483,18 +528,49 @@ async fn test_hostile_npc_refuses_help() {
                 .expect("Failed to create player");
 
         // Ask for help from unfriendly NPC
+        let player_question = "Can you give me a free weapon?";
         let (_conversation_id, response) = start_conversation_with_npc(
             &ctx,
             pc_id,
             grom_id,
             &player_id,
-            "Can you give me a free weapon?",
+            player_question,
         )
         .await
         .expect("Failed to start conversation");
 
         // Verify we got a response (likely refusing)
         assert!(!response.is_empty(), "Should get a response from NPC");
+
+        // SEMANTIC ASSERTIONS: Validate content makes sense
+        let semantic = SemanticAssert::new(vcr.clone());
+
+        // Response should be relevant to the player's request for a weapon
+        semantic
+            .assert_responds_to_question(
+                player_question,
+                &response,
+                "NPC should respond to the player's request for a free weapon",
+            )
+            .await?;
+
+        // A cautious/unfriendly NPC should indicate reluctance or refusal
+        semantic
+            .assert_custom(
+                &response,
+                "Does this response indicate reluctance, refusal, or unwillingness to give things freely?",
+                "Cautious NPC should show reluctance or refuse to give away items freely",
+            )
+            .await?;
+
+        // Response should be in character for Grom (stoic, cautious threshold guardian)
+        semantic
+            .assert_in_character(
+                &response,
+                "Grom Ironhand, a stoic and cautious dwarven blacksmith who doesn't trust strangers easily",
+                "Response should match Grom's guarded, businesslike personality",
+            )
+            .await?;
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }
@@ -528,8 +604,8 @@ async fn test_relationship_data_exists() {
 
     let test_result = async {
         // Check relationships in test world
-        let marta_id = ctx.world.npc("Marta Hearthwood").expect("Marta not found");
-        let marta_relationships = ctx.test_world.relationships_from(marta_id);
+        // Use name-based lookup since E2E tests use fresh IDs for Neo4j isolation
+        let marta_relationships = ctx.test_world.relationships_from_name("Marta Hearthwood");
 
         assert!(
             !marta_relationships.is_empty(),
@@ -723,18 +799,40 @@ async fn test_secret_motivation_deflection() {
                 .expect("Failed to create player");
 
         // Ask about something that might touch on secret motivations
+        let player_question = "You seem troubled. What are you hiding?";
         let (_conversation_id, response) = start_conversation_with_npc(
             &ctx,
             pc_id,
             marta_id,
             &player_id,
-            "You seem troubled. What are you hiding?",
+            player_question,
         )
         .await
         .expect("Failed to start conversation");
 
         // Verify we got a response (the actual deflection behavior depends on LLM)
         assert!(!response.is_empty(), "Should get a response");
+
+        // SEMANTIC ASSERTIONS: Validate content makes sense
+        let semantic = SemanticAssert::new(vcr.clone());
+
+        // Response should acknowledge the player's probing question
+        semantic
+            .assert_responds_to_question(
+                player_question,
+                &response,
+                "NPC should respond to the player's probing question about what they're hiding",
+            )
+            .await?;
+
+        // NPC with hidden motivations should deflect or avoid revealing secrets
+        semantic
+            .assert_custom(
+                &response,
+                "Does this response deflect, avoid, or redirect away from revealing secret motivations?",
+                "NPC with hidden wants should deflect probing questions about secrets",
+            )
+            .await?;
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }

@@ -236,6 +236,7 @@ Be descriptive but concise. Focus on what the character sees, hears, and feels."
 #[ignore = "requires ollama"]
 async fn test_e2e_conversation_context_maintained() {
     use crate::infrastructure::ports::{ChatMessage, LlmRequest};
+    use crate::use_cases::queues::response_parser::strip_special_tokens;
 
     // Test that conversation context is maintained across messages
     let client = OpenAICompatibleClient::from_env();
@@ -255,20 +256,24 @@ async fn test_e2e_conversation_context_maintained() {
         .await
         .expect("First LLM request failed");
 
+    // Strip special tokens (e.g., <|channel|>) before using as conversation history
+    // The gpt-oss model includes internal reasoning tokens that the chat template rejects
+    let cleaned_response1 = strip_special_tokens(&response1.content);
+
     // Verify first response mentions name
-    let content1_lower = response1.content.to_lowercase();
+    let content1_lower = cleaned_response1.to_lowercase();
     assert!(
         content1_lower.contains("gareth")
             || content1_lower.contains("tavern")
             || content1_lower.contains("keeper"),
         "First response should establish identity: {}",
-        response1.content
+        cleaned_response1
     );
 
-    // Second message with conversation history
+    // Second message with conversation history (using cleaned response)
     let request2 = LlmRequest::new(vec![
         ChatMessage::user("What's your name and what do you do here?"),
-        ChatMessage::assistant(&response1.content),
+        ChatMessage::assistant(&cleaned_response1),
         ChatMessage::user("I'd like to rent a room for the night."),
     ])
     .with_system_prompt(system_prompt)
@@ -280,8 +285,11 @@ async fn test_e2e_conversation_context_maintained() {
         .await
         .expect("Second LLM request failed");
 
+    // Strip special tokens from second response too
+    let cleaned_response2 = strip_special_tokens(&response2.content);
+
     // Verify second response is about rooms/lodging
-    let content2_lower = response2.content.to_lowercase();
+    let content2_lower = cleaned_response2.to_lowercase();
     assert!(
         content2_lower.contains("room")
             || content2_lower.contains("night")
@@ -289,6 +297,6 @@ async fn test_e2e_conversation_context_maintained() {
             || content2_lower.contains("gold")
             || content2_lower.contains("coin"),
         "Second response should be about renting a room: {}",
-        response2.content
+        cleaned_response2
     );
 }

@@ -1,67 +1,30 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use chrono::{TimeZone, Utc};
 use neo4rs::query;
-use testcontainers::{core::WaitFor, runners::AsyncRunner, GenericImage};
-use tokio::time::sleep;
 use uuid::Uuid;
 use wrldbldr_domain::{
-    EventOutcome, LocationId, MoodState, NarrativeEvent, NarrativeEventId, NarrativeEventName,
-    NarrativeTrigger, NarrativeTriggerType, RegionId, StagedNpc, Staging, StagingSource,
-    TriggerLogic, WorldId,
+    EventOutcome, LocationId, MoodState, NarrativeEvent, NarrativeEventName, NarrativeTrigger,
+    NarrativeTriggerType, RegionId, StagedNpc, Staging, StagingSource, TriggerLogic, WorldId,
 };
 
+use crate::e2e_tests::{clean_db, SharedNeo4jHarness};
 use crate::infrastructure::{
     clock::FixedClock,
     ports::{NarrativeRepo, StagingRepo},
 };
 
-fn neo4j_image(password: &str) -> GenericImage {
-    GenericImage::new("neo4j", "5")
-        .with_env_var("NEO4J_AUTH", format!("neo4j/{password}"))
-        .with_env_var(
-            "NEO4J_dbms_connector_bolt_advertised__address",
-            "localhost:7687",
-        )
-        .with_exposed_port(7687)
-        .with_wait_for(WaitFor::message_on_stdout("Started."))
-}
-
-async fn connect_with_retry(uri: &str, user: &str, pass: &str) -> neo4rs::Graph {
-    let mut last_err: Option<anyhow::Error> = None;
-    for _ in 0..60 {
-        match neo4rs::Graph::new(uri, user, pass).await {
-            Ok(graph) => return graph,
-            Err(e) => {
-                last_err = Some(anyhow::anyhow!(e));
-                sleep(Duration::from_millis(250)).await;
-            }
-        }
-    }
-
-    panic!(
-        "Failed to connect to Neo4j at {uri} after retries: {:?}",
-        last_err
-    );
-}
-
-async fn clean_db(graph: &neo4rs::Graph) {
-    graph
-        .run(query("MATCH (n) DETACH DELETE n"))
-        .await
-        .expect("clean db");
-}
-
 #[tokio::test]
 #[ignore = "requires docker (testcontainers)"]
 async fn narrative_triggers_fallback_is_bounded_to_500() {
-    let password = "password";
-    let container = neo4j_image(password).start().await;
-    let bolt_port = container.get_host_port_ipv4(7687).await;
-    let uri = format!("bolt://127.0.0.1:{bolt_port}");
-
-    let graph = connect_with_retry(&uri, "neo4j", password).await;
-    clean_db(&graph).await;
+    let harness = SharedNeo4jHarness::shared()
+        .await
+        .expect("Failed to get shared Neo4j harness");
+    let graph = harness
+        .create_graph()
+        .await
+        .expect("Failed to create graph");
+    clean_db(&graph).await.expect("Failed to clean db");
 
     let world_id = WorldId::new();
     graph
@@ -120,13 +83,14 @@ async fn narrative_triggers_fallback_is_bounded_to_500() {
 #[tokio::test]
 #[ignore = "requires docker (testcontainers)"]
 async fn save_pending_staging_creates_includes_npc_edges_for_all_npcs() {
-    let password = "password";
-    let container = neo4j_image(password).start().await;
-    let bolt_port = container.get_host_port_ipv4(7687).await;
-    let uri = format!("bolt://127.0.0.1:{bolt_port}");
-
-    let graph = connect_with_retry(&uri, "neo4j", password).await;
-    clean_db(&graph).await;
+    let harness = SharedNeo4jHarness::shared()
+        .await
+        .expect("Failed to get shared Neo4j harness");
+    let graph = harness
+        .create_graph()
+        .await
+        .expect("Failed to create graph");
+    clean_db(&graph).await.expect("Failed to clean db");
 
     let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
     let clock: Arc<dyn crate::infrastructure::ports::ClockPort> = Arc::new(FixedClock(now));

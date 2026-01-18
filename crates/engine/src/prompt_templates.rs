@@ -169,13 +169,19 @@ These help shape the story direction and are only suggestions.
 </suggested_beats>
 
 AVAILABLE TOOLS:
-You may propose tool calls to affect game state. Available tools:
+You may propose tool calls to affect game state. Use XML format:
+<tool name="tool_name">{"param": "value", "other_param": "value"}</tool>
+
+Available tools:
 - give_item: Give an item to the player (item_name: string, description: string)
 - reveal_info: Reveal plot-relevant information (info_type: string, content: string, importance: "minor"|"major"|"critical")
 - change_relationship: Modify relationship level with player (change: "improve"|"worsen", amount: "slight"|"moderate"|"significant", reason: string)
 - change_disposition: Change NPC's emotional stance toward player (new_disposition: "friendly"|"neutral"|"suspicious"|"hostile"|"grateful"|"respectful"|"dismissive", reason: string)
 - change_mood: Change NPC's current emotional state (new_mood: "happy"|"calm"|"anxious"|"excited"|"melancholic"|"irritated"|"alert"|"bored"|"fearful"|"hopeful"|"curious"|"contemplative"|"amused"|"weary"|"confident"|"nervous", reason: string)
 - trigger_event: Trigger a game event (event_type: string, description: string)
+
+Example tool call:
+<tool name="give_item">{"item_name": "Rusty Key", "description": "An old iron key, slightly rusted"}</tool>
 
 Only propose tool calls when dramatically appropriate. The Game Master will approve or reject them.
 Disposition/mood changes require DM approval and should reflect significant emotional shifts.

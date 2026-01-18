@@ -127,6 +127,8 @@ pub enum FinishReason {
     Stop,
     Length,
     ContentFilter,
+    /// Fallback for unknown/legacy finish reasons (e.g., old "ToolCalls" cassettes)
+    #[serde(other)]
     Unknown,
 }
 

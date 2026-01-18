@@ -98,10 +98,10 @@ async fn test_location_event_on_movement() {
         .world
         .region("Common Room")
         .expect("Common Room should exist");
-    let tavern_bar = ctx
+    let private_booth = ctx
         .world
-        .region("Tavern Bar")
-        .expect("Tavern Bar should exist");
+        .region("Private Booth")
+        .expect("Private Booth should exist");
 
     let (_, pc_id) = create_test_player(
         ctx.graph(),
@@ -118,7 +118,7 @@ async fn test_location_event_on_movement() {
         .use_cases
         .movement
         .enter_region
-        .execute(pc_id, tavern_bar)
+        .execute(pc_id, private_booth)
         .await
         .expect("Movement should succeed");
 
@@ -148,10 +148,10 @@ async fn test_one_time_location_event() {
         .world
         .region("Common Room")
         .expect("Common Room should exist");
-    let tavern_bar = ctx
+    let private_booth = ctx
         .world
-        .region("Tavern Bar")
-        .expect("Tavern Bar should exist");
+        .region("Private Booth")
+        .expect("Private Booth should exist");
     let location_id = ctx
         .world
         .location("The Rusty Anchor")
@@ -217,7 +217,7 @@ async fn test_one_time_location_event() {
         .use_cases
         .movement
         .enter_region
-        .execute(pc_id, tavern_bar)
+        .execute(pc_id, private_booth)
         .await
         .expect("First movement should succeed");
 
@@ -241,7 +241,7 @@ async fn test_one_time_location_event() {
         .use_cases
         .movement
         .enter_region
-        .execute(pc_id, tavern_bar)
+        .execute(pc_id, private_booth)
         .await
         .expect("Second movement should succeed");
 

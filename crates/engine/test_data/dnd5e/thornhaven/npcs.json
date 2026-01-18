@@ -1,6 +1,32 @@
 {
-  "_comment": "Thornhaven Village NPCs - 8 characters with varied archetypes for LLM integration testing",
+  "_comment": "Thornhaven Village NPCs - 9 characters with varied archetypes for LLM integration testing",
   "npcs": [
+    {
+      "id": "00000000-0000-0000-2000-000000000009",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Mira Thornwood",
+      "description": "A young woman with calloused hands and soot-streaked clothes who apprentices at the smithy. She has a natural talent for metalwork and dreams of becoming a master smith.",
+      "sprite_asset": null,
+      "portrait_asset": null,
+      "base_archetype": "Hero",
+      "current_archetype": "Hero",
+      "archetype_history": [],
+      "stats": {
+        "stats": { "STR": 14, "DEX": 12, "CON": 13, "INT": 11, "WIS": 10, "CHA": 12 },
+        "modifiers": {},
+        "current_hp": 25,
+        "max_hp": 25
+      },
+      "is_alive": true,
+      "is_active": true,
+      "default_disposition": "Friendly",
+      "default_mood": "Determined",
+      "expression_config": {
+        "expressions": ["neutral", "happy", "thoughtful", "determined", "surprised"],
+        "actions": ["wipes brow", "examines metalwork", "pumps bellows", "nods approvingly", "adjusts apron"],
+        "default_expression": "neutral"
+      }
+    },
     {
       "id": "00000000-0000-0000-2000-000000000001",
       "world_id": "00000000-0000-0000-0000-000000000001",

@@ -48,10 +48,10 @@ async fn test_staging_auto_approves_after_timeout() {
         .world
         .region("Common Room")
         .expect("Common Room should exist");
-    let tavern_bar = ctx
+    let private_booth = ctx
         .world
-        .region("Tavern Bar")
-        .expect("Tavern Bar should exist");
+        .region("Private Booth")
+        .expect("Private Booth should exist");
 
     // Create a player character
     let (_, _pc_id) = create_test_player(
@@ -65,7 +65,7 @@ async fn test_staging_auto_approves_after_timeout() {
 
     // Create a pending staging request (simulating what happens when player enters region)
     let pending_request = PendingStagingRequest {
-        region_id: tavern_bar,
+        region_id: private_booth,
         location_id: ctx
             .world
             .location("The Drowsy Dragon Inn")
@@ -96,8 +96,8 @@ async fn test_staging_auto_approves_after_timeout() {
 
     // Verify the auto-approval was for the correct region
     assert_eq!(
-        payload.region_id, tavern_bar,
-        "Auto-approval should be for Tavern Bar"
+        payload.region_id, private_booth,
+        "Auto-approval should be for Private Booth"
     );
 
     // Verify we can now get the active staging for this region
@@ -106,7 +106,7 @@ async fn test_staging_auto_approves_after_timeout() {
         .app
         .repositories
         .staging
-        .get_active_staging(tavern_bar, current_game_time)
+        .get_active_staging(private_booth, current_game_time)
         .await
         .expect("Should get active staging");
 

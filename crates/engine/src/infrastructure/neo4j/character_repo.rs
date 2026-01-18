@@ -1797,6 +1797,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 collect(DISTINCT {c: c3, type: 'FREQUENTS_REGION', shift: null, frequency: f.frequency, time_of_day: f.time_of_day, reason: null}) as frequents,
                 collect(DISTINCT {c: c4, type: 'AVOIDS_REGION', shift: null, frequency: null, time_of_day: null, reason: a.reason}) as avoids
             UNWIND (homes + works + frequents + avoids) as item
+            WITH item
             WHERE item.c IS NOT NULL
             RETURN DISTINCT item.c.id as character_id, item.c.name as name, 
                    item.c.sprite_asset as sprite_asset, item.c.portrait_asset as portrait_asset,

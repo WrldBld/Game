@@ -1,0 +1,51 @@
+{
+  "version": "2.0",
+  "recorded_at": "2026-01-18T20:25:52.983709+00:00",
+  "llm_model": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+  "recordings": {
+    "2b6fa7dfe89d46bef1b521e26fc8f828848c513da53f9c401e38af78b1be2407": [
+      {
+        "fingerprint": "2b6fa7dfe89d46bef1b521e26fc8f828848c513da53f9c401e38af78b1be2407",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to evaluate if NPC's response is relevant and appropriate to the player's request: \"I'm feeling unwell. Do you have anything that could help me?\" NPC offers herbal tea brewed from local nettles, says it eases a weary soul. That seems relevant and appropriate. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-18T20:26:43.004537+00:00"
+      }
+    ],
+    "03ced5e02f1026ff20b3ec48f90970385fb87d10d6eb252a09b29d18c62ab37d": [
+      {
+        "fingerprint": "03ced5e02f1026ff20b3ec48f90970385fb87d10d6eb252a09b29d18c62ab37d",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to b...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to respond as NPC Marta Hearthwood. Provide dialogue, topics, suggested beats, maybe tool calls. Also need challenge_analysis and event_analysis sections. Let's examine triggers.\n\nPlayer says: \"I'm feeling unwell. Do you have anything that could help me?\" No keywords for challenges: For each challenge, check pc_mentions or interacts_with.\n\nChallenges:\n\n- Investigate the Mill Basement: no mention.\n- Expose Vera's True Intentions: mentions \"Vera\", \"merchant\", \"suspicious\", \"questions\", \"mill\". Not present.\n- Decipher the Ritual Journal: interacts_with \"journal\", \"book\", \"tome\", \"ritual journal\". No.\n- Calm Old Tom's Ravings: mentions \"mill\", \"family\", \"accident\", \"twenty years\", \"what happened\". No.\n- Convince Grom to Share His Past: mentions \"adventure\", \"past\", \"shadow\", \"cavern\", \"party\", \"loss\". No.\n\nSo none of the challenges triggered.\n\nEvents:\n\n- The Stranger's Warning: trigger words: none? Not relevant. No mention.\n- Marta's Knowledge: trigger_by pc_mentions [\"mill\", \"old mill\", \"what happened\", \"twenty years\"], custom flag set. Player did not mention those. So no.\n- Marta Shares Local Rumors: trigger_by pc_mentions [\"rumors\", \"gossip\", \"strange happenings\", \"news\", \"heard anything\"]. No.\n\nSo none triggered.\n\nThus all trigger outputs are NO.\n\nNow we need to produce <reasoning> section: internal thoughts.\n\nThen <dialogue> with expression markers. Provide short helpful response.\n\nAlso <topics> maybe request_for_help.\n\n<suggested_beats> optional.\n\nAlso include challenge_analysis and event_analysis blocks.\n\nCheck format: after <dialogue> we need <topics>, <suggested_beats>, then the analysis blocks.\n\nMake sure to use correct tags.\n\nAlso ensure no tool calls unless necessary. We may want to give an item: maybe \"herbal tea\" or \"restorative brew\". Might be good to give item? But need to consider if dramatic. It's helpful. We can propose give_item. It's a simple action; it's fine. We'll give an item: \"Mild Heal Potion\" or \"Herbal tea\". Provide description. This is okay.\n\nTool call: <tool name=\"give_item\">{\"item_name\":\"Mild Heal Potion\",\"description\":\"A small vial of clear liquid that restores a modest amount of vitality.\"}</tool>\n\nWe need to ensure it's only if dramatic and appropriate. It's appropriate.\n\nNow produce final output.\n\n<|end|><|start|>assistant<|channel|>final<|message|><reasoning>\nMarta Hearthwood is a calm, friendly mentor who runs the inn. She’s attentive to the wellbeing of her guests and is eager to help. The player’s request is simple and straightforward—no hidden agenda or quest hooks are mentioned, so no challenges or narrative events should trigger. I’ll offer a soothing remedy and keep the conversation brief, while subtly keeping the door open for future discussion about the mill if the player brings it up later. I’ll give the player a mild heal potion to help them recover.\n</reasoning>\n\n<dialogue>\n*calm* \"Here, try this herbal tea; it’s brewed from the local nettles and always eases a weary soul.\" *offers a small cup*\n</dialogue>\n\n<topics>\nrequest_for_help\n</topics>\n\n<suggested_beats>\n- Offer a small herbal tea or mild heal potion to soothe the player’s illness.\n- Invite the player to share more if they feel better, hinting at the inn’s resources or nearby remedies.\n</suggested_beats>\n\n<challenge_analysis>\n<challenge name=\"Investigate the Mill Basement\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Expose Vera's True Intentions\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Decipher the Ritual Journal\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Calm Old Tom's Ravings\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Convince Grom to Share His Past\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n</challenge_analysis>\n\n<event_analysis>\n<event name=\"The Stranger's Warning\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</event>\n<event name=\"Marta's Knowledge\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</event>\n<event name=\"Marta Shares Local Rumors\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</event>\n</event_analysis>\n\n<tool name=\"give_item\">{\"item_name\":\"Herbal Tea\",\"description\":\"A warm cup of nettle-infused tea that soothes the body and clears the mind.\"}</tool>",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-18T20:26:36.359315+00:00"
+      }
+    ],
+    "246d646781637e236c8f045818d7c6d288ab0beefea4ce1b9e203f1bb4f68f2b": [
+      {
+        "fingerprint": "246d646781637e236c8f045818d7c6d288ab0beefea4ce1b9e203f1bb4f68f2b",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to answer YES or NO. The text: \"*calm* \"Here, try this herbal tea; it’s brewed from the local nettles and always eases a weary soul.\" *offers a small cup*\". The question: Does this response indicate willingness to help or offer something? Yes, it offers a small cup. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-18T20:26:48.559722+00:00"
+      }
+    ],
+    "6a050319a729c6df919d5f9f9a288872df1d27524b46404454add153f38947d5": [
+      {
+        "fingerprint": "6a050319a729c6df919d5f9f9a288872df1d27524b46404454add153f38947d5",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to evaluate if the dialogue is appropriate and in-character for Marta Hearthwood, a friendly village innkeeper and mentor who cares for visitors. The text: \"*calm* \"Here, try this herbal tea; it’s brewed from the local nettles and always eases a weary soul.\" *offers a small cup*\"\n\nWe need to decide if this is appropriate and in-character. Marta is friendly, innkeeper, mentor, cares for visitors. Offering herbal tea brewed from local nettles to ease weary soul fits. Calm tone, offering tea. That seems appropriate. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-18T20:26:54.836963+00:00"
+      }
+    ]
+  }
+}

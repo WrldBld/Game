@@ -852,24 +852,24 @@ async fn test_llm_suggests_narrative_event() {
             .final_dialogue
             .expect("Should have final dialogue");
 
-        // SEMANTIC ASSERTIONS: Validate response to ominous warning topic
+        // SEMANTIC ASSERTIONS: Validate response to rumors question
         let semantic = SemanticAssert::new(vcr.clone());
 
-        // ASSERTION 9: Response should address the stranger/warning topic
+        // ASSERTION 9: Response should address the rumors topic
         semantic
             .assert_responds_to_question(
-                "A cloaked stranger warned me about coming here. He spoke of dark omens and an ancient evil awakening. Have you heard such warnings?",
+                "Marta, have you heard any rumors lately? Any strange happenings around town I should know about?",
                 &final_dialogue,
-                "NPC should respond to the player's question about warnings and omens",
+                "NPC should respond to the player's question about rumors and happenings",
             )
             .await?;
 
-        // ASSERTION 10: Response should touch on warnings, strangers, or ominous themes
+        // ASSERTION 10: Response should touch on rumors, news, or local happenings
         semantic
             .assert_mentions_any(
                 &final_dialogue,
-                &["stranger", "warning", "omen", "danger", "heard", "careful", "evil", "dark"],
-                "Response should relate to warnings or mysterious strangers",
+                &["rumor", "heard", "town", "folk", "talk", "news", "happening", "strange"],
+                "Response should relate to rumors or local happenings",
             )
             .await?;
 

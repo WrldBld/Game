@@ -26,10 +26,10 @@ async fn test_pc_moves_to_connected_region() {
         .world
         .region("Common Room")
         .expect("Common Room should exist");
-    let tavern_bar = ctx
+    let private_booth = ctx
         .world
-        .region("Tavern Bar")
-        .expect("Tavern Bar should exist");
+        .region("Private Booth")
+        .expect("Private Booth should exist");
 
     // Create a player character in Common Room
     let (_user_id, pc_id) = create_test_player(
@@ -58,7 +58,7 @@ async fn test_pc_moves_to_connected_region() {
         .use_cases
         .movement
         .enter_region
-        .execute(pc_id, tavern_bar)
+        .execute(pc_id, private_booth)
         .await;
 
     // Verify move succeeded
@@ -79,8 +79,8 @@ async fn test_pc_moves_to_connected_region() {
         .expect("PC should exist");
     assert_eq!(
         pc_after.current_region_id(),
-        Some(tavern_bar),
-        "PC should be in Tavern Bar after move"
+        Some(private_booth),
+        "PC should be in Private Booth after move"
     );
 
     ctx.finalize_event_log(TestOutcome::Pass);
@@ -139,10 +139,10 @@ async fn test_movement_changes_npc_context() {
         .world
         .region("Common Room")
         .expect("Common Room should exist");
-    let tavern_bar = ctx
+    let private_booth = ctx
         .world
-        .region("Tavern Bar")
-        .expect("Tavern Bar should exist");
+        .region("Private Booth")
+        .expect("Private Booth should exist");
     let mira_id = ctx.world.npc("Mira Thornwood").expect("Mira should exist");
     let marcus_id = ctx
         .world
@@ -164,8 +164,8 @@ async fn test_movement_changes_npc_context() {
         .await
         .expect("Staging Mira should succeed");
 
-    // Stage Marcus in Tavern Bar
-    approve_staging_with_npc(&ctx, tavern_bar, marcus_id)
+    // Stage Marcus in Private Booth
+    approve_staging_with_npc(&ctx, private_booth, marcus_id)
         .await
         .expect("Staging Marcus should succeed");
 
@@ -182,12 +182,12 @@ async fn test_movement_changes_npc_context() {
         "Mira should be staged in Common Room"
     );
 
-    // Move to Tavern Bar
+    // Move to Private Booth
     ctx.app
         .use_cases
         .movement
         .enter_region
-        .execute(pc_id, tavern_bar)
+        .execute(pc_id, private_booth)
         .await
         .expect("Move should succeed");
 
@@ -196,12 +196,12 @@ async fn test_movement_changes_npc_context() {
         .app
         .repositories
         .staging
-        .get_staged_npcs(tavern_bar)
+        .get_staged_npcs(private_booth)
         .await
         .expect("Should get staged NPCs");
     assert!(
         staged_after.iter().any(|s| s.character_id == marcus_id),
-        "Marcus should be staged in Tavern Bar"
+        "Marcus should be staged in Private Booth"
     );
 }
 
@@ -218,10 +218,10 @@ async fn test_movement_triggers_location_event() {
         .world
         .region("Common Room")
         .expect("Common Room should exist");
-    let tavern_bar = ctx
+    let private_booth = ctx
         .world
-        .region("Tavern Bar")
-        .expect("Tavern Bar should exist");
+        .region("Private Booth")
+        .expect("Private Booth should exist");
 
     // Create player
     let (_, pc_id) =
@@ -229,7 +229,7 @@ async fn test_movement_triggers_location_event() {
             .await
             .expect("Player creation should succeed");
 
-    // Create a location-enter narrative event for Tavern Bar
+    // Create a location-enter narrative event for Private Booth
     // This tests if triggers are evaluated on movement
     use neo4rs::query;
     use uuid::Uuid;
@@ -267,7 +267,7 @@ async fn test_movement_triggers_location_event() {
         .use_cases
         .movement
         .enter_region
-        .execute(pc_id, tavern_bar)
+        .execute(pc_id, private_booth)
         .await
         .expect("Move should succeed");
 
@@ -291,10 +291,10 @@ async fn test_multiple_sequential_moves() {
         .world
         .region("Common Room")
         .expect("Common Room should exist");
-    let tavern_bar = ctx
+    let private_booth = ctx
         .world
-        .region("Tavern Bar")
-        .expect("Tavern Bar should exist");
+        .region("Private Booth")
+        .expect("Private Booth should exist");
 
     // Create player
     let (_, pc_id) = create_test_player(
@@ -306,12 +306,12 @@ async fn test_multiple_sequential_moves() {
     .await
     .expect("Player creation should succeed");
 
-    // Move to Tavern Bar
+    // Move to Private Booth
     ctx.app
         .use_cases
         .movement
         .enter_region
-        .execute(pc_id, tavern_bar)
+        .execute(pc_id, private_booth)
         .await
         .expect("First move should succeed");
 
@@ -324,7 +324,7 @@ async fn test_multiple_sequential_moves() {
         .await
         .expect("Should get PC")
         .expect("PC should exist");
-    assert_eq!(pc.current_region_id(), Some(tavern_bar));
+    assert_eq!(pc.current_region_id(), Some(private_booth));
 
     // Move back to Common Room
     ctx.app

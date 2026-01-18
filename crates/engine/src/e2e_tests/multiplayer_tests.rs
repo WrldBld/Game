@@ -23,7 +23,10 @@ use std::sync::Arc;
 
 use neo4rs::query;
 
-use super::*;
+use super::{
+    approve_staging_with_npc, create_shared_log, create_test_player, E2ETestContext,
+    LoggingLlmDecorator, SemanticAssert, TestOutcome, VcrLlm,
+};
 
 // =============================================================================
 // Two Players in Same Region
@@ -172,7 +175,7 @@ async fn test_player_movement_broadcast_to_others() {
     // Setup:
     // 1. Create E2E context with seeded world
     // 2. Both players in Common Room
-    // 3. PC_A moves to Tavern Bar
+    // 3. PC_A moves to Private Booth
     //
     // Assertions:
     // - PC_B receives PlayerMoved broadcast
@@ -189,10 +192,10 @@ async fn test_player_movement_broadcast_to_others() {
             .world
             .region("Common Room")
             .expect("Common Room not found");
-        let tavern_bar = ctx
+        let private_booth = ctx
             .world
-            .region("Tavern Bar")
-            .expect("Tavern Bar not found");
+            .region("Private Booth")
+            .expect("Private Booth not found");
 
         // Create two player characters in the Common Room
         let (_user_a, pc_a_id) = create_test_player(
@@ -242,21 +245,21 @@ async fn test_player_movement_broadcast_to_others() {
             "PC B should start in Common Room"
         );
 
-        // PC_A moves to Tavern Bar using the enter_region use case
+        // PC_A moves to Private Booth using the enter_region use case
         let move_result = ctx
             .app
             .use_cases
             .movement
             .enter_region
-            .execute(pc_a_id, tavern_bar)
+            .execute(pc_a_id, private_booth)
             .await
             .expect("Movement should succeed");
 
         // Verify move result
         assert_eq!(
             move_result.region.id(),
-            tavern_bar,
-            "Move result should show Tavern Bar"
+            private_booth,
+            "Move result should show Private Booth"
         );
         assert_eq!(
             move_result.pc.id(),
@@ -264,7 +267,7 @@ async fn test_player_movement_broadcast_to_others() {
             "Move result should reference PC A"
         );
 
-        // Verify PC_A is now in Tavern Bar
+        // Verify PC_A is now in Private Booth
         let pc_a_after = ctx
             .app
             .repositories
@@ -276,8 +279,8 @@ async fn test_player_movement_broadcast_to_others() {
 
         assert_eq!(
             pc_a_after.current_region_id(),
-            Some(tavern_bar),
-            "PC A should now be in Tavern Bar"
+            Some(private_booth),
+            "PC A should now be in Private Booth"
         );
 
         // Verify PC_B is still in Common Room
@@ -324,14 +327,17 @@ async fn test_player_movement_broadcast_to_others() {
             "PC B should still be visible in Common Room"
         );
 
-        // Verify PC_A appears in Tavern Bar now
+        // Verify PC_A appears in Private Booth now
         let pcs_in_tavern: Vec<_> = all_pcs
             .iter()
-            .filter(|pc| pc.current_region_id() == Some(tavern_bar))
+            .filter(|pc| pc.current_region_id() == Some(private_booth))
             .collect();
 
         let pc_a_in_tavern = pcs_in_tavern.iter().any(|pc| pc.id() == pc_a_id);
-        assert!(pc_a_in_tavern, "PC A should now be visible in Tavern Bar");
+        assert!(
+            pc_a_in_tavern,
+            "PC A should now be visible in Private Booth"
+        );
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }
@@ -359,7 +365,7 @@ async fn test_conversation_does_not_block_other_players() {
     // Setup:
     // 1. Create E2E context with VCR LLM
     // 2. PC_A starts conversation with Marta
-    // 3. While conversation is pending approval, PC_B moves to Tavern Bar
+    // 3. While conversation is pending approval, PC_B moves to Private Booth
     //
     // Assertions:
     // - PC_B's movement succeeds immediately
@@ -385,10 +391,10 @@ async fn test_conversation_does_not_block_other_players() {
             .world
             .region("Common Room")
             .expect("Common Room not found");
-        let tavern_bar = ctx
+        let private_booth = ctx
             .world
-            .region("Tavern Bar")
-            .expect("Tavern Bar not found");
+            .region("Private Booth")
+            .expect("Private Booth not found");
 
         // Create two player characters in the Common Room
         let (user_a, pc_a_id) = create_test_player(
@@ -443,7 +449,7 @@ async fn test_conversation_does_not_block_other_players() {
             .use_cases
             .movement
             .enter_region
-            .execute(pc_b_id, tavern_bar)
+            .execute(pc_b_id, private_booth)
             .await;
 
         // Assert movement succeeded - conversation does NOT block PC_B
@@ -453,7 +459,7 @@ async fn test_conversation_does_not_block_other_players() {
             move_result.err()
         );
 
-        // Verify PC_B is now in Tavern Bar
+        // Verify PC_B is now in Private Booth
         let pc_b_after = ctx
             .app
             .repositories
@@ -465,8 +471,8 @@ async fn test_conversation_does_not_block_other_players() {
 
         assert_eq!(
             pc_b_after.current_region_id(),
-            Some(tavern_bar),
-            "PC B should now be in Tavern Bar"
+            Some(private_booth),
+            "PC B should now be in Private Booth"
         );
 
         // PC_A should still be in Common Room (unchanged by conversation)
@@ -526,6 +532,10 @@ async fn test_conversation_does_not_block_other_players() {
         // If we got a result, approve it to complete the conversation
         if let Some(result) = llm_result {
             use crate::queue_types::DmApprovalDecision;
+
+            // Capture the dialogue before approval for semantic validation
+            let npc_dialogue = result.npc_dialogue.clone();
+
             let _ = ctx
                 .app
                 .use_cases
@@ -533,6 +543,28 @@ async fn test_conversation_does_not_block_other_players() {
                 .decision_flow
                 .execute(result.approval_id, DmApprovalDecision::Accept)
                 .await;
+
+            // SEMANTIC ASSERTIONS: Validate the NPC dialogue is contextually appropriate
+            let semantic = SemanticAssert::new(vcr.clone());
+            let player_message = "Hello Marta! How are you today?";
+
+            // NPC should respond to the player's greeting
+            semantic
+                .assert_responds_to_question(
+                    player_message,
+                    &npc_dialogue,
+                    "Marta should respond appropriately to the player's greeting",
+                )
+                .await?;
+
+            // The response should be in-character for a tavern keeper
+            semantic
+                .assert_custom(
+                    &npc_dialogue,
+                    "Does this response sound like it could come from a tavern keeper or innkeeper character?",
+                    "Marta's dialogue should be in-character as a tavern keeper",
+                )
+                .await?;
         }
 
         // Final verification: both players' states are independent
@@ -561,8 +593,8 @@ async fn test_conversation_does_not_block_other_players() {
         );
         assert_eq!(
             final_pc_b.current_region_id(),
-            Some(tavern_bar),
-            "PC B should still be in Tavern Bar"
+            Some(private_booth),
+            "PC B should still be in Private Booth"
         );
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
@@ -700,6 +732,28 @@ async fn test_dm_sees_player_actions_in_queue() {
             !result.npc_dialogue.is_empty(),
             "NPC dialogue should have been generated"
         );
+
+        // SEMANTIC ASSERTIONS: Validate the generated NPC dialogue
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_message = "Hello Marta! What news do you have today?";
+
+        // NPC should respond to the player's question about news
+        semantic
+            .assert_responds_to_question(
+                player_message,
+                &result.npc_dialogue,
+                "Marta should respond to the player's question about news",
+            )
+            .await?;
+
+        // The dialogue should contain information or news (not just a greeting)
+        semantic
+            .assert_custom(
+                &result.npc_dialogue,
+                "Does this response contain any news, information, gossip, or updates that a tavern keeper might share?",
+                "Marta's dialogue should contain news or information as requested",
+            )
+            .await?;
 
         // DM can view the approval request details via the queue
         let approval_data = ctx
@@ -877,6 +931,28 @@ async fn test_dm_approval_triggers_player_response() {
             Some(proposed_dialogue.clone()),
             "Final dialogue should match proposed"
         );
+
+        // SEMANTIC ASSERTIONS: Validate the approved dialogue is contextually appropriate
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_message = "Good day, Marta! How goes the tavern business?";
+
+        // NPC should respond to the player's question about the tavern business
+        semantic
+            .assert_responds_to_question(
+                player_message,
+                &proposed_dialogue,
+                "Marta should respond to the player's question about tavern business",
+            )
+            .await?;
+
+        // The dialogue should reference tavern business, customers, or related topics
+        semantic
+            .assert_custom(
+                &proposed_dialogue,
+                "Does this response discuss tavern business, customers, trade, or running an establishment?",
+                "Marta's dialogue should be relevant to the tavern business question",
+            )
+            .await?;
 
         // Verify the NPC information is correct
         assert_eq!(

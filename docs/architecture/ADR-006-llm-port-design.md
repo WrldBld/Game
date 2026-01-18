@@ -25,50 +25,54 @@ Need to abstract LLM access to:
 
 ## Decision
 
-Define a minimal **`LlmPort` trait** with two methods:
+Define a minimal **`LlmPort` trait** with one method:
 
 ```rust
 #[async_trait]
 pub trait LlmPort: Send + Sync {
     /// Generate a response from the LLM.
     async fn generate(&self, request: LlmRequest) -> Result<LlmResponse, LlmError>;
-
-    /// Generate a response with tool calling enabled.
-    async fn generate_with_tools(
-        &self,
-        request: LlmRequest,
-        tools: Vec<ToolDefinition>,
-    ) -> Result<LlmResponse, LlmError>;
 }
 ```
 
 Supporting types:
 - `LlmRequest`: system prompt, messages, temperature, max_tokens
-- `LlmResponse`: content, tool_calls, finish_reason, usage
-- `ChatMessage`: role (user/assistant/system/tool), content
-- `ToolDefinition`: name, description, JSON schema parameters
-- `ToolCall`: name, id, arguments
+- `LlmResponse`: content, finish_reason, usage
+- `ChatMessage`: role (user/assistant/system), content
+
+### Tool Calling via XML
+
+Instead of OpenAI-style function calling, we use **XML-based tool extraction**:
+- Prompts instruct the LLM to emit `<tool name="...">{"param": "value"}</tool>` tags
+- `response_parser.rs` extracts these tags via regex
+- Tools flow through the DM approval queue before execution
+
+This approach:
+- Works with any LLM (no provider-specific function calling)
+- Keeps all game logic in the content (parseable, loggable)
+- Enables consistent VCR recording/playback
 
 ## Consequences
 
 ### Positive
 
-- Simple interface (2 methods covers all use cases)
+- Simple interface (1 method covers all use cases)
 - Easy to mock for unit tests
 - VCR can wrap the trait seamlessly
-- Provider-agnostic (works with Ollama, Claude, OpenAI)
-- Tool calling is first-class
+- Provider-agnostic (works with any OpenAI-compatible API)
+- XML tool extraction works with any model
 
 ### Negative
 
 - No streaming support (responses are complete)
 - No built-in retry/resilience (handled by wrapper)
 - Token counting is provider-specific
+- Tool extraction depends on LLM following XML format
 
 ### Neutral
 
 - Callers must construct `LlmRequest` manually
-- Tool result handling is caller's responsibility
+- Tool extraction is done post-response via `response_parser`
 
 ## Design Decisions
 
@@ -79,12 +83,13 @@ Chose request object because:
 - Easy to log and debug
 - Can be serialized for VCR recording
 
-### Separate Tool Method vs Flag
+### XML Tools vs Function Calling
 
-Chose separate method because:
-- Makes intent explicit
-- Simplifies non-tool implementations
-- Tool schema validation only happens when needed
+Chose XML-based tool extraction because:
+- Works with any LLM (no provider-specific APIs)
+- All response content in one place (easier to log/debug)
+- VCR cassettes capture the complete response
+- DM can see exactly what the LLM proposed
 
 ### No Streaming
 
@@ -97,7 +102,7 @@ Chose complete responses because:
 ## Implementation Notes
 
 Current implementations:
-- `OllamaClient`: Production implementation calling Ollama API
+- `OpenAICompatibleClient`: Production implementation for any OpenAI-compatible API (Ollama, MLX, vLLM, etc.)
 - `VcrLlm`: Test wrapper for record/playback
 - `ResilientLlm`: Wrapper adding retry logic
 - `NoopLlm`: Test implementation returning errors
@@ -144,5 +149,6 @@ Async requests through message queue.
 ## References
 
 - `crates/engine/src/infrastructure/ports.rs` - Trait definition
-- `crates/engine/src/infrastructure/ollama.rs` - Ollama implementation
+- `crates/engine/src/infrastructure/openai_compatible.rs` - OpenAI-compatible client
 - `crates/engine/src/infrastructure/resilient_llm.rs` - Resilience wrapper
+- `crates/engine/src/use_cases/queues/response_parser.rs` - XML tool extraction

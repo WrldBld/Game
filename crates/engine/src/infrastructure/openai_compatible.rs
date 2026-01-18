@@ -38,9 +38,6 @@ pub const DEFAULT_MODEL: &str = "mlx-community/gpt-oss-20b-MXFP4-Q8";
 pub const DEFAULT_OLLAMA_BASE_URL: &str = DEFAULT_BASE_URL;
 pub const DEFAULT_OLLAMA_MODEL: &str = DEFAULT_MODEL;
 
-/// Legacy alias for backward compatibility
-pub type OllamaClient = OpenAICompatibleClient;
-
 impl OpenAICompatibleClient {
     pub fn new(base_url: &str, model: &str) -> Self {
         // Use 120 second timeout for LLM requests (they can be slow)

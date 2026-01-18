@@ -320,7 +320,7 @@ fn check_engine_runner_composition_no_concrete_pub_fields() -> anyhow::Result<()
                 leaf,
                 "Neo4jRepository"
                     | "QueueFactory"
-                    | "OllamaClient"
+                    | "OpenAICompatibleClient"
                     | "ComfyUIClient"
                     | "InProcessEventNotifier"
             );

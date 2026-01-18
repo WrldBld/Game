@@ -248,6 +248,18 @@ async fn test_simple_dialogue_event_triggers_on_matching_keywords() {
             "Approval request received"
         );
 
+        // Semantic assertion: NPC response should address the player's question about rumors
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_dialogue =
+            "Marta, have you heard any rumors lately? What's the gossip around town?";
+        semantic
+            .assert_responds_to_question(
+                player_dialogue,
+                &approval_data.proposed_dialogue,
+                "Marta should respond to the player's question about rumors/gossip",
+            )
+            .await?;
+
         // ASSERTION 1: The event should have been suggested
         assert!(
             approval_data.narrative_event_suggestion.is_some(),
@@ -387,6 +399,18 @@ async fn test_simple_dialogue_event_no_trigger_on_unrelated_dialogue() {
             has_event_suggestion = approval_data.narrative_event_suggestion.is_some(),
             "Approval request received"
         );
+
+        // Semantic assertion: NPC response should address the player's question about rooms
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_dialogue =
+            "How much for a room for the night? I'm looking for somewhere to stay.";
+        semantic
+            .assert_responds_to_question(
+                player_dialogue,
+                &approval_data.proposed_dialogue,
+                "Marta should respond to the player's question about room prices/accommodation",
+            )
+            .await?;
 
         // ASSERTION: No event should be suggested for unrelated dialogue
         // The LLM should analyze the "Marta Shares Local Rumors" event and conclude NO trigger
@@ -679,6 +703,18 @@ async fn test_multi_condition_event_triggers_when_flag_set() {
             has_event_suggestion = approval_data.narrative_event_suggestion.is_some(),
             "Checking for Marta's Knowledge event suggestion"
         );
+
+        // Semantic assertion: NPC response should address the player's question about the mill
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_dialogue =
+            "Marta, I need to know about the old mill. What happened there twenty years ago?";
+        semantic
+            .assert_responds_to_question(
+                player_dialogue,
+                &approval_data.proposed_dialogue,
+                "Marta should respond to the player's question about the old mill",
+            )
+            .await?;
 
         // When flag is set, the event should be suggested
         if let Some(ref suggestion) = approval_data.narrative_event_suggestion {
@@ -1122,6 +1158,18 @@ async fn test_challenge_triggers_on_matching_dialogue() {
             "Checking for challenge suggestion"
         );
 
+        // Semantic assertion: NPC response should address the player's question about his past
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_dialogue =
+            "Grom, you seem to carry a heavy burden. Please, share your past with me.";
+        semantic
+            .assert_responds_to_question(
+                player_dialogue,
+                &approval_data.proposed_dialogue,
+                "Grom should respond to the player's question about his past/burden",
+            )
+            .await?;
+
         // Challenge should be suggested
         assert!(
             approval_data.challenge_suggestion.is_some(),
@@ -1247,6 +1295,17 @@ async fn test_challenge_no_trigger_on_unrelated_dialogue() {
             has_challenge_suggestion = approval_data.challenge_suggestion.is_some(),
             "Checking for challenge suggestion (should be none)"
         );
+
+        // Semantic assertion: NPC response should address the player's question about ale
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_dialogue = "What's the best ale they serve here? I could use a drink.";
+        semantic
+            .assert_responds_to_question(
+                player_dialogue,
+                &approval_data.proposed_dialogue,
+                "Grom should respond to the player's question about ale/drinks",
+            )
+            .await?;
 
         // No challenge should be suggested for ale question
         if let Some(ref suggestion) = approval_data.challenge_suggestion {

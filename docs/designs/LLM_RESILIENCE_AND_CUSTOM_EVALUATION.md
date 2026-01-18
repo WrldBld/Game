@@ -20,7 +20,7 @@ This document outlines the design for three related LLM integration improvements
 
 ### Current State
 
-The LLM integration (`OllamaClient`) has basic error handling that returns errors immediately on failure. There's no retry logic, no fallback models, and no protection against cascading failures.
+The LLM integration (`OpenAICompatibleClient`) has basic error handling that returns errors immediately on failure. There's no retry logic, no fallback models, and no protection against cascading failures.
 
 ### Proposed Architecture
 

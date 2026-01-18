@@ -25,7 +25,7 @@ use crate::queue_types::{ApprovalRequestData, DmApprovalDecision, ProposedTool};
 
 use super::{
     approve_staging_with_npc, create_shared_log, create_test_player, E2ETestContext,
-    LoggingLlmDecorator, TestOutcome, VcrLlm,
+    LoggingLlmDecorator, SemanticAssert, TestOutcome, VcrLlm,
 };
 
 // =============================================================================
@@ -132,6 +132,18 @@ async fn test_approved_give_item_creates_item_in_inventory() {
             proposed_tools_count = approval_data.proposed_tools.len(),
             "Received approval request"
         );
+
+        // SEMANTIC ASSERTIONS: Validate dialogue content
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_message =
+            "I've been traveling for days without food. Could you spare something to eat?";
+        semantic
+            .assert_responds_to_question(
+                player_message,
+                &approval_data.proposed_dialogue,
+                "NPC should respond to the player's request for food",
+            )
+            .await?;
 
         // Approve with all proposed tools
         let tool_ids: Vec<String> = approval_data
@@ -332,6 +344,17 @@ async fn test_rejected_tool_not_executed() {
             "Rejecting all tools while accepting dialogue"
         );
 
+        // SEMANTIC ASSERTIONS: Validate dialogue content
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_message = "Please give me that old map you mentioned. I really need it.";
+        semantic
+            .assert_responds_to_question(
+                player_message,
+                &approval_data.proposed_dialogue,
+                "NPC should respond to the player's request for a map",
+            )
+            .await?;
+
         // DM accepts dialogue but REJECTS all tools
         let approval_result = ctx
             .app
@@ -506,6 +529,17 @@ async fn test_multiple_tools_executed_in_order() {
             proposed_tools_count = approval_data.proposed_tools.len(),
             "Received approval request with multiple tools"
         );
+
+        // SEMANTIC ASSERTIONS: Validate dialogue content
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_message = "I heard you know secrets about the old temple. I brought you a gift - will you share what you know and perhaps help me with supplies for my journey?";
+        semantic
+            .assert_responds_to_question(
+                player_message,
+                &approval_data.proposed_dialogue,
+                "NPC should respond to the player's request about temple secrets and supplies",
+            )
+            .await?;
 
         for tool in &approval_data.proposed_tools {
             tracing::info!(
@@ -692,6 +726,17 @@ async fn test_give_item_persists_after_conversation_end() {
                 .await
                 .expect("Failed to get approval request")
                 .expect("Approval request not found");
+
+            // SEMANTIC ASSERTIONS: Validate dialogue content
+            let semantic = SemanticAssert::new(vcr.clone());
+            let player_message = "You mentioned having a map of the area. Could I see it?";
+            semantic
+                .assert_responds_to_question(
+                    player_message,
+                    &approval_data.proposed_dialogue,
+                    "NPC should respond to the player's request to see a map",
+                )
+                .await?;
 
             // Approve all tools
             let tool_ids: Vec<String> = approval_data
@@ -1034,6 +1079,17 @@ async fn test_partial_tool_approval() {
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
+
+        // SEMANTIC ASSERTIONS: Validate dialogue content
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_message = "I need help preparing for my journey. Can you tell me about the dangers and also give me some supplies?";
+        semantic
+            .assert_responds_to_question(
+                player_message,
+                &approval_data.proposed_dialogue,
+                "NPC should respond to the player's request for journey information and supplies",
+            )
+            .await?;
 
         // If there are multiple tools, approve only the first one
         let all_tool_ids: Vec<String> = approval_data

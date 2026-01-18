@@ -41,8 +41,33 @@ use super::neo4j_test_harness::SharedNeo4jHarness;
 
 /// Result of seeding Thornhaven world to Neo4j.
 ///
+/// Mapping from original JSON fixture IDs to fresh test IDs.
+///
+/// E2E tests use fresh UUIDs for Neo4j isolation, but sometimes need to
+/// translate fixture IDs (e.g., when checking test_world data that references
+/// original IDs).
+#[derive(Debug, Clone, Default)]
+pub struct IdMappings {
+    pub npcs: HashMap<CharacterId, CharacterId>,
+    pub locations: HashMap<LocationId, LocationId>,
+    pub regions: HashMap<RegionId, RegionId>,
+}
+
+impl IdMappings {
+    /// Translate an original NPC ID to the fresh test ID.
+    pub fn npc(&self, original: CharacterId) -> Option<CharacterId> {
+        self.npcs.get(&original).copied()
+    }
+
+    /// Translate a fresh NPC ID back to the original fixture ID.
+    pub fn npc_reverse(&self, fresh: CharacterId) -> Option<CharacterId> {
+        self.npcs.iter().find(|(_, &v)| v == fresh).map(|(&k, _)| k)
+    }
+}
+
+/// Seeded test world with fresh IDs for Neo4j isolation.
+///
 /// Contains all entity IDs for easy lookup during tests.
-#[derive(Debug, Clone)]
 pub struct SeededWorld {
     pub world_id: WorldId,
     pub location_ids: HashMap<String, LocationId>,
@@ -52,6 +77,8 @@ pub struct SeededWorld {
     pub scene_ids: HashMap<String, SceneId>,
     pub challenge_ids: HashMap<String, ChallengeId>,
     pub event_ids: HashMap<String, NarrativeEventId>,
+    /// Mappings from original JSON IDs to fresh test IDs.
+    pub id_mappings: IdMappings,
 }
 
 impl SeededWorld {
@@ -772,14 +799,16 @@ pub async fn seed_thornhaven_to_neo4j(
             .run(
                 query(
                     "MATCH (from:Region {id: $from_id}), (to:Region {id: $to_id})
-                     CREATE (from)-[:CONNECTS_TO {
+                     CREATE (from)-[:CONNECTED_TO_REGION {
                          description: $description,
+                         bidirectional: $bidirectional,
                          is_locked: $is_locked
                      }]->(to)",
                 )
                 .param("from_id", from_id.to_string())
                 .param("to_id", to_id.to_string())
                 .param("description", conn.description.clone())
+                .param("bidirectional", conn.bidirectional)
                 .param("is_locked", conn.is_locked),
             )
             .await?;
@@ -790,14 +819,16 @@ pub async fn seed_thornhaven_to_neo4j(
                 .run(
                     query(
                         "MATCH (from:Region {id: $from_id}), (to:Region {id: $to_id})
-                         CREATE (to)-[:CONNECTS_TO {
+                         CREATE (to)-[:CONNECTED_TO_REGION {
                              description: $description,
+                             bidirectional: $bidirectional,
                              is_locked: $is_locked
                          }]->(from)",
                     )
                     .param("from_id", from_id.to_string())
                     .param("to_id", to_id.to_string())
                     .param("description", conn.description.clone())
+                    .param("bidirectional", conn.bidirectional)
                     .param("is_locked", conn.is_locked),
                 )
                 .await?;
@@ -1193,6 +1224,11 @@ pub async fn seed_thornhaven_to_neo4j(
         scene_ids,
         challenge_ids,
         event_ids,
+        id_mappings: IdMappings {
+            npcs: npc_id_map,
+            locations: location_id_map,
+            regions: region_id_map,
+        },
     })
 }
 

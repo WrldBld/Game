@@ -25,7 +25,7 @@ use crate::queue_types::DmApprovalDecision;
 
 use super::{
     approve_staging_with_npc, create_player_character_via_use_case, create_shared_log,
-    create_test_player, E2ETestContext, LoggingLlmDecorator, TestOutcome, VcrLlm,
+    create_test_player, E2ETestContext, LoggingLlmDecorator, SemanticAssert, TestOutcome, VcrLlm,
 };
 
 // =============================================================================
@@ -161,6 +161,29 @@ async fn test_npc_triggers_perception_check_via_tool() {
             "Should have final dialogue"
         );
 
+        // SEMANTIC ASSERTIONS: Validate the dialogue content makes sense
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_message = "I heard strange noises from the cellar. What do you see down there?";
+        let final_dialogue = approval_result.final_dialogue.as_deref().unwrap_or("");
+
+        // NPC should respond to the player's question about the cellar
+        semantic
+            .assert_responds_to_question(
+                player_message,
+                final_dialogue,
+                "NPC should respond to the player's question about strange noises in the cellar",
+            )
+            .await?;
+
+        // NPC dialogue should hint at or acknowledge potential dangers (since this test is about triggering perception checks)
+        semantic
+            .assert_custom(
+                final_dialogue,
+                "Does this response hint at something hidden, mysterious, or potentially dangerous that might warrant investigation?",
+                "NPC should hint at hidden dangers or need for careful observation",
+            )
+            .await?;
+
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }
     .await;
@@ -278,6 +301,27 @@ async fn test_tool_call_outcome_affects_dialogue() {
         // The dialogue should exist (actual content depends on seeded challenge data)
         assert!(!dialogue.is_empty(), "Outcome dialogue should not be empty");
 
+        // SEMANTIC ASSERTIONS: Validate the outcome dialogue reflects success
+        let semantic = SemanticAssert::new(vcr.clone());
+
+        // A successful challenge should result in positive outcome dialogue
+        semantic
+            .assert_custom(
+                &dialogue,
+                "Does this response indicate success, accomplishment, or a positive outcome from a persuasion attempt?",
+                "Successful challenge outcome dialogue should reflect the positive result",
+            )
+            .await?;
+
+        // The dialogue should be coherent and not just gibberish
+        semantic
+            .assert_custom(
+                &dialogue,
+                "Is this response coherent, well-formed dialogue that makes sense in a fantasy RPG context?",
+                "Challenge outcome dialogue should be coherent and contextually appropriate",
+            )
+            .await?;
+
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }
     .await;
@@ -394,6 +438,27 @@ async fn test_failed_challenge_changes_npc_response() {
             !dialogue.is_empty(),
             "Failure outcome dialogue should not be empty"
         );
+
+        // SEMANTIC ASSERTIONS: Validate the outcome dialogue reflects failure
+        let semantic = SemanticAssert::new(vcr.clone());
+
+        // A failed challenge should result in negative or unsuccessful outcome dialogue
+        semantic
+            .assert_custom(
+                &dialogue,
+                "Does this response indicate failure, rejection, reluctance, or an unsuccessful attempt at persuasion?",
+                "Failed challenge outcome dialogue should reflect the negative result",
+            )
+            .await?;
+
+        // The dialogue should NOT reveal information that would only come from success
+        semantic
+            .assert_custom(
+                &dialogue,
+                "Does this response withhold or avoid revealing detailed personal information or secrets?",
+                "Failed persuasion should not reveal hidden information the NPC was protecting",
+            )
+            .await?;
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }
@@ -548,6 +613,31 @@ async fn test_npc_gives_item_via_tool() {
                 tool_arguments = %tool.arguments,
                 "Found give_item tool"
             );
+        }
+
+        // SEMANTIC ASSERTIONS: Validate the proposed dialogue before approval
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_message =
+            "I've been traveling for days without food. Could you spare something to eat?";
+
+        // NPC should respond to the player's request for food
+        semantic
+            .assert_responds_to_question(
+                player_message,
+                &approval_data.proposed_dialogue,
+                "NPC should respond to the player's request for food after traveling",
+            )
+            .await?;
+
+        // If giving an item, the dialogue should acknowledge the giving action
+        if !give_item_tools.is_empty() {
+            semantic
+                .assert_custom(
+                    &approval_data.proposed_dialogue,
+                    "Does this response indicate giving, offering, or providing something to the player?",
+                    "NPC dialogue should acknowledge giving an item when give_item tool is used",
+                )
+                .await?;
         }
 
         // Approve the response with all proposed tools
@@ -962,6 +1052,29 @@ async fn test_dm_sees_proposed_tools() {
             "Proposed dialogue should be present"
         );
 
+        // SEMANTIC ASSERTIONS: Validate the proposed dialogue content
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_message =
+            "I helped you with those supplies. Do you have anything for me as thanks?";
+
+        // NPC should respond to the player's request for a reward
+        semantic
+            .assert_responds_to_question(
+                player_message,
+                &approval_data.proposed_dialogue,
+                "NPC should respond to the player's request for thanks/reward after helping",
+            )
+            .await?;
+
+        // Response should be in character for Marta (friendly innkeeper)
+        semantic
+            .assert_in_character(
+                &approval_data.proposed_dialogue,
+                "Marta Hearthwood, a friendly village innkeeper and mentor who appreciates help",
+                "Response should match Marta's grateful, helpful personality",
+            )
+            .await?;
+
         // If tools are present, verify their structure
         for tool in &approval_data.proposed_tools {
             tracing::info!(
@@ -1157,6 +1270,21 @@ async fn test_dm_can_reject_tool_call() {
             approved_tools = ?approval_result.approved_tools,
             "Approval result: dialogue delivered, tools rejected"
         );
+
+        // SEMANTIC ASSERTIONS: Validate the dialogue content makes sense
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_message =
+            "Please give me that old map you mentioned. I really need it for my journey.";
+        let final_dialogue = approval_result.final_dialogue.as_deref().unwrap_or("");
+
+        // NPC should respond to the player's request for the map
+        semantic
+            .assert_responds_to_question(
+                player_message,
+                final_dialogue,
+                "NPC should respond to the player's request for the map",
+            )
+            .await?;
 
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }
@@ -1525,6 +1653,28 @@ async fn test_multiple_tools_in_single_response() {
             other = other_tools_count,
             "Tool breakdown by type"
         );
+
+        // SEMANTIC ASSERTIONS: Validate the proposed dialogue content
+        let semantic = SemanticAssert::new(vcr.clone());
+        let player_message = "I've heard you know secrets about the old temple. I brought you a gift - will you share what you know and perhaps help me with my journey?";
+
+        // NPC should respond to the player's multi-part request
+        semantic
+            .assert_responds_to_question(
+                player_message,
+                &approval_data.proposed_dialogue,
+                "NPC should respond to the player's request about temple secrets and journey help",
+            )
+            .await?;
+
+        // Response should be in character for Marta (friendly mentor)
+        semantic
+            .assert_in_character(
+                &approval_data.proposed_dialogue,
+                "Marta Hearthwood, a friendly village innkeeper and mentor who knows local lore",
+                "Response should match Marta's helpful, knowledgeable personality",
+            )
+            .await?;
 
         // Approve ALL tools
         let all_tool_ids: Vec<String> = approval_data

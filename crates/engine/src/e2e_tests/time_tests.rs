@@ -41,10 +41,10 @@ async fn test_time_suggestion_for_movement() {
         .world
         .region("Common Room")
         .expect("Common Room should exist");
-    let tavern_bar = ctx
+    let private_booth = ctx
         .world
-        .region("Tavern Bar")
-        .expect("Tavern Bar should exist");
+        .region("Private Booth")
+        .expect("Private Booth should exist");
 
     let (_, pc_id) = create_test_player(
         ctx.graph(),
@@ -61,7 +61,7 @@ async fn test_time_suggestion_for_movement() {
         .use_cases
         .movement
         .enter_region
-        .execute(pc_id, tavern_bar)
+        .execute(pc_id, private_booth)
         .await
         .expect("Move should succeed");
 
