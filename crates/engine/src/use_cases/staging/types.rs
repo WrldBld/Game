@@ -137,11 +137,38 @@ pub struct GameTimeData {
 impl GameTimeData {
     /// Convert to protocol type for wire transmission.
     pub fn to_protocol(&self) -> wrldbldr_shared::types::GameTime {
+        let period = match self.hour {
+            5..=11 => "Morning",
+            12..=17 => "Afternoon",
+            18..=21 => "Evening",
+            _ => "Night",
+        }
+        .to_string();
+
+        // Format time as 12-hour display
+        let am_pm = if self.hour >= 12 { "PM" } else { "AM" };
+        let display_hour = if self.hour == 0 {
+            12
+        } else if self.hour > 12 {
+            self.hour - 12
+        } else {
+            self.hour
+        };
+        let formatted_time = Some(format!("{}:{:02} {}", display_hour, self.minute, am_pm));
+
+        // Calculate total_minutes from day/hour/minute
+        let total_minutes =
+            (self.day as i64 - 1) * 24 * 60 + (self.hour as i64) * 60 + (self.minute as i64);
+
         wrldbldr_shared::types::GameTime {
+            total_minutes,
             day: self.day,
             hour: self.hour,
             minute: self.minute,
             is_paused: self.is_paused,
+            formatted_date: None, // Calendar formatting handled elsewhere
+            formatted_time,
+            period,
         }
     }
 }

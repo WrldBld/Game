@@ -1,5 +1,21 @@
-use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 use serde::{Deserialize, Serialize};
+
+use crate::value_objects::{
+    calculate_calendar_date, CalendarDate, CalendarDefinition, CalendarId, EpochConfig,
+};
+
+// =============================================================================
+// Time Constants
+// =============================================================================
+
+/// Minutes per hour (standard)
+pub const MINUTES_PER_HOUR: i64 = 60;
+
+/// Hours per day (standard)
+pub const HOURS_PER_DAY: i64 = 24;
+
+/// Minutes per day (standard: 24 * 60 = 1440)
+pub const MINUTES_PER_DAY: i64 = MINUTES_PER_HOUR * HOURS_PER_DAY;
 
 // =============================================================================
 // Time of Day
@@ -184,6 +200,17 @@ pub struct GameTimeConfig {
     pub show_time_to_players: bool,
     /// Time format preference for display
     pub time_format: TimeFormat,
+    /// Calendar system to use for this world (default: "gregorian")
+    #[serde(default = "default_calendar_id")]
+    pub calendar_id: CalendarId,
+    /// Epoch configuration defining what minute 0 represents
+    #[serde(default)]
+    pub epoch_config: EpochConfig,
+}
+
+/// Default calendar ID (Gregorian)
+fn default_calendar_id() -> CalendarId {
+    CalendarId::new("gregorian").expect("gregorian is a valid calendar ID")
 }
 
 impl Default for GameTimeConfig {
@@ -193,6 +220,33 @@ impl Default for GameTimeConfig {
             time_costs: TimeCostConfig::default(),
             show_time_to_players: true,
             time_format: TimeFormat::default(),
+            calendar_id: default_calendar_id(),
+            epoch_config: EpochConfig::default(),
+        }
+    }
+}
+
+impl GameTimeConfig {
+    /// Create a new GameTimeConfig with Gregorian calendar defaults.
+    pub fn gregorian() -> Self {
+        Self::default()
+    }
+
+    /// Create a new GameTimeConfig for Forgotten Realms (Harptos calendar).
+    pub fn harptos() -> Self {
+        Self {
+            calendar_id: CalendarId::new("harptos").expect("harptos is a valid calendar ID"),
+            epoch_config: EpochConfig::harptos_default(),
+            ..Default::default()
+        }
+    }
+
+    /// Create a GameTimeConfig with a custom calendar and epoch.
+    pub fn with_calendar(calendar_id: CalendarId, epoch_config: EpochConfig) -> Self {
+        Self {
+            calendar_id,
+            epoch_config,
+            ..Default::default()
         }
     }
 }
@@ -260,120 +314,200 @@ impl TimeAdvanceReason {
 // Game Time
 // =============================================================================
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+/// Game time represented as total minutes since the campaign epoch (minute 0).
+///
+/// This struct provides a simple, integer-based time representation that is
+/// independent of any calendar system. Use `to_calendar_date()` to convert
+/// to a human-readable calendar date.
+///
+/// # Examples
+///
+/// ```
+/// use wrldbldr_domain::game_time::{GameTime, MINUTES_PER_DAY};
+///
+/// // Create time at epoch (minute 0)
+/// let mut time = GameTime::at_epoch();
+/// assert_eq!(time.total_minutes(), 0);
+/// assert_eq!(time.day(), 1);
+///
+/// // Advance by one day
+/// time.advance_days(1);
+/// assert_eq!(time.total_minutes(), MINUTES_PER_DAY);
+/// assert_eq!(time.day(), 2);
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GameTime {
-    current: DateTime<Utc>,
+    /// Total minutes since the campaign epoch (minute 0).
+    /// Negative values represent time before the campaign start.
+    total_minutes: i64,
     is_paused: bool,
 }
 
-// NOTE: Default impl removed for hexagonal architecture purity.
-// Domain layer should not call time sources directly. Callers should use GameTime::new(clock.now()).
-
 impl GameTime {
-    pub fn new(now: DateTime<Utc>) -> Self {
+    /// Creates a new GameTime at the epoch (minute 0), paused.
+    ///
+    /// This is the preferred constructor for new games.
+    pub fn at_epoch() -> Self {
         Self {
-            current: now,
+            total_minutes: 0,
             is_paused: true,
         }
     }
 
-    pub fn starting_at(start: DateTime<Utc>) -> Self {
+    /// Creates a new GameTime from total minutes since epoch.
+    ///
+    /// Negative values represent time before the campaign start.
+    pub fn from_minutes(minutes: i64) -> Self {
         Self {
-            current: start,
+            total_minutes: minutes,
             is_paused: true,
         }
     }
 
-    pub fn current(&self) -> DateTime<Utc> {
-        self.current
+    /// Creates a new GameTime at the epoch (minute 0), paused.
+    ///
+    /// # Deprecated
+    ///
+    /// Use `GameTime::at_epoch()` instead. This method is kept for backward
+    /// compatibility but will be removed in a future version.
+    #[deprecated(since = "0.2.0", note = "Use GameTime::at_epoch() instead")]
+    pub fn new() -> Self {
+        Self::at_epoch()
     }
 
-    pub fn set_time(&mut self, new_time: DateTime<Utc>) {
-        self.current = new_time;
+    // =========================================================================
+    // Accessors
+    // =========================================================================
+
+    /// Returns the total minutes since the campaign epoch.
+    ///
+    /// Negative values represent time before the campaign start.
+    pub fn total_minutes(&self) -> i64 {
+        self.total_minutes
     }
 
+    /// Returns the day number (1-based).
+    ///
+    /// Day 1 is the first day of the campaign (minutes 0-1439).
+    /// For negative minutes, this still returns a positive day number
+    /// representing days before the campaign start.
+    pub fn day(&self) -> u32 {
+        // For both positive and negative values, we want:
+        // - minutes 0..1439 -> day 1
+        // - minutes 1440..2879 -> day 2
+        // - minutes -1440..-1 -> day 1 (before epoch, same "day" concept)
+        // - minutes -2880..-1441 -> day 2 (before epoch)
+        if self.total_minutes >= 0 {
+            (self.total_minutes / MINUTES_PER_DAY) as u32 + 1
+        } else {
+            // For negative minutes, calculate how many full days back
+            ((-self.total_minutes - 1) / MINUTES_PER_DAY) as u32 + 1
+        }
+    }
+
+    /// Returns the hour of day (0-23).
+    pub fn hour(&self) -> u8 {
+        let minute_of_day = self.total_minutes.rem_euclid(MINUTES_PER_DAY);
+        (minute_of_day / MINUTES_PER_HOUR) as u8
+    }
+
+    /// Returns the minute of hour (0-59).
+    pub fn minute(&self) -> u8 {
+        let minute_of_hour = self.total_minutes.rem_euclid(MINUTES_PER_HOUR);
+        minute_of_hour as u8
+    }
+
+    /// Returns the current time of day period.
+    pub fn time_of_day(&self) -> TimeOfDay {
+        let hour = self.hour();
+        match hour {
+            5..=11 => TimeOfDay::Morning,
+            12..=17 => TimeOfDay::Afternoon,
+            18..=21 => TimeOfDay::Evening,
+            _ => TimeOfDay::Night,
+        }
+    }
+
+    /// Returns the day number (1-based ordinal).
+    ///
+    /// This is an alias for `day()` for backward compatibility.
+    pub fn day_ordinal(&self) -> u32 {
+        self.day()
+    }
+
+    /// Returns whether the game time is paused.
     pub fn is_paused(&self) -> bool {
         self.is_paused
     }
 
+    // =========================================================================
+    // Mutation Methods
+    // =========================================================================
+
+    /// Sets the paused state.
     pub fn set_paused(&mut self, paused: bool) {
         self.is_paused = paused;
     }
 
-    pub fn advance(&mut self, duration: Duration) {
-        self.current += duration;
+    /// Sets the total minutes directly.
+    pub fn set_total_minutes(&mut self, minutes: i64) {
+        self.total_minutes = minutes;
     }
 
-    pub fn advance_hours(&mut self, hours: u32) {
-        self.advance(Duration::hours(hours as i64));
-    }
-
-    pub fn advance_days(&mut self, days: u32) {
-        self.advance(Duration::days(days as i64));
-    }
-
-    /// Advance time by a number of minutes.
+    /// Advances time by the specified number of minutes.
     pub fn advance_minutes(&mut self, minutes: u32) {
-        self.advance(Duration::minutes(minutes as i64));
+        self.total_minutes += minutes as i64;
     }
 
-    /// Set the time to a specific day and hour.
+    /// Advances time by the specified number of hours.
+    pub fn advance_hours(&mut self, hours: u32) {
+        self.total_minutes += hours as i64 * MINUTES_PER_HOUR;
+    }
+
+    /// Advances time by the specified number of days.
+    pub fn advance_days(&mut self, days: u32) {
+        self.total_minutes += days as i64 * MINUTES_PER_DAY;
+    }
+
+    /// Sets the time to a specific day and hour.
+    ///
+    /// Day is 1-based (day 1 = first day). Hour is 0-23.
     /// Minutes are reset to 0.
     pub fn set_day_and_hour(&mut self, day: u32, hour: u32) {
-        // Calculate the base date (day 1 = current year Jan 1)
-        let base = self.current.with_ordinal(1).unwrap_or(self.current);
-        let target_ordinal = day.min(365); // Clamp to valid range
-
-        // Set to the target day
-        let target_date = base.with_ordinal(target_ordinal).unwrap_or(base);
-
-        // Set hour and zero out minutes/seconds
-        self.current = target_date
-            .with_hour(hour.min(23))
-            .unwrap_or(target_date)
-            .with_minute(0)
-            .unwrap_or(target_date)
-            .with_second(0)
-            .unwrap_or(target_date);
+        let day = day.max(1); // Ensure day is at least 1
+        let hour = hour.min(23); // Clamp hour to valid range
+        self.total_minutes = ((day as i64 - 1) * HOURS_PER_DAY + hour as i64) * MINUTES_PER_HOUR;
     }
 
     /// Skip to the next occurrence of a time period.
+    ///
     /// If currently in that period, advances to the next day's occurrence.
     pub fn skip_to_period(&mut self, target_period: TimeOfDay) {
         let current_period = self.time_of_day();
-        let current_hour = self.current.hour() as u8;
+        let current_hour = self.hour();
         let target_hour = target_period.start_hour();
 
         if current_period == target_period {
             // Already in this period - skip to tomorrow's occurrence
             self.advance_days(1);
-            self.current = self
-                .current
-                .with_hour(target_hour as u32)
-                .unwrap_or(self.current)
-                .with_minute(0)
-                .unwrap_or(self.current);
+            // Set to target hour, zero minutes
+            let day_start = (self.total_minutes / MINUTES_PER_DAY) * MINUTES_PER_DAY;
+            self.total_minutes = day_start + target_hour as i64 * MINUTES_PER_HOUR;
         } else if target_hour > current_hour {
-            // Target is later today
-            self.current = self
-                .current
-                .with_hour(target_hour as u32)
-                .unwrap_or(self.current)
-                .with_minute(0)
-                .unwrap_or(self.current);
+            // Target is later today - advance to target hour
+            let current_minute_of_day = self.total_minutes.rem_euclid(MINUTES_PER_DAY);
+            let target_minute_of_day = target_hour as i64 * MINUTES_PER_HOUR;
+            self.total_minutes += target_minute_of_day - current_minute_of_day;
         } else {
             // Target is tomorrow (earlier hour than current)
             self.advance_days(1);
-            self.current = self
-                .current
-                .with_hour(target_hour as u32)
-                .unwrap_or(self.current)
-                .with_minute(0)
-                .unwrap_or(self.current);
+            let day_start = (self.total_minutes / MINUTES_PER_DAY) * MINUTES_PER_DAY;
+            self.total_minutes = day_start + target_hour as i64 * MINUTES_PER_HOUR;
         }
     }
 
     /// Calculate minutes until the start of a target period.
+    ///
     /// If currently in that period, returns 0.
     /// If target is tomorrow, includes overnight hours.
     pub fn minutes_until_period(&self, target_period: TimeOfDay) -> u32 {
@@ -382,8 +516,8 @@ impl GameTime {
             return 0;
         }
 
-        let current_hour = self.current.hour();
-        let current_minute = self.current.minute();
+        let current_hour = self.hour() as u32;
+        let current_minute = self.minute() as u32;
         let target_hour = target_period.start_hour() as u32;
 
         let hours_until = if target_hour > current_hour {
@@ -398,38 +532,51 @@ impl GameTime {
         total_minutes.saturating_sub(current_minute)
     }
 
-    /// Get the current hour (0-23).
-    pub fn hour(&self) -> u8 {
-        self.current.hour() as u8
+    // =========================================================================
+    // Calendar Integration
+    // =========================================================================
+
+    /// Convert to a calendar date using the given calendar and epoch configuration.
+    ///
+    /// This allows the same `GameTime` to be displayed differently depending on
+    /// the world's calendar system (e.g., Gregorian, Harptos for Forgotten Realms).
+    pub fn to_calendar_date(
+        &self,
+        calendar: &CalendarDefinition,
+        epoch: &EpochConfig,
+    ) -> CalendarDate {
+        calculate_calendar_date(self.total_minutes, calendar, epoch)
     }
 
-    /// Get the current minute (0-59).
-    pub fn minute(&self) -> u8 {
-        self.current.minute() as u8
+    // =========================================================================
+    // Compatibility Methods
+    // =========================================================================
+
+    /// Convert to a DateTime for compatibility with systems that still require DateTime.
+    ///
+    /// This creates a synthetic DateTime using a fixed epoch (2000-01-01 00:00:00 UTC)
+    /// plus the total_minutes. This is useful for:
+    /// - Storing observations with a timestamp
+    /// - Comparing game times using chrono's comparison operators
+    /// - Legacy code that hasn't been migrated yet
+    ///
+    /// Note: The actual date is arbitrary and should not be displayed to users.
+    /// Use `display_date()` or `to_calendar_date()` for user-facing time display.
+    pub fn to_datetime(&self) -> chrono::DateTime<chrono::Utc> {
+        use chrono::{Duration, TimeZone, Utc};
+        // Use a fixed epoch: 2000-01-01 00:00:00 UTC
+        let epoch = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap();
+        epoch + Duration::minutes(self.total_minutes)
     }
 
-    /// Get the current day number (1-based ordinal).
-    pub fn day(&self) -> u32 {
-        self.current.ordinal()
-    }
+    // =========================================================================
+    // Display Methods
+    // =========================================================================
 
-    pub fn time_of_day(&self) -> TimeOfDay {
-        let hour = self.current.hour();
-        match hour {
-            5..=11 => TimeOfDay::Morning,
-            12..=17 => TimeOfDay::Afternoon,
-            18..=21 => TimeOfDay::Evening,
-            _ => TimeOfDay::Night,
-        }
-    }
-
-    pub fn day_ordinal(&self) -> u32 {
-        self.current.ordinal()
-    }
-
+    /// Display the time in 12-hour format (e.g., "9:00 AM").
     pub fn display_time(&self) -> String {
-        let hour = self.current.hour();
-        let minute = self.current.minute();
+        let hour = self.hour();
+        let minute = self.minute();
 
         let period = if hour >= 12 { "PM" } else { "AM" };
         let display_hour = if hour == 0 {
@@ -443,54 +590,486 @@ impl GameTime {
         format!("{}:{:02} {}", display_hour, minute, period)
     }
 
+    /// Display as ordinal date with time (e.g., "Day 3, 9:00 AM").
     pub fn display_date(&self) -> String {
-        format!("Day {}, {}", self.day_ordinal(), self.display_time())
+        format!("Day {}, {}", self.day(), self.display_time())
+    }
+
+    /// Display the current time period name (e.g., "Morning").
+    pub fn display_period(&self) -> String {
+        self.time_of_day().display_name().to_string()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
 
-    fn fixed_time() -> DateTime<Utc> {
-        Utc.timestamp_opt(1_700_000_000, 0).unwrap()
+    mod game_time_creation {
+        use super::*;
+
+        #[test]
+        fn at_epoch_creates_minute_zero() {
+            let gt = GameTime::at_epoch();
+            assert_eq!(gt.total_minutes(), 0);
+            assert!(gt.is_paused());
+        }
+
+        #[test]
+        fn from_minutes_positive() {
+            let gt = GameTime::from_minutes(1440);
+            assert_eq!(gt.total_minutes(), 1440);
+            assert!(gt.is_paused());
+        }
+
+        #[test]
+        fn from_minutes_negative() {
+            let gt = GameTime::from_minutes(-720);
+            assert_eq!(gt.total_minutes(), -720);
+        }
+
+        #[test]
+        #[allow(deprecated)]
+        fn deprecated_new_creates_at_epoch() {
+            let gt = GameTime::new();
+            assert_eq!(gt.total_minutes(), 0);
+            assert!(gt.is_paused());
+        }
     }
 
-    #[test]
-    fn new_game_time_is_paused() {
-        let gt = GameTime::new(fixed_time());
-        assert!(gt.is_paused());
+    mod day_calculation {
+        use super::*;
+
+        #[test]
+        fn day_at_epoch_is_one() {
+            let gt = GameTime::at_epoch();
+            assert_eq!(gt.day(), 1);
+        }
+
+        #[test]
+        fn day_at_minute_1439_is_one() {
+            let gt = GameTime::from_minutes(1439);
+            assert_eq!(gt.day(), 1);
+        }
+
+        #[test]
+        fn day_at_minute_1440_is_two() {
+            let gt = GameTime::from_minutes(1440);
+            assert_eq!(gt.day(), 2);
+        }
+
+        #[test]
+        fn day_at_minute_2880_is_three() {
+            let gt = GameTime::from_minutes(2880);
+            assert_eq!(gt.day(), 3);
+        }
+
+        #[test]
+        fn day_ordinal_equals_day() {
+            let gt = GameTime::from_minutes(5000);
+            assert_eq!(gt.day_ordinal(), gt.day());
+        }
     }
 
-    #[test]
-    fn time_of_day_mapping_is_standardized() {
-        let morning = GameTime::starting_at(
-            DateTime::parse_from_rfc3339("2024-01-01T05:00:00Z")
-                .unwrap()
-                .into(),
-        );
-        assert_eq!(morning.time_of_day(), TimeOfDay::Morning);
+    mod negative_time {
+        use super::*;
 
-        let afternoon = GameTime::starting_at(
-            DateTime::parse_from_rfc3339("2024-01-01T12:00:00Z")
-                .unwrap()
-                .into(),
-        );
-        assert_eq!(afternoon.time_of_day(), TimeOfDay::Afternoon);
+        #[test]
+        fn negative_one_minute_is_day_one() {
+            let gt = GameTime::from_minutes(-1);
+            assert_eq!(gt.day(), 1);
+        }
 
-        let evening = GameTime::starting_at(
-            DateTime::parse_from_rfc3339("2024-01-01T18:00:00Z")
-                .unwrap()
-                .into(),
-        );
-        assert_eq!(evening.time_of_day(), TimeOfDay::Evening);
+        #[test]
+        fn negative_1440_minutes_is_day_one() {
+            let gt = GameTime::from_minutes(-1440);
+            assert_eq!(gt.day(), 1);
+        }
 
-        let night = GameTime::starting_at(
-            DateTime::parse_from_rfc3339("2024-01-01T03:00:00Z")
-                .unwrap()
-                .into(),
-        );
-        assert_eq!(night.time_of_day(), TimeOfDay::Night);
+        #[test]
+        fn negative_1441_minutes_is_day_two() {
+            let gt = GameTime::from_minutes(-1441);
+            assert_eq!(gt.day(), 2);
+        }
+
+        #[test]
+        fn negative_time_hour_wraps() {
+            // -60 minutes = 23:00 of the previous day
+            let gt = GameTime::from_minutes(-60);
+            assert_eq!(gt.hour(), 23);
+        }
+
+        #[test]
+        fn negative_time_minute_wraps() {
+            // -30 minutes = XX:30 of the previous hour
+            let gt = GameTime::from_minutes(-30);
+            assert_eq!(gt.minute(), 30);
+        }
+    }
+
+    mod hour_and_minute {
+        use super::*;
+
+        #[test]
+        fn hour_at_epoch_is_zero() {
+            let gt = GameTime::at_epoch();
+            assert_eq!(gt.hour(), 0);
+        }
+
+        #[test]
+        fn minute_at_epoch_is_zero() {
+            let gt = GameTime::at_epoch();
+            assert_eq!(gt.minute(), 0);
+        }
+
+        #[test]
+        fn hour_at_540_minutes_is_nine() {
+            let gt = GameTime::from_minutes(540); // 9 hours
+            assert_eq!(gt.hour(), 9);
+        }
+
+        #[test]
+        fn minute_at_90_is_thirty() {
+            let gt = GameTime::from_minutes(90); // 1 hour 30 minutes
+            assert_eq!(gt.hour(), 1);
+            assert_eq!(gt.minute(), 30);
+        }
+
+        #[test]
+        fn hour_wraps_at_24() {
+            let gt = GameTime::from_minutes(25 * 60); // 25 hours = 1 hour next day
+            assert_eq!(gt.hour(), 1);
+        }
+    }
+
+    mod time_of_day {
+        use super::*;
+
+        #[test]
+        fn morning_at_5am() {
+            let gt = GameTime::from_minutes(5 * 60);
+            assert_eq!(gt.time_of_day(), TimeOfDay::Morning);
+        }
+
+        #[test]
+        fn morning_at_11am() {
+            let gt = GameTime::from_minutes(11 * 60);
+            assert_eq!(gt.time_of_day(), TimeOfDay::Morning);
+        }
+
+        #[test]
+        fn afternoon_at_noon() {
+            let gt = GameTime::from_minutes(12 * 60);
+            assert_eq!(gt.time_of_day(), TimeOfDay::Afternoon);
+        }
+
+        #[test]
+        fn afternoon_at_5pm() {
+            let gt = GameTime::from_minutes(17 * 60);
+            assert_eq!(gt.time_of_day(), TimeOfDay::Afternoon);
+        }
+
+        #[test]
+        fn evening_at_6pm() {
+            let gt = GameTime::from_minutes(18 * 60);
+            assert_eq!(gt.time_of_day(), TimeOfDay::Evening);
+        }
+
+        #[test]
+        fn evening_at_9pm() {
+            let gt = GameTime::from_minutes(21 * 60);
+            assert_eq!(gt.time_of_day(), TimeOfDay::Evening);
+        }
+
+        #[test]
+        fn night_at_10pm() {
+            let gt = GameTime::from_minutes(22 * 60);
+            assert_eq!(gt.time_of_day(), TimeOfDay::Night);
+        }
+
+        #[test]
+        fn night_at_3am() {
+            let gt = GameTime::from_minutes(3 * 60);
+            assert_eq!(gt.time_of_day(), TimeOfDay::Night);
+        }
+
+        #[test]
+        fn night_at_midnight() {
+            let gt = GameTime::at_epoch();
+            assert_eq!(gt.time_of_day(), TimeOfDay::Night);
+        }
+    }
+
+    mod advance_methods {
+        use super::*;
+
+        #[test]
+        fn advance_minutes() {
+            let mut gt = GameTime::at_epoch();
+            gt.advance_minutes(90);
+            assert_eq!(gt.total_minutes(), 90);
+        }
+
+        #[test]
+        fn advance_hours() {
+            let mut gt = GameTime::at_epoch();
+            gt.advance_hours(3);
+            assert_eq!(gt.total_minutes(), 180);
+        }
+
+        #[test]
+        fn advance_days() {
+            let mut gt = GameTime::at_epoch();
+            gt.advance_days(2);
+            assert_eq!(gt.total_minutes(), 2880);
+        }
+
+        #[test]
+        fn set_total_minutes() {
+            let mut gt = GameTime::at_epoch();
+            gt.set_total_minutes(5000);
+            assert_eq!(gt.total_minutes(), 5000);
+        }
+
+        #[test]
+        fn set_total_minutes_negative() {
+            let mut gt = GameTime::at_epoch();
+            gt.set_total_minutes(-1000);
+            assert_eq!(gt.total_minutes(), -1000);
+        }
+    }
+
+    mod set_day_and_hour {
+        use super::*;
+
+        #[test]
+        fn set_day_1_hour_9() {
+            let mut gt = GameTime::from_minutes(5000);
+            gt.set_day_and_hour(1, 9);
+            assert_eq!(gt.day(), 1);
+            assert_eq!(gt.hour(), 9);
+            assert_eq!(gt.minute(), 0);
+        }
+
+        #[test]
+        fn set_day_3_hour_14() {
+            let mut gt = GameTime::at_epoch();
+            gt.set_day_and_hour(3, 14);
+            assert_eq!(gt.day(), 3);
+            assert_eq!(gt.hour(), 14);
+            // (3-1) * 24 * 60 + 14 * 60 = 2880 + 840 = 3720
+            assert_eq!(gt.total_minutes(), 3720);
+        }
+
+        #[test]
+        fn set_day_clamps_hour_to_23() {
+            let mut gt = GameTime::at_epoch();
+            gt.set_day_and_hour(1, 30);
+            assert_eq!(gt.hour(), 23);
+        }
+
+        #[test]
+        fn set_day_clamps_day_to_1() {
+            let mut gt = GameTime::at_epoch();
+            gt.set_day_and_hour(0, 9);
+            assert_eq!(gt.day(), 1);
+        }
+    }
+
+    mod skip_to_period {
+        use super::*;
+
+        #[test]
+        fn skip_from_morning_to_afternoon() {
+            let mut gt = GameTime::from_minutes(9 * 60); // 9 AM
+            gt.skip_to_period(TimeOfDay::Afternoon);
+            assert_eq!(gt.hour(), 12);
+            assert_eq!(gt.minute(), 0);
+            assert_eq!(gt.time_of_day(), TimeOfDay::Afternoon);
+        }
+
+        #[test]
+        fn skip_from_morning_to_morning_advances_day() {
+            let mut gt = GameTime::from_minutes(9 * 60); // 9 AM day 1
+            gt.skip_to_period(TimeOfDay::Morning);
+            assert_eq!(gt.hour(), 5);
+            assert_eq!(gt.day(), 2);
+        }
+
+        #[test]
+        fn skip_from_evening_to_morning_advances_day() {
+            let mut gt = GameTime::from_minutes(19 * 60); // 7 PM
+            gt.skip_to_period(TimeOfDay::Morning);
+            assert_eq!(gt.hour(), 5);
+            assert_eq!(gt.day(), 2);
+        }
+
+        #[test]
+        fn skip_from_night_to_morning_same_day() {
+            let mut gt = GameTime::from_minutes(3 * 60); // 3 AM day 1
+            gt.skip_to_period(TimeOfDay::Morning);
+            assert_eq!(gt.hour(), 5);
+            assert_eq!(gt.day(), 1);
+        }
+    }
+
+    mod minutes_until_period {
+        use super::*;
+
+        #[test]
+        fn same_period_returns_zero() {
+            let gt = GameTime::from_minutes(9 * 60); // 9 AM = Morning
+            assert_eq!(gt.minutes_until_period(TimeOfDay::Morning), 0);
+        }
+
+        #[test]
+        fn morning_to_afternoon() {
+            let gt = GameTime::from_minutes(9 * 60); // 9 AM
+                                                     // Until noon = 3 hours = 180 minutes
+            assert_eq!(gt.minutes_until_period(TimeOfDay::Afternoon), 180);
+        }
+
+        #[test]
+        fn evening_to_morning_wraps() {
+            let gt = GameTime::from_minutes(19 * 60); // 7 PM
+                                                      // Until 5 AM = 10 hours = 600 minutes
+            assert_eq!(gt.minutes_until_period(TimeOfDay::Morning), 600);
+        }
+
+        #[test]
+        fn partial_hour_subtracted() {
+            let gt = GameTime::from_minutes(9 * 60 + 30); // 9:30 AM
+                                                          // Until noon = 2.5 hours = 150 minutes
+            assert_eq!(gt.minutes_until_period(TimeOfDay::Afternoon), 150);
+        }
+    }
+
+    mod display_methods {
+        use super::*;
+
+        #[test]
+        fn display_time_morning() {
+            let gt = GameTime::from_minutes(9 * 60 + 30); // 9:30 AM
+            assert_eq!(gt.display_time(), "9:30 AM");
+        }
+
+        #[test]
+        fn display_time_afternoon() {
+            let gt = GameTime::from_minutes(14 * 60 + 15); // 2:15 PM
+            assert_eq!(gt.display_time(), "2:15 PM");
+        }
+
+        #[test]
+        fn display_time_midnight() {
+            let gt = GameTime::at_epoch();
+            assert_eq!(gt.display_time(), "12:00 AM");
+        }
+
+        #[test]
+        fn display_time_noon() {
+            let gt = GameTime::from_minutes(12 * 60);
+            assert_eq!(gt.display_time(), "12:00 PM");
+        }
+
+        #[test]
+        fn display_date() {
+            let gt = GameTime::from_minutes(MINUTES_PER_DAY * 2 + 9 * 60); // Day 3, 9 AM
+            assert_eq!(gt.display_date(), "Day 3, 9:00 AM");
+        }
+
+        #[test]
+        fn display_period() {
+            let gt = GameTime::from_minutes(9 * 60);
+            assert_eq!(gt.display_period(), "Morning");
+        }
+    }
+
+    mod paused_state {
+        use super::*;
+
+        #[test]
+        fn new_game_time_is_paused() {
+            let gt = GameTime::at_epoch();
+            assert!(gt.is_paused());
+        }
+
+        #[test]
+        fn can_unpause() {
+            let mut gt = GameTime::at_epoch();
+            gt.set_paused(false);
+            assert!(!gt.is_paused());
+        }
+
+        #[test]
+        fn can_pause_again() {
+            let mut gt = GameTime::at_epoch();
+            gt.set_paused(false);
+            gt.set_paused(true);
+            assert!(gt.is_paused());
+        }
+    }
+
+    mod calendar_integration {
+        use super::*;
+        use crate::value_objects::{CalendarDefinition, EpochConfig};
+
+        #[test]
+        fn to_calendar_date_at_epoch() {
+            let gt = GameTime::at_epoch();
+            let calendar = CalendarDefinition::gregorian();
+            let epoch = EpochConfig::gregorian_default();
+
+            let date = gt.to_calendar_date(&calendar, &epoch);
+
+            assert_eq!(date.year, 1);
+            assert_eq!(date.month, 1);
+            assert_eq!(date.day, 1);
+            assert_eq!(date.hour, 0);
+            assert_eq!(date.minute, 0);
+        }
+
+        #[test]
+        fn to_calendar_date_one_day_later() {
+            let gt = GameTime::from_minutes(MINUTES_PER_DAY);
+            let calendar = CalendarDefinition::gregorian();
+            let epoch = EpochConfig::gregorian_default();
+
+            let date = gt.to_calendar_date(&calendar, &epoch);
+
+            assert_eq!(date.day, 2);
+        }
+
+        #[test]
+        fn to_calendar_date_with_harptos() {
+            let gt = GameTime::at_epoch();
+            let calendar = CalendarDefinition::harptos();
+            let epoch = EpochConfig::harptos_default();
+
+            let date = gt.to_calendar_date(&calendar, &epoch);
+
+            assert_eq!(date.year, 1492);
+            assert_eq!(date.month_name, "Hammer");
+            assert_eq!(date.era_suffix, Some("DR".to_string()));
+        }
+    }
+
+    mod serialization {
+        use super::*;
+
+        #[test]
+        fn round_trip_json() {
+            let gt = GameTime::from_minutes(12345);
+            let json = serde_json::to_string(&gt).unwrap();
+            let restored: GameTime = serde_json::from_str(&json).unwrap();
+            assert_eq!(gt, restored);
+        }
+
+        #[test]
+        fn round_trip_negative_time() {
+            let gt = GameTime::from_minutes(-5000);
+            let json = serde_json::to_string(&gt).unwrap();
+            let restored: GameTime = serde_json::from_str(&json).unwrap();
+            assert_eq!(gt, restored);
+        }
     }
 }

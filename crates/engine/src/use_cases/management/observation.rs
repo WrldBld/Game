@@ -144,7 +144,7 @@ impl ObservationManagement {
             })?;
 
         let now = self.clock.now();
-        let game_time = world.game_time().current();
+        let game_time = world.game_time().to_datetime();
         let observation = match obs_type {
             wrldbldr_domain::ObservationType::Direct => wrldbldr_domain::NpcObservation::direct(
                 pc_id,

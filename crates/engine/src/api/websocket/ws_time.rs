@@ -1,7 +1,5 @@
 use super::*;
 
-use chrono::Timelike;
-
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::use_cases::time::TimeAdvanceResultData;
@@ -530,7 +528,7 @@ pub(super) async fn handle_time_request(
 
             let protocol_game_time = game_time_to_protocol(&outcome.new_time);
             let update_msg = ServerMessage::GameTimeUpdated {
-                game_time: protocol_game_time,
+                game_time: protocol_game_time.clone(),
             };
             state
                 .connections
@@ -541,7 +539,7 @@ pub(super) async fn handle_time_request(
                 world_id = %world_id_typed,
                 hours_advanced = hours,
                 new_day = outcome.new_time.day_ordinal(),
-                new_hour = outcome.new_time.current().hour(),
+                new_hour = outcome.new_time.hour(),
                 "Game time advanced"
             );
 
@@ -877,11 +875,35 @@ fn parse_time_of_day(period: &str) -> Option<TimeOfDay> {
 
 /// Convert domain GameTime to protocol GameTime.
 pub(super) fn game_time_to_protocol(gt: &GameTime) -> protocol::GameTime {
+    let hour = gt.hour();
+    let period = match hour {
+        5..=11 => "Morning",
+        12..=17 => "Afternoon",
+        18..=21 => "Evening",
+        _ => "Night",
+    }
+    .to_string();
+
+    // Format time as 12-hour display
+    let am_pm = if hour >= 12 { "PM" } else { "AM" };
+    let display_hour = if hour == 0 {
+        12
+    } else if hour > 12 {
+        hour - 12
+    } else {
+        hour
+    };
+    let formatted_time = Some(format!("{}:{:02} {}", display_hour, gt.minute(), am_pm));
+
     protocol::GameTime {
+        total_minutes: gt.total_minutes(),
         day: gt.day(),
-        hour: gt.hour(),
+        hour,
         minute: gt.minute(),
         is_paused: gt.is_paused(),
+        formatted_date: None, // Calendar formatting handled elsewhere
+        formatted_time,
+        period,
     }
 }
 
@@ -920,6 +942,8 @@ pub(super) fn time_config_to_protocol(
         },
         show_time_to_players: config.show_time_to_players,
         time_format: protocol::TimeFormat::TwelveHour,
+        calendar_id: None, // Calendar configuration not yet exposed from domain
+        epoch_year: None,
     }
 }
 
@@ -956,6 +980,11 @@ pub(super) fn protocol_time_config_to_domain(
         time_costs: protocol_time_costs_to_domain(&config.time_costs),
         show_time_to_players: config.show_time_to_players,
         time_format: wrldbldr_domain::TimeFormat::TwelveHour,
+        // Calendar settings use defaults when not provided in protocol
+        // (protocol will be extended to include these in a future update)
+        calendar_id: wrldbldr_domain::CalendarId::new("gregorian")
+            .expect("gregorian is a valid calendar ID"),
+        epoch_config: wrldbldr_domain::EpochConfig::default(),
     }
 }
 

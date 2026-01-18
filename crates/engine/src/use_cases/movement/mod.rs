@@ -43,6 +43,14 @@ impl MovementUseCases {
 ///
 /// This is shared logic between EnterRegion and ExitLocation use cases.
 ///
+/// # Arguments
+/// * `staging` - The staging repository
+/// * `region_id` - The region to resolve staging for
+/// * `location_id` - The location containing the region
+/// * `world_id` - The world containing the location
+/// * `current_game_time_minutes` - Current game time in total minutes since epoch
+/// * `real_timestamp` - Real-world timestamp for audit purposes
+///
 /// # Returns
 /// A tuple of (visible NPCs, staging status)
 pub async fn resolve_staging_for_region(
@@ -50,10 +58,11 @@ pub async fn resolve_staging_for_region(
     region_id: RegionId,
     location_id: LocationId,
     world_id: WorldId,
-    current_game_time: DateTime<Utc>,
+    current_game_time_minutes: i64,
+    real_timestamp: DateTime<Utc>,
 ) -> Result<(Vec<StagedNpc>, StagingStatus), RepoError> {
     let active_staging = staging
-        .get_active_staging(region_id, current_game_time)
+        .get_active_staging(region_id, current_game_time_minutes)
         .await?;
 
     match active_staging {
@@ -79,11 +88,11 @@ pub async fn resolve_staging_for_region(
                         region_id,
                         location_id,
                         world_id,
-                        current_game_time,
+                        current_game_time_minutes,
                         "expired",
                         StagingSource::RuleBased,
                         0,
-                        current_game_time,
+                        real_timestamp,
                     )
                     .with_npcs(npcs)
                 })

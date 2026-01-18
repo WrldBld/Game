@@ -53,6 +53,10 @@ pub struct StagingApprovalPopupProps {
 /// StagingApprovalPopup - DM UI for approving NPC presence
 #[component]
 pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
+    // Pre-format game time for display (avoids move issues in rsx!)
+    let game_time_display =
+        crate::presentation::game_time_format::display_date(&props.data.game_time);
+
     // Initialize NPC selections from both rule and LLM sources
     let initial_selections: Vec<NpcSelection> = {
         let mut selections = Vec::new();
@@ -215,7 +219,7 @@ pub fn StagingApprovalPopup(props: StagingApprovalPopupProps) -> Element {
                             }
                             p {
                                 class: "text-gray-400 text-sm m-0",
-                                "{props.data.location_name} - {crate::presentation::game_time_format::display_date(props.data.game_time)}"
+                                "{props.data.location_name} - {game_time_display}"
                             }
                         }
 

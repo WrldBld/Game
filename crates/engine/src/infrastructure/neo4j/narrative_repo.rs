@@ -4,7 +4,7 @@
 
 use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
-use chrono::{DateTime, Timelike, Utc};
+use chrono::{DateTime, Utc};
 use neo4rs::{query, Node, Row};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -810,13 +810,13 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
 
         if let Some(gt) = game_time {
             let time_id = Uuid::new_v4().to_string();
-            let current = gt.current();
             let day = gt.day_ordinal() as i64;
-            let hour = current.hour() as i64;
-            let minute = current.minute() as i64;
+            let hour = gt.hour() as i64;
+            let minute = gt.minute() as i64;
             let period = gt.time_of_day().display_name().to_string();
             let label = format!("Day {}, {} ({:02}:{:02})", day, period, hour, minute);
-            turn_game_time = current.to_rfc3339();
+            // Store total_minutes for time reference (not DateTime anymore)
+            turn_game_time = gt.total_minutes().to_string();
 
             let q = query(
                 "MERGE (t:GameTime {world_id: $world_id, day: $day, hour: $hour, minute: $minute})

@@ -122,7 +122,7 @@ async fn save_pending_staging_creates_includes_npc_edges_for_all_npcs() {
         region_id,
         location_id,
         world_id,
-        now,
+        0, // game_time_minutes at epoch
         "dm",
         StagingSource::RuleBased,
         24,

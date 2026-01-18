@@ -537,10 +537,14 @@ pub trait StagingRepo: Send + Sync {
 
     /// Get active staging for a region, checking TTL expiry.
     /// Returns None if no staging exists or if the current staging is expired.
+    ///
+    /// # Arguments
+    /// * `region_id` - The region to get staging for
+    /// * `current_game_time_minutes` - Current game time in total minutes since epoch
     async fn get_active_staging(
         &self,
         region_id: RegionId,
-        current_game_time: DateTime<Utc>,
+        current_game_time_minutes: i64,
     ) -> Result<Option<Staging>, RepoError>;
 
     /// Activate a staging (after DM approval), replacing any existing current staging.

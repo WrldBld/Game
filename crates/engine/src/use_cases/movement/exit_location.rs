@@ -3,6 +3,7 @@
 //! Handles player character movement to a different location entirely.
 //! Determines the arrival region and coordinates with staging/narrative/scene/time systems.
 
+use chrono::Utc;
 use std::sync::Arc;
 use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
 
@@ -130,7 +131,8 @@ impl ExitLocation {
             .get(world_id)
             .await?
             .ok_or(ExitLocationError::WorldNotFound(world_id))?;
-        let current_game_time = world_data.game_time().current();
+        let current_game_time_minutes = world_data.game_time().total_minutes();
+        let real_timestamp = Utc::now();
 
         // 8. Check for valid staging (with TTL check using game time)
         let (npcs, staging_status) = resolve_staging_for_region(
@@ -138,7 +140,8 @@ impl ExitLocation {
             region_id,
             region.location_id(),
             pc.world_id(),
-            current_game_time,
+            current_game_time_minutes,
+            real_timestamp,
         )
         .await?;
 
@@ -146,7 +149,7 @@ impl ExitLocation {
         // Use game time for when the observation occurred in-game
         if !npcs.is_empty() {
             self.record_visit
-                .execute(pc_id, region_id, &npcs, current_game_time)
+                .execute(pc_id, region_id, &npcs, current_game_time_minutes)
                 .await?;
         }
 

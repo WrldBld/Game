@@ -654,8 +654,8 @@ pub fn handle_server_message(
         // =========================================================================
         PlayerEvent::GameTimeUpdated { game_time } => {
             // PlayerEvent already contains application-layer types
-            let time_display = crate::presentation::game_time_format::display_date(game_time);
-            let time_of_day = crate::presentation::game_time_format::time_of_day(game_time);
+            let time_display = crate::presentation::game_time_format::display_date(&game_time);
+            let time_of_day = crate::presentation::game_time_format::time_of_day(&game_time);
 
             tracing::info!(
                 "Game time updated: {} ({}, paused: {})",
@@ -681,7 +681,7 @@ pub fn handle_server_message(
             new_period,
             ..
         } => {
-            let time_display = crate::presentation::game_time_format::display_date(new_time);
+            let time_display = crate::presentation::game_time_format::display_date(&new_time);
 
             tracing::info!(
                 "Game time advanced: {} (reason: {}, period_changed: {})",
@@ -717,9 +717,9 @@ pub fn handle_server_message(
             period_change,
         } => {
             // DM-only: show time suggestion for approval
-            let current_display = crate::presentation::game_time_format::display_date(current_time);
+            let current_display = crate::presentation::game_time_format::display_date(&current_time);
             let resulting_display =
-                crate::presentation::game_time_format::display_date(resulting_time);
+                crate::presentation::game_time_format::display_date(&resulting_time);
 
             tracing::info!(
                 "Time suggestion: {} - {} ({} -> {}, +{} min)",
@@ -1724,7 +1724,7 @@ mod tests {
             handle_server_message(
                 PlayerEvent::GameTimeAdvanced {
                     previous_time,
-                    new_time,
+                    new_time: new_time.clone(),
                     minutes_advanced: 60,
                     reason: "Travel".to_string(),
                     period_changed: false,
@@ -1770,8 +1770,8 @@ mod tests {
                     action_type: "conversation".to_string(),
                     action_description: "Talk".to_string(),
                     suggested_minutes: 10,
-                    current_time,
-                    resulting_time,
+                    current_time: current_time.clone(),
+                    resulting_time: resulting_time.clone(),
                     period_change: None,
                 },
                 &mut session_state,

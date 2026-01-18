@@ -4,6 +4,7 @@ mod actantial_context;
 mod activation_rules;
 mod ad_hoc_outcomes;
 mod archetype;
+mod calendar;
 mod character_state;
 mod comfyui_config;
 mod dice;
@@ -92,6 +93,12 @@ pub use character_state::CharacterState;
 
 // Stat block value objects
 pub use stat_block::{StatBlock, StatModifier, StatValue};
+
+// Calendar system value objects
+pub use calendar::{
+    calculate_calendar_date, CalendarDate, CalendarDefinition, CalendarId, EpochConfig,
+    EraDefinition, IntercalaryDay, MonthDefinition, Season,
+};
 
 // NOTE: Want has been promoted to an entity (domain/entities/want.rs)
 // ActantTarget is no longer used - targets are now Neo4j edges

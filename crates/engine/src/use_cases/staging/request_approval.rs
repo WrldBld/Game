@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use chrono::{Datelike, Timelike};
 use uuid::Uuid;
 use wrldbldr_domain::{
     LocationId, PlayerCharacter, PlayerCharacterId, RegionId, Staging as DomainStaging, WorldId,
@@ -100,7 +99,7 @@ impl RequestStagingApproval {
             .get(input.world_id)
             .await?
             .ok_or(StagingError::WorldNotFound(input.world_id))?;
-        let now = world.game_time().current();
+        let game_time = world.game_time();
 
         let settings =
             get_settings_with_fallback(self.settings.as_ref(), input.world_id, "staging").await;
@@ -189,10 +188,10 @@ impl RequestStagingApproval {
                 location_id: input.region.location_id(),
                 location_name,
                 game_time: GameTimeData {
-                    day: now.ordinal() as u32,
-                    hour: now.hour() as u8,
-                    minute: now.minute() as u8,
-                    is_paused: world.game_time().is_paused(),
+                    day: game_time.day(),
+                    hour: game_time.hour(),
+                    minute: game_time.minute(),
+                    is_paused: game_time.is_paused(),
                 },
                 previous_staging,
                 rule_based_npcs,

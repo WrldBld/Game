@@ -101,12 +101,21 @@ async fn test_staging_auto_approves_after_timeout() {
     );
 
     // Verify we can now get the active staging for this region
-    let current_game_time = ctx.clock.now();
+    let game_time_minutes = ctx
+        .app
+        .repositories
+        .world
+        .get(ctx.world.world_id)
+        .await
+        .expect("World query failed")
+        .expect("World not found")
+        .game_time()
+        .total_minutes();
     let active_staging = ctx
         .app
         .repositories
         .staging
-        .get_active_staging(private_booth, current_game_time)
+        .get_active_staging(private_booth, game_time_minutes)
         .await
         .expect("Should get active staging");
 
@@ -170,12 +179,21 @@ async fn test_staging_timeout_uses_rule_based_npcs() {
     let _payload = result.unwrap();
 
     // Verify active staging has correct source
-    let current_game_time = ctx.clock.now();
+    let game_time_minutes = ctx
+        .app
+        .repositories
+        .world
+        .get(ctx.world.world_id)
+        .await
+        .expect("World query failed")
+        .expect("World not found")
+        .game_time()
+        .total_minutes();
     let active_staging = ctx
         .app
         .repositories
         .staging
-        .get_active_staging(common_room, current_game_time)
+        .get_active_staging(common_room, game_time_minutes)
         .await
         .expect("Should get active staging");
 
@@ -294,12 +312,21 @@ async fn test_player_can_interact_after_auto_staging() {
         );
 
         // Verify staging was activated
-        let current_game_time = ctx.clock.now();
+        let game_time_minutes = ctx
+            .app
+            .repositories
+            .world
+            .get(ctx.world.world_id)
+            .await
+            .expect("World query failed")
+            .expect("World not found")
+            .game_time()
+            .total_minutes();
         let active_staging = ctx
             .app
             .repositories
             .staging
-            .get_active_staging(common_room, current_game_time)
+            .get_active_staging(common_room, game_time_minutes)
             .await
             .expect("Should get active staging");
 
@@ -431,12 +458,21 @@ async fn test_dm_can_still_modify_after_auto_approve() {
     );
 
     // Verify initial auto-approved staging
-    let current_game_time = ctx.clock.now();
+    let game_time_minutes = ctx
+        .app
+        .repositories
+        .world
+        .get(ctx.world.world_id)
+        .await
+        .expect("World query failed")
+        .expect("World not found")
+        .game_time()
+        .total_minutes();
     let initial_staging = ctx
         .app
         .repositories
         .staging
-        .get_active_staging(common_room, current_game_time)
+        .get_active_staging(common_room, game_time_minutes)
         .await
         .expect("Should get active staging")
         .expect("Should have active staging after auto-approve");
@@ -510,7 +546,7 @@ async fn test_dm_can_still_modify_after_auto_approve() {
         .app
         .repositories
         .staging
-        .get_active_staging(common_room, current_game_time)
+        .get_active_staging(common_room, game_time_minutes)
         .await
         .expect("Should get active staging")
         .expect("Should have active staging after DM approval");
@@ -585,9 +621,9 @@ async fn test_time_suggestion_expires_after_timeout() {
     let short_ttl_store: TtlCache<Uuid, TimeSuggestion> = TtlCache::new(ttl);
 
     // Create a time suggestion
-    // Note: TimeSuggestion uses domain GameTime which wraps DateTime<Utc>
+    // Note: TimeSuggestion uses domain GameTime with abstract minutes-based time
     let suggestion_id = Uuid::new_v4();
-    let current_game_time = wrldbldr_domain::GameTime::new(ctx.clock.now());
+    let current_game_time = wrldbldr_domain::GameTime::at_epoch();
     let mut resulting_game_time = current_game_time.clone();
     resulting_game_time.advance_minutes(15);
 

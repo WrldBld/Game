@@ -1021,8 +1021,8 @@ mod tests {
 
         let msg = ServerMessage::GameTimeAdvanced {
             data: TimeAdvanceData {
-                previous_time,
-                new_time,
+                previous_time: previous_time.clone(),
+                new_time: new_time.clone(),
                 minutes_advanced: 90,
                 reason: "Travel".to_string(),
                 period_changed: true,
@@ -1064,8 +1064,8 @@ mod tests {
                 action_type: "conversation".to_string(),
                 action_description: "Talk to the merchant".to_string(),
                 suggested_minutes: 10,
-                current_time,
-                resulting_time,
+                current_time: current_time.clone(),
+                resulting_time: resulting_time.clone(),
                 period_change: None,
             },
         };

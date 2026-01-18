@@ -24,9 +24,9 @@ pub struct Staging {
     world_id: WorldId,
     /// NPCs included in this staging with their presence status
     npcs: Vec<StagedNpc>,
-    /// Game time when this staging was approved
-    game_time: DateTime<Utc>,
-    /// Real time when DM approved
+    /// Game time (in total minutes since epoch) when this staging was approved
+    game_time_minutes: i64,
+    /// Real time when DM approved (for auditing)
     approved_at: DateTime<Utc>,
     /// How long valid in game hours
     ttl_hours: i32,
@@ -182,7 +182,7 @@ impl Staging {
         region_id: RegionId,
         location_id: LocationId,
         world_id: WorldId,
-        game_time: DateTime<Utc>,
+        game_time_minutes: i64,
         approved_by: impl Into<String>,
         source: StagingSource,
         ttl_hours: i32,
@@ -194,7 +194,7 @@ impl Staging {
             location_id,
             world_id,
             npcs: Vec::new(),
-            game_time,
+            game_time_minutes,
             approved_at: now,
             ttl_hours,
             approved_by: approved_by.into(),
@@ -216,7 +216,7 @@ impl Staging {
         location_id: LocationId,
         world_id: WorldId,
         npcs: Vec<StagedNpc>,
-        game_time: DateTime<Utc>,
+        game_time_minutes: i64,
         approved_at: DateTime<Utc>,
         ttl_hours: i32,
         approved_by: String,
@@ -234,7 +234,7 @@ impl Staging {
             location_id,
             world_id,
             npcs,
-            game_time,
+            game_time_minutes,
             approved_at,
             ttl_hours,
             approved_by,
@@ -269,8 +269,9 @@ impl Staging {
         &self.npcs
     }
 
-    pub fn game_time(&self) -> DateTime<Utc> {
-        self.game_time
+    /// Returns the game time (in total minutes since epoch) when this staging was approved.
+    pub fn game_time_minutes(&self) -> i64 {
+        self.game_time_minutes
     }
 
     pub fn approved_at(&self) -> DateTime<Utc> {
@@ -354,10 +355,13 @@ impl Staging {
         self.location_state_id.is_some() || self.region_state_id.is_some()
     }
 
-    /// Check if staging has expired based on game time
-    pub fn is_expired(&self, current_game_time: &DateTime<Utc>) -> bool {
-        let duration = chrono::Duration::hours(self.ttl_hours as i64);
-        current_game_time > &(self.game_time + duration)
+    /// Check if staging has expired based on game time (in minutes since epoch).
+    ///
+    /// A staging expires when the current game time exceeds the staging's
+    /// approval time plus the TTL (in game hours).
+    pub fn is_expired(&self, current_game_time_minutes: i64) -> bool {
+        let ttl_minutes = self.ttl_hours as i64 * 60;
+        current_game_time_minutes > self.game_time_minutes + ttl_minutes
     }
 
     /// Get only present NPCs

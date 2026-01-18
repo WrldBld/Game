@@ -93,7 +93,7 @@ impl World {
             name,
             description: Description::empty(),
             rule_system: RuleSystemConfig::default(),
-            game_time: GameTime::new(now),
+            game_time: GameTime::at_epoch(),
             time_config: GameTimeConfig::default(),
             created_at: now,
             updated_at: now,

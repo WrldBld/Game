@@ -407,7 +407,9 @@ impl ResolveVisualState {
                     );
                     return false;
                 }
-                let current = context.game_time.current();
+                // Use to_datetime() for calendar-based date checks
+                // (in future, this should use calendar integration for proper month/day)
+                let current = context.game_time.to_datetime();
                 current.month() == *month && current.day() == *day
             }
 
@@ -435,7 +437,9 @@ impl ResolveVisualState {
                     return false;
                 }
 
-                let current = context.game_time.current();
+                // Use to_datetime() for calendar-based date checks
+                // (in future, this should use calendar integration for proper month/day)
+                let current = context.game_time.to_datetime();
                 let current_month = current.month();
                 let current_day = current.day();
 
@@ -602,10 +606,9 @@ impl ResolveVisualState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
 
     fn create_test_context() -> StateResolutionContext {
-        let game_time = GameTime::new(Utc::now());
+        let game_time = GameTime::at_epoch();
         StateResolutionContext::new(WorldId::new(), game_time)
     }
 

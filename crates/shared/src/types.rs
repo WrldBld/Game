@@ -133,66 +133,172 @@ pub struct NarrativeEventSuggestionInfo {
 
 /// Game time representation for wire transfer
 ///
-/// Uses simple numeric fields for efficient JSON serialization.
-/// Conversion from domain GameTime happens in the adapter layer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Uses `total_minutes` as the canonical time representation, with additional
+/// computed fields for easy client display. Conversion from domain GameTime
+/// happens in the adapter layer.
+///
+/// ## Backward Compatibility
+/// - `day`, `hour`, `minute` are still provided for existing clients
+/// - New fields (`total_minutes`, `formatted_date`, etc.) use `#[serde(default)]`
+///   so older messages without them will deserialize correctly
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameTime {
-    /// Day number (currently ordinal-style, 1-based; calendar is planned)
+    /// The canonical game time in total minutes since epoch.
+    /// This is the source of truth for time calculations.
+    #[serde(default)]
+    pub total_minutes: i64,
+
+    /// Day number (computed from total_minutes for backward compatibility)
+    /// For calendar-aware worlds, this is the day of the current month.
+    /// For simple worlds, this is the ordinal day (1-based).
     pub day: u32,
-    /// Hour (0-23)
+
+    /// Hour (0-23, computed from total_minutes)
     pub hour: u8,
-    /// Minute (0-59)
+
+    /// Minute (0-59, computed from total_minutes)
     pub minute: u8,
+
     /// Whether time is paused
     pub is_paused: bool,
+
+    /// Formatted date string for display (e.g., "15th of Hammer, 1492 DR")
+    /// Only present if world has a calendar configured.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formatted_date: Option<String>,
+
+    /// Formatted time string for display (e.g., "9:00 AM")
+    /// Computed by server based on TimeFormat preference.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formatted_time: Option<String>,
+
+    /// Time of day period (e.g., "Morning", "Afternoon", "Evening", "Night")
+    /// Always provided for UI display.
+    #[serde(default = "default_period")]
+    pub period: String,
+}
+
+fn default_period() -> String {
+    "Morning".to_string()
 }
 
 impl Default for GameTime {
     fn default() -> Self {
         Self {
+            total_minutes: 8 * 60, // Day 1, 8:00 AM
             day: 1,
             hour: 8,
             minute: 0,
             is_paused: true,
+            formatted_date: None,
+            formatted_time: Some("8:00 AM".to_string()),
+            period: "Morning".to_string(),
         }
     }
 }
 
 impl GameTime {
-    /// Create a new game time
+    /// Create a new game time (simple constructor for backward compatibility)
     pub fn new(day: u32, hour: u8, minute: u8, is_paused: bool) -> Self {
+        let total_minutes = (day as i64 - 1) * 24 * 60 + (hour as i64) * 60 + (minute as i64);
+        let period = Self::compute_period(hour);
         Self {
+            total_minutes,
             day,
             hour,
             minute,
             is_paused,
+            formatted_date: None,
+            formatted_time: None,
+            period,
         }
     }
 
-    /// Get the time of day period
-    pub fn time_of_day(&self) -> &'static str {
-        match self.hour {
-            5..=11 => "morning",
-            12..=17 => "afternoon",
-            18..=21 => "evening",
-            _ => "night",
+    /// Create a new game time with all fields (for server-side construction)
+    pub fn new_full(
+        total_minutes: i64,
+        day: u32,
+        hour: u8,
+        minute: u8,
+        is_paused: bool,
+        formatted_date: Option<String>,
+        formatted_time: Option<String>,
+        period: String,
+    ) -> Self {
+        Self {
+            total_minutes,
+            day,
+            hour,
+            minute,
+            is_paused,
+            formatted_date,
+            formatted_time,
+            period,
         }
+    }
+
+    /// Create from total minutes (canonical constructor)
+    pub fn from_total_minutes(total_minutes: i64, is_paused: bool) -> Self {
+        // Calculate day/hour/minute from total_minutes
+        // Assumes 24-hour days, 60-minute hours
+        let minutes_per_day = 24 * 60;
+        let day = (total_minutes / minutes_per_day) as u32 + 1; // 1-based days
+        let remaining = total_minutes % minutes_per_day;
+        let hour = (remaining / 60) as u8;
+        let minute = (remaining % 60) as u8;
+        let period = Self::compute_period(hour);
+
+        Self {
+            total_minutes,
+            day,
+            hour,
+            minute,
+            is_paused,
+            formatted_date: None,
+            formatted_time: None,
+            period,
+        }
+    }
+
+    /// Compute the period string from hour
+    fn compute_period(hour: u8) -> String {
+        match hour {
+            5..=11 => "Morning",
+            12..=17 => "Afternoon",
+            18..=21 => "Evening",
+            _ => "Night",
+        }
+        .to_string()
+    }
+
+    /// Get the time of day period (for backward compatibility)
+    pub fn time_of_day(&self) -> &str {
+        &self.period
     }
 
     /// Format as display string (e.g., "Day 3, 9:00 AM")
+    /// Prefers formatted_date/formatted_time if available.
     pub fn display(&self) -> String {
-        let period = if self.hour >= 12 { "PM" } else { "AM" };
-        let display_hour = if self.hour == 0 {
-            12
-        } else if self.hour > 12 {
-            self.hour - 12
-        } else {
-            self.hour
-        };
-        format!(
-            "Day {}, {}:{:02} {}",
-            self.day, display_hour, self.minute, period
-        )
+        match (&self.formatted_date, &self.formatted_time) {
+            (Some(date), Some(time)) => format!("{}, {}", date, time),
+            (Some(date), None) => date.clone(),
+            (None, Some(time)) => format!("Day {}, {}", self.day, time),
+            (None, None) => {
+                // Fallback to computed display
+                let period = if self.hour >= 12 { "PM" } else { "AM" };
+                let display_hour = if self.hour == 0 {
+                    12
+                } else if self.hour > 12 {
+                    self.hour - 12
+                } else {
+                    self.hour
+                };
+                format!(
+                    "Day {}, {}:{:02} {}",
+                    self.day, display_hour, self.minute, period
+                )
+            }
+        }
     }
 }
 
@@ -281,6 +387,15 @@ pub struct GameTimeConfig {
     /// Time format preference for display
     #[serde(default)]
     pub time_format: TimeFormat,
+    /// Calendar identifier (e.g., "forgotten_realms", "gregorian")
+    /// If None, uses simple day counting without calendar formatting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calendar_id: Option<String>,
+    /// Year at epoch (minute 0)
+    /// For Forgotten Realms, this might be 1492 (Dale Reckoning).
+    /// If None, year display is omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub epoch_year: Option<i32>,
 }
 
 impl Default for GameTimeConfig {
@@ -290,6 +405,8 @@ impl Default for GameTimeConfig {
             time_costs: TimeCostConfig::default(),
             show_time_to_players: true,
             time_format: TimeFormat::default(),
+            calendar_id: None,
+            epoch_year: None,
         }
     }
 }

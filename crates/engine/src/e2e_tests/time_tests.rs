@@ -104,8 +104,8 @@ async fn test_advance_time() {
         Ok(result) => {
             println!(
                 "Time advanced successfully: previous={:?}, new={:?}",
-                result.previous_time.current(),
-                result.new_time.current()
+                result.previous_time.total_minutes(),
+                result.new_time.total_minutes()
             );
         }
         Err(e) => {

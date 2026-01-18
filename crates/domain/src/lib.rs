@@ -221,6 +221,7 @@ pub use ids::{
 // Re-export value objects (explicit list in value_objects/mod.rs)
 pub use value_objects::{
     // Functions
+    calculate_calendar_date,
     parse_dialogue,
     parse_dialogue_markers,
     validate_markers,
@@ -246,6 +247,10 @@ pub use value_objects::{
     Atmosphere,
     // Rule system types
     BladesPoolThresholds,
+    // Calendar types
+    CalendarDate,
+    CalendarDefinition,
+    CalendarId,
     // Archetype
     CampbellArchetype,
     // Names
@@ -271,14 +276,22 @@ pub use value_objects::{
     DomainNpcMotivation,
     EffectLevel,
     EffectTickConfig,
+    // Calendar epoch config
+    EpochConfig,
+    // Calendar era definition
+    EraDefinition,
     ExpressionConfig,
     // Relationship types
     FamilyRelation,
     GoalName,
     InteractionOutcome,
+    // Calendar intercalary day
+    IntercalaryDay,
     ItemName,
     LadderEntry,
     LocationName,
+    // Calendar month definition
+    MonthDefinition,
     MoodState,
     NarrativeDiceConfig,
     NarrativeDiceType,
@@ -304,6 +317,8 @@ pub use value_objects::{
     RuleSystemType,
     RuleSystemVariant,
     SceneName,
+    // Calendar season
+    Season,
     SecretMotivationContext,
     SocialViewSummary,
     Speaker,

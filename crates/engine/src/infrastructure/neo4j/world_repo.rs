@@ -42,13 +42,11 @@ impl Neo4jWorldRepo {
         // GameTime fields - use defaults for backwards compatibility
         let game_time_paused = node.get_bool_or("game_time_paused", true);
 
-        // Parse game time or create new with current time via injected clock
-        let mut game_time = if node.get_optional_string("game_time").is_some() {
-            let dt = node.get_datetime_or("game_time", fallback);
-            GameTime::starting_at(dt)
-        } else {
-            GameTime::new(fallback)
-        };
+        // Parse game time as total minutes since epoch
+        // For backwards compatibility: if stored as DateTime string, default to 0
+        // New storage format uses game_time_minutes (i64)
+        let total_minutes = node.get_i64_or("game_time_minutes", 0);
+        let mut game_time = GameTime::from_minutes(total_minutes);
         game_time.set_paused(game_time_paused);
 
         // Parse time config or use defaults
@@ -107,7 +105,7 @@ impl WorldRepo for Neo4jWorldRepo {
             SET w.name = $name,
                 w.description = $description,
                 w.rule_system = $rule_system,
-                w.game_time = $game_time,
+                w.game_time_minutes = $game_time_minutes,
                 w.game_time_paused = $game_time_paused,
                 w.time_config = $time_config,
                 w.created_at = $created_at,
@@ -118,7 +116,7 @@ impl WorldRepo for Neo4jWorldRepo {
         .param("name", world.name().as_str().to_owned())
         .param("description", world.description().as_str().to_owned())
         .param("rule_system", rule_system_json)
-        .param("game_time", world.game_time().current().to_rfc3339())
+        .param("game_time_minutes", world.game_time().total_minutes())
         .param("game_time_paused", world.game_time().is_paused())
         .param("time_config", time_config_json)
         .param("created_at", world.created_at().to_rfc3339())

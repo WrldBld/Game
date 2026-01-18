@@ -15,6 +15,9 @@ thiserror = { workspace = true }
 # NOTE: rand removed for hexagonal architecture purity - RNG is now injected via closure
 serde = { workspace = true }
 
+[dev-dependencies]
+serde_json = { workspace = true }
+
 [features]
 default = []
 

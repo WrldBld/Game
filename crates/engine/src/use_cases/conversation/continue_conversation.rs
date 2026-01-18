@@ -113,12 +113,12 @@ impl ContinueConversation {
             .get(world_id)
             .await?
             .ok_or(ConversationError::WorldNotFound(world_id))?;
-        let current_game_time = world_data.game_time().current();
+        let current_game_time_minutes = world_data.game_time().total_minutes();
 
         // Get active staging and filter to visible NPCs
         let active_staging = self
             .staging
-            .get_active_staging(pc_region_id, current_game_time)
+            .get_active_staging(pc_region_id, current_game_time_minutes)
             .await?;
         let staged_npcs = active_staging
             .map(|s| {
@@ -691,7 +691,7 @@ mod tests {
         let mut world_repo = MockWorldRepo::new();
         let world_name = WorldName::new("W").unwrap();
         let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
-        let current_game_time = world.game_time().current();
+        let current_game_time = world.game_time().clone();
         let world_for_get = world.clone();
         world_repo
             .expect_get()
@@ -701,11 +701,12 @@ mod tests {
         // Staging has a different NPC, not the one we're trying to talk to
         let staged_npc =
             StagedNpc::new(other_npc_id, "Other NPC", true, "here").with_mood(MoodState::Calm);
+        let game_time_minutes = current_game_time.total_minutes();
         let staging = Staging::new(
             region_id,
             location_id,
             world_id,
-            current_game_time,
+            game_time_minutes,
             "dm",
             StagingSource::DmCustomized,
             6,
@@ -717,7 +718,7 @@ mod tests {
         let staging_for_get = staging.clone();
         staging_repo
             .expect_get_active_staging()
-            .withf(move |r, t| *r == region_id && *t == current_game_time)
+            .withf(move |r, t| *r == region_id && *t == game_time_minutes)
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
         let clock = build_clock(now);
@@ -796,7 +797,7 @@ mod tests {
         let mut world_repo = MockWorldRepo::new();
         let world_name = WorldName::new("W").unwrap();
         let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
-        let current_game_time = world.game_time().current();
+        let current_game_time = world.game_time().clone();
         let world_for_get = world.clone();
         world_repo
             .expect_get()
@@ -805,11 +806,12 @@ mod tests {
 
         let staged_npc =
             StagedNpc::new(npc_id, npc.name().to_string(), true, "here").with_mood(MoodState::Calm);
+        let game_time_minutes = current_game_time.total_minutes();
         let staging = Staging::new(
             region_id,
             location_id,
             world_id,
-            current_game_time,
+            game_time_minutes,
             "dm",
             StagingSource::DmCustomized,
             6,
@@ -821,7 +823,7 @@ mod tests {
         let staging_for_get = staging.clone();
         staging_repo
             .expect_get_active_staging()
-            .withf(move |r, t| *r == region_id && *t == current_game_time)
+            .withf(move |r, t| *r == region_id && *t == game_time_minutes)
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
         // Narrative repo says conversation is NOT active (ended)
@@ -907,7 +909,7 @@ mod tests {
         let mut world_repo = MockWorldRepo::new();
         let world_name = WorldName::new("W").unwrap();
         let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
-        let current_game_time = world.game_time().current();
+        let current_game_time = world.game_time().clone();
         let world_for_get = world.clone();
         world_repo
             .expect_get()
@@ -916,11 +918,12 @@ mod tests {
 
         let staged_npc =
             StagedNpc::new(npc_id, npc.name().to_string(), true, "here").with_mood(MoodState::Calm);
+        let game_time_minutes = current_game_time.total_minutes();
         let staging = Staging::new(
             region_id,
             location_id,
             world_id,
-            current_game_time,
+            game_time_minutes,
             "dm",
             StagingSource::DmCustomized,
             6,
@@ -932,10 +935,10 @@ mod tests {
         let staging_for_get = staging.clone();
         staging_repo
             .expect_get_active_staging()
-            .withf(move |r, t| *r == region_id && *t == current_game_time)
+            .withf(move |r, t| *r == region_id && *t == game_time_minutes)
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
-        // Narrative repo says no active conversation exists
+        // Narrative repo returns no active conversation
         let mut narrative_repo = MockNarrativeRepo::new();
         narrative_repo
             .expect_get_active_conversation_id()
@@ -1021,7 +1024,7 @@ mod tests {
         let mut world_repo = MockWorldRepo::new();
         let world_name = WorldName::new("W").unwrap();
         let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
-        let current_game_time = world.game_time().current();
+        let current_game_time = world.game_time().clone();
         let world_for_get = world.clone();
         world_repo
             .expect_get()
@@ -1030,11 +1033,12 @@ mod tests {
 
         let staged_npc =
             StagedNpc::new(npc_id, npc.name().to_string(), true, "here").with_mood(MoodState::Calm);
+        let game_time_minutes = current_game_time.total_minutes();
         let staging = Staging::new(
             region_id,
             location_id,
             world_id,
-            current_game_time,
+            game_time_minutes,
             "dm",
             StagingSource::DmCustomized,
             6,
@@ -1046,7 +1050,7 @@ mod tests {
         let staging_for_get = staging.clone();
         staging_repo
             .expect_get_active_staging()
-            .withf(move |r, t| *r == region_id && *t == current_game_time)
+            .withf(move |r, t| *r == region_id && *t == game_time_minutes)
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
         // Conversation is active
@@ -1146,7 +1150,7 @@ mod tests {
         let mut world_repo = MockWorldRepo::new();
         let world_name = WorldName::new("W").unwrap();
         let world = wrldbldr_domain::World::new(world_name, now).with_id(world_id);
-        let current_game_time = world.game_time().current();
+        let current_game_time = world.game_time().clone();
         let world_for_get = world.clone();
         world_repo
             .expect_get()
@@ -1155,11 +1159,12 @@ mod tests {
 
         let staged_npc =
             StagedNpc::new(npc_id, npc.name().to_string(), true, "here").with_mood(MoodState::Calm);
+        let game_time_minutes = current_game_time.total_minutes();
         let staging = Staging::new(
             region_id,
             location_id,
             world_id,
-            current_game_time,
+            game_time_minutes,
             "dm",
             StagingSource::DmCustomized,
             6,
@@ -1171,7 +1176,7 @@ mod tests {
         let staging_for_get = staging.clone();
         staging_repo
             .expect_get_active_staging()
-            .withf(move |r, t| *r == region_id && *t == current_game_time)
+            .withf(move |r, t| *r == region_id && *t == game_time_minutes)
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
         // Narrative repo returns an active conversation when looked up

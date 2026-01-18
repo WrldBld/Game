@@ -1,6 +1,5 @@
 //! Record visit use case - tracks NPC observations when a PC enters a region.
 
-use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use wrldbldr_domain::{NpcObservation, PlayerCharacterId, RegionId, StagedNpc};
 
@@ -35,13 +34,13 @@ impl RecordVisit {
     /// * `pc_id` - The player character who visited
     /// * `region_id` - The region that was visited
     /// * `npcs` - NPCs present in the region
-    /// * `game_time` - Current game time (from World.game_time.current())
+    /// * `game_time_minutes` - Current game time in total minutes since epoch
     pub async fn execute(
         &self,
         pc_id: PlayerCharacterId,
         region_id: RegionId,
         npcs: &[StagedNpc],
-        game_time: DateTime<Utc>,
+        game_time_minutes: i64,
     ) -> Result<(), RepoError> {
         // Get the region to find its location_id
         let region = self.location_repo.get_region(region_id).await?;
@@ -58,6 +57,10 @@ impl RecordVisit {
         };
 
         let now = self.clock.now(); // Real time for created_at
+
+        // Convert game time minutes to DateTime for observation storage
+        // (observations still use DateTime for compatibility)
+        let game_time = wrldbldr_domain::GameTime::from_minutes(game_time_minutes).to_datetime();
 
         // Create observations for each present, visible NPC
         for npc in npcs
@@ -108,6 +111,8 @@ mod tests {
 
     #[tokio::test]
     async fn creates_observations_for_visible_npcs() {
+        use chrono::{TimeZone, Utc};
+
         let mut observation_repo = MockObservationRepo::new();
         let mut location_repo = MockLocationRepo::new();
         let mut clock = MockClockPort::new();
@@ -117,7 +122,7 @@ mod tests {
         let region_id = RegionId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
-        let game_time = Utc.with_ymd_and_hms(2025, 1, 1, 12, 0, 0).unwrap();
+        let game_time_minutes: i64 = 720; // 12 hours = 720 minutes from epoch
         let real_time = Utc.with_ymd_and_hms(2025, 6, 15, 10, 30, 0).unwrap();
 
         location_repo
@@ -143,13 +148,17 @@ mod tests {
         );
 
         let npcs = vec![test_staged_npc(npc_id, true, false)];
-        let result = use_case.execute(pc_id, region_id, &npcs, game_time).await;
+        let result = use_case
+            .execute(pc_id, region_id, &npcs, game_time_minutes)
+            .await;
 
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn skips_hidden_npcs() {
+        use chrono::{TimeZone, Utc};
+
         let mut observation_repo = MockObservationRepo::new();
         let mut location_repo = MockLocationRepo::new();
         let mut clock = MockClockPort::new();
@@ -159,7 +168,7 @@ mod tests {
         let region_id = RegionId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
-        let game_time = Utc.with_ymd_and_hms(2025, 1, 1, 12, 0, 0).unwrap();
+        let game_time_minutes: i64 = 720;
         let real_time = Utc.with_ymd_and_hms(2025, 6, 15, 10, 30, 0).unwrap();
 
         location_repo
@@ -178,13 +187,17 @@ mod tests {
         );
 
         let npcs = vec![test_staged_npc(npc_id, true, true)]; // hidden
-        let result = use_case.execute(pc_id, region_id, &npcs, game_time).await;
+        let result = use_case
+            .execute(pc_id, region_id, &npcs, game_time_minutes)
+            .await;
 
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn skips_already_observed_npcs() {
+        use chrono::{TimeZone, Utc};
+
         let mut observation_repo = MockObservationRepo::new();
         let mut location_repo = MockLocationRepo::new();
         let mut clock = MockClockPort::new();
@@ -194,7 +207,7 @@ mod tests {
         let region_id = RegionId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
-        let game_time = Utc.with_ymd_and_hms(2025, 1, 1, 12, 0, 0).unwrap();
+        let game_time_minutes: i64 = 720;
         let real_time = Utc.with_ymd_and_hms(2025, 6, 15, 10, 30, 0).unwrap();
 
         location_repo
@@ -218,7 +231,9 @@ mod tests {
         );
 
         let npcs = vec![test_staged_npc(npc_id, true, false)];
-        let result = use_case.execute(pc_id, region_id, &npcs, game_time).await;
+        let result = use_case
+            .execute(pc_id, region_id, &npcs, game_time_minutes)
+            .await;
 
         assert!(result.is_ok());
     }
@@ -234,7 +249,7 @@ mod tests {
         let region_id = RegionId::new();
         let pc_id = PlayerCharacterId::new();
         let npc_id = CharacterId::new();
-        let game_time = Utc.with_ymd_and_hms(2025, 1, 1, 12, 0, 0).unwrap();
+        let game_time_minutes: i64 = 720;
 
         location_repo
             .expect_get_region()
@@ -248,7 +263,9 @@ mod tests {
         );
 
         let npcs = vec![test_staged_npc(npc_id, true, false)];
-        let result = use_case.execute(pc_id, region_id, &npcs, game_time).await;
+        let result = use_case
+            .execute(pc_id, region_id, &npcs, game_time_minutes)
+            .await;
 
         // Should succeed without creating observations
         assert!(result.is_ok());

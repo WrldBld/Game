@@ -3,6 +3,7 @@
 //! Handles player character movement to a region within the same location.
 //! Coordinates with staging, observation, scene resolution, narrative, and time systems.
 
+use chrono::Utc;
 use std::sync::Arc;
 use wrldbldr_domain::{
     NarrativeEvent, PlayerCharacter as DomainPlayerCharacter, PlayerCharacterId, Region, RegionId,
@@ -155,7 +156,8 @@ impl EnterRegion {
             .get(pc.world_id())
             .await?
             .ok_or(EnterRegionError::WorldNotFound(pc.world_id()))?;
-        let current_game_time = world_data.game_time().current();
+        let current_game_time_minutes = world_data.game_time().total_minutes();
+        let real_timestamp = Utc::now();
 
         // 6. Check for valid staging (with TTL check using game time)
         let (npcs, staging_status) = resolve_staging_for_region(
@@ -163,7 +165,8 @@ impl EnterRegion {
             region_id,
             region.location_id(),
             pc.world_id(),
-            current_game_time,
+            current_game_time_minutes,
+            real_timestamp,
         )
         .await?;
 
@@ -171,7 +174,7 @@ impl EnterRegion {
         // Use game time for when the observation occurred in-game
         if !npcs.is_empty() {
             self.record_visit
-                .execute(pc_id, region_id, &npcs, current_game_time)
+                .execute(pc_id, region_id, &npcs, current_game_time_minutes)
                 .await?;
         }
 

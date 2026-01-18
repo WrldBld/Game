@@ -1,0 +1,29 @@
+{
+  "version": "2.0",
+  "recorded_at": "2026-01-18T22:07:45.750985+00:00",
+  "llm_model": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+  "recordings": {
+    "23421e31cc1c31b5c073a033ddf5d08500a9ae95d04d55d6a97b1b735aa7c328": [
+      {
+        "fingerprint": "23421e31cc1c31b5c073a033ddf5d08500a9ae95d04d55d6a97b1b735aa7c328",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to evaluate if the text indicates success, accomplishment, or a positive outcome from a persuasion attempt. The text: \"Grom's expression softens as memories surface. He speaks of the Shadow Caverns, of friends lost to creatures of living darkness. He offers to forge you a weapon with silvered edges - effective against such beings.\" This indicates that Grom is softening, offering to forge a weapon. That suggests a positive outcome: he is agreeing to help. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-18T22:07:51.913726+00:00"
+      }
+    ],
+    "2812ff73d6790c47a35de7c3b62dc3a55bf56c395a03a5255e1049bf8fdfc412": [
+      {
+        "fingerprint": "2812ff73d6790c47a35de7c3b62dc3a55bf56c395a03a5255e1049bf8fdfc412",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to answer YES or NO. The question: \"Is this response coherent, well-formed dialogue that makes sense in a fantasy RPG context?\" The text: \"Grom's expression softens as memories surface. He speaks of the Shadow Caverns, of friends lost to creatures of living darkness. He offers to forge you a weapon with silvered edges - effective against such beings.\"\n\nWe need to evaluate if it's coherent, well-formed dialogue that makes sense in a fantasy RPG context. The text is a description of a character's expression and speech. It seems coherent, well-formed, and makes sense. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-18T22:07:57.492073+00:00"
+      }
+    ]
+  }
+}

@@ -20,7 +20,7 @@ impl std::fmt::Display for TimeOfDay {
     }
 }
 
-pub fn time_of_day(game_time: GameTime) -> TimeOfDay {
+pub fn time_of_day(game_time: &GameTime) -> TimeOfDay {
     match game_time.hour {
         5..=11 => TimeOfDay::Morning,
         12..=17 => TimeOfDay::Afternoon,
@@ -29,7 +29,13 @@ pub fn time_of_day(game_time: GameTime) -> TimeOfDay {
     }
 }
 
-pub fn display_time(game_time: GameTime) -> String {
+pub fn display_time(game_time: &GameTime) -> String {
+    // Use server-provided formatted_time if available
+    if let Some(ref formatted) = game_time.formatted_time {
+        return formatted.clone();
+    }
+
+    // Fallback to local formatting
     let hour = game_time.hour;
     let minute = game_time.minute;
 
@@ -45,6 +51,12 @@ pub fn display_time(game_time: GameTime) -> String {
     format!("{}:{:02} {}", display_hour, minute, period)
 }
 
-pub fn display_date(game_time: GameTime) -> String {
+pub fn display_date(game_time: &GameTime) -> String {
+    // Use server-provided formatted_date if available
+    if let Some(ref formatted) = game_time.formatted_date {
+        return format!("{}, {}", formatted, display_time(game_time));
+    }
+
+    // Fallback to simple day display
     format!("Day {}, {}", game_time.day, display_time(game_time))
 }
