@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::{CreateDmMarkerData, UpdateStoryEventData};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum StoryEventRequest {
     ListStoryEvents {
         world_id: String,

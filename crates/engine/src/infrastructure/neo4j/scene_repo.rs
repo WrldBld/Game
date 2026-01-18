@@ -142,6 +142,10 @@ impl Neo4jSceneRepo {
     }
 
     /// Convert a Neo4j row to a Scene entity.
+    ///
+    /// Note: location_id and featured_characters are now managed via graph edges,
+    /// not stored on the node. Use `get_location()` and `get_featured_characters()`
+    /// to retrieve these relationships.
     fn row_to_scene(&self, row: Row) -> Result<Scene, RepoError> {
         let node: neo4rs::Node = row.get("s").map_err(|e| RepoError::database("query", e))?;
 
@@ -155,14 +159,6 @@ impl Neo4jSceneRepo {
         let name = SceneName::new(name).map_err(|e| RepoError::database("query", e.to_string()))?;
         let directorial_notes: String = node.get_string_or("directorial_notes", "");
         let order_num: i64 = node.get_i64_or("order_num", 0);
-
-        // location_id is stored directly - may be placeholder if using AT_LOCATION edge
-        let location_id = match node.get_optional_string("location_id") {
-            Some(s) => LocationId::from(
-                uuid::Uuid::parse_str(&s).map_err(|e| RepoError::database("query", e))?,
-            ),
-            None => LocationId::new(), // Placeholder
-        };
 
         // JSON fields
         let time_context: TimeContext = node
@@ -191,27 +187,14 @@ impl Neo4jSceneRepo {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let featured_characters: Vec<CharacterId> = node
-            .get_json_or_default::<Vec<String>>("featured_characters")
-            .into_iter()
-            .map(|s| {
-                uuid::Uuid::parse_str(&s)
-                    .map(CharacterId::from)
-                    .map_err(|_| {
-                        RepoError::database("parse", format!("Invalid CharacterId UUID: {}", s))
-                    })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
         let backdrop_override = node.get_optional_string("backdrop_override");
 
-        let mut scene = Scene::new(act_id, name, location_id)
+        let mut scene = Scene::new(act_id, name)
             .with_id(id)
             .with_time(time_context)
             .with_directorial_notes(directorial_notes)
             .with_order(order_num as u32)
-            .with_entry_conditions(entry_conditions)
-            .with_featured_characters(featured_characters);
+            .with_entry_conditions(entry_conditions);
 
         if let Some(backdrop) = backdrop_override {
             scene = scene.with_backdrop_override(backdrop);
@@ -256,38 +239,27 @@ impl SceneRepo for Neo4jSceneRepo {
                 .collect::<Vec<_>>(),
         )
         .map_err(|e| RepoError::Serialization(e.to_string()))?;
-        let featured_characters_json = serde_json::to_string(
-            &scene
-                .featured_characters()
-                .iter()
-                .map(|id| id.to_string())
-                .collect::<Vec<_>>(),
-        )
-        .map_err(|e| RepoError::Serialization(e.to_string()))?;
 
         // MERGE for upsert behavior
+        // Note: location_id and featured_characters are now managed via graph edges,
+        // not stored as node properties. Use set_location() and set_featured_characters()
+        // to manage these relationships.
         let q = query(
             "MATCH (a:Act {id: $act_id})
             MERGE (s:Scene {id: $id})
             SET s.act_id = $act_id,
                 s.name = $name,
-                s.location_id = $location_id,
                 s.time_context = $time_context,
                 s.backdrop_override = $backdrop_override,
                 s.entry_conditions = $entry_conditions,
-                s.featured_characters = $featured_characters,
                 s.directorial_notes = $directorial_notes,
                 s.order_num = $order_num
             MERGE (a)-[:CONTAINS_SCENE]->(s)
-            WITH s
-            MATCH (l:Location {id: $location_id})
-            MERGE (s)-[:AT_LOCATION]->(l)
             RETURN s.id as id",
         )
         .param("id", scene.id().to_string())
         .param("act_id", scene.act_id().to_string())
         .param("name", scene.name().to_string())
-        .param("location_id", scene.location_id().to_string())
         .param("time_context", time_context_json)
         .param(
             "backdrop_override",
@@ -297,39 +269,11 @@ impl SceneRepo for Neo4jSceneRepo {
                 .unwrap_or_default(),
         )
         .param("entry_conditions", entry_conditions_json)
-        .param("featured_characters", featured_characters_json)
         .param("directorial_notes", scene.directorial_notes().to_string())
         .param("order_num", scene.order() as i64);
 
         self.graph
             .run(q)
-            .await
-            .map_err(|e| RepoError::database("query", e))?;
-
-        // Update FEATURES_CHARACTER edges atomically:
-        // Delete existing edges and create new ones in a single query using UNWIND
-        let char_ids: Vec<String> = scene
-            .featured_characters()
-            .iter()
-            .map(|id| id.to_string())
-            .collect();
-
-        let features_q = query(
-            "MATCH (s:Scene {id: $scene_id})
-            OPTIONAL MATCH (s)-[old:FEATURES_CHARACTER]->()
-            DELETE old
-            WITH s
-            UNWIND CASE WHEN $char_ids = [] THEN [null] ELSE $char_ids END AS char_id
-            WITH s, char_id WHERE char_id IS NOT NULL
-            MATCH (c:Character {id: char_id})
-            CREATE (s)-[:FEATURES_CHARACTER {role: 'Secondary', entrance_cue: ''}]->(c)
-            RETURN count(*) as created",
-        )
-        .param("scene_id", scene.id().to_string())
-        .param("char_ids", char_ids);
-
-        self.graph
-            .run(features_q)
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
@@ -470,6 +414,83 @@ impl SceneRepo for Neo4jSceneRepo {
         }
 
         Ok(scenes)
+    }
+
+    async fn get_location(&self, scene_id: SceneId) -> Result<Option<LocationId>, RepoError> {
+        let q = query(
+            "MATCH (s:Scene {id: $scene_id})-[:AT_LOCATION]->(l:Location)
+            RETURN l.id as location_id",
+        )
+        .param("scene_id", scene_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        if let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            let location_id_str: String = row
+                .get("location_id")
+                .map_err(|e| RepoError::database("query", e))?;
+            let location_id = LocationId::from(
+                uuid::Uuid::parse_str(&location_id_str)
+                    .map_err(|e| RepoError::database("query", e))?,
+            );
+            Ok(Some(location_id))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn set_location(
+        &self,
+        scene_id: SceneId,
+        location_id: LocationId,
+    ) -> Result<(), RepoError> {
+        // Delete existing AT_LOCATION edge and create new one
+        let q = query(
+            "MATCH (s:Scene {id: $scene_id})
+            OPTIONAL MATCH (s)-[old:AT_LOCATION]->()
+            DELETE old
+            WITH s
+            MATCH (l:Location {id: $location_id})
+            CREATE (s)-[:AT_LOCATION]->(l)
+            RETURN s.id as scene_id",
+        )
+        .param("scene_id", scene_id.to_string())
+        .param("location_id", location_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        // Verify the operation succeeded
+        if result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+            .is_none()
+        {
+            tracing::warn!(
+                scene_id = %scene_id,
+                location_id = %location_id,
+                "set_location failed: Scene or Location not found"
+            );
+            return Err(RepoError::not_found(
+                "Scene",
+                format!("scene:{}/location:{}", scene_id, location_id),
+            ));
+        }
+
+        tracing::debug!("Set location {} for scene {}", location_id, scene_id);
+        Ok(())
     }
 
     async fn get_featured_characters(

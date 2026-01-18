@@ -4,7 +4,7 @@ use super::SuggestionContextData;
 use crate::messages::ActantialRoleData;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum AiRequest {
     SuggestDeflectionBehavior {
         npc_id: String,

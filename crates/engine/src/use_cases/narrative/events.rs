@@ -12,7 +12,7 @@ use wrldbldr_domain::{
 use crate::infrastructure::ports::ClockPort;
 use crate::infrastructure::ports::RepoError;
 use crate::use_cases::narrative::{EffectExecutionContext, EffectExecutionSummary, ExecuteEffects};
-use crate::use_cases::narrative_operations::Narrative;
+use crate::use_cases::narrative_operations::NarrativeOps;
 
 // =============================================================================
 // Domain Result Types
@@ -20,7 +20,6 @@ use crate::use_cases::narrative_operations::Narrative;
 
 /// Summary of a narrative event.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct NarrativeEventSummary {
     pub id: String,
     pub world_id: String,
@@ -60,14 +59,14 @@ pub struct NarrativeEventSummary {
 }
 
 pub struct NarrativeEventOps {
-    narrative: Arc<Narrative>,
+    narrative: Arc<NarrativeOps>,
     execute_effects: Arc<ExecuteEffects>,
     clock: Arc<dyn ClockPort>,
 }
 
 impl NarrativeEventOps {
     pub fn new(
-        narrative: Arc<Narrative>,
+        narrative: Arc<NarrativeOps>,
         execute_effects: Arc<ExecuteEffects>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {

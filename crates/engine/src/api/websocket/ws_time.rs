@@ -1,9 +1,13 @@
 use super::*;
+
+use chrono::Timelike;
+
+use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::use_cases::time::TimeAdvanceResultData;
 use wrldbldr_domain::{GameTime, TimeAdvanceReason, TimeOfDay};
 use wrldbldr_shared::types as protocol;
-use wrldbldr_shared::ErrorCode;
+use wrldbldr_shared::{ErrorCode, TimeRequest};
 
 pub(super) async fn handle_set_game_time(
     state: &WsState,
@@ -452,6 +456,408 @@ pub(super) async fn handle_respond_to_time_suggestion(
             ErrorCode::InternalError,
             &sanitize_repo_error(&e, "responding to time suggestion"),
         )),
+    }
+}
+
+pub(super) async fn handle_time_request(
+    state: &WsState,
+    request_id: &str,
+    conn_info: &ConnectionInfo,
+    request: TimeRequest,
+) -> Result<ResponseResult, ServerMessage> {
+    match request {
+        TimeRequest::GetGameTime { world_id } => {
+            let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            match state
+                .app
+                .use_cases
+                .time
+                .control
+                .get_game_time(world_id_typed)
+                .await
+            {
+                Ok(game_time) => Ok(ResponseResult::success(serde_json::json!({
+                    "game_time": game_time_to_protocol(&game_time),
+                }))),
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                ),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        TimeRequest::AdvanceGameTime { world_id, hours } => {
+            require_dm_for_request(conn_info, request_id)?;
+
+            let world_id_typed =
+                match parse_uuid_for_request(&world_id, request_id, "Invalid world ID") {
+                    Ok(uuid) => WorldId::from_uuid(uuid),
+                    Err(e) => return Err(e),
+                };
+
+            let outcome = match state
+                .app
+                .use_cases
+                .time
+                .control
+                .advance_hours(world_id_typed, hours)
+                .await
+            {
+                Ok(result) => result,
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                    });
+                }
+                Err(e) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::InternalError,
+                            sanitize_repo_error(&e, "advance game time"),
+                        ),
+                    });
+                }
+            };
+
+            let protocol_game_time = game_time_to_protocol(&outcome.new_time);
+            let update_msg = ServerMessage::GameTimeUpdated {
+                game_time: protocol_game_time,
+            };
+            state
+                .connections
+                .broadcast_to_world(world_id_typed, update_msg)
+                .await;
+
+            tracing::info!(
+                world_id = %world_id_typed,
+                hours_advanced = hours,
+                new_day = outcome.new_time.day_ordinal(),
+                new_hour = outcome.new_time.current().hour(),
+                "Game time advanced"
+            );
+
+            Ok(ResponseResult::success(serde_json::json!({
+                "game_time": protocol_game_time,
+                "hours_advanced": hours,
+            })))
+        }
+
+        TimeRequest::AdvanceGameTimeMinutes {
+            world_id,
+            minutes,
+            reason: _reason,
+        } => {
+            require_dm_for_request(conn_info, request_id)?;
+
+            let world_id_typed =
+                match parse_uuid_for_request(&world_id, request_id, "Invalid world ID") {
+                    Ok(uuid) => WorldId::from_uuid(uuid),
+                    Err(e) => return Err(e),
+                };
+
+            let advance_reason = wrldbldr_domain::TimeAdvanceReason::DmManual {
+                hours: minutes / 60,
+            };
+            let outcome = match state
+                .app
+                .use_cases
+                .time
+                .control
+                .advance_minutes(world_id_typed, minutes, advance_reason.clone())
+                .await
+            {
+                Ok(result) => result,
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                    });
+                }
+                Err(e) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::InternalError,
+                            sanitize_repo_error(&e, "advance game minutes"),
+                        ),
+                    });
+                }
+            };
+
+            let domain_data = crate::use_cases::time::build_time_advance_data(
+                &outcome.previous_time,
+                &outcome.new_time,
+                minutes,
+                &advance_reason,
+            );
+            let advance_data = time_advance_data_to_protocol(&domain_data);
+            let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
+            state
+                .connections
+                .broadcast_to_world(world_id_typed, update_msg)
+                .await;
+
+            tracing::info!(
+                world_id = %world_id_typed,
+                minutes_advanced = minutes,
+                "Game time advanced (minutes)"
+            );
+
+            let protocol_game_time = game_time_to_protocol(&outcome.new_time);
+            Ok(ResponseResult::success(serde_json::json!({
+                "game_time": protocol_game_time,
+                "minutes_advanced": minutes,
+            })))
+        }
+
+        TimeRequest::SetGameTime {
+            world_id,
+            day,
+            hour,
+            notify_players,
+        } => {
+            require_dm_for_request(conn_info, request_id)?;
+
+            let world_id_typed =
+                match parse_uuid_for_request(&world_id, request_id, "Invalid world ID") {
+                    Ok(uuid) => WorldId::from_uuid(uuid),
+                    Err(e) => return Err(e),
+                };
+
+            let outcome = match state
+                .app
+                .use_cases
+                .time
+                .control
+                .set_game_time(world_id_typed, day, hour)
+                .await
+            {
+                Ok(result) => result,
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                    });
+                }
+                Err(e) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::InternalError,
+                            sanitize_repo_error(&e, "set game time"),
+                        ),
+                    });
+                }
+            };
+
+            if notify_players {
+                let reason = wrldbldr_domain::TimeAdvanceReason::DmSetTime;
+                let domain_data = crate::use_cases::time::build_time_advance_data(
+                    &outcome.previous_time,
+                    &outcome.new_time,
+                    0,
+                    &reason,
+                );
+                let advance_data = time_advance_data_to_protocol(&domain_data);
+                let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
+                state
+                    .connections
+                    .broadcast_to_world(world_id_typed, update_msg)
+                    .await;
+            }
+
+            tracing::info!(
+                world_id = %world_id_typed,
+                new_day = day,
+                new_hour = hour,
+                "Game time set"
+            );
+
+            let protocol_game_time = game_time_to_protocol(&outcome.new_time);
+            Ok(ResponseResult::success(serde_json::json!({
+                "game_time": protocol_game_time,
+            })))
+        }
+
+        TimeRequest::SkipToPeriod { world_id, period } => {
+            require_dm_for_request(conn_info, request_id)?;
+
+            let world_id_typed =
+                match parse_uuid_for_request(&world_id, request_id, "Invalid world ID") {
+                    Ok(uuid) => WorldId::from_uuid(uuid),
+                    Err(e) => return Err(e),
+                };
+
+            let target_period = match period.to_lowercase().as_str() {
+                "morning" => wrldbldr_domain::TimeOfDay::Morning,
+                "afternoon" => wrldbldr_domain::TimeOfDay::Afternoon,
+                "evening" => wrldbldr_domain::TimeOfDay::Evening,
+                "night" => wrldbldr_domain::TimeOfDay::Night,
+                _ => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            "Invalid period. Use: morning, afternoon, evening, night",
+                        ),
+                    });
+                }
+            };
+
+            let outcome = match state
+                .app
+                .use_cases
+                .time
+                .control
+                .skip_to_period(world_id_typed, target_period)
+                .await
+            {
+                Ok(result) => result,
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                    });
+                }
+                Err(e) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::InternalError,
+                            sanitize_repo_error(&e, "skip to period"),
+                        ),
+                    });
+                }
+            };
+
+            let reason = wrldbldr_domain::TimeAdvanceReason::DmSkipToPeriod {
+                period: target_period,
+            };
+            let domain_data = crate::use_cases::time::build_time_advance_data(
+                &outcome.previous_time,
+                &outcome.new_time,
+                outcome.minutes_advanced,
+                &reason,
+            );
+            let advance_data = time_advance_data_to_protocol(&domain_data);
+            let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
+            state
+                .connections
+                .broadcast_to_world(world_id_typed, update_msg)
+                .await;
+
+            tracing::info!(
+                world_id = %world_id_typed,
+                target_period = %target_period,
+                "Skipped to time period"
+            );
+
+            let protocol_game_time = game_time_to_protocol(&outcome.new_time);
+            Ok(ResponseResult::success(serde_json::json!({
+                "game_time": protocol_game_time,
+                "skipped_to": period,
+            })))
+        }
+
+        TimeRequest::GetTimeConfig { world_id } => {
+            let world_id_typed =
+                match parse_uuid_for_request(&world_id, request_id, "Invalid world ID") {
+                    Ok(uuid) => WorldId::from_uuid(uuid),
+                    Err(e) => return Err(e),
+                };
+
+            match state
+                .app
+                .use_cases
+                .time
+                .control
+                .get_time_config(world_id_typed)
+                .await
+            {
+                Ok(config) => Ok(ResponseResult::success(serde_json::json!({
+                    "mode": format!("{:?}", config.mode).to_lowercase(),
+                    "time_costs": {
+                        "travel_location": config.time_costs.travel_location,
+                        "travel_region": config.time_costs.travel_region,
+                        "rest_short": config.time_costs.rest_short,
+                        "rest_long": config.time_costs.rest_long,
+                        "conversation": config.time_costs.conversation,
+                        "challenge": config.time_costs.challenge,
+                        "scene_transition": config.time_costs.scene_transition,
+                    },
+                    "show_time_to_players": config.show_time_to_players,
+                }))),
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                ),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    sanitize_repo_error(&e, "pause game"),
+                )),
+            }
+        }
+
+        TimeRequest::UpdateTimeConfig { world_id, config } => {
+            require_dm_for_request(conn_info, request_id)?;
+
+            let world_id_typed =
+                match parse_uuid_for_request(&world_id, request_id, "Invalid world ID") {
+                    Ok(uuid) => WorldId::from_uuid(uuid),
+                    Err(e) => return Err(e),
+                };
+
+            // Convert protocol config to domain config at API boundary
+            let domain_config = protocol_time_config_to_domain(&config);
+
+            let update = match state
+                .app
+                .use_cases
+                .time
+                .control
+                .update_time_config(world_id_typed, domain_config)
+                .await
+            {
+                Ok(result) => result,
+                Err(crate::use_cases::time::TimeControlError::WorldNotFound) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(ErrorCode::NotFound, "World not found"),
+                    });
+                }
+                Err(e) => {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::InternalError,
+                            sanitize_repo_error(&e, "update time config"),
+                        ),
+                    });
+                }
+            };
+
+            // Convert domain config back to protocol for broadcasting
+            let update_msg = ServerMessage::TimeConfigUpdated {
+                world_id: update.world_id.to_string(),
+                config: time_config_to_protocol(&update.normalized_config),
+            };
+            state
+                .connections
+                .broadcast_to_dms(world_id_typed, update_msg)
+                .await;
+
+            tracing::info!(world_id = %world_id_typed, "Time config updated");
+
+            Ok(ResponseResult::success_empty())
+        }
     }
 }
 

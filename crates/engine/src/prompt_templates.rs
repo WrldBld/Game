@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 
 /// Categories for organizing prompt templates in the UI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum PromptTemplateCategory {
     /// NPC dialogue and roleplay.
     Dialogue,

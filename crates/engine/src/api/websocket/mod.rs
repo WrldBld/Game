@@ -21,18 +21,20 @@ use uuid::Uuid;
 mod ws_actantial;
 mod ws_approval;
 mod ws_challenge;
+mod ws_character;
 mod ws_character_sheet;
 mod ws_content;
 mod ws_conversation;
-mod ws_core;
 mod ws_creator;
 mod ws_dm;
 mod ws_event_chain;
 mod ws_inventory;
+mod ws_items;
 mod ws_location;
 mod ws_lore;
 mod ws_movement;
 mod ws_narrative_event;
+mod ws_npc;
 mod ws_player;
 mod ws_player_action;
 mod ws_scene;
@@ -42,6 +44,7 @@ mod ws_staging;
 mod ws_stat;
 mod ws_story_events;
 mod ws_time;
+mod ws_world;
 
 pub mod error_sanitizer;
 
@@ -735,10 +738,10 @@ async fn handle_request(
             ws_story_events::handle_story_event_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::World(req) => {
-            ws_core::handle_world_request(state, &request_id, &conn_info, req).await
+            ws_world::handle_world_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Character(req) => {
-            ws_core::handle_character_request(state, &request_id, &conn_info, req).await
+            ws_character::handle_character_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Location(req) => {
             ws_location::handle_location_request(state, &request_id, &conn_info, req).await
@@ -747,13 +750,13 @@ async fn handle_request(
             ws_location::handle_region_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Time(req) => {
-            ws_core::handle_time_request(state, &request_id, &conn_info, req).await
+            ws_time::handle_time_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Npc(req) => {
-            ws_core::handle_npc_request(state, &request_id, &conn_info, req).await
+            ws_npc::handle_npc_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Items(req) => {
-            ws_core::handle_items_request(state, &request_id, &conn_info, req).await
+            ws_items::handle_items_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::PlayerCharacter(req) => {
             ws_player::handle_player_character_request(state, &request_id, &conn_info, req).await

@@ -96,7 +96,7 @@ pub struct ProcessPlayerAction {
     staging: Arc<dyn StagingRepo>,
     scene: Arc<dyn SceneRepo>,
     world: Arc<dyn WorldRepo>,
-    narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
+    narrative: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
     location: Arc<dyn LocationRepo>,
     challenge: Arc<dyn ChallengeRepo>,
 }
@@ -109,7 +109,7 @@ impl ProcessPlayerAction {
         staging: Arc<dyn StagingRepo>,
         scene: Arc<dyn SceneRepo>,
         world: Arc<dyn WorldRepo>,
-        narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
+        narrative: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
         location: Arc<dyn LocationRepo>,
         challenge: Arc<dyn ChallengeRepo>,
     ) -> Self {
@@ -730,10 +730,19 @@ impl ProcessLlmRequest {
 
                 // Persist for hydration.
                 let result_json = serde_json::json!({ "suggestions": suggestions });
-                let _ = self
+                if let Err(e) = self
                     .queue
                     .set_result_json(item.id, &result_json.to_string())
-                    .await;
+                    .await
+                {
+                    tracing::warn!(
+                        item_id = %item.id,
+                        world_id = %world_id,
+                        callback_id = %callback_id,
+                        error = %e,
+                        "Failed to persist suggestion results for hydration - suggestions delivered but won't survive reconnection"
+                    );
+                }
 
                 // Mark the LLM request as complete.
                 self.queue.mark_complete(item.id).await?;

@@ -1,4 +1,4 @@
-//! Skill CRUD operations.
+//! Skill management operations.
 
 use std::sync::Arc;
 
@@ -9,11 +9,11 @@ use crate::use_cases::validation::require_non_empty;
 
 use super::ManagementError;
 
-pub struct SkillCrud {
+pub struct SkillManagement {
     content: Arc<dyn ContentRepo>,
 }
 
-impl SkillCrud {
+impl SkillManagement {
     pub fn new(content: Arc<dyn ContentRepo>) -> Self {
         Self { content }
     }

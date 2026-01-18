@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::{CreateLocationConnectionData, CreateLocationData, UpdateLocationData};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum LocationRequest {
     ListLocations {
         world_id: String,

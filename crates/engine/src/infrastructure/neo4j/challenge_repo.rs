@@ -22,7 +22,7 @@ use crate::infrastructure::ports::{ChallengeRepo, RepoError};
 
 /// Stored representation of Difficulty
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(tag = "type")]
 enum DifficultyStored {
     Dc { value: u32 },
     Percentage { value: u32 },
@@ -74,7 +74,6 @@ impl From<DifficultyStored> for Difficulty {
 
 /// Stored representation of ChallengeOutcomes
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct OutcomesStored {
     success: OutcomeStored,
     failure: OutcomeStored,
@@ -110,7 +109,6 @@ impl TryFrom<OutcomesStored> for ChallengeOutcomes {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct OutcomeStored {
     description: String,
     // Triggers stored as JSON - simplified for now
@@ -147,11 +145,10 @@ impl TryFrom<OutcomeStored> for Outcome {
     }
 }
 
-/// Stored representation of TriggerCondition
+/// Stored representation of TriggerCondition - uses direct JSON object, not stringified
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct TriggerConditionStored {
-    condition_type_json: String,
+    condition_type: TriggerType,
     description: String,
     required: bool,
 }
@@ -159,30 +156,18 @@ struct TriggerConditionStored {
 impl From<&TriggerCondition> for TriggerConditionStored {
     fn from(value: &TriggerCondition) -> Self {
         Self {
-            condition_type_json: serde_json::to_string(&value.condition_type).unwrap_or_default(),
+            condition_type: value.condition_type.clone(),
             description: value.description.clone(),
             required: value.required,
         }
     }
 }
 
-impl TryFrom<TriggerConditionStored> for TriggerCondition {
-    type Error = RepoError;
-
-    fn try_from(value: TriggerConditionStored) -> Result<Self, Self::Error> {
-        let condition_type: TriggerType = serde_json::from_str(&value.condition_type_json)
-            .map_err(|e| {
-                RepoError::database(
-                    "parse",
-                    format!(
-                        "Invalid condition_type JSON in TriggerCondition: {} (value: '{}')",
-                        e, value.condition_type_json
-                    ),
-                )
-            })?;
-        let mut tc = TriggerCondition::new(condition_type, value.description);
+impl From<TriggerConditionStored> for TriggerCondition {
+    fn from(value: TriggerConditionStored) -> Self {
+        let mut tc = TriggerCondition::new(value.condition_type, value.description);
         tc.required = value.required;
-        Ok(tc)
+        tc
     }
 }
 
@@ -266,8 +251,8 @@ impl Neo4jChallengeRepo {
                 )
             })?
             .into_iter()
-            .map(TryInto::try_into)
-            .collect::<Result<Vec<_>, _>>()?;
+            .map(Into::into)
+            .collect();
 
         let active = node.get_bool_or("active", true);
         let order = node.get_i64_or("challenge_order", 0) as u32;

@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 /// Domain representation of custom outcome text for challenges
 /// created on-the-fly by the DM.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct AdHocOutcomes {
     /// Outcome text for a successful roll
     success: String,

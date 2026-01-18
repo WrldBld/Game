@@ -27,7 +27,6 @@ use std::str::FromStr;
 /// - "Elara is curious about the ancient ruins"
 /// - "The guard is alert due to recent robberies"
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum MoodState {
     /// Feeling good, positive outlook
     Happy,

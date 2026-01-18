@@ -1,4 +1,4 @@
-//! Management use cases for CRUD-style operations.
+//! Management use cases for entity lifecycle operations.
 //!
 //! These use cases keep WebSocket handlers thin while coordinating entity modules.
 
@@ -13,16 +13,16 @@ mod scene;
 mod skill;
 mod world;
 
-pub use act::ActCrud;
-pub use character::CharacterCrud;
-pub use interaction::InteractionCrud;
-pub use location::LocationCrud;
-pub use observation::ObservationCrud;
-pub use player_character::PlayerCharacterCrud;
-pub use relationship::RelationshipCrud;
-pub use scene::SceneCrud;
-pub use skill::SkillCrud;
-pub use world::WorldCrud;
+pub use act::ActManagement;
+pub use character::CharacterManagement;
+pub use interaction::InteractionManagement;
+pub use location::LocationManagement;
+pub use observation::ObservationManagement;
+pub use player_character::PlayerCharacterManagement;
+pub use relationship::RelationshipManagement;
+pub use scene::SceneManagement;
+pub use skill::SkillManagement;
+pub use world::WorldManagement;
 
 use super::validation::ValidationError;
 use crate::infrastructure::ports::RepoError;
@@ -52,30 +52,30 @@ impl From<ValidationError> for ManagementError {
 
 /// Container for management use cases.
 pub struct ManagementUseCases {
-    pub world: WorldCrud,
-    pub character: CharacterCrud,
-    pub location: LocationCrud,
-    pub player_character: PlayerCharacterCrud,
-    pub relationship: RelationshipCrud,
-    pub observation: ObservationCrud,
-    pub act: ActCrud,
-    pub scene: SceneCrud,
-    pub interaction: InteractionCrud,
-    pub skill: SkillCrud,
+    pub world: WorldManagement,
+    pub character: CharacterManagement,
+    pub location: LocationManagement,
+    pub player_character: PlayerCharacterManagement,
+    pub relationship: RelationshipManagement,
+    pub observation: ObservationManagement,
+    pub act: ActManagement,
+    pub scene: SceneManagement,
+    pub interaction: InteractionManagement,
+    pub skill: SkillManagement,
 }
 
 impl ManagementUseCases {
     pub fn new(
-        world: WorldCrud,
-        character: CharacterCrud,
-        location: LocationCrud,
-        player_character: PlayerCharacterCrud,
-        relationship: RelationshipCrud,
-        observation: ObservationCrud,
-        act: ActCrud,
-        scene: SceneCrud,
-        interaction: InteractionCrud,
-        skill: SkillCrud,
+        world: WorldManagement,
+        character: CharacterManagement,
+        location: LocationManagement,
+        player_character: PlayerCharacterManagement,
+        relationship: RelationshipManagement,
+        observation: ObservationManagement,
+        act: ActManagement,
+        scene: SceneManagement,
+        interaction: InteractionManagement,
+        skill: SkillManagement,
     ) -> Self {
         Self {
             world,

@@ -62,7 +62,6 @@ pub enum ConfigValidationError {
 // ============================================================================
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
 pub enum BatchQueueFailurePolicy {
     /// Any failure while queueing prompts fails the entire batch.
     AllOrNothing,

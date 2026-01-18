@@ -53,7 +53,6 @@ pub struct PlayerActionData {
 /// DMs have special privileges to approve/reject NPC responses,
 /// directly control NPCs, trigger events, and manage scene transitions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum DmActionType {
     /// Decision on a pending approval request
     ApprovalDecision {
@@ -85,7 +84,6 @@ pub enum DmActionType {
 ///
 /// Represents an action submitted by the DM for processing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DmActionData {
     /// World this action belongs to
     pub world_id: WorldId,
@@ -102,7 +100,6 @@ pub struct DmActionData {
 /// When an NPC response or tool usage requires DM approval, the DM
 /// can accept, modify, reject, or take over the response entirely.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum DmApprovalDecision {
     /// Accept the proposed response/action as-is
     Accept,

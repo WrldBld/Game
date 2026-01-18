@@ -403,6 +403,19 @@ impl EnterRegion {
 | Mutation without return | `fn apply_damage(&mut self)` returns `()` | MEDIUM |
 | Port trait in wrong location | Trait defined outside ports.rs | LOW |
 
+**NOT Violations (see [ADR-011](ADR-011-protocol-conversion-boundaries.md)):**
+
+| Pattern | Why It's Correct |
+|---------|------------------|
+| `to_protocol()` methods on use case types | Method is CALLED from API layer; conversion at correct boundary |
+| `from_protocol()` conversion helpers | Helper called from handlers; use case uses domain types internally |
+| `use wrldbldr_shared::{CharacterSheetValues, ...}` | These are domain types RE-EXPORTED by shared, not wire format |
+| `use wrldbldr_shared::{GameTime, SheetValue}` | Same - canonical definition in `wrldbldr_domain::types` |
+
+When reviewing `wrldbldr_shared` imports in use cases, check if the type is:
+1. **Wire format** (DTOs, WebSocket messages) → Should have domain equivalent, conversion at boundary
+2. **Re-exported domain type** → Check `shared/src/lib.rs` for `pub use wrldbldr_domain::*` → NOT a violation
+
 ### 2. Security Issues
 
 | Issue | How to Detect | Severity |
@@ -609,6 +622,44 @@ If adding a new field requires changes in:
 
 This may indicate coupling issues. Consider if the field belongs at a different level.
 
+### 8. Architecture Theater
+
+**Symptom:** Changes that appear to improve architecture but add complexity without benefit
+
+See [ADR-011](ADR-011-protocol-conversion-boundaries.md) for detailed examples.
+
+```rust
+// WRONG - moving to_protocol() to API layer breaks encapsulation
+// api/converters.rs
+pub fn staged_npc_to_protocol(npc: &StagedNpc) -> StagedNpcInfo {
+    StagedNpcInfo {
+        id: npc.id(),      // Now need public accessor for every field
+        name: npc.name(),  // Coupling between API and use case internals
+        // ...
+    }
+}
+
+// CORRECT - method on type, called from API layer
+impl StagedNpc {
+    pub fn to_protocol(&self) -> StagedNpcInfo { ... }  // Encapsulation preserved
+}
+```
+
+```rust
+// WRONG - duplicating domain types
+// "We shouldn't use shared types in use cases!"
+pub struct UseCaseSheetValues { ... }  // Duplicate of CharacterSheetValues
+impl From<CharacterSheetValues> for UseCaseSheetValues { ... }  // Pointless conversion
+
+// CORRECT - recognize that shared re-exports domain types
+// shared/src/lib.rs: pub use wrldbldr_domain::types::CharacterSheetValues;
+// Using CharacterSheetValues in use cases is fine - it IS a domain type
+```
+
+**Key insight:** What matters is:
+- WHEN conversion happens (at layer boundaries) - not WHERE the code lives
+- WHETHER a type is wire format vs shared vocabulary - not which crate exports it
+
 ---
 
 ## Full Codebase Review Checklist
@@ -628,6 +679,7 @@ Use this checklist when doing a comprehensive review of the entire codebase.
 - [ ] In-memory stores are in `stores/`, use cases in `use_cases/`
 - [ ] No repository wrapper layer (use cases inject ports directly per ADR-009)
 - [ ] Use cases inject port traits (`Arc<dyn *Repo>`), not wrapper classes
+- [ ] `wrldbldr_shared` imports in use cases are either conversion helpers or re-exported domain types (ADR-011)
 
 ### Security
 

@@ -1,7 +1,7 @@
-// Act CRUD - methods for future story arc features
+// Act management - methods for future story arc features
 #![allow(dead_code)]
 
-//! Act CRUD operations.
+//! Act management operations.
 
 use std::sync::Arc;
 
@@ -12,11 +12,11 @@ use crate::use_cases::validation::require_non_empty;
 
 use super::ManagementError;
 
-pub struct ActCrud {
+pub struct ActManagement {
     act: Arc<dyn ActRepo>,
 }
 
-impl ActCrud {
+impl ActManagement {
     pub fn new(act: Arc<dyn ActRepo>) -> Self {
         Self { act }
     }

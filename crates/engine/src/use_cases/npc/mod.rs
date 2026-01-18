@@ -8,8 +8,8 @@
 use std::sync::Arc;
 
 use crate::infrastructure::ports::{
-    CharacterRepo, ClockPort, LocationRepo, NpcDispositionInfo, ObservationRepo, RepoError,
-    StagingRepo,
+    CharacterRepo, ClockPort, LocationRepo, NpcDispositionInfo, NpcRegionRelationType,
+    ObservationRepo, RepoError, StagingRepo,
 };
 use wrldbldr_domain::{
     CharacterId, DispositionLevel, LocationId, MoodState, NpcDispositionState, PlayerCharacterId,
@@ -256,7 +256,7 @@ impl NpcRegionRelationships {
         &self,
         npc_id: CharacterId,
         region_id: RegionId,
-        relationship_type: &str,
+        relationship_type: NpcRegionRelationType,
     ) -> Result<(), NpcError> {
         self.character
             .remove_region_relationship(npc_id, region_id, relationship_type)

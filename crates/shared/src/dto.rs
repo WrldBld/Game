@@ -20,7 +20,6 @@ use wrldbldr_domain::types::{DispositionLevel, RelationshipLevel};
 /// This DTO is used to transfer NPC disposition state over WebSocket/HTTP.
 /// It uses raw UUIDs instead of domain ID types for serialization compatibility.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct NpcDispositionStateDto {
     /// The NPC's UUID
     pub npc_id: Uuid,
@@ -49,7 +48,6 @@ pub struct NpcDispositionStateDto {
 
 /// Request DTO for uploading an asset
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct UploadAssetRequestDto {
     pub asset_type: String,
     pub file_path: String,
@@ -61,14 +59,12 @@ pub struct UploadAssetRequestDto {
 
 /// Request DTO for updating an asset's label
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct UpdateAssetLabelRequestDto {
     pub label: Option<String>,
 }
 
 /// Response DTO for gallery assets
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GalleryAssetResponseDto {
     pub id: String,
     pub entity_type: String,
@@ -88,7 +84,6 @@ pub struct GalleryAssetResponseDto {
 
 /// Request DTO for generating an asset
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GenerateAssetRequestDto {
     /// World this asset belongs to
     pub world_id: String,
@@ -111,7 +106,6 @@ fn default_generate_count() -> u8 {
 
 /// Response DTO for generation batches
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GenerationBatchResponseDto {
     pub id: String,
     /// World this batch belongs to
@@ -134,7 +128,6 @@ pub struct GenerationBatchResponseDto {
 
 /// Request DTO for selecting assets from a batch
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SelectFromBatchRequestDto {
     pub selected_assets: Vec<String>,
     #[serde(default)]
@@ -149,7 +142,6 @@ pub struct SelectFromBatchRequestDto {
 
 /// Query parameters DTO for export endpoints
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ExportQueryDto {
     #[serde(default)]
     pub format: Option<String>,
@@ -163,7 +155,6 @@ use crate::workflow::{PromptMapping, PromptMappingType};
 
 /// DTO for prompt mapping configuration
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct PromptMappingDto {
     pub node_id: String,
     pub input_name: String,
@@ -192,7 +183,6 @@ impl From<PromptMappingDto> for PromptMapping {
 
 /// DTO for prompt mapping type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum PromptMappingTypeDto {
     Primary,
     Negative,
@@ -224,7 +214,6 @@ impl From<PromptMappingTypeDto> for PromptMappingType {
 
 /// Response DTO for workflow configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowConfigResponseDto {
     pub id: String,
     pub slot: String,
@@ -247,7 +236,6 @@ use wrldbldr_domain::types::{RuleSystemConfig, RuleSystemType, RuleSystemVariant
 
 /// Summary of a preset for browsing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RuleSystemPresetSummaryDto {
     pub variant: RuleSystemVariant,
     pub name: String,
@@ -256,7 +244,6 @@ pub struct RuleSystemPresetSummaryDto {
 
 /// Summary of a rule system type for browsing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RuleSystemSummaryDto {
     pub system_type: RuleSystemType,
     pub name: String,
@@ -267,7 +254,6 @@ pub struct RuleSystemSummaryDto {
 
 /// Full preset details.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RuleSystemPresetDetailsDto {
     pub variant: RuleSystemVariant,
     pub config: RuleSystemConfig,
@@ -275,7 +261,6 @@ pub struct RuleSystemPresetDetailsDto {
 
 /// Details about a rule system type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RuleSystemTypeDetailsDto {
     pub system_type: RuleSystemType,
     pub name: String,
@@ -330,7 +315,6 @@ use std::str::FromStr;
 
 /// Response for workflow slot status.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowSlotStatusDto {
     pub slot: String,
     pub display_name: String,
@@ -342,7 +326,6 @@ pub struct WorkflowSlotStatusDto {
 
 /// A category of workflow slots (e.g., "Character Assets").
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowSlotCategoryDto {
     pub name: String,
     pub slots: Vec<WorkflowSlotStatusDto>,
@@ -350,14 +333,12 @@ pub struct WorkflowSlotCategoryDto {
 
 /// Response containing all workflow slots grouped by category.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowSlotsResponseDto {
     pub categories: Vec<WorkflowSlotCategoryDto>,
 }
 
 /// DTO for input default values
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct InputDefaultDto {
     pub node_id: String,
     pub input_name: String,
@@ -386,7 +367,6 @@ impl From<InputDefaultDto> for InputDefault {
 
 /// DTO for input type classification
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum InputTypeDto {
     Text,
     Integer,
@@ -426,7 +406,6 @@ impl From<InputTypeDto> for InputType {
 
 /// DTO for workflow input information
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowInputDto {
     pub node_id: String,
     pub node_type: String,
@@ -451,7 +430,6 @@ impl From<WorkflowInput> for WorkflowInputDto {
 
 /// DTO for workflow analysis results
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowAnalysisDto {
     pub node_count: usize,
     pub inputs: Vec<WorkflowInputDto>,
@@ -480,7 +458,6 @@ impl From<WorkflowAnalysis> for WorkflowAnalysisDto {
 
 /// Full configuration response (includes workflow JSON).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowConfigFullResponseDto {
     pub id: String,
     pub slot: String,
@@ -497,7 +474,6 @@ pub struct WorkflowConfigFullResponseDto {
 
 /// Response for workflow analysis endpoint
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowAnalysisResponseDto {
     pub is_valid: bool,
     pub analysis: WorkflowAnalysisDto,
@@ -506,7 +482,6 @@ pub struct WorkflowAnalysisResponseDto {
 
 /// Response for workflow import operation
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ImportWorkflowsResponseDto {
     pub imported: usize,
     pub skipped: usize,
@@ -514,7 +489,6 @@ pub struct ImportWorkflowsResponseDto {
 
 /// Response for workflow test operation
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TestWorkflowResponseDto {
     pub prompt_id: String,
     pub queue_position: u32,
@@ -522,7 +496,6 @@ pub struct TestWorkflowResponseDto {
 
 /// Request to create/update a workflow configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CreateWorkflowConfigRequestDto {
     pub name: String,
     pub workflow_json: serde_json::Value,
@@ -536,7 +509,6 @@ pub struct CreateWorkflowConfigRequestDto {
 
 /// Request to update just the defaults of a workflow (without re-uploading the workflow JSON).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct UpdateWorkflowDefaultsRequestDto {
     #[serde(default)]
     pub input_defaults: Vec<InputDefaultDto>,
@@ -546,14 +518,12 @@ pub struct UpdateWorkflowDefaultsRequestDto {
 
 /// Request to analyze a workflow (without saving).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct AnalyzeWorkflowRequestDto {
     pub workflow_json: serde_json::Value,
 }
 
 /// Import workflow configurations request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ImportWorkflowsRequestDto {
     pub data: serde_json::Value,
     #[serde(default)]
@@ -562,7 +532,6 @@ pub struct ImportWorkflowsRequestDto {
 
 /// Test a workflow configuration request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TestWorkflowRequestDto {
     pub prompt: String,
     #[serde(default)]

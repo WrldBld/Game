@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// This is the domain version without the Unknown variant - the protocol
 /// layer handles unknown decisions at the boundary.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "decision", rename_all = "snake_case")]
+#[serde(tag = "decision")]
 pub enum TimeSuggestionDecision {
     /// Accept the suggested time cost
     Approve,

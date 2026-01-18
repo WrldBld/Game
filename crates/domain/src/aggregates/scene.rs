@@ -1,10 +1,10 @@
 //! Scene aggregate - Complete storytelling unit
 //!
-//! # Graph-First Design (Phase 0.D)
+//! # Graph-First Design
 //!
 //! The following relationships are stored as Neo4j edges, NOT embedded fields:
-//! - Location: `(Scene)-[:AT_LOCATION]->(Location)`
-//! - Featured characters: `(Scene)-[:FEATURES_CHARACTER {role, entrance_cue}]->(Character)`
+//! - Location: `(Scene)-[:AT_LOCATION]->(Location)` - use `scene_repo.get_location()` / `set_location()`
+//! - Featured characters: `(Scene)-[:FEATURES_CHARACTER {role, entrance_cue}]->(Character)` - use `scene_repo.get_featured_characters()` / `set_featured_characters()`
 //!
 //! Entry conditions remain as JSON (acceptable per ADR - complex nested non-relational)
 //!
@@ -17,7 +17,7 @@
 
 use serde::de::Error as DeError;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use wrldbldr_domain::{ActId, CharacterId, LocationId, SceneId};
+use wrldbldr_domain::{ActId, SceneId};
 
 use crate::events::SceneUpdate;
 use crate::value_objects::SceneName;
@@ -31,24 +31,21 @@ pub use crate::entities::{SceneCharacter, SceneCharacterRole, SceneCondition, Ti
 ///
 /// - Scene always has a valid `name` (non-empty)
 /// - Scene always belongs to an `act_id`
-/// - Scene always has a `location_id` (though this may be stored as an edge in graph)
 ///
 /// # Graph Relationships
 ///
-/// NOTE: `location_id` and `featured_characters` are kept for backward compatibility
-/// during Phase 0.D migration. New code should use repository edge methods:
-/// - Location: AT_LOCATION edge via `scene_repository.set_location()`
-/// - Characters: FEATURES_CHARACTER edge via `scene_repository.add_featured_character()`
+/// Location and featured characters are stored as graph edges:
+/// - Location: AT_LOCATION edge via `scene_repo.get_location()` / `set_location()`
+/// - Characters: FEATURES_CHARACTER edge via `scene_repo.get_featured_characters()` / `set_featured_characters()`
 ///
 /// # Example
 ///
 /// ```
-/// use wrldbldr_domain::{ActId, LocationId, SceneId, SceneName};
+/// use wrldbldr_domain::{ActId, SceneId, SceneName};
 /// use wrldbldr_domain::aggregates::scene::Scene;
 ///
 /// let act_id = ActId::new();
-/// let location_id = LocationId::new();
-/// let scene = Scene::new(act_id, SceneName::new("The Tavern Meeting").unwrap(), location_id);
+/// let scene = Scene::new(act_id, SceneName::new("The Tavern Meeting").unwrap());
 ///
 /// assert_eq!(scene.name().as_str(), "The Tavern Meeting");
 /// ```
@@ -60,8 +57,6 @@ pub struct Scene {
 
     // Core attributes
     name: SceneName,
-    /// DEPRECATED: Use AT_LOCATION edge via repository
-    location_id: LocationId,
 
     // Time and visual settings
     time_context: TimeContext,
@@ -71,10 +66,6 @@ pub struct Scene {
     // Entry conditions
     /// Conditions that must be met to enter this scene (stored as JSON)
     entry_conditions: Vec<SceneCondition>,
-
-    // Featured characters (deprecated - use graph edges)
-    /// DEPRECATED: Use FEATURES_CHARACTER edge via repository
-    featured_characters: Vec<CharacterId>,
 
     // Direction
     /// DM guidance for LLM responses
@@ -90,35 +81,33 @@ impl Scene {
     // Constructor
     // =========================================================================
 
-    /// Create a new scene with the given act, name, and location.
+    /// Create a new scene with the given act and name.
+    ///
+    /// After creating the scene, use `scene_repo.set_location()` to associate it with a location.
     ///
     /// # Example
     ///
     /// ```
-    /// use wrldbldr_domain::{ActId, LocationId, SceneName};
+    /// use wrldbldr_domain::{ActId, SceneName};
     /// use wrldbldr_domain::aggregates::scene::Scene;
     ///
     /// let act_id = ActId::new();
-    /// let location_id = LocationId::new();
     /// let scene = Scene::new(
     ///     act_id,
     ///     SceneName::new("The Final Confrontation").unwrap(),
-    ///     location_id,
     /// );
     ///
     /// assert_eq!(scene.name().as_str(), "The Final Confrontation");
     /// assert_eq!(scene.order(), 0);
     /// ```
-    pub fn new(act_id: ActId, name: SceneName, location_id: LocationId) -> Self {
+    pub fn new(act_id: ActId, name: SceneName) -> Self {
         Self {
             id: SceneId::new(),
             act_id,
             name,
-            location_id,
             time_context: TimeContext::Unspecified,
             backdrop_override: None,
             entry_conditions: Vec::new(),
-            featured_characters: Vec::new(),
             directorial_notes: String::new(),
             order: 0,
         }
@@ -144,13 +133,6 @@ impl Scene {
     #[inline]
     pub fn name(&self) -> &SceneName {
         &self.name
-    }
-
-    /// Returns the scene's location ID.
-    /// DEPRECATED: Use AT_LOCATION edge via repository instead.
-    #[inline]
-    pub fn location_id(&self) -> LocationId {
-        self.location_id
     }
 
     // =========================================================================
@@ -180,17 +162,6 @@ impl Scene {
     }
 
     // =========================================================================
-    // Featured Characters Accessors
-    // =========================================================================
-
-    /// Returns the scene's featured characters.
-    /// DEPRECATED: Use FEATURES_CHARACTER edge via repository instead.
-    #[inline]
-    pub fn featured_characters(&self) -> &[CharacterId] {
-        &self.featured_characters
-    }
-
-    // =========================================================================
     // Direction Accessors
     // =========================================================================
 
@@ -213,13 +184,6 @@ impl Scene {
     // =========================================================================
     // Builder Methods (for construction)
     // =========================================================================
-
-    /// Add a featured character to the scene.
-    /// DEPRECATED: Use FEATURES_CHARACTER edge via repository instead.
-    pub fn with_character(mut self, character_id: CharacterId) -> Self {
-        self.featured_characters.push(character_id);
-        self
-    }
 
     /// Set the scene's time context.
     pub fn with_time(mut self, time_context: TimeContext) -> Self {
@@ -257,13 +221,6 @@ impl Scene {
         self
     }
 
-    /// Set the scene's featured characters (used when loading from storage).
-    /// DEPRECATED: Use FEATURES_CHARACTER edge via repository instead.
-    pub fn with_featured_characters(mut self, characters: Vec<CharacterId>) -> Self {
-        self.featured_characters = characters;
-        self
-    }
-
     /// Set the scene's entry conditions (used when loading from storage).
     pub fn with_entry_conditions(mut self, conditions: Vec<SceneCondition>) -> Self {
         self.entry_conditions = conditions;
@@ -280,17 +237,6 @@ impl Scene {
         SceneUpdate::NameChanged {
             from: previous,
             to: self.name.clone(),
-        }
-    }
-
-    /// Set the scene's location ID.
-    /// DEPRECATED: Use AT_LOCATION edge via repository instead.
-    pub fn set_location(&mut self, location_id: LocationId) -> SceneUpdate {
-        let previous = self.location_id;
-        self.location_id = location_id;
-        SceneUpdate::LocationChanged {
-            from: previous,
-            to: self.location_id,
         }
     }
 
@@ -333,26 +279,6 @@ impl Scene {
         }
     }
 
-    /// Add a featured character.
-    /// DEPRECATED: Use FEATURES_CHARACTER edge via repository instead.
-    pub fn add_featured_character(&mut self, character_id: CharacterId) -> SceneUpdate {
-        if self.featured_characters.contains(&character_id) {
-            return SceneUpdate::FeaturedCharacterAlreadyPresent { character_id };
-        }
-        self.featured_characters.push(character_id);
-        SceneUpdate::FeaturedCharacterAdded { character_id }
-    }
-
-    /// Remove a featured character.
-    /// DEPRECATED: Use FEATURES_CHARACTER edge via repository instead.
-    pub fn remove_featured_character(&mut self, character_id: CharacterId) -> SceneUpdate {
-        if !self.featured_characters.contains(&character_id) {
-            return SceneUpdate::FeaturedCharacterNotPresent { character_id };
-        }
-        self.featured_characters.retain(|id| *id != character_id);
-        SceneUpdate::FeaturedCharacterRemoved { character_id }
-    }
-
     /// Add an entry condition.
     pub fn add_entry_condition(&mut self, condition: SceneCondition) -> SceneUpdate {
         let added = condition.clone();
@@ -372,18 +298,17 @@ impl Scene {
 // Serde Implementation
 // ============================================================================
 
-/// Intermediate format for serialization that matches the wire format
+/// Intermediate format for serialization that matches the wire format.
+/// Note: location_id and featured_characters are managed via graph edges,
+/// not serialized with the aggregate.
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct SceneWireFormat {
     id: SceneId,
     act_id: ActId,
     name: String,
-    location_id: LocationId,
     time_context: TimeContext,
     backdrop_override: Option<String>,
     entry_conditions: Vec<SceneCondition>,
-    featured_characters: Vec<CharacterId>,
     directorial_notes: String,
     order: u32,
 }
@@ -397,11 +322,9 @@ impl Serialize for Scene {
             id: self.id,
             act_id: self.act_id,
             name: self.name.to_string(),
-            location_id: self.location_id,
             time_context: self.time_context.clone(),
             backdrop_override: self.backdrop_override.clone(),
             entry_conditions: self.entry_conditions.clone(),
-            featured_characters: self.featured_characters.clone(),
             directorial_notes: self.directorial_notes.clone(),
             order: self.order,
         };
@@ -422,11 +345,9 @@ impl<'de> Deserialize<'de> for Scene {
             id: wire.id,
             act_id: wire.act_id,
             name,
-            location_id: wire.location_id,
             time_context: wire.time_context,
             backdrop_override: wire.backdrop_override,
             entry_conditions: wire.entry_conditions,
-            featured_characters: wire.featured_characters,
             directorial_notes: wire.directorial_notes,
             order: wire.order,
         })
@@ -443,8 +364,7 @@ mod tests {
 
     fn create_test_scene() -> Scene {
         let act_id = ActId::new();
-        let location_id = LocationId::new();
-        Scene::new(act_id, SceneName::new("Test Scene").unwrap(), location_id)
+        Scene::new(act_id, SceneName::new("Test Scene").unwrap())
     }
 
     mod constructor {
@@ -453,16 +373,13 @@ mod tests {
         #[test]
         fn new_creates_scene_with_correct_defaults() {
             let act_id = ActId::new();
-            let location_id = LocationId::new();
-            let scene = Scene::new(act_id, SceneName::new("The Opening").unwrap(), location_id);
+            let scene = Scene::new(act_id, SceneName::new("The Opening").unwrap());
 
             assert_eq!(scene.name().as_str(), "The Opening");
             assert_eq!(scene.act_id(), act_id);
-            assert_eq!(scene.location_id(), location_id);
             assert!(matches!(scene.time_context(), TimeContext::Unspecified));
             assert!(scene.backdrop_override().is_none());
             assert!(scene.entry_conditions().is_empty());
-            assert!(scene.featured_characters().is_empty());
             assert!(scene.directorial_notes().is_empty());
             assert_eq!(scene.order(), 0);
         }
@@ -470,18 +387,14 @@ mod tests {
         #[test]
         fn builder_methods_work() {
             let act_id = ActId::new();
-            let location_id = LocationId::new();
-            let char_id = CharacterId::new();
 
-            let scene = Scene::new(act_id, SceneName::new("The Climax").unwrap(), location_id)
-                .with_character(char_id)
+            let scene = Scene::new(act_id, SceneName::new("The Climax").unwrap())
                 .with_time(TimeContext::Custom("Midnight".to_string()))
                 .with_directorial_notes("Dramatic tension!")
                 .with_order(5)
                 .with_backdrop_override("dark_throne_room.png");
 
             assert_eq!(scene.name().as_str(), "The Climax");
-            assert_eq!(scene.featured_characters(), &[char_id]);
             assert!(matches!(scene.time_context(), TimeContext::Custom(s) if s == "Midnight"));
             assert_eq!(scene.directorial_notes(), "Dramatic tension!");
             assert_eq!(scene.order(), 5);
@@ -500,34 +413,10 @@ mod tests {
         }
 
         #[test]
-        fn set_location_works() {
-            let mut scene = create_test_scene();
-            let new_location = LocationId::new();
-            scene.set_location(new_location);
-            assert_eq!(scene.location_id(), new_location);
-        }
-
-        #[test]
         fn set_order_works() {
             let mut scene = create_test_scene();
             scene.set_order(10);
             assert_eq!(scene.order(), 10);
-        }
-
-        #[test]
-        fn add_remove_featured_character_works() {
-            let mut scene = create_test_scene();
-            let char_id = CharacterId::new();
-
-            scene.add_featured_character(char_id);
-            assert_eq!(scene.featured_characters(), &[char_id]);
-
-            // Adding same character again should not duplicate
-            scene.add_featured_character(char_id);
-            assert_eq!(scene.featured_characters().len(), 1);
-
-            scene.remove_featured_character(char_id);
-            assert!(scene.featured_characters().is_empty());
         }
 
         #[test]

@@ -638,7 +638,6 @@ impl PlayerCharacter {
 /// the internal `CharacterState` enum to these legacy fields. During
 /// deserialization, we convert back using `CharacterState::from_legacy()`.
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct PlayerCharacterWireFormat {
     id: PlayerCharacterId,
     user_id: String,

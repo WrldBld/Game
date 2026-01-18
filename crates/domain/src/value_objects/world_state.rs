@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 
 /// A single entry in the conversation history.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct ConversationEntry {
     /// When this conversation occurred
     pub timestamp: DateTime<Utc>,
@@ -54,7 +53,7 @@ impl ConversationEntry {
 
 /// Who is speaking in a conversation.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum Speaker {
     /// A player character speaking
     Player {
@@ -78,7 +77,6 @@ pub enum Speaker {
 
 /// An item awaiting DM approval.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct PendingApprovalItem {
     /// Unique identifier for this approval request
     pub approval_id: String,
@@ -113,7 +111,6 @@ impl PendingApprovalItem {
 
 /// Categories of items that can require DM approval.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
-#[serde(rename_all = "snake_case")]
 pub enum ApprovalType {
     /// Dialogue content needs approval
     Dialogue,

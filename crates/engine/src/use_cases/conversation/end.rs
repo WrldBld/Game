@@ -12,7 +12,7 @@ use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, PlayerCharacterId};
 
 use crate::infrastructure::ports::{CharacterRepo, PlayerCharacterRepo, RepoError};
-use crate::use_cases::narrative_operations::Narrative;
+use crate::use_cases::narrative_operations::NarrativeOps;
 
 /// Result of ending a conversation.
 #[derive(Debug, Clone)]
@@ -42,14 +42,14 @@ pub struct ConversationEnded {
 pub struct EndConversation {
     character: Arc<dyn CharacterRepo>,
     player_character: Arc<dyn PlayerCharacterRepo>,
-    narrative: Arc<Narrative>,
+    narrative: Arc<NarrativeOps>,
 }
 
 impl EndConversation {
     pub fn new(
         character: Arc<dyn CharacterRepo>,
         player_character: Arc<dyn PlayerCharacterRepo>,
-        narrative: Arc<Narrative>,
+        narrative: Arc<NarrativeOps>,
     ) -> Self {
         Self {
             character,
@@ -168,7 +168,7 @@ mod tests {
         MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
         MockWorldRepo,
     };
-    use crate::use_cases::Narrative;
+    use crate::use_cases::NarrativeOps;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -182,11 +182,11 @@ mod tests {
         Arc::new(FixedClock(now))
     }
 
-    fn create_narrative_entity(narrative_repo: MockNarrativeRepo) -> Arc<Narrative> {
+    fn create_narrative_entity(narrative_repo: MockNarrativeRepo) -> Arc<NarrativeOps> {
         let now = Utc::now();
         let clock = build_clock(now);
 
-        Arc::new(Narrative::new(
+        Arc::new(NarrativeOps::new(
             Arc::new(narrative_repo),
             Arc::new(MockLocationRepo::new()),
             Arc::new(MockWorldRepo::new()),

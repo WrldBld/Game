@@ -29,7 +29,6 @@ use crate::{CharacterId, GoalId, ItemId, PlayerCharacterId, WantId};
 /// Used in LLM context serialization where we only need the type label,
 /// not the full ID. For internal operations with IDs, use `ActantialTarget`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum ActorType {
     /// Non-player character
     Npc,

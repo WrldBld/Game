@@ -418,7 +418,6 @@ pub struct ChallengeData {
 
 /// Types of challenges
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
 pub enum ChallengeType {
     #[default]
     SkillCheck,
@@ -452,7 +451,7 @@ impl ChallengeType {
 
 /// Challenge difficulty representation
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum ChallengeDifficulty {
     Dc { value: u32 },
     Percentage { value: u32 },
@@ -503,7 +502,7 @@ pub struct Outcome {
 
 /// Effects triggered by challenge outcomes
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum OutcomeTrigger {
     RevealInformation {
         info: String,
@@ -542,7 +541,7 @@ pub struct TriggerCondition {
 
 /// Types of trigger conditions
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum TriggerType {
     ObjectInteraction {
         keywords: Vec<String>,
@@ -713,7 +712,7 @@ pub struct StoryEventData {
 
 /// Categories of story events
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum StoryEventTypeData {
     LocationChange {
         from_location: Option<String>,
@@ -998,7 +997,6 @@ impl InventoryItemData {
 
 /// Complete schema for rendering a character sheet from the game system.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CharacterSheetSchema {
     /// Game system ID (e.g., "dnd5e", "pf2e", "blades")
     pub system_id: String,
@@ -1013,7 +1011,6 @@ pub struct CharacterSheetSchema {
 
 /// A section of the character sheet (e.g., "Ability Scores", "Skills", "Combat").
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SchemaSection {
     /// Unique section identifier
     pub id: String,
@@ -1036,7 +1033,6 @@ pub struct SchemaSection {
 
 /// Type of section, affects rendering layout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum SchemaSectionType {
     AbilityScores,
     Skills,
@@ -1057,7 +1053,6 @@ pub enum SchemaSectionType {
 
 /// Definition of a single field in the character sheet.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SchemaFieldDefinition {
     /// Unique field identifier
     pub id: String,
@@ -1094,7 +1089,7 @@ fn default_true() -> bool {
 
 /// Type of field data and how to render it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "type")]
+#[serde(tag = "type")]
 pub enum SchemaFieldType {
     /// Plain text input
     Text {
@@ -1189,7 +1184,6 @@ pub enum SchemaFieldType {
 
 /// Option for select fields.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SchemaSelectOption {
     pub value: String,
     pub label: String,
@@ -1199,7 +1193,6 @@ pub struct SchemaSelectOption {
 
 /// Proficiency option for skills.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SchemaProficiencyOption {
     pub value: String,
     pub label: String,
@@ -1208,7 +1201,6 @@ pub struct SchemaProficiencyOption {
 
 /// Label for ladder ratings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SchemaLadderLabel {
     pub value: i32,
     pub label: String,
@@ -1216,7 +1208,6 @@ pub struct SchemaLadderLabel {
 
 /// Level in a condition/harm track.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SchemaConditionLevel {
     pub level: u8,
     pub label: String,
@@ -1226,7 +1217,6 @@ pub struct SchemaConditionLevel {
 
 /// Color theme for resource bars.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum SchemaResourceColor {
     #[default]
     Red,
@@ -1239,7 +1229,6 @@ pub enum SchemaResourceColor {
 
 /// Type of entity reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum SchemaEntityRefType {
     Class,
     Race,
@@ -1252,7 +1241,6 @@ pub enum SchemaEntityRefType {
 
 /// Specification for a calculated/derived field.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DerivedFieldInfo {
     pub derivation_type: DerivationType,
     pub dependencies: Vec<String>,
@@ -1262,7 +1250,6 @@ pub struct DerivedFieldInfo {
 
 /// How a field is derived.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum DerivationType {
     AbilityModifier,
     ProficiencyBonus,
@@ -1279,7 +1266,6 @@ pub enum DerivationType {
 
 /// Validation rules for a field.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SchemaFieldValidation {
     #[serde(default)]
     pub min: Option<i32>,
@@ -1293,7 +1279,6 @@ pub struct SchemaFieldValidation {
 
 /// Layout hints for field rendering.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SchemaFieldLayout {
     #[serde(default)]
     pub width: Option<u8>,
@@ -1307,7 +1292,6 @@ pub struct SchemaFieldLayout {
 
 /// A step in the character creation process.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CreationStep {
     pub id: String,
     pub label: String,

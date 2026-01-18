@@ -5,7 +5,7 @@ use serde::Serialize;
 use wrldbldr_domain::{self as domain, ActId, EventChain, EventChainId, NarrativeEventId, WorldId};
 
 use crate::infrastructure::ports::RepoError;
-use crate::use_cases::narrative_operations::Narrative;
+use crate::use_cases::narrative_operations::NarrativeOps;
 
 // =============================================================================
 // Domain Result Types
@@ -13,7 +13,6 @@ use crate::use_cases::narrative_operations::Narrative;
 
 /// Summary of an event chain.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct EventChainSummary {
     pub id: String,
     pub world_id: String,
@@ -38,7 +37,6 @@ pub struct EventChainSummary {
 
 /// Status of an event chain.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ChainStatusSummary {
     pub chain_id: String,
     pub chain_name: String,
@@ -76,11 +74,11 @@ pub struct UpdateEventChainInput {
 }
 
 pub struct EventChainOps {
-    narrative: Arc<Narrative>,
+    narrative: Arc<NarrativeOps>,
 }
 
 impl EventChainOps {
-    pub fn new(narrative: Arc<Narrative>) -> Self {
+    pub fn new(narrative: Arc<NarrativeOps>) -> Self {
         Self { narrative }
     }
 

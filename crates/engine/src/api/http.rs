@@ -432,8 +432,8 @@ mod tests {
 
         assert_eq!(response.status(), axum::http::StatusCode::OK);
         let preset: serde_json::Value = read_body_json(response).await;
-        assert_eq!(preset["variant"], "dnd5e");
-        assert_eq!(preset["config"]["system_type"], "d20");
+        assert_eq!(preset["variant"], "Dnd5e");
+        assert_eq!(preset["config"]["system_type"], "D20");
     }
 
     #[tokio::test]

@@ -62,11 +62,16 @@ async fn test_scenes_loaded_for_act() {
         println!("Act '{}' has {} scenes", first_act.name(), scenes.len());
 
         for scene in &scenes {
-            println!(
-                "  Scene: {} at location {:?}",
-                scene.name(),
-                scene.location_id()
-            );
+            // Get location via graph edge
+            let location_id = ctx
+                .app
+                .repositories
+                .scene
+                .get_location(scene.id())
+                .await
+                .ok()
+                .flatten();
+            println!("  Scene: {} at location {:?}", scene.name(), location_id);
         }
     }
 }

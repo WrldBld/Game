@@ -1,4 +1,4 @@
-//! World CRUD operations.
+//! World management operations.
 
 use std::sync::Arc;
 
@@ -9,12 +9,12 @@ use crate::infrastructure::ports::{ClockPort, WorldRepo};
 
 use super::ManagementError;
 
-pub struct WorldCrud {
+pub struct WorldManagement {
     world: Arc<dyn WorldRepo>,
     clock: Arc<dyn ClockPort>,
 }
 
-impl WorldCrud {
+impl WorldManagement {
     pub fn new(world: Arc<dyn WorldRepo>, clock: Arc<dyn ClockPort>) -> Self {
         Self { world, clock }
     }

@@ -1,4 +1,4 @@
-//! Location and Region CRUD operations.
+//! Location and Region management operations.
 
 use std::sync::Arc;
 
@@ -10,11 +10,11 @@ use crate::use_cases::validation::require_non_empty;
 
 use super::ManagementError;
 
-pub struct LocationCrud {
+pub struct LocationManagement {
     location: Arc<dyn LocationRepo>,
 }
 
-impl LocationCrud {
+impl LocationManagement {
     pub fn new(location: Arc<dyn LocationRepo>) -> Self {
         Self { location }
     }

@@ -8,7 +8,7 @@ use crate::SheetValue;
 
 /// Character sheet operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum CharacterSheetRequest {
     // =========================================================================
     // Schema Operations
@@ -122,7 +122,6 @@ pub enum CharacterSheetRequest {
 
 /// Data for a single field update.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FieldUpdateData {
     /// Field ID
     pub field_id: String,
@@ -132,7 +131,6 @@ pub struct FieldUpdateData {
 
 /// Response for system list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GameSystemInfo {
     /// System ID
     pub id: String,

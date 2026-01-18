@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::messages::{CreateGoalData, UpdateGoalData};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum GoalRequest {
     ListGoals {
         world_id: String,

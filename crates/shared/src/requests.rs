@@ -50,7 +50,7 @@ pub mod world;
 /// This is the top-level grouping enum. Actual request variants live in
 /// per-group enums in `requests/*`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "group", content = "payload", rename_all = "snake_case")]
+#[serde(tag = "group", content = "payload")]
 pub enum RequestPayload {
     World(world::WorldRequest),
     Character(character::CharacterRequest),
@@ -468,7 +468,6 @@ pub struct CreateObservationData {
 /// Fields can be populated by the client with whatever information is available.
 /// The engine may auto-enrich this context with world data when world_id is available.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SuggestionContextData {
     /// Type of entity being created (e.g., "character", "location", "tavern", "forest")
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -498,7 +497,6 @@ pub struct SuggestionContextData {
 
 /// Data for creating a new item
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CreateItemData {
     pub name: String,
     #[serde(default)]
@@ -515,7 +513,6 @@ pub struct CreateItemData {
 
 /// Data for creating a lore entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CreateLoreData {
     pub title: String,
     #[serde(default)]
@@ -533,7 +530,6 @@ pub struct CreateLoreData {
 
 /// Data for updating a lore entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct UpdateLoreData {
     #[serde(default)]
     pub title: Option<String>,
@@ -549,7 +545,6 @@ pub struct UpdateLoreData {
 
 /// Data for creating a lore chunk
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CreateLoreChunkData {
     /// Optional title for this chunk (may be omitted)
     #[serde(default)]
@@ -563,7 +558,6 @@ pub struct CreateLoreChunkData {
 
 /// Data for updating a lore chunk
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct UpdateLoreChunkData {
     #[serde(default)]
     pub title: Option<String>,

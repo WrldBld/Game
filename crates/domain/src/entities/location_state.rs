@@ -16,7 +16,6 @@ use crate::value_objects::{ActivationLogic, ActivationRule, AssetPath, Atmospher
 
 /// A visual configuration for a location
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LocationState {
     id: LocationStateId,
     location_id: LocationId,
@@ -277,7 +276,6 @@ impl LocationState {
 
 /// Summary of a location state for display/wire transfer
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LocationStateSummary {
     pub id: LocationStateId,
     pub name: String,

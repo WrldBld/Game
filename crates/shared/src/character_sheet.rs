@@ -28,7 +28,6 @@ pub use wrldbldr_domain::types::character_sheet::{CharacterSheetValues, SheetVal
 /// Sent by the engine to describe what fields/sections a character sheet
 /// should display for a given game system.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CharacterSheetSchema {
     /// Game system ID (e.g., "dnd5e", "pf2e", "blades")
     pub system_id: String,
@@ -43,7 +42,6 @@ pub struct CharacterSheetSchema {
 
 /// A section of the character sheet (e.g., "Ability Scores", "Skills", "Combat").
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SchemaSection {
     /// Unique section identifier
     pub id: String,
@@ -66,7 +64,6 @@ pub struct SchemaSection {
 
 /// Type of section, affects rendering layout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum SectionType {
     /// Ability scores / attributes (grid layout)
     AbilityScores,
@@ -105,7 +102,6 @@ pub enum SectionType {
 
 /// Definition of a single field in the character sheet.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FieldDefinition {
     /// Unique field identifier (matches stat/property name)
     pub id: String,
@@ -142,7 +138,7 @@ fn default_true() -> bool {
 
 /// Type of field data and how to render it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "type")]
+#[serde(tag = "type")]
 pub enum SchemaFieldType {
     /// Plain text input
     Text {
@@ -268,7 +264,6 @@ pub enum SchemaFieldType {
 
 /// Option for select fields.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SchemaSelectOption {
     /// Internal value
     pub value: String,
@@ -281,7 +276,6 @@ pub struct SchemaSelectOption {
 
 /// Proficiency option for skills.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ProficiencyOption {
     /// Internal value
     pub value: String,
@@ -293,7 +287,6 @@ pub struct ProficiencyOption {
 
 /// Label for ladder ratings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LadderLabel {
     pub value: i32,
     pub label: String,
@@ -301,7 +294,6 @@ pub struct LadderLabel {
 
 /// Level in a condition/harm track.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ConditionLevel {
     pub level: u8,
     pub label: String,
@@ -311,7 +303,6 @@ pub struct ConditionLevel {
 
 /// Color theme for resource bars.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum ResourceColor {
     #[default]
     Red,
@@ -324,7 +315,6 @@ pub enum ResourceColor {
 
 /// Type of entity reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum EntityRefType {
     Class,
     Race,
@@ -341,7 +331,6 @@ pub enum EntityRefType {
 
 /// Specification for a calculated/derived field.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DerivedField {
     /// Type of derivation
     pub derivation_type: DerivationType,
@@ -354,7 +343,6 @@ pub struct DerivedField {
 
 /// How a field is derived.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum DerivationType {
     /// D&D-style ability modifier: floor((score - 10) / 2)
     AbilityModifier,
@@ -386,7 +374,6 @@ pub enum DerivationType {
 
 /// Validation rules for a field.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FieldValidation {
     /// Minimum value (for numeric)
     #[serde(default)]
@@ -404,7 +391,6 @@ pub struct FieldValidation {
 
 /// Layout hints for fields in a section.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
 pub struct FieldLayout {
     /// Grid column span (default = 1)
     #[serde(default = "default_one")]
@@ -420,7 +406,6 @@ fn default_one() -> u8 {
 
 /// Alignment of field within its grid cell.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum FieldAlignment {
     #[default]
     Left,
@@ -434,7 +419,6 @@ pub enum FieldAlignment {
 
 /// A step in character creation flow.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CreationStep {
     /// Unique identifier for the step
     pub id: String,
@@ -455,7 +439,6 @@ pub struct CreationStep {
 
 /// Point allocation system (used in character creation)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum AllocationSystem {
     /// Fixed array of stats
     StandardArray {
@@ -540,7 +523,6 @@ pub enum AllocationSystem {
 
 /// Point cost for a stat value
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct PointCost {
     pub value: i32,
     pub cost: i32,
@@ -548,7 +530,6 @@ pub struct PointCost {
 
 /// Stat array option for standard array allocation
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct StatArrayOption {
     pub id: String,
     pub description: Option<String>,
@@ -557,7 +538,6 @@ pub struct StatArrayOption {
 
 /// Input type for character creation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum InputType {
     /// Free text input
     Text,
@@ -573,7 +553,6 @@ pub enum InputType {
 
 /// Field input default
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct InputDefault {
     /// Default value (if any)
     pub value: SheetValue,
@@ -581,7 +560,6 @@ pub struct InputDefault {
 
 /// Trait indicating a field can be derived
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum DerivationTypeLocation {
     /// Derived from another field
     Derived,
@@ -591,7 +569,6 @@ pub enum DerivationTypeLocation {
 
 /// Field definition for character creation flow
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CreationField {
     /// Field identifier
     pub id: String,
@@ -615,7 +592,6 @@ pub struct CreationField {
 
 /// Validation for character creation fields
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FieldValidationRule {
     /// Field to validate
     pub field_id: String,
@@ -627,7 +603,6 @@ pub struct FieldValidationRule {
 
 /// Type of validation rule
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum ValidationRuleType {
     /// Required field
     Required,
@@ -647,7 +622,6 @@ pub enum ValidationRuleType {
 
 /// Layout for character sheet sections
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SectionLayout {
     /// Section type
     pub section_type: SectionType,
@@ -660,7 +634,6 @@ pub struct SectionLayout {
 
 /// Definition of how a field should be laid out
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FieldLayoutDefinition {
     pub field_id: String,
     pub layout: FieldLayout,
@@ -671,7 +644,6 @@ pub struct FieldLayoutDefinition {
 // =============================================================================
 /// Field change payload
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CharacterSheetFieldChange {
     pub field_id: String,
     pub new_value: SheetValue,
@@ -680,7 +652,6 @@ pub struct CharacterSheetFieldChange {
 
 /// Apply multiple field changes to a character sheet
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CharacterSheetUpdate {
     pub character_id: String,
     pub changes: Vec<CharacterSheetFieldChange>,
@@ -692,7 +663,6 @@ pub struct CharacterSheetUpdate {
 
 /// Derived field definition for schema generation
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DerivedFieldDefinition {
     pub id: String,
     pub derivation_type: DerivationType,
@@ -701,7 +671,6 @@ pub struct DerivedFieldDefinition {
 
 /// Resource allocation configuration
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ResourceAllocation {
     pub system: AllocationSystem,
     pub fields: Vec<String>,
@@ -709,7 +678,6 @@ pub struct ResourceAllocation {
 
 /// Stats array definition for standard arrays
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct StatArray {
     pub name: String,
     pub values: Vec<i32>,
@@ -717,7 +685,6 @@ pub struct StatArray {
 
 /// User-configurable schema variant
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SchemaVariantConfig {
     pub variant_id: String,
     pub display_name: String,
@@ -728,7 +695,6 @@ pub struct SchemaVariantConfig {
 
 /// Mapping between schema field IDs and domain stats
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SchemaStatMapping {
     pub field_id: String,
     pub stat_name: String,
@@ -736,7 +702,6 @@ pub struct SchemaStatMapping {
 
 /// Field visibility rules
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FieldVisibilityRule {
     pub field_id: String,
     pub rule: VisibilityRule,
@@ -744,7 +709,6 @@ pub struct FieldVisibilityRule {
 
 /// Visibility rule types
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum VisibilityRule {
     /// Always visible
     Always,
@@ -767,7 +731,6 @@ pub enum VisibilityRule {
 
 /// Comparison operator for derived value checks
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum ComparisonOperator {
     Eq,
     NotEq,
@@ -783,7 +746,6 @@ pub enum ComparisonOperator {
 
 /// Source of boosts in character creation
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct BoostSource {
     pub source_type: String,
     pub boosts: Vec<String>,
@@ -791,7 +753,6 @@ pub struct BoostSource {
 
 /// Boost definition for point buy systems
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct BoostDefinition {
     pub id: String,
     pub label: String,
@@ -800,7 +761,6 @@ pub struct BoostDefinition {
 
 /// Dot pool category for Blades
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DotPoolCategory {
     pub id: String,
     pub label: String,
@@ -811,7 +771,6 @@ pub struct DotPoolCategory {
 
 /// Definition of derived fields
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DerivedFieldDefinitionLegacy {
     pub id: String,
     pub derivation_type: DerivationType,
@@ -820,7 +779,6 @@ pub struct DerivedFieldDefinitionLegacy {
 
 /// Definition for derived values
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DerivedValueDefinition {
     pub id: String,
     pub derivation_type: DerivationType,
@@ -829,7 +787,6 @@ pub struct DerivedValueDefinition {
 
 /// Percentile allocation category (CoC)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct PercentileCategory {
     pub id: String,
     pub label: String,
@@ -841,7 +798,6 @@ pub struct PercentileCategory {
 
 /// Starting dot allocation (Blades)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct StartingDot {
     pub field: String,
     pub dots: u8,
@@ -850,7 +806,6 @@ pub struct StartingDot {
 
 /// Definition for character sheet asset prompts
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CharacterSheetAssetPrompt {
     pub field_id: String,
     pub prompt: String,
@@ -858,7 +813,6 @@ pub struct CharacterSheetAssetPrompt {
 
 /// Rule system configuration (legacy)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RuleSystemConfigLegacy {
     pub name: String,
     pub description: Option<String>,

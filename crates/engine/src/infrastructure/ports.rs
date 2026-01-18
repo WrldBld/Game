@@ -268,6 +268,20 @@ impl std::fmt::Display for NpcRegionRelationType {
     }
 }
 
+impl std::str::FromStr for NpcRegionRelationType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "HOME_REGION" | "HOME" | "HOMEREGION" => Ok(Self::HomeRegion),
+            "WORKS_AT_REGION" | "WORKS_AT" | "WORK" | "WORKSAT" => Ok(Self::WorksAt),
+            "FREQUENTS_REGION" | "FREQUENTS" | "FREQUENTSREGION" => Ok(Self::Frequents),
+            "AVOIDS_REGION" | "AVOIDS" | "AVOIDSREGION" => Ok(Self::Avoids),
+            _ => Err(format!("Unknown NPC region relationship type: '{}'", s)),
+        }
+    }
+}
+
 /// NPC with their region relationship info (for staging suggestions)
 #[derive(Debug, Clone)]
 pub struct NpcWithRegionInfo {
@@ -464,7 +478,7 @@ pub trait CharacterRepo: Send + Sync {
         &self,
         id: CharacterId,
         region_id: RegionId,
-        relationship_type: &str,
+        relationship_type: NpcRegionRelationType,
     ) -> Result<(), RepoError>;
     /// Get NPCs that have any relationship to a region (for staging suggestions)
     async fn get_npcs_for_region(
@@ -588,6 +602,18 @@ pub trait SceneRepo: Send + Sync {
     async fn set_current(&self, world_id: WorldId, scene_id: SceneId) -> Result<(), RepoError>;
     async fn list_for_region(&self, region_id: RegionId) -> Result<Vec<Scene>, RepoError>;
     async fn list_for_act(&self, act_id: ActId) -> Result<Vec<Scene>, RepoError>;
+
+    // Location edge management (graph-first design)
+    /// Get the location for a scene via AT_LOCATION edge.
+    async fn get_location(&self, scene_id: SceneId) -> Result<Option<LocationId>, RepoError>;
+    /// Set the location for a scene via AT_LOCATION edge.
+    async fn set_location(
+        &self,
+        scene_id: SceneId,
+        location_id: LocationId,
+    ) -> Result<(), RepoError>;
+
+    // Featured character edge management (graph-first design)
     async fn get_featured_characters(
         &self,
         scene_id: SceneId,

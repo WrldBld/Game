@@ -12,7 +12,6 @@ use crate::error::DomainError;
 ///
 /// Use `has_assets()` to check if an entity type can have gallery assets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum EntityType {
     // === Asset-bearing entities ===
     /// Character entity (NPCs and PCs) - can have assets
@@ -175,7 +174,6 @@ impl std::str::FromStr for EntityType {
 
 /// Types of entity changes for broadcast notifications
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum ChangeType {
     /// Entity was created
     Created,
@@ -201,7 +199,6 @@ impl std::fmt::Display for ChangeType {
 
 /// Type of asset (determines which slot it occupies)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum AssetType {
     /// Character face portrait (256x256)
     Portrait,

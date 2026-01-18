@@ -17,7 +17,6 @@ use wrldbldr_domain::{GoalId, WorldId};
 
 /// Abstract desire target (for Wants that don't target a Character or Item)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Goal {
     id: GoalId,
     world_id: WorldId,

@@ -1,4 +1,4 @@
-//! Character CRUD operations.
+//! Character management operations.
 
 use std::sync::Arc;
 
@@ -8,12 +8,12 @@ use crate::infrastructure::ports::{CharacterRepo, ClockPort};
 
 use super::ManagementError;
 
-pub struct CharacterCrud {
+pub struct CharacterManagement {
     character: Arc<dyn CharacterRepo>,
     clock: Arc<dyn ClockPort>,
 }
 
-impl CharacterCrud {
+impl CharacterManagement {
     pub fn new(character: Arc<dyn CharacterRepo>, clock: Arc<dyn ClockPort>) -> Self {
         Self { character, clock }
     }

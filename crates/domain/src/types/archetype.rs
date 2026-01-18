@@ -7,9 +7,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// These represent the archetypal roles characters can play in a narrative,
 /// providing guidance for NPC behavior and story function.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum CampbellArchetype {
     /// The protagonist of the story
     Hero,

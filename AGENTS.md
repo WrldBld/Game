@@ -357,7 +357,7 @@ These are legitimate because they manage runtime state, not database access.
 
 1. **Inject port traits directly** - `Arc<dyn CharacterRepo>`, not wrapper classes
 2. **Orchestrate multiple operations** - Coordinate ports + domain logic
-3. **Return domain types or use-case DTOs** - Never shared/wire types
+3. **Return domain types or use-case DTOs** - Never shared/wire types as return values
 
 **DO**:
 - Return domain aggregates, value objects, or use-case-specific result structs
@@ -365,7 +365,7 @@ These are legitimate because they manage runtime state, not database access.
 - Use domain types for all internal logic
 
 **DON'T**:
-- Import `wrldbldr_shared` types as return values or struct fields
+- Return `wrldbldr_shared` wire types directly from use cases
 - Build wire-format responses (that's the API layer's job)
 - Embed `serde_json::Value` in results
 
@@ -373,6 +373,45 @@ These are legitimate because they manage runtime state, not database access.
 - Allows testing use cases without serialization concerns
 - Prevents protocol changes from breaking business logic
 - Keeps use cases focused on domain operations
+
+### Protocol Conversion Patterns (ADR-011)
+
+The following patterns are **CORRECT** and should NOT be flagged as violations:
+
+**1. `to_protocol()` helper methods on use case types:**
+```rust
+// use_cases/staging/types.rs - METHOD lives here
+impl StagedNpc {
+    pub fn to_protocol(&self) -> wrldbldr_shared::StagedNpcInfo { ... }
+}
+
+// api/websocket/ws_staging.rs - CALLED from API layer
+let response = staged_npc.to_protocol();  // Conversion happens at correct boundary
+```
+What matters is WHEN conversion happens (API layer), not WHERE the method is defined.
+
+**2. Shared re-exports of domain types:**
+```rust
+// These are DOMAIN types, not wire format:
+use wrldbldr_shared::{CharacterSheetValues, SheetValue, GameTime};
+
+// Because shared re-exports them from domain:
+// shared/src/lib.rs: pub use wrldbldr_domain::types::{CharacterSheetValues, ...};
+```
+The `shared` crate contains both wire format types AND domain type re-exports. Using re-exported domain types is correct.
+
+**3. `from_protocol()` conversion helpers:**
+```rust
+impl DirectorialUpdateInput {
+    pub fn from_protocol(wire: wrldbldr_shared::DirectorialContext) -> Self {
+        Self { context: ports::DirectorialContext { ... } }  // Domain type internally
+    }
+}
+```
+The helper is called from API handlers; the use case works with domain types internally.
+
+**Anti-pattern - Architecture Theater:**
+Moving `to_protocol()` methods to the API layer would require exposing all internal fields via accessors, breaking encapsulation without changing when conversion happens. See [ADR-011](docs/architecture/ADR-011-protocol-conversion-boundaries.md).
 
 **Example Use Case:**
 ```rust

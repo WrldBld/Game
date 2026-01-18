@@ -21,12 +21,6 @@ use crate::infrastructure::ports::{
 };
 use crate::llm_context::ConversationTurn;
 
-/// Backward-compatible alias for `NarrativeOps`.
-///
-/// Consumers that import `narrative_operations::Narrative` will continue to work.
-/// New code should prefer importing `NarrativeOps` directly.
-pub type Narrative = NarrativeOps;
-
 /// Narrative operations requiring multiple repositories.
 ///
 /// Handles complex operations like trigger evaluation and dialogue recording

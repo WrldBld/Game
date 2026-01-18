@@ -8,7 +8,6 @@ use std::fmt;
 
 /// Type of content source (for UI badges and filtering).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum SourceType {
     /// Official publisher content (e.g., WotC for D&D)
     #[default]
@@ -132,7 +131,6 @@ impl ContentSource {
 /// - PF2e: Ancestry -> CharacterOrigin, Class -> CharacterClass
 /// - Blades: Playbook -> CharacterClass
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum ContentType {
     // Character creation options
     /// Race, Ancestry, Heritage, Kin, Species

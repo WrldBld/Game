@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::messages::{CreateWantData, UpdateWantData, WantTargetTypeData};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum WantRequest {
     ListWants {
         character_id: String,

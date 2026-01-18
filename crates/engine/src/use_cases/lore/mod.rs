@@ -16,7 +16,6 @@ use wrldbldr_domain::{
 
 /// Result of creating a lore entry.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CreateLoreResult {
     pub id: String,
     pub title: String,
@@ -24,7 +23,6 @@ pub struct CreateLoreResult {
 
 /// Result of updating a lore entry.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct UpdateLoreResult {
     pub id: String,
     pub title: String,
@@ -38,14 +36,12 @@ pub struct DeleteLoreResult {
 
 /// Result of adding a chunk to lore.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct AddChunkResult {
     pub chunk_id: String,
 }
 
 /// Result of updating a chunk.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct UpdateChunkResult {
     pub lore_id: String,
     pub chunk_id: String,
@@ -53,7 +49,6 @@ pub struct UpdateChunkResult {
 
 /// Result of deleting a chunk.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DeleteChunkResult {
     pub deleted: bool,
     pub lore_id: String,
@@ -68,7 +63,6 @@ pub struct GrantKnowledgeResult {
 
 /// Result of revoking knowledge.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RevokeKnowledgeResult {
     pub revoked: bool,
     pub partial: bool,
@@ -79,7 +73,6 @@ pub struct RevokeKnowledgeResult {
 
 /// Lore knowledge info for a character.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CharacterLoreInfo {
     pub lore_id: String,
     pub character_id: String,
@@ -91,7 +84,6 @@ pub struct CharacterLoreInfo {
 
 /// Info about a character who knows some lore.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LoreKnowerInfo {
     pub character_id: String,
     pub known_chunk_ids: Vec<String>,
@@ -100,7 +92,6 @@ pub struct LoreKnowerInfo {
 
 /// Summary of a lore entry (for list views).
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LoreSummary {
     pub id: String,
     pub world_id: String,
@@ -116,7 +107,6 @@ pub struct LoreSummary {
 
 /// Detailed lore entry (for single item view).
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LoreDetail {
     pub id: String,
     pub world_id: String,
@@ -132,7 +122,6 @@ pub struct LoreDetail {
 
 /// Detail of a lore chunk.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LoreChunkDetail {
     pub id: String,
     pub order: u32,

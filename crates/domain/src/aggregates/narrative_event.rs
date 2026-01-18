@@ -983,7 +983,6 @@ impl NarrativeEvent {
 
 /// Intermediate format for serialization that matches the wire format
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct NarrativeEventWireFormat {
     id: NarrativeEventId,
     world_id: WorldId,

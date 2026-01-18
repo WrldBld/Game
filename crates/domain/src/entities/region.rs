@@ -23,7 +23,6 @@ use crate::value_objects::{AssetPath, Atmosphere, RegionName};
 /// between regions, and scenes are derived from the current region's backdrop
 /// plus any NPCs present.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Region {
     id: RegionId,
     location_id: LocationId,
@@ -171,7 +170,6 @@ impl Region {
 ///
 /// Simple data struct with public fields (ADR-008: no invariants to protect).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct MapBounds {
     /// X coordinate of the region's top-left corner
     pub x: u32,
@@ -220,7 +218,6 @@ impl MapBounds {
 /// Stored as a `CONNECTED_TO_REGION` edge in Neo4j with properties.
 /// Simple data struct with public fields (ADR-008: no invariants to protect).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RegionConnection {
     pub from_region: RegionId,
     pub to_region: RegionId,
@@ -261,7 +258,6 @@ impl RegionConnection {
 /// Used when leaving a building/area to go to a parent or sibling location.
 /// Simple data struct with public fields (ADR-008: no invariants to protect).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RegionExit {
     pub from_region: RegionId,
     pub to_location: LocationId,

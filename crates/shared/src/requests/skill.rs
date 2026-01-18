@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::{CreateSkillData, UpdateSkillData};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum SkillRequest {
     ListSkills {
         world_id: String,

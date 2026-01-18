@@ -47,7 +47,7 @@ impl GiveItem {
             .pc_repo
             .get(pc_id)
             .await?
-            .ok_or(InventoryError::CharacterNotFound)?;
+            .ok_or(InventoryError::CharacterNotFound(pc_id))?;
 
         // Create a new item in the same world as the PC
         let validated_name = domain::ItemName::new(item_name.clone())?;

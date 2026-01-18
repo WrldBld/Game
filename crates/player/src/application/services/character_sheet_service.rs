@@ -15,7 +15,6 @@ use wrldbldr_shared::{CharacterSheetRequest, RequestPayload};
 
 /// Info about a game system
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GameSystemInfo {
     pub id: String,
     pub name: String,

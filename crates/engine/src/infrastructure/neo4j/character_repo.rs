@@ -278,23 +278,12 @@ impl Neo4jCharacterRepo {
             )
         })?;
 
-        // Parse expression_config from JSON - fail-fast on invalid JSON
+        // Parse expression_config from JSON - use default if missing
         let expression_config: ExpressionConfig = node
             .get::<String>("expression_config")
-            .map_err(|e| {
-                RepoError::database(
-                    "query",
-                    format!("Missing expression_config for Character {}: {}", id, e),
-                )
-            })
-            .and_then(|s| {
-                serde_json::from_str(&s).map_err(|e| {
-                    RepoError::database(
-                        "parse",
-                        format!("Invalid expression_config JSON for Character {}: {}", id, e),
-                    )
-                })
-            })?;
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
 
         // Determine state from legacy is_alive/is_active booleans
         let is_alive = node.get_bool_or("is_alive", true);
@@ -1756,27 +1745,22 @@ impl CharacterRepo for Neo4jCharacterRepo {
         &self,
         id: CharacterId,
         region_id: RegionId,
-        relationship_type: &str,
+        relationship_type: NpcRegionRelationType,
     ) -> Result<(), RepoError> {
-        // Use static queries per relationship type to avoid any format-based injection risk
-        let (cypher, rel_type_name) = match relationship_type.to_uppercase().as_str() {
-            "HOME_REGION" | "HOME" => (
-                "MATCH (c:Character {id: $id})-[r:HOME_REGION]->(region:Region {id: $region_id}) DELETE r",
-                "HOME_REGION"
-            ),
-            "WORKS_AT_REGION" | "WORKS_AT" | "WORK" => (
-                "MATCH (c:Character {id: $id})-[r:WORKS_AT_REGION]->(region:Region {id: $region_id}) DELETE r",
-                "WORKS_AT_REGION"
-            ),
-            "FREQUENTS_REGION" | "FREQUENTS" => (
-                "MATCH (c:Character {id: $id})-[r:FREQUENTS_REGION]->(region:Region {id: $region_id}) DELETE r",
-                "FREQUENTS_REGION"
-            ),
-            "AVOIDS_REGION" | "AVOIDS" => (
-                "MATCH (c:Character {id: $id})-[r:AVOIDS_REGION]->(region:Region {id: $region_id}) DELETE r",
-                "AVOIDS_REGION"
-            ),
-            _ => return Err(RepoError::database("query", format!("Unknown relationship type: {}", relationship_type))),
+        // Use the enum's Display implementation to get the relationship type string
+        let cypher = match relationship_type {
+            NpcRegionRelationType::HomeRegion => {
+                "MATCH (c:Character {id: $id})-[r:HOME_REGION]->(region:Region {id: $region_id}) DELETE r"
+            }
+            NpcRegionRelationType::WorksAt => {
+                "MATCH (c:Character {id: $id})-[r:WORKS_AT_REGION]->(region:Region {id: $region_id}) DELETE r"
+            }
+            NpcRegionRelationType::Frequents => {
+                "MATCH (c:Character {id: $id})-[r:FREQUENTS_REGION]->(region:Region {id: $region_id}) DELETE r"
+            }
+            NpcRegionRelationType::Avoids => {
+                "MATCH (c:Character {id: $id})-[r:AVOIDS_REGION]->(region:Region {id: $region_id}) DELETE r"
+            }
         };
 
         let q = query(cypher)
@@ -1790,7 +1774,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
         tracing::debug!(
             "Removed {} relationship from character {} to region {}",
-            rel_type_name,
+            relationship_type,
             id,
             region_id
         );

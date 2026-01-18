@@ -57,7 +57,7 @@ pub struct Repositories {
     pub narrative_repo: Arc<dyn NarrativeRepo>,
 
     // Wrapper types that add business logic beyond delegation
-    pub narrative: Arc<use_cases::Narrative>,
+    pub narrative: Arc<use_cases::NarrativeOps>,
     pub assets: Arc<repositories::AssetsRepository>,
 }
 
@@ -87,6 +87,7 @@ pub struct UseCases {
     pub location_events: use_cases::LocationEventUseCases,
     pub custom_condition: Arc<use_cases::CustomConditionEvaluator>,
     pub inventory: use_cases::InventoryUseCases,
+    pub character_sheet: use_cases::CharacterSheetUseCases,
 }
 
 impl App {
@@ -133,7 +134,7 @@ impl App {
             repos.location.clone(),
             clock_port.clone(),
         ));
-        let narrative = Arc::new(use_cases::Narrative::new(
+        let narrative = Arc::new(use_cases::NarrativeOps::new(
             repos.narrative.clone(),
             repos.location.clone(),
             repos.world.clone(),
@@ -488,19 +489,22 @@ impl App {
         let custom_condition = Arc::new(use_cases::CustomConditionEvaluator::new(llm_port.clone()));
 
         let management = use_cases::ManagementUseCases::new(
-            use_cases::management::WorldCrud::new(repos.world.clone(), clock_port.clone()),
-            use_cases::management::CharacterCrud::new(repos.character.clone(), clock_port.clone()),
-            use_cases::management::LocationCrud::new(repos.location.clone()),
-            use_cases::management::PlayerCharacterCrud::new(
+            use_cases::management::WorldManagement::new(repos.world.clone(), clock_port.clone()),
+            use_cases::management::CharacterManagement::new(
+                repos.character.clone(),
+                clock_port.clone(),
+            ),
+            use_cases::management::LocationManagement::new(repos.location.clone()),
+            use_cases::management::PlayerCharacterManagement::new(
                 repos.player_character.clone(),
                 repos.location.clone(),
                 clock_port.clone(),
             ),
-            use_cases::management::RelationshipCrud::new(
+            use_cases::management::RelationshipManagement::new(
                 repos.character.clone(),
                 clock_port.clone(),
             ),
-            use_cases::management::ObservationCrud::new(
+            use_cases::management::ObservationManagement::new(
                 repos.observation.clone(),
                 repos.player_character.clone(),
                 repos.character.clone(),
@@ -508,10 +512,10 @@ impl App {
                 repos.world.clone(),
                 clock_port.clone(),
             ),
-            use_cases::management::ActCrud::new(repos.act.clone()),
-            use_cases::management::SceneCrud::new(repos.scene.clone()),
-            use_cases::management::InteractionCrud::new(repos.interaction.clone()),
-            use_cases::management::SkillCrud::new(repos.content.clone()),
+            use_cases::management::ActManagement::new(repos.act.clone()),
+            use_cases::management::SceneManagement::new(repos.scene.clone()),
+            use_cases::management::InteractionManagement::new(repos.interaction.clone()),
+            use_cases::management::SkillManagement::new(repos.content.clone()),
         );
 
         let settings = settings_entity;
@@ -530,6 +534,9 @@ impl App {
 
         let inventory =
             use_cases::InventoryUseCases::new(repos.item.clone(), repos.player_character.clone());
+
+        let character_sheet =
+            use_cases::CharacterSheetUseCases::new(repos.character.clone(), repos.world.clone());
 
         let use_cases = UseCases {
             movement,
@@ -556,6 +563,7 @@ impl App {
             location_events: location_events_uc,
             custom_condition,
             inventory,
+            character_sheet,
         };
 
         // Create content service for game content (races, classes, spells, etc.)

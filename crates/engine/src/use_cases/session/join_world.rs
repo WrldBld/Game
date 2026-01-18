@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::infrastructure::ports::{
     CharacterRepo, LocationRepo, PlayerCharacterRepo, RepoError, SceneRepo, WorldRepo,
 };
-use wrldbldr_domain::{PlayerCharacterId, WorldId, WorldRole};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, WorldId, WorldRole};
 
 use super::types::{
     CharacterSummary, LocationSummary, PlayerCharacterSummary, SceneSummary, WorldSnapshot,
@@ -56,26 +56,46 @@ impl JoinWorld {
         let current_scene = self.scene.get_current(world_id).await?;
 
         // Build scene summary
-        let current_scene_summary = current_scene.as_ref().map(|scene| SceneSummary {
-            id: scene.id(),
-            name: scene.name().to_string(),
-            location_id: scene.location_id(),
-            time_context: format!("{:?}", scene.time_context()),
-            backdrop_override: scene.backdrop_override().map(|s| s.to_string()),
-            featured_characters: scene
-                .featured_characters()
+        let current_scene_summary = if let Some(scene) = current_scene.as_ref() {
+            // Get location via graph edge
+            let location_id = self
+                .scene
+                .get_location(scene.id())
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or_else(LocationId::new);
+
+            // Get featured characters via graph edge
+            let featured_characters: Vec<String> = self
+                .scene
+                .get_featured_characters(scene.id())
+                .await
+                .ok()
+                .unwrap_or_default()
                 .iter()
-                .map(|id| id.to_string())
-                .collect(),
-            directorial_notes: {
-                let notes = scene.directorial_notes();
-                if notes.is_empty() {
-                    None
-                } else {
-                    Some(notes.to_string())
-                }
-            },
-        });
+                .map(|sc| sc.character_id.to_string())
+                .collect();
+
+            Some(SceneSummary {
+                id: scene.id(),
+                name: scene.name().to_string(),
+                location_id,
+                time_context: format!("{:?}", scene.time_context()),
+                backdrop_override: scene.backdrop_override().map(|s| s.to_string()),
+                featured_characters,
+                directorial_notes: {
+                    let notes = scene.directorial_notes();
+                    if notes.is_empty() {
+                        None
+                    } else {
+                        Some(notes.to_string())
+                    }
+                },
+            })
+        } else {
+            None
+        };
 
         let scenes = current_scene_summary
             .clone()

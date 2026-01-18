@@ -3,231 +3,231 @@
   "wants": [
     {
       "id": "00000000-0000-0000-4000-000000000001",
-      "characterId": "00000000-0000-0000-2000-000000000001",
+      "character_id": "00000000-0000-0000-2000-000000000001",
       "description": "Protect Thornhaven and its people from all threats",
       "intensity": 0.8,
       "visibility": "known",
       "priority": 1,
-      "deflectionBehavior": null,
+      "deflection_behavior": null,
       "tells": [],
-      "targetType": null,
-      "targetId": null
+      "target_type": null,
+      "target_id": null
     },
     {
       "id": "00000000-0000-0000-4000-000000000002",
-      "characterId": "00000000-0000-0000-2000-000000000001",
+      "character_id": "00000000-0000-0000-2000-000000000001",
       "description": "Find out what really happened at the Old Mill twenty years ago",
       "intensity": 0.6,
       "visibility": "hidden",
       "priority": 2,
-      "deflectionBehavior": "Changes subject to other village gossip or offers more ale",
+      "deflection_behavior": "Changes subject to other village gossip or offers more ale",
       "tells": ["Avoids looking toward the mill when it's mentioned", "Grip tightens on whatever she's holding when the accident comes up"],
-      "targetType": null,
-      "targetId": null
+      "target_type": null,
+      "target_id": null
     },
     {
       "id": "00000000-0000-0000-4000-000000000003",
-      "characterId": "00000000-0000-0000-2000-000000000002",
+      "character_id": "00000000-0000-0000-2000-000000000002",
       "description": "Atone for failing his adventuring party in the shadow caverns",
       "intensity": 0.9,
       "visibility": "suspected",
       "priority": 1,
-      "deflectionBehavior": "Grunts and focuses intently on his metalwork",
+      "deflection_behavior": "Grunts and focuses intently on his metalwork",
       "tells": ["Stares at old adventuring gear on the wall", "Flinches at talk of dungeons or underground places"],
-      "targetType": null,
-      "targetId": null
+      "target_type": null,
+      "target_id": null
     },
     {
       "id": "00000000-0000-0000-4000-000000000004",
-      "characterId": "00000000-0000-0000-2000-000000000002",
+      "character_id": "00000000-0000-0000-2000-000000000002",
       "description": "Craft a weapon capable of killing shadow creatures",
       "intensity": 0.7,
       "visibility": "hidden",
       "priority": 2,
-      "deflectionBehavior": "Says he's just experimenting with new techniques",
+      "deflection_behavior": "Says he's just experimenting with new techniques",
       "tells": ["Works late into the night on a particular project", "Has been acquiring unusual metals"],
-      "targetType": null,
-      "targetId": null
+      "target_type": null,
+      "target_id": null
     },
     {
       "id": "00000000-0000-0000-4000-000000000005",
-      "characterId": "00000000-0000-0000-2000-000000000003",
+      "character_id": "00000000-0000-0000-2000-000000000003",
       "description": "Find a real family and a place to belong",
       "intensity": 0.8,
       "visibility": "suspected",
       "priority": 1,
-      "deflectionBehavior": "Makes a joke or changes the subject to something he stole",
+      "deflection_behavior": "Makes a joke or changes the subject to something he stole",
       "tells": ["Watches families with longing", "Always returns to Marta's inn despite claiming independence"],
-      "targetType": null,
-      "targetId": null
+      "target_type": null,
+      "target_id": null
     },
     {
       "id": "00000000-0000-0000-4000-000000000006",
-      "characterId": "00000000-0000-0000-2000-000000000003",
+      "character_id": "00000000-0000-0000-2000-000000000003",
       "description": "Discover what's in the Old Mill basement - heard there's treasure",
       "intensity": 0.5,
       "visibility": "hidden",
       "priority": 3,
-      "deflectionBehavior": "Pretends he was never interested in the mill",
+      "deflection_behavior": "Pretends he was never interested in the mill",
       "tells": ["Has been seen near the mill at night", "Asks casual questions about the miller's possessions"],
-      "targetType": "goal",
-      "targetId": null
+      "target_type": "goal",
+      "target_id": null
     },
     {
       "id": "00000000-0000-0000-4000-000000000007",
-      "characterId": "00000000-0000-0000-2000-000000000004",
+      "character_id": "00000000-0000-0000-2000-000000000004",
       "description": "Warn the people of Thornhaven about the coming shadow threat",
       "intensity": 0.9,
       "visibility": "known",
       "priority": 1,
-      "deflectionBehavior": null,
+      "deflection_behavior": null,
       "tells": [],
-      "targetType": null,
-      "targetId": null
+      "target_type": null,
+      "target_id": null
     },
     {
       "id": "00000000-0000-0000-4000-000000000008",
-      "characterId": "00000000-0000-0000-2000-000000000004",
+      "character_id": "00000000-0000-0000-2000-000000000004",
       "description": "Find worthy heroes to stop the ritual before it's too late",
       "intensity": 0.85,
       "visibility": "known",
       "priority": 2,
-      "deflectionBehavior": null,
+      "deflection_behavior": null,
       "tells": [],
-      "targetType": null,
-      "targetId": null
+      "target_type": null,
+      "target_id": null
     },
     {
       "id": "00000000-0000-0000-4000-000000000009",
-      "characterId": "00000000-0000-0000-2000-000000000005",
+      "character_id": "00000000-0000-0000-2000-000000000005",
       "description": "Locate an ancient shadow artifact hidden somewhere in Thornhaven",
       "intensity": 0.95,
       "visibility": "hidden",
       "priority": 1,
-      "deflectionBehavior": "Smoothly offers a discount or produces an interesting item from her cart",
+      "deflection_behavior": "Smoothly offers a discount or produces an interesting item from her cart",
       "tells": ["Asks casual questions about village history and the mill", "Takes careful mental notes after certain conversations", "Her eyes linger on old buildings and cellars"],
-      "targetType": "item",
-      "targetId": null
+      "target_type": "item",
+      "target_id": null
     },
     {
       "id": "00000000-0000-0000-4000-000000000010",
-      "characterId": "00000000-0000-0000-2000-000000000005",
+      "character_id": "00000000-0000-0000-2000-000000000005",
       "description": "Appear as a helpful, trustworthy merchant to gain access and information",
       "intensity": 0.7,
       "visibility": "suspected",
       "priority": 2,
-      "deflectionBehavior": "Reminds people of how helpful she's been",
+      "deflection_behavior": "Reminds people of how helpful she's been",
       "tells": ["Too perfect, too convenient", "Knows things she shouldn't"],
-      "targetType": null,
-      "targetId": null
+      "target_type": null,
+      "target_id": null
     },
     {
       "id": "00000000-0000-0000-4000-000000000011",
-      "characterId": "00000000-0000-0000-2000-000000000006",
+      "character_id": "00000000-0000-0000-2000-000000000006",
       "description": "Warn people about the thing in the mill before it's too late",
       "intensity": 1.0,
       "visibility": "known",
       "priority": 1,
-      "deflectionBehavior": null,
+      "deflection_behavior": null,
       "tells": [],
-      "targetType": null,
-      "targetId": null
+      "target_type": null,
+      "target_id": null
     },
     {
       "id": "00000000-0000-0000-4000-000000000012",
-      "characterId": "00000000-0000-0000-2000-000000000006",
+      "character_id": "00000000-0000-0000-2000-000000000006",
       "description": "Find peace and forgiveness for failing to save his family",
       "intensity": 0.9,
       "visibility": "hidden",
       "priority": 2,
-      "deflectionBehavior": "Starts muttering and rocking when confronted about his guilt",
+      "deflection_behavior": "Starts muttering and rocking when confronted about his guilt",
       "tells": ["Keeps his wife's locket hidden", "Whispers apologies to no one visible"],
-      "targetType": null,
-      "targetId": null
+      "target_type": null,
+      "target_id": null
     },
     {
       "id": "00000000-0000-0000-4000-000000000013",
-      "characterId": "00000000-0000-0000-2000-000000000007",
+      "character_id": "00000000-0000-0000-2000-000000000007",
       "description": "Maintain order and protect the village from threats",
       "intensity": 0.8,
       "visibility": "known",
       "priority": 1,
-      "deflectionBehavior": null,
+      "deflection_behavior": null,
       "tells": [],
-      "targetType": null,
-      "targetId": null
+      "target_type": null,
+      "target_id": null
     },
     {
       "id": "00000000-0000-0000-4000-000000000014",
-      "characterId": "00000000-0000-0000-2000-000000000007",
+      "character_id": "00000000-0000-0000-2000-000000000007",
       "description": "Investigate Vera Nightshade - something about her doesn't add up",
       "intensity": 0.6,
       "visibility": "hidden",
       "priority": 2,
-      "deflectionBehavior": "Claims to be merely doing routine security",
+      "deflection_behavior": "Claims to be merely doing routine security",
       "tells": ["Watches Vera's cart when she thinks no one notices", "Has been asking around about where Vera came from"],
-      "targetType": "character",
-      "targetId": "00000000-0000-0000-2000-000000000005"
+      "target_type": "character",
+      "target_id": "00000000-0000-0000-2000-000000000005"
     },
     {
       "id": "00000000-0000-0000-4000-000000000015",
-      "characterId": "00000000-0000-0000-2000-000000000008",
+      "character_id": "00000000-0000-0000-2000-000000000008",
       "description": "Help those in need through her knowledge of herbs and healing",
       "intensity": 0.8,
       "visibility": "known",
       "priority": 1,
-      "deflectionBehavior": null,
+      "deflection_behavior": null,
       "tells": [],
-      "targetType": null,
-      "targetId": null
+      "target_type": null,
+      "target_id": null
     },
     {
       "id": "00000000-0000-0000-4000-000000000016",
-      "characterId": "00000000-0000-0000-2000-000000000008",
+      "character_id": "00000000-0000-0000-2000-000000000008",
       "description": "Learn more about the strange plants growing near the Old Mill",
       "intensity": 0.5,
       "visibility": "suspected",
       "priority": 3,
-      "deflectionBehavior": "Says it's just professional curiosity",
+      "deflection_behavior": "Says it's just professional curiosity",
       "tells": ["Has collected samples she won't show anyone", "Gets excited when shadowfell herbs are mentioned"],
-      "targetType": null,
-      "targetId": null
+      "target_type": null,
+      "target_id": null
     }
   ],
-  "actantialViews": [
+  "actantial_views": [
     {
-      "subjectId": "00000000-0000-0000-2000-000000000001",
-      "targetId": "00000000-0000-0000-2000-000000000007",
+      "subject_id": "00000000-0000-0000-2000-000000000001",
+      "target_id": "00000000-0000-0000-2000-000000000007",
       "role": "helper",
-      "wantId": "00000000-0000-0000-4000-000000000001",
+      "want_id": "00000000-0000-0000-4000-000000000001",
       "reason": "Elena helps protect the village as guard captain"
     },
     {
-      "subjectId": "00000000-0000-0000-2000-000000000001",
-      "targetId": "00000000-0000-0000-2000-000000000004",
+      "subject_id": "00000000-0000-0000-2000-000000000001",
+      "target_id": "00000000-0000-0000-2000-000000000004",
       "role": "helper",
-      "wantId": "00000000-0000-0000-4000-000000000001",
+      "want_id": "00000000-0000-0000-4000-000000000001",
       "reason": "Aldric's warnings help the village prepare"
     },
     {
-      "subjectId": "00000000-0000-0000-2000-000000000004",
-      "targetId": "00000000-0000-0000-2000-000000000008",
+      "subject_id": "00000000-0000-0000-2000-000000000004",
+      "target_id": "00000000-0000-0000-2000-000000000008",
       "role": "helper",
-      "wantId": "00000000-0000-0000-4000-000000000007",
+      "want_id": "00000000-0000-0000-4000-000000000007",
       "reason": "Rosie helps care for those affected by the darkness"
     },
     {
-      "subjectId": "00000000-0000-0000-2000-000000000007",
-      "targetId": "00000000-0000-0000-2000-000000000005",
+      "subject_id": "00000000-0000-0000-2000-000000000007",
+      "target_id": "00000000-0000-0000-2000-000000000005",
       "role": "opponent",
-      "wantId": "00000000-0000-0000-4000-000000000013",
+      "want_id": "00000000-0000-0000-4000-000000000013",
       "reason": "Vera's secretive nature threatens village security"
     },
     {
-      "subjectId": "00000000-0000-0000-2000-000000000002",
-      "targetId": "00000000-0000-0000-2000-000000000006",
+      "subject_id": "00000000-0000-0000-2000-000000000002",
+      "target_id": "00000000-0000-0000-2000-000000000006",
       "role": "opponent",
-      "wantId": "00000000-0000-0000-4000-000000000003",
+      "want_id": "00000000-0000-0000-4000-000000000003",
       "reason": "Tom's ravings remind Grom of his own failures"
     }
   ]

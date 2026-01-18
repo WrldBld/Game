@@ -535,15 +535,25 @@ async fn build_scene_update(
     pc: &wrldbldr_domain::PlayerCharacter,
     npcs: &[wrldbldr_domain::StagedNpc],
 ) -> Option<ServerMessage> {
-    let location_name = match state
+    // Get location via graph edge
+    let location_id = state
         .app
         .repositories
-        .location
-        .get_location(scene.location_id())
+        .scene
+        .get_location(scene.id())
         .await
-    {
-        Ok(Some(location)) => location.name().to_string(),
-        _ => "Unknown Location".to_string(),
+        .ok()
+        .flatten();
+
+    let (location_id_str, location_name) = match location_id {
+        Some(loc_id) => {
+            let name = match state.app.repositories.location.get_location(loc_id).await {
+                Ok(Some(location)) => location.name().to_string(),
+                _ => "Unknown Location".to_string(),
+            };
+            (loc_id.to_string(), name)
+        }
+        None => ("".to_string(), "Unknown Location".to_string()),
     };
 
     let time_context = match scene.time_context() {
@@ -556,7 +566,7 @@ async fn build_scene_update(
     let scene_data = SceneData {
         id: scene.id().to_string(),
         name: scene.name().to_string(),
-        location_id: scene.location_id().to_string(),
+        location_id: location_id_str,
         location_name,
         backdrop_asset: scene
             .backdrop_override()

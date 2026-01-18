@@ -3,253 +3,225 @@
   "challenges": [
     {
       "id": "00000000-0000-0000-6000-000000000001",
-      "worldId": "00000000-0000-0000-0000-000000000001",
+      "world_id": "00000000-0000-0000-0000-000000000001",
       "name": "Convince Grom to Share His Past",
       "description": "Persuade the taciturn blacksmith to open up about his adventuring days and what he knows about shadow creatures.",
-      "challengeType": "skillCheck",
-      "difficulty": { "dc": 18 },
-      "checkStat": "CHA",
+      "challenge_type": "SkillCheck",
+      "difficulty": { "type": "dc", "value": 18 },
+      "check_stat": "CHA",
       "outcomes": {
         "success": {
           "description": "Grom's expression softens as memories surface. He speaks of the Shadow Caverns, of friends lost to creatures of living darkness. He offers to forge you a weapon with silvered edges - effective against such beings.",
-          "triggers": [
-            { "revealInformation": { "info": "The Shadow Caverns lie three days east. Grom's party was ambushed by shadow creatures that seemed drawn to a dark artifact.", "persist": true } },
-            { "custom": { "description": "Grom offers to forge a silvered weapon for the party" } }
-          ]
+          "triggers": []
         },
         "failure": {
           "description": "Grom's grip tightens on his hammer. 'Some things are better left buried,' he growls, turning back to the forge. The conversation is over.",
           "triggers": []
         },
-        "criticalSuccess": {
+        "critical_success": {
           "description": "Something in your words reaches Grom deeply. He sets down his hammer and pulls out an old map - marked with the location of the Shadow Caverns. 'Take this. Finish what we couldn't.'",
-          "triggers": [
-            { "revealInformation": { "info": "Complete map to the Shadow Caverns with safe routes marked", "persist": true } },
-            { "giveItem": { "itemName": "Grom's Shadow Cavern Map", "itemDescription": "A weathered map with safe routes marked in dwarvish runes" } }
-          ]
+          "triggers": []
         },
-        "criticalFailure": {
+        "critical_failure": {
           "description": "Your prodding touches a raw nerve. Grom slams his hammer down, sending sparks flying. 'Get out! I've nothing to say to fortune-seekers who'll just end up dead like the rest!'",
-          "triggers": [
-            { "custom": { "description": "Grom refuses to speak with the party for the rest of the day" } }
-          ]
+          "triggers": []
         },
         "partial": null
       },
-      "triggerConditions": [
+      "trigger_conditions": [
         {
-          "conditionType": { "dialogueTopic": { "topicKeywords": ["adventure", "past", "shadow", "cavern", "party", "loss"] } },
+          "condition_type": { "dialogueTopic": { "topic_keywords": ["adventure", "past", "shadow", "cavern", "party", "loss"] } },
           "description": "When players ask about Grom's adventuring past or shadow creatures",
           "required": true
         },
         {
-          "conditionType": { "npcPresent": { "npcKeywords": ["Grom", "blacksmith"] } },
+          "condition_type": { "npcPresent": { "npc_keywords": ["Grom", "blacksmith"] } },
           "description": "Grom must be present",
           "required": true
         }
       ],
       "active": true,
       "order": 1,
-      "isFavorite": false,
+      "is_favorite": false,
       "tags": ["social", "backstory", "grom"]
     },
     {
       "id": "00000000-0000-0000-6000-000000000002",
-      "worldId": "00000000-0000-0000-0000-000000000001",
+      "world_id": "00000000-0000-0000-0000-000000000001",
       "name": "Calm Old Tom's Ravings",
       "description": "Help the traumatized miller focus long enough to share what he witnessed at the mill twenty years ago.",
-      "challengeType": "skillCheck",
-      "difficulty": { "dc": 15 },
-      "checkStat": "WIS",
+      "challenge_type": "SkillCheck",
+      "difficulty": { "type": "dc", "value": 15 },
+      "check_stat": "WIS",
       "outcomes": {
         "success": {
           "description": "Tom's breathing slows. His eyes focus on something beyond you, seeing the past. 'They drew symbols on the floor... in blood. Something came through. Something that took my Sarah and the children. It's still there, waiting.'",
-          "triggers": [
-            { "revealInformation": { "info": "A ritual was performed in the mill basement twenty years ago. Something dark was summoned and claimed Tom's family as sacrifices.", "persist": true } }
-          ]
+          "triggers": []
         },
         "failure": {
           "description": "Tom's eyes go wide with terror. 'They're coming! The shadows are coming!' He scrambles away, muttering incoherently. He's lost in his trauma.",
           "triggers": []
         },
-        "criticalSuccess": {
+        "critical_success": {
           "description": "Tom grabs your hand with surprising strength. 'Listen carefully. The basement entrance is under the old millstone. And this...' He presses a tarnished locket into your palm. 'My Sarah's locket. It glowed when they came. It might warn you.'",
-          "triggers": [
-            { "revealInformation": { "info": "The basement entrance is hidden under the old millstone on the mill floor.", "persist": true } },
-            { "giveItem": { "itemName": "Sarah's Locket", "itemDescription": "A tarnished silver locket that faintly glows in the presence of shadow creatures" } }
-          ]
+          "triggers": []
         },
-        "criticalFailure": {
+        "critical_failure": {
           "description": "Tom lets out a blood-curdling scream. 'THEY SEE YOU NOW! THEY KNOW YOU'RE COMING!' He collapses, unconscious. When he wakes, he'll have no memory of this conversation.",
-          "triggers": [
-            { "custom": { "description": "Tom is unconscious and will have no memory of this interaction" } }
-          ]
+          "triggers": []
         },
         "partial": null
       },
-      "triggerConditions": [
+      "trigger_conditions": [
         {
-          "conditionType": { "dialogueTopic": { "topicKeywords": ["mill", "family", "accident", "twenty years", "what happened"] } },
+          "condition_type": { "dialogueTopic": { "topic_keywords": ["mill", "family", "accident", "twenty years", "what happened"] } },
           "description": "When players ask about the mill tragedy",
           "required": true
         }
       ],
       "active": true,
       "order": 2,
-      "isFavorite": false,
+      "is_favorite": false,
       "tags": ["social", "investigation", "tom"]
     },
     {
       "id": "00000000-0000-0000-6000-000000000003",
-      "worldId": "00000000-0000-0000-0000-000000000001",
+      "world_id": "00000000-0000-0000-0000-000000000001",
       "name": "Investigate the Mill Basement",
       "description": "Search the mill basement for clues about the ritual that took place and the artifact's location.",
-      "challengeType": "skillCheck",
-      "difficulty": { "dc": 14 },
-      "checkStat": "INT",
+      "challenge_type": "SkillCheck",
+      "difficulty": { "type": "dc", "value": 14 },
+      "check_stat": "INT",
       "outcomes": {
         "success": {
           "description": "Your methodical search reveals the truth. Beneath decades of dust, you find a ritual circle etched into the stone floor. The symbols are ancient - Netherese in origin. At the center, a pedestal where something once rested. Dark stains suggest blood sacrifice.",
-          "triggers": [
-            { "revealInformation": { "info": "The ritual circle is Netherese. An artifact was once held on the central pedestal. Blood sacrifices were involved.", "persist": true } }
-          ]
+          "triggers": []
         },
         "failure": {
           "description": "The basement is dark and confusing. You find scattered debris and old mill equipment, but nothing that explains the villagers' fear. Perhaps there's nothing here after all... or perhaps you're missing something.",
           "triggers": []
         },
-        "criticalSuccess": {
+        "critical_success": {
           "description": "Your expert investigation reveals hidden compartments, preserved journals, and the ritual circle itself. One journal entry stands out: 'The Shadowheart Stone responds to blood and darkness. It must never be fully awakened.' You also notice fresh scratch marks near a hidden alcove - someone has been here recently.",
-          "triggers": [
-            { "revealInformation": { "info": "The artifact is called the Shadowheart Stone. Someone has been searching for it recently - fresh scratch marks prove it.", "persist": true } },
-            { "giveItem": { "itemName": "Ritual Journal", "itemDescription": "A journal describing the Shadowheart Stone and the ritual to contain it" } },
-            { "enableChallenge": { "challengeId": "00000000-0000-0000-6000-000000000004" } }
-          ]
+          "triggers": []
         },
-        "criticalFailure": {
+        "critical_failure": {
           "description": "As you search, you accidentally trigger a hidden ward. Shadows coalesce around you, whispers fill your mind. You stumble out of the basement, having learned nothing but that this place is deeply dangerous.",
-          "triggers": [
-            { "modifyCharacterStat": { "stat": "currentHp", "modifier": -5 } },
-            { "custom": { "description": "The triggered ward has alerted whatever lurks in the shadows" } }
-          ]
+          "triggers": []
         },
         "partial": null
       },
-      "triggerConditions": [
+      "trigger_conditions": [
         {
-          "conditionType": { "enterArea": { "areaKeywords": ["basement", "cellar", "mill basement"] } },
+          "condition_type": { "enterArea": { "area_keywords": ["basement", "cellar", "mill basement"] } },
           "description": "When players enter the mill basement",
           "required": true
         }
       ],
       "active": true,
       "order": 3,
-      "isFavorite": true,
+      "is_favorite": true,
       "tags": ["exploration", "investigation", "mill"]
     },
     {
       "id": "00000000-0000-0000-6000-000000000004",
-      "worldId": "00000000-0000-0000-0000-000000000001",
+      "world_id": "00000000-0000-0000-0000-000000000001",
       "name": "Decipher the Ritual Journal",
       "description": "Study the ancient journal to understand how the Shadowheart Stone works and how it might be stopped.",
-      "challengeType": "skillCheck",
-      "difficulty": { "dc": 16 },
-      "checkStat": "INT",
+      "challenge_type": "SkillCheck",
+      "difficulty": { "type": "dc", "value": 16 },
+      "check_stat": "INT",
       "outcomes": {
         "success": {
           "description": "The journal's archaic language yields its secrets. The Shadowheart Stone feeds on fear and darkness. It can be temporarily contained with holy light, but true destruction requires the 'Dawn Ritual' - a ceremony that must be performed at sunrise while the stone is exposed.",
-          "triggers": [
-            { "revealInformation": { "info": "The Dawn Ritual can destroy the Shadowheart Stone. It must be performed at sunrise with the stone exposed to direct sunlight.", "persist": true } }
-          ]
+          "triggers": []
         },
         "failure": {
           "description": "The archaic language and coded references confuse you. You understand fragments - something about shadows, hunger, and dawn - but can't piece together the full picture.",
           "triggers": []
         },
         "partial": null,
-        "criticalSuccess": null,
-        "criticalFailure": null
+        "critical_success": null,
+        "critical_failure": null
       },
-      "triggerConditions": [
+      "trigger_conditions": [
         {
-          "conditionType": { "objectInteraction": { "keywords": ["journal", "book", "tome", "ritual journal"] } },
+          "condition_type": { "objectInteraction": { "keywords": ["journal", "book", "tome", "ritual journal"] } },
           "description": "When players study the ritual journal",
           "required": true
         }
       ],
       "active": false,
       "order": 4,
-      "isFavorite": false,
+      "is_favorite": false,
       "tags": ["knowledge", "research", "artifact"]
     },
     {
       "id": "00000000-0000-0000-6000-000000000005",
-      "worldId": "00000000-0000-0000-0000-000000000001",
+      "world_id": "00000000-0000-0000-0000-000000000001",
       "name": "Expose Vera's True Intentions",
       "description": "Catch Vera in her deception and learn what she's really after in Thornhaven.",
-      "challengeType": "skillCheck",
-      "difficulty": { "dc": 17 },
-      "checkStat": "WIS",
+      "challenge_type": "SkillCheck",
+      "difficulty": { "type": "dc", "value": 17 },
+      "check_stat": "WIS",
       "outcomes": {
         "success": {
           "description": "You catch Vera's tells - the way she steers conversation toward the mill, how she knows things about the village history she shouldn't. When confronted, her merchant's smile fades. 'Clever. I represent certain... collectors. The Shadowheart Stone is valuable beyond measure. Perhaps we can make a deal?'",
-          "triggers": [
-            { "revealInformation": { "info": "Vera works for collectors who want the Shadowheart Stone. She's been gathering information on its location.", "persist": true } }
-          ]
+          "triggers": []
         },
         "failure": {
           "description": "Vera's merchant's charm is impenetrable. She deflects your questions with ease, leaving you more confused than before. Either she's innocent, or she's very, very good at her cover.",
           "triggers": []
         },
         "partial": null,
-        "criticalSuccess": null,
-        "criticalFailure": null
+        "critical_success": null,
+        "critical_failure": null
       },
-      "triggerConditions": [
+      "trigger_conditions": [
         {
-          "conditionType": { "dialogueTopic": { "topicKeywords": ["Vera", "merchant", "suspicious", "questions", "mill"] } },
+          "condition_type": { "dialogueTopic": { "topic_keywords": ["Vera", "merchant", "suspicious", "questions", "mill"] } },
           "description": "When players confront Vera about her suspicious behavior",
           "required": true
         }
       ],
       "active": true,
       "order": 5,
-      "isFavorite": false,
+      "is_favorite": false,
       "tags": ["social", "deception", "vera"]
     }
   ],
-  "challengeLocationEdges": [
+  "challenge_location_edges": [
     {
-      "challengeId": "00000000-0000-0000-6000-000000000001",
-      "locationId": "00000000-0000-0000-1000-000000000002",
-      "alwaysAvailable": true,
-      "timeRestriction": null
+      "challenge_id": "00000000-0000-0000-6000-000000000001",
+      "location_id": "00000000-0000-0000-1000-000000000002",
+      "always_available": true,
+      "time_restriction": null
     },
     {
-      "challengeId": "00000000-0000-0000-6000-000000000002",
-      "locationId": "00000000-0000-0000-1000-000000000006",
-      "alwaysAvailable": false,
-      "timeRestriction": "Evening"
+      "challenge_id": "00000000-0000-0000-6000-000000000002",
+      "location_id": "00000000-0000-0000-1000-000000000006",
+      "always_available": false,
+      "time_restriction": "Evening"
     },
     {
-      "challengeId": "00000000-0000-0000-6000-000000000003",
-      "locationId": "00000000-0000-0000-1000-000000000005",
-      "alwaysAvailable": true,
-      "timeRestriction": null
+      "challenge_id": "00000000-0000-0000-6000-000000000003",
+      "location_id": "00000000-0000-0000-1000-000000000005",
+      "always_available": true,
+      "time_restriction": null
     },
     {
-      "challengeId": "00000000-0000-0000-6000-000000000005",
-      "locationId": "00000000-0000-0000-1000-000000000003",
-      "alwaysAvailable": true,
-      "timeRestriction": null
+      "challenge_id": "00000000-0000-0000-6000-000000000005",
+      "location_id": "00000000-0000-0000-1000-000000000003",
+      "always_available": true,
+      "time_restriction": null
     }
   ],
-  "challengeRegionEdges": [
+  "challenge_region_edges": [
     {
-      "challengeId": "00000000-0000-0000-6000-000000000003",
-      "regionId": "00000000-0000-0000-1100-000000000012",
-      "alwaysAvailable": true,
-      "timeRestriction": null
+      "challenge_id": "00000000-0000-0000-6000-000000000003",
+      "region_id": "00000000-0000-0000-1100-000000000012",
+      "always_available": true,
+      "time_restriction": null
     }
   ]
 }

@@ -42,7 +42,7 @@ impl PlaceItemInRegion {
             .item_repo
             .get(item_id)
             .await?
-            .ok_or(InventoryError::ItemNotFound)?;
+            .ok_or(InventoryError::ItemNotFound(item_id))?;
 
         // Place item in the region (creates IN_REGION edge)
         self.item_repo.place_in_region(item_id, region_id).await?;

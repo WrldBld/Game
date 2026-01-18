@@ -13,7 +13,6 @@ use crate::StatModifierId;
 /// This is an immutable value object. Use builder-style methods to create
 /// modified copies.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct StatModifier {
     /// Unique identifier for this modifier
     id: StatModifierId,
@@ -100,7 +99,6 @@ impl StatModifier {
 
 /// Character stats (system-agnostic)
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct StatBlock {
     /// Map of stat name to base value
     stats: HashMap<String, i32>,
@@ -396,7 +394,6 @@ impl StatBlock {
 ///
 /// This is an immutable value object representing a computed stat snapshot.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct StatValue {
     /// The base value (before modifiers)
     base: i32,

@@ -14,7 +14,7 @@ pub use wrldbldr_domain::types::{ChangeType, EntityType};
 
 /// Result of a request operation
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "status", rename_all = "snake_case")]
+#[serde(tag = "status")]
 pub enum ResponseResult {
     /// Operation succeeded
     Success {
@@ -92,7 +92,6 @@ impl ResponseResult {
 
 /// Error classification codes
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
     // === Client Errors (4xx) ===
     /// Request was malformed or invalid
@@ -246,7 +245,6 @@ impl EntityChangedData {
 
 /// Role of a user in a world
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum WorldRole {
     /// Dungeon Master - full control
     Dm,
@@ -326,7 +324,7 @@ pub struct ConnectedUser {
 
 /// Errors that can occur when joining a world
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum JoinError {
     /// Another DM is already connected to this world
     DmAlreadyConnected { existing_user_id: String },

@@ -3,7 +3,6 @@ use std::fmt;
 use thiserror::Error;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum SourceType {
     #[default]
     Official,
@@ -166,7 +165,6 @@ pub struct FilterField {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum FilterFieldType {
     Text,
     Select { options: Vec<String> },
@@ -178,7 +176,6 @@ pub enum FilterFieldType {
 
 /// Generic content types across all game systems.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum ContentType {
     /// Race, Ancestry, Heritage, Kin, Species
     CharacterOrigin,

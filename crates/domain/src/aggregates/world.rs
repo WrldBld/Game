@@ -289,7 +289,6 @@ impl World {
 
 /// Intermediate format for serialization that matches the wire format
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct WorldWireFormat {
     id: WorldId,
     name: WorldName,
@@ -328,7 +327,6 @@ impl<'de> Deserialize<'de> for World {
     {
         // Support both new format (newtypes) and legacy format (raw strings)
         #[derive(Deserialize)]
-        #[serde(rename_all = "camelCase")]
         struct LegacyWorldFormat {
             id: WorldId,
             name: WorldName,

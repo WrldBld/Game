@@ -200,14 +200,14 @@ impl ApproveSuggestion {
 /// Full approval decision flow (approval + dialogue persistence).
 pub struct ApprovalDecisionFlow {
     approve_suggestion: Arc<ApproveSuggestion>,
-    narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
+    narrative: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
     queue: Arc<dyn QueuePort>,
 }
 
 impl ApprovalDecisionFlow {
     pub fn new(
         approve_suggestion: Arc<ApproveSuggestion>,
-        narrative: Arc<crate::use_cases::narrative_operations::Narrative>,
+        narrative: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
         queue: Arc<dyn QueuePort>,
     ) -> Self {
         Self {
@@ -226,7 +226,7 @@ impl ApprovalDecisionFlow {
             .queue
             .get_approval_request(approval_id)
             .await?
-            .ok_or(ApprovalDecisionError::ApprovalNotFound)?;
+            .ok_or(ApprovalDecisionError::ApprovalNotFound(approval_id))?;
 
         let result = self
             .approve_suggestion
@@ -299,8 +299,8 @@ pub enum ApprovalError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ApprovalDecisionError {
-    #[error("Approval request not found")]
-    ApprovalNotFound,
+    #[error("Approval request not found: {0}")]
+    ApprovalNotFound(Uuid),
     #[error("Queue error: {0}")]
     Queue(#[from] QueueError),
     #[error("Approval error: {0}")]

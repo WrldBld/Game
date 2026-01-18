@@ -16,7 +16,7 @@ use crate::queue_types::PlayerActionData;
 use crate::infrastructure::ports::{
     CharacterRepo, ClockPort, PlayerCharacterRepo, QueuePort, StagingRepo, WorldRepo,
 };
-use crate::use_cases::narrative_operations::Narrative;
+use crate::use_cases::narrative_operations::NarrativeOps;
 
 // Re-use the shared ConversationError from start.rs
 use super::start::ConversationError;
@@ -40,7 +40,7 @@ pub struct ContinueConversation {
     player_character: Arc<dyn PlayerCharacterRepo>,
     staging: Arc<dyn StagingRepo>,
     world: Arc<dyn WorldRepo>,
-    narrative: Arc<Narrative>,
+    narrative: Arc<NarrativeOps>,
     queue: Arc<dyn QueuePort>,
     clock: Arc<dyn ClockPort>,
 }
@@ -51,7 +51,7 @@ impl ContinueConversation {
         player_character: Arc<dyn PlayerCharacterRepo>,
         staging: Arc<dyn StagingRepo>,
         world: Arc<dyn WorldRepo>,
-        narrative: Arc<Narrative>,
+        narrative: Arc<NarrativeOps>,
         queue: Arc<dyn QueuePort>,
         clock: Arc<dyn ClockPort>,
     ) -> Self {
@@ -231,7 +231,7 @@ mod tests {
         MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
         MockStagingRepo, MockWorldRepo, QueueError, QueueItem, QueuePort,
     };
-    use crate::use_cases::Narrative;
+    use crate::use_cases::NarrativeOps;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -370,11 +370,11 @@ mod tests {
         }
     }
 
-    fn create_narrative_entity(narrative_repo: MockNarrativeRepo) -> Arc<Narrative> {
+    fn create_narrative_entity(narrative_repo: MockNarrativeRepo) -> Arc<NarrativeOps> {
         let now = Utc::now();
         let clock = build_clock(now);
 
-        Arc::new(Narrative::new(
+        Arc::new(NarrativeOps::new(
             Arc::new(narrative_repo),
             Arc::new(MockLocationRepo::new()),
             Arc::new(MockWorldRepo::new()),

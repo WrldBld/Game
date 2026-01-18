@@ -23,7 +23,6 @@ use serde::{Deserialize, Serialize};
 ///     .with_default_expression("neutral");
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ExpressionConfig {
     /// Available expression names for this character's sprite sheet
     /// Examples: "neutral", "happy", "sad", "angry", "surprised", "afraid", "thoughtful"

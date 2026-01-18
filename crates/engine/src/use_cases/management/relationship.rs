@@ -1,7 +1,7 @@
-// Relationship CRUD - methods for future NPC relationship features
+// Relationship management - methods for future NPC relationship features
 #![allow(dead_code)]
 
-//! Relationship CRUD operations.
+//! Relationship management operations.
 
 use std::sync::Arc;
 
@@ -11,12 +11,12 @@ use crate::infrastructure::ports::{CharacterRepo, ClockPort};
 
 use super::ManagementError;
 
-pub struct RelationshipCrud {
+pub struct RelationshipManagement {
     character: Arc<dyn CharacterRepo>,
     clock: Arc<dyn ClockPort>,
 }
 
-impl RelationshipCrud {
+impl RelationshipManagement {
     pub fn new(character: Arc<dyn CharacterRepo>, clock: Arc<dyn ClockPort>) -> Self {
         Self { character, clock }
     }

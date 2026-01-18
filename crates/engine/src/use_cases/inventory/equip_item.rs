@@ -42,12 +42,12 @@ impl EquipItem {
             .item_repo
             .get(item_id)
             .await?
-            .ok_or(InventoryError::ItemNotFound)?;
+            .ok_or(InventoryError::ItemNotFound(item_id))?;
 
         // Verify the item is in the PC's inventory
         let inventory = self.pc_repo.get_inventory(pc_id).await?;
         if !inventory.iter().any(|i| i.id() == item_id) {
-            return Err(InventoryError::ItemNotInInventory);
+            return Err(InventoryError::ItemNotInInventory(item_id));
         }
 
         // Create EQUIPPED_BY edge in graph

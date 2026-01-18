@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 /// This is a core domain concept representing the different types of
 /// participants in a game session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
 pub enum WorldRole {
     /// Dungeon Master - can approve suggestions, control NPCs, full control
     Dm,

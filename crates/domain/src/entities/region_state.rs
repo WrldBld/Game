@@ -16,7 +16,6 @@ use crate::value_objects::{ActivationLogic, ActivationRule, AssetPath, Atmospher
 
 /// A visual configuration for a region
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RegionState {
     id: RegionStateId,
     region_id: RegionId,
@@ -274,7 +273,6 @@ impl RegionState {
 
 /// Summary of a region state for display/wire transfer
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RegionStateSummary {
     pub id: RegionStateId,
     pub name: String,

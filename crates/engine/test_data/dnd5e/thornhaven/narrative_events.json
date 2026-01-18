@@ -1,317 +1,317 @@
 {
   "_comment": "Thornhaven narrative events for LLM integration testing",
-  "narrativeEvents": [
+  "narrative_events": [
     {
       "id": "00000000-0000-0000-7000-000000000001",
-      "worldId": "00000000-0000-0000-0000-000000000001",
+      "world_id": "00000000-0000-0000-0000-000000000001",
       "name": "The Stranger's Warning",
       "description": "Brother Aldric receives the party at the temple and shares his vision of coming darkness.",
       "tags": ["quest_start", "aldric", "prophecy"],
-      "triggerConditions": [
+      "trigger_conditions": [
         {
-          "triggerType": { "playerEntersLocation": { "locationId": "00000000-0000-0000-1000-000000000004", "locationName": "Temple of the Dawn" } },
+          "trigger_type": { "player_enters_location": { "location_id": "00000000-0000-0000-1000-000000000004", "location_name": "Temple of the Dawn" } },
           "description": "Player enters the Temple of the Dawn",
-          "isRequired": true,
-          "triggerId": "enter-temple"
+          "is_required": true,
+          "trigger_id": "enter-temple"
         },
         {
-          "triggerType": { "timeAtLocation": { "locationId": "00000000-0000-0000-1000-000000000004", "locationName": "Temple of the Dawn", "timeContext": "Morning" } },
+          "trigger_type": { "time_at_location": { "location_id": "00000000-0000-0000-1000-000000000004", "location_name": "Temple of the Dawn", "time_context": "Morning" } },
           "description": "It is morning at the temple",
-          "isRequired": false,
-          "triggerId": "morning-time"
+          "is_required": false,
+          "trigger_id": "morning-time"
         }
       ],
-      "triggerLogic": "all",
-      "sceneDirection": "Brother Aldric is deep in prayer when the party enters. Morning light streams through the stained glass, casting colorful patterns on the floor. He looks up with a mixture of relief and urgency - as if he's been waiting for them.",
-      "suggestedOpening": "You've come. I knew you would - the Morninglord showed me your faces in my vision. Please, there is much I must tell you about the darkness that threatens Thornhaven.",
+      "trigger_logic": "all",
+      "scene_direction": "Brother Aldric is deep in prayer when the party enters. Morning light streams through the stained glass, casting colorful patterns on the floor. He looks up with a mixture of relief and urgency - as if he's been waiting for them.",
+      "suggested_opening": "You've come. I knew you would - the Morninglord showed me your faces in my vision. Please, there is much I must tell you about the darkness that threatens Thornhaven.",
       "outcomes": [
         {
           "name": "accept_quest",
           "label": "Accept the Quest",
           "description": "The party agrees to investigate the shadow threat at the Old Mill.",
-          "condition": { "playerAction": { "actionKeywords": ["accept", "agree", "help", "investigate", "yes"] } },
+          "condition": { "player_action": { "action_keywords": ["accept", "agree", "help", "investigate", "yes"] } },
           "effects": [
-            { "setFlag": { "flagName": "accepted_shadow_quest", "value": true } },
-            { "revealInformation": { "infoType": "quest", "title": "Shadows Over Thornhaven", "content": "Brother Aldric has warned of a shadow threat emanating from the Old Mill. Investigate the mill to discover the source of this darkness.", "persistToJournal": true } }
+            { "set_flag": { "flag_name": "accepted_shadow_quest", "value": true } },
+            { "reveal_information": { "info_type": "quest", "title": "Shadows Over Thornhaven", "content": "Brother Aldric has warned of a shadow threat emanating from the Old Mill. Investigate the mill to discover the source of this darkness.", "persist_to_journal": true } }
           ],
-          "chainEvents": [
+          "chain_events": [
             {
-              "eventId": "00000000-0000-0000-7000-000000000002",
-              "eventName": "Marta's Knowledge",
-              "delayTurns": 0,
-              "additionalTrigger": null,
-              "chainReason": "Aldric suggests speaking with Marta about the mill's history"
+              "event_id": "00000000-0000-0000-7000-000000000002",
+              "event_name": "Marta's Knowledge",
+              "delay_turns": 0,
+              "additional_trigger": null,
+              "chain_reason": "Aldric suggests speaking with Marta about the mill's history"
             }
           ],
-          "timelineSummary": "The party accepted Brother Aldric's quest to investigate the shadow threat at the Old Mill."
+          "timeline_summary": "The party accepted Brother Aldric's quest to investigate the shadow threat at the Old Mill."
         },
         {
           "name": "refuse_quest",
           "label": "Refuse the Quest",
           "description": "The party declines to get involved with local problems.",
-          "condition": { "playerAction": { "actionKeywords": ["refuse", "decline", "no", "leave", "not interested"] } },
+          "condition": { "player_action": { "action_keywords": ["refuse", "decline", "no", "leave", "not interested"] } },
           "effects": [
-            { "setFlag": { "flagName": "refused_shadow_quest", "value": true } },
-            { "modifyRelationship": { "fromCharacter": "00000000-0000-0000-2000-000000000004", "fromName": "Brother Aldric", "toCharacter": "00000000-0000-0000-2000-000000000000", "toName": "Player", "sentimentChange": -0.2, "reason": "Disappointed by refusal to help" } }
+            { "set_flag": { "flag_name": "refused_shadow_quest", "value": true } },
+            { "modify_relationship": { "from_character": "00000000-0000-0000-2000-000000000004", "from_name": "Brother Aldric", "to_character": "00000000-0000-0000-2000-000000000000", "to_name": "Player", "sentiment_change": -0.2, "reason": "Disappointed by refusal to help" } }
           ],
-          "chainEvents": [],
-          "timelineSummary": "The party refused Brother Aldric's request for help, leaving the village's fate uncertain."
+          "chain_events": [],
+          "timeline_summary": "The party refused Brother Aldric's request for help, leaving the village's fate uncertain."
         },
         {
           "name": "ask_more",
           "label": "Ask for More Information",
           "description": "The party wants to learn more before committing.",
-          "condition": { "playerAction": { "actionKeywords": ["tell me more", "what do you know", "explain", "vision", "prophecy"] } },
+          "condition": { "player_action": { "action_keywords": ["tell me more", "what do you know", "explain", "vision", "prophecy"] } },
           "effects": [
-            { "revealInformation": { "infoType": "lore", "title": "Aldric's Vision", "content": "In my vision, I saw shadows spreading from the Old Mill like tendrils of darkness. At their heart was a stone that pulsed with malevolent energy. And I saw heroes standing against it - heroes with your faces.", "persistToJournal": true } }
+            { "reveal_information": { "info_type": "lore", "title": "Aldric's Vision", "content": "In my vision, I saw shadows spreading from the Old Mill like tendrils of darkness. At their heart was a stone that pulsed with malevolent energy. And I saw heroes standing against it - heroes with your faces.", "persist_to_journal": true } }
           ],
-          "chainEvents": [],
-          "timelineSummary": null
+          "chain_events": [],
+          "timeline_summary": null
         }
       ],
-      "defaultOutcome": "ask_more",
-      "isActive": true,
-      "isTriggered": false,
-      "triggeredAt": null,
-      "selectedOutcome": null,
-      "isRepeatable": false,
-      "triggerCount": 0,
-      "delayTurns": 0,
-      "expiresAfterTurns": null,
+      "default_outcome": "ask_more",
+      "is_active": true,
+      "is_triggered": false,
+      "triggered_at": null,
+      "selected_outcome": null,
+      "is_repeatable": false,
+      "trigger_count": 0,
+      "delay_turns": 0,
+      "expires_after_turns": null,
       "priority": 100,
-      "isFavorite": true,
-      "createdAt": "2024-01-01T00:00:00Z",
-      "updatedAt": "2024-01-01T00:00:00Z"
+      "is_favorite": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
     },
     {
       "id": "00000000-0000-0000-7000-000000000002",
-      "worldId": "00000000-0000-0000-0000-000000000001",
+      "world_id": "00000000-0000-0000-0000-000000000001",
       "name": "Marta's Knowledge",
       "description": "Marta reveals what she knows about the Old Mill's dark history when asked about it.",
       "tags": ["investigation", "marta", "mill_history"],
-      "triggerConditions": [
+      "trigger_conditions": [
         {
-          "triggerType": { "dialogueTopic": { "keywords": ["mill", "old mill", "what happened", "twenty years"], "withNpc": "00000000-0000-0000-2000-000000000001", "npcName": "Marta Hearthwood" } },
+          "trigger_type": { "dialogue_topic": { "keywords": ["mill", "old mill", "what happened", "twenty years"], "with_npc": "00000000-0000-0000-2000-000000000001", "npc_name": "Marta Hearthwood" } },
           "description": "Player asks Marta about the mill",
-          "isRequired": true,
-          "triggerId": "ask-marta-mill"
+          "is_required": true,
+          "trigger_id": "ask-marta-mill"
         },
         {
-          "triggerType": { "flagSet": { "flagName": "accepted_shadow_quest" } },
+          "trigger_type": { "flag_set": { "flag_name": "accepted_shadow_quest" } },
           "description": "Player has accepted the shadow quest",
-          "isRequired": true,
-          "triggerId": "has-quest"
+          "is_required": true,
+          "trigger_id": "has-quest"
         }
       ],
-      "triggerLogic": "all",
-      "sceneDirection": "Marta's expression darkens when the mill is mentioned. She glances around the tavern to ensure no other patrons are listening, then leans in close.",
-      "suggestedOpening": "The mill... that's a dark chapter in Thornhaven's history. Twenty years ago, the miller's whole family was found dead. The official word was an accident with the machinery, but... I was there. I saw things no one believes.",
+      "trigger_logic": "all",
+      "scene_direction": "Marta's expression darkens when the mill is mentioned. She glances around the tavern to ensure no other patrons are listening, then leans in close.",
+      "suggested_opening": "The mill... that's a dark chapter in Thornhaven's history. Twenty years ago, the miller's whole family was found dead. The official word was an accident with the machinery, but... I was there. I saw things no one believes.",
       "outcomes": [
         {
           "name": "share_truth",
           "label": "Marta Shares the Truth",
           "description": "Marta reveals what she actually witnessed at the mill.",
-          "condition": { "playerAction": { "actionKeywords": ["tell me", "what did you see", "truth", "believe"] } },
+          "condition": { "player_action": { "action_keywords": ["tell me", "what did you see", "truth", "believe"] } },
           "effects": [
-            { "setFlag": { "flagName": "learned_about_mill", "value": true } },
-            { "revealInformation": { "infoType": "backstory", "title": "The Mill Tragedy", "content": "Marta witnessed strange lights and heard chanting the night of the tragedy. She saw Old Tom fleeing in terror. The bodies were found in a circle, their faces frozen in silent screams.", "persistToJournal": true } },
-            { "modifyRelationship": { "fromCharacter": "00000000-0000-0000-2000-000000000001", "fromName": "Marta Hearthwood", "toCharacter": "00000000-0000-0000-2000-000000000000", "toName": "Player", "sentimentChange": 0.1, "reason": "Trusted the party with a dark secret" } }
+            { "set_flag": { "flag_name": "learned_about_mill", "value": true } },
+            { "reveal_information": { "info_type": "backstory", "title": "The Mill Tragedy", "content": "Marta witnessed strange lights and heard chanting the night of the tragedy. She saw Old Tom fleeing in terror. The bodies were found in a circle, their faces frozen in silent screams.", "persist_to_journal": true } },
+            { "modify_relationship": { "from_character": "00000000-0000-0000-2000-000000000001", "from_name": "Marta Hearthwood", "to_character": "00000000-0000-0000-2000-000000000000", "to_name": "Player", "sentiment_change": 0.1, "reason": "Trusted the party with a dark secret" } }
           ],
-          "chainEvents": [
+          "chain_events": [
             {
-              "eventId": "00000000-0000-0000-7000-000000000003",
-              "eventName": "Vera's Interest",
-              "delayTurns": 2,
-              "additionalTrigger": null,
-              "chainReason": "Word of the party's investigation reaches Vera"
+              "event_id": "00000000-0000-0000-7000-000000000003",
+              "event_name": "Vera's Interest",
+              "delay_turns": 2,
+              "additional_trigger": null,
+              "chain_reason": "Word of the party's investigation reaches Vera"
             }
           ],
-          "timelineSummary": "Marta Hearthwood shared her account of the mill tragedy - chanting, strange lights, and victims found in a ritual circle."
+          "timeline_summary": "Marta Hearthwood shared her account of the mill tragedy - chanting, strange lights, and victims found in a ritual circle."
         },
         {
           "name": "refuses_details",
           "label": "Marta Refuses to Elaborate",
           "description": "Marta is too frightened to share more.",
-          "condition": { "playerAction": { "actionKeywords": ["push", "insist", "demand", "force"] } },
+          "condition": { "player_action": { "action_keywords": ["push", "insist", "demand", "force"] } },
           "effects": [
-            { "modifyRelationship": { "fromCharacter": "00000000-0000-0000-2000-000000000001", "fromName": "Marta Hearthwood", "toCharacter": "00000000-0000-0000-2000-000000000000", "toName": "Player", "sentimentChange": -0.1, "reason": "Uncomfortable with being pressured" } }
+            { "modify_relationship": { "from_character": "00000000-0000-0000-2000-000000000001", "from_name": "Marta Hearthwood", "to_character": "00000000-0000-0000-2000-000000000000", "to_name": "Player", "sentiment_change": -0.1, "reason": "Uncomfortable with being pressured" } }
           ],
-          "chainEvents": [],
-          "timelineSummary": "Marta refused to share more about the mill, too frightened by the memories."
+          "chain_events": [],
+          "timeline_summary": "Marta refused to share more about the mill, too frightened by the memories."
         }
       ],
-      "defaultOutcome": "share_truth",
-      "isActive": true,
-      "isTriggered": false,
-      "triggeredAt": null,
-      "selectedOutcome": null,
-      "isRepeatable": false,
-      "triggerCount": 0,
-      "delayTurns": 0,
-      "expiresAfterTurns": null,
+      "default_outcome": "share_truth",
+      "is_active": true,
+      "is_triggered": false,
+      "triggered_at": null,
+      "selected_outcome": null,
+      "is_repeatable": false,
+      "trigger_count": 0,
+      "delay_turns": 0,
+      "expires_after_turns": null,
       "priority": 80,
-      "isFavorite": false,
-      "createdAt": "2024-01-01T00:00:00Z",
-      "updatedAt": "2024-01-01T00:00:00Z"
+      "is_favorite": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
     },
     {
       "id": "00000000-0000-0000-7000-000000000003",
-      "worldId": "00000000-0000-0000-0000-000000000001",
+      "world_id": "00000000-0000-0000-0000-000000000001",
       "name": "Vera's Interest",
       "description": "The mysterious merchant Vera approaches the party with an offer after learning of their investigation.",
       "tags": ["intrigue", "vera", "merchant"],
-      "triggerConditions": [
+      "trigger_conditions": [
         {
-          "triggerType": { "eventCompleted": { "eventId": "00000000-0000-0000-7000-000000000002", "eventName": "Marta's Knowledge", "outcomeName": "share_truth" } },
+          "trigger_type": { "event_completed": { "event_id": "00000000-0000-0000-7000-000000000002", "event_name": "Marta's Knowledge", "outcome_name": "share_truth" } },
           "description": "Players learned about the mill from Marta",
-          "isRequired": true,
-          "triggerId": "learned-from-marta"
+          "is_required": true,
+          "trigger_id": "learned-from-marta"
         },
         {
-          "triggerType": { "playerEntersLocation": { "locationId": "00000000-0000-0000-1000-000000000003", "locationName": "Thornhaven Square" } },
+          "trigger_type": { "player_enters_location": { "location_id": "00000000-0000-0000-1000-000000000003", "location_name": "Thornhaven Square" } },
           "description": "Player is in the village square",
-          "isRequired": true,
-          "triggerId": "at-square"
+          "is_required": true,
+          "trigger_id": "at-square"
         }
       ],
-      "triggerLogic": "all",
-      "sceneDirection": "Vera seems to appear from nowhere, stepping out from behind her merchant cart with a knowing smile. She's been waiting for this moment.",
-      "suggestedOpening": "I couldn't help but notice your interest in local history. The Old Mill, specifically. I happen to deal in... antiquities. Perhaps we might help each other?",
+      "trigger_logic": "all",
+      "scene_direction": "Vera seems to appear from nowhere, stepping out from behind her merchant cart with a knowing smile. She's been waiting for this moment.",
+      "suggested_opening": "I couldn't help but notice your interest in local history. The Old Mill, specifically. I happen to deal in... antiquities. Perhaps we might help each other?",
       "outcomes": [
         {
           "name": "accept_deal",
           "label": "Consider Her Offer",
           "description": "The party shows interest in Vera's proposition.",
-          "condition": { "playerAction": { "actionKeywords": ["interested", "tell me more", "what kind of deal", "what do you want"] } },
+          "condition": { "player_action": { "action_keywords": ["interested", "tell me more", "what kind of deal", "what do you want"] } },
           "effects": [
-            { "setFlag": { "flagName": "vera_deal_offered", "value": true } },
-            { "revealInformation": { "infoType": "plot", "title": "Vera's Proposition", "content": "Vera claims to represent collectors interested in artifacts from the Old Mill. She offers gold and useful items in exchange for anything recovered from the basement.", "persistToJournal": true } }
+            { "set_flag": { "flag_name": "vera_deal_offered", "value": true } },
+            { "reveal_information": { "info_type": "plot", "title": "Vera's Proposition", "content": "Vera claims to represent collectors interested in artifacts from the Old Mill. She offers gold and useful items in exchange for anything recovered from the basement.", "persist_to_journal": true } }
           ],
-          "chainEvents": [],
-          "timelineSummary": "Vera Nightshade offered the party a deal regarding artifacts from the Old Mill."
+          "chain_events": [],
+          "timeline_summary": "Vera Nightshade offered the party a deal regarding artifacts from the Old Mill."
         },
         {
           "name": "reject_deal",
           "label": "Reject Her Approach",
           "description": "The party refuses to deal with the suspicious merchant.",
-          "condition": { "playerAction": { "actionKeywords": ["no", "not interested", "leave us alone", "suspicious"] } },
+          "condition": { "player_action": { "action_keywords": ["no", "not interested", "leave us alone", "suspicious"] } },
           "effects": [
-            { "setFlag": { "flagName": "vera_rejected", "value": true } },
-            { "modifyRelationship": { "fromCharacter": "00000000-0000-0000-2000-000000000005", "fromName": "Vera Nightshade", "toCharacter": "00000000-0000-0000-2000-000000000000", "toName": "Player", "sentimentChange": -0.3, "reason": "Her offer was refused" } }
+            { "set_flag": { "flag_name": "vera_rejected", "value": true } },
+            { "modify_relationship": { "from_character": "00000000-0000-0000-2000-000000000005", "from_name": "Vera Nightshade", "to_character": "00000000-0000-0000-2000-000000000000", "to_name": "Player", "sentiment_change": -0.3, "reason": "Her offer was refused" } }
           ],
-          "chainEvents": [],
-          "timelineSummary": "The party rejected Vera Nightshade's suspicious offer regarding the mill."
+          "chain_events": [],
+          "timeline_summary": "The party rejected Vera Nightshade's suspicious offer regarding the mill."
         }
       ],
-      "defaultOutcome": "accept_deal",
-      "isActive": false,
-      "isTriggered": false,
-      "triggeredAt": null,
-      "selectedOutcome": null,
-      "isRepeatable": false,
-      "triggerCount": 0,
-      "delayTurns": 0,
-      "expiresAfterTurns": 20,
+      "default_outcome": "accept_deal",
+      "is_active": false,
+      "is_triggered": false,
+      "triggered_at": null,
+      "selected_outcome": null,
+      "is_repeatable": false,
+      "trigger_count": 0,
+      "delay_turns": 0,
+      "expires_after_turns": 20,
       "priority": 70,
-      "isFavorite": false,
-      "createdAt": "2024-01-01T00:00:00Z",
-      "updatedAt": "2024-01-01T00:00:00Z"
+      "is_favorite": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
     },
     {
       "id": "00000000-0000-0000-7000-000000000004",
-      "worldId": "00000000-0000-0000-0000-000000000001",
+      "world_id": "00000000-0000-0000-0000-000000000001",
       "name": "Elena's Suspicions",
       "description": "Captain Elena Stone shares her concerns about Vera with the party.",
       "tags": ["investigation", "elena", "vera"],
-      "triggerConditions": [
+      "trigger_conditions": [
         {
-          "triggerType": { "relationshipThreshold": { "characterId": "00000000-0000-0000-2000-000000000007", "characterName": "Captain Elena Stone", "withCharacter": "00000000-0000-0000-2000-000000000000", "withCharacterName": "Player", "minSentiment": 0.3, "maxSentiment": null } },
+          "trigger_type": { "relationship_threshold": { "character_id": "00000000-0000-0000-2000-000000000007", "character_name": "Captain Elena Stone", "with_character": "00000000-0000-0000-2000-000000000000", "with_character_name": "Player", "min_sentiment": 0.3, "max_sentiment": null } },
           "description": "Player has built rapport with Elena",
-          "isRequired": true,
-          "triggerId": "elena-trusts"
+          "is_required": true,
+          "trigger_id": "elena-trusts"
         },
         {
-          "triggerType": { "flagSet": { "flagName": "vera_deal_offered" } },
+          "trigger_type": { "flag_set": { "flag_name": "vera_deal_offered" } },
           "description": "Vera has made her offer to the party",
-          "isRequired": true,
-          "triggerId": "vera-active"
+          "is_required": true,
+          "trigger_id": "vera-active"
         }
       ],
-      "triggerLogic": "all",
-      "sceneDirection": "Elena pulls the party aside during one of her patrols, ensuring they're out of earshot of other villagers - especially Vera's cart.",
-      "suggestedOpening": "I've seen you talking with that merchant. I need to warn you - I've been watching her. She arrived a month ago, right when strange things started happening again. She asks too many questions about the mill, about the old miller's family. Something's not right.",
+      "trigger_logic": "all",
+      "scene_direction": "Elena pulls the party aside during one of her patrols, ensuring they're out of earshot of other villagers - especially Vera's cart.",
+      "suggested_opening": "I've seen you talking with that merchant. I need to warn you - I've been watching her. She arrived a month ago, right when strange things started happening again. She asks too many questions about the mill, about the old miller's family. Something's not right.",
       "outcomes": [
         {
           "name": "share_info",
           "label": "Share Information with Elena",
           "description": "The party tells Elena about Vera's offer.",
-          "condition": { "playerAction": { "actionKeywords": ["she offered", "deal", "artifacts", "mill", "tell you"] } },
+          "condition": { "player_action": { "action_keywords": ["she offered", "deal", "artifacts", "mill", "tell you"] } },
           "effects": [
-            { "setFlag": { "flagName": "elena_informed_vera", "value": true } },
-            { "modifyRelationship": { "fromCharacter": "00000000-0000-0000-2000-000000000007", "fromName": "Captain Elena Stone", "toCharacter": "00000000-0000-0000-2000-000000000000", "toName": "Player", "sentimentChange": 0.2, "reason": "Trusted Elena with important information" } },
-            { "enableChallenge": { "challengeId": "00000000-0000-0000-6000-000000000005", "challengeName": "Expose Vera's True Intentions" } }
+            { "set_flag": { "flag_name": "elena_informed_vera", "value": true } },
+            { "modify_relationship": { "from_character": "00000000-0000-0000-2000-000000000007", "from_name": "Captain Elena Stone", "to_character": "00000000-0000-0000-2000-000000000000", "to_name": "Player", "sentiment_change": 0.2, "reason": "Trusted Elena with important information" } },
+            { "enable_challenge": { "challenge_id": "00000000-0000-0000-6000-000000000005", "challenge_name": "Expose Vera's True Intentions" } }
           ],
-          "chainEvents": [],
-          "timelineSummary": "The party shared Vera's offer with Captain Elena Stone, who promised to investigate further."
+          "chain_events": [],
+          "timeline_summary": "The party shared Vera's offer with Captain Elena Stone, who promised to investigate further."
         },
         {
           "name": "stay_quiet",
           "label": "Keep the Deal Private",
           "description": "The party doesn't reveal Vera's offer.",
-          "condition": { "playerAction": { "actionKeywords": ["nothing", "just business", "not important", "don't know"] } },
+          "condition": { "player_action": { "action_keywords": ["nothing", "just business", "not important", "don't know"] } },
           "effects": [],
-          "chainEvents": [],
-          "timelineSummary": null
+          "chain_events": [],
+          "timeline_summary": null
         }
       ],
-      "defaultOutcome": "share_info",
-      "isActive": false,
-      "isTriggered": false,
-      "triggeredAt": null,
-      "selectedOutcome": null,
-      "isRepeatable": false,
-      "triggerCount": 0,
-      "delayTurns": 0,
-      "expiresAfterTurns": null,
+      "default_outcome": "share_info",
+      "is_active": false,
+      "is_triggered": false,
+      "triggered_at": null,
+      "selected_outcome": null,
+      "is_repeatable": false,
+      "trigger_count": 0,
+      "delay_turns": 0,
+      "expires_after_turns": null,
       "priority": 60,
-      "isFavorite": false,
-      "createdAt": "2024-01-01T00:00:00Z",
-      "updatedAt": "2024-01-01T00:00:00Z"
+      "is_favorite": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
     }
   ],
-  "eventLocationEdges": [
+  "event_location_edges": [
     {
-      "eventId": "00000000-0000-0000-7000-000000000001",
-      "locationId": "00000000-0000-0000-1000-000000000004"
+      "event_id": "00000000-0000-0000-7000-000000000001",
+      "location_id": "00000000-0000-0000-1000-000000000004"
     },
     {
-      "eventId": "00000000-0000-0000-7000-000000000002",
-      "locationId": "00000000-0000-0000-1000-000000000001"
+      "event_id": "00000000-0000-0000-7000-000000000002",
+      "location_id": "00000000-0000-0000-1000-000000000001"
     },
     {
-      "eventId": "00000000-0000-0000-7000-000000000003",
-      "locationId": "00000000-0000-0000-1000-000000000003"
+      "event_id": "00000000-0000-0000-7000-000000000003",
+      "location_id": "00000000-0000-0000-1000-000000000003"
     }
   ],
-  "featuredNpcEdges": [
+  "featured_npc_edges": [
     {
-      "eventId": "00000000-0000-0000-7000-000000000001",
-      "characterId": "00000000-0000-0000-2000-000000000004",
+      "event_id": "00000000-0000-0000-7000-000000000001",
+      "character_id": "00000000-0000-0000-2000-000000000004",
       "role": "Quest giver and prophet"
     },
     {
-      "eventId": "00000000-0000-0000-7000-000000000002",
-      "characterId": "00000000-0000-0000-2000-000000000001",
+      "event_id": "00000000-0000-0000-7000-000000000002",
+      "character_id": "00000000-0000-0000-2000-000000000001",
       "role": "Information source"
     },
     {
-      "eventId": "00000000-0000-0000-7000-000000000003",
-      "characterId": "00000000-0000-0000-2000-000000000005",
+      "event_id": "00000000-0000-0000-7000-000000000003",
+      "character_id": "00000000-0000-0000-2000-000000000005",
       "role": "Antagonist making an offer"
     },
     {
-      "eventId": "00000000-0000-0000-7000-000000000004",
-      "characterId": "00000000-0000-0000-2000-000000000007",
+      "event_id": "00000000-0000-0000-7000-000000000004",
+      "character_id": "00000000-0000-0000-2000-000000000007",
       "role": "Ally sharing intelligence"
     }
   ]

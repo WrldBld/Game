@@ -1,165 +1,165 @@
 {
   "id": "00000000-0000-0000-0001-000000000002",
-  "userId": "test-user-002",
-  "worldId": "00000000-0000-0000-0000-000000000001",
+  "user_id": "test-user-002",
+  "world_id": "00000000-0000-0000-0000-000000000001",
   "name": "Elara Moonwhisper",
   "description": "A high elf wizard specializing in evocation magic. Curious and scholarly, she seeks ancient arcane knowledge.",
-  "sheetData": {
+  "sheet_data": {
     "values": {
-      "RACE": {"type": "string", "value": "elf"},
-      "SUBRACE": {"type": "string", "value": "high_elf"},
-      "CLASS": {"type": "string", "value": "wizard"},
-      "LEVEL": {"type": "integer", "value": 3},
-      "BACKGROUND": {"type": "string", "value": "sage"},
-      "STR": {"type": "integer", "value": 8},
-      "DEX": {"type": "integer", "value": 14},
-      "CON": {"type": "integer", "value": 12},
-      "INT": {"type": "integer", "value": 17},
-      "WIS": {"type": "integer", "value": 13},
-      "CHA": {"type": "integer", "value": 10},
-      "HP_MAX": {"type": "integer", "value": 17},
-      "HP_CURRENT": {"type": "integer", "value": 17},
-      "AC": {"type": "integer", "value": 12},
-      "SPEED": {"type": "integer", "value": 30},
-      "PROFICIENCY_BONUS": {"type": "integer", "value": 2},
-      "KNOWN_SPELLS": {"type": "string", "value": "magic_missile,shield,burning_hands,detect_magic,mage_armor,identify,fireball,scorching_ray"},
-      "character_identity": {"type": "object", "value": {
-        "race": {"type": "string", "value": "elf"},
-        "subrace": {"type": "string", "value": "high_elf"},
-        "classes": {"type": "list", "value": [
-          {"type": "object", "value": {
-            "classId": {"type": "string", "value": "wizard"},
-            "subclass": {"type": "string", "value": "evocation"},
-            "level": {"type": "integer", "value": 3}
+      "RACE": {"type": "String", "value": "elf"},
+      "SUBRACE": {"type": "String", "value": "high_elf"},
+      "CLASS": {"type": "String", "value": "wizard"},
+      "LEVEL": {"type": "Integer", "value": 3},
+      "BACKGROUND": {"type": "String", "value": "sage"},
+      "STR": {"type": "Integer", "value": 8},
+      "DEX": {"type": "Integer", "value": 14},
+      "CON": {"type": "Integer", "value": 12},
+      "INT": {"type": "Integer", "value": 17},
+      "WIS": {"type": "Integer", "value": 13},
+      "CHA": {"type": "Integer", "value": 10},
+      "HP_MAX": {"type": "Integer", "value": 17},
+      "HP_CURRENT": {"type": "Integer", "value": 17},
+      "AC": {"type": "Integer", "value": 12},
+      "SPEED": {"type": "Integer", "value": 30},
+      "PROFICIENCY_BONUS": {"type": "Integer", "value": 2},
+      "KNOWN_SPELLS": {"type": "String", "value": "magic_missile,shield,burning_hands,detect_magic,mage_armor,identify,fireball,scorching_ray"},
+      "character_identity": {"type": "Object", "value": {
+        "race": {"type": "String", "value": "elf"},
+        "subrace": {"type": "String", "value": "high_elf"},
+        "classes": {"type": "List", "value": [
+          {"type": "Object", "value": {
+            "class_id": {"type": "String", "value": "wizard"},
+            "subclass": {"type": "String", "value": "evocation"},
+            "level": {"type": "Integer", "value": 3}
           }}
         ]},
-        "background": {"type": "string", "value": "sage"},
-        "alignment": {"type": "string", "value": "neutral_good"},
-        "totalLevel": {"type": "integer", "value": 3}
+        "background": {"type": "String", "value": "sage"},
+        "alignment": {"type": "String", "value": "neutral_good"},
+        "total_level": {"type": "Integer", "value": 3}
       }},
-      "character_spells": {"type": "object", "value": {
-        "cantrips": {"type": "list", "value": [
-          {"type": "string", "value": "fire_bolt"},
-          {"type": "string", "value": "prestidigitation"},
-          {"type": "string", "value": "light"},
-          {"type": "string", "value": "mage_hand"}
+      "character_spells": {"type": "Object", "value": {
+        "cantrips": {"type": "List", "value": [
+          {"type": "String", "value": "fire_bolt"},
+          {"type": "String", "value": "prestidigitation"},
+          {"type": "String", "value": "light"},
+          {"type": "String", "value": "mage_hand"}
         ]},
-        "known": {"type": "list", "value": [
-          {"type": "object", "value": {
-            "spellId": {"type": "string", "value": "magic_missile"},
-            "source": {"type": "string", "value": "class"},
-            "notes": {"type": "null", "value": null}
+        "known": {"type": "List", "value": [
+          {"type": "Object", "value": {
+            "spell_id": {"type": "String", "value": "magic_missile"},
+            "source": {"type": "String", "value": "class"},
+            "notes": {"type": "Null", "value": null}
           }},
-          {"type": "object", "value": {
-            "spellId": {"type": "string", "value": "shield"},
-            "source": {"type": "string", "value": "class"},
-            "notes": {"type": "null", "value": null}
+          {"type": "Object", "value": {
+            "spell_id": {"type": "String", "value": "shield"},
+            "source": {"type": "String", "value": "class"},
+            "notes": {"type": "Null", "value": null}
           }},
-          {"type": "object", "value": {
-            "spellId": {"type": "string", "value": "burning_hands"},
-            "source": {"type": "string", "value": "class"},
-            "notes": {"type": "null", "value": null}
+          {"type": "Object", "value": {
+            "spell_id": {"type": "String", "value": "burning_hands"},
+            "source": {"type": "String", "value": "class"},
+            "notes": {"type": "Null", "value": null}
           }},
-          {"type": "object", "value": {
-            "spellId": {"type": "string", "value": "detect_magic"},
-            "source": {"type": "string", "value": "class"},
-            "notes": {"type": "null", "value": null}
+          {"type": "Object", "value": {
+            "spell_id": {"type": "String", "value": "detect_magic"},
+            "source": {"type": "String", "value": "class"},
+            "notes": {"type": "Null", "value": null}
           }},
-          {"type": "object", "value": {
-            "spellId": {"type": "string", "value": "mage_armor"},
-            "source": {"type": "string", "value": "class"},
-            "notes": {"type": "null", "value": null}
+          {"type": "Object", "value": {
+            "spell_id": {"type": "String", "value": "mage_armor"},
+            "source": {"type": "String", "value": "class"},
+            "notes": {"type": "Null", "value": null}
           }},
-          {"type": "object", "value": {
-            "spellId": {"type": "string", "value": "identify"},
-            "source": {"type": "string", "value": "class"},
-            "notes": {"type": "null", "value": null}
+          {"type": "Object", "value": {
+            "spell_id": {"type": "String", "value": "identify"},
+            "source": {"type": "String", "value": "class"},
+            "notes": {"type": "Null", "value": null}
           }},
-          {"type": "object", "value": {
-            "spellId": {"type": "string", "value": "fireball"},
-            "source": {"type": "string", "value": "class"},
-            "notes": {"type": "string", "value": "Learned at level 3"}
+          {"type": "Object", "value": {
+            "spell_id": {"type": "String", "value": "fireball"},
+            "source": {"type": "String", "value": "class"},
+            "notes": {"type": "String", "value": "Learned at level 3"}
           }},
-          {"type": "object", "value": {
-            "spellId": {"type": "string", "value": "scorching_ray"},
-            "source": {"type": "string", "value": "class"},
-            "notes": {"type": "string", "value": "Learned at level 3"}
+          {"type": "Object", "value": {
+            "spell_id": {"type": "String", "value": "scorching_ray"},
+            "source": {"type": "String", "value": "class"},
+            "notes": {"type": "String", "value": "Learned at level 3"}
           }}
         ]},
-        "prepared": {"type": "list", "value": [
-          {"type": "string", "value": "magic_missile"},
-          {"type": "string", "value": "shield"},
-          {"type": "string", "value": "fireball"},
-          {"type": "string", "value": "mage_armor"}
+        "prepared": {"type": "List", "value": [
+          {"type": "String", "value": "magic_missile"},
+          {"type": "String", "value": "shield"},
+          {"type": "String", "value": "fireball"},
+          {"type": "String", "value": "mage_armor"}
         ]},
-        "slots": {"type": "object", "value": {
-          "1": {"type": "object", "value": {
-            "current": {"type": "integer", "value": 4},
-            "max": {"type": "integer", "value": 4}
+        "slots": {"type": "Object", "value": {
+          "1": {"type": "Object", "value": {
+            "current": {"type": "Integer", "value": 4},
+            "max": {"type": "Integer", "value": 4}
           }},
-          "2": {"type": "object", "value": {
-            "current": {"type": "integer", "value": 2},
-            "max": {"type": "integer", "value": 2}
+          "2": {"type": "Object", "value": {
+            "current": {"type": "Integer", "value": 2},
+            "max": {"type": "Integer", "value": 2}
           }}
         }},
-        "pactSlots": {"type": "null", "value": null},
-        "spellcastingAbility": {"type": "string", "value": "INT"}
+        "pact_slots": {"type": "Null", "value": null},
+        "spellcasting_ability": {"type": "String", "value": "INT"}
       }},
-      "character_features": {"type": "object", "value": {
-        "features": {"type": "list", "value": [
-          {"type": "object", "value": {
-            "featureId": {"type": "string", "value": "arcane_recovery"},
-            "usesRemaining": {"type": "integer", "value": 1},
-            "usesMax": {"type": "integer", "value": 1},
-            "choices": {"type": "object", "value": {}}
+      "character_features": {"type": "Object", "value": {
+        "features": {"type": "List", "value": [
+          {"type": "Object", "value": {
+            "feature_id": {"type": "String", "value": "arcane_recovery"},
+            "uses_remaining": {"type": "Integer", "value": 1},
+            "uses_max": {"type": "Integer", "value": 1},
+            "choices": {"type": "Object", "value": {}}
           }},
-          {"type": "object", "value": {
-            "featureId": {"type": "string", "value": "evocation_savant"},
-            "usesRemaining": {"type": "null", "value": null},
-            "usesMax": {"type": "null", "value": null},
-            "choices": {"type": "object", "value": {}}
+          {"type": "Object", "value": {
+            "feature_id": {"type": "String", "value": "evocation_savant"},
+            "uses_remaining": {"type": "Null", "value": null},
+            "uses_max": {"type": "Null", "value": null},
+            "choices": {"type": "Object", "value": {}}
           }},
-          {"type": "object", "value": {
-            "featureId": {"type": "string", "value": "sculpt_spells"},
-            "usesRemaining": {"type": "null", "value": null},
-            "usesMax": {"type": "null", "value": null},
-            "choices": {"type": "object", "value": {}}
+          {"type": "Object", "value": {
+            "feature_id": {"type": "String", "value": "sculpt_spells"},
+            "uses_remaining": {"type": "Null", "value": null},
+            "uses_max": {"type": "Null", "value": null},
+            "choices": {"type": "Object", "value": {}}
           }}
         ]}
       }},
-      "skill_proficiencies": {"type": "list", "value": [
-        {"type": "string", "value": "arcana"},
-        {"type": "string", "value": "history"},
-        {"type": "string", "value": "investigation"},
-        {"type": "string", "value": "insight"}
+      "skill_proficiencies": {"type": "List", "value": [
+        {"type": "String", "value": "arcana"},
+        {"type": "String", "value": "history"},
+        {"type": "String", "value": "investigation"},
+        {"type": "String", "value": "insight"}
       ]},
-      "saving_throw_proficiencies": {"type": "list", "value": [
-        {"type": "string", "value": "intelligence"},
-        {"type": "string", "value": "wisdom"}
+      "saving_throw_proficiencies": {"type": "List", "value": [
+        {"type": "String", "value": "intelligence"},
+        {"type": "String", "value": "wisdom"}
       ]},
-      "armor_proficiencies": {"type": "list", "value": []},
-      "weapon_proficiencies": {"type": "list", "value": [
-        {"type": "string", "value": "daggers"},
-        {"type": "string", "value": "darts"},
-        {"type": "string", "value": "slings"},
-        {"type": "string", "value": "quarterstaffs"},
-        {"type": "string", "value": "light_crossbows"}
+      "armor_proficiencies": {"type": "List", "value": []},
+      "weapon_proficiencies": {"type": "List", "value": [
+        {"type": "String", "value": "daggers"},
+        {"type": "String", "value": "darts"},
+        {"type": "String", "value": "slings"},
+        {"type": "String", "value": "quarterstaffs"},
+        {"type": "String", "value": "light_crossbows"}
       ]},
-      "languages": {"type": "list", "value": [
-        {"type": "string", "value": "common"},
-        {"type": "string", "value": "elvish"},
-        {"type": "string", "value": "draconic"},
-        {"type": "string", "value": "celestial"}
+      "languages": {"type": "List", "value": [
+        {"type": "String", "value": "common"},
+        {"type": "String", "value": "elvish"},
+        {"type": "String", "value": "draconic"},
+        {"type": "String", "value": "celestial"}
       ]}
     }
   },
-  "currentLocationId": "00000000-0000-0000-0002-000000000001",
-  "currentRegionId": null,
-  "startingLocationId": "00000000-0000-0000-0002-000000000001",
-  "spriteAsset": null,
-  "portraitAsset": null,
-  "isAlive": true,
-  "isActive": true,
-  "createdAt": "2024-01-01T00:00:00Z",
-  "lastActiveAt": "2024-01-01T12:00:00Z"
+  "current_location_id": "00000000-0000-0000-0002-000000000001",
+  "current_region_id": null,
+  "starting_location_id": "00000000-0000-0000-0002-000000000001",
+  "sprite_asset": null,
+  "portrait_asset": null,
+  "is_alive": true,
+  "is_active": true,
+  "created_at": "2024-01-01T00:00:00Z",
+  "last_active_at": "2024-01-01T12:00:00Z"
 }

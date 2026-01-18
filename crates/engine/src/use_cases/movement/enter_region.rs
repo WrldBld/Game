@@ -13,7 +13,7 @@ use crate::infrastructure::ports::{
     FlagRepo, LocationRepo, ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo,
     StagingRepo, WorldRepo,
 };
-use crate::use_cases::narrative_operations::Narrative;
+use crate::use_cases::narrative_operations::NarrativeOps;
 use crate::use_cases::observation::RecordVisit;
 use crate::use_cases::scene::ResolveScene;
 use crate::use_cases::time::{SuggestTime, TimeSuggestion};
@@ -60,7 +60,7 @@ pub struct EnterRegion {
     staging: Arc<dyn StagingRepo>,
     observation: Arc<dyn ObservationRepo>,
     record_visit: Arc<RecordVisit>,
-    narrative: Arc<Narrative>,
+    narrative: Arc<NarrativeOps>,
     resolve_scene: Arc<ResolveScene>,
     scene: Arc<dyn SceneRepo>,
     flag: Arc<dyn FlagRepo>,
@@ -75,7 +75,7 @@ impl EnterRegion {
         staging: Arc<dyn StagingRepo>,
         observation: Arc<dyn ObservationRepo>,
         record_visit: Arc<RecordVisit>,
-        narrative: Arc<Narrative>,
+        narrative: Arc<NarrativeOps>,
         resolve_scene: Arc<ResolveScene>,
         scene: Arc<dyn SceneRepo>,
         flag: Arc<dyn FlagRepo>,
@@ -306,7 +306,7 @@ mod tests {
     };
 
     use crate::use_cases::scene::ResolveScene;
-    use crate::use_cases::Narrative;
+    use crate::use_cases::NarrativeOps;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -346,7 +346,7 @@ mod tests {
             Arc::new(MockFlagRepo::new());
 
         let world_repo: Arc<dyn crate::infrastructure::ports::WorldRepo> = Arc::new(world_repo);
-        let narrative = Arc::new(Narrative::new(
+        let narrative = Arc::new(NarrativeOps::new(
             Arc::new(MockNarrativeRepo::new()),
             location_repo.clone(),
             world_repo.clone(),

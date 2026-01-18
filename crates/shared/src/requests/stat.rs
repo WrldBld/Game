@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Requests for character stat operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum StatRequest {
     /// Get all stats for a character (includes base values, modifiers, and effective values)
     GetCharacterStats { character_id: String },
@@ -63,7 +63,6 @@ pub enum StatRequest {
 
 /// Data for adding a modifier to a stat
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct AddModifierData {
     /// Name of the stat to modify
     pub stat_name: String,

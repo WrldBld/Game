@@ -23,7 +23,6 @@ use wrldbldr_domain::{ItemId, ItemName, WorldId};
 
 /// An object that can be possessed or interacted with
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Item {
     id: ItemId,
     world_id: WorldId,
@@ -135,7 +134,6 @@ impl Item {
 
 /// Data for the POSSESSES edge between Character/PlayerCharacter and Item
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct InventoryItem {
     /// The item being possessed
     pub item: Item,
@@ -151,7 +149,6 @@ pub struct InventoryItem {
 
 /// How an item was acquired
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum AcquisitionMethod {
     Found,
     Purchased,
@@ -196,7 +193,6 @@ impl std::str::FromStr for AcquisitionMethod {
 
 /// How often a character frequents a location
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum FrequencyLevel {
     Rarely,
     Sometimes,

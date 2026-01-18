@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", content = "value", rename_all = "snake_case")]
+#[serde(tag = "type", content = "value")]
 pub enum SheetValue {
     Integer(i32),
     Float(f32),
@@ -45,7 +45,6 @@ impl SheetValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
 pub struct CharacterSheetValues {
     pub values: std::collections::BTreeMap<String, SheetValue>,
     pub last_updated: Option<chrono::DateTime<chrono::Utc>>,

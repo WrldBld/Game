@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::infrastructure::ports::{QueueError, QueuePort, RepoError};
 use crate::use_cases::approval::{ApprovalError, ApproveSuggestion};
 use crate::use_cases::narrative::{EffectExecutionContext, ExecuteEffects};
-use crate::use_cases::narrative_operations::Narrative;
+use crate::use_cases::narrative_operations::NarrativeOps;
 use wrldbldr_domain::{NarrativeEventId, WorldId};
 
 use crate::queue_types::DmApprovalDecision;
@@ -14,7 +14,7 @@ use crate::queue_types::DmApprovalDecision;
 pub struct NarrativeDecisionFlow {
     approve_suggestion: Arc<ApproveSuggestion>,
     queue: Arc<dyn QueuePort>,
-    narrative: Arc<Narrative>,
+    narrative: Arc<NarrativeOps>,
     execute_effects: Arc<ExecuteEffects>,
 }
 
@@ -22,7 +22,7 @@ impl NarrativeDecisionFlow {
     pub fn new(
         approve_suggestion: Arc<ApproveSuggestion>,
         queue: Arc<dyn QueuePort>,
-        narrative: Arc<Narrative>,
+        narrative: Arc<NarrativeOps>,
         execute_effects: Arc<ExecuteEffects>,
     ) -> Self {
         Self {

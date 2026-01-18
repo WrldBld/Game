@@ -43,14 +43,14 @@ impl PickupItem {
             .pc_repo
             .get(pc_id)
             .await?
-            .ok_or(InventoryError::CharacterNotFound)?;
+            .ok_or(InventoryError::CharacterNotFound(pc_id))?;
 
         // Get the item
         let item = self
             .item_repo
             .get(item_id)
             .await?
-            .ok_or(InventoryError::ItemNotFound)?;
+            .ok_or(InventoryError::ItemNotFound(item_id))?;
 
         // Verify the item is in the PC's current region
         let pc_region = pc.current_region_id().ok_or(InventoryError::NotInRegion)?;

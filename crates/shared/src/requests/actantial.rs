@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::messages::{ActantialRoleData, ActorTypeData};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum ActantialRequest {
     GetActantialContext {
         character_id: String,

@@ -334,7 +334,6 @@ impl Location {
 
 /// Intermediate format for serialization that matches the wire format
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct LocationWireFormat {
     id: LocationId,
     world_id: WorldId,
@@ -380,7 +379,6 @@ impl<'de> Deserialize<'de> for Location {
     {
         // Support both new format (newtypes) and legacy format (raw strings)
         #[derive(Deserialize)]
-        #[serde(rename_all = "camelCase")]
         struct LegacyLocationFormat {
             id: LocationId,
             world_id: WorldId,

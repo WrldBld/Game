@@ -178,7 +178,6 @@ impl TestWorld {
 // =============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LocationsFile {
     #[serde(rename = "_comment")]
     pub comment: Option<String>,
@@ -188,7 +187,6 @@ pub struct LocationsFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LocationData {
     pub id: LocationId,
     pub world_id: WorldId,
@@ -206,7 +204,6 @@ pub struct LocationData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RegionData {
     pub id: RegionId,
     pub location_id: LocationId,
@@ -220,7 +217,6 @@ pub struct RegionData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LocationConnectionData {
     pub from_location_id: LocationId,
     pub to_location_id: LocationId,
@@ -233,7 +229,6 @@ pub struct LocationConnectionData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RegionConnectionData {
     pub from_region_id: RegionId,
     pub to_region_id: RegionId,
@@ -248,7 +243,6 @@ pub struct RegionConnectionData {
 // =============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct NpcsFile {
     #[serde(rename = "_comment")]
     pub comment: Option<String>,
@@ -256,7 +250,6 @@ pub struct NpcsFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct NpcData {
     pub id: CharacterId,
     pub world_id: WorldId,
@@ -276,7 +269,6 @@ pub struct NpcData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct NpcStatsData {
     pub stats: HashMap<String, i32>,
     pub modifiers: HashMap<String, serde_json::Value>,
@@ -285,7 +277,6 @@ pub struct NpcStatsData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ExpressionConfigData {
     pub expressions: Vec<String>,
     pub actions: Vec<String>,
@@ -297,7 +288,6 @@ pub struct ExpressionConfigData {
 // =============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct NpcSchedulesFile {
     #[serde(rename = "_comment")]
     pub comment: Option<String>,
@@ -312,7 +302,6 @@ pub struct NpcSchedulesFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct HomeLocationData {
     pub character_id: CharacterId,
     pub location_id: LocationId,
@@ -320,14 +309,12 @@ pub struct HomeLocationData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct HomeRegionData {
     pub character_id: CharacterId,
     pub region_id: RegionId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorksAtData {
     pub character_id: CharacterId,
     pub location_id: LocationId,
@@ -336,7 +323,6 @@ pub struct WorksAtData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorksAtRegionData {
     pub character_id: CharacterId,
     pub region_id: RegionId,
@@ -345,7 +331,6 @@ pub struct WorksAtRegionData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FrequentsData {
     pub character_id: CharacterId,
     pub location_id: LocationId,
@@ -355,7 +340,6 @@ pub struct FrequentsData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FrequentsRegionData {
     pub character_id: CharacterId,
     pub region_id: RegionId,
@@ -364,7 +348,6 @@ pub struct FrequentsRegionData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct AvoidsData {
     pub character_id: CharacterId,
     pub location_id: LocationId,
@@ -372,7 +355,6 @@ pub struct AvoidsData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct AvoidsRegionData {
     pub character_id: CharacterId,
     pub region_id: RegionId,
@@ -384,7 +366,6 @@ pub struct AvoidsRegionData {
 // =============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RelationshipsFile {
     #[serde(rename = "_comment")]
     pub comment: Option<String>,
@@ -392,7 +373,6 @@ pub struct RelationshipsFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RelationshipData {
     pub id: String,
     pub from_character_id: CharacterId,
@@ -404,7 +384,6 @@ pub struct RelationshipData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RelationshipHistoryData {
     pub event: String,
     pub sentiment_change: f32,
@@ -415,7 +394,6 @@ pub struct RelationshipHistoryData {
 // =============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WantsFile {
     #[serde(rename = "_comment")]
     pub comment: Option<String>,
@@ -424,7 +402,6 @@ pub struct WantsFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WantData {
     pub id: WantId,
     pub character_id: CharacterId,
@@ -439,7 +416,6 @@ pub struct WantData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ActantialViewData {
     pub subject_id: CharacterId,
     pub target_id: CharacterId,
@@ -453,7 +429,6 @@ pub struct ActantialViewData {
 // =============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ScenesFile {
     #[serde(rename = "_comment")]
     pub comment: Option<String>,
@@ -463,7 +438,6 @@ pub struct ScenesFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ActData {
     pub id: ActId,
     pub world_id: WorldId,
@@ -474,7 +448,6 @@ pub struct ActData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SceneData {
     pub id: SceneId,
     pub act_id: ActId,
@@ -489,7 +462,6 @@ pub struct SceneData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FeaturedCharacterData {
     pub scene_id: SceneId,
     pub character_id: CharacterId,
@@ -502,7 +474,6 @@ pub struct FeaturedCharacterData {
 // =============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ChallengesFile {
     #[serde(rename = "_comment")]
     pub comment: Option<String>,
@@ -512,7 +483,6 @@ pub struct ChallengesFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ChallengeData {
     pub id: ChallengeId,
     pub world_id: WorldId,
@@ -530,7 +500,6 @@ pub struct ChallengeData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ChallengeOutcomesData {
     pub success: OutcomeData,
     pub failure: OutcomeData,
@@ -540,14 +509,12 @@ pub struct ChallengeOutcomesData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct OutcomeData {
     pub description: String,
     pub triggers: Vec<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ChallengeLocationEdgeData {
     pub challenge_id: ChallengeId,
     pub location_id: LocationId,
@@ -556,7 +523,6 @@ pub struct ChallengeLocationEdgeData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ChallengeRegionEdgeData {
     pub challenge_id: ChallengeId,
     pub region_id: RegionId,
@@ -569,7 +535,6 @@ pub struct ChallengeRegionEdgeData {
 // =============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct NarrativeEventsFile {
     #[serde(rename = "_comment")]
     pub comment: Option<String>,
@@ -579,7 +544,6 @@ pub struct NarrativeEventsFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct NarrativeEventData {
     pub id: NarrativeEventId,
     pub world_id: WorldId,
@@ -607,14 +571,12 @@ pub struct NarrativeEventData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct EventLocationEdgeData {
     pub event_id: NarrativeEventId,
     pub location_id: LocationId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FeaturedNpcEdgeData {
     pub event_id: NarrativeEventId,
     pub character_id: CharacterId,
@@ -626,7 +588,6 @@ pub struct FeaturedNpcEdgeData {
 // =============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LocationStatesFile {
     #[serde(rename = "_comment")]
     pub comment: Option<String>,
@@ -634,7 +595,6 @@ pub struct LocationStatesFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LocationStateData {
     pub id: LocationStateId,
     pub location_id: LocationId,

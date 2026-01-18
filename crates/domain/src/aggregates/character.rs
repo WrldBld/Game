@@ -630,7 +630,6 @@ impl Character {
 
 /// Intermediate format for serialization that matches the wire format
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct CharacterWireFormat {
     id: CharacterId,
     world_id: WorldId,
@@ -681,7 +680,6 @@ impl<'de> Deserialize<'de> for Character {
         // First try to deserialize as the new format
         // If that fails (missing 'state' field), try legacy format
         #[derive(Deserialize)]
-        #[serde(rename_all = "camelCase")]
         struct LegacyCharacterFormat {
             id: CharacterId,
             world_id: WorldId,

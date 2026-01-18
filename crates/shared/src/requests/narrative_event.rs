@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::{CreateNarrativeEventData, UpdateNarrativeEventData};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum NarrativeEventRequest {
     ListNarrativeEvents {
         world_id: String,

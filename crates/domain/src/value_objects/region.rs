@@ -10,7 +10,6 @@ use crate::error::DomainError;
 
 /// Work shift for a region (when NPC works there)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum RegionShift {
     Day,
     Night,
@@ -42,7 +41,6 @@ impl std::str::FromStr for RegionShift {
 
 /// How often an NPC visits a region
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum RegionFrequency {
     Often,
     Sometimes,
@@ -77,7 +75,7 @@ impl std::str::FromStr for RegionFrequency {
 
 /// Type of relationship between character and region
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum RegionRelationshipType {
     Home,
     WorksAt { shift: RegionShift },

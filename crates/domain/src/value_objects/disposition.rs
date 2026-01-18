@@ -38,7 +38,6 @@ pub use crate::types::{DispositionLevel, MoodState, RelationshipLevel};
 /// - disposition: Emotional stance (how they feel about the PC)
 /// - relationship: Social distance (how well they know each other)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct NpcDispositionState {
     /// The NPC this disposition belongs to
     npc_id: CharacterId,

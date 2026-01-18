@@ -90,7 +90,7 @@ pub struct AdHocOutcomes {
 
 /// Challenge outcome decision from DM
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "action", rename_all = "snake_case")]
+#[serde(tag = "action")]
 pub enum ChallengeOutcomeDecision {
     /// Accept the outcome as-is
     Accept,

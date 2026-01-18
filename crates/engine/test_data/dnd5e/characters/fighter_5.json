@@ -1,114 +1,114 @@
 {
   "id": "00000000-0000-0000-0001-000000000001",
-  "userId": "test-user-001",
-  "worldId": "00000000-0000-0000-0000-000000000001",
+  "user_id": "test-user-001",
+  "world_id": "00000000-0000-0000-0000-000000000001",
   "name": "Tharion Ironforge",
   "description": "A battle-hardened human fighter from the northern mountains. Wields a greatsword with devastating precision.",
-  "sheetData": {
+  "sheet_data": {
     "values": {
-      "RACE": {"type": "string", "value": "human"},
-      "CLASS": {"type": "string", "value": "fighter"},
-      "LEVEL": {"type": "integer", "value": 5},
-      "BACKGROUND": {"type": "string", "value": "soldier"},
-      "STR": {"type": "integer", "value": 18},
-      "DEX": {"type": "integer", "value": 14},
-      "CON": {"type": "integer", "value": 16},
-      "INT": {"type": "integer", "value": 10},
-      "WIS": {"type": "integer", "value": 12},
-      "CHA": {"type": "integer", "value": 8},
-      "HP_MAX": {"type": "integer", "value": 49},
-      "HP_CURRENT": {"type": "integer", "value": 49},
-      "AC": {"type": "integer", "value": 18},
-      "SPEED": {"type": "integer", "value": 30},
-      "PROFICIENCY_BONUS": {"type": "integer", "value": 3},
-      "FEATS": {"type": "string", "value": "great_weapon_master"},
-      "character_identity": {"type": "object", "value": {
-        "race": {"type": "string", "value": "human"},
-        "subrace": {"type": "null", "value": null},
-        "classes": {"type": "list", "value": [
-          {"type": "object", "value": {
-            "classId": {"type": "string", "value": "fighter"},
-            "subclass": {"type": "string", "value": "champion"},
-            "level": {"type": "integer", "value": 5}
+      "RACE": {"type": "String", "value": "human"},
+      "CLASS": {"type": "String", "value": "fighter"},
+      "LEVEL": {"type": "Integer", "value": 5},
+      "BACKGROUND": {"type": "String", "value": "soldier"},
+      "STR": {"type": "Integer", "value": 18},
+      "DEX": {"type": "Integer", "value": 14},
+      "CON": {"type": "Integer", "value": 16},
+      "INT": {"type": "Integer", "value": 10},
+      "WIS": {"type": "Integer", "value": 12},
+      "CHA": {"type": "Integer", "value": 8},
+      "HP_MAX": {"type": "Integer", "value": 49},
+      "HP_CURRENT": {"type": "Integer", "value": 49},
+      "AC": {"type": "Integer", "value": 18},
+      "SPEED": {"type": "Integer", "value": 30},
+      "PROFICIENCY_BONUS": {"type": "Integer", "value": 3},
+      "FEATS": {"type": "String", "value": "great_weapon_master"},
+      "character_identity": {"type": "Object", "value": {
+        "race": {"type": "String", "value": "human"},
+        "subrace": {"type": "Null", "value": null},
+        "classes": {"type": "List", "value": [
+          {"type": "Object", "value": {
+            "class_id": {"type": "String", "value": "fighter"},
+            "subclass": {"type": "String", "value": "champion"},
+            "level": {"type": "Integer", "value": 5}
           }}
         ]},
-        "background": {"type": "string", "value": "soldier"},
-        "alignment": {"type": "string", "value": "lawful_good"},
-        "totalLevel": {"type": "integer", "value": 5}
+        "background": {"type": "String", "value": "soldier"},
+        "alignment": {"type": "String", "value": "lawful_good"},
+        "total_level": {"type": "Integer", "value": 5}
       }},
-      "character_feats": {"type": "object", "value": {
-        "feats": {"type": "list", "value": [
-          {"type": "object", "value": {
-            "featId": {"type": "string", "value": "great_weapon_master"},
-            "acquiredAtLevel": {"type": "integer", "value": 4},
-            "choices": {"type": "object", "value": {}},
-            "notes": {"type": "string", "value": "Taken at Fighter 4 ASI"}
+      "character_feats": {"type": "Object", "value": {
+        "feats": {"type": "List", "value": [
+          {"type": "Object", "value": {
+            "feat_id": {"type": "String", "value": "great_weapon_master"},
+            "acquired_at_level": {"type": "Integer", "value": 4},
+            "choices": {"type": "Object", "value": {}},
+            "notes": {"type": "String", "value": "Taken at Fighter 4 ASI"}
           }}
         ]}
       }},
-      "character_features": {"type": "object", "value": {
-        "features": {"type": "list", "value": [
-          {"type": "object", "value": {
-            "featureId": {"type": "string", "value": "fighting_style_great_weapon"},
-            "usesRemaining": {"type": "null", "value": null},
-            "usesMax": {"type": "null", "value": null},
-            "choices": {"type": "object", "value": {}}
+      "character_features": {"type": "Object", "value": {
+        "features": {"type": "List", "value": [
+          {"type": "Object", "value": {
+            "feature_id": {"type": "String", "value": "fighting_style_great_weapon"},
+            "uses_remaining": {"type": "Null", "value": null},
+            "uses_max": {"type": "Null", "value": null},
+            "choices": {"type": "Object", "value": {}}
           }},
-          {"type": "object", "value": {
-            "featureId": {"type": "string", "value": "second_wind"},
-            "usesRemaining": {"type": "integer", "value": 1},
-            "usesMax": {"type": "integer", "value": 1},
-            "choices": {"type": "object", "value": {}}
+          {"type": "Object", "value": {
+            "feature_id": {"type": "String", "value": "second_wind"},
+            "uses_remaining": {"type": "Integer", "value": 1},
+            "uses_max": {"type": "Integer", "value": 1},
+            "choices": {"type": "Object", "value": {}}
           }},
-          {"type": "object", "value": {
-            "featureId": {"type": "string", "value": "action_surge"},
-            "usesRemaining": {"type": "integer", "value": 1},
-            "usesMax": {"type": "integer", "value": 1},
-            "choices": {"type": "object", "value": {}}
+          {"type": "Object", "value": {
+            "feature_id": {"type": "String", "value": "action_surge"},
+            "uses_remaining": {"type": "Integer", "value": 1},
+            "uses_max": {"type": "Integer", "value": 1},
+            "choices": {"type": "Object", "value": {}}
           }},
-          {"type": "object", "value": {
-            "featureId": {"type": "string", "value": "improved_critical"},
-            "usesRemaining": {"type": "null", "value": null},
-            "usesMax": {"type": "null", "value": null},
-            "choices": {"type": "object", "value": {}}
+          {"type": "Object", "value": {
+            "feature_id": {"type": "String", "value": "improved_critical"},
+            "uses_remaining": {"type": "Null", "value": null},
+            "uses_max": {"type": "Null", "value": null},
+            "choices": {"type": "Object", "value": {}}
           }},
-          {"type": "object", "value": {
-            "featureId": {"type": "string", "value": "extra_attack"},
-            "usesRemaining": {"type": "null", "value": null},
-            "usesMax": {"type": "null", "value": null},
-            "choices": {"type": "object", "value": {}}
+          {"type": "Object", "value": {
+            "feature_id": {"type": "String", "value": "extra_attack"},
+            "uses_remaining": {"type": "Null", "value": null},
+            "uses_max": {"type": "Null", "value": null},
+            "choices": {"type": "Object", "value": {}}
           }}
         ]}
       }},
-      "skill_proficiencies": {"type": "list", "value": [
-        {"type": "string", "value": "athletics"},
-        {"type": "string", "value": "intimidation"},
-        {"type": "string", "value": "perception"},
-        {"type": "string", "value": "survival"}
+      "skill_proficiencies": {"type": "List", "value": [
+        {"type": "String", "value": "athletics"},
+        {"type": "String", "value": "intimidation"},
+        {"type": "String", "value": "perception"},
+        {"type": "String", "value": "survival"}
       ]},
-      "saving_throw_proficiencies": {"type": "list", "value": [
-        {"type": "string", "value": "strength"},
-        {"type": "string", "value": "constitution"}
+      "saving_throw_proficiencies": {"type": "List", "value": [
+        {"type": "String", "value": "strength"},
+        {"type": "String", "value": "constitution"}
       ]},
-      "armor_proficiencies": {"type": "list", "value": [
-        {"type": "string", "value": "light"},
-        {"type": "string", "value": "medium"},
-        {"type": "string", "value": "heavy"},
-        {"type": "string", "value": "shields"}
+      "armor_proficiencies": {"type": "List", "value": [
+        {"type": "String", "value": "light"},
+        {"type": "String", "value": "medium"},
+        {"type": "String", "value": "heavy"},
+        {"type": "String", "value": "shields"}
       ]},
-      "weapon_proficiencies": {"type": "list", "value": [
-        {"type": "string", "value": "simple"},
-        {"type": "string", "value": "martial"}
+      "weapon_proficiencies": {"type": "List", "value": [
+        {"type": "String", "value": "simple"},
+        {"type": "String", "value": "martial"}
       ]}
     }
   },
-  "currentLocationId": "00000000-0000-0000-0002-000000000001",
-  "currentRegionId": null,
-  "startingLocationId": "00000000-0000-0000-0002-000000000001",
-  "spriteAsset": null,
-  "portraitAsset": null,
-  "isAlive": true,
-  "isActive": true,
-  "createdAt": "2024-01-01T00:00:00Z",
-  "lastActiveAt": "2024-01-01T12:00:00Z"
+  "current_location_id": "00000000-0000-0000-0002-000000000001",
+  "current_region_id": null,
+  "starting_location_id": "00000000-0000-0000-0002-000000000001",
+  "sprite_asset": null,
+  "portrait_asset": null,
+  "is_alive": true,
+  "is_active": true,
+  "created_at": "2024-01-01T00:00:00Z",
+  "last_active_at": "2024-01-01T12:00:00Z"
 }

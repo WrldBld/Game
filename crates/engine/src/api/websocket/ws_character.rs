@@ -1,0 +1,272 @@
+use super::*;
+
+use crate::api::connections::ConnectionInfo;
+use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+
+use wrldbldr_shared::CharacterRequest;
+
+pub(super) async fn handle_character_request(
+    state: &WsState,
+    request_id: &str,
+    conn_info: &ConnectionInfo,
+    request: CharacterRequest,
+) -> Result<ResponseResult, ServerMessage> {
+    match request {
+        CharacterRequest::ListCharacters { world_id } => {
+            let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            match state
+                .app
+                .use_cases
+                .management
+                .character
+                .list_in_world(world_id_typed)
+                .await
+            {
+                Ok(chars) => {
+                    let data: Vec<serde_json::Value> = chars
+                        .into_iter()
+                        .map(|c| {
+                            serde_json::json!({
+                                "id": c.id().to_string(),
+                                "name": c.name().to_string(),
+                                "archetype": Some(c.current_archetype().to_string()),
+                            })
+                        })
+                        .collect();
+                    Ok(ResponseResult::success(data))
+                }
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        CharacterRequest::GetCharacter { character_id } => {
+            let char_id = match parse_character_id_for_request(&character_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            match state.app.use_cases.management.character.get(char_id).await {
+                Ok(Some(character)) => Ok(ResponseResult::success(serde_json::json!({
+                    "id": character.id().to_string(),
+                    "name": character.name().to_string(),
+                    "description": if character.description().is_empty() { None } else { Some(character.description().to_string()) },
+                    "archetype": Some(character.current_archetype().to_string()),
+                    "sprite_asset": character.sprite_asset(),
+                    "portrait_asset": character.portrait_asset(),
+                    "sheet_data": None::<wrldbldr_shared::character_sheet::CharacterSheetValues>,
+                }))),
+                Ok(None) => Ok(ResponseResult::error(
+                    ErrorCode::NotFound,
+                    "Character not found",
+                )),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        CharacterRequest::CreateCharacter { world_id, data } => {
+            require_dm_for_request(conn_info, request_id)?;
+
+            let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            match state
+                .app
+                .use_cases
+                .management
+                .character
+                .create(
+                    world_id_typed,
+                    data.name,
+                    data.description,
+                    data.archetype,
+                    data.sprite_asset,
+                    data.portrait_asset,
+                )
+                .await
+            {
+                Ok(character) => Ok(ResponseResult::success(serde_json::json!({
+                    "id": character.id().to_string(),
+                    "name": character.name().to_string(),
+                    "description": if character.description().is_empty() { None } else { Some(character.description().to_string()) },
+                    "archetype": Some(character.current_archetype().to_string()),
+                    "sprite_asset": character.sprite_asset(),
+                    "portrait_asset": character.portrait_asset(),
+                    "sheet_data": None::<wrldbldr_shared::character_sheet::CharacterSheetValues>,
+                }))),
+                Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
+                    Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
+                }
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        CharacterRequest::UpdateCharacter { character_id, data } => {
+            require_dm_for_request(conn_info, request_id)?;
+
+            let char_id = match parse_character_id_for_request(&character_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            match state
+                .app
+                .use_cases
+                .management
+                .character
+                .update(
+                    char_id,
+                    data.name,
+                    data.description,
+                    data.sprite_asset,
+                    data.portrait_asset,
+                    data.is_alive,
+                    data.is_active,
+                )
+                .await
+            {
+                Ok(character) => Ok(ResponseResult::success(serde_json::json!({
+                    "id": character.id().to_string(),
+                    "name": character.name().to_string(),
+                    "description": if character.description().is_empty() { None } else { Some(character.description().to_string()) },
+                    "archetype": Some(character.current_archetype().to_string()),
+                    "sprite_asset": character.sprite_asset(),
+                    "portrait_asset": character.portrait_asset(),
+                    "sheet_data": None::<wrldbldr_shared::character_sheet::CharacterSheetValues>,
+                }))),
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Character not found"),
+                ),
+                Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
+                    Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
+                }
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        CharacterRequest::DeleteCharacter { character_id } => {
+            require_dm_for_request(conn_info, request_id)?;
+
+            let char_id = match parse_character_id_for_request(&character_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            match state
+                .app
+                .use_cases
+                .management
+                .character
+                .delete(char_id)
+                .await
+            {
+                Ok(()) => Ok(ResponseResult::success_empty()),
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Character not found"),
+                ),
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        CharacterRequest::ChangeArchetype { character_id, data } => {
+            require_dm_for_request(conn_info, request_id)?;
+
+            let char_id = match parse_character_id_for_request(&character_id, request_id) {
+                Ok(id) => id,
+                Err(e) => return Err(e),
+            };
+
+            match state
+                .app
+                .use_cases
+                .management
+                .character
+                .change_archetype(char_id, data.new_archetype, data.reason)
+                .await
+            {
+                Ok(()) => Ok(ResponseResult::success_empty()),
+                Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Character not found"),
+                ),
+                Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
+                    Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
+                }
+                Err(e) => Ok(ResponseResult::error(
+                    ErrorCode::InternalError,
+                    e.to_string(),
+                )),
+            }
+        }
+
+        CharacterRequest::GetCharacterInventory { character_id } => {
+            let _ = conn_info;
+            let char_uuid =
+                match parse_uuid_for_request(&character_id, request_id, "Invalid character ID") {
+                    Ok(id) => id,
+                    Err(e) => return Err(e),
+                };
+
+            let pc_id = PlayerCharacterId::from_uuid(char_uuid);
+            let items = match state
+                .app
+                .repositories
+                .player_character
+                .get_inventory(pc_id)
+                .await
+            {
+                Ok(items) => items,
+                Err(_) => {
+                    let npc_id = CharacterId::from_uuid(char_uuid);
+                    state
+                        .app
+                        .repositories
+                        .character
+                        .get_inventory(npc_id)
+                        .await
+                        .map_err(|e| ServerMessage::Response {
+                            request_id: request_id.to_string(),
+                            result: ResponseResult::error(
+                                ErrorCode::InternalError,
+                                sanitize_repo_error(&e, "retrieve character inventory"),
+                            ),
+                        })?
+                }
+            };
+
+            let data: Vec<serde_json::Value> = items
+                .into_iter()
+                .map(|item| {
+                    serde_json::json!({
+                        "id": item.id(),
+                        "name": item.name(),
+                        "description": item.description(),
+                        "item_type": item.item_type(),
+                        "is_unique": item.is_unique(),
+                        "properties": item.properties(),
+                    })
+                })
+                .collect();
+            Ok(ResponseResult::success(data))
+        }
+    }
+}

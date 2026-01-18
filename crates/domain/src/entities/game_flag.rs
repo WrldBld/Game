@@ -20,7 +20,6 @@ use wrldbldr_domain::{PlayerCharacterId, WorldId};
 
 /// A game flag with its current value
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GameFlag {
     /// The flag name (unique within scope)
     pub name: String,

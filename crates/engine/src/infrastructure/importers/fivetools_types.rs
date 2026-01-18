@@ -59,7 +59,6 @@ pub struct FiveToolsSpellFile {
 /// - `misc_tags`, `damage_inflict`, `condition_inflict`: Tags for filtering
 /// - `saving_throw`, `spell_attack`: Combat metadata
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsSpell {
     pub name: String,
     pub source: String,
@@ -97,7 +96,6 @@ pub struct FiveToolsSpell {
 
 /// Spell metadata (concentration, ritual).
 #[derive(Debug, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsSpellMeta {
     #[serde(default)]
     pub ritual: bool,
@@ -105,7 +103,6 @@ pub struct FiveToolsSpellMeta {
 
 /// Classes that can cast a spell.
 #[derive(Debug, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsClasses {
     #[serde(default)]
     pub from_class_list: Option<Vec<FiveToolsClassEntry>>,
@@ -122,7 +119,6 @@ pub struct FiveToolsClassEntry {
 
 /// A subclass entry.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsSubclassEntry {
     pub class: FiveToolsClassEntry,
     pub subclass: FiveToolsClassEntry,
@@ -140,7 +136,6 @@ pub struct FiveToolsTime {
 
 /// Range of a spell.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsRange {
     #[serde(rename = "type")]
     pub range_type: String,
@@ -196,7 +191,6 @@ pub enum FiveToolsConsume {
 
 /// Duration of a spell.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsDuration {
     #[serde(rename = "type")]
     pub duration_type: String,
@@ -210,7 +204,6 @@ pub struct FiveToolsDuration {
 
 /// Duration amount.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsDurationAmount {
     #[serde(rename = "type")]
     pub duration_type: String,
@@ -245,7 +238,6 @@ pub struct FiveToolsFeatFile {
 /// - `category`: Feat category for organization
 /// - `additional_sources`: Other books where this feat appears
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsFeat {
     pub name: String,
     pub source: String,
@@ -265,7 +257,6 @@ pub struct FiveToolsFeat {
 
 /// Prerequisite for a feat.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsPrerequisite {
     #[serde(default)]
     pub level: Option<FiveToolsLevelPrereq>,
@@ -313,7 +304,6 @@ pub struct FiveToolsAbilityBonus {
 
 /// Choice of ability increase.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsAbilityChoice {
     #[serde(default)]
     pub from: Vec<String>,
@@ -335,7 +325,6 @@ pub struct FiveToolsAdditionalSource {
 
 /// Root structure for a 5etools class features file.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsClassFeaturesFile {
     #[serde(default)]
     pub class_feature: Vec<FiveToolsClassFeature>,
@@ -345,7 +334,6 @@ pub struct FiveToolsClassFeaturesFile {
 
 /// A class feature in 5etools format.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsClassFeature {
     pub name: String,
     pub source: String,
@@ -362,7 +350,6 @@ pub struct FiveToolsClassFeature {
 
 /// A subclass feature in 5etools format.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsSubclassFeature {
     pub name: String,
     pub source: String,
@@ -412,7 +399,6 @@ pub struct FiveToolsRaceFile {
 /// - `skill_proficiencies`: Skill proficiencies granted
 /// - `copy`: Reference to another race to copy from
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsRace {
     pub name: String,
     pub source: String,
@@ -446,7 +432,6 @@ pub struct FiveToolsRace {
 
 /// A subrace in 5etools format.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsSubrace {
     pub name: String,
     pub source: String,
@@ -589,7 +574,6 @@ fn default_one() -> u8 {
 
 /// Root structure for a 5etools class file.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsClassFile {
     #[serde(default)]
     pub class: Vec<FiveToolsClass>,
@@ -603,7 +587,6 @@ pub struct FiveToolsClassFile {
 
 /// Root structure for 5etools class features when only features are needed.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsClassFeatureFile {
     #[serde(default)]
     pub class_feature: Vec<FiveToolsClassFeature>,
@@ -629,7 +612,6 @@ pub struct FiveToolsClassFeatureFile {
 /// - `spellcasting_ability`: Spellcasting stat if class is a caster
 /// - `caster_progression`: Caster level progression type
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsClass {
     pub name: String,
     pub source: String,
@@ -695,7 +677,6 @@ pub struct FiveToolsStartingProficiencies {
 
 /// Starting equipment for a class.
 #[derive(Debug, Clone, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsStartingEquipment {
     #[serde(default)]
     pub additional_from_background: bool,
@@ -707,7 +688,6 @@ pub struct FiveToolsStartingEquipment {
 
 /// Multiclassing requirements and proficiencies.
 #[derive(Debug, Clone, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsMulticlassing {
     #[serde(default)]
     pub requirements: Option<FiveToolsMulticlassRequirements>,
@@ -726,7 +706,6 @@ pub struct FiveToolsMulticlassRequirements {
 
 /// A subclass in 5etools format.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsSubclass {
     pub name: String,
     #[serde(default)]
@@ -755,7 +734,6 @@ pub struct FiveToolsBackgroundFile {
 
 /// A background in 5etools format.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsBackground {
     pub name: String,
     pub source: String,
@@ -792,7 +770,6 @@ pub struct FiveToolsOptionalFeatureFile {
 
 /// An optional feature in 5etools format.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsOptionalFeature {
     pub name: String,
     pub source: String,
@@ -834,7 +811,6 @@ pub struct FiveToolsItemFile {
 /// - `entries`: Item description
 /// - `extra`: Additional properties via `#[serde(flatten)]`
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsItem {
     pub name: String,
     pub source: String,
@@ -869,7 +845,6 @@ pub struct FiveToolsBaseItemFile {
 
 /// A base item in 5etools format (weapons, armor, gear).
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FiveToolsBaseItem {
     pub name: String,
     pub source: String,

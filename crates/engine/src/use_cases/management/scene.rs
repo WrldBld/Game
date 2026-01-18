@@ -1,4 +1,4 @@
-//! Scene CRUD operations.
+//! Scene management operations.
 
 use std::sync::Arc;
 
@@ -8,11 +8,11 @@ use crate::infrastructure::ports::SceneRepo;
 
 use super::ManagementError;
 
-pub struct SceneCrud {
+pub struct SceneManagement {
     scene: Arc<dyn SceneRepo>,
 }
 
-impl SceneCrud {
+impl SceneManagement {
     pub fn new(scene: Arc<dyn SceneRepo>) -> Self {
         Self { scene }
     }
@@ -45,12 +45,17 @@ impl SceneCrud {
             ManagementError::InvalidInput("Scene location_id is required".to_string())
         })?;
 
-        let mut scene = wrldbldr_domain::Scene::new(act_id, name, location_id);
+        let mut scene = wrldbldr_domain::Scene::new(act_id, name);
         if let Some(description) = description {
             scene = scene.with_directorial_notes(description);
         }
 
+        // Save the scene first
         self.scene.save(&scene).await?;
+
+        // Then set the location via graph edge
+        self.scene.set_location(scene.id(), location_id).await?;
+
         Ok(scene)
     }
 
@@ -78,11 +83,14 @@ impl SceneCrud {
         if let Some(description) = description {
             scene.set_directorial_notes(description);
         }
-        if let Some(location_id) = location_id {
-            scene.set_location(location_id);
-        }
 
         self.scene.save(&scene).await?;
+
+        // Update location via graph edge if provided
+        if let Some(location_id) = location_id {
+            self.scene.set_location(scene_id, location_id).await?;
+        }
+
         Ok(scene)
     }
 

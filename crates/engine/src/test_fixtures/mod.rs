@@ -163,7 +163,7 @@ pub fn trigger_context_from_pc(pc: &PlayerCharacter) -> TriggerContext {
             for class_entry in classes_list {
                 if let wrldbldr_domain::types::SheetValue::Object(class_obj) = class_entry {
                     let class_id = class_obj
-                        .get("classId")
+                        .get("class_id")
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_lowercase());
                     let level = class_obj.get("level").and_then(|v| v.as_i64());

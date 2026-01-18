@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// This is the domain version without the Unknown variant - the protocol
 /// layer handles unknown decisions at the boundary.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "action", rename_all = "snake_case")]
+#[serde(tag = "action")]
 pub enum ChallengeOutcomeDecision {
     /// Accept the outcome as-is
     Accept,

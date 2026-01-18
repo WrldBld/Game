@@ -96,7 +96,7 @@ async fn get_sheet_template_returns_dnd5e_schema_for_dnd5e_world() {
                 let data = data.expect("Should have data");
 
                 let system_id = data
-                    .get("systemId")
+                    .get("system_id")
                     .and_then(|v: &serde_json::Value| v.as_str());
                 assert_eq!(system_id, Some("dnd5e"), "Should return D&D 5e schema");
 
@@ -127,7 +127,7 @@ async fn get_sheet_template_returns_dnd5e_schema_for_dnd5e_world() {
 
                 // Verify creation steps exist
                 let creation_steps = data
-                    .get("creationSteps")
+                    .get("creation_steps")
                     .and_then(|v: &serde_json::Value| v.as_array());
                 assert!(
                     creation_steps.is_some(),
@@ -421,7 +421,7 @@ async fn get_sheet_template_schema_includes_creation_steps() {
 
                 // Verify creation steps
                 let creation_steps = data
-                    .get("creationSteps")
+                    .get("creation_steps")
                     .and_then(|v: &serde_json::Value| v.as_array())
                     .expect("Should have creation steps");
 

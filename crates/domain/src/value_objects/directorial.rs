@@ -10,7 +10,6 @@ use wrldbldr_domain::CharacterId;
 
 /// Structured directorial notes for a scene
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub struct DirectorialNotes {
     /// General notes about the scene (free-form text)
     pub general_notes: String,
@@ -119,7 +118,6 @@ impl DirectorialNotes {
 
 /// Tone guidance for the scene
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum ToneGuidance {
     /// Default neutral tone
     #[default]
@@ -166,7 +164,6 @@ impl ToneGuidance {
 
 /// Pacing guidance for the scene
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum PacingGuidance {
     /// Let conversation flow naturally
     #[default]
@@ -195,7 +192,6 @@ impl PacingGuidance {
 
 /// Motivation hints for an NPC
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub struct NpcMotivation {
     /// Current emotional state
     pub current_mood: String,

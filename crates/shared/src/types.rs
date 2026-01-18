@@ -202,7 +202,6 @@ impl GameTime {
 
 /// How time suggestions are handled (wire format)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
 pub enum TimeMode {
     /// Time only advances via explicit DM action
     Manual,
@@ -219,7 +218,6 @@ pub enum TimeMode {
 
 /// Time costs for various actions (wire format)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TimeCostConfig {
     /// Minutes for travel between locations
     pub travel_location: u32,
@@ -257,7 +255,6 @@ impl Default for TimeCostConfig {
 
 /// How time is displayed to players.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
 pub enum TimeFormat {
     /// "9:00 AM"
     #[default]
@@ -274,7 +271,6 @@ pub enum TimeFormat {
 
 /// Complete time configuration (wire format)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GameTimeConfig {
     /// How time suggestions are handled
     pub mode: TimeMode,
@@ -304,7 +300,6 @@ impl Default for GameTimeConfig {
 
 /// A time suggestion awaiting DM approval
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TimeSuggestionData {
     /// Unique ID for this suggestion
     pub suggestion_id: String,
@@ -333,7 +328,6 @@ pub struct TimeSuggestionData {
 
 /// Data about a time advancement (for broadcasting)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TimeAdvanceData {
     /// Time before advancement
     pub previous_time: GameTime,
@@ -356,7 +350,7 @@ pub struct TimeAdvanceData {
 
 /// DM's decision on a time suggestion
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "decision")]
+#[serde(tag = "decision")]
 pub enum TimeSuggestionDecision {
     /// Accept the suggested time cost
     Approve,
@@ -407,7 +401,6 @@ impl TryFrom<TimeSuggestionDecision> for wrldbldr_domain::TimeSuggestionDecision
 
 /// Category of lore (wire format)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum LoreCategoryData {
     Historical,
     Legend,
@@ -423,7 +416,6 @@ pub enum LoreCategoryData {
 
 /// Lore chunk for wire transfer
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LoreChunkData {
     pub id: String,
     pub order: u32,
@@ -436,7 +428,6 @@ pub struct LoreChunkData {
 
 /// Lore entry for wire transfer
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LoreData {
     pub id: String,
     pub world_id: String,
@@ -451,7 +442,7 @@ pub struct LoreData {
 
 /// How lore was discovered (wire format)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "type")]
+#[serde(tag = "type")]
 pub enum LoreDiscoverySourceData {
     ReadBook {
         book_name: String,
@@ -474,7 +465,6 @@ pub enum LoreDiscoverySourceData {
 
 /// Character's knowledge of lore (wire format)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LoreKnowledgeData {
     pub lore_id: String,
     pub character_id: String,
@@ -488,7 +478,6 @@ pub struct LoreKnowledgeData {
 
 /// Lore summary for list views
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LoreSummaryData {
     pub id: String,
     pub title: String,
@@ -506,7 +495,6 @@ pub struct LoreSummaryData {
 
 /// Time of day period (wire format, matches domain::TimeOfDay)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum TimeOfDayData {
     Morning,
     Afternoon,
@@ -542,7 +530,7 @@ impl From<TimeOfDayData> for wrldbldr_domain::TimeOfDay {
 
 /// Activation rule for visual states (wire format)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", tag = "type")]
+#[serde(tag = "type")]
 pub enum ActivationRuleData {
     Always,
     DateExact {
@@ -580,7 +568,6 @@ pub enum ActivationRuleData {
 
 /// How rules are combined (wire format)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum ActivationLogicData {
     #[default]
     All,
@@ -592,7 +579,6 @@ pub enum ActivationLogicData {
 
 /// Location state for wire transfer
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LocationStateData {
     pub id: String,
     pub location_id: String,
@@ -615,7 +601,6 @@ pub struct LocationStateData {
 
 /// Region state for wire transfer
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RegionStateData {
     pub id: String,
     pub region_id: String,
@@ -637,7 +622,6 @@ pub struct RegionStateData {
 
 /// Resolved state info for staging (lightweight)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ResolvedStateInfoData {
     pub id: String,
     pub name: String,
@@ -651,7 +635,6 @@ pub struct ResolvedStateInfoData {
 
 /// How visual state was resolved
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
 pub enum VisualStateSourceData {
     #[default]
     HardRulesOnly,
@@ -664,7 +647,6 @@ pub enum VisualStateSourceData {
 
 /// Complete resolved visual state for staging
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
 pub struct ResolvedVisualStateData {
     #[serde(default)]
     pub location_state: Option<ResolvedStateInfoData>,
@@ -674,7 +656,6 @@ pub struct ResolvedVisualStateData {
 
 /// State option for DM selection
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct StateOptionData {
     pub id: String,
     pub name: String,
@@ -691,7 +672,6 @@ pub struct StateOptionData {
 
 /// Complete schema describing all available trigger types for the visual builder
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TriggerSchema {
     /// All available trigger types
     pub trigger_types: Vec<TriggerTypeSchema>,
@@ -701,7 +681,6 @@ pub struct TriggerSchema {
 
 /// Schema for a single trigger type
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TriggerTypeSchema {
     /// Internal type name (e.g., "PlayerEntersLocation")
     pub type_name: String,
@@ -717,7 +696,6 @@ pub struct TriggerTypeSchema {
 
 /// Category for grouping trigger types in UI
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum TriggerCategory {
     /// Location-based triggers
     Location,
@@ -758,7 +736,6 @@ impl TriggerCategory {
 
 /// Schema for a single field within a trigger type
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TriggerFieldSchema {
     /// Field name (matches JSON key)
     pub name: String,
@@ -778,7 +755,6 @@ pub struct TriggerFieldSchema {
 
 /// Data type for a trigger field
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum TriggerFieldType {
     /// Plain text string
     String,
@@ -813,7 +789,6 @@ pub enum TriggerFieldType {
 
 /// Option for trigger logic selection
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TriggerLogicOption {
     /// Value to use (e.g., "all", "any", "atLeast")
     pub value: String,

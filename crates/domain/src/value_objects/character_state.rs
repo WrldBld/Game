@@ -33,7 +33,6 @@ use serde::{Deserialize, Deserializer, Serialize};
 /// assert!(dead.is_dead());
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Default)]
-#[serde(rename_all = "camelCase")]
 pub enum CharacterState {
     /// Character is alive and actively participating in the world
     #[default]

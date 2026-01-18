@@ -17,7 +17,6 @@ use wrldbldr_domain::{
 
 /// A DM-approved configuration of NPC presence and visual state for a region
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Staging {
     id: StagingId,
     region_id: RegionId,
@@ -53,7 +52,6 @@ pub struct Staging {
 
 /// An NPC with presence status in a staging
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct StagedNpc {
     pub character_id: CharacterId,
     /// Denormalized for display
@@ -131,7 +129,6 @@ impl StagedNpc {
 
 /// How a staging was created
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum StagingSource {
     /// Created from deterministic rules
     RuleBased,
@@ -150,7 +147,6 @@ pub enum StagingSource {
 
 /// How visual state was resolved for a staging
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum VisualStateSource {
     /// States resolved from hard rules only
     #[default]
@@ -165,7 +161,6 @@ pub enum VisualStateSource {
 
 /// Summary of resolved visual state for display
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ResolvedVisualState {
     pub location_state: Option<ResolvedStateInfo>,
     pub region_state: Option<ResolvedStateInfo>,
@@ -173,7 +168,6 @@ pub struct ResolvedVisualState {
 
 /// Info about a resolved state for display
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ResolvedStateInfo {
     pub id: String,
     pub name: String,

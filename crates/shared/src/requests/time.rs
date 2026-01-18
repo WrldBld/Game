@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::default_true;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum TimeRequest {
     GetGameTime {
         world_id: String,

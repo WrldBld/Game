@@ -466,7 +466,7 @@ pub(crate) fn build_test_app_with_ports(
         location_repo.clone(),
         clock_port.clone(),
     ));
-    let narrative = Arc::new(crate::use_cases::narrative_operations::Narrative::new(
+    let narrative = Arc::new(crate::use_cases::narrative_operations::NarrativeOps::new(
         narrative_repo.clone(),
         location_repo.clone(),
         world_repo.clone(),
@@ -824,22 +824,22 @@ pub(crate) fn build_test_app_with_ports(
     ));
 
     let management = crate::use_cases::ManagementUseCases::new(
-        crate::use_cases::management::WorldCrud::new(world_repo.clone(), clock_port.clone()),
-        crate::use_cases::management::CharacterCrud::new(
+        crate::use_cases::management::WorldManagement::new(world_repo.clone(), clock_port.clone()),
+        crate::use_cases::management::CharacterManagement::new(
             character_repo.clone(),
             clock_port.clone(),
         ),
-        crate::use_cases::management::LocationCrud::new(location_repo.clone()),
-        crate::use_cases::management::PlayerCharacterCrud::new(
+        crate::use_cases::management::LocationManagement::new(location_repo.clone()),
+        crate::use_cases::management::PlayerCharacterManagement::new(
             player_character_repo.clone(),
             location_repo.clone(),
             clock_port.clone(),
         ),
-        crate::use_cases::management::RelationshipCrud::new(
+        crate::use_cases::management::RelationshipManagement::new(
             character_repo.clone(),
             clock_port.clone(),
         ),
-        crate::use_cases::management::ObservationCrud::new(
+        crate::use_cases::management::ObservationManagement::new(
             observation_repo.clone(),
             player_character_repo.clone(),
             character_repo.clone(),
@@ -847,10 +847,10 @@ pub(crate) fn build_test_app_with_ports(
             world_repo.clone(),
             clock_port.clone(),
         ),
-        crate::use_cases::management::ActCrud::new(act_repo.clone()),
-        crate::use_cases::management::SceneCrud::new(scene_repo.clone()),
-        crate::use_cases::management::InteractionCrud::new(interaction_repo.clone()),
-        crate::use_cases::management::SkillCrud::new(content_repo.clone()),
+        crate::use_cases::management::ActManagement::new(act_repo.clone()),
+        crate::use_cases::management::SceneManagement::new(scene_repo.clone()),
+        crate::use_cases::management::InteractionManagement::new(interaction_repo.clone()),
+        crate::use_cases::management::SkillManagement::new(content_repo.clone()),
     );
 
     let settings = settings_entity;
@@ -878,6 +878,10 @@ pub(crate) fn build_test_app_with_ports(
     let inventory =
         crate::use_cases::InventoryUseCases::new(item_repo.clone(), player_character_repo.clone());
 
+    // Create character sheet use cases
+    let character_sheet =
+        crate::use_cases::CharacterSheetUseCases::new(character_repo.clone(), world_repo.clone());
+
     let use_cases = UseCases {
         movement,
         conversation,
@@ -903,6 +907,7 @@ pub(crate) fn build_test_app_with_ports(
         location_events: location_events_uc,
         custom_condition,
         inventory,
+        character_sheet,
     };
 
     // Create content service for game content (races, classes, spells, etc.)

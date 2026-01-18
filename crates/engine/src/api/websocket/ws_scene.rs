@@ -75,7 +75,10 @@ pub(super) async fn handle_scene_request(
                 .await
             {
                 Ok(scenes) => {
-                    let data: Vec<serde_json::Value> = scenes.iter().map(scene_to_json).collect();
+                    let mut data = Vec::with_capacity(scenes.len());
+                    for scene in &scenes {
+                        data.push(scene_to_json(state, scene).await);
+                    }
                     Ok(ResponseResult::success(json!(data)))
                 }
                 Err(e) => Ok(ResponseResult::error(
@@ -94,7 +97,7 @@ pub(super) async fn handle_scene_request(
                 .get(scene_id_typed)
                 .await
             {
-                Ok(Some(scene)) => Ok(ResponseResult::success(scene_to_json(&scene))),
+                Ok(Some(scene)) => Ok(ResponseResult::success(scene_to_json(state, &scene).await)),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Scene not found",
@@ -120,7 +123,7 @@ pub(super) async fn handle_scene_request(
                 .create(act_id_typed, data.name, data.description, location_id)
                 .await
             {
-                Ok(scene) => Ok(ResponseResult::success(scene_to_json(&scene))),
+                Ok(scene) => Ok(ResponseResult::success(scene_to_json(state, &scene).await)),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
                 }
@@ -145,7 +148,7 @@ pub(super) async fn handle_scene_request(
                 .update(scene_id_typed, data.name, data.description, location_id)
                 .await
             {
-                Ok(scene) => Ok(ResponseResult::success(scene_to_json(&scene))),
+                Ok(scene) => Ok(ResponseResult::success(scene_to_json(state, &scene).await)),
                 Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Scene not found"),
                 ),
@@ -356,21 +359,46 @@ fn act_to_json(act: &domain::Act) -> serde_json::Value {
     })
 }
 
-fn scene_to_json(scene: &domain::Scene) -> serde_json::Value {
+async fn scene_to_json(state: &WsState, scene: &domain::Scene) -> serde_json::Value {
     let entry_conditions = scene
         .entry_conditions()
         .iter()
         .map(|condition| format!("{:?}", condition))
         .collect::<Vec<_>>();
 
+    // Get location_id via graph edge
+    let location_id = state
+        .app
+        .repositories
+        .scene
+        .get_location(scene.id())
+        .await
+        .ok()
+        .flatten()
+        .map(|id| id.to_string())
+        .unwrap_or_default();
+
+    // Get featured_characters via graph edge
+    let featured_characters: Vec<String> = state
+        .app
+        .repositories
+        .scene
+        .get_featured_characters(scene.id())
+        .await
+        .ok()
+        .unwrap_or_default()
+        .iter()
+        .map(|sc| sc.character_id.to_string())
+        .collect();
+
     json!({
         "id": scene.id().to_string(),
         "act_id": scene.act_id().to_string(),
         "name": scene.name(),
-        "location_id": scene.location_id().to_string(),
+        "location_id": location_id,
         "time_context": format!("{:?}", scene.time_context()),
         "backdrop_override": scene.backdrop_override(),
-        "featured_characters": scene.featured_characters().iter().map(|id| id.to_string()).collect::<Vec<_>>(),
+        "featured_characters": featured_characters,
         "directorial_notes": scene.directorial_notes(),
         "entry_conditions": entry_conditions,
         "order": scene.order(),

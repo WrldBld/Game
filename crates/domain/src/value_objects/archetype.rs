@@ -12,7 +12,6 @@ pub use crate::types::CampbellArchetype;
 /// This is a domain-specific struct that tracks when and why a character's archetype changed.
 /// It uses the shared CampbellArchetype enum but adds domain-specific metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ArchetypeChange {
     from: CampbellArchetype,
     to: CampbellArchetype,

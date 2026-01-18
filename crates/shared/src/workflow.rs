@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 
 /// Slots for different asset types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum WorkflowSlot {
     /// Character portrait (256x256)
     CharacterPortrait,
@@ -130,7 +129,6 @@ impl std::str::FromStr for WorkflowSlot {
 
 /// Type of prompt mapping.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum PromptMappingType {
     /// The main generation prompt.
     Primary,
@@ -143,7 +141,6 @@ pub enum PromptMappingType {
 
 /// Mapping of a text input to prompt injection.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct PromptMapping {
     /// The node ID in the workflow.
     pub node_id: String,
@@ -173,7 +170,6 @@ impl PromptMapping {
 
 /// Default value for a workflow input.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct InputDefault {
     /// The node ID in the workflow.
     pub node_id: String,
@@ -204,7 +200,6 @@ impl InputDefault {
 
 /// Detected input type.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub enum InputType {
     /// Text/string input.
     Text,
@@ -241,7 +236,6 @@ impl InputType {
 
 /// Parsed input from a workflow (for UI display).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowInput {
     /// The node ID this input belongs to.
     pub node_id: String,
@@ -275,7 +269,6 @@ impl WorkflowInput {
 
 /// Result of analyzing a workflow JSON.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowAnalysis {
     /// Total number of nodes in the workflow.
     pub node_count: usize,
@@ -497,7 +490,6 @@ pub fn auto_detect_prompt_mappings(workflow: &serde_json::Value) -> Vec<PromptMa
 
 /// Workflow configuration for a specific asset generation slot.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkflowConfiguration {
     pub id: String,
     /// The slot this workflow is configured for.

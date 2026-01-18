@@ -2,18 +2,17 @@
 
 use crate::entities::{SceneCondition, TimeContext};
 use crate::value_objects::SceneName;
-use crate::{CharacterId, LocationId};
 
 /// Outcome of updating scene fields or state.
+///
+/// Note: Location and featured character changes are managed via graph edges,
+/// not through aggregate mutations. Use `scene_repo.set_location()` and
+/// `scene_repo.set_featured_characters()` instead.
 #[derive(Debug, Clone)]
 pub enum SceneUpdate {
     NameChanged {
         from: SceneName,
         to: SceneName,
-    },
-    LocationChanged {
-        from: LocationId,
-        to: LocationId,
     },
     TimeContextChanged {
         from: TimeContext,
@@ -30,18 +29,6 @@ pub enum SceneUpdate {
     OrderChanged {
         from: u32,
         to: u32,
-    },
-    FeaturedCharacterAdded {
-        character_id: CharacterId,
-    },
-    FeaturedCharacterAlreadyPresent {
-        character_id: CharacterId,
-    },
-    FeaturedCharacterRemoved {
-        character_id: CharacterId,
-    },
-    FeaturedCharacterNotPresent {
-        character_id: CharacterId,
     },
     EntryConditionAdded {
         condition: SceneCondition,

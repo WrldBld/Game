@@ -1,4 +1,4 @@
-//! Interaction CRUD operations.
+//! Interaction management operations.
 
 use std::sync::Arc;
 
@@ -9,11 +9,11 @@ use crate::use_cases::validation::require_non_empty;
 
 use super::ManagementError;
 
-pub struct InteractionCrud {
+pub struct InteractionManagement {
     interaction: Arc<dyn InteractionRepo>,
 }
 
-impl InteractionCrud {
+impl InteractionManagement {
     pub fn new(interaction: Arc<dyn InteractionRepo>) -> Self {
         Self { interaction }
     }

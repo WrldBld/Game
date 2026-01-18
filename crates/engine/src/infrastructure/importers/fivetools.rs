@@ -69,7 +69,7 @@ pub struct RaceOption {
 
 /// An ability bonus that can be fixed or a choice.
 #[derive(Debug, Clone, Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum AbilityBonusOption {
     Fixed {
         bonuses: HashMap<String, i32>,
@@ -90,7 +90,7 @@ pub struct RaceTrait {
 
 /// A skill proficiency option.
 #[derive(Debug, Clone, Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum SkillProficiencyOption {
     Fixed { skills: Vec<String> },
     Choice { from: Vec<String>, count: u8 },
@@ -228,7 +228,7 @@ pub struct BaseItemOption {
 
 /// Language proficiency options.
 #[derive(Debug, Clone, Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum LanguageProficiency {
     Fixed { languages: Vec<String> },
     Choice { count: u8 },

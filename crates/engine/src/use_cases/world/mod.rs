@@ -9,7 +9,7 @@ use std::sync::Arc;
 use wrldbldr_domain::WorldId;
 
 use crate::infrastructure::ports::{CharacterRepo, ItemRepo, LocationRepo, RepoError, WorldRepo};
-use crate::use_cases::narrative_operations::Narrative;
+use crate::use_cases::narrative_operations::NarrativeOps;
 
 /// Container for world use cases.
 pub struct WorldUseCases {
@@ -50,7 +50,7 @@ pub struct ExportWorld {
     location: Arc<dyn LocationRepo>,
     character: Arc<dyn CharacterRepo>,
     inventory: Arc<dyn ItemRepo>,
-    narrative: Arc<Narrative>,
+    narrative: Arc<NarrativeOps>,
 }
 
 impl ExportWorld {
@@ -59,7 +59,7 @@ impl ExportWorld {
         location: Arc<dyn LocationRepo>,
         character: Arc<dyn CharacterRepo>,
         inventory: Arc<dyn ItemRepo>,
-        narrative: Arc<Narrative>,
+        narrative: Arc<NarrativeOps>,
     ) -> Self {
         Self {
             world,
@@ -125,7 +125,7 @@ pub struct ImportWorld {
     location: Arc<dyn LocationRepo>,
     character: Arc<dyn CharacterRepo>,
     inventory: Arc<dyn ItemRepo>,
-    narrative: Arc<Narrative>,
+    narrative: Arc<NarrativeOps>,
 }
 
 impl ImportWorld {
@@ -134,7 +134,7 @@ impl ImportWorld {
         location: Arc<dyn LocationRepo>,
         character: Arc<dyn CharacterRepo>,
         inventory: Arc<dyn ItemRepo>,
-        narrative: Arc<Narrative>,
+        narrative: Arc<NarrativeOps>,
     ) -> Self {
         Self {
             world,

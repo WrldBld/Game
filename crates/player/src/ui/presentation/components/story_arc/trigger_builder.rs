@@ -18,14 +18,12 @@ use wrldbldr_shared::{NarrativeEventRequest, RequestPayload};
 // =============================================================================
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TriggerSchema {
     pub trigger_types: Vec<TriggerTypeSchema>,
     pub logic_options: Vec<TriggerLogicOption>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TriggerTypeSchema {
     pub type_name: String,
     pub label: String,
@@ -35,7 +33,6 @@ pub struct TriggerTypeSchema {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TriggerFieldSchema {
     pub name: String,
     pub label: String,
@@ -48,7 +45,6 @@ pub struct TriggerFieldSchema {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TriggerLogicOption {
     pub value: String,
     pub label: String,
@@ -62,7 +58,6 @@ pub struct TriggerLogicOption {
 
 /// A single trigger condition being built
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct TriggerCondition {
     /// Unique ID for this condition
     pub id: String,

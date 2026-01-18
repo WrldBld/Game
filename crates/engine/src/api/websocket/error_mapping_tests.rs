@@ -2,6 +2,8 @@
 //!
 //! Verifies that use case errors are correctly mapped to protocol ErrorCodes,
 //! and that the error_response helper produces correct ServerMessage values.
+//!
+//! Note: Enum variants serialize as PascalCase (Rust default per ADR-010).
 
 use wrldbldr_shared::{ErrorCode, ServerMessage};
 
@@ -12,68 +14,68 @@ mod error_code_serialization {
     use super::*;
 
     #[test]
-    fn error_code_serializes_to_snake_case() {
-        // Client errors
+    fn error_code_serializes_to_pascal_case() {
+        // Client errors - PascalCase per ADR-010 (Rust default)
         assert_eq!(
             serde_json::to_string(&ErrorCode::BadRequest).unwrap(),
-            "\"bad_request\""
+            "\"BadRequest\""
         );
         assert_eq!(
             serde_json::to_string(&ErrorCode::Unauthorized).unwrap(),
-            "\"unauthorized\""
+            "\"Unauthorized\""
         );
         assert_eq!(
             serde_json::to_string(&ErrorCode::Forbidden).unwrap(),
-            "\"forbidden\""
+            "\"Forbidden\""
         );
         assert_eq!(
             serde_json::to_string(&ErrorCode::NotFound).unwrap(),
-            "\"not_found\""
+            "\"NotFound\""
         );
         assert_eq!(
             serde_json::to_string(&ErrorCode::Conflict).unwrap(),
-            "\"conflict\""
+            "\"Conflict\""
         );
         assert_eq!(
             serde_json::to_string(&ErrorCode::ValidationError).unwrap(),
-            "\"validation_error\""
+            "\"ValidationError\""
         );
         assert_eq!(
             serde_json::to_string(&ErrorCode::RateLimitExceeded).unwrap(),
-            "\"rate_limit_exceeded\""
+            "\"RateLimitExceeded\""
         );
 
         // Server errors
         assert_eq!(
             serde_json::to_string(&ErrorCode::InternalError).unwrap(),
-            "\"internal_error\""
+            "\"InternalError\""
         );
         assert_eq!(
             serde_json::to_string(&ErrorCode::ServiceUnavailable).unwrap(),
-            "\"service_unavailable\""
+            "\"ServiceUnavailable\""
         );
         assert_eq!(
             serde_json::to_string(&ErrorCode::Timeout).unwrap(),
-            "\"timeout\""
+            "\"Timeout\""
         );
     }
 
     #[test]
-    fn error_code_deserializes_from_snake_case() {
+    fn error_code_deserializes_from_pascal_case() {
         assert_eq!(
-            serde_json::from_str::<ErrorCode>("\"bad_request\"").unwrap(),
+            serde_json::from_str::<ErrorCode>("\"BadRequest\"").unwrap(),
             ErrorCode::BadRequest
         );
         assert_eq!(
-            serde_json::from_str::<ErrorCode>("\"not_found\"").unwrap(),
+            serde_json::from_str::<ErrorCode>("\"NotFound\"").unwrap(),
             ErrorCode::NotFound
         );
         assert_eq!(
-            serde_json::from_str::<ErrorCode>("\"validation_error\"").unwrap(),
+            serde_json::from_str::<ErrorCode>("\"ValidationError\"").unwrap(),
             ErrorCode::ValidationError
         );
         assert_eq!(
-            serde_json::from_str::<ErrorCode>("\"internal_error\"").unwrap(),
+            serde_json::from_str::<ErrorCode>("\"InternalError\"").unwrap(),
             ErrorCode::InternalError
         );
     }
@@ -82,7 +84,7 @@ mod error_code_serialization {
     fn unknown_error_code_deserializes_to_unknown() {
         // Forward compatibility: unknown codes deserialize to Unknown
         assert_eq!(
-            serde_json::from_str::<ErrorCode>("\"some_future_error\"").unwrap(),
+            serde_json::from_str::<ErrorCode>("\"SomeFutureError\"").unwrap(),
             ErrorCode::Unknown
         );
     }
@@ -98,7 +100,7 @@ mod error_response_helper {
 
         match msg {
             ServerMessage::Error { code, message } => {
-                assert_eq!(code, "not_found");
+                assert_eq!(code, "NotFound");
                 assert_eq!(message, "Character not found");
             }
             _ => panic!("Expected ServerMessage::Error, got {:?}", msg),
@@ -107,17 +109,18 @@ mod error_response_helper {
 
     #[test]
     fn error_response_handles_all_error_codes() {
+        // PascalCase per ADR-010 (Rust default for enum variants)
         let test_cases = vec![
-            (ErrorCode::BadRequest, "bad_request"),
-            (ErrorCode::Unauthorized, "unauthorized"),
-            (ErrorCode::Forbidden, "forbidden"),
-            (ErrorCode::NotFound, "not_found"),
-            (ErrorCode::Conflict, "conflict"),
-            (ErrorCode::ValidationError, "validation_error"),
-            (ErrorCode::RateLimitExceeded, "rate_limit_exceeded"),
-            (ErrorCode::InternalError, "internal_error"),
-            (ErrorCode::ServiceUnavailable, "service_unavailable"),
-            (ErrorCode::Timeout, "timeout"),
+            (ErrorCode::BadRequest, "BadRequest"),
+            (ErrorCode::Unauthorized, "Unauthorized"),
+            (ErrorCode::Forbidden, "Forbidden"),
+            (ErrorCode::NotFound, "NotFound"),
+            (ErrorCode::Conflict, "Conflict"),
+            (ErrorCode::ValidationError, "ValidationError"),
+            (ErrorCode::RateLimitExceeded, "RateLimitExceeded"),
+            (ErrorCode::InternalError, "InternalError"),
+            (ErrorCode::ServiceUnavailable, "ServiceUnavailable"),
+            (ErrorCode::Timeout, "Timeout"),
         ];
 
         for (error_code, expected_str) in test_cases {
@@ -185,8 +188,8 @@ mod response_result_error_mapping {
 
         let json = serde_json::to_string(&result).unwrap();
 
-        // Verify the code is serialized as snake_case
-        assert!(json.contains("\"code\":\"validation_error\""));
+        // Verify the code is serialized as PascalCase (Rust default per ADR-010)
+        assert!(json.contains("\"code\":\"ValidationError\""));
         assert!(json.contains("\"message\":\"Invalid input\""));
     }
 

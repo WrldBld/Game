@@ -31,7 +31,7 @@ pub struct ContentFilterRequest {
 
 /// Requests for game content operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum ContentRequest {
     /// List registered content providers.
     ListProviders,

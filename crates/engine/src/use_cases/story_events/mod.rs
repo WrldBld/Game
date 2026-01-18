@@ -6,7 +6,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::infrastructure::ports::RepoError;
-use crate::use_cases::narrative_operations::Narrative;
+use crate::use_cases::narrative_operations::NarrativeOps;
 use wrldbldr_domain::{StoryEventId, StoryEventType, WorldId};
 
 // =============================================================================
@@ -15,7 +15,6 @@ use wrldbldr_domain::{StoryEventId, StoryEventType, WorldId};
 
 /// Summary of a story event.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct StoryEventSummary {
     pub id: String,
     pub world_id: String,
@@ -49,11 +48,11 @@ impl StoryEventUseCases {
 
 /// Story event operations.
 pub struct StoryEventOps {
-    narrative: Arc<Narrative>,
+    narrative: Arc<NarrativeOps>,
 }
 
 impl StoryEventOps {
-    pub fn new(narrative: Arc<Narrative>) -> Self {
+    pub fn new(narrative: Arc<NarrativeOps>) -> Self {
         Self { narrative }
     }
 

@@ -1,7 +1,7 @@
-// Observation CRUD - methods for future observation features
+// Observation management - methods for future observation features
 #![allow(dead_code)]
 
-//! Observation CRUD operations.
+//! Observation management operations.
 
 use std::sync::Arc;
 
@@ -13,7 +13,7 @@ use crate::infrastructure::ports::{
 
 use super::ManagementError;
 
-pub struct ObservationCrud {
+pub struct ObservationManagement {
     observation: Arc<dyn ObservationRepo>,
     player_character: Arc<dyn PlayerCharacterRepo>,
     character: Arc<dyn CharacterRepo>,
@@ -22,7 +22,7 @@ pub struct ObservationCrud {
     clock: Arc<dyn ClockPort>,
 }
 
-impl ObservationCrud {
+impl ObservationManagement {
     pub fn new(
         observation: Arc<dyn ObservationRepo>,
         player_character: Arc<dyn PlayerCharacterRepo>,
