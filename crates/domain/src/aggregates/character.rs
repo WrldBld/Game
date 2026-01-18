@@ -431,6 +431,11 @@ impl Character {
     /// }
     /// ```
     pub fn heal(&mut self, amount: i32) -> HealOutcome {
+        // Validate healing amount must be positive
+        if amount <= 0 {
+            return HealOutcome::InvalidAmount;
+        }
+
         // Can't heal the dead
         if self.state.is_dead() {
             return HealOutcome::Dead;
@@ -449,7 +454,8 @@ impl Character {
         }
 
         // Apply healing, capped at max HP
-        let new_hp: i32 = (current_hp + amount).min(max_hp);
+        // Use saturating_add to prevent overflow, then cap at max_hp
+        let new_hp: i32 = current_hp.saturating_add(amount).min(max_hp);
         let actual_healed = new_hp - current_hp;
         self.stats = std::mem::take(&mut self.stats).with_current_hp(Some(new_hp));
 

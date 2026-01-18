@@ -34,6 +34,8 @@ pub enum HealOutcome {
     AlreadyFull,
     /// No HP tracking on this character
     NoHpTracking,
+    /// Invalid healing amount (must be positive)
+    InvalidAmount,
 }
 
 /// An archetype transformation that occurred
