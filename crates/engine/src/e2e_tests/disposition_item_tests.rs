@@ -14,6 +14,7 @@
 
 use std::sync::Arc;
 
+#[allow(unused_imports)]
 use crate::queue_types::DmApprovalDecision;
 
 use super::{
@@ -251,18 +252,19 @@ async fn test_dm_approves_give_item_adds_to_inventory() {
         let initial_inventory = ctx
             .app
             .repositories
-            .inventory
-            .get_pc_inventory(pc_id)
+            .player_character
+            .get_inventory(pc_id)
             .await
             .expect("Failed to get inventory");
 
         let initial_count = initial_inventory.len();
 
-        // Test the give_item_to_pc method which is used by GiveItem trigger
+        // Test the GiveItem use case which is used by GiveItem trigger
         ctx.app
-            .repositories
+            .use_cases
             .inventory
-            .give_item_to_pc(
+            .give_item
+            .execute(
                 pc_id,
                 "Test Potion".to_string(),
                 Some("A healing potion".to_string()),
@@ -274,8 +276,8 @@ async fn test_dm_approves_give_item_adds_to_inventory() {
         let updated_inventory = ctx
             .app
             .repositories
-            .inventory
-            .get_pc_inventory(pc_id)
+            .player_character
+            .get_inventory(pc_id)
             .await
             .expect("Failed to get inventory");
 
@@ -332,8 +334,8 @@ async fn test_dm_rejects_give_item_no_change() {
         let initial_inventory = ctx
             .app
             .repositories
-            .inventory
-            .get_pc_inventory(pc_id)
+            .player_character
+            .get_inventory(pc_id)
             .await
             .expect("Failed to get inventory");
 
@@ -349,8 +351,8 @@ async fn test_dm_rejects_give_item_no_change() {
         let final_inventory = ctx
             .app
             .repositories
-            .inventory
-            .get_pc_inventory(pc_id)
+            .player_character
+            .get_inventory(pc_id)
             .await
             .expect("Failed to get inventory");
 

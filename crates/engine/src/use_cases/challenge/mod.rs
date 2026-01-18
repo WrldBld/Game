@@ -799,8 +799,6 @@ mod tests {
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockItemRepo, MockLocationRepo,
         MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
     };
-    use crate::repositories;
-    use crate::repositories::{InventoryRepository, SceneRepository};
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -925,37 +923,15 @@ mod tests {
             .withf(move |w, s| *w == world_id && *s == scene_id)
             .returning(|_, _| Ok(()));
 
-        // Observation entity needs LocationRepo + ClockPort, but this test only
-        // exercises record_deduced_info, so provide dummies.
-        let location_repo = MockLocationRepo::new();
-        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-
-        // ---------------------------------------------------------------------
-        // Wire entities + use case
-        // ---------------------------------------------------------------------
-        let challenge_entity = Arc::new(repositories::ChallengeRepository::new(Arc::new(
-            challenge_repo,
-        )));
-
+        // ResolveOutcome takes port traits directly
         let pc_repo: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> = Arc::new(pc_repo);
-        let inventory_entity = Arc::new(InventoryRepository::new(
-            Arc::new(item_repo),
-            Arc::new(character_repo),
-            pc_repo.clone(),
-        ));
-        let observation_entity = Arc::new(repositories::ObservationRepository::new(Arc::new(
-            observation_repo,
-        )));
-        let scene_entity = Arc::new(SceneRepository::new(Arc::new(scene_repo)));
-        let player_character_entity =
-            Arc::new(repositories::PlayerCharacterRepository::new(pc_repo));
 
         let resolve = super::ResolveOutcome::new(
-            challenge_entity,
-            inventory_entity,
-            observation_entity,
-            scene_entity,
-            player_character_entity,
+            Arc::new(challenge_repo),
+            Arc::new(item_repo),
+            pc_repo,
+            Arc::new(observation_repo),
+            Arc::new(scene_repo),
         );
 
         resolve

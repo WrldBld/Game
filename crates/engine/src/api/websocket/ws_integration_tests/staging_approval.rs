@@ -520,7 +520,7 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
     let app = build_test_app(repos, now);
 
     // Create a pending staging request
-    let pending = crate::use_cases::staging::PendingStagingRequest {
+    let pending = crate::infrastructure::ports::PendingStagingRequest {
         region_id,
         location_id,
         world_id,
@@ -665,7 +665,7 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
     let app = build_test_app(repos, now);
 
     // Create a pending staging request
-    let pending = crate::use_cases::staging::PendingStagingRequest {
+    let pending = crate::infrastructure::ports::PendingStagingRequest {
         region_id,
         location_id,
         world_id,

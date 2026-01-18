@@ -114,14 +114,16 @@ async fn test_staging_npc_in_region() {
             .game_time()
             .current();
 
-        let staged = ctx
+        let staging = ctx
             .app
             .repositories
             .staging
-            .resolve_for_region(common_room, current_game_time)
+            .get_active_staging(common_room, current_game_time)
             .await
             .expect("Staging query failed");
 
+        assert!(staging.is_some(), "No active staging found");
+        let staged = staging.unwrap().npcs().to_vec();
         assert!(!staged.is_empty(), "No NPCs staged");
         assert!(
             staged.iter().any(|s| s.character_id == marta_id),

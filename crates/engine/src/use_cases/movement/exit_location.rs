@@ -272,12 +272,10 @@ mod tests {
     };
 
     use crate::infrastructure::ports::{
-        ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockItemRepo,
-        MockLocationRepo, MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
-        MockSceneRepo, MockStagingRepo, MockWorldRepo,
+        ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockLocationRepo,
+        MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
+        MockStagingRepo, MockWorldRepo,
     };
-    use crate::repositories;
-    use crate::repositories::InventoryRepository;
     use crate::use_cases::scene::ResolveScene;
     use crate::use_cases::Narrative;
 
@@ -295,7 +293,6 @@ mod tests {
         world_repo: MockWorldRepo,
         clock_port: Arc<dyn ClockPort>,
     ) -> super::ExitLocation {
-        let clock = Arc::new(repositories::ClockService::new(clock_port.clone()));
         let player_character_repo: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> =
             Arc::new(player_character_repo);
 
@@ -316,47 +313,25 @@ mod tests {
         let scene_repo: Arc<dyn crate::infrastructure::ports::SceneRepo> =
             Arc::new(MockSceneRepo::new());
         let resolve_scene = Arc::new(ResolveScene::new(scene_repo.clone()));
-        let inventory = Arc::new(InventoryRepository::new(
-            Arc::new(MockItemRepo::new()),
-            Arc::new(MockCharacterRepo::new()),
-            Arc::new(MockPlayerCharacterRepo::new()),
-        ));
         let flag_repo: Arc<dyn crate::infrastructure::ports::FlagRepo> =
             Arc::new(MockFlagRepo::new());
 
         let world_repo: Arc<dyn crate::infrastructure::ports::WorldRepo> = Arc::new(world_repo);
         let narrative = Arc::new(Narrative::new(
-            Arc::new(repositories::NarrativeRepository::new(
-                Arc::new(MockNarrativeRepo::new()),
-                clock_port.clone(),
-            )),
-            Arc::new(repositories::Location::new(location_repo.clone())),
-            Arc::new(repositories::WorldRepository::new(
-                world_repo.clone(),
-                clock_port.clone(),
-            )),
-            Arc::new(repositories::PlayerCharacterRepository::new(
-                player_character_repo.clone(),
-            )),
-            Arc::new(repositories::CharacterRepository::new(Arc::new(
-                MockCharacterRepo::new(),
-            ))),
-            Arc::new(repositories::ObservationRepository::new(
-                observation_repo.clone(),
-            )),
-            Arc::new(repositories::ChallengeRepository::new(Arc::new(
-                MockChallengeRepo::new(),
-            ))),
-            Arc::new(repositories::FlagRepository::new(flag_repo.clone())),
-            Arc::new(repositories::SceneRepository::new(scene_repo.clone())),
-            clock.clone(),
+            Arc::new(MockNarrativeRepo::new()),
+            location_repo.clone(),
+            world_repo.clone(),
+            player_character_repo.clone(),
+            Arc::new(MockCharacterRepo::new()),
+            observation_repo.clone(),
+            Arc::new(MockChallengeRepo::new()),
+            flag_repo.clone(),
+            scene_repo.clone(),
+            clock_port.clone(),
         ));
         let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
-            Arc::new(repositories::WorldRepository::new(
-                world_repo.clone(),
-                clock_port.clone(),
-            )),
-            clock,
+            world_repo.clone(),
+            clock_port,
         ));
 
         super::ExitLocation::new(
@@ -368,7 +343,6 @@ mod tests {
             narrative,
             resolve_scene,
             scene_repo,
-            inventory,
             flag_repo,
             world_repo,
             suggest_time,

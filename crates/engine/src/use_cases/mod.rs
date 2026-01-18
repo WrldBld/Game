@@ -42,6 +42,7 @@ pub use assets::AssetUseCases;
 pub use challenge::ChallengeUseCases;
 pub use conversation::ConversationUseCases;
 pub use custom_condition::CustomConditionEvaluator;
+pub use inventory::InventoryUseCases;
 pub use location_events::LocationEventUseCases;
 pub use lore::LoreUseCases;
 pub use management::ManagementUseCases;

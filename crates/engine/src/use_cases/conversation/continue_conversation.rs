@@ -231,8 +231,6 @@ mod tests {
         MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
         MockStagingRepo, MockWorldRepo, QueueError, QueueItem, QueuePort,
     };
-    use crate::repositories;
-    use crate::repositories::{CharacterRepository, ClockService, QueueService, StagingRepository};
     use crate::use_cases::Narrative;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -243,10 +241,8 @@ mod tests {
         }
     }
 
-    fn build_clock(now: chrono::DateTime<chrono::Utc>) -> (Arc<dyn ClockPort>, Arc<ClockService>) {
-        let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let clock = Arc::new(ClockService::new(clock_port.clone()));
-        (clock_port, clock)
+    fn build_clock(now: chrono::DateTime<chrono::Utc>) -> Arc<dyn ClockPort> {
+        Arc::new(FixedClock(now))
     }
 
     #[derive(Debug)]
@@ -268,10 +264,8 @@ mod tests {
         }
     }
 
-    fn build_queue(queue_id: Uuid) -> (Arc<RecordingQueuePort>, Arc<QueueService>) {
-        let queue_port = Arc::new(RecordingQueuePort::new(queue_id));
-        let queue = Arc::new(QueueService::new(queue_port.clone()));
-        (queue_port, queue)
+    fn build_queue(queue_id: Uuid) -> Arc<RecordingQueuePort> {
+        Arc::new(RecordingQueuePort::new(queue_id))
     }
 
     #[async_trait]
@@ -378,34 +372,18 @@ mod tests {
 
     fn create_narrative_entity(narrative_repo: MockNarrativeRepo) -> Arc<Narrative> {
         let now = Utc::now();
-        let (clock_port, clock) = build_clock(now);
-        let location_repo = Arc::new(MockLocationRepo::new());
-        let world_repo = Arc::new(MockWorldRepo::new());
-        let player_character_repo = Arc::new(MockPlayerCharacterRepo::new());
-        let character_repo = Arc::new(MockCharacterRepo::new());
-        let observation_repo = Arc::new(MockObservationRepo::new());
-        let challenge_repo = Arc::new(MockChallengeRepo::new());
-        let flag_repo = Arc::new(MockFlagRepo::new());
-        let scene_repo = Arc::new(MockSceneRepo::new());
+        let clock = build_clock(now);
 
         Arc::new(Narrative::new(
-            Arc::new(repositories::NarrativeRepository::new(
-                Arc::new(narrative_repo),
-                clock_port.clone(),
-            )),
-            Arc::new(repositories::Location::new(location_repo.clone())),
-            Arc::new(repositories::WorldRepository::new(
-                world_repo.clone(),
-                clock_port.clone(),
-            )),
-            Arc::new(repositories::PlayerCharacterRepository::new(
-                player_character_repo,
-            )),
-            Arc::new(repositories::CharacterRepository::new(character_repo)),
-            Arc::new(repositories::ObservationRepository::new(observation_repo)),
-            Arc::new(repositories::ChallengeRepository::new(challenge_repo)),
-            Arc::new(repositories::FlagRepository::new(flag_repo)),
-            Arc::new(repositories::SceneRepository::new(scene_repo)),
+            Arc::new(narrative_repo),
+            Arc::new(MockLocationRepo::new()),
+            Arc::new(MockWorldRepo::new()),
+            Arc::new(MockPlayerCharacterRepo::new()),
+            Arc::new(MockCharacterRepo::new()),
+            Arc::new(MockObservationRepo::new()),
+            Arc::new(MockChallengeRepo::new()),
+            Arc::new(MockFlagRepo::new()),
+            Arc::new(MockSceneRepo::new()),
             clock,
         ))
     }
@@ -423,21 +401,16 @@ mod tests {
             .withf(move |id| *id == pc_id)
             .returning(|_| Ok(None));
 
-        let (clock_port, clock) = build_clock(now);
-        let (queue_port, queue) = build_queue(Uuid::new_v4());
+        let clock = build_clock(now);
+        let queue_port = build_queue(Uuid::new_v4());
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterRepository::new(Arc::new(MockCharacterRepo::new()))),
-            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
-                pc_repo,
-            ))),
-            Arc::new(StagingRepository::new(Arc::new(MockStagingRepo::new()))),
-            Arc::new(repositories::WorldRepository::new(
-                Arc::new(MockWorldRepo::new()),
-                clock_port.clone(),
-            )),
+            Arc::new(MockCharacterRepo::new()),
+            Arc::new(pc_repo),
+            Arc::new(MockStagingRepo::new()),
+            Arc::new(MockWorldRepo::new()),
             create_narrative_entity(MockNarrativeRepo::new()),
-            queue.clone(),
+            queue_port.clone(),
             clock,
         );
 
@@ -455,7 +428,7 @@ mod tests {
 
         assert!(matches!(
             err,
-            super::super::start::ConversationError::PlayerCharacterNotFound
+            super::super::start::ConversationError::PlayerCharacterNotFound(_)
         ));
         assert!(queue_port.recorded_player_actions().is_empty());
     }
@@ -492,21 +465,16 @@ mod tests {
             .withf(move |id| *id == npc_id)
             .returning(|_| Ok(None));
 
-        let (clock_port, clock) = build_clock(now);
-        let (queue_port, queue) = build_queue(Uuid::new_v4());
+        let clock = build_clock(now);
+        let queue_port = build_queue(Uuid::new_v4());
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
-                pc_repo,
-            ))),
-            Arc::new(StagingRepository::new(Arc::new(MockStagingRepo::new()))),
-            Arc::new(repositories::WorldRepository::new(
-                Arc::new(MockWorldRepo::new()),
-                clock_port.clone(),
-            )),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
+            Arc::new(MockStagingRepo::new()),
+            Arc::new(MockWorldRepo::new()),
             create_narrative_entity(MockNarrativeRepo::new()),
-            queue.clone(),
+            queue_port.clone(),
             clock,
         );
 
@@ -524,7 +492,7 @@ mod tests {
 
         assert!(matches!(
             err,
-            super::super::start::ConversationError::NpcNotFound
+            super::super::start::ConversationError::NpcNotFound(_)
         ));
         assert!(queue_port.recorded_player_actions().is_empty());
     }
@@ -568,21 +536,16 @@ mod tests {
             .withf(move |id| *id == npc_id)
             .returning(move |_| Ok(Some(npc_for_get.clone())));
 
-        let (clock_port, clock) = build_clock(now);
-        let (queue_port, queue) = build_queue(Uuid::new_v4());
+        let clock = build_clock(now);
+        let queue_port = build_queue(Uuid::new_v4());
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
-                pc_repo,
-            ))),
-            Arc::new(StagingRepository::new(Arc::new(MockStagingRepo::new()))),
-            Arc::new(repositories::WorldRepository::new(
-                Arc::new(MockWorldRepo::new()),
-                clock_port.clone(),
-            )),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
+            Arc::new(MockStagingRepo::new()),
+            Arc::new(MockWorldRepo::new()),
             create_narrative_entity(MockNarrativeRepo::new()),
-            queue.clone(),
+            queue_port.clone(),
             clock,
         );
 
@@ -651,21 +614,16 @@ mod tests {
             .withf(move |id| *id == world_id)
             .returning(|_| Ok(None));
 
-        let (clock_port, clock) = build_clock(now);
-        let (queue_port, queue) = build_queue(Uuid::new_v4());
+        let clock = build_clock(now);
+        let queue_port = build_queue(Uuid::new_v4());
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
-                pc_repo,
-            ))),
-            Arc::new(StagingRepository::new(Arc::new(MockStagingRepo::new()))),
-            Arc::new(repositories::WorldRepository::new(
-                Arc::new(world_repo),
-                clock_port.clone(),
-            )),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
+            Arc::new(MockStagingRepo::new()),
+            Arc::new(world_repo),
             create_narrative_entity(MockNarrativeRepo::new()),
-            queue.clone(),
+            queue_port.clone(),
             clock,
         );
 
@@ -683,7 +641,7 @@ mod tests {
 
         assert!(matches!(
             err,
-            super::super::start::ConversationError::WorldNotFound
+            super::super::start::ConversationError::WorldNotFound(_)
         ));
         assert!(queue_port.recorded_player_actions().is_empty());
     }
@@ -761,21 +719,16 @@ mod tests {
             .withf(move |r, t| *r == region_id && *t == current_game_time)
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
-        let (clock_port, clock) = build_clock(now);
-        let (queue_port, queue) = build_queue(Uuid::new_v4());
+        let clock = build_clock(now);
+        let queue_port = build_queue(Uuid::new_v4());
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
-                pc_repo,
-            ))),
-            Arc::new(StagingRepository::new(Arc::new(staging_repo))),
-            Arc::new(repositories::WorldRepository::new(
-                Arc::new(world_repo),
-                clock_port.clone(),
-            )),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
+            Arc::new(staging_repo),
+            Arc::new(world_repo),
             create_narrative_entity(MockNarrativeRepo::new()),
-            queue.clone(),
+            queue_port.clone(),
             clock,
         );
 
@@ -877,21 +830,16 @@ mod tests {
             .withf(move |id| *id == conversation_id)
             .returning(|_| Ok(false));
 
-        let (clock_port, clock) = build_clock(now);
-        let (queue_port, queue) = build_queue(Uuid::new_v4());
+        let clock = build_clock(now);
+        let queue_port = build_queue(Uuid::new_v4());
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
-                pc_repo,
-            ))),
-            Arc::new(StagingRepository::new(Arc::new(staging_repo))),
-            Arc::new(repositories::WorldRepository::new(
-                Arc::new(world_repo),
-                clock_port.clone(),
-            )),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
+            Arc::new(staging_repo),
+            Arc::new(world_repo),
             create_narrative_entity(narrative_repo),
-            queue.clone(),
+            queue_port.clone(),
             clock,
         );
 
@@ -993,21 +941,16 @@ mod tests {
             .withf(move |p, n| *p == pc_id && *n == npc_id)
             .returning(|_, _| Ok(None));
 
-        let (clock_port, clock) = build_clock(now);
-        let (queue_port, queue) = build_queue(Uuid::new_v4());
+        let clock = build_clock(now);
+        let queue_port = build_queue(Uuid::new_v4());
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
-                pc_repo,
-            ))),
-            Arc::new(StagingRepository::new(Arc::new(staging_repo))),
-            Arc::new(repositories::WorldRepository::new(
-                Arc::new(world_repo),
-                clock_port.clone(),
-            )),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
+            Arc::new(staging_repo),
+            Arc::new(world_repo),
             create_narrative_entity(narrative_repo),
-            queue.clone(),
+            queue_port.clone(),
             clock,
         );
 
@@ -1112,22 +1055,17 @@ mod tests {
             .withf(move |id| *id == conversation_id)
             .returning(|_| Ok(true));
 
-        let (clock_port, clock) = build_clock(now);
+        let clock = build_clock(now);
         let queue_id = Uuid::new_v4();
-        let (queue_port, queue) = build_queue(queue_id);
+        let queue_port = build_queue(queue_id);
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
-                pc_repo,
-            ))),
-            Arc::new(StagingRepository::new(Arc::new(staging_repo))),
-            Arc::new(repositories::WorldRepository::new(
-                Arc::new(world_repo),
-                clock_port.clone(),
-            )),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
+            Arc::new(staging_repo),
+            Arc::new(world_repo),
             create_narrative_entity(narrative_repo),
-            queue.clone(),
+            queue_port.clone(),
             clock,
         );
 
@@ -1242,22 +1180,17 @@ mod tests {
             .withf(move |p, n| *p == pc_id && *n == npc_id)
             .returning(move |_, _| Ok(Some(found_conversation_id)));
 
-        let (clock_port, clock) = build_clock(now);
+        let clock = build_clock(now);
         let queue_id = Uuid::new_v4();
-        let (queue_port, queue) = build_queue(queue_id);
+        let queue_port = build_queue(queue_id);
 
         let use_case = super::ContinueConversation::new(
-            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
-                pc_repo,
-            ))),
-            Arc::new(StagingRepository::new(Arc::new(staging_repo))),
-            Arc::new(repositories::WorldRepository::new(
-                Arc::new(world_repo),
-                clock_port.clone(),
-            )),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
+            Arc::new(staging_repo),
+            Arc::new(world_repo),
             create_narrative_entity(narrative_repo),
-            queue.clone(),
+            queue_port.clone(),
             clock,
         );
 

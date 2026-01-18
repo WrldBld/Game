@@ -360,7 +360,6 @@ Please evaluate whether this condition is currently met and respond with the JSO
 mod tests {
     use super::*;
     use crate::infrastructure::ports::{FinishReason, LlmPort, LlmResponse, ToolDefinition};
-    use crate::repositories::LlmService;
     use async_trait::async_trait;
 
     /// Mock LLM that returns a configurable response
@@ -397,9 +396,8 @@ mod tests {
     }
 
     fn build_evaluator(response: impl Into<String>) -> CustomConditionEvaluator {
-        let mock = Arc::new(MockLlm::new(response));
-        let llm = Arc::new(LlmService::new(mock));
-        CustomConditionEvaluator::new(llm)
+        let mock: Arc<dyn LlmPort> = Arc::new(MockLlm::new(response));
+        CustomConditionEvaluator::new(mock)
     }
 
     #[tokio::test]

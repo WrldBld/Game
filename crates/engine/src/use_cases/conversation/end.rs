@@ -168,8 +168,6 @@ mod tests {
         MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
         MockWorldRepo,
     };
-    use crate::repositories;
-    use crate::repositories::{CharacterRepository, ClockService};
     use crate::use_cases::Narrative;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -180,42 +178,24 @@ mod tests {
         }
     }
 
-    fn build_clock(now: chrono::DateTime<chrono::Utc>) -> (Arc<dyn ClockPort>, Arc<ClockService>) {
-        let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let clock = Arc::new(ClockService::new(clock_port.clone()));
-        (clock_port, clock)
+    fn build_clock(now: chrono::DateTime<chrono::Utc>) -> Arc<dyn ClockPort> {
+        Arc::new(FixedClock(now))
     }
 
     fn create_narrative_entity(narrative_repo: MockNarrativeRepo) -> Arc<Narrative> {
         let now = Utc::now();
-        let (clock_port, clock) = build_clock(now);
-        let location_repo = Arc::new(MockLocationRepo::new());
-        let world_repo = Arc::new(MockWorldRepo::new());
-        let player_character_repo = Arc::new(MockPlayerCharacterRepo::new());
-        let character_repo = Arc::new(MockCharacterRepo::new());
-        let observation_repo = Arc::new(MockObservationRepo::new());
-        let challenge_repo = Arc::new(MockChallengeRepo::new());
-        let flag_repo = Arc::new(MockFlagRepo::new());
-        let scene_repo = Arc::new(MockSceneRepo::new());
+        let clock = build_clock(now);
 
         Arc::new(Narrative::new(
-            Arc::new(repositories::NarrativeRepository::new(
-                Arc::new(narrative_repo),
-                clock_port.clone(),
-            )),
-            Arc::new(repositories::Location::new(location_repo.clone())),
-            Arc::new(repositories::WorldRepository::new(
-                world_repo.clone(),
-                clock_port.clone(),
-            )),
-            Arc::new(repositories::PlayerCharacterRepository::new(
-                player_character_repo,
-            )),
-            Arc::new(repositories::CharacterRepository::new(character_repo)),
-            Arc::new(repositories::ObservationRepository::new(observation_repo)),
-            Arc::new(repositories::ChallengeRepository::new(challenge_repo)),
-            Arc::new(repositories::FlagRepository::new(flag_repo)),
-            Arc::new(repositories::SceneRepository::new(scene_repo)),
+            Arc::new(narrative_repo),
+            Arc::new(MockLocationRepo::new()),
+            Arc::new(MockWorldRepo::new()),
+            Arc::new(MockPlayerCharacterRepo::new()),
+            Arc::new(MockCharacterRepo::new()),
+            Arc::new(MockObservationRepo::new()),
+            Arc::new(MockChallengeRepo::new()),
+            Arc::new(MockFlagRepo::new()),
+            Arc::new(MockSceneRepo::new()),
             clock,
         ))
     }
@@ -233,10 +213,8 @@ mod tests {
             .returning(|_| Ok(None));
 
         let use_case = super::EndConversation::new(
-            Arc::new(CharacterRepository::new(Arc::new(MockCharacterRepo::new()))),
-            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
-                pc_repo,
-            ))),
+            Arc::new(MockCharacterRepo::new()),
+            Arc::new(pc_repo),
             create_narrative_entity(MockNarrativeRepo::new()),
         );
 
@@ -279,10 +257,8 @@ mod tests {
             .returning(|_| Ok(None));
 
         let use_case = super::EndConversation::new(
-            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
-                pc_repo,
-            ))),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
             create_narrative_entity(MockNarrativeRepo::new()),
         );
 
@@ -338,10 +314,8 @@ mod tests {
             .returning(move |_, _| Ok(Some(conversation_id)));
 
         let use_case = super::EndConversation::new(
-            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
-                pc_repo,
-            ))),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
             create_narrative_entity(narrative_repo),
         );
 
@@ -405,10 +379,8 @@ mod tests {
             .returning(|_, _| Ok(None));
 
         let use_case = super::EndConversation::new(
-            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
-                pc_repo,
-            ))),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
             create_narrative_entity(narrative_repo),
         );
 
@@ -473,10 +445,8 @@ mod tests {
             });
 
         let use_case = super::EndConversation::new(
-            Arc::new(CharacterRepository::new(Arc::new(character_repo))),
-            Arc::new(repositories::PlayerCharacterRepository::new(Arc::new(
-                pc_repo,
-            ))),
+            Arc::new(character_repo),
+            Arc::new(pc_repo),
             create_narrative_entity(narrative_repo),
         );
 

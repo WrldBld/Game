@@ -58,11 +58,6 @@ mod trigger_tests {
         MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
         MockWorldRepo,
     };
-    use crate::repositories::{
-        ChallengeRepository, CharacterRepository, ClockService, FlagRepository, Location,
-        NarrativeRepository, ObservationRepository, PlayerCharacterRepository, SceneRepository,
-        WorldRepository,
-    };
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -84,31 +79,35 @@ mod trigger_tests {
             .withf(move |w, r| *w == world_id && *r == region_id)
             .returning(|_, _| Ok(vec![]));
 
-        let location_repo = Arc::new(MockLocationRepo::new());
-        let world_repo = Arc::new(MockWorldRepo::new());
-        let player_character_repo = Arc::new(MockPlayerCharacterRepo::new());
-        let character_repo = Arc::new(MockCharacterRepo::new());
-        let observation_repo = Arc::new(MockObservationRepo::new());
-        let challenge_repo = Arc::new(MockChallengeRepo::new());
-        let flag_repo = Arc::new(MockFlagRepo::new());
-        let scene_repo = Arc::new(MockSceneRepo::new());
+        let location_repo: Arc<dyn crate::infrastructure::ports::LocationRepo> =
+            Arc::new(MockLocationRepo::new());
+        let world_repo: Arc<dyn crate::infrastructure::ports::WorldRepo> =
+            Arc::new(MockWorldRepo::new());
+        let player_character_repo: Arc<dyn crate::infrastructure::ports::PlayerCharacterRepo> =
+            Arc::new(MockPlayerCharacterRepo::new());
+        let character_repo: Arc<dyn crate::infrastructure::ports::CharacterRepo> =
+            Arc::new(MockCharacterRepo::new());
+        let observation_repo: Arc<dyn crate::infrastructure::ports::ObservationRepo> =
+            Arc::new(MockObservationRepo::new());
+        let challenge_repo: Arc<dyn crate::infrastructure::ports::ChallengeRepo> =
+            Arc::new(MockChallengeRepo::new());
+        let flag_repo: Arc<dyn crate::infrastructure::ports::FlagRepo> =
+            Arc::new(MockFlagRepo::new());
+        let scene_repo: Arc<dyn crate::infrastructure::ports::SceneRepo> =
+            Arc::new(MockSceneRepo::new());
 
-        let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let clock = Arc::new(ClockService::new(clock_port.clone()));
+        let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
 
         let narrative_ops = super::NarrativeOps::new(
-            Arc::new(NarrativeRepository::new(
-                Arc::new(narrative_repo),
-                clock_port.clone(),
-            )),
-            Arc::new(Location::new(location_repo.clone())),
-            Arc::new(WorldRepository::new(world_repo.clone(), clock_port.clone())),
-            Arc::new(PlayerCharacterRepository::new(player_character_repo)),
-            Arc::new(CharacterRepository::new(character_repo)),
-            Arc::new(ObservationRepository::new(observation_repo)),
-            Arc::new(ChallengeRepository::new(challenge_repo)),
-            Arc::new(FlagRepository::new(flag_repo)),
-            Arc::new(SceneRepository::new(scene_repo)),
+            Arc::new(narrative_repo),
+            location_repo,
+            world_repo,
+            player_character_repo,
+            character_repo,
+            observation_repo,
+            challenge_repo,
+            flag_repo,
+            scene_repo,
             clock,
         );
 

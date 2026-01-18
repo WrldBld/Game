@@ -86,6 +86,7 @@ pub struct UseCases {
     pub lore: use_cases::LoreUseCases,
     pub location_events: use_cases::LocationEventUseCases,
     pub custom_condition: Arc<use_cases::CustomConditionEvaluator>,
+    pub inventory: use_cases::InventoryUseCases,
 }
 
 impl App {
@@ -527,6 +528,9 @@ impl App {
         let session =
             use_cases::SessionUseCases::new(join_world, join_world_flow, directorial_update);
 
+        let inventory =
+            use_cases::InventoryUseCases::new(repos.item.clone(), repos.player_character.clone());
+
         let use_cases = UseCases {
             movement,
             conversation,
@@ -551,6 +555,7 @@ impl App {
             lore: lore_uc,
             location_events: location_events_uc,
             custom_condition,
+            inventory,
         };
 
         // Create content service for game content (races, classes, spells, etc.)

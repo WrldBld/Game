@@ -589,9 +589,10 @@ async fn test_event_condition_checks_inventory() {
 
     // Give the player the key
     ctx.app
-        .repositories
+        .use_cases
         .inventory
-        .give_item_to_pc(
+        .give_item
+        .execute(
             pc_id,
             "Mysterious Key".to_string(),
             Some("An ornate key with strange symbols".to_string()),

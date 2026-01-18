@@ -566,8 +566,6 @@ mod tests {
     use wrldbldr_domain::{GameTimeConfig, TimeMode, WorldId};
 
     use crate::infrastructure::ports::{ClockPort, MockWorldRepo};
-    use crate::repositories;
-    use crate::repositories::ClockService;
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
 
@@ -577,10 +575,8 @@ mod tests {
         }
     }
 
-    fn build_clock(now: chrono::DateTime<chrono::Utc>) -> (Arc<dyn ClockPort>, Arc<ClockService>) {
-        let clock_port: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let clock = Arc::new(ClockService::new(clock_port.clone()));
-        (clock_port, clock)
+    fn build_clock(now: chrono::DateTime<chrono::Utc>) -> Arc<dyn ClockPort> {
+        Arc::new(FixedClock(now))
     }
 
     #[tokio::test]
@@ -604,12 +600,8 @@ mod tests {
             .returning(move |_| Ok(Some(domain_world_for_get.clone())));
         world_repo.expect_save().times(0);
 
-        let (clock_port, clock) = build_clock(now);
-        let world_entity = Arc::new(repositories::WorldRepository::new(
-            Arc::new(world_repo),
-            clock_port.clone(),
-        ));
-        let suggest_time = super::SuggestTime::new(world_entity, clock);
+        let clock = build_clock(now);
+        let suggest_time = super::SuggestTime::new(Arc::new(world_repo), clock);
 
         let result = suggest_time
             .execute(
@@ -662,12 +654,8 @@ mod tests {
             .returning(move |_| Ok(Some(domain_world_for_get.clone())));
         world_repo.expect_save().times(0);
 
-        let (clock_port, clock) = build_clock(now);
-        let world_entity = Arc::new(repositories::WorldRepository::new(
-            Arc::new(world_repo),
-            clock_port.clone(),
-        ));
-        let suggest_time = super::SuggestTime::new(world_entity, clock);
+        let clock = build_clock(now);
+        let suggest_time = super::SuggestTime::new(Arc::new(world_repo), clock);
 
         let result = suggest_time
             .execute(
@@ -700,12 +688,8 @@ mod tests {
             .returning(move |_| Ok(Some(domain_world_for_get.clone())));
         world_repo.expect_save().times(0);
 
-        let (clock_port, clock) = build_clock(now);
-        let world_entity = Arc::new(repositories::WorldRepository::new(
-            Arc::new(world_repo),
-            clock_port.clone(),
-        ));
-        let suggest_time = super::SuggestTime::new(world_entity, clock);
+        let clock = build_clock(now);
+        let suggest_time = super::SuggestTime::new(Arc::new(world_repo), clock);
 
         let result = suggest_time
             .execute(

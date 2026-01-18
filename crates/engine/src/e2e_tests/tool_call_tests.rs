@@ -464,8 +464,8 @@ async fn test_npc_gives_item_via_tool() {
         let initial_inventory = ctx
             .app
             .repositories
-            .inventory
-            .get_pc_inventory(pc_id)
+            .player_character
+            .get_inventory(pc_id)
             .await
             .expect("Failed to get inventory");
         let initial_count = initial_inventory.len();
@@ -590,9 +590,10 @@ async fn test_npc_gives_item_via_tool() {
                     .map(|s| s.to_string());
 
                 ctx.app
-                    .repositories
+                    .use_cases
                     .inventory
-                    .give_item_to_pc(pc_id, item_name.to_string(), description)
+                    .give_item
+                    .execute(pc_id, item_name.to_string(), description)
                     .await
                     .expect("Failed to give item");
             }
@@ -602,8 +603,8 @@ async fn test_npc_gives_item_via_tool() {
         let final_inventory = ctx
             .app
             .repositories
-            .inventory
-            .get_pc_inventory(pc_id)
+            .player_character
+            .get_inventory(pc_id)
             .await
             .expect("Failed to get final inventory");
 
@@ -683,8 +684,8 @@ async fn test_tool_effect_persists_after_conversation() {
         let initial_inventory = ctx
             .app
             .repositories
-            .inventory
-            .get_pc_inventory(pc_id)
+            .player_character
+            .get_inventory(pc_id)
             .await
             .expect("Failed to get initial inventory");
         let initial_count = initial_inventory.len();
@@ -774,9 +775,10 @@ async fn test_tool_effect_persists_after_conversation() {
                         .map(|s| s.to_string());
 
                     ctx.app
-                        .repositories
+                        .use_cases
                         .inventory
-                        .give_item_to_pc(pc_id, item_name.to_string(), description)
+                        .give_item
+                        .execute(pc_id, item_name.to_string(), description)
                         .await
                         .expect("Failed to give item");
                 }
@@ -801,8 +803,8 @@ async fn test_tool_effect_persists_after_conversation() {
         let final_inventory = ctx
             .app
             .repositories
-            .inventory
-            .get_pc_inventory(pc_id)
+            .player_character
+            .get_inventory(pc_id)
             .await
             .expect("Failed to get final inventory");
 
@@ -1419,8 +1421,8 @@ async fn test_multiple_tools_in_single_response() {
         let initial_inventory = ctx
             .app
             .repositories
-            .inventory
-            .get_pc_inventory(pc_id)
+            .player_character
+            .get_inventory(pc_id)
             .await
             .expect("Failed to get inventory");
         let initial_count = initial_inventory.len();
@@ -1580,9 +1582,10 @@ async fn test_multiple_tools_in_single_response() {
                     .map(|s| s.to_string());
 
                 ctx.app
-                    .repositories
+                    .use_cases
                     .inventory
-                    .give_item_to_pc(pc_id, item_name.to_string(), description)
+                    .give_item
+                    .execute(pc_id, item_name.to_string(), description)
                     .await
                     .expect("Failed to give item");
             }
@@ -1592,8 +1595,8 @@ async fn test_multiple_tools_in_single_response() {
         let final_inventory = ctx
             .app
             .repositories
-            .inventory
-            .get_pc_inventory(pc_id)
+            .player_character
+            .get_inventory(pc_id)
             .await
             .expect("Failed to get final inventory");
 
