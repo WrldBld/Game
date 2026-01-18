@@ -28,11 +28,17 @@ use crate::presentation::state::{
 /// The original Director mode content (directing gameplay)
 #[component]
 pub fn DirectorModeContent() -> Element {
+    // CRITICAL: All hooks must be called unconditionally at the top
     let session_state = use_session_state();
     let game_state = use_game_state();
     let skill_service = use_skill_service();
     let challenge_service = use_challenge_service();
     let _generation_state = use_generation_state();
+    let command_bus_disposition = use_command_bus();
+    let command_bus_rel = use_command_bus();
+    let command_bus_trigger = use_command_bus();
+    let command_bus_approve = use_command_bus();
+    let command_bus_regenerate = use_command_bus();
     let mut show_queue_panel = use_signal(|| false);
 
     // Local state for directorial inputs
@@ -302,8 +308,7 @@ pub fn DirectorModeContent() -> Element {
                             })
                             .collect();
 
-                        let command_bus_disposition = use_command_bus();
-                        let command_bus_rel = use_command_bus();
+                        // NOTE: command_bus hooks are now called at the top of the component
 
                         rsx! {
                             div {
@@ -572,22 +577,20 @@ pub fn DirectorModeContent() -> Element {
                             }
                         }
                     } else {
-                        {
-                            let command_bus_trigger = use_command_bus();
-                            rsx! {
-                                TriggerChallengeModal {
-                                    challenges: active_challenges,
-                                    scene_characters: chars,
-                                    on_trigger: move |(challenge_id, character_id): (String, String)| {
-                                        tracing::info!("Triggering challenge {} for character {}", challenge_id, character_id);
-                                        let msg = ClientMessageBuilder::trigger_challenge(&challenge_id, &character_id);
-                                        if let Err(e) = command_bus_trigger.send(msg) {
-                                            tracing::error!("Failed to trigger challenge: {}", e);
-                                        }
-                                        show_trigger_challenge.set(false);
-                                    },
-                                    on_close: move |_| show_trigger_challenge.set(false),
-                                }
+                        // NOTE: command_bus_trigger hook is now called at the top of the component
+                        rsx! {
+                            TriggerChallengeModal {
+                                challenges: active_challenges,
+                                scene_characters: chars,
+                                on_trigger: move |(challenge_id, character_id): (String, String)| {
+                                    tracing::info!("Triggering challenge {} for character {}", challenge_id, character_id);
+                                    let msg = ClientMessageBuilder::trigger_challenge(&challenge_id, &character_id);
+                                    if let Err(e) = command_bus_trigger.send(msg) {
+                                        tracing::error!("Failed to trigger challenge: {}", e);
+                                    }
+                                    show_trigger_challenge.set(false);
+                                },
+                                on_close: move |_| show_trigger_challenge.set(false),
                             }
                         }
                     }
@@ -614,9 +617,7 @@ pub fn DirectorModeContent() -> Element {
             // Staging Approval Popup - shown when a PC is trying to enter a region
             if let Some(staging_data) = game_state.pending_staging_approval.read().as_ref() {
                 {
-                    // Get command bus for the closures
-                    let command_bus_approve = use_command_bus();
-                    let command_bus_regenerate = use_command_bus();
+                    // NOTE: command_bus hooks are now called at the top of the component
                     let mut game_state_for_approve = game_state.clone();
                     let mut game_state_for_close = game_state.clone();
 

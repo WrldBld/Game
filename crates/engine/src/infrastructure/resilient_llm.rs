@@ -15,7 +15,7 @@ use std::time::Duration;
 use crate::infrastructure::circuit_breaker::{
     CircuitBreaker, CircuitBreakerConfig, CircuitBreakerMetrics, CircuitState,
 };
-use crate::infrastructure::ports::{LlmError, LlmPort, LlmRequest, LlmResponse, ToolDefinition};
+use crate::infrastructure::ports::{LlmError, LlmPort, LlmRequest, LlmResponse};
 
 /// Configuration for retry behavior
 #[derive(Debug, Clone)]
@@ -252,21 +252,6 @@ impl LlmPort for ResilientLlmClient {
         })
         .await
     }
-
-    async fn generate_with_tools(
-        &self,
-        request: LlmRequest,
-        tools: Vec<ToolDefinition>,
-    ) -> Result<LlmResponse, LlmError> {
-        let inner = Arc::clone(&self.inner);
-        self.execute_with_retry("generate_with_tools", || {
-            let inner = Arc::clone(&inner);
-            let request = request.clone();
-            let tools = tools.clone();
-            async move { inner.generate_with_tools(request, tools).await }
-        })
-        .await
-    }
 }
 
 #[cfg(test)]
@@ -298,19 +283,10 @@ mod tests {
             } else {
                 Ok(LlmResponse {
                     content: "Success!".to_string(),
-                    tool_calls: vec![],
                     finish_reason: crate::infrastructure::ports::FinishReason::Stop,
                     usage: None,
                 })
             }
-        }
-
-        async fn generate_with_tools(
-            &self,
-            request: LlmRequest,
-            _tools: Vec<ToolDefinition>,
-        ) -> Result<LlmResponse, LlmError> {
-            self.generate(request).await
         }
     }
 

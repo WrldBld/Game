@@ -301,6 +301,11 @@ impl App {
         let approve_suggestion = Arc::new(use_cases::approval::ApproveSuggestion::new(
             queue_port.clone(),
         ));
+        let tool_executor = Arc::new(use_cases::approval::tool_executor::ToolExecutor::new(
+            repos.item.clone(),
+            repos.player_character.clone(),
+            repos.character.clone(),
+        ));
         let approval = use_cases::ApprovalUseCases::new(
             Arc::new(use_cases::approval::ApproveStaging::new(
                 repos.staging.clone(),
@@ -310,6 +315,7 @@ impl App {
                 approve_suggestion.clone(),
                 narrative.clone(),
                 queue_port.clone(),
+                tool_executor,
             )),
         );
 
@@ -358,6 +364,8 @@ impl App {
             Arc::new(use_cases::queues::ProcessLlmRequest::new(
                 queue_port.clone(),
                 llm_port.clone(),
+                repos.challenge.clone(),
+                repos.narrative.clone(),
             )),
         );
 

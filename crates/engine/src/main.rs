@@ -17,6 +17,7 @@ mod app;
 mod game_tools;
 mod infrastructure;
 mod llm_context;
+mod prompt_templates;
 mod queue_types;
 mod repositories;
 mod stores;
@@ -38,7 +39,7 @@ use infrastructure::{
     clock::SystemClock,
     comfyui::ComfyUIClient,
     neo4j::{Neo4jGraph, Neo4jRepositories},
-    ollama::OllamaClient,
+    openai_compatible::OpenAICompatibleClient,
     queue::SqliteQueue,
     resilient_llm::{ResilientLlmClient, RetryConfig},
     settings::SqliteSettingsRepo,
@@ -94,7 +95,7 @@ async fn main() -> anyhow::Result<()> {
     let repos = Neo4jRepositories::new(graph, clock.clone());
 
     // Create infrastructure clients
-    let ollama_client = Arc::new(OllamaClient::new(&ollama_url, &ollama_model));
+    let ollama_client = Arc::new(OpenAICompatibleClient::new(&ollama_url, &ollama_model));
     let retry_config = RetryConfig::default();
     tracing::info!(
         "LLM client configured with retry: max_retries={}, base_delay_ms={}",

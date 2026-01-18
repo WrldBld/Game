@@ -1,5 +1,55 @@
 # WrldBldr Agent Guidelines
 
+## Product Vision
+
+**WrldBldr is a digital tabletop RPG platform that merges human Dungeon Masters with AI assistance to create a visual novel-style gameplay experience.**
+
+### The Core Problem
+
+Running a rich, responsive TTRPG world is exhausting for human DMs. You need to voice NPCs on the fly, remember who's where, track relationships, maintain narrative consistency - all while players do unexpected things.
+
+### The Solution: DM-in-the-Loop AI
+
+WrldBldr puts an **AI assistant alongside the DM**, not replacing them. The AI handles the heavy lifting (generating NPC dialogue, deciding who's at a location, suggesting appropriate challenges), while the DM retains **absolute authority** - every AI decision goes through an approval queue before players see it.
+
+### Two User Experiences
+
+**Players** see a visual novel interface:
+- Backdrop images of locations (tavern, market, dungeon)
+- Character sprites of NPCs present
+- Dialogue boxes with typewriter text animation
+- Choices and action buttons
+
+**DMs** see a control panel showing:
+- What the AI proposes (dialogue, NPC presence, challenges)
+- The AI's reasoning and suggested tool calls
+- Approve/modify/reject buttons
+- Directorial guidance injection
+
+### Key Design Principles
+
+1. **Graph-First World Model**: Everything in Neo4j - locations contain regions, characters have wants targeting goals, NPCs have location affinities, narrative events have triggers and effects. Rich queries enable deep AI context.
+
+2. **Theatre Metaphor (Staging)**: When players enter a region, the system determines "who's on stage" via rule-based logic + LLM reasoning, with DM approval. Results are cached with configurable TTL.
+
+3. **Character Psychology**: NPCs use Campbell's Hero's Journey archetypes and Greimas's Actantial Model (wants, helpers, opponents, senders, receivers) - giving them internal logic the AI can reason about.
+
+4. **Multi-System Support**: Same platform supports D&D, Call of Cthulhu, Fate, etc. - different dice mechanics, same rich narrative tools.
+
+5. **AI-Generated Assets**: ComfyUI integration generates portraits, sprites, and backdrops on demand with style consistency.
+
+### What Makes It Different
+
+| Traditional VTT | WrldBldr |
+|-----------------|----------|
+| AI runs the game OR human does | AI proposes, human approves |
+| NPCs are stat blocks | NPCs have psychology (wants, archetypes, relationships) |
+| Relationships in notes | Relationships as graph edges with sentiment |
+| Text chat interface | Visual novel presentation |
+| Single rule system | Multi-system support |
+
+---
+
 ## Architecture
 
 ### Core Principles

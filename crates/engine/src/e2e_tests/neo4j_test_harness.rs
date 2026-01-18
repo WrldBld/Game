@@ -2,23 +2,48 @@
 //!
 //! Provides testcontainer-based Neo4j instance management for integration tests.
 //!
-//! # Shared Container
+//! # Shared Container with Fixed Ports
 //!
-//! For E2E tests, use `SharedNeo4jHarness::shared()` to get a shared container that is
-//! reused across all tests. Each test should use fresh UUIDs for its entities to
-//! ensure isolation without needing cleanup between tests.
+//! Tests use a container named `wrldbldr-test-neo4j` on fixed ports:
+//! - Bolt: 17687
+//! - HTTP: 17474
+//!
+//! This allows:
+//! - Detecting if a test container is already running
+//! - Reusing existing containers across test runs
+//! - Easier debugging (consistent port numbers)
 //!
 //! # Thread Safety
 //!
 //! The shared container uses `std::sync::OnceLock` which works correctly across
 //! multiple tokio runtimes (each `#[tokio::test]` creates its own runtime).
+//!
+//! # Container Lifecycle
+//!
+//! 1. Check if `wrldbldr-test-neo4j` container is running
+//! 2. If running and healthy, reuse it
+//! 3. If not running, start a new container with fixed ports
+//! 4. Old exited containers are cleaned up automatically
 
+use std::process::Command;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use neo4rs::{query, Graph};
 use testcontainers::{core::WaitFor, runners::AsyncRunner, ContainerAsync, GenericImage};
 use tokio::time::sleep;
+
+/// The Neo4j image used for tests.
+const NEO4J_TEST_IMAGE: &str = "neo4j:5.26.0-community";
+
+/// Fixed container name for test Neo4j instance.
+const TEST_CONTAINER_NAME: &str = "wrldbldr-test-neo4j";
+
+/// Fixed bolt port for test Neo4j instance.
+const TEST_BOLT_PORT: u16 = 17687;
+
+/// Fixed HTTP port for test Neo4j instance.
+const TEST_HTTP_PORT: u16 = 17474;
 
 /// Password used for Neo4j test containers.
 pub const TEST_NEO4J_PASSWORD: &str = "testpassword";
@@ -42,7 +67,8 @@ static INIT_LOCK: Mutex<bool> = Mutex::new(false);
 /// Each test should call `create_graph()` to get its own Graph connection,
 /// because Graph connections are tied to tokio runtimes.
 pub struct SharedNeo4jHarness {
-    _container: ContainerAsync<GenericImage>,
+    /// Container handle (None if reusing an existing external container)
+    _container: Option<ContainerAsync<GenericImage>>,
     /// The bolt URI for connecting to the container.
     bolt_uri: String,
 }
@@ -96,20 +122,62 @@ impl SharedNeo4jHarness {
         }
     }
 
-    /// Start a new shared container (internal).
+    /// Start or connect to the shared Neo4j container.
+    ///
+    /// First checks if a container named `wrldbldr-test-neo4j` is already running.
+    /// If so, connects to it. Otherwise, starts a new container with fixed ports.
     async fn start_shared() -> Result<Arc<Self>, Box<dyn std::error::Error + Send + Sync>> {
-        tracing::info!("Starting shared Neo4j container for E2E tests...");
-        let container: ContainerAsync<GenericImage> =
-            neo4j_image(TEST_NEO4J_PASSWORD).start().await;
-        let bolt_port = container.get_host_port_ipv4(7687).await;
-        let bolt_uri = format!("bolt://127.0.0.1:{bolt_port}");
+        let bolt_uri = format!("bolt://127.0.0.1:{}", TEST_BOLT_PORT);
 
-        // Verify the container is actually ready by creating a test connection
+        // Check if our named container is already running
+        if is_test_container_running() {
+            tracing::info!(
+                container = TEST_CONTAINER_NAME,
+                bolt_port = TEST_BOLT_PORT,
+                "Found existing test container, attempting to connect..."
+            );
+
+            // Try to connect to the existing container
+            match connect_with_retry(&bolt_uri, "neo4j", TEST_NEO4J_PASSWORD).await {
+                Ok(_) => {
+                    tracing::info!(
+                        bolt_uri = %bolt_uri,
+                        "Successfully connected to existing Neo4j test container"
+                    );
+                    return Ok(Arc::new(Self {
+                        _container: None, // No container handle - it's external
+                        bolt_uri,
+                    }));
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "Existing container not responding, will start fresh"
+                    );
+                    // Fall through to start a new container
+                }
+            }
+        }
+
+        // Clean up any old containers before starting a new one
+        cleanup_old_containers();
+
+        tracing::info!(
+            container = TEST_CONTAINER_NAME,
+            bolt_port = TEST_BOLT_PORT,
+            http_port = TEST_HTTP_PORT,
+            "Starting new Neo4j test container with fixed ports..."
+        );
+
+        // Start container using docker directly for fixed ports and naming
+        start_named_container()?;
+
+        // Wait for container to be ready
         let _test_graph = connect_with_retry(&bolt_uri, "neo4j", TEST_NEO4J_PASSWORD).await?;
-        tracing::info!("Shared Neo4j container ready at {}", bolt_uri);
+        tracing::info!(bolt_uri = %bolt_uri, "Neo4j test container ready");
 
         Ok(Arc::new(Self {
-            _container: container,
+            _container: None, // We manage via docker commands, not testcontainers handle
             bolt_uri,
         }))
     }
@@ -213,6 +281,56 @@ pub fn neo4j_image(password: &str) -> GenericImage {
         .with_wait_for(WaitFor::seconds(5))
 }
 
+/// Check if the test container is already running.
+fn is_test_container_running() -> bool {
+    let output = Command::new("docker")
+        .args(["ps", "-q", "-f", &format!("name={}", TEST_CONTAINER_NAME)])
+        .output();
+
+    match output {
+        Ok(out) if out.status.success() => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            !stdout.trim().is_empty()
+        }
+        _ => false,
+    }
+}
+
+/// Start a new named container with fixed ports using docker directly.
+fn start_named_container() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let output = Command::new("docker")
+        .args([
+            "run",
+            "-d", // Detached
+            "--name",
+            TEST_CONTAINER_NAME,
+            "-p",
+            &format!("{}:7687", TEST_BOLT_PORT),
+            "-p",
+            &format!("{}:7474", TEST_HTTP_PORT),
+            "-e",
+            &format!("NEO4J_AUTH=neo4j/{}", TEST_NEO4J_PASSWORD),
+            "-e",
+            "NEO4J_server_memory_heap_initial__size=256m",
+            "-e",
+            "NEO4J_server_memory_heap_max__size=512m",
+            "-e",
+            "NEO4J_server_memory_pagecache_size=128m",
+            "-e",
+            "NEO4J_db_checkpoint_iops_limit=500",
+            NEO4J_TEST_IMAGE,
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Failed to start Neo4j container: {}", stderr).into());
+    }
+
+    tracing::info!(container = TEST_CONTAINER_NAME, "Started Neo4j container");
+    Ok(())
+}
+
 /// Connect to Neo4j with retry logic using exponential backoff.
 ///
 /// Features:
@@ -283,6 +401,83 @@ pub async fn clean_db(graph: &Graph) -> Result<(), Box<dyn std::error::Error + S
         .await
         .map_err(|e| format!("Failed to clean database: {e}"))?;
     Ok(())
+}
+
+/// Clean up old Neo4j test containers.
+///
+/// This runs before starting a new container to ensure clean state.
+/// It removes:
+/// 1. Our named test container if it exists (stopped or running)
+/// 2. Any other Neo4j test containers from testcontainers
+fn cleanup_old_containers() {
+    // First, remove our named container if it exists
+    let _ = Command::new("docker")
+        .args(["rm", "-f", TEST_CONTAINER_NAME])
+        .output();
+
+    // Then, remove any other Neo4j test containers (from testcontainers)
+    let find_result = Command::new("docker")
+        .args([
+            "ps",
+            "-aq",
+            "--filter",
+            &format!("ancestor={}", NEO4J_TEST_IMAGE),
+        ])
+        .output();
+
+    let container_ids = match find_result {
+        Ok(output) if output.status.success() => String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+            .collect::<Vec<_>>(),
+        Ok(output) => {
+            tracing::debug!(
+                stderr = %String::from_utf8_lossy(&output.stderr),
+                "docker ps command failed, skipping cleanup"
+            );
+            return;
+        }
+        Err(e) => {
+            tracing::debug!(error = %e, "Failed to run docker command, skipping cleanup");
+            return;
+        }
+    };
+
+    if container_ids.is_empty() {
+        tracing::debug!("No old Neo4j containers to clean up");
+        return;
+    }
+
+    tracing::info!(
+        count = container_ids.len(),
+        "Removing old Neo4j test containers"
+    );
+
+    // Remove the containers
+    let remove_result = Command::new("docker")
+        .arg("rm")
+        .arg("-f") // Force remove even if running (belt and suspenders)
+        .args(&container_ids)
+        .output();
+
+    match remove_result {
+        Ok(output) if output.status.success() => {
+            tracing::info!(
+                count = container_ids.len(),
+                "Successfully removed old Neo4j test containers"
+            );
+        }
+        Ok(output) => {
+            tracing::warn!(
+                stderr = %String::from_utf8_lossy(&output.stderr),
+                "Failed to remove some containers"
+            );
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to run docker rm command");
+        }
+    }
 }
 
 #[cfg(test)]

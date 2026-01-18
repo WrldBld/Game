@@ -6,12 +6,17 @@
 //! - `<topics>` - Discussed topics
 //! - `<challenge_suggestion>` - Suggested challenge trigger
 //! - `<narrative_event_suggestion>` - Suggested narrative event trigger
+//! - `<tool name="...">` - Game tool calls (give_item, change_relationship, etc.)
 //!
 //! See `prompt_templates.rs` for the expected output format.
 
 use regex_lite::Regex;
 use serde::Deserialize;
 use std::sync::LazyLock;
+use uuid::Uuid;
+
+use crate::game_tools::GameTool;
+use crate::queue_types::ProposedTool;
 
 /// Parsed components from an LLM dialogue response.
 #[derive(Debug, Clone, Default)]
@@ -22,10 +27,16 @@ pub struct ParsedLlmResponse {
     pub dialogue: String,
     /// Topics discussed in this exchange
     pub topics: Vec<String>,
-    /// Suggested challenge to trigger (if any)
+    /// Suggested challenge to trigger (if any) - from explicit JSON block (legacy)
     pub challenge_suggestion: Option<RawChallengeSuggestion>,
-    /// Suggested narrative event to trigger (if any)
+    /// Challenge names marked as "trigger: YES" in <challenge> tags
+    pub triggered_challenge_names: Vec<String>,
+    /// Suggested narrative event to trigger (if any) - from explicit JSON block (legacy)
     pub narrative_event_suggestion: Option<RawNarrativeEventSuggestion>,
+    /// Event names marked as "trigger: YES" in <event> tags
+    pub triggered_event_names: Vec<String>,
+    /// Proposed game tools (give_item, change_relationship, etc.)
+    pub proposed_tools: Vec<ProposedTool>,
 }
 
 /// Raw challenge suggestion as parsed from LLM JSON.
@@ -50,6 +61,28 @@ pub struct RawNarrativeEventSuggestion {
     pub matched_triggers: Vec<String>,
 }
 
+/// A challenge analyzed by the LLM from <challenge> tags.
+#[derive(Debug, Clone)]
+pub struct AnalyzedChallenge {
+    /// The challenge name (from the name attribute)
+    pub name: String,
+    /// What the player said that matched (if any)
+    pub quote: Option<String>,
+    /// Whether the LLM determined it should trigger
+    pub should_trigger: bool,
+}
+
+/// A narrative event analyzed by the LLM from <event> tags.
+#[derive(Debug, Clone)]
+pub struct AnalyzedEvent {
+    /// The event name (from the name attribute)
+    pub name: String,
+    /// What the player said that matched (if any)
+    pub quote: Option<String>,
+    /// Whether the LLM determined it should trigger
+    pub should_trigger: bool,
+}
+
 // Compiled regexes for tag extraction
 static REASONING_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?s)<reasoning>(.*?)</reasoning>").expect("valid regex"));
@@ -66,6 +99,24 @@ static NARRATIVE_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 static SUGGESTED_BEATS_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?s)<suggested_beats>(.*?)</suggested_beats>").expect("valid regex")
+});
+// Matches <challenge name="Challenge Name">...</challenge> with nested tags
+static CHALLENGE_TAG_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?s)<challenge\s+name="([^"]+)">(.*?)</challenge>"#).expect("valid regex")
+});
+// Matches <event name="Event Name">...</event> with nested tags
+static EVENT_TAG_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?s)<event\s+name="([^"]+)">(.*?)</event>"#).expect("valid regex")
+});
+// Extracts <quote>...</quote> content
+static QUOTE_TAG_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)<quote>(.*?)</quote>").expect("valid regex"));
+// Extracts <trigger>...</trigger> content
+static TRIGGER_TAG_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)<trigger>(.*?)</trigger>").expect("valid regex"));
+// Matches <tool name="tool_name">JSON arguments</tool>
+static TOOL_TAG_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?s)<tool\s+name="([^"]+)">(.*?)</tool>"#).expect("valid regex")
 });
 
 // Regex to remove model-specific special tokens (e.g., from gpt-oss, llama, etc.)
@@ -168,7 +219,147 @@ pub fn parse_llm_response(raw: &str) -> ParsedLlmResponse {
         }
     }
 
+    // Extract triggered challenges from <challenge> tags
+    result.triggered_challenge_names = get_triggered_challenge_names(raw);
+
+    // Extract triggered events from <event> tags
+    result.triggered_event_names = get_triggered_event_names(raw);
+
+    // Extract proposed tools from <tool> tags
+    result.proposed_tools = parse_tool_tags(raw);
+
     result
+}
+
+/// Parse all <challenge name="...">...</challenge> tags from the response.
+///
+/// Returns a list of analyzed challenges with their trigger status.
+pub fn parse_challenge_tags(raw: &str) -> Vec<AnalyzedChallenge> {
+    let mut results = Vec::new();
+
+    for caps in CHALLENGE_TAG_RE.captures_iter(raw) {
+        let name = caps[1].trim().to_string();
+        let inner_content = &caps[2];
+
+        // Extract <quote>...</quote>
+        let quote = QUOTE_TAG_RE
+            .captures(inner_content)
+            .map(|c| c[1].trim().to_string())
+            .filter(|q| !q.eq_ignore_ascii_case("none") && !q.is_empty());
+
+        // Extract <trigger>...</trigger>
+        let should_trigger = TRIGGER_TAG_RE
+            .captures(inner_content)
+            .map(|c| c[1].trim().eq_ignore_ascii_case("YES"))
+            .unwrap_or(false);
+
+        results.push(AnalyzedChallenge {
+            name,
+            quote,
+            should_trigger,
+        });
+    }
+
+    results
+}
+
+/// Get the names of challenges that should be triggered.
+pub fn get_triggered_challenge_names(raw: &str) -> Vec<String> {
+    parse_challenge_tags(raw)
+        .into_iter()
+        .filter(|c| c.should_trigger)
+        .map(|c| c.name)
+        .collect()
+}
+
+/// Parse all <event name="...">...</event> tags from the response.
+///
+/// Returns a list of analyzed events with their trigger status.
+pub fn parse_event_tags(raw: &str) -> Vec<AnalyzedEvent> {
+    let mut results = Vec::new();
+
+    for caps in EVENT_TAG_RE.captures_iter(raw) {
+        let name = caps[1].trim().to_string();
+        let inner_content = &caps[2];
+
+        // Extract <quote>...</quote>
+        let quote = QUOTE_TAG_RE
+            .captures(inner_content)
+            .map(|c| c[1].trim().to_string())
+            .filter(|q| !q.eq_ignore_ascii_case("none") && !q.is_empty());
+
+        // Extract <trigger>...</trigger>
+        let should_trigger = TRIGGER_TAG_RE
+            .captures(inner_content)
+            .map(|c| c[1].trim().eq_ignore_ascii_case("YES"))
+            .unwrap_or(false);
+
+        results.push(AnalyzedEvent {
+            name,
+            quote,
+            should_trigger,
+        });
+    }
+
+    results
+}
+
+/// Get the names of events that should be triggered.
+pub fn get_triggered_event_names(raw: &str) -> Vec<String> {
+    parse_event_tags(raw)
+        .into_iter()
+        .filter(|e| e.should_trigger)
+        .map(|e| e.name)
+        .collect()
+}
+
+/// Parse all `<tool name="...">JSON</tool>` tags from the response.
+///
+/// Returns a list of ProposedTool structs ready for DM approval.
+/// Each tool tag should contain valid JSON arguments.
+///
+/// Example:
+/// ```xml
+/// <tool name="give_item">
+/// {"item_name": "Healing Potion", "description": "A red potion"}
+/// </tool>
+/// ```
+pub fn parse_tool_tags(raw: &str) -> Vec<ProposedTool> {
+    let mut results = Vec::new();
+
+    for caps in TOOL_TAG_RE.captures_iter(raw) {
+        let name = caps[1].trim().to_string();
+        let json_str = caps[2].trim();
+
+        // Parse the JSON arguments
+        let arguments: serde_json::Value = match serde_json::from_str(json_str) {
+            Ok(args) => args,
+            Err(e) => {
+                tracing::warn!(
+                    tool_name = %name,
+                    json = json_str,
+                    error = %e,
+                    "Failed to parse tool arguments JSON, skipping tool"
+                );
+                continue;
+            }
+        };
+
+        // Generate a unique ID for this tool call
+        let id = Uuid::new_v4().to_string();
+
+        // Generate human-readable description using GameTool
+        let description = GameTool::describe_from_json(&name, &arguments);
+
+        results.push(ProposedTool {
+            id,
+            name,
+            description,
+            arguments,
+        });
+    }
+
+    results
 }
 
 /// Strip all known XML tags from a response, leaving just plain dialogue.
@@ -181,6 +372,9 @@ fn strip_all_tags(raw: &str) -> String {
     result = CHALLENGE_RE.replace_all(&result, "").to_string();
     result = NARRATIVE_RE.replace_all(&result, "").to_string();
     result = SUGGESTED_BEATS_RE.replace_all(&result, "").to_string();
+    result = CHALLENGE_TAG_RE.replace_all(&result, "").to_string();
+    result = EVENT_TAG_RE.replace_all(&result, "").to_string();
+    result = TOOL_TAG_RE.replace_all(&result, "").to_string();
 
     // Clean up whitespace
     result
@@ -359,5 +553,93 @@ Thinking about this.
         // No special tokens should be in the output
         assert!(!parsed.dialogue.contains("[INST]"));
         assert!(!parsed.dialogue.contains("<<SYS>>"));
+    }
+
+    #[test]
+    fn test_parse_tool_tags() {
+        let raw = r#"
+<dialogue>
+*hands over a potion* "Take this, you'll need it for your journey."
+</dialogue>
+
+<tool name="give_item">
+{"item_name": "Healing Potion", "description": "A red potion that restores health"}
+</tool>
+"#;
+
+        let parsed = parse_llm_response(raw);
+
+        assert!(parsed.dialogue.contains("Take this"));
+        assert_eq!(parsed.proposed_tools.len(), 1);
+
+        let tool = &parsed.proposed_tools[0];
+        assert_eq!(tool.name, "give_item");
+        assert_eq!(tool.arguments["item_name"], "Healing Potion");
+        assert!(tool.description.contains("Healing Potion"));
+    }
+
+    #[test]
+    fn test_parse_multiple_tools() {
+        let raw = r#"
+<dialogue>
+"Your help means everything to me."
+</dialogue>
+
+<tool name="change_relationship">
+{"change": "improve", "amount": "moderate", "reason": "helped with quest"}
+</tool>
+
+<tool name="reveal_info">
+{"info_type": "quest", "content": "The temple is hidden in the mountains", "importance": "major"}
+</tool>
+"#;
+
+        let parsed = parse_llm_response(raw);
+
+        assert_eq!(parsed.proposed_tools.len(), 2);
+        assert_eq!(parsed.proposed_tools[0].name, "change_relationship");
+        assert_eq!(parsed.proposed_tools[1].name, "reveal_info");
+    }
+
+    #[test]
+    fn test_invalid_tool_json_skipped() {
+        let raw = r#"
+<dialogue>
+"Hello there!"
+</dialogue>
+
+<tool name="give_item">
+{not valid json}
+</tool>
+"#;
+
+        let parsed = parse_llm_response(raw);
+
+        assert!(parsed.dialogue.contains("Hello there"));
+        // Invalid JSON tool should be skipped, not panic
+        assert!(parsed.proposed_tools.is_empty());
+    }
+
+    #[test]
+    fn test_tools_stripped_from_fallback_dialogue() {
+        let raw = r#"
+<reasoning>
+The player deserves a reward.
+</reasoning>
+
+Here's a gift for you, brave adventurer!
+
+<tool name="give_item">
+{"item_name": "Gold Coins", "description": "100 shiny gold coins"}
+</tool>
+"#;
+
+        let parsed = parse_llm_response(raw);
+
+        // Tool content should be stripped from dialogue
+        assert_eq!(parsed.dialogue, "Here's a gift for you, brave adventurer!");
+        // But tool should still be parsed
+        assert_eq!(parsed.proposed_tools.len(), 1);
+        assert_eq!(parsed.proposed_tools[0].name, "give_item");
     }
 }

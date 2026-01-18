@@ -70,6 +70,7 @@ mod event_log;
 mod flag_tests;
 mod gameplay_flow_tests;
 mod gameplay_loop_tests;
+mod llm_trigger_suggestion_tests;
 mod location_event_tests;
 mod logging_queue;
 mod lore_tests;

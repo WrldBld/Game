@@ -8,6 +8,8 @@
 //! - LLM suggestions (NPC dialogue, tool calls)
 //! - Challenge outcomes
 
+pub mod tool_executor;
+
 use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{CharacterId, ConversationId, RegionId, WorldId};
@@ -197,11 +199,12 @@ impl ApproveSuggestion {
     }
 }
 
-/// Full approval decision flow (approval + dialogue persistence).
+/// Full approval decision flow (approval + dialogue persistence + tool execution).
 pub struct ApprovalDecisionFlow {
     approve_suggestion: Arc<ApproveSuggestion>,
     narrative: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
     queue: Arc<dyn QueuePort>,
+    tool_executor: Arc<tool_executor::ToolExecutor>,
 }
 
 impl ApprovalDecisionFlow {
@@ -209,11 +212,13 @@ impl ApprovalDecisionFlow {
         approve_suggestion: Arc<ApproveSuggestion>,
         narrative: Arc<crate::use_cases::narrative_operations::NarrativeOps>,
         queue: Arc<dyn QueuePort>,
+        tool_executor: Arc<tool_executor::ToolExecutor>,
     ) -> Self {
         Self {
             approve_suggestion,
             narrative,
             queue,
+            tool_executor,
         }
     }
 
@@ -235,6 +240,7 @@ impl ApprovalDecisionFlow {
             .map_err(ApprovalDecisionError::Approval)?;
 
         if result.approved {
+            // Record dialogue exchange
             let dialogue = result.final_dialogue.clone().unwrap_or_default();
             if !dialogue.is_empty() {
                 if let (Some(pc_id), Some(npc_id)) = (approval_data.pc_id, approval_data.npc_id) {
@@ -257,6 +263,27 @@ impl ApprovalDecisionFlow {
                     {
                         tracing::error!(error = %e, "Failed to record dialogue exchange");
                     }
+                }
+            }
+
+            // Execute approved tools
+            if !result.approved_tools.is_empty() {
+                let tool_results = self
+                    .tool_executor
+                    .execute_approved(
+                        &result.approved_tools,
+                        &approval_data.proposed_tools,
+                        approval_data.pc_id,
+                        approval_data.npc_id,
+                    )
+                    .await;
+
+                if !tool_results.is_empty() {
+                    tracing::info!(
+                        approval_id = %approval_id,
+                        tools_executed = tool_results.len(),
+                        "Executed approved tools"
+                    );
                 }
             }
         }

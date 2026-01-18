@@ -211,14 +211,6 @@ impl LlmPort for NoopLlm {
     ) -> Result<crate::infrastructure::ports::LlmResponse, LlmError> {
         Err(LlmError::RequestFailed("noop".to_string()))
     }
-
-    async fn generate_with_tools(
-        &self,
-        _request: crate::infrastructure::ports::LlmRequest,
-        _tools: Vec<crate::infrastructure::ports::ToolDefinition>,
-    ) -> Result<crate::infrastructure::ports::LlmResponse, LlmError> {
-        Err(LlmError::RequestFailed("noop".to_string()))
-    }
 }
 
 pub(crate) struct NoopImageGen;
@@ -403,18 +395,9 @@ impl LlmPort for FixedLlm {
     ) -> Result<crate::infrastructure::ports::LlmResponse, LlmError> {
         Ok(crate::infrastructure::ports::LlmResponse {
             content: self.content.clone(),
-            tool_calls: vec![],
             finish_reason: crate::infrastructure::ports::FinishReason::Stop,
             usage: None,
         })
-    }
-
-    async fn generate_with_tools(
-        &self,
-        request: crate::infrastructure::ports::LlmRequest,
-        _tools: Vec<crate::infrastructure::ports::ToolDefinition>,
-    ) -> Result<crate::infrastructure::ports::LlmResponse, LlmError> {
-        self.generate(request).await
     }
 }
 
@@ -634,6 +617,13 @@ pub(crate) fn build_test_app_with_ports(
     let approve_suggestion = Arc::new(crate::use_cases::approval::ApproveSuggestion::new(
         queue_port.clone(),
     ));
+    let tool_executor = Arc::new(
+        crate::use_cases::approval::tool_executor::ToolExecutor::new(
+            item_repo.clone(),
+            player_character_repo.clone(),
+            character_repo.clone(),
+        ),
+    );
     let approval = crate::use_cases::ApprovalUseCases::new(
         Arc::new(crate::use_cases::approval::ApproveStaging::new(
             staging_repo.clone(),
@@ -643,6 +633,7 @@ pub(crate) fn build_test_app_with_ports(
             approve_suggestion.clone(),
             narrative.clone(),
             queue_port.clone(),
+            tool_executor,
         )),
     );
 
@@ -696,6 +687,8 @@ pub(crate) fn build_test_app_with_ports(
         Arc::new(crate::use_cases::queues::ProcessLlmRequest::new(
             queue_port.clone(),
             llm_port.clone(),
+            challenge_repo.clone(),
+            narrative_repo.clone(),
         )),
     );
 

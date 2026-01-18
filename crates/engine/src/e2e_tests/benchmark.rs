@@ -346,7 +346,7 @@ where
 // LLM Benchmark Decorator
 // =============================================================================
 
-use crate::infrastructure::ports::{LlmError, LlmPort, LlmRequest, LlmResponse, ToolDefinition};
+use crate::infrastructure::ports::{LlmError, LlmPort, LlmRequest, LlmResponse};
 use async_trait::async_trait;
 
 /// Decorator that adds benchmark timing to any LlmPort implementation.
@@ -374,22 +374,6 @@ impl LlmPort for BenchmarkLlmDecorator {
         let tokens = response.usage.as_ref().map(|u| u.total_tokens);
         self.benchmark
             .record_llm_call("generate", elapsed_ms, tokens);
-
-        Ok(response)
-    }
-
-    async fn generate_with_tools(
-        &self,
-        request: LlmRequest,
-        tools: Vec<ToolDefinition>,
-    ) -> Result<LlmResponse, LlmError> {
-        let start = Instant::now();
-        let response = self.inner.generate_with_tools(request, tools).await?;
-        let elapsed_ms = start.elapsed().as_millis() as u64;
-
-        let tokens = response.usage.as_ref().map(|u| u.total_tokens);
-        self.benchmark
-            .record_llm_call("generate_with_tools", elapsed_ms, tokens);
 
         Ok(response)
     }

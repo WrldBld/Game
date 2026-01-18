@@ -30,7 +30,9 @@
 //! }
 //! ```
 
-use crate::infrastructure::ollama::{OllamaClient, DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL};
+use crate::infrastructure::openai_compatible::{
+    OpenAICompatibleClient, DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL,
+};
 use crate::infrastructure::ports::{ChatMessage, LlmPort, LlmRequest, LlmResponse};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -141,22 +143,6 @@ pub fn log_llm_interaction(
     content.push_str(&response.content);
     content.push_str("\n```\n\n");
 
-    if !response.tool_calls.is_empty() {
-        content.push_str("### Tool Calls\n\n");
-        for (i, tool_call) in response.tool_calls.iter().enumerate() {
-            content.push_str(&format!("**Tool Call #{}:**\n", i + 1));
-            content.push_str(&format!("- ID: {}\n", tool_call.id));
-            content.push_str(&format!("- Name: {}\n", tool_call.name));
-            content.push_str("- Arguments:\n```json\n");
-            if let Ok(json) = serde_json::to_string_pretty(&tool_call.arguments) {
-                content.push_str(&json);
-            } else {
-                content.push_str(&format!("{:?}", tool_call.arguments));
-            }
-            content.push_str("\n```\n\n");
-        }
-    }
-
     if let Some(ref usage) = response.usage {
         content.push_str("### Usage\n\n");
         content.push_str(&format!("- Prompt Tokens: {}\n", usage.prompt_tokens));
@@ -196,21 +182,21 @@ pub async fn generate_and_log(
     Ok(response)
 }
 
-/// Creates an OllamaClient configured for integration testing.
+/// Creates an OpenAICompatibleClient configured for integration testing.
 ///
 /// Uses environment variables for configuration:
 /// - `OLLAMA_BASE_URL`: Base URL for Ollama (default: http://localhost:11434)
 /// - `OLLAMA_MODEL`: Model to use (default: gpt-oss:20b)
-pub fn create_test_ollama_client() -> OllamaClient {
-    OllamaClient::from_env()
+pub fn create_test_ollama_client() -> OpenAICompatibleClient {
+    OpenAICompatibleClient::from_env()
 }
 
-/// Creates an OllamaClient with a custom timeout for testing timeout behavior.
-pub fn create_test_ollama_client_with_timeout(timeout_secs: u64) -> OllamaClient {
+/// Creates an OpenAICompatibleClient with a custom timeout for testing timeout behavior.
+pub fn create_test_ollama_client_with_timeout(timeout_secs: u64) -> OpenAICompatibleClient {
     let base_url =
         std::env::var("OLLAMA_BASE_URL").unwrap_or_else(|_| DEFAULT_OLLAMA_BASE_URL.to_string());
     let model = std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| DEFAULT_OLLAMA_MODEL.to_string());
-    OllamaClient::with_timeout(&base_url, &model, timeout_secs)
+    OpenAICompatibleClient::with_timeout(&base_url, &model, timeout_secs)
 }
 
 /// Check if Ollama is available for integration tests.

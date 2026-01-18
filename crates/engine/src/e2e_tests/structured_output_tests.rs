@@ -696,8 +696,8 @@ async fn test_llm_suggests_narrative_event() {
             .expect("Failed to stage NPC");
 
         // Check for a seeded narrative event
-        // "The Stranger's Warning" should be in the test fixtures
-        let event_name = "The Stranger's Warning";
+        // "Marta Shares Local Rumors" has a simple dialogue_topic trigger
+        let event_name = "Marta Shares Local Rumors";
         if let Some(event_id) = ctx.world.event(event_name) {
             tracing::info!(
                 event_id = %event_id,
@@ -712,8 +712,8 @@ async fn test_llm_suggests_narrative_event() {
             );
         }
 
-        // Start a conversation that might trigger a narrative event
-        // The player mentions something ominous that could relate to seeded events
+        // Start a conversation that triggers the "Marta Shares Local Rumors" event
+        // The player asks about rumors, which matches the event's dialogue_topic trigger
         let started = ctx
             .app
             .use_cases
@@ -724,7 +724,7 @@ async fn test_llm_suggests_narrative_event() {
                 pc_id,
                 marta_id,
                 player_id,
-                "A cloaked stranger warned me about coming here. He spoke of dark omens and an ancient evil awakening. Have you heard such warnings?".to_string(),
+                "Marta, have you heard any rumors lately? Any strange happenings around town I should know about?".to_string(),
             )
             .await
             .expect("Failed to start conversation");

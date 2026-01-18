@@ -182,16 +182,42 @@ Disposition/mood changes require DM approval and should reflect significant emot
 "#;
 
     /// Challenge suggestion format for dialogue.
-    pub const DIALOGUE_CHALLENGE_SUGGESTION_FORMAT: &str = r#"If a player's action matches a trigger condition, include a challenge suggestion in your response using:
-<challenge_suggestion>
-{"challenge_id": "...", "confidence": "high|medium|low", "reasoning": "..."}
-</challenge_suggestion>"#;
+    pub const DIALOGUE_CHALLENGE_SUGGESTION_FORMAT: &str = r#"CHALLENGE ANALYSIS (REQUIRED when challenges are listed above):
+For EACH active challenge, output a <challenge> block:
+
+<challenge name="[exact challenge name]">
+  <quote>[player's exact words that match a trigger keyword, or "none"]</quote>
+  <trigger>[YES or NO]</trigger>
+</challenge>
+
+Example:
+<challenge name="Convince Grom to Share His Past">
+  <quote>tell me about your past</quote>
+  <trigger>YES</trigger>
+</challenge>
+<challenge name="Investigate the Mill">
+  <quote>none</quote>
+  <trigger>NO</trigger>
+</challenge>"#;
 
     /// Narrative event suggestion format for dialogue.
-    pub const DIALOGUE_NARRATIVE_EVENT_FORMAT: &str = r#"If a player's action or dialogue matches a narrative event trigger, suggest triggering it using:
-<narrative_event_suggestion>
-{"event_id": "...", "confidence": "high|medium|low", "reasoning": "...", "matched_triggers": ["..."]}
-</narrative_event_suggestion>"#;
+    pub const DIALOGUE_NARRATIVE_EVENT_FORMAT: &str = r#"NARRATIVE EVENT ANALYSIS (REQUIRED when events are listed above):
+For EACH active narrative event, output an <event> block:
+
+<event name="[exact event name]">
+  <quote>[player's exact words that match a trigger keyword, or "none"]</quote>
+  <trigger>[YES or NO]</trigger>
+</event>
+
+Example:
+<event name="Marta's Knowledge">
+  <quote>what happened at the mill</quote>
+  <trigger>YES</trigger>
+</event>
+<event name="The Stranger's Warning">
+  <quote>none</quote>
+  <trigger>NO</trigger>
+</event>"#;
 
     /// System prompt for staging decisions.
     pub const STAGING_SYSTEM_PROMPT: &str =

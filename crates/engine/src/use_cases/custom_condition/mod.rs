@@ -359,7 +359,7 @@ Please evaluate whether this condition is currently met and respond with the JSO
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::infrastructure::ports::{FinishReason, LlmPort, LlmResponse, ToolDefinition};
+    use crate::infrastructure::ports::{FinishReason, LlmPort, LlmResponse};
     use async_trait::async_trait;
 
     /// Mock LLM that returns a configurable response
@@ -380,18 +380,9 @@ mod tests {
         async fn generate(&self, _request: LlmRequest) -> Result<LlmResponse, LlmError> {
             Ok(LlmResponse {
                 content: self.response.clone(),
-                tool_calls: vec![],
                 finish_reason: FinishReason::Stop,
                 usage: None,
             })
-        }
-
-        async fn generate_with_tools(
-            &self,
-            request: LlmRequest,
-            _tools: Vec<ToolDefinition>,
-        ) -> Result<LlmResponse, LlmError> {
-            self.generate(request).await
         }
     }
 

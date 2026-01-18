@@ -277,6 +277,61 @@
       "is_favorite": false,
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-7000-000000000005",
+      "world_id": "00000000-0000-0000-0000-000000000001",
+      "name": "Marta Shares Local Rumors",
+      "description": "Marta leans in and shares the latest gossip and strange happenings around Thornhaven.",
+      "tags": ["rumors", "marta", "information"],
+      "trigger_conditions": [
+        {
+          "trigger_type": { "dialogue_topic": { "keywords": ["rumors", "gossip", "strange happenings", "news", "heard anything"], "with_npc": "00000000-0000-0000-2000-000000000001", "npc_name": "Marta Hearthwood" } },
+          "description": "Player asks Marta about rumors or news",
+          "is_required": true,
+          "trigger_id": "ask-marta-rumors"
+        }
+      ],
+      "trigger_logic": "all",
+      "scene_direction": "Marta glances around the tavern to make sure no one is listening too closely, then leans forward with a conspiratorial look.",
+      "suggested_opening": "You want to know what's been happening? *lowers voice* Strange lights have been seen near the old mill at night. Old Tom's been more agitated than usual - keeps muttering about 'them coming back.' And that new merchant, Vera? She's been asking too many questions about the mill's history.",
+      "outcomes": [
+        {
+          "name": "ask_about_mill",
+          "label": "Ask About the Mill",
+          "description": "The party asks for more details about the old mill.",
+          "condition": { "player_action": { "action_keywords": ["mill", "tell me more", "what mill", "old mill"] } },
+          "effects": [
+            { "reveal_information": { "info_type": "rumor", "title": "The Old Mill Mystery", "content": "Strange lights and sounds have been reported near the abandoned mill on the edge of town. Some say it's haunted by the spirits of those who died there twenty years ago.", "persist_to_journal": true } }
+          ],
+          "chain_events": [],
+          "timeline_summary": "Marta shared rumors about strange occurrences at the old mill."
+        },
+        {
+          "name": "ask_about_vera",
+          "label": "Ask About Vera",
+          "description": "The party asks about the suspicious merchant.",
+          "condition": { "player_action": { "action_keywords": ["vera", "merchant", "who is she", "suspicious"] } },
+          "effects": [
+            { "reveal_information": { "info_type": "rumor", "title": "The Mysterious Merchant", "content": "Vera Nightshade arrived in town a few weeks ago. She claims to be a traveling merchant, but Marta has noticed her asking pointed questions about local history and artifacts.", "persist_to_journal": true } }
+          ],
+          "chain_events": [],
+          "timeline_summary": "Marta shared her suspicions about the merchant Vera Nightshade."
+        }
+      ],
+      "default_outcome": "ask_about_mill",
+      "is_active": true,
+      "is_triggered": false,
+      "triggered_at": null,
+      "selected_outcome": null,
+      "is_repeatable": true,
+      "trigger_count": 0,
+      "delay_turns": 0,
+      "expires_after_turns": null,
+      "priority": 50,
+      "is_favorite": false,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
     }
   ],
   "event_location_edges": [

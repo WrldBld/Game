@@ -11,7 +11,7 @@ use std::time::Duration;
 use wrldbldr_domain::{value_objects::RuleSystemConfig, WorldId};
 use wrldbldr_shared::{ClientMessage, RequestPayload, ResponseResult, ServerMessage, WorldRequest};
 
-use crate::infrastructure::ollama::OllamaClient;
+use crate::infrastructure::openai_compatible::OpenAICompatibleClient;
 use crate::infrastructure::ports::LlmPort;
 
 /// Create a D&D 5e world for testing.
@@ -31,7 +31,7 @@ fn create_test_world(
 /// Check if Ollama is available.
 async fn check_ollama_available() -> bool {
     use crate::infrastructure::ports::{ChatMessage, LlmRequest};
-    let client = OllamaClient::from_env();
+    let client = OpenAICompatibleClient::from_env();
     let request = LlmRequest::new(vec![ChatMessage::user("test")])
         .with_temperature(0.0)
         .with_max_tokens(Some(5));
@@ -58,7 +58,7 @@ async fn test_e2e_join_world_and_get_template() {
     let repos = TestAppRepos::new(world_repo);
 
     // Use real Ollama client
-    let llm: Arc<dyn LlmPort> = Arc::new(OllamaClient::from_env());
+    let llm: Arc<dyn LlmPort> = Arc::new(OpenAICompatibleClient::from_env());
     let queue = Arc::new(NoopQueue);
 
     let app = build_test_app_with_ports(repos, now, queue, llm);
@@ -153,7 +153,7 @@ async fn test_e2e_llm_health_check() {
     use crate::infrastructure::ports::{ChatMessage, LlmRequest};
 
     // Simple test to verify Ollama is available
-    let client = OllamaClient::from_env();
+    let client = OpenAICompatibleClient::from_env();
 
     // Note: gpt-oss:20b is a reasoning model that needs more tokens to complete
     let request = LlmRequest::new(vec![ChatMessage::user("Say 'hello' in exactly one word.")])
@@ -172,53 +172,7 @@ async fn test_e2e_llm_health_check() {
     );
 }
 
-#[tokio::test]
-#[ignore = "requires ollama"]
-async fn test_e2e_llm_tool_calling_available() {
-    use crate::infrastructure::ports::{ChatMessage, LlmRequest, ToolDefinition};
-
-    // Test that tool calling works with the configured model
-    let client = OllamaClient::from_env();
-
-    let tools = vec![ToolDefinition {
-        name: "get_weather".to_string(),
-        description: "Get the current weather for a location".to_string(),
-        parameters: serde_json::json!({
-            "type": "object",
-            "properties": {
-                "location": {
-                    "type": "string",
-                    "description": "City name"
-                }
-            },
-            "required": ["location"]
-        }),
-    }];
-
-    let request = LlmRequest::new(vec![ChatMessage::user("What's the weather in Paris?")])
-        .with_system_prompt("You are an assistant that uses tools. When asked about weather, use the get_weather tool.")
-        .with_temperature(0.0)
-        .with_max_tokens(Some(500));
-
-    let response = client
-        .generate_with_tools(request, tools)
-        .await
-        .expect("LLM request with tools failed");
-
-    // Model should either call the tool or respond textually
-    // Both are acceptable - we're just verifying the API works
-    assert!(
-        !response.tool_calls.is_empty() || !response.content.is_empty(),
-        "Response should have either tool calls or content"
-    );
-
-    // If tool calls present, verify structure
-    if !response.tool_calls.is_empty() {
-        let tool_call = &response.tool_calls[0];
-        assert_eq!(tool_call.name, "get_weather");
-        assert!(tool_call.arguments.is_object());
-    }
-}
+// Note: test_e2e_llm_tool_calling_available was removed - we now use XML-based tool extraction
 
 #[tokio::test]
 #[ignore = "requires ollama"]
@@ -226,7 +180,7 @@ async fn test_e2e_narrative_generation_quality() {
     use crate::infrastructure::ports::{ChatMessage, LlmRequest};
 
     // Test that narrative generation produces quality content
-    let client = OllamaClient::from_env();
+    let client = OpenAICompatibleClient::from_env();
 
     let system_prompt = r#"You are a Dungeon Master for a fantasy tabletop RPG.
 Generate immersive, atmospheric narrative descriptions.
@@ -284,7 +238,7 @@ async fn test_e2e_conversation_context_maintained() {
     use crate::infrastructure::ports::{ChatMessage, LlmRequest};
 
     // Test that conversation context is maintained across messages
-    let client = OllamaClient::from_env();
+    let client = OpenAICompatibleClient::from_env();
 
     let system_prompt = "You are a helpful NPC tavern keeper named Gareth.";
 

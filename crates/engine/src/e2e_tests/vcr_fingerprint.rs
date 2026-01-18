@@ -16,8 +16,6 @@
 //!
 //! - **System prompt**: Full content (None and empty string are normalized to equivalent)
 //! - **Messages**: Full role and content for each message in order
-//! - **Tools**: Complete tool definitions (name, description, parameters JSON schema),
-//!   sorted by name for order-independent matching
 //! - **Parameters**: Temperature (defaults to 0.7 if unset), max_tokens (defaults to 0 if unset)
 //!
 //! This creates exact-match fingerprints where identical requests always produce
@@ -25,16 +23,13 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::infrastructure::ports::{LlmRequest, ToolDefinition};
+use crate::infrastructure::ports::LlmRequest;
 
 /// Default temperature when none specified in request.
 const DEFAULT_TEMPERATURE: f32 = 0.7;
 
 /// Characters to include in summary prefix for system prompt.
 const SUMMARY_PREFIX_LEN: usize = 40;
-
-/// Field width for summary display formatting.
-const SUMMARY_FIELD_WIDTH: usize = 30;
 
 /// Fingerprint for matching LLM requests.
 ///
@@ -49,16 +44,11 @@ pub struct RequestFingerprint {
 }
 
 impl RequestFingerprint {
-    /// Create a fingerprint from an LLM request without tools.
-    pub fn from_request(request: &LlmRequest) -> Self {
-        Self::from_request_with_tools(request, None)
-    }
-
-    /// Create a fingerprint from an LLM request with optional tools.
+    /// Create a fingerprint from an LLM request.
     ///
     /// Hashes the full content of request elements to create a content-based
     /// identifier for cassette matching.
-    pub fn from_request_with_tools(request: &LlmRequest, tools: Option<&[ToolDefinition]>) -> Self {
+    pub fn from_request(request: &LlmRequest) -> Self {
         let mut hasher = Sha256::new();
 
         // Hash full system prompt (treat None and empty as equivalent)
@@ -76,25 +66,6 @@ impl RequestFingerprint {
             hasher.update(msg.content.as_bytes());
         }
 
-        // Hash tool definitions completely (name + description + parameters schema)
-        // Use canonical JSON serialization for deterministic output
-        if let Some(tools) = tools {
-            let mut tool_data: Vec<String> = tools
-                .iter()
-                .map(|t| {
-                    // Use serde_json::to_string for deterministic JSON
-                    let params_json = serde_json::to_string(&t.parameters).unwrap_or_default();
-                    format!("{}|{}|{}", t.name, t.description, params_json)
-                })
-                .collect();
-            tool_data.sort(); // Order-independent
-            hasher.update(b"tools:");
-            for data in tool_data {
-                hasher.update(data.as_bytes());
-                hasher.update(b";");
-            }
-        }
-
         // Hash key parameters
         hasher.update(b"temp:");
         let temp = request.temperature.unwrap_or(DEFAULT_TEMPERATURE);
@@ -105,7 +76,7 @@ impl RequestFingerprint {
         hasher.update(&max_tokens.to_le_bytes());
 
         let hash: [u8; 32] = hasher.finalize().into();
-        let summary = Self::create_summary(request, tools);
+        let summary = Self::create_summary(request);
 
         Self { hash, summary }
     }
@@ -126,7 +97,7 @@ impl RequestFingerprint {
     }
 
     /// Create a human-readable summary of the request for debugging.
-    fn create_summary(request: &LlmRequest, tools: Option<&[ToolDefinition]>) -> String {
+    fn create_summary(request: &LlmRequest) -> String {
         let system_prefix: String = request
             .system_prompt
             .as_deref()
@@ -141,19 +112,10 @@ impl RequestFingerprint {
             .map(|m| m.content.chars().take(SUMMARY_PREFIX_LEN).collect())
             .unwrap_or_default();
 
-        let tool_count = tools.map(|t| t.len()).unwrap_or(0);
-
-        if tool_count > 0 {
-            format!(
-                "sys:{:.30}... | msg:{:.30}... | tools:{}",
-                system_prefix, last_msg_prefix, tool_count
-            )
-        } else {
-            format!(
-                "sys:{:.30}... | msg:{:.30}...",
-                system_prefix, last_msg_prefix
-            )
-        }
+        format!(
+            "sys:{:.30}... | msg:{:.30}...",
+            system_prefix, last_msg_prefix
+        )
     }
 }
 
@@ -208,59 +170,6 @@ mod tests {
     }
 
     #[test]
-    fn test_tools_affect_fingerprint() {
-        let request = LlmRequest::new(vec![ChatMessage::user("Hello")]);
-
-        let tools = vec![ToolDefinition {
-            name: "get_weather".to_string(),
-            description: "Get weather".to_string(),
-            parameters: serde_json::json!({}),
-        }];
-
-        let fp1 = RequestFingerprint::from_request(&request);
-        let fp2 = RequestFingerprint::from_request_with_tools(&request, Some(&tools));
-
-        assert_ne!(fp1.to_hex(), fp2.to_hex());
-    }
-
-    #[test]
-    fn test_tool_order_independent() {
-        let request = LlmRequest::new(vec![ChatMessage::user("Hello")]);
-
-        let tools1 = vec![
-            ToolDefinition {
-                name: "tool_a".to_string(),
-                description: "A".to_string(),
-                parameters: serde_json::json!({}),
-            },
-            ToolDefinition {
-                name: "tool_b".to_string(),
-                description: "B".to_string(),
-                parameters: serde_json::json!({}),
-            },
-        ];
-
-        let tools2 = vec![
-            ToolDefinition {
-                name: "tool_b".to_string(),
-                description: "B".to_string(),
-                parameters: serde_json::json!({}),
-            },
-            ToolDefinition {
-                name: "tool_a".to_string(),
-                description: "A".to_string(),
-                parameters: serde_json::json!({}),
-            },
-        ];
-
-        let fp1 = RequestFingerprint::from_request_with_tools(&request, Some(&tools1));
-        let fp2 = RequestFingerprint::from_request_with_tools(&request, Some(&tools2));
-
-        // Same tools in different order should produce same fingerprint
-        assert_eq!(fp1.to_hex(), fp2.to_hex());
-    }
-
-    #[test]
     fn test_short_hex_length() {
         let request = LlmRequest::new(vec![ChatMessage::user("Test")]);
         let fp = RequestFingerprint::from_request(&request);
@@ -306,27 +215,5 @@ mod tests {
         let fp2 = RequestFingerprint::from_request(&req2);
 
         assert_eq!(fp1.to_hex(), fp2.to_hex());
-    }
-
-    #[test]
-    fn test_tool_parameters_affect_fingerprint() {
-        let request = LlmRequest::new(vec![ChatMessage::user("Hello")]);
-
-        let tools1 = vec![ToolDefinition {
-            name: "search".to_string(),
-            description: "Web search".to_string(),
-            parameters: serde_json::json!({"type": "object"}),
-        }];
-
-        let tools2 = vec![ToolDefinition {
-            name: "search".to_string(),
-            description: "Code search".to_string(),
-            parameters: serde_json::json!({"type": "array"}),
-        }];
-
-        let fp1 = RequestFingerprint::from_request_with_tools(&request, Some(&tools1));
-        let fp2 = RequestFingerprint::from_request_with_tools(&request, Some(&tools2));
-
-        assert_ne!(fp1.to_hex(), fp2.to_hex());
     }
 }

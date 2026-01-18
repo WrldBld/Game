@@ -3,7 +3,7 @@
 //! These tests verify that the LLM generates appropriate NPC staging suggestions.
 //! Run with: `cargo test -p wrldbldr-engine staging::llm_integration -- --ignored`
 
-use crate::infrastructure::ollama::OllamaClient;
+use crate::infrastructure::openai_compatible::OpenAICompatibleClient;
 use crate::infrastructure::ports::{ChatMessage, LlmPort, LlmRequest};
 use crate::test_fixtures::llm_integration::*;
 

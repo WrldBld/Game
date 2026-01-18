@@ -233,6 +233,74 @@ pub struct ConversationTurn {
     pub text: String,
 }
 
+/// Structured trigger hints for challenges and events.
+///
+/// Groups trigger keywords by type so the LLM understands what kind of
+/// player action should trigger the challenge/event.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TriggerHints {
+    /// Keywords the player character should mention in dialogue
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pc_mentions: Vec<String>,
+    /// Objects/items the player should interact with
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub interacts_with: Vec<String>,
+    /// Custom trigger descriptions
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub custom: Vec<String>,
+}
+
+impl TriggerHints {
+    /// Check if there are any trigger hints.
+    pub fn is_empty(&self) -> bool {
+        self.pc_mentions.is_empty() && self.interacts_with.is_empty() && self.custom.is_empty()
+    }
+
+    /// Format trigger hints for display in LLM prompt.
+    pub fn format_for_prompt(&self) -> String {
+        let mut parts = Vec::new();
+
+        if !self.pc_mentions.is_empty() {
+            parts.push(format!(
+                "pc_mentions: [{}]",
+                self.pc_mentions
+                    .iter()
+                    .map(|s| format!("\"{}\"", s))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+
+        if !self.interacts_with.is_empty() {
+            parts.push(format!(
+                "interacts_with: [{}]",
+                self.interacts_with
+                    .iter()
+                    .map(|s| format!("\"{}\"", s))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+
+        if !self.custom.is_empty() {
+            parts.push(format!(
+                "custom: [{}]",
+                self.custom
+                    .iter()
+                    .map(|s| format!("\"{}\"", s))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+
+        if parts.is_empty() {
+            String::new()
+        } else {
+            format!(" (triggered_by: {{ {} }})", parts.join(", "))
+        }
+    }
+}
+
 /// Context about an active challenge that may be triggered.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveChallengeContext {
@@ -246,8 +314,8 @@ pub struct ActiveChallengeContext {
     pub skill_name: String,
     /// Human-readable difficulty display (e.g. "DC 15", "Hard")
     pub difficulty_display: String,
-    /// Keywords/phrases that trigger this challenge
-    pub trigger_hints: Vec<String>,
+    /// Structured trigger hints grouped by type
+    pub trigger_hints: TriggerHints,
 }
 
 /// Context about an active narrative event that may be triggered.
@@ -261,8 +329,8 @@ pub struct ActiveNarrativeEventContext {
     pub description: String,
     /// Scene direction text to help DM narrate when triggered
     pub scene_direction: String,
-    /// Keywords/phrases that indicate this event should trigger
-    pub trigger_hints: Vec<String>,
+    /// Structured trigger hints grouped by type
+    pub trigger_hints: TriggerHints,
     /// Names of NPCs featured in this event
     pub featured_npc_names: Vec<String>,
     /// Priority level (higher = more important)

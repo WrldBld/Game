@@ -10,8 +10,7 @@
 //! 2. LLM Request Queue -> Calls LLM -> DM Approval Queue
 //! 3. DM Approval Queue -> (handled by DM via WebSocket)
 
-pub mod tool_builder;
-mod tool_extractor;
+pub mod response_parser;
 
 #[cfg(test)]
 mod llm_integration_tests;
@@ -21,14 +20,18 @@ use uuid::Uuid;
 use wrldbldr_domain::{WantVisibility, WorldId};
 
 use crate::llm_context::{
-    ActiveChallengeContext, CharacterContext, GamePromptRequest, MotivationEntry,
-    MotivationsContext, PlayerActionContext, SceneContext, SecretMotivationEntry,
+    ActiveChallengeContext, ActiveNarrativeEventContext, CharacterContext, GamePromptRequest,
+    MotivationEntry, MotivationsContext, PlayerActionContext, SceneContext, SecretMotivationEntry,
+    TriggerHints,
+};
+use crate::prompt_templates::defaults::{
+    DIALOGUE_CHALLENGE_SUGGESTION_FORMAT, DIALOGUE_NARRATIVE_EVENT_FORMAT, DIALOGUE_RESPONSE_FORMAT,
 };
 use crate::queue_types::{LlmRequestData, LlmRequestType, PlayerActionData};
 
 use crate::infrastructure::ports::{
-    ChallengeRepo, CharacterRepo, LlmPort, LocationRepo, PlayerCharacterRepo, QueuePort, RepoError,
-    SceneRepo, StagingRepo, WorldRepo,
+    ChallengeRepo, CharacterRepo, LlmPort, LocationRepo, NarrativeRepo, PlayerCharacterRepo,
+    QueuePort, RepoError, SceneRepo, StagingRepo, WorldRepo,
 };
 
 /// Events that need to be broadcast to clients after queue processing.
@@ -388,12 +391,43 @@ impl ProcessPlayerAction {
             }
         };
 
-        // Build directorial notes with the prompt
+        // Build directorial notes with rich context
+        // Include scene directorial notes if available
+        let scene_direction = current_scene
+            .as_ref()
+            .map(|s| s.directorial_notes())
+            .filter(|notes| !notes.is_empty())
+            .map(|notes| format!("\n\nSCENE DIRECTION: {}", notes))
+            .unwrap_or_default();
+
+        // Build NPC character guidance
+        let npc_guidance = if let Some(ref npc) = npc_entity {
+            let archetype_info = format!("Archetype: {}", npc.current_archetype());
+            let disposition_info = disposition
+                .as_ref()
+                .map(|d| {
+                    format!(
+                        "Disposition toward player: {} ({})",
+                        d.disposition(),
+                        d.relationship()
+                    )
+                })
+                .unwrap_or_else(|| format!("Default disposition: {}", npc.default_disposition()));
+            let mood_info = format!("Current mood: {}", npc.default_mood());
+
+            format!(
+                "\n\nCHARACTER GUIDANCE:\n- {}\n- {}\n- {}",
+                archetype_info, disposition_info, mood_info
+            )
+        } else {
+            String::new()
+        };
+
         let directorial_notes = format!(
-            "You are roleplaying as an NPC in a fantasy TTRPG. \
-            The player character \"{}\" says to {}: \"{}\". \
-            Respond in character as {}. Keep the response concise (1-3 sentences).",
-            pc_name, target_name, dialogue, target_name
+            "You are roleplaying as {} in a fantasy TTRPG.{}{}\n\n\
+            The player character \"{}\" says: \"{}\"\n\n\
+            Keep the response concise (1-3 sentences). Stay in character.",
+            target_name, scene_direction, npc_guidance, pc_name, dialogue
         );
 
         // Fetch conversation history if we have both PC and NPC IDs
@@ -425,23 +459,23 @@ impl ProcessPlayerAction {
             .into_iter()
             .filter(|c| c.active())
             .map(|c| {
-                // Extract trigger hints from trigger conditions
-                let trigger_hints: Vec<String> = c
-                    .trigger_conditions()
-                    .iter()
-                    .flat_map(|tc| match &tc.condition_type {
+                // Extract trigger hints from trigger conditions, grouped by type
+                let mut trigger_hints = TriggerHints::default();
+
+                for tc in c.trigger_conditions() {
+                    match &tc.condition_type {
                         wrldbldr_domain::TriggerType::DialogueTopic { topic_keywords } => {
-                            topic_keywords.clone()
+                            trigger_hints.pc_mentions.extend(topic_keywords.clone());
                         }
                         wrldbldr_domain::TriggerType::ObjectInteraction { keywords } => {
-                            keywords.clone()
+                            trigger_hints.interacts_with.extend(keywords.clone());
                         }
                         wrldbldr_domain::TriggerType::Custom { description } => {
-                            vec![description.clone()]
+                            trigger_hints.custom.push(description.clone());
                         }
-                        _ => vec![],
-                    })
-                    .collect();
+                        _ => {}
+                    }
+                }
 
                 ActiveChallengeContext {
                     id: c.id().to_string(),
@@ -457,6 +491,72 @@ impl ProcessPlayerAction {
             })
             .collect();
 
+        // Fetch active narrative events for this world
+        let active_narrative_events: Vec<ActiveNarrativeEventContext> = self
+            .narrative
+            .list_events(action_data.world_id)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "Failed to fetch narrative events");
+                vec![]
+            })
+            .into_iter()
+            // Include active events that are either:
+            // 1. Not yet triggered, OR
+            // 2. Repeatable (can trigger again even if already triggered)
+            .filter(|e| e.is_active() && (!e.is_triggered() || e.is_repeatable()))
+            .map(|e| {
+                // Extract trigger hints from trigger conditions, grouped by type
+                let mut trigger_hints = TriggerHints::default();
+
+                for tc in e.trigger_conditions() {
+                    match &tc.trigger_type {
+                        wrldbldr_domain::NarrativeTriggerType::DialogueTopic {
+                            keywords, ..
+                        } => {
+                            trigger_hints.pc_mentions.extend(keywords.clone());
+                        }
+                        wrldbldr_domain::NarrativeTriggerType::NpcAction {
+                            action_keywords,
+                            ..
+                        } => {
+                            trigger_hints
+                                .custom
+                                .push(format!("NPC action: {}", action_keywords.join(", ")));
+                        }
+                        wrldbldr_domain::NarrativeTriggerType::Custom { description, .. } => {
+                            trigger_hints.custom.push(description.clone());
+                        }
+                        wrldbldr_domain::NarrativeTriggerType::HasItem { item_name, .. } => {
+                            trigger_hints
+                                .custom
+                                .push(format!("PC has item: {}", item_name));
+                        }
+                        wrldbldr_domain::NarrativeTriggerType::FlagSet { flag_name } => {
+                            trigger_hints
+                                .custom
+                                .push(format!("flag set: {}", flag_name));
+                        }
+                        _ => {}
+                    }
+                }
+
+                // Get featured NPC names (if any are associated via graph)
+                // Note: This would require a separate query; for now, use empty vec
+                let featured_npc_names: Vec<String> = vec![];
+
+                ActiveNarrativeEventContext {
+                    id: e.id().to_string(),
+                    name: e.name().to_string(),
+                    description: e.description().to_string(),
+                    scene_direction: e.scene_direction().to_string(),
+                    trigger_hints,
+                    featured_npc_names,
+                    priority: e.priority(),
+                }
+            })
+            .collect();
+
         Ok(GamePromptRequest {
             world_id: Some(action_data.world_id.to_string()),
             player_action,
@@ -465,7 +565,7 @@ impl ProcessPlayerAction {
             conversation_history,
             responding_character,
             active_challenges,
-            active_narrative_events: vec![],
+            active_narrative_events,
             context_budget: None,
             scene_id: current_scene.as_ref().map(|scene| scene.id().to_string()),
             location_id: pc_location_id.map(|id| id.to_string()),
@@ -555,11 +655,23 @@ pub struct LlmRequestProcessed {
 pub struct ProcessLlmRequest {
     queue: Arc<dyn QueuePort>,
     llm: Arc<dyn LlmPort>,
+    challenge: Arc<dyn ChallengeRepo>,
+    narrative: Arc<dyn NarrativeRepo>,
 }
 
 impl ProcessLlmRequest {
-    pub fn new(queue: Arc<dyn QueuePort>, llm: Arc<dyn LlmPort>) -> Self {
-        Self { queue, llm }
+    pub fn new(
+        queue: Arc<dyn QueuePort>,
+        llm: Arc<dyn LlmPort>,
+        challenge: Arc<dyn ChallengeRepo>,
+        narrative: Arc<dyn NarrativeRepo>,
+    ) -> Self {
+        Self {
+            queue,
+            llm,
+            challenge,
+            narrative,
+        }
     }
 
     /// Process the next LLM request in the queue.
@@ -764,21 +876,73 @@ impl ProcessLlmRequest {
                 // Build LLM request from the queued prompt data
                 let llm_request = if let Some(ref prompt) = request_data.prompt {
                     // Use the full GamePromptRequest to build a rich prompt
+                    // Include structured output format from prompt_templates
+
+                    // Format active challenges with their trigger hints
+                    let challenges_context = if prompt.active_challenges.is_empty() {
+                        String::new()
+                    } else {
+                        let challenge_list: Vec<String> = prompt
+                            .active_challenges
+                            .iter()
+                            .map(|c| {
+                                format!(
+                                    "- {} [{}]: {} - {} {}{}",
+                                    c.name,
+                                    c.id,
+                                    c.description,
+                                    c.skill_name,
+                                    c.difficulty_display,
+                                    c.trigger_hints.format_for_prompt()
+                                )
+                            })
+                            .collect();
+                        format!(
+                            "\n\nACTIVE CHALLENGES:\nYou MUST analyze each challenge below and determine if the player's action triggers it.\nFor each challenge, check if the player's words match any keywords in `pc_mentions` or if their action matches `interacts_with`.\n\n{}\n\nYou MUST include a <challenge_analysis> section in your response evaluating EACH challenge.",
+                            challenge_list.join("\n")
+                        )
+                    };
+
+                    // Format active narrative events with their trigger hints
+                    let events_context = if prompt.active_narrative_events.is_empty() {
+                        String::new()
+                    } else {
+                        let event_list: Vec<String> = prompt
+                            .active_narrative_events
+                            .iter()
+                            .map(|e| {
+                                format!(
+                                    "- {} [{}]: {}{}",
+                                    e.name,
+                                    e.id,
+                                    e.description,
+                                    e.trigger_hints.format_for_prompt()
+                                )
+                            })
+                            .collect();
+                        format!(
+                            "\n\nACTIVE NARRATIVE EVENTS:\nYou MUST analyze each event below and determine if the player's action triggers it.\nFor each event, check if the player's words match any keywords in `pc_mentions`.\n\n{}\n\nYou MUST include an <event> block for EACH event listed above.",
+                            event_list.join("\n")
+                        )
+                    };
+
                     let system_prompt = format!(
                         "You are roleplaying as an NPC in a fantasy TTRPG. {}\n\n\
                         Scene: {} at {}\n\
                         Present characters: {}\n\n\
-                        Respond in character. Keep responses concise (1-3 sentences). \
-                        Stay true to the NPC's personality and motivations.\n\n\
-                        You have access to tools for game actions. Use them when appropriate:\n\
-                        - give_item: When offering/giving items to the player\n\
-                        - change_relationship: When trust is gained or lost\n\
-                        - reveal_info: When sharing plot-relevant information\n\
-                        Only use tools when the narrative clearly warrants it.",
+                        Stay true to the NPC's personality and motivations.{}{}\n\n\
+                        {}\n\n\
+                        {}\n\n\
+                        {}",
                         prompt.directorial_notes,
                         prompt.scene_context.scene_name,
                         prompt.scene_context.location_name,
-                        prompt.scene_context.present_characters.join(", ")
+                        prompt.scene_context.present_characters.join(", "),
+                        challenges_context,
+                        events_context,
+                        DIALOGUE_RESPONSE_FORMAT,
+                        DIALOGUE_CHALLENGE_SUGGESTION_FORMAT,
+                        DIALOGUE_NARRATIVE_EVENT_FORMAT
                     );
 
                     let current_message = if let Some(ref dialogue) = prompt.player_action.dialogue
@@ -826,6 +990,7 @@ impl ProcessLlmRequest {
                     crate::infrastructure::ports::LlmRequest::new(messages)
                         .with_system_prompt(system_prompt)
                         .with_temperature(0.7)
+                        .with_max_tokens(Some(2048)) // Allow room for model's internal reasoning + structured output
                 } else {
                     // Fallback if no prompt was provided
                     tracing::warn!("LLM request has no prompt data, using fallback");
@@ -837,10 +1002,8 @@ impl ProcessLlmRequest {
                     .with_system_prompt(
                         "You are an NPC in a fantasy TTRPG. Respond briefly and in character.",
                     )
+                    .with_max_tokens(Some(512)) // Simpler fallback response
                 };
-
-                // Build tool definitions for function calling
-                let _tools = tool_builder::build_game_tool_definitions();
 
                 // Extract NPC context for error logging
                 let npc_name_for_log = request_data
@@ -861,9 +1024,29 @@ impl ProcessLlmRequest {
                     e
                 })?;
 
-                // Extract proposed tools from LLM response
-                let proposed_tools =
-                    tool_extractor::extract_proposed_tools(llm_response.tool_calls.clone());
+                // Log raw LLM response for debugging structured output
+                tracing::debug!(
+                    raw_content = %llm_response.content,
+                    content_len = llm_response.content.len(),
+                    "Raw LLM response content"
+                );
+
+                // Parse structured content from LLM response
+                let parsed = response_parser::parse_llm_response(&llm_response.content);
+
+                // Log parsed output for debugging
+                tracing::debug!(
+                    reasoning_len = parsed.reasoning.len(),
+                    dialogue_len = parsed.dialogue.len(),
+                    topics_count = parsed.topics.len(),
+                    tools_count = parsed.proposed_tools.len(),
+                    has_challenge_suggestion = parsed.challenge_suggestion.is_some(),
+                    has_narrative_event_suggestion = parsed.narrative_event_suggestion.is_some(),
+                    "Parsed LLM response"
+                );
+
+                // Extract proposed tools from XML tags in LLM response
+                let proposed_tools = parsed.proposed_tools.clone();
 
                 let (npc_id, npc_name, player_dialogue, scene_id, location_id, game_time) =
                     if let Some(ref prompt) = request_data.prompt {
@@ -896,6 +1079,25 @@ impl ProcessLlmRequest {
                         (None, String::new(), None, None, None, None)
                     };
 
+                // Enrich challenge suggestion with metadata if present
+                let challenge_suggestion = if let Some(raw) = parsed.challenge_suggestion {
+                    self.enrich_challenge_suggestion(&raw, request_data.pc_id)
+                        .await
+                } else {
+                    None
+                };
+
+                // Enrich narrative event suggestion with metadata if present
+                let narrative_event_suggestion =
+                    if let Some(raw) = parsed.narrative_event_suggestion {
+                        self.enrich_narrative_event_suggestion(&raw).await
+                    } else {
+                        None
+                    };
+
+                // Clone dialogue for return value before moving into approval data
+                let npc_dialogue = parsed.dialogue.clone();
+
                 // Create approval request
                 let approval_data = crate::queue_types::ApprovalRequestData {
                     world_id: request_data.world_id,
@@ -905,18 +1107,18 @@ impl ProcessLlmRequest {
                     pc_id: request_data.pc_id,
                     npc_id,
                     npc_name,
-                    proposed_dialogue: llm_response.content.clone(),
-                    internal_reasoning: String::new(),
+                    proposed_dialogue: parsed.dialogue,
+                    internal_reasoning: parsed.reasoning,
                     proposed_tools,
                     retry_count: 0,
-                    challenge_suggestion: None,
-                    narrative_event_suggestion: None,
+                    challenge_suggestion,
+                    narrative_event_suggestion,
                     challenge_outcome: None,
                     player_dialogue,
                     scene_id,
                     location_id,
                     game_time,
-                    topics: vec![],
+                    topics: parsed.topics,
                     conversation_id: request_data.conversation_id,
                 };
 
@@ -925,15 +1127,95 @@ impl ProcessLlmRequest {
 
                 // Mark the LLM request as complete
                 self.queue.mark_complete(item.id).await?;
-
                 Ok(Some(LlmRequestProcessed {
                     request_id: item.id,
                     approval_id,
-                    npc_dialogue: llm_response.content,
+                    npc_dialogue,
                     broadcast_events: vec![],
                 }))
             }
         }
+    }
+
+    /// Enrich a raw challenge suggestion with challenge metadata from the database.
+    async fn enrich_challenge_suggestion(
+        &self,
+        raw: &response_parser::RawChallengeSuggestion,
+        pc_id: Option<wrldbldr_domain::PlayerCharacterId>,
+    ) -> Option<crate::queue_types::ChallengeSuggestion> {
+        // Parse the challenge ID
+        let challenge_id: wrldbldr_domain::ChallengeId = try_parse_typed_id(&raw.challenge_id)?;
+
+        // Fetch challenge from database
+        let challenge = match self.challenge.get(challenge_id).await {
+            Ok(Some(c)) => c,
+            Ok(None) => {
+                tracing::warn!(
+                    challenge_id = %raw.challenge_id,
+                    "Challenge not found for LLM suggestion"
+                );
+                return None;
+            }
+            Err(e) => {
+                tracing::error!(
+                    challenge_id = %raw.challenge_id,
+                    error = %e,
+                    "Failed to fetch challenge for LLM suggestion"
+                );
+                return None;
+            }
+        };
+
+        Some(crate::queue_types::ChallengeSuggestion {
+            challenge_id: raw.challenge_id.clone(),
+            challenge_name: challenge.name().to_string(),
+            skill_name: challenge.check_stat().unwrap_or("").to_string(),
+            difficulty_display: challenge.difficulty().display(),
+            confidence: raw.confidence.clone(),
+            reasoning: raw.reasoning.clone(),
+            target_pc_id: pc_id,
+            outcomes: None, // Outcomes can be populated later if needed
+        })
+    }
+
+    /// Enrich a raw narrative event suggestion with event metadata from the database.
+    async fn enrich_narrative_event_suggestion(
+        &self,
+        raw: &response_parser::RawNarrativeEventSuggestion,
+    ) -> Option<crate::queue_types::NarrativeEventSuggestion> {
+        // Parse the event ID
+        let event_id: wrldbldr_domain::NarrativeEventId = try_parse_typed_id(&raw.event_id)?;
+
+        // Fetch event from database
+        let event = match self.narrative.get_event(event_id).await {
+            Ok(Some(e)) => e,
+            Ok(None) => {
+                tracing::warn!(
+                    event_id = %raw.event_id,
+                    "Narrative event not found for LLM suggestion"
+                );
+                return None;
+            }
+            Err(e) => {
+                tracing::error!(
+                    event_id = %raw.event_id,
+                    error = %e,
+                    "Failed to fetch narrative event for LLM suggestion"
+                );
+                return None;
+            }
+        };
+
+        Some(crate::queue_types::NarrativeEventSuggestion {
+            event_id: raw.event_id.clone(),
+            event_name: event.name().to_string(),
+            description: event.description().to_string(),
+            scene_direction: event.scene_direction().to_string(),
+            confidence: raw.confidence.clone(),
+            reasoning: raw.reasoning.clone(),
+            matched_triggers: raw.matched_triggers.clone(),
+            suggested_outcome: event.default_outcome().map(|s| s.to_string()),
+        })
     }
 }
 

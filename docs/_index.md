@@ -1,9 +1,28 @@
 # WrldBldr Documentation
 
-**WrldBldr** is a TTRPG management system with an AI-powered game master assistant.
+**WrldBldr is a digital tabletop RPG platform that merges human Dungeon Masters with AI assistance to create a visual novel-style gameplay experience.**
 
-- **Engine** (Rust/Axum): World creation tool with Neo4j database, Ollama LLM integration
-- **Player** (Rust/Dioxus): Gameplay client with visual novel interface (runner owns composition root; UI is presentation-only)
+### The Vision
+
+Running a rich TTRPG world is exhausting for human DMs. WrldBldr puts an **AI assistant alongside the DM** - not replacing them. The AI handles the heavy lifting (generating NPC dialogue, deciding who's at a location, suggesting challenges), while the DM retains **absolute authority** through an approval queue.
+
+**Players** see a visual novel interface with backdrop images, character sprites, typewriter dialogue, and choice buttons.
+
+**DMs** see a control panel with AI proposals, reasoning, tool calls, and approve/modify/reject controls.
+
+### Technical Stack
+
+- **Engine** (Rust/Axum): Backend server with Neo4j graph database, Ollama LLM integration, ComfyUI image generation
+- **Player** (Rust/Dioxus): Cross-platform client (Desktop + WASM) with visual novel UI
+- **Domain** (Pure Rust): Business logic using Rustic DDD patterns
+- **Shared** (Rust/Serde): Wire format and shared vocabulary types
+
+### Key Concepts
+
+- **Graph-First Model**: Everything in Neo4j - locations, characters, relationships, events, all queryable
+- **Staging System**: "Who's on stage" when players enter a region - rule-based + LLM with DM approval
+- **Character Psychology**: NPCs have Campbell archetypes and Greimas actantial model (wants, helpers, opponents)
+- **Multi-System Support**: D&D, Call of Cthulhu, Fate - different dice, same narrative tools
 
 ---
 

@@ -387,20 +387,6 @@ mod tests {
         async fn generate(&self, _request: LlmRequest) -> Result<LlmResponse, LlmError> {
             Ok(LlmResponse {
                 content: self.response.clone(),
-                tool_calls: vec![],
-                finish_reason: FinishReason::Stop,
-                usage: None,
-            })
-        }
-
-        async fn generate_with_tools(
-            &self,
-            _request: LlmRequest,
-            _tools: Vec<crate::infrastructure::ports::ToolDefinition>,
-        ) -> Result<LlmResponse, LlmError> {
-            Ok(LlmResponse {
-                content: self.response.clone(),
-                tool_calls: vec![],
                 finish_reason: FinishReason::Stop,
                 usage: None,
             })

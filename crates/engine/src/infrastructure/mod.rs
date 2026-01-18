@@ -10,7 +10,7 @@ pub mod comfyui;
 pub mod error;
 pub mod importers;
 pub mod neo4j;
-pub mod ollama;
+pub mod openai_compatible;
 pub mod ports;
 pub mod queue;
 pub mod resilient_llm;

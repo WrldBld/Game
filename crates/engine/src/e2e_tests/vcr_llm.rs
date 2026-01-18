@@ -31,12 +31,14 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::infrastructure::ollama::{OllamaClient, DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL};
+use crate::infrastructure::openai_compatible::{
+    OpenAICompatibleClient, DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL,
+};
 use crate::infrastructure::ports::{
-    FinishReason, LlmError, LlmPort, LlmRequest, LlmResponse, MessageRole, ToolCall, ToolDefinition,
+    FinishReason, LlmError, LlmPort, LlmRequest, LlmResponse, MessageRole,
 };
 
-use super::event_log::{ChatMessageLog, E2EEvent, E2EEventLog, TokenUsageLog, ToolCallLog};
+use super::event_log::{ChatMessageLog, E2EEvent, E2EEventLog, TokenUsageLog};
 use super::vcr_fingerprint::RequestFingerprint;
 
 /// Current cassette format version.
@@ -73,16 +75,7 @@ pub struct LlmRecording {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecordedResponse {
     pub content: String,
-    pub tool_calls: Vec<RecordedToolCall>,
     pub finish_reason: FinishReason,
-}
-
-/// Recorded tool call.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RecordedToolCall {
-    pub id: String,
-    pub name: String,
-    pub arguments: serde_json::Value,
 }
 
 /// Cassette file format containing recorded LLM interactions.
@@ -198,12 +191,7 @@ impl LoggingLlmDecorator {
     }
 
     /// Log prompt sent event to the event log.
-    fn log_prompt_sent(
-        &self,
-        request_id: Uuid,
-        request: &LlmRequest,
-        tools: Option<&[ToolDefinition]>,
-    ) {
+    fn log_prompt_sent(&self, request_id: Uuid, request: &LlmRequest) {
         let messages: Vec<ChatMessageLog> = request
             .messages
             .iter()
@@ -218,35 +206,24 @@ impl LoggingLlmDecorator {
             })
             .collect();
 
-        let tool_names = tools.map(|t| t.iter().map(|td| td.name.clone()).collect());
-
         self.event_log.log(E2EEvent::LlmPromptSent {
             request_id,
             system_prompt: request.system_prompt.clone(),
             messages,
             temperature: request.temperature,
             max_tokens: request.max_tokens,
-            tools: tool_names,
+            tools: None,
         });
     }
 
     /// Log response received event to the event log.
     fn log_response_received(&self, request_id: Uuid, response: &LlmResponse, latency_ms: u64) {
-        let tool_calls: Vec<ToolCallLog> = response
-            .tool_calls
-            .iter()
-            .map(|tc| ToolCallLog {
-                name: tc.name.clone(),
-                arguments: tc.arguments.clone(),
-            })
-            .collect();
-
         let tokens = response.usage.as_ref().map(TokenUsageLog::from);
 
         self.event_log.log(E2EEvent::LlmResponseReceived {
             request_id,
             content: response.content.clone(),
-            tool_calls,
+            tool_calls: vec![],
             finish_reason: format!("{:?}", response.finish_reason),
             tokens,
             latency_ms,
@@ -258,27 +235,10 @@ impl LoggingLlmDecorator {
 impl LlmPort for LoggingLlmDecorator {
     async fn generate(&self, request: LlmRequest) -> Result<LlmResponse, LlmError> {
         let request_id = Uuid::new_v4();
-        self.log_prompt_sent(request_id, &request, None);
+        self.log_prompt_sent(request_id, &request);
         let start = std::time::Instant::now();
 
         let response = self.inner.generate(request).await?;
-
-        let latency_ms = start.elapsed().as_millis() as u64;
-        self.log_response_received(request_id, &response, latency_ms);
-
-        Ok(response)
-    }
-
-    async fn generate_with_tools(
-        &self,
-        request: LlmRequest,
-        tools: Vec<ToolDefinition>,
-    ) -> Result<LlmResponse, LlmError> {
-        let request_id = Uuid::new_v4();
-        self.log_prompt_sent(request_id, &request, Some(&tools));
-        let start = std::time::Instant::now();
-
-        let response = self.inner.generate_with_tools(request, tools).await?;
 
         let latency_ms = start.elapsed().as_millis() as u64;
         self.log_response_received(request_id, &response, latency_ms);
@@ -398,7 +358,7 @@ impl VcrLlm {
                         cassette = ?cassette_path,
                         "VcrLlm: Cassette not found, falling back to recording mode"
                     );
-                    let client = Arc::new(OllamaClient::new(&ollama_url, &model));
+                    let client = Arc::new(OpenAICompatibleClient::new(&ollama_url, &model));
                     Self::recording(client, cassette_path, &model)
                 }
             }
@@ -407,12 +367,12 @@ impl VcrLlm {
         match mode_str.as_str() {
             "record" => {
                 tracing::info!(cassette = ?cassette_path, "VcrLlm: Recording mode");
-                let client = Arc::new(OllamaClient::new(&ollama_url, &model));
+                let client = Arc::new(OpenAICompatibleClient::new(&ollama_url, &model));
                 Self::recording(client, cassette_path, &model)
             }
             "live" => {
                 tracing::info!("VcrLlm: Live mode (no recording)");
-                let client = Arc::new(OllamaClient::new(&ollama_url, &model));
+                let client = Arc::new(OpenAICompatibleClient::new(&ollama_url, &model));
                 Self::live(client)
             }
             "playback" | "" => {
@@ -470,13 +430,8 @@ impl VcrLlm {
     }
 
     /// Record a request/response pair indexed by fingerprint.
-    fn record(
-        &self,
-        request: &LlmRequest,
-        tools: Option<&[ToolDefinition]>,
-        response: &LlmResponse,
-    ) {
-        let fingerprint = RequestFingerprint::from_request_with_tools(request, tools);
+    fn record(&self, request: &LlmRequest, response: &LlmResponse) {
+        let fingerprint = RequestFingerprint::from_request(request);
         let fingerprint_hex = fingerprint.to_hex();
 
         let recording = LlmRecording {
@@ -484,16 +439,7 @@ impl VcrLlm {
             request_summary: fingerprint.summary().to_string(),
             response: RecordedResponse {
                 content: response.content.clone(),
-                tool_calls: response
-                    .tool_calls
-                    .iter()
-                    .map(|tc| RecordedToolCall {
-                        id: tc.id.clone(),
-                        name: tc.name.clone(),
-                        arguments: tc.arguments.clone(),
-                    })
-                    .collect(),
-                finish_reason: response.finish_reason.clone(),
+                finish_reason: response.finish_reason,
             },
             recorded_at: chrono::Utc::now().to_rfc3339(),
         };
@@ -503,12 +449,8 @@ impl VcrLlm {
     }
 
     /// Get recorded response matching the request fingerprint.
-    fn playback_for_request(
-        &self,
-        request: &LlmRequest,
-        tools: Option<&[ToolDefinition]>,
-    ) -> Result<LlmResponse, LlmError> {
-        let fingerprint = RequestFingerprint::from_request_with_tools(request, tools);
+    fn playback_for_request(&self, request: &LlmRequest) -> Result<LlmResponse, LlmError> {
+        let fingerprint = RequestFingerprint::from_request(request);
         let fingerprint_hex = fingerprint.to_hex();
 
         let mut cassette = self.cassette.lock().expect("cassette mutex poisoned");
@@ -522,16 +464,6 @@ impl VcrLlm {
 
             return Ok(LlmResponse {
                 content: recording.response.content,
-                tool_calls: recording
-                    .response
-                    .tool_calls
-                    .into_iter()
-                    .map(|tc| ToolCall {
-                        id: tc.id,
-                        name: tc.name,
-                        arguments: tc.arguments,
-                    })
-                    .collect(),
                 finish_reason: recording.response.finish_reason,
                 usage: None,
             });
@@ -577,42 +509,24 @@ impl VcrLlm {
     }
 
     /// Execute an LLM request, handling all VCR modes uniformly.
-    ///
-    /// This unified method handles record/playback/live modes for both
-    /// `generate()` and `generate_with_tools()`, eliminating code duplication.
-    async fn execute_request(
-        &self,
-        request: LlmRequest,
-        tools: Option<Vec<ToolDefinition>>,
-    ) -> Result<LlmResponse, LlmError> {
+    async fn execute_request(&self, request: LlmRequest) -> Result<LlmResponse, LlmError> {
         match &self.mode {
             VcrMode::Record => {
                 let inner = self.inner.as_ref().ok_or_else(|| {
                     LlmError::RequestFailed("VcrLlm: No inner LLM in record mode".to_string())
                 })?;
 
-                let response = if let Some(ref tools) = tools {
-                    inner
-                        .generate_with_tools(request.clone(), tools.clone())
-                        .await?
-                } else {
-                    inner.generate(request.clone()).await?
-                };
-
-                self.record(&request, tools.as_deref(), &response);
+                let response = inner.generate(request.clone()).await?;
+                self.record(&request, &response);
                 Ok(response)
             }
-            VcrMode::Playback => self.playback_for_request(&request, tools.as_deref()),
+            VcrMode::Playback => self.playback_for_request(&request),
             VcrMode::Live => {
                 let inner = self.inner.as_ref().ok_or_else(|| {
                     LlmError::RequestFailed("VcrLlm: No inner LLM in live mode".to_string())
                 })?;
 
-                if let Some(ref tools) = tools {
-                    inner.generate_with_tools(request, tools.clone()).await
-                } else {
-                    inner.generate(request).await
-                }
+                inner.generate(request).await
             }
         }
     }
@@ -621,15 +535,7 @@ impl VcrLlm {
 #[async_trait]
 impl LlmPort for VcrLlm {
     async fn generate(&self, request: LlmRequest) -> Result<LlmResponse, LlmError> {
-        self.execute_request(request, None).await
-    }
-
-    async fn generate_with_tools(
-        &self,
-        request: LlmRequest,
-        tools: Vec<ToolDefinition>,
-    ) -> Result<LlmResponse, LlmError> {
-        self.execute_request(request, Some(tools)).await
+        self.execute_request(request).await
     }
 }
 
@@ -665,16 +571,6 @@ mod tests {
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             Ok(self.response.clone())
         }
-
-        async fn generate_with_tools(
-            &self,
-            _request: LlmRequest,
-            _tools: Vec<ToolDefinition>,
-        ) -> Result<LlmResponse, LlmError> {
-            self.call_count
-                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            Ok(self.response.clone())
-        }
     }
 
     #[test]
@@ -684,7 +580,6 @@ mod tests {
             request_summary: "Test request".to_string(),
             response: RecordedResponse {
                 content: "Test response".to_string(),
-                tool_calls: vec![],
                 finish_reason: FinishReason::Stop,
             },
             recorded_at: "2026-01-12T10:00:01Z".to_string(),
@@ -725,7 +620,6 @@ mod tests {
                 request_summary: "Hello request".to_string(),
                 response: RecordedResponse {
                     content: "Hello response".to_string(),
-                    tool_calls: vec![],
                     finish_reason: FinishReason::Stop,
                 },
                 recorded_at: "2026-01-12T10:00:01Z".to_string(),
@@ -738,7 +632,6 @@ mod tests {
                 request_summary: "World request".to_string(),
                 response: RecordedResponse {
                     content: "World response".to_string(),
-                    tool_calls: vec![],
                     finish_reason: FinishReason::Stop,
                 },
                 recorded_at: "2026-01-12T10:00:02Z".to_string(),
@@ -784,7 +677,6 @@ mod tests {
                 request_summary: "First".to_string(),
                 response: RecordedResponse {
                     content: "First response".to_string(),
-                    tool_calls: vec![],
                     finish_reason: FinishReason::Stop,
                 },
                 recorded_at: "2026-01-12T10:00:01Z".to_string(),
@@ -797,7 +689,6 @@ mod tests {
                 request_summary: "Second".to_string(),
                 response: RecordedResponse {
                     content: "Second response".to_string(),
-                    tool_calls: vec![],
                     finish_reason: FinishReason::Stop,
                 },
                 recorded_at: "2026-01-12T10:00:02Z".to_string(),
@@ -835,7 +726,6 @@ mod tests {
 
         let mock_response = LlmResponse {
             content: "Mock response".to_string(),
-            tool_calls: vec![],
             finish_reason: FinishReason::Stop,
             usage: None,
         };
@@ -856,7 +746,6 @@ mod tests {
     async fn test_live_mode_no_recording() {
         let mock_response = LlmResponse {
             content: "Live response".to_string(),
-            tool_calls: vec![],
             finish_reason: FinishReason::Stop,
             usage: None,
         };

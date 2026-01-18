@@ -3,7 +3,7 @@
 //! These tests require a running Ollama instance with the configured model.
 //! Run with: `cargo test -p wrldbldr-engine llm_integration -- --ignored`
 
-use crate::infrastructure::ports::{ChatMessage, LlmPort, LlmRequest, ToolDefinition};
+use crate::infrastructure::ports::{ChatMessage, LlmPort, LlmRequest};
 use crate::test_fixtures::llm_integration::*;
 
 // =============================================================================
@@ -200,75 +200,7 @@ async fn test_llm_maintains_character_context() {
     );
 }
 
-// =============================================================================
-// Tool Calling
-// =============================================================================
-
-#[tokio::test]
-#[ignore = "requires ollama"]
-async fn test_llm_tool_call_for_skill_check() {
-    let client = create_test_ollama_client();
-
-    let tools = vec![ToolDefinition {
-        name: "request_skill_check".to_string(),
-        description: "Request a skill check from a player".to_string(),
-        parameters: serde_json::json!({
-            "type": "object",
-            "properties": {
-                "skill": {
-                    "type": "string",
-                    "description": "The skill to check (e.g., 'Stealth', 'Perception', 'Athletics')"
-                },
-                "dc": {
-                    "type": "integer",
-                    "description": "Difficulty Class for the check"
-                }
-            },
-            "required": ["skill"]
-        }),
-    }];
-
-    let request = build_request_with_system(
-        "You are a D&D game master. When players attempt actions that require checks, \
-         use the request_skill_check tool.",
-        "I try to sneak past the sleeping guards.",
-    );
-
-    let response = client
-        .generate_with_tools(request, tools)
-        .await
-        .expect("LLM request failed");
-
-    // The model should either return tool calls or narrative
-    // Not all models support tool calling reliably, so we accept either
-    if !response.tool_calls.is_empty() {
-        let tool_call = &response.tool_calls[0];
-        assert_eq!(tool_call.name, "request_skill_check");
-
-        // Verify the arguments are valid JSON
-        assert!(
-            tool_call.arguments.is_object(),
-            "Tool arguments should be an object"
-        );
-
-        // If skill is provided, it should be stealth-related
-        if let Some(skill) = tool_call.arguments.get("skill") {
-            let skill_str = skill.as_str().unwrap_or("").to_lowercase();
-            assert!(
-                skill_str.contains("stealth") || skill_str.contains("dexterity"),
-                "Skill should be stealth-related, got: {}",
-                skill_str
-            );
-        }
-    } else {
-        // Model responded with narrative instead of tool call
-        // This is acceptable - verify it's a valid response
-        assert!(
-            !response.content.is_empty(),
-            "Should have either tool calls or content"
-        );
-    }
-}
+// Note: Tool calling tests removed - we now use XML-based tool extraction
 
 // =============================================================================
 // Error Handling

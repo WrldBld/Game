@@ -683,56 +683,8 @@ async fn test_npc_archetype_in_context() {
 }
 
 // =============================================================================
-// Test 11: Tool Definitions in LLM Request
+// Test 11: (Removed - tool definitions no longer used, using XML-based prompts)
 // =============================================================================
-
-/// Verify tool definitions are included in LLM requests
-#[tokio::test]
-#[ignore = "requires docker (testcontainers)"]
-async fn test_tool_definitions_in_llm_request() {
-    const TEST_NAME: &str = "test_tool_definitions_in_llm_request";
-    let event_log = create_shared_log(TEST_NAME);
-    let ctx = E2ETestContext::setup_with_logging(event_log.clone())
-        .await
-        .expect("Failed to setup E2E context");
-
-    let test_result = async {
-        // Use the tool builder to verify definitions are created
-        let tools = crate::use_cases::queues::tool_builder::build_game_tool_definitions();
-
-        // Verify all expected tools are present
-        assert_eq!(tools.len(), 11, "Should have 11 tool definitions");
-
-        let tool_names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
-        assert!(tool_names.contains(&"give_item"));
-        assert!(tool_names.contains(&"reveal_info"));
-        assert!(tool_names.contains(&"change_relationship"));
-        assert!(tool_names.contains(&"trigger_event"));
-
-        // Verify each tool has required fields
-        for tool in &tools {
-            assert!(!tool.name.is_empty(), "Tool should have name");
-            assert!(!tool.description.is_empty(), "Tool should have description");
-            assert!(
-                tool.parameters.is_object(),
-                "Tool should have parameters schema"
-            );
-        }
-
-        Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
-    }
-    .await;
-
-    let outcome = if test_result.is_ok() {
-        TestOutcome::Pass
-    } else {
-        TestOutcome::Fail
-    };
-    ctx.finalize_event_log(outcome);
-    ctx.save_event_log(&E2ETestContext::default_log_path(TEST_NAME))
-        .expect("save log");
-    test_result.expect("Test failed");
-}
 
 // =============================================================================
 // Test 12: Secret Motivation Deflection

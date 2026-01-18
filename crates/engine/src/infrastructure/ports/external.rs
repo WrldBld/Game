@@ -115,28 +115,10 @@ pub struct ImageData {
 pub struct LlmResponse {
     /// The generated text content
     pub content: String,
-    /// Tool calls proposed by the model
-    pub tool_calls: Vec<ToolCall>,
     /// Finish reason
     pub finish_reason: FinishReason,
     /// Token usage
     pub usage: Option<TokenUsage>,
-}
-
-/// Definition of a tool the LLM can call
-#[derive(Debug, Clone)]
-pub struct ToolDefinition {
-    pub name: String,
-    pub description: String,
-    pub parameters: serde_json::Value,
-}
-
-/// A tool call proposed by the LLM
-#[derive(Debug, Clone)]
-pub struct ToolCall {
-    pub id: String,
-    pub name: String,
-    pub arguments: serde_json::Value,
 }
 
 /// Reason the generation finished
@@ -144,7 +126,6 @@ pub struct ToolCall {
 pub enum FinishReason {
     Stop,
     Length,
-    ToolCalls,
     ContentFilter,
     Unknown,
 }
@@ -160,11 +141,6 @@ pub struct TokenUsage {
 #[async_trait]
 pub trait LlmPort: Send + Sync {
     async fn generate(&self, request: LlmRequest) -> Result<LlmResponse, LlmError>;
-    async fn generate_with_tools(
-        &self,
-        request: LlmRequest,
-        tools: Vec<ToolDefinition>,
-    ) -> Result<LlmResponse, LlmError>;
 }
 
 // =============================================================================

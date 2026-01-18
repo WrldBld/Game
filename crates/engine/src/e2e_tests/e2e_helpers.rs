@@ -20,7 +20,7 @@ use crate::infrastructure::clock::FixedClock;
 use crate::infrastructure::neo4j::{Neo4jGraph, Neo4jRepositories};
 use crate::infrastructure::ports::{
     ClockPort, FinishReason, ImageGenError, ImageGenPort, ImageRequest, ImageResult, LlmError,
-    LlmPort, LlmRequest, LlmResponse, QueueError, QueueItem, QueuePort, ToolDefinition,
+    LlmPort, LlmRequest, LlmResponse, QueueError, QueueItem, QueuePort,
 };
 use crate::infrastructure::queue::SqliteQueue;
 use crate::infrastructure::settings::SqliteSettingsRepo;
@@ -401,6 +401,204 @@ fn convert_difficulty_to_stored_format(difficulty: &serde_json::Value) -> String
     }
     // Fallback to default DC 15
     r#"{"type":"Dc","value":15}"#.to_string()
+}
+
+/// Convert narrative event triggers from test fixture format to StoredNarrativeTrigger format.
+///
+/// Test fixtures use: `{"trigger_type": {"dialogue_topic": {...}}, ...}`
+/// StoredNarrativeTrigger expects: `{"trigger_type": {"type": "DialogueTopic", ...}, ...}`
+fn convert_triggers_to_stored_format(triggers: &[serde_json::Value]) -> String {
+    let converted: Vec<serde_json::Value> = triggers
+        .iter()
+        .map(|trigger| {
+            let mut new_trigger = serde_json::Map::new();
+
+            if let Some(obj) = trigger.as_object() {
+                // Copy top-level fields
+                for (key, val) in obj {
+                    if key == "trigger_type" {
+                        // Convert the trigger_type to use "type" tag
+                        if let Some(inner) = val.as_object() {
+                            // Find the trigger type key (e.g., "dialogue_topic")
+                            if let Some((type_key, type_val)) = inner.iter().next() {
+                                let mut new_type = serde_json::Map::new();
+
+                                // Convert snake_case to PascalCase
+                                // Must match all variants in StoredNarrativeTriggerType
+                                let pascal_type = match type_key.as_str() {
+                                    "npc_action" => "NpcAction",
+                                    "player_enters_location" => "PlayerEntersLocation",
+                                    "time_at_location" => "TimeAtLocation",
+                                    "dialogue_topic" => "DialogueTopic",
+                                    "challenge_completed" => "ChallengeCompleted",
+                                    "relationship_threshold" => "RelationshipThreshold",
+                                    "has_item" => "HasItem",
+                                    "missing_item" => "MissingItem",
+                                    "event_completed" => "EventCompleted",
+                                    "turn_count" => "TurnCount",
+                                    "flag_set" => "FlagSet",
+                                    "flag_not_set" => "FlagNotSet",
+                                    "stat_threshold" => "StatThreshold",
+                                    "combat_result" => "CombatResult",
+                                    "custom" => "Custom",
+                                    "knows_spell" => "KnowsSpell",
+                                    "has_feat" => "HasFeat",
+                                    "has_class" => "HasClass",
+                                    "has_origin" => "HasOrigin",
+                                    "knows_creature" => "KnowsCreature",
+                                    other => other, // Fallback - preserve as-is
+                                };
+
+                                new_type.insert(
+                                    "type".to_string(),
+                                    serde_json::Value::String(pascal_type.to_string()),
+                                );
+
+                                // Copy inner fields
+                                if let Some(inner_obj) = type_val.as_object() {
+                                    for (k, v) in inner_obj {
+                                        new_type.insert(k.clone(), v.clone());
+                                    }
+                                }
+
+                                new_trigger.insert(
+                                    "trigger_type".to_string(),
+                                    serde_json::Value::Object(new_type),
+                                );
+                            }
+                        }
+                    } else {
+                        new_trigger.insert(key.clone(), val.clone());
+                    }
+                }
+            }
+
+            serde_json::Value::Object(new_trigger)
+        })
+        .collect();
+
+    serde_json::to_string(&converted).unwrap_or_else(|_| "[]".to_string())
+}
+
+/// Convert a single effect from test fixture format to StoredEventEffect format.
+///
+/// Test fixtures use nested format: `{ "effect_type": { fields } }`
+/// StoredEventEffect expects: `{ "type": "EffectType", fields }`
+fn convert_effect_to_stored_format(effect: &serde_json::Value) -> serde_json::Value {
+    if let Some(effect_obj) = effect.as_object() {
+        // Find the effect type key (the one that contains the nested object)
+        // This handles the format: { "set_flag": { "flag_name": "x", "value": true } }
+        for (type_key, type_val) in effect_obj {
+            // Skip non-object values - they might be fields of an already-converted effect
+            if !type_val.is_object() {
+                continue;
+            }
+
+            let mut new_effect = serde_json::Map::new();
+
+            // Convert snake_case to PascalCase for all effect types
+            let pascal_type = match type_key.as_str() {
+                "modify_relationship" => "ModifyRelationship",
+                "give_item" => "GiveItem",
+                "take_item" => "TakeItem",
+                "reveal_information" => "RevealInformation",
+                "set_flag" => "SetFlag",
+                "enable_challenge" => "EnableChallenge",
+                "disable_challenge" => "DisableChallenge",
+                "enable_event" => "EnableEvent",
+                "disable_event" => "DisableEvent",
+                "trigger_scene" => "TriggerScene",
+                "start_combat" => "StartCombat",
+                "modify_stat" => "ModifyStat",
+                "add_reward" => "AddReward",
+                "custom" => "Custom",
+                // If it's already PascalCase or unknown, preserve it
+                other => other,
+            };
+
+            new_effect.insert(
+                "type".to_string(),
+                serde_json::Value::String(pascal_type.to_string()),
+            );
+
+            // Copy inner fields
+            if let Some(inner_obj) = type_val.as_object() {
+                for (k, v) in inner_obj {
+                    new_effect.insert(k.clone(), v.clone());
+                }
+            }
+
+            return serde_json::Value::Object(new_effect);
+        }
+    }
+    // Return as-is if we couldn't convert
+    effect.clone()
+}
+
+/// Convert narrative event outcomes from test fixture format to stored format.
+fn convert_outcomes_to_stored_format(outcomes: &[serde_json::Value]) -> String {
+    // Outcomes also need conversion for their condition field
+    let converted: Vec<serde_json::Value> = outcomes
+        .iter()
+        .map(|outcome| {
+            let mut new_outcome = serde_json::Map::new();
+
+            if let Some(obj) = outcome.as_object() {
+                for (key, val) in obj {
+                    if key == "condition" {
+                        // Convert condition to use "type" tag
+                        if let Some(cond_obj) = val.as_object() {
+                            if let Some((type_key, type_val)) = cond_obj.iter().next() {
+                                let mut new_cond = serde_json::Map::new();
+
+                                let pascal_type = match type_key.as_str() {
+                                    "player_action" => "PlayerAction",
+                                    "npc_dialogue" => "NpcDialogue",
+                                    "time_passes" => "TimePasses",
+                                    "custom" => "Custom",
+                                    other => other,
+                                };
+
+                                new_cond.insert(
+                                    "type".to_string(),
+                                    serde_json::Value::String(pascal_type.to_string()),
+                                );
+
+                                if let Some(inner_obj) = type_val.as_object() {
+                                    for (k, v) in inner_obj {
+                                        new_cond.insert(k.clone(), v.clone());
+                                    }
+                                }
+
+                                new_outcome.insert(
+                                    "condition".to_string(),
+                                    serde_json::Value::Object(new_cond),
+                                );
+                            }
+                        }
+                    } else if key == "effects" {
+                        // Convert effects array
+                        if let Some(effects_arr) = val.as_array() {
+                            let converted_effects: Vec<serde_json::Value> = effects_arr
+                                .iter()
+                                .map(convert_effect_to_stored_format)
+                                .collect();
+                            new_outcome.insert(
+                                "effects".to_string(),
+                                serde_json::Value::Array(converted_effects),
+                            );
+                        }
+                    } else {
+                        new_outcome.insert(key.clone(), val.clone());
+                    }
+                }
+            }
+
+            serde_json::Value::Object(new_outcome)
+        })
+        .collect();
+
+    serde_json::to_string(&converted).unwrap_or_else(|_| "[]".to_string())
 }
 
 /// Seed the Thornhaven test world to Neo4j.
@@ -915,6 +1113,10 @@ pub async fn seed_thornhaven_to_neo4j(
     let mut event_ids = HashMap::new();
     for event in &test_world.narrative_events {
         let new_id = NarrativeEventId::from(Uuid::new_v4());
+        // Serialize JSON fields with format conversion
+        let triggers_json = convert_triggers_to_stored_format(&event.trigger_conditions);
+        let outcomes_json = convert_outcomes_to_stored_format(&event.outcomes);
+        let tags_json = serde_json::to_string(&event.tags).unwrap_or_else(|_| "[]".to_string());
 
         graph
             .run(
@@ -925,11 +1127,19 @@ pub async fn seed_thornhaven_to_neo4j(
                         name: $name,
                         description: $description,
                         scene_direction: $scene_direction,
+                        suggested_opening: $suggested_opening,
+                        default_outcome: $default_outcome,
+                        triggers_json: $triggers_json,
+                        outcomes_json: $outcomes_json,
+                        trigger_logic: $trigger_logic,
+                        tags_json: $tags_json,
                         is_active: $is_active,
                         is_triggered: $is_triggered,
                         is_repeatable: $is_repeatable,
                         priority: $priority,
-                        is_favorite: $is_favorite
+                        is_favorite: $is_favorite,
+                        delay_turns: $delay_turns,
+                        trigger_count: $trigger_count
                     })",
                 )
                 .param("id", new_id.to_string())
@@ -937,11 +1147,25 @@ pub async fn seed_thornhaven_to_neo4j(
                 .param("name", event.name.clone())
                 .param("description", event.description.clone())
                 .param("scene_direction", event.scene_direction.clone())
+                .param(
+                    "suggested_opening",
+                    event.suggested_opening.clone().unwrap_or_default(),
+                )
+                .param(
+                    "default_outcome",
+                    event.default_outcome.clone().unwrap_or_default(),
+                )
+                .param("triggers_json", triggers_json)
+                .param("outcomes_json", outcomes_json)
+                .param("trigger_logic", event.trigger_logic.clone())
+                .param("tags_json", tags_json)
                 .param("is_active", event.is_active)
                 .param("is_triggered", event.is_triggered)
                 .param("is_repeatable", event.is_repeatable)
                 .param("priority", event.priority as i64)
-                .param("is_favorite", event.is_favorite),
+                .param("is_favorite", event.is_favorite)
+                .param("delay_turns", event.delay_turns as i64)
+                .param("trigger_count", event.trigger_count as i64),
             )
             .await?;
 
@@ -1088,20 +1312,6 @@ impl LlmPort for NoopLlm {
     async fn generate(&self, _request: LlmRequest) -> Result<LlmResponse, LlmError> {
         Ok(LlmResponse {
             content: "Mock LLM response".to_string(),
-            tool_calls: vec![],
-            finish_reason: FinishReason::Stop,
-            usage: None,
-        })
-    }
-
-    async fn generate_with_tools(
-        &self,
-        _request: LlmRequest,
-        _tools: Vec<ToolDefinition>,
-    ) -> Result<LlmResponse, LlmError> {
-        Ok(LlmResponse {
-            content: "Mock LLM response".to_string(),
-            tool_calls: vec![],
             finish_reason: FinishReason::Stop,
             usage: None,
         })
