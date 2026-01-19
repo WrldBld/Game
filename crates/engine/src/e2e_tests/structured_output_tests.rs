@@ -905,7 +905,7 @@ async fn test_llm_suggests_narrative_event() {
 ///
 /// Validates the complete parsing and enrichment pipeline.
 #[tokio::test]
-#[ignore = "requires neo4j testcontainer and VCR cassettes"]
+#[ignore = "VCR cassette has corrupted recording (truncated response) - needs re-recording with live LLM"]
 async fn test_full_structured_output_integration() {
     const TEST_NAME: &str = "test_full_structured_output_integration";
     let event_log = create_shared_log(TEST_NAME);

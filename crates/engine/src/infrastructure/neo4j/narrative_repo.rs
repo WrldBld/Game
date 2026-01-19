@@ -1064,22 +1064,23 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
         &self,
         world_id: WorldId,
     ) -> Result<Vec<NarrativeEventId>, RepoError> {
-        // Get all completed event IDs from event chains in this world
-        let q = query(
+        let mut completed_events = Vec::new();
+
+        // 1. Get completed events from EventChain nodes
+        let chain_query = query(
             "MATCH (c:EventChain {world_id: $world_id})
             WHERE c.completed_events IS NOT NULL
             RETURN c.completed_events AS completed",
         )
         .param("world_id", world_id.to_string());
 
-        let mut result = self
+        let mut chain_result = self
             .graph
-            .execute(q)
+            .execute(chain_query)
             .await
             .map_err(|e| RepoError::database("query", e))?;
-        let mut completed_events = Vec::new();
 
-        while let Some(row) = result
+        while let Some(row) = chain_result
             .next()
             .await
             .map_err(|e| RepoError::database("query", e))?
@@ -1092,11 +1093,79 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
             }
         }
 
-        // Deduplicate (in case same event is in multiple chains)
+        // 2. Also get NarrativeEvent nodes where is_triggered = true
+        // An event marked as triggered is considered "completed" for EventCompleted triggers
+        let triggered_query = query(
+            "MATCH (e:NarrativeEvent {world_id: $world_id})
+            WHERE e.is_triggered = true
+            RETURN e.id AS event_id",
+        )
+        .param("world_id", world_id.to_string());
+
+        let mut triggered_result = self
+            .graph
+            .execute(triggered_query)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        while let Some(row) = triggered_result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            let id_str: String = row
+                .get("event_id")
+                .map_err(|e| RepoError::database("query", e))?;
+            if let Ok(id) = id_str.parse::<uuid::Uuid>() {
+                completed_events.push(NarrativeEventId::from(id));
+            }
+        }
+
+        // Deduplicate (in case same event is in multiple chains or both is_triggered and in chain)
         let mut seen = std::collections::HashSet::new();
         completed_events.retain(|id| seen.insert(*id));
 
         Ok(completed_events)
+    }
+
+    async fn get_event_outcomes(
+        &self,
+        world_id: WorldId,
+    ) -> Result<std::collections::HashMap<NarrativeEventId, String>, RepoError> {
+        // Get all triggered events with their selected_outcome
+        let q = query(
+            "MATCH (e:NarrativeEvent {world_id: $world_id})
+            WHERE e.is_triggered = true AND e.selected_outcome IS NOT NULL
+            RETURN e.id AS event_id, e.selected_outcome AS outcome",
+        )
+        .param("world_id", world_id.to_string());
+
+        let mut result = self
+            .graph
+            .execute(q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        let mut outcomes = std::collections::HashMap::new();
+
+        while let Some(row) = result
+            .next()
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            let id_str: String = row
+                .get("event_id")
+                .map_err(|e| RepoError::database("query", e))?;
+            let outcome: String = row
+                .get("outcome")
+                .map_err(|e| RepoError::database("query", e))?;
+
+            if let Ok(id) = id_str.parse::<uuid::Uuid>() {
+                outcomes.insert(NarrativeEventId::from(id), outcome);
+            }
+        }
+
+        Ok(outcomes)
     }
 
     async fn get_conversation_turns(

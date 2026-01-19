@@ -481,19 +481,24 @@ fn cleanup_old_containers() {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
 
     #[tokio::test]
     #[ignore = "requires docker (testcontainers)"]
     async fn test_neo4j_harness_starts_and_connects() {
-        let harness = Neo4jTestHarness::start()
+        // Use the shared harness to avoid spawning extra containers
+        let harness = SharedNeo4jHarness::shared()
             .await
-            .expect("Failed to start Neo4j harness");
+            .expect("Failed to get shared Neo4j harness");
+
+        let graph = harness
+            .create_graph()
+            .await
+            .expect("Failed to create graph");
 
         // Verify we can query the database
-        let mut result = harness
-            .graph()
+        let mut result = graph
             .execute(query("RETURN 1 as n"))
             .await
             .expect("Query failed");
@@ -506,21 +511,35 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires docker (testcontainers)"]
     async fn test_neo4j_harness_clean_removes_all_data() {
-        let harness = Neo4jTestHarness::start()
+        // Use the shared harness to avoid spawning extra containers
+        let harness = SharedNeo4jHarness::shared()
             .await
-            .expect("Failed to start Neo4j harness");
+            .expect("Failed to get shared Neo4j harness");
 
-        // Create some test data
-        harness
-            .graph()
-            .run(query("CREATE (:TestNode {name: 'test'})"))
+        let graph = harness
+            .create_graph()
+            .await
+            .expect("Failed to create graph");
+
+        // Create some test data with a unique label to avoid conflicts
+        let test_label = format!(
+            "TestNode_{}",
+            uuid::Uuid::new_v4().to_string().replace("-", "")
+        );
+        graph
+            .run(query(&format!(
+                "CREATE (:{}  {{name: 'test'}})",
+                test_label
+            )))
             .await
             .expect("Create failed");
 
         // Verify data exists
-        let mut result = harness
-            .graph()
-            .execute(query("MATCH (n:TestNode) RETURN count(n) as count"))
+        let mut result = graph
+            .execute(query(&format!(
+                "MATCH (n:{}) RETURN count(n) as count",
+                test_label
+            )))
             .await
             .expect("Count query failed");
 
@@ -528,13 +547,18 @@ mod tests {
         let count: i64 = row.get("count").expect("Column not found");
         assert_eq!(count, 1);
 
-        // Clean the database
-        harness.clean().await.expect("Clean failed");
+        // Clean just our test data (not the whole database, since it's shared)
+        graph
+            .run(query(&format!("MATCH (n:{}) DELETE n", test_label)))
+            .await
+            .expect("Clean failed");
 
         // Verify data is gone
-        let mut result = harness
-            .graph()
-            .execute(query("MATCH (n) RETURN count(n) as count"))
+        let mut result = graph
+            .execute(query(&format!(
+                "MATCH (n:{}) RETURN count(n) as count",
+                test_label
+            )))
             .await
             .expect("Count query failed");
 

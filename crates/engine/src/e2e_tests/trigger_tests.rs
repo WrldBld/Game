@@ -7,6 +7,13 @@
 
 use std::sync::Arc;
 
+use chrono::Utc;
+use neo4rs::query;
+use wrldbldr_domain::{
+    ChallengeId, CharacterId, NarrativeEvent, NarrativeEventName, NarrativeTrigger,
+    NarrativeTriggerType,
+};
+
 use super::{create_test_player, E2EEventLog, E2ETestContext, TestOutcome};
 
 /// Test that FlagSet trigger evaluates correctly.
@@ -29,51 +36,49 @@ async fn test_flag_set_trigger_evaluation() {
     .await
     .expect("Player creation should succeed");
 
-    // Create a narrative event with FlagSet trigger
-    use neo4rs::query;
-    use uuid::Uuid;
-    let event_id = Uuid::new_v4();
+    // Create a narrative event with FlagSet trigger using the domain model
+    let now = Utc::now();
 
+    let trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::FlagSet {
+            flag_name: "quest_accepted".to_string(),
+        },
+        "Triggered when quest_accepted flag is set",
+        "flag-set-trigger",
+    )
+    .with_required(true);
+
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Flag Triggered Event").unwrap(),
+        now,
+    )
+    .with_description("Triggered when quest_accepted flag is set")
+    .with_scene_direction("The quest begins")
+    .with_trigger_condition(trigger)
+    .with_active(true)
+    .with_priority(1);
+
+    // Save using the repository (this creates proper schema with HAS_NARRATIVE_EVENT)
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&event)
+        .await
+        .expect("save event");
+
+    // Tie the event to the region for location-based querying
     ctx.graph()
         .run(
             query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'Flag Triggered Event',
-                    description: 'Triggered when quest_accepted flag is set',
-                    scene_direction: 'The quest begins',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: false,
-                    priority: 1,
-                    is_favorite: false
-                })"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
-            .param("id", event_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
+            .param("event_id", event.id().to_string())
+            .param("region_id", common_room.to_string()),
         )
         .await
-        .expect("Event creation should succeed");
-
-    // Create trigger for the event
-    let trigger_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id})
-                   CREATE (t:NarrativeTrigger {
-                       id: $trigger_id,
-                       trigger_type: 'FlagSet',
-                       flag_name: 'quest_accepted',
-                       is_active: true
-                   })-[:TRIGGERS]->(e)"#,
-            )
-            .param("event_id", event_id.to_string())
-            .param("trigger_id", trigger_id.to_string()),
-        )
-        .await
-        .expect("Trigger creation should succeed");
+        .expect("TIED_TO_LOCATION edge creation should succeed");
 
     // Set the flag that should trigger the event
     ctx.app
@@ -83,9 +88,7 @@ async fn test_flag_set_trigger_evaluation() {
         .await
         .expect("Setting flag should succeed");
 
-    // Check if narrative event was marked as triggered
-    // Note: This tests the expected behavior - actual trigger evaluation
-    // may need to be called explicitly depending on implementation
+    // Check if narrative event exists and can be queried
     let events = ctx
         .app
         .repositories
@@ -94,11 +97,17 @@ async fn test_flag_set_trigger_evaluation() {
         .await
         .expect("Should list events");
 
-    // The event should still be in active list until explicitly triggered
-    // This documents the expected flow
-    assert!(events
-        .iter()
-        .any(|e| e.id().to_string() == event_id.to_string()));
+    // The event should be in the list
+    assert!(
+        events.iter().any(|e| e.id() == event.id()),
+        "Event should exist in world events"
+    );
+
+    // Verify the event has the correct properties
+    let found_event = events.iter().find(|e| e.id() == event.id()).unwrap();
+    assert_eq!(found_event.name().as_str(), "Flag Triggered Event");
+    assert!(found_event.is_active());
+    assert!(!found_event.trigger_conditions().is_empty());
 }
 
 /// Test that ItemAcquired trigger type is recognized.
@@ -107,51 +116,37 @@ async fn test_flag_set_trigger_evaluation() {
 async fn test_item_acquired_trigger_type() {
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    // Create a narrative event with ItemAcquired trigger
-    use neo4rs::query;
-    use uuid::Uuid;
-    let event_id = Uuid::new_v4();
+    let now = Utc::now();
 
-    ctx.graph()
-        .run(
-            query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'Item Discovery Event',
-                    description: 'Triggered when ancient key is found',
-                    scene_direction: 'You sense the key has power',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: false,
-                    priority: 1,
-                    is_favorite: false
-                })"#,
-            )
-            .param("id", event_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
-        )
-        .await
-        .expect("Event creation should succeed");
+    // Create HasItem trigger (equivalent to ItemAcquired)
+    let trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::HasItem {
+            item_name: "Ancient Key".to_string(),
+            quantity: Some(1),
+        },
+        "Player must have the Ancient Key",
+        "item-trigger",
+    )
+    .with_required(true);
 
-    // Create ItemAcquired trigger
-    let trigger_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id})
-                   CREATE (t:NarrativeTrigger {
-                       id: $trigger_id,
-                       trigger_type: 'ItemAcquired',
-                       item_name: 'Ancient Key',
-                       is_active: true
-                   })-[:TRIGGERS]->(e)"#,
-            )
-            .param("event_id", event_id.to_string())
-            .param("trigger_id", trigger_id.to_string()),
-        )
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Item Discovery Event").unwrap(),
+        now,
+    )
+    .with_description("Triggered when ancient key is found")
+    .with_scene_direction("You sense the key has power")
+    .with_trigger_condition(trigger)
+    .with_active(true)
+    .with_priority(1);
+
+    // Save using the repository
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&event)
         .await
-        .expect("Trigger creation should succeed");
+        .expect("save event");
 
     // Verify event exists with trigger
     let events = ctx
@@ -163,11 +158,19 @@ async fn test_item_acquired_trigger_type() {
         .expect("Should list events");
 
     assert!(
-        events
-            .iter()
-            .any(|e| e.id().to_string() == event_id.to_string()),
-        "Event with ItemAcquired trigger should exist"
+        events.iter().any(|e| e.id() == event.id()),
+        "Event with HasItem trigger should exist"
     );
+
+    // Verify trigger configuration
+    let found_event = events.iter().find(|e| e.id() == event.id()).unwrap();
+    assert_eq!(found_event.trigger_conditions().len(), 1);
+    match &found_event.trigger_conditions()[0].trigger_type {
+        NarrativeTriggerType::HasItem { item_name, .. } => {
+            assert_eq!(item_name, "Ancient Key");
+        }
+        _ => panic!("Expected HasItem trigger type"),
+    }
 }
 
 /// Test that RelationshipThreshold trigger type is recognized.
@@ -176,55 +179,58 @@ async fn test_item_acquired_trigger_type() {
 async fn test_relationship_threshold_trigger_type() {
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    use neo4rs::query;
-    use uuid::Uuid;
-    let event_id = Uuid::new_v4();
+    let now = Utc::now();
 
-    ctx.graph()
-        .run(
-            query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'Trust Gained Event',
-                    description: 'Triggered when friendship threshold reached',
-                    scene_direction: 'The NPC trusts you now',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: false,
-                    priority: 1,
-                    is_favorite: false
-                })"#,
-            )
-            .param("id", event_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
-        )
-        .await
-        .expect("Event creation should succeed");
-
-    // Create RelationshipThreshold trigger
-    let trigger_id = Uuid::new_v4();
+    // Get an NPC ID for the relationship trigger
     let mira_id = ctx.world.npc("Mira Thornwood").expect("Mira should exist");
 
-    ctx.graph()
-        .run(
-            query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id})
-                   CREATE (t:NarrativeTrigger {
-                       id: $trigger_id,
-                       trigger_type: 'RelationshipThreshold',
-                       npc_id: $npc_id,
-                       threshold: 75,
-                       comparison: 'GreaterOrEqual',
-                       is_active: true
-                   })-[:TRIGGERS]->(e)"#,
-            )
-            .param("event_id", event_id.to_string())
-            .param("trigger_id", trigger_id.to_string())
-            .param("npc_id", mira_id.to_string()),
-        )
+    // Get or create a PC to have a relationship with
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
+    let (_, pc_id) = create_test_player(
+        ctx.graph(),
+        ctx.world.world_id,
+        common_room,
+        "Relationship Tester",
+    )
+    .await
+    .expect("Player creation should succeed");
+
+    // Create RelationshipThreshold trigger
+    let trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::RelationshipThreshold {
+            character_id: mira_id,
+            character_name: "Mira Thornwood".to_string(),
+            with_character: CharacterId::from(pc_id.to_uuid()),
+            with_character_name: "Relationship Tester".to_string(),
+            min_sentiment: Some(0.75),
+            max_sentiment: None,
+        },
+        "Friendship threshold reached with Mira",
+        "relationship-trigger",
+    )
+    .with_required(true);
+
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Trust Gained Event").unwrap(),
+        now,
+    )
+    .with_description("Triggered when friendship threshold reached")
+    .with_scene_direction("The NPC trusts you now")
+    .with_trigger_condition(trigger)
+    .with_active(true)
+    .with_priority(1);
+
+    // Save using the repository
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&event)
         .await
-        .expect("Trigger creation should succeed");
+        .expect("save event");
 
     // Verify event exists
     let events = ctx
@@ -236,11 +242,24 @@ async fn test_relationship_threshold_trigger_type() {
         .expect("Should list events");
 
     assert!(
-        events
-            .iter()
-            .any(|e| e.id().to_string() == event_id.to_string()),
+        events.iter().any(|e| e.id() == event.id()),
         "Event with RelationshipThreshold trigger should exist"
     );
+
+    // Verify trigger configuration
+    let found_event = events.iter().find(|e| e.id() == event.id()).unwrap();
+    assert_eq!(found_event.trigger_conditions().len(), 1);
+    match &found_event.trigger_conditions()[0].trigger_type {
+        NarrativeTriggerType::RelationshipThreshold {
+            character_name,
+            min_sentiment,
+            ..
+        } => {
+            assert_eq!(character_name, "Mira Thornwood");
+            assert_eq!(*min_sentiment, Some(0.75));
+        }
+        _ => panic!("Expected RelationshipThreshold trigger type"),
+    }
 }
 
 /// Test that ChallengeCompleted trigger type works.
@@ -249,57 +268,44 @@ async fn test_relationship_threshold_trigger_type() {
 async fn test_challenge_completed_trigger_type() {
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    use neo4rs::query;
-    use uuid::Uuid;
-    let event_id = Uuid::new_v4();
+    let now = Utc::now();
 
-    ctx.graph()
-        .run(
-            query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'Challenge Victory Event',
-                    description: 'Triggered when a specific challenge is completed',
-                    scene_direction: 'Victory unlocks new possibilities',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: false,
-                    priority: 1,
-                    is_favorite: false
-                })"#,
-            )
-            .param("id", event_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
-        )
-        .await
-        .expect("Event creation should succeed");
+    // Get a challenge ID from the world, or create a new one if none exist
+    let challenge_id = ctx
+        .world
+        .challenge("Bargain Challenge")
+        .unwrap_or_else(|| ChallengeId::new());
 
     // Create ChallengeCompleted trigger
-    let trigger_id = Uuid::new_v4();
-    let challenge_id = ctx.world.challenge("Bargain Challenge").unwrap_or_else(|| {
-        // If no challenge exists, create a dummy ID
-        wrldbldr_domain::ChallengeId::from(Uuid::new_v4())
-    });
+    let trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::ChallengeCompleted {
+            challenge_id,
+            challenge_name: "Bargain Challenge".to_string(),
+            requires_success: Some(true),
+        },
+        "Challenge must be completed successfully",
+        "challenge-trigger",
+    )
+    .with_required(true);
 
-    ctx.graph()
-        .run(
-            query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id})
-                   CREATE (t:NarrativeTrigger {
-                       id: $trigger_id,
-                       trigger_type: 'ChallengeCompleted',
-                       challenge_id: $challenge_id,
-                       outcome: 'Success',
-                       is_active: true
-                   })-[:TRIGGERS]->(e)"#,
-            )
-            .param("event_id", event_id.to_string())
-            .param("trigger_id", trigger_id.to_string())
-            .param("challenge_id", challenge_id.to_string()),
-        )
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Challenge Victory Event").unwrap(),
+        now,
+    )
+    .with_description("Triggered when a specific challenge is completed")
+    .with_scene_direction("Victory unlocks new possibilities")
+    .with_trigger_condition(trigger)
+    .with_active(true)
+    .with_priority(1);
+
+    // Save using the repository
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&event)
         .await
-        .expect("Trigger creation should succeed");
+        .expect("save event");
 
     // Verify event exists
     let events = ctx
@@ -311,11 +317,24 @@ async fn test_challenge_completed_trigger_type() {
         .expect("Should list events");
 
     assert!(
-        events
-            .iter()
-            .any(|e| e.id().to_string() == event_id.to_string()),
+        events.iter().any(|e| e.id() == event.id()),
         "Event with ChallengeCompleted trigger should exist"
     );
+
+    // Verify trigger configuration
+    let found_event = events.iter().find(|e| e.id() == event.id()).unwrap();
+    assert_eq!(found_event.trigger_conditions().len(), 1);
+    match &found_event.trigger_conditions()[0].trigger_type {
+        NarrativeTriggerType::ChallengeCompleted {
+            challenge_name,
+            requires_success,
+            ..
+        } => {
+            assert_eq!(challenge_name, "Bargain Challenge");
+            assert_eq!(*requires_success, Some(true));
+        }
+        _ => panic!("Expected ChallengeCompleted trigger type"),
+    }
 }
 
 /// Test multiple triggers on same event (AND logic).
@@ -327,70 +346,48 @@ async fn test_multiple_triggers_and_logic() {
         .await
         .expect("Setup should succeed");
 
-    use neo4rs::query;
-    use uuid::Uuid;
-    let event_id = Uuid::new_v4();
-
-    // Create event with multiple trigger conditions
-    ctx.graph()
-        .run(
-            query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'Complex Trigger Event',
-                    description: 'Requires multiple conditions',
-                    scene_direction: 'All conditions met',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: false,
-                    priority: 1,
-                    is_favorite: false
-                })"#,
-            )
-            .param("id", event_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
-        )
-        .await
-        .expect("Event creation should succeed");
+    let now = Utc::now();
 
     // Create first trigger (FlagSet)
-    let trigger1_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id})
-                   CREATE (t:NarrativeTrigger {
-                       id: $trigger_id,
-                       trigger_type: 'FlagSet',
-                       flag_name: 'condition_one',
-                       is_active: true
-                   })-[:TRIGGERS]->(e)"#,
-            )
-            .param("event_id", event_id.to_string())
-            .param("trigger_id", trigger1_id.to_string()),
-        )
-        .await
-        .expect("First trigger creation should succeed");
+    let trigger1 = NarrativeTrigger::new(
+        NarrativeTriggerType::FlagSet {
+            flag_name: "condition_one".to_string(),
+        },
+        "First condition - flag one must be set",
+        "flag-trigger-1",
+    )
+    .with_required(true);
 
     // Create second trigger (another FlagSet)
-    let trigger2_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id})
-                   CREATE (t:NarrativeTrigger {
-                       id: $trigger_id,
-                       trigger_type: 'FlagSet',
-                       flag_name: 'condition_two',
-                       is_active: true
-                   })-[:TRIGGERS]->(e)"#,
-            )
-            .param("event_id", event_id.to_string())
-            .param("trigger_id", trigger2_id.to_string()),
-        )
+    let trigger2 = NarrativeTrigger::new(
+        NarrativeTriggerType::FlagSet {
+            flag_name: "condition_two".to_string(),
+        },
+        "Second condition - flag two must be set",
+        "flag-trigger-2",
+    )
+    .with_required(true);
+
+    // Create event with multiple trigger conditions (default is TriggerLogic::All)
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Complex Trigger Event").unwrap(),
+        now,
+    )
+    .with_description("Requires multiple conditions")
+    .with_scene_direction("All conditions met")
+    .with_trigger_condition(trigger1)
+    .with_trigger_condition(trigger2)
+    .with_active(true)
+    .with_priority(1);
+
+    // Save using the repository
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&event)
         .await
-        .expect("Second trigger creation should succeed");
+        .expect("save event");
 
     // Set only first flag
     ctx.app
@@ -408,11 +405,20 @@ async fn test_multiple_triggers_and_logic() {
         .list_events(ctx.world.world_id)
         .await
         .expect("Should list events");
+
+    let found_event = events
+        .iter()
+        .find(|e| e.id() == event.id())
+        .expect("Event should exist");
+
     assert!(
-        events
-            .iter()
-            .any(|e| e.id().to_string() == event_id.to_string()),
+        found_event.is_active(),
         "Event should still be active with partial conditions"
+    );
+    assert_eq!(
+        found_event.trigger_conditions().len(),
+        2,
+        "Event should have 2 trigger conditions"
     );
 
     ctx.finalize_event_log(TestOutcome::Pass);
@@ -425,47 +431,140 @@ async fn test_multiple_triggers_and_logic() {
 async fn test_event_marked_as_triggered() {
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    use neo4rs::query;
-    use uuid::Uuid;
-    let event_id = Uuid::new_v4();
+    let now = Utc::now();
 
-    // Create a simple event
-    ctx.graph()
-        .run(
-            query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'Simple Event',
-                    description: 'Will be marked as triggered',
-                    scene_direction: 'Event happened',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: false,
-                    priority: 1,
-                    is_favorite: false
-                })"#,
-            )
-            .param("id", event_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
-        )
+    // Create a simple event without any triggers
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Simple Event").unwrap(),
+        now,
+    )
+    .with_description("Will be marked as triggered")
+    .with_scene_direction("Event happened")
+    .with_active(true)
+    .with_priority(1);
+
+    // Save using the repository
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&event)
         .await
-        .expect("Event creation should succeed");
+        .expect("save event");
 
-    // Mark event as triggered directly
+    // Mark event as triggered using direct graph update
+    // (In production, this would be done through the proper use case)
     ctx.graph()
         .run(
             query(
                 r#"MATCH (e:NarrativeEvent {id: $id})
                    SET e.is_triggered = true"#,
             )
-            .param("id", event_id.to_string()),
+            .param("id", event.id().to_string()),
         )
         .await
         .expect("Marking as triggered should succeed");
 
-    // Verify event is no longer in active untriggered list
-    // (depending on implementation of list_active)
+    // Re-fetch the event to verify the state
+    let fetched_event = ctx
+        .app
+        .repositories
+        .narrative
+        .get_event(event.id())
+        .await
+        .expect("Should get event")
+        .expect("Event should exist");
+
+    // Verify event is marked as triggered
+    assert!(
+        fetched_event.is_triggered(),
+        "Event should be marked as triggered"
+    );
+
+    // Verify event is no longer active (non-repeatable events become inactive)
+    // Note: This depends on how the system handles triggered state - documenting actual behavior
+    println!(
+        "Triggered event is_active: {}, is_triggered: {}",
+        fetched_event.is_active(),
+        fetched_event.is_triggered()
+    );
+}
+
+/// Test PlayerEntersLocation trigger type.
+#[tokio::test]
+#[ignore = "Requires Docker for Neo4j testcontainer"]
+async fn test_player_enters_location_trigger() {
+    let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
+
+    let now = Utc::now();
+
+    let location_id = ctx
+        .world
+        .location("The Drowsy Dragon Inn")
+        .expect("Location should exist");
+    let common_room = ctx
+        .world
+        .region("Common Room")
+        .expect("Common Room should exist");
+    let private_booth = ctx
+        .world
+        .region("Private Booth")
+        .expect("Private Booth should exist");
+
+    // Create player in Private Booth
+    let (_, pc_id) = create_test_player(
+        ctx.graph(),
+        ctx.world.world_id,
+        private_booth,
+        "Location Trigger Tester",
+    )
+    .await
+    .expect("Player creation should succeed");
+
+    // Create PlayerEntersLocation trigger
+    let trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::PlayerEntersLocation {
+            location_id,
+            location_name: "The Drowsy Dragon Inn".to_string(),
+        },
+        "Player enters the tavern",
+        "enter-location-trigger",
+    )
+    .with_required(true);
+
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Tavern Entry Event").unwrap(),
+        now,
+    )
+    .with_description("Triggered when player enters the tavern")
+    .with_scene_direction("The tavern is bustling with activity")
+    .with_trigger_condition(trigger)
+    .with_active(true)
+    .with_priority(10);
+
+    // Save using the repository
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&event)
+        .await
+        .expect("save event");
+
+    // Tie event to the region
+    ctx.graph()
+        .run(
+            query(
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
+            )
+            .param("event_id", event.id().to_string())
+            .param("region_id", common_room.to_string()),
+        )
+        .await
+        .expect("TIED_TO_LOCATION edge creation should succeed");
+
+    // Verify event exists with correct trigger
     let events = ctx
         .app
         .repositories
@@ -474,14 +573,15 @@ async fn test_event_marked_as_triggered() {
         .await
         .expect("Should list events");
 
-    // If list_active filters out triggered non-repeatable events,
-    // this event should not be in the list
-    // This documents expected behavior
-    let event_in_list = events
+    let found_event = events
         .iter()
-        .any(|e| e.id().to_string() == event_id.to_string());
+        .find(|e| e.id() == event.id())
+        .expect("Event should exist");
 
-    // Note: Expected behavior depends on implementation
-    // If this fails, it indicates how the system handles triggered events
-    println!("Triggered event in active list: {}", event_in_list);
+    match &found_event.trigger_conditions()[0].trigger_type {
+        NarrativeTriggerType::PlayerEntersLocation { location_name, .. } => {
+            assert_eq!(location_name, "The Drowsy Dragon Inn");
+        }
+        _ => panic!("Expected PlayerEntersLocation trigger type"),
+    }
 }

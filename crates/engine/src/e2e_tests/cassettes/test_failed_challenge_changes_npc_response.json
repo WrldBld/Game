@@ -1,19 +1,8 @@
 {
   "version": "2.0",
-  "recorded_at": "2026-01-18T22:04:32.269180+00:00",
+  "recorded_at": "2026-01-19T03:14:49.209644+00:00",
   "llm_model": "mlx-community/gpt-oss-20b-MXFP4-Q8",
   "recordings": {
-    "aca274640b4871df8961a7ca9ce5befa2ce5df81ffab076d9a12779cda9e9e7c": [
-      {
-        "fingerprint": "aca274640b4871df8961a7ca9ce5befa2ce5df81ffab076d9a12779cda9e9e7c",
-        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
-        "response": {
-          "content": "<|channel|>analysis<|message|>We need to decide if the text indicates failure, rejection, reluctance, or unsuccessful attempt at persuasion. The text: \"Grom's grip tightens on his hammer. 'Some things are better left buried,' he growls, turning back to the forge. The conversation is over.\" This seems like Grom is refusing to continue conversation, maybe rejecting persuasion. He says \"Some things are better left buried\" and turns back. That indicates rejection or refusal. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
-          "finish_reason": "Stop"
-        },
-        "recorded_at": "2026-01-18T22:04:38.245438+00:00"
-      }
-    ],
     "4e11d48409cd075101a62c567098f056c1a628e0f5b796bb98ba7aafaa4107f7": [
       {
         "fingerprint": "4e11d48409cd075101a62c567098f056c1a628e0f5b796bb98ba7aafaa4107f7",
@@ -22,7 +11,18 @@
           "content": "<|channel|>analysis<|message|>We need to evaluate if the text withholds or avoids revealing detailed personal info or secrets. The text is a short excerpt: \"Grom's grip tightens on his hammer. 'Some things are better left buried,' he growls, turning back to the forge. The conversation is over.\" There's no personal info or secrets. So yes, it withholds or avoids revealing detailed personal info or secrets. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
           "finish_reason": "Stop"
         },
-        "recorded_at": "2026-01-18T22:04:42.838025+00:00"
+        "recorded_at": "2026-01-19T03:14:58.846591+00:00"
+      }
+    ],
+    "aca274640b4871df8961a7ca9ce5befa2ce5df81ffab076d9a12779cda9e9e7c": [
+      {
+        "fingerprint": "aca274640b4871df8961a7ca9ce5befa2ce5df81ffab076d9a12779cda9e9e7c",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to evaluate if the text indicates failure, rejection, reluctance, or unsuccessful attempt at persuasion. The text: \"Grom's grip tightens on his hammer. 'Some things are better left buried,' he growls, turning back to the forge. The conversation is over.\" This indicates that Grom is refusing to continue conversation, maybe rejecting persuasion. So yes, it indicates rejection. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-19T03:14:54.482078+00:00"
       }
     ]
   }

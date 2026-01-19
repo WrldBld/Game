@@ -1,0 +1,40 @@
+{
+  "version": "2.0",
+  "recorded_at": "2026-01-19T03:02:27.328087+00:00",
+  "llm_model": "mlx-community/gpt-oss-20b-MXFP4-Q8",
+  "recordings": {
+    "8d1b39c4500d319f14efa6ed3c45318d9be8ace988135c2928b005c7f0eb3bc9": [
+      {
+        "fingerprint": "8d1b39c4500d319f14efa6ed3c45318d9be8ace988135c2928b005c7f0eb3bc9",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to answer YES or NO. The text: \"*smiles* \"A cheerful hello to you, traveler! I'm as well as one can be in this cozy corner of Thornhaven. How may I assist you on this fine day?\" This sounds like a tavern keeper or innkeeper. Yes. So answer YES.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-19T03:03:12.408982+00:00"
+      }
+    ],
+    "2c39fa7f5d37779b44e72207e1a1822f1d86dc6bdcacd65417bf67a82ce15436": [
+      {
+        "fingerprint": "2c39fa7f5d37779b44e72207e1a1822f1d86dc6bdcacd65417bf67a82ce15436",
+        "request_summary": "sys:You are a precise evaluator. A... | msg:You are evaluating text for a ...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We need to evaluate if NPC's response is relevant and appropriate to what the player asked. Player asked: \"Hello Marta! How are you today?\" NPC responded: \"*smiles* 'A cheerful hello to you, traveler! I'm as well as one can be in this cozy corner of Thornhaven. How may I assist you on this fine day?'\" That is relevant: greeting, asking how are you, NPC responds with greeting and states well, and offers assistance. So yes.<|end|><|start|>assistant<|channel|>final<|message|>YES",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-19T03:03:09.307849+00:00"
+      }
+    ],
+    "cae678411c87aafaa251cc6048fe675ed992e256349812dab4c50ff7e2b8843a": [
+      {
+        "fingerprint": "cae678411c87aafaa251cc6048fe675ed992e256349812dab4c50ff7e2b8843a",
+        "request_summary": "sys:You are roleplaying as an NPC ... | msg:The player character says to d...",
+        "response": {
+          "content": "<|channel|>analysis<|message|>We have to produce a response. The NPC is Marta Hearthwood, mentor, friendly, calm. Player says hello. No triggers. We need to analyze challenges. Player's words: \"Hello Marta! How are you today?\" Keywords: none of the triggers. Let's check each challenge:\n\n- Investigate the Mill Basement: trigger? Not triggered, no mention of mill basement or search. So NO.\n\n- Expose Vera's True Intentions: trigger by pc_mentions: [\"Vera\", \"merchant\", \"suspicious\", \"questions\", \"mill\"]. No mention. NO.\n\n- Decipher the Ritual Journal: triggers by interacts_with: [\"journal\", \"book\", \"tome\", \"ritual journal\"]. No. NO.\n\n- Calm Old Tom's Ravings: triggers by pc_mentions: [\"mill\", \"family\", \"accident\", \"twenty years\", \"what happened\"]. No. NO.\n\n- Convince Grom to Share His Past: triggers by pc_mentions: [\"adventure\", \"past\", \"shadow\", \"cavern\", \"party\", \"loss\"]. No. NO.\n\nThus all challenges not triggered.\n\nEvents:\n\n- The Stranger's Warning: triggered_by pc_mentions: none listed? Actually event list: \"The Stranger's Warning\" triggers but no mention list in event? The event description: triggered_by: none? It says \"Brother Aldric receives the party at the temple and shares his vision...\". No mention of keywords. So no trigger.\n\n- Marta's Knowledge: triggers by pc_mentions [\"mill\", \"old mill\", \"what happened\", \"twenty years\"], custom flag accepted_shadow_quest. No mention. So NO.\n\n- Marta Shares Local Rumors: triggers by pc_mentions [\"rumors\", \"gossip\", \"strange happenings\", \"news\", \"heard anything\"]. No mention. So NO.\n\nThus all events not triggered.\n\nWe must produce <dialogue> with a friendly, calm response, concise 1-3 sentences.\n\nAlso include <topics> list: maybe greeting and general info. So topics: local_history? maybe not asked. But greeting and maybe directions? We can say talk about day. But we can include topics: greeting, local_history? Actually no. The player only asked how she is. So topics: greeting.\n\nWe must provide <challenge_analysis> and <event> blocks.\n\nAlso we might optionally propose tool calls? Not needed.\n\nAlso include <suggested_beats> optional. We can include some suggestions like: offer to share knowledge later, mention upcoming events.\n\nOk.\n\nLet's draft.\n\nWe need to follow format:\n\n<reasoning> ... hidden\n\n<dialogue> ... with expression markers.\n\n<topics> list.\n\n<suggested_beats> optional.\n\n<challenge_analysis> blocks.\n\n<event> blocks.\n\nWe must use correct XML tags.\n\nLet's ensure we keep correct formatting. Use <tool> only if needed. Not needed.\n\nLet's create the response.\n\n<|end|><|start|>assistant<|channel|>final<|message|><reasoning>\nMarta Hearthwood is a calm, friendly mentor, so her response should be warm and welcoming. She wants to keep the conversation light before diving into any deeper topics. No game mechanics or triggers are activated by this simple greeting, so the response stays straightforward. The GM will see that no challenges or events are triggered.\n</reasoning>\n\n<dialogue>\n*smiles* \"A cheerful hello to you, traveler! I'm as well as one can be in this cozy corner of Thornhaven. How may I assist you on this fine day?\" \n</dialogue>\n\n<topics>\ngreeting\n</topics>\n\n<suggested_beats>\n- Offer to share a quick piece of local lore if the player expresses interest later.\n- Suggest a quiet corner for the player to rest before discussing any quests.\n</suggested_beats>\n\n<challenge_analysis>\n<challenge name=\"Investigate the Mill Basement\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Expose Vera's True Intentions\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Decipher the Ritual Journal\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Calm Old Tom's Ravings\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n<challenge name=\"Convince Grom to Share His Past\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</challenge>\n</challenge_analysis>\n\n<event>\n<event name=\"The Stranger's Warning\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</event>\n<event name=\"Marta's Knowledge\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</event>\n<event name=\"Marta Shares Local Rumors\">\n  <quote>none</quote>\n  <trigger>NO</trigger>\n</event>\n</event>",
+          "finish_reason": "Stop"
+        },
+        "recorded_at": "2026-01-19T03:03:05.274415+00:00"
+      }
+    ]
+  }
+}

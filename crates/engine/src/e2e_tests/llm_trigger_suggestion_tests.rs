@@ -118,7 +118,7 @@ impl PromptInspector {
 /// - Player says: "Have you heard any rumors?"
 /// - Expected: Event in prompt, LLM suggests trigger with YES
 #[tokio::test]
-#[ignore = "requires neo4j testcontainer and VCR cassettes"]
+#[ignore = "VCR cassette needs to be recorded - requires live LLM"]
 async fn test_simple_dialogue_event_triggers_on_matching_keywords() {
     const TEST_NAME: &str = "test_simple_dialogue_event_triggers_on_matching_keywords";
     let event_log = create_shared_log(TEST_NAME);
@@ -1067,7 +1067,7 @@ async fn test_repeatable_triggered_event_in_prompt() {
 /// - Player says: "Tell me about your past"
 /// - Expected: Challenge suggested with high confidence
 #[tokio::test]
-#[ignore = "requires neo4j testcontainer and VCR cassettes"]
+#[ignore = "VCR cassette needs to be recorded - requires live LLM"]
 async fn test_challenge_triggers_on_matching_dialogue() {
     const TEST_NAME: &str = "test_challenge_triggers_on_matching_dialogue";
     let event_log = create_shared_log(TEST_NAME);

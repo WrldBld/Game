@@ -10,63 +10,57 @@ use std::sync::Arc;
 use super::{create_test_player, E2EEventLog, E2ETestContext, TestOutcome};
 
 /// Test PlayerEntersLocation trigger type.
+///
+/// Creates a narrative event with a PlayerEntersLocation trigger using the
+/// domain model and repository, then verifies it can be retrieved.
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_player_enters_location_trigger() {
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    use neo4rs::query;
-    use uuid::Uuid;
+    use chrono::Utc;
+    use wrldbldr_domain::{
+        NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
+    };
 
     let location_id = ctx
         .world
-        .location("The Rusty Anchor")
+        .location("The Drowsy Dragon Inn")
         .expect("Location should exist");
 
-    // Create event with PlayerEntersLocation trigger
-    let event_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'Tavern Entry Event',
-                    description: 'Triggered when entering the tavern',
-                    scene_direction: 'The smell of ale greets you',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: false,
-                    priority: 1,
-                    is_favorite: false
-                })"#,
-            )
-            .param("id", event_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
-        )
-        .await
-        .expect("Event creation should succeed");
+    let now = Utc::now();
 
-    // Create PlayerEntersLocation trigger
-    let trigger_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id})
-                   CREATE (t:NarrativeTrigger {
-                       id: $trigger_id,
-                       trigger_type: 'PlayerEntersLocation',
-                       location_id: $location_id,
-                       location_name: 'The Rusty Anchor',
-                       is_active: true
-                   })-[:TRIGGERS]->(e)"#,
-            )
-            .param("event_id", event_id.to_string())
-            .param("trigger_id", trigger_id.to_string())
-            .param("location_id", location_id.to_string()),
-        )
+    // Create trigger
+    let trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::PlayerEntersLocation {
+            location_id,
+            location_name: "The Drowsy Dragon Inn".to_string(),
+        },
+        "Player enters the tavern",
+        "enter-tavern-trigger",
+    )
+    .with_required(true);
+
+    // Create event with PlayerEntersLocation trigger using domain model
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Tavern Entry Event").unwrap(),
+        now,
+    )
+    .with_description("Triggered when entering the tavern")
+    .with_scene_direction("The smell of ale greets you")
+    .with_trigger_condition(trigger)
+    .with_active(true);
+
+    let event_id = event.id();
+
+    // Save via repository
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&event)
         .await
-        .expect("Trigger creation should succeed");
+        .expect("Event save should succeed");
 
     // Verify event exists
     let events = ctx
@@ -78,10 +72,30 @@ async fn test_player_enters_location_trigger() {
         .expect("Should list events");
 
     assert!(
-        events
-            .iter()
-            .any(|e| e.id().to_string() == event_id.to_string()),
+        events.iter().any(|e| e.id() == event_id),
         "Event with PlayerEntersLocation trigger should exist"
+    );
+
+    // Verify trigger is present
+    let retrieved = ctx
+        .app
+        .repositories
+        .narrative
+        .get_event(event_id)
+        .await
+        .expect("Should get event")
+        .expect("Event should exist");
+
+    assert!(
+        !retrieved.trigger_conditions().is_empty(),
+        "Event should have at least one trigger"
+    );
+    assert!(
+        retrieved.trigger_conditions().iter().any(|t| matches!(
+            &t.trigger_type,
+            NarrativeTriggerType::PlayerEntersLocation { .. }
+        )),
+        "Event should have PlayerEntersLocation trigger"
     );
 }
 
@@ -154,7 +168,7 @@ async fn test_one_time_location_event() {
         .expect("Private Booth should exist");
     let location_id = ctx
         .world
-        .location("The Rusty Anchor")
+        .location("The Drowsy Dragon Inn")
         .expect("Location should exist");
 
     let (_, pc_id) = create_test_player(
@@ -200,7 +214,7 @@ async fn test_one_time_location_event() {
                        id: $trigger_id,
                        trigger_type: 'PlayerEntersLocation',
                        location_id: $location_id,
-                       location_name: 'The Rusty Anchor',
+                       location_name: 'The Drowsy Dragon Inn',
                        is_active: true
                    })-[:TRIGGERS]->(e)"#,
             )
@@ -256,76 +270,72 @@ async fn test_one_time_location_event() {
 }
 
 /// Test repeatable location event.
+///
+/// Creates a repeatable narrative event with a PlayerEntersLocation trigger
+/// using the domain model and verifies the repeatable flag is preserved.
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_repeatable_location_event() {
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    use neo4rs::query;
-    use uuid::Uuid;
+    use chrono::Utc;
+    use wrldbldr_domain::{
+        NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
+    };
 
     let location_id = ctx
         .world
-        .location("The Rusty Anchor")
+        .location("The Drowsy Dragon Inn")
         .expect("Location should exist");
 
-    // Create a repeatable location event
-    let event_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'Recurring Greeting',
-                    description: 'Happens every visit',
-                    scene_direction: 'Welcome back',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: true,
-                    priority: 1,
-                    is_favorite: false
-                })"#,
-            )
-            .param("id", event_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
-        )
-        .await
-        .expect("Event creation should succeed");
+    let now = Utc::now();
 
     // Create trigger
-    let trigger_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id})
-                   CREATE (t:NarrativeTrigger {
-                       id: $trigger_id,
-                       trigger_type: 'PlayerEntersLocation',
-                       location_id: $location_id,
-                       location_name: 'The Rusty Anchor',
-                       is_active: true
-                   })-[:TRIGGERS]->(e)"#,
-            )
-            .param("event_id", event_id.to_string())
-            .param("trigger_id", trigger_id.to_string())
-            .param("location_id", location_id.to_string()),
-        )
+    let trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::PlayerEntersLocation {
+            location_id,
+            location_name: "The Drowsy Dragon Inn".to_string(),
+        },
+        "Player enters the tavern",
+        "recurring-trigger",
+    )
+    .with_required(true);
+
+    // Create a repeatable location event using domain model
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Recurring Greeting").unwrap(),
+        now,
+    )
+    .with_description("Happens every visit")
+    .with_scene_direction("Welcome back")
+    .with_trigger_condition(trigger)
+    .with_active(true)
+    .with_repeatable(true);
+
+    let event_id = event.id();
+
+    // Save via repository
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&event)
         .await
-        .expect("Trigger creation should succeed");
+        .expect("Event save should succeed");
 
     // Verify event is marked as repeatable
-    let events = ctx
+    let retrieved = ctx
         .app
         .repositories
         .narrative
-        .list_events(ctx.world.world_id)
+        .get_event(event_id)
         .await
-        .expect("Should list events");
+        .expect("Should get event")
+        .expect("Event should exist");
 
-    let event = events
-        .iter()
-        .find(|e| e.id().to_string() == event_id.to_string());
-    assert!(event.is_some(), "Event should exist");
-    assert!(event.unwrap().is_repeatable(), "Event should be repeatable");
+    assert!(retrieved.is_repeatable(), "Event should be repeatable");
+    assert!(
+        !retrieved.trigger_conditions().is_empty(),
+        "Event should have triggers"
+    );
 }

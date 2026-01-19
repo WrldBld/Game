@@ -174,57 +174,47 @@ async fn test_time_in_world_context() {
     let _ = ctx.save_event_log(&E2ETestContext::default_log_path("time_context"));
 }
 
-/// Test TimeReached trigger type.
+/// Test TurnCount trigger type (time-based trigger).
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_time_reached_trigger() {
+    use chrono::Utc;
+    use wrldbldr_domain::aggregates::narrative_event::{
+        NarrativeEvent, NarrativeTrigger, NarrativeTriggerType,
+    };
+    use wrldbldr_domain::NarrativeEventName;
+
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    use neo4rs::query;
-    use uuid::Uuid;
-    let event_id = Uuid::new_v4();
+    // Create event with TurnCount trigger (time-based triggering via turns)
+    let trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::TurnCount {
+            turns: 10,
+            since_event: None,
+        },
+        "Triggered after 10 turns (simulating time passage)",
+        "turn-count-trigger",
+    )
+    .with_required(true);
 
-    // Create event with TimeReached trigger
-    ctx.graph()
-        .run(
-            query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'Midnight Event',
-                    description: 'Something happens at midnight',
-                    scene_direction: 'The clock strikes twelve',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: false,
-                    priority: 1,
-                    is_favorite: false
-                })"#,
-            )
-            .param("id", event_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
-        )
-        .await
-        .expect("Event creation should succeed");
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Midnight Event").unwrap(),
+        Utc::now(),
+    )
+    .with_description("Something happens after enough time passes")
+    .with_scene_direction("The clock strikes twelve")
+    .with_trigger_condition(trigger)
+    .with_active(true);
 
-    // Create TimeReached trigger
-    let trigger_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id})
-                   CREATE (t:NarrativeTrigger {
-                       id: $trigger_id,
-                       trigger_type: 'TimeReached',
-                       target_hour: 0,
-                       is_active: true
-                   })-[:TRIGGERS]->(e)"#,
-            )
-            .param("event_id", event_id.to_string())
-            .param("trigger_id", trigger_id.to_string()),
-        )
+    let event_id = event.id();
+
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&event)
         .await
-        .expect("Trigger creation should succeed");
+        .expect("save event");
 
     // Verify event exists
     let events = ctx
@@ -236,10 +226,8 @@ async fn test_time_reached_trigger() {
         .expect("Should list events");
 
     assert!(
-        events
-            .iter()
-            .any(|e| e.id().to_string() == event_id.to_string()),
-        "Event with TimeReached trigger should exist"
+        events.iter().any(|e| e.id() == event_id),
+        "Event with TurnCount trigger should exist"
     );
 }
 
@@ -247,59 +235,49 @@ async fn test_time_reached_trigger() {
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_time_at_location_trigger() {
+    use chrono::Utc;
+    use wrldbldr_domain::aggregates::narrative_event::{
+        NarrativeEvent, NarrativeTrigger, NarrativeTriggerType,
+    };
+    use wrldbldr_domain::NarrativeEventName;
+
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    use neo4rs::query;
-    use uuid::Uuid;
-    let event_id = Uuid::new_v4();
     let location_id = ctx
         .world
-        .location("The Rusty Anchor")
+        .location("The Drowsy Dragon Inn")
         .expect("Location should exist");
 
     // Create event with TimeAtLocation trigger
-    ctx.graph()
-        .run(
-            query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'Evening at Tavern Event',
-                    description: 'Something happens at the tavern in the evening',
-                    scene_direction: 'The evening crowd gathers',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: false,
-                    priority: 1,
-                    is_favorite: false
-                })"#,
-            )
-            .param("id", event_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
-        )
-        .await
-        .expect("Event creation should succeed");
+    let trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::TimeAtLocation {
+            location_id,
+            location_name: "The Drowsy Dragon Inn".to_string(),
+            time_context: "Evening".to_string(),
+        },
+        "Triggered at the tavern in the evening",
+        "time-at-location-trigger",
+    )
+    .with_required(true);
 
-    // Create TimeAtLocation trigger
-    let trigger_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id})
-                   CREATE (t:NarrativeTrigger {
-                       id: $trigger_id,
-                       trigger_type: 'TimeAtLocation',
-                       location_id: $location_id,
-                       time_of_day: 'Evening',
-                       is_active: true
-                   })-[:TRIGGERS]->(e)"#,
-            )
-            .param("event_id", event_id.to_string())
-            .param("trigger_id", trigger_id.to_string())
-            .param("location_id", location_id.to_string()),
-        )
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Evening at Tavern Event").unwrap(),
+        Utc::now(),
+    )
+    .with_description("Something happens at the tavern in the evening")
+    .with_scene_direction("The evening crowd gathers")
+    .with_trigger_condition(trigger)
+    .with_active(true);
+
+    let event_id = event.id();
+
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&event)
         .await
-        .expect("Trigger creation should succeed");
+        .expect("save event");
 
     // Verify event exists
     let events = ctx
@@ -311,9 +289,7 @@ async fn test_time_at_location_trigger() {
         .expect("Should list events");
 
     assert!(
-        events
-            .iter()
-            .any(|e| e.id().to_string() == event_id.to_string()),
+        events.iter().any(|e| e.id() == event_id),
         "Event with TimeAtLocation trigger should exist"
     );
 }

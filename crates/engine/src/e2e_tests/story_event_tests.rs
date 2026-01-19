@@ -7,6 +7,9 @@
 
 use std::sync::Arc;
 
+use chrono::Utc;
+use wrldbldr_domain::{NarrativeEvent, NarrativeEventName};
+
 use super::{E2EEventLog, E2ETestContext, TestOutcome};
 
 /// Test listing active narrative events.
@@ -37,30 +40,23 @@ async fn test_list_active_events() {
 async fn test_trigger_narrative_event() {
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    use neo4rs::query;
-    use uuid::Uuid;
+    // Create a simple event using the domain model
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Test Trigger Event").unwrap(),
+        Utc::now(),
+    )
+    .with_description("An event to be triggered")
+    .with_scene_direction("Something dramatic happens")
+    .with_priority(1)
+    .with_active(true)
+    .with_repeatable(false);
 
-    // Create a simple event
-    let event_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'Test Trigger Event',
-                    description: 'An event to be triggered',
-                    scene_direction: 'Something dramatic happens',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: false,
-                    priority: 1,
-                    is_favorite: false
-                })"#,
-            )
-            .param("id", event_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
-        )
+    let event_id = event.id();
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&event)
         .await
         .expect("Event creation should succeed");
 
@@ -70,7 +66,7 @@ async fn test_trigger_narrative_event() {
         .app
         .repositories
         .narrative
-        .set_event_active(wrldbldr_domain::NarrativeEventId::from(event_id), false)
+        .set_event_active(event_id, false)
         .await;
 
     match trigger_result {
@@ -89,54 +85,41 @@ async fn test_trigger_narrative_event() {
 async fn test_repeatable_events() {
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    use neo4rs::query;
-    use uuid::Uuid;
+    // Create a repeatable event using the domain model
+    let repeatable_event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Repeatable Event").unwrap(),
+        Utc::now(),
+    )
+    .with_description("Can happen multiple times")
+    .with_scene_direction("This can repeat")
+    .with_priority(1)
+    .with_active(true)
+    .with_repeatable(true);
 
-    // Create a repeatable event
-    let repeatable_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'Repeatable Event',
-                    description: 'Can happen multiple times',
-                    scene_direction: 'This can repeat',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: true,
-                    priority: 1,
-                    is_favorite: false
-                })"#,
-            )
-            .param("id", repeatable_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
-        )
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&repeatable_event)
         .await
         .expect("Repeatable event creation should succeed");
 
-    // Create a non-repeatable event
-    let non_repeatable_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'One-Time Event',
-                    description: 'Can only happen once',
-                    scene_direction: 'This is unique',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: false,
-                    priority: 1,
-                    is_favorite: false
-                })"#,
-            )
-            .param("id", non_repeatable_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
-        )
+    // Create a non-repeatable event using the domain model
+    let non_repeatable_event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("One-Time Event").unwrap(),
+        Utc::now(),
+    )
+    .with_description("Can only happen once")
+    .with_scene_direction("This is unique")
+    .with_priority(1)
+    .with_active(true)
+    .with_repeatable(false);
+
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&non_repeatable_event)
         .await
         .expect("Non-repeatable event creation should succeed");
 
@@ -167,37 +150,27 @@ async fn test_repeatable_events() {
 async fn test_event_priority() {
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    use neo4rs::query;
-    use uuid::Uuid;
-
-    // Create events with different priorities
+    // Create events with different priorities using the domain model
     for (priority, name) in [
         (1, "Low Priority"),
         (5, "Medium Priority"),
         (10, "High Priority"),
     ] {
-        let event_id = Uuid::new_v4();
-        ctx.graph()
-            .run(
-                query(
-                    r#"CREATE (e:NarrativeEvent {
-                        id: $id,
-                        world_id: $world_id,
-                        name: $name,
-                        description: 'Priority test event',
-                        scene_direction: 'Test',
-                        is_active: true,
-                        is_triggered: false,
-                        is_repeatable: false,
-                        priority: $priority,
-                        is_favorite: false
-                    })"#,
-                )
-                .param("id", event_id.to_string())
-                .param("world_id", ctx.world.world_id.to_string())
-                .param("name", name)
-                .param("priority", priority as i64),
-            )
+        let event = NarrativeEvent::new(
+            ctx.world.world_id,
+            NarrativeEventName::new(name).unwrap(),
+            Utc::now(),
+        )
+        .with_description("Priority test event")
+        .with_scene_direction("Test")
+        .with_priority(priority)
+        .with_active(true)
+        .with_repeatable(false);
+
+        ctx.app
+            .repositories
+            .narrative
+            .save_event(&event)
             .await
             .expect("Event creation should succeed");
     }
@@ -259,30 +232,23 @@ async fn test_event_in_context() {
 async fn test_favorite_events() {
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    use neo4rs::query;
-    use uuid::Uuid;
+    // Create a favorite event using the domain model
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Favorite Event").unwrap(),
+        Utc::now(),
+    )
+    .with_description("A favorited event")
+    .with_scene_direction("This is special")
+    .with_priority(5)
+    .with_active(true)
+    .with_repeatable(false)
+    .with_favorite(true);
 
-    // Create a favorite event
-    let event_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'Favorite Event',
-                    description: 'A favorited event',
-                    scene_direction: 'This is special',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: false,
-                    priority: 5,
-                    is_favorite: true
-                })"#,
-            )
-            .param("id", event_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
-        )
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&event)
         .await
         .expect("Favorite event creation should succeed");
 

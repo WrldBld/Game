@@ -40,7 +40,7 @@ async fn test_create_lore_entry() {
     use neo4rs::query;
     use uuid::Uuid;
 
-    // Create a lore entry directly
+    // Create a lore entry directly with all required fields
     let lore_id = Uuid::new_v4();
     ctx.graph()
         .run(
@@ -50,9 +50,10 @@ async fn test_create_lore_entry() {
                     world_id: $world_id,
                     title: 'Ancient Legend',
                     content: 'Long ago, a dragon ruled these lands...',
-                    category: 'History',
+                    category: 'historical',
                     is_discovered: false,
-                    is_secret: true
+                    is_secret: true,
+                    tags: '["dragon", "history"]'
                 })"#,
             )
             .param("id", lore_id.to_string())
@@ -105,9 +106,10 @@ async fn test_discover_lore() {
                     world_id: $world_id,
                     title: 'Secret Passage',
                     content: 'A hidden passage exists behind the fireplace',
-                    category: 'Location',
+                    category: 'common',
                     is_discovered: false,
-                    is_secret: true
+                    is_secret: true,
+                    tags: '["secret", "passage"]'
                 })"#,
             )
             .param("id", lore_id.to_string())
@@ -178,17 +180,22 @@ async fn test_lore_in_context() {
     let _ = ctx.save_event_log(&E2ETestContext::default_log_path("lore_context"));
 }
 
-/// Test LoreDiscovered trigger.
+/// Test lore-related narrative event trigger.
+///
+/// This test verifies that a narrative event can be created with a FlagSet trigger
+/// that represents lore discovery (e.g., "lore_trigger_discovered" flag).
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_lore_discovered_trigger() {
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
+    use chrono::Utc;
     use neo4rs::query;
     use uuid::Uuid;
+    use wrldbldr_domain::{
+        NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
+    };
 
-    // Create event with LoreDiscovered trigger
-    let event_id = Uuid::new_v4();
     let lore_id = Uuid::new_v4();
 
     // First create the lore
@@ -200,9 +207,10 @@ async fn test_lore_discovered_trigger() {
                     world_id: $world_id,
                     title: 'Trigger Lore',
                     content: 'This lore triggers an event',
-                    category: 'Quest',
+                    category: 'legend',
                     is_discovered: false,
-                    is_secret: true
+                    is_secret: true,
+                    tags: '["trigger", "legend"]'
                 })"#,
             )
             .param("id", lore_id.to_string())
@@ -211,48 +219,38 @@ async fn test_lore_discovered_trigger() {
         .await
         .expect("Lore creation should succeed");
 
-    // Create event
-    ctx.graph()
-        .run(
-            query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'Lore Revelation Event',
-                    description: 'Triggered when specific lore is discovered',
-                    scene_direction: 'The knowledge changes everything',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: false,
-                    priority: 1,
-                    is_favorite: false
-                })"#,
-            )
-            .param("id", event_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
-        )
-        .await
-        .expect("Event creation should succeed");
+    // Create event using domain model with a FlagSet trigger
+    // (representing lore discovery via a flag like "lore_<id>_discovered")
+    let now = Utc::now();
+    let flag_name = format!("lore_{}_discovered", lore_id);
 
-    // Create LoreDiscovered trigger
-    let trigger_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id})
-                   CREATE (t:NarrativeTrigger {
-                       id: $trigger_id,
-                       trigger_type: 'LoreDiscovered',
-                       lore_id: $lore_id,
-                       is_active: true
-                   })-[:TRIGGERS]->(e)"#,
-            )
-            .param("event_id", event_id.to_string())
-            .param("trigger_id", trigger_id.to_string())
-            .param("lore_id", lore_id.to_string()),
-        )
+    let trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::FlagSet {
+            flag_name: flag_name.clone(),
+        },
+        "Triggered when specific lore is discovered",
+        "lore-discovered-trigger",
+    )
+    .with_required(true);
+
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Lore Revelation Event").unwrap(),
+        now,
+    )
+    .with_description("Triggered when specific lore is discovered")
+    .with_scene_direction("The knowledge changes everything")
+    .with_trigger_condition(trigger)
+    .with_active(true)
+    .with_priority(1);
+
+    // Save using the repository (this creates proper schema with HAS_NARRATIVE_EVENT)
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&event)
         .await
-        .expect("Trigger creation should succeed");
+        .expect("save event");
 
     // Verify event exists
     let events = ctx
@@ -264,9 +262,12 @@ async fn test_lore_discovered_trigger() {
         .expect("Should list events");
 
     assert!(
-        events
-            .iter()
-            .any(|e| e.id().to_string() == event_id.to_string()),
-        "Event with LoreDiscovered trigger should exist"
+        events.iter().any(|e| e.id() == event.id()),
+        "Event with lore discovery trigger should exist"
     );
+
+    // Verify the event has the correct trigger
+    let found_event = events.iter().find(|e| e.id() == event.id()).unwrap();
+    assert_eq!(found_event.name().as_str(), "Lore Revelation Event");
+    assert!(!found_event.trigger_conditions().is_empty());
 }

@@ -562,7 +562,7 @@ impl NarrativeOps {
         // Get completed events from event chains in the world
         // Note: This is world-wide rather than PC-specific. A future enhancement
         // would be to track per-PC event completion via PC->Event edges.
-        let (completed_events, completed_challenges) = {
+        let (completed_events, event_outcomes, completed_challenges) = {
             let events = match self.narrative.get_completed_events(world_id).await {
                 Ok(e) => e,
                 Err(e) => {
@@ -572,6 +572,17 @@ impl NarrativeOps {
                         "Failed to fetch completed events for trigger evaluation"
                     );
                     Vec::new()
+                }
+            };
+            let outcomes = match self.narrative.get_event_outcomes(world_id).await {
+                Ok(o) => o,
+                Err(e) => {
+                    tracing::warn!(
+                        world_id = %world_id,
+                        error = %e,
+                        "Failed to fetch event outcomes for trigger evaluation"
+                    );
+                    HashMap::new()
                 }
             };
             let challenges = match self.challenge_repo.get_resolved_challenges(world_id).await {
@@ -585,7 +596,7 @@ impl NarrativeOps {
                     Vec::new()
                 }
             };
-            (events, challenges)
+            (events, outcomes, challenges)
         };
 
         // Get flags for this PC (both world and PC-scoped)
@@ -759,13 +770,14 @@ impl NarrativeOps {
         };
 
         // Build trigger context with enriched PC state using builder pattern
-        // NOTE: event_outcomes, challenge_successes, turns_since_event, turn_count
+        // NOTE: challenge_successes, turns_since_event, turn_count
         // are caller-specific context that cannot be determined here.
         // These should be passed in by callers that have this information.
         let mut context = TriggerContext::new()
             .with_flags(flags)
             .with_inventory(inventory)
             .with_completed_events(completed_events)
+            .with_event_outcomes(event_outcomes)
             .with_completed_challenges(completed_challenges)
             .with_custom_trigger_results(custom_trigger_results)
             .with_known_spells(known_spells)

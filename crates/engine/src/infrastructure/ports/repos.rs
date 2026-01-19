@@ -515,6 +515,14 @@ pub trait NarrativeRepo: Send + Sync {
         &self,
         world_id: WorldId,
     ) -> Result<Vec<NarrativeEventId>, RepoError>;
+
+    /// Get outcomes for all triggered events in a world.
+    /// Returns a map of event_id -> selected_outcome for events that have an outcome.
+    /// Used for EventCompleted triggers that check for specific outcomes.
+    async fn get_event_outcomes(
+        &self,
+        world_id: WorldId,
+    ) -> Result<std::collections::HashMap<NarrativeEventId, String>, RepoError>;
 }
 
 #[cfg_attr(test, mockall::automock)]

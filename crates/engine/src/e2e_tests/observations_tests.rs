@@ -63,10 +63,7 @@ async fn test_list_pc_observations() {
         .region("Common Room")
         .expect("Common Room should exist");
     let mira_id = ctx.world.npc("Mira Thornwood").expect("Mira should exist");
-    let marcus_id = ctx
-        .world
-        .npc("Marcus Steelhelm")
-        .expect("Marcus should exist");
+    let grom_id = ctx.world.npc("Grom Ironhand").expect("Grom should exist");
 
     let (_, pc_id) = create_test_player(
         ctx.graph(),
@@ -78,7 +75,7 @@ async fn test_list_pc_observations() {
     .expect("Player creation should succeed");
 
     // Create observations for different NPCs using management use case
-    let npcs = [mira_id, marcus_id];
+    let npcs = [mira_id, grom_id];
     for (i, npc_id) in npcs.iter().enumerate() {
         let _ = ctx
             .app
@@ -231,59 +228,57 @@ async fn test_observation_types() {
     }
 }
 
-/// Test ObservationCount trigger.
+/// Test observation-related narrative event trigger.
+///
+/// This test verifies that narrative events with Custom triggers (used for
+/// observation-based conditions) can be properly created and retrieved via
+/// the domain model and repository.
 #[tokio::test]
 #[ignore = "Requires Docker for Neo4j testcontainer"]
 async fn test_observation_count_trigger() {
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
-    use neo4rs::query;
-    use uuid::Uuid;
+    use chrono::Utc;
+    use wrldbldr_domain::{
+        NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
+    };
 
-    // Create event with ObservationCount trigger
-    let event_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"CREATE (e:NarrativeEvent {
-                    id: $id,
-                    world_id: $world_id,
-                    name: 'Keen Observer Event',
-                    description: 'Triggered after many observations',
-                    scene_direction: 'Your keen eye has uncovered much',
-                    is_active: true,
-                    is_triggered: false,
-                    is_repeatable: false,
-                    priority: 1,
-                    is_favorite: false
-                })"#,
-            )
-            .param("id", event_id.to_string())
-            .param("world_id", ctx.world.world_id.to_string()),
-        )
+    // Get an NPC to reference in the trigger
+    let npc_id = ctx.world.npc("Mira Thornwood").expect("Mira should exist");
+
+    // Create a Custom trigger that represents an observation count condition
+    // (ObservationCount is not a built-in trigger type, so we use Custom)
+    let trigger = NarrativeTrigger::new(
+        NarrativeTriggerType::Custom {
+            description: format!("Player has observed NPC {} at least 3 times", npc_id),
+            llm_evaluation: false,
+        },
+        "Observed NPC 3 times".to_string(),
+        "observation-count-trigger".to_string(),
+    )
+    .with_required(true);
+
+    let event = NarrativeEvent::new(
+        ctx.world.world_id,
+        NarrativeEventName::new("Keen Observer Event").unwrap(),
+        Utc::now(),
+    )
+    .with_description("Triggered after many observations")
+    .with_scene_direction("Your keen eye has uncovered much")
+    .with_trigger_condition(trigger)
+    .with_active(true);
+
+    let event_id = event.id();
+
+    // Save the event using the repository
+    ctx.app
+        .repositories
+        .narrative
+        .save_event(&event)
         .await
         .expect("Event creation should succeed");
 
-    // Create ObservationCount trigger
-    let trigger_id = Uuid::new_v4();
-    ctx.graph()
-        .run(
-            query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id})
-                   CREATE (t:NarrativeTrigger {
-                       id: $trigger_id,
-                       trigger_type: 'ObservationCount',
-                       count: 5,
-                       is_active: true
-                   })-[:TRIGGERS]->(e)"#,
-            )
-            .param("event_id", event_id.to_string())
-            .param("trigger_id", trigger_id.to_string()),
-        )
-        .await
-        .expect("Trigger creation should succeed");
-
-    // Verify event exists
+    // Verify event exists by listing events
     let events = ctx
         .app
         .repositories
@@ -293,9 +288,7 @@ async fn test_observation_count_trigger() {
         .expect("Should list events");
 
     assert!(
-        events
-            .iter()
-            .any(|e| e.id().to_string() == event_id.to_string()),
-        "Event with ObservationCount trigger should exist"
+        events.iter().any(|e| e.id() == event_id),
+        "Event with observation-related trigger should exist"
     );
 }

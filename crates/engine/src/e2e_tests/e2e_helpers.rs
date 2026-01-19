@@ -8,12 +8,50 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use chrono::{DateTime, TimeZone, Utc};
+use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 use uuid::Uuid;
 use wrldbldr_domain::{
     ActId, ChallengeId, CharacterId, LocationId, NarrativeEventId, RegionId, RuleSystemConfig,
     SceneId, WorldId,
 };
+
+// =============================================================================
+// Deterministic UUID Generation
+// =============================================================================
+
+/// Generate a deterministic UUID from a test name and entity seed.
+///
+/// Same test + same entity always produces same UUID, making tests reproducible.
+/// Different tests get different UUIDs for the same entity, ensuring isolation.
+///
+/// This is critical for:
+/// - VCR cassette stability - UUIDs appear in LLM prompts
+/// - Test isolation - parallel tests don't collide in shared Neo4j
+///
+/// # Arguments
+/// * `test_name` - The test function name (e.g., "test_pc_moves_to_connected_region")
+/// * `entity_seed` - The entity identifier (e.g., "world:thornhaven", "npc:Mira Thornwood")
+fn deterministic_uuid(test_name: &str, entity_seed: &str) -> Uuid {
+    let mut hasher = Sha256::new();
+    hasher.update(test_name.as_bytes());
+    hasher.update(b":");
+    hasher.update(entity_seed.as_bytes());
+    let hash = hasher.finalize();
+    // Use first 16 bytes of SHA-256 hash as UUID
+    Uuid::from_slice(&hash[..16]).expect("16 bytes makes valid UUID")
+}
+
+/// Get the current test name from the thread name.
+///
+/// Rust test framework names threads after the test function.
+/// Falls back to "unknown_test" if thread name is not available.
+fn get_test_name_from_thread() -> String {
+    std::thread::current()
+        .name()
+        .unwrap_or("unknown_test")
+        .to_string()
+}
 
 use crate::app::App;
 use crate::infrastructure::clock::FixedClock;
@@ -121,6 +159,12 @@ impl SeededWorld {
 ///
 /// Uses a shared Neo4j container across all tests for faster execution.
 /// Each test gets fresh UUIDs for all entities, ensuring complete isolation.
+///
+/// # Cleanup
+///
+/// The context automatically cleans up all data associated with its world_id:
+/// - **Before seeding**: Removes stale data from previous/crashed runs
+/// - **After test (Drop)**: Removes all test data to keep Neo4j clean
 pub struct E2ETestContext {
     /// Shared Neo4j harness (container is reused across tests)
     pub harness: Arc<SharedNeo4jHarness>,
@@ -136,6 +180,8 @@ pub struct E2ETestContext {
     /// Optional benchmark for timing analysis.
     /// Enable via `E2E_BENCHMARK=1` environment variable.
     pub benchmark: Option<Arc<E2EBenchmark>>,
+    /// Test name used for deterministic UUID generation.
+    test_name: String,
     _temp_dir: TempDir,
 }
 
@@ -143,13 +189,15 @@ impl E2ETestContext {
     /// Create a new E2E test context with real Neo4j and mock LLM.
     ///
     /// This is the primary setup method for E2E tests. It:
-    /// 1. Starts a Neo4j container
-    /// 2. Seeds the Thornhaven test world
-    /// 3. Constructs the full App with all use cases
+    /// 1. Gets test name from thread (automatic)
+    /// 2. Cleans up any stale data for this test's world_id
+    /// 3. Seeds the Thornhaven test world with per-test deterministic UUIDs
+    /// 4. Constructs the full App with all use cases
     ///
     /// If `E2E_BENCHMARK=1` is set, timing is tracked automatically.
     pub async fn setup() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        Self::setup_named("unnamed_test", Arc::new(NoopLlm)).await
+        let test_name = get_test_name_from_thread();
+        Self::setup_internal(&test_name, Arc::new(NoopLlm), None).await
     }
 
     /// Create a new E2E test context with a test name for benchmarking.
@@ -163,36 +211,52 @@ impl E2ETestContext {
     }
 
     /// Create a new E2E test context with custom LLM implementation.
+    ///
+    /// Gets test name automatically from thread.
     pub async fn setup_with_llm(
         llm: Arc<dyn LlmPort>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        Self::setup_internal("unnamed_test", llm, None).await
+        let test_name = get_test_name_from_thread();
+        Self::setup_internal(&test_name, llm, None).await
     }
 
     /// Create a new E2E test context with event logging (no custom LLM).
     ///
     /// Uses NoopLlm for tests that don't need LLM responses but want event logging.
+    /// Gets test name automatically from thread.
     pub async fn setup_with_logging(
         event_log: Arc<E2EEventLog>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        Self::setup_internal("unnamed_test", Arc::new(NoopLlm), Some(event_log)).await
+        let test_name = get_test_name_from_thread();
+        Self::setup_internal(&test_name, Arc::new(NoopLlm), Some(event_log)).await
     }
 
     /// Create a new E2E test context with custom LLM and event logging.
     ///
     /// This method enables comprehensive event logging for test analysis.
     /// The event log captures all events, prompts, and responses.
+    /// Gets test name automatically from thread.
     pub async fn setup_with_llm_and_logging(
         llm: Arc<dyn LlmPort>,
         event_log: Arc<E2EEventLog>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        Self::setup_internal("unnamed_test", llm, Some(event_log)).await
+        let test_name = get_test_name_from_thread();
+        Self::setup_internal(&test_name, llm, Some(event_log)).await
     }
 
     /// Internal setup method with optional event logging and benchmarking.
     ///
-    /// Uses a shared Neo4j container for all tests, with fresh UUIDs per test
-    /// to ensure complete isolation without container startup overhead.
+    /// Uses a shared Neo4j container for all tests, with per-test deterministic
+    /// UUIDs to ensure complete isolation without container startup overhead.
+    ///
+    /// # Cleanup Strategy
+    ///
+    /// Before seeding, we clean up any existing data for this test's world_id.
+    /// This handles:
+    /// - Stale data from crashed previous runs
+    /// - Re-runs of the same test
+    ///
+    /// After the test (in Drop), we clean up again to keep Neo4j tidy.
     ///
     /// If `E2E_BENCHMARK=1` is set, timing is tracked for:
     /// - Container connection
@@ -221,7 +285,7 @@ impl E2ETestContext {
 
         if let Some(ref b) = benchmark {
             b.end_phase("container");
-            b.start_phase("seed");
+            b.start_phase("cleanup_before");
         }
 
         // Load test world from JSON fixtures
@@ -242,9 +306,22 @@ impl E2ETestContext {
             Neo4jGraph::new(raw_graph)
         };
 
-        // Seed world to Neo4j with FRESH UUIDs for complete test isolation
-        // Each test gets its own unique IDs, so tests can run in parallel
-        let seeded = seed_thornhaven_to_neo4j(&neo4j_graph, clock.clone(), &test_world).await?;
+        // Compute the world_id that will be used for this test
+        // (deterministic based on test name)
+        let world_id = WorldId::from(deterministic_uuid(test_name, "world:thornhaven"));
+
+        // Clean up any stale data from previous runs of this test
+        cleanup_world_data(&neo4j_graph, world_id).await?;
+
+        if let Some(ref b) = benchmark {
+            b.end_phase("cleanup_before");
+            b.start_phase("seed");
+        }
+
+        // Seed world to Neo4j with per-test deterministic UUIDs
+        // Each test gets its own unique IDs based on test name
+        let seeded =
+            seed_thornhaven_to_neo4j(&neo4j_graph, clock.clone(), &test_world, test_name).await?;
 
         if let Some(ref b) = benchmark {
             b.end_phase("seed");
@@ -298,6 +375,7 @@ impl E2ETestContext {
             clock,
             event_log,
             benchmark,
+            test_name: test_name.to_string(),
             _temp_dir: temp_dir,
         })
     }
@@ -375,16 +453,351 @@ impl E2ETestContext {
     }
 }
 
-/// Automatically print benchmark summary when test context is dropped.
+/// Automatically clean up test data and print benchmark summary when context is dropped.
+///
+/// # Cleanup Strategy
+///
+/// We rely primarily on **before-seeding cleanup** for correctness. The after-cleanup
+/// in Drop is a best-effort tidiness measure that may not run in all cases:
+/// - Single-threaded tokio runtime (default `#[tokio::test]`) can't use `block_in_place`
+/// - Test panics may skip cleanup
+///
+/// This is fine because:
+/// 1. Before-cleanup handles stale data from previous runs (the main concern)
+/// 2. Per-test deterministic UUIDs prevent cross-test interference
+/// 3. Neo4j container is ephemeral anyway
+///
+/// # Benchmark
 ///
 /// With nextest's `success-output = "immediate"`, this will display
 /// timing info right after each test completes.
 impl Drop for E2ETestContext {
     fn drop(&mut self) {
+        // Attempt best-effort cleanup of test data from Neo4j
+        // This may fail in single-threaded runtime - that's okay since before-cleanup
+        // handles stale data and per-test UUIDs prevent interference
+        let world_id = self.world.world_id;
+        let graph = self.neo4j_graph.clone();
+
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            // Try to spawn a detached cleanup task (fire-and-forget)
+            // This works in both single and multi-threaded runtimes
+            let _ = handle.spawn(async move {
+                if let Err(e) = cleanup_world_data(&graph, world_id).await {
+                    eprintln!("Warning: Failed to cleanup test data: {}", e);
+                }
+            });
+        }
+
+        // Print benchmark summary if enabled
         if let Some(ref b) = self.benchmark {
-            // Print compact benchmark line to stderr (captured by nextest)
             eprintln!("{}", b.summary().format_compact());
         }
+    }
+}
+
+// =============================================================================
+// World Cleanup
+// =============================================================================
+
+/// Clean up all data associated with a world_id from Neo4j.
+///
+/// This removes:
+/// - The World node itself
+/// - All entities with matching world_id (Characters, Locations, etc.)
+/// - All relationships connected to those entities
+/// - Player characters in that world
+/// - Staging data, conversations, observations, etc.
+///
+/// Called both before seeding (to clean stale data) and after test (to keep Neo4j tidy).
+pub async fn cleanup_world_data(
+    graph: &Neo4jGraph,
+    world_id: WorldId,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use neo4rs::query;
+
+    let world_id_str = world_id.to_string();
+
+    // Delete all nodes and relationships associated with this world
+    // Using DETACH DELETE removes the node and all its relationships
+    //
+    // We delete in order of dependencies to avoid constraint violations:
+    // 1. First delete edges/relationships stored as separate nodes
+    // 2. Then delete leaf nodes (regions, scenes, etc.)
+    // 3. Then delete container nodes (locations, acts)
+    // 4. Finally delete the world itself
+
+    // Delete staging data
+    graph
+        .run(
+            query(
+                "MATCH (s:Staging {world_id: $world_id})
+                 DETACH DELETE s",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    // Delete conversations and turns
+    graph
+        .run(
+            query(
+                "MATCH (c:Conversation {world_id: $world_id})
+                 DETACH DELETE c",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    graph
+        .run(
+            query(
+                "MATCH (t:Turn)-[:PART_OF]->(c:Conversation {world_id: $world_id})
+                 DETACH DELETE t",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    // Delete observations
+    graph
+        .run(
+            query(
+                "MATCH (o:Observation {world_id: $world_id})
+                 DETACH DELETE o",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    // Delete player characters
+    graph
+        .run(
+            query(
+                "MATCH (pc:PlayerCharacter {world_id: $world_id})
+                 DETACH DELETE pc",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    // Delete lore entries and their chunks
+    graph
+        .run(
+            query(
+                "MATCH (lc:LoreChunk)-[:CHUNK_OF]->(l:Lore {world_id: $world_id})
+                 DETACH DELETE lc",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    graph
+        .run(
+            query(
+                "MATCH (l:Lore {world_id: $world_id})
+                 DETACH DELETE l",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    // Delete narrative events
+    graph
+        .run(
+            query(
+                "MATCH (e:NarrativeEvent {world_id: $world_id})
+                 DETACH DELETE e",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    // Delete challenges
+    graph
+        .run(
+            query(
+                "MATCH (ch:Challenge {world_id: $world_id})
+                 DETACH DELETE ch",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    // Delete scenes
+    graph
+        .run(
+            query(
+                "MATCH (s:Scene)-[:PART_OF]->(a:Act {world_id: $world_id})
+                 DETACH DELETE s",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    // Delete acts
+    graph
+        .run(
+            query(
+                "MATCH (a:Act {world_id: $world_id})
+                 DETACH DELETE a",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    // Delete characters (NPCs)
+    graph
+        .run(
+            query(
+                "MATCH (c:Character {world_id: $world_id})
+                 DETACH DELETE c",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    // Delete regions
+    graph
+        .run(
+            query(
+                "MATCH (r:Region)-[:HAS_REGION]-(l:Location {world_id: $world_id})
+                 DETACH DELETE r",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    // Delete location states
+    graph
+        .run(
+            query(
+                "MATCH (ls:LocationState {world_id: $world_id})
+                 DETACH DELETE ls",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    // Delete locations
+    graph
+        .run(
+            query(
+                "MATCH (l:Location {world_id: $world_id})
+                 DETACH DELETE l",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    // Delete the world itself
+    graph
+        .run(
+            query(
+                "MATCH (w:World {id: $world_id})
+                 DETACH DELETE w",
+            )
+            .param("world_id", world_id_str.clone()),
+        )
+        .await?;
+
+    Ok(())
+}
+
+// =============================================================================
+// ID Translation for Triggers and Effects
+// =============================================================================
+
+/// Holds all ID mappings for translating fixture IDs to per-test IDs.
+///
+/// Used when converting triggers and effects that reference entities by ID.
+struct IdTranslator {
+    locations: HashMap<String, String>,
+    regions: HashMap<String, String>,
+    characters: HashMap<String, String>,
+    challenges: HashMap<String, String>,
+    events: HashMap<String, String>,
+}
+
+impl IdTranslator {
+    fn new() -> Self {
+        Self {
+            locations: HashMap::new(),
+            regions: HashMap::new(),
+            characters: HashMap::new(),
+            challenges: HashMap::new(),
+            events: HashMap::new(),
+        }
+    }
+
+    /// Translate an ID if it exists in any mapping, otherwise return as-is.
+    fn translate_id(&self, id: &str) -> String {
+        // Try each mapping in order
+        if let Some(new_id) = self.locations.get(id) {
+            return new_id.clone();
+        }
+        if let Some(new_id) = self.regions.get(id) {
+            return new_id.clone();
+        }
+        if let Some(new_id) = self.characters.get(id) {
+            return new_id.clone();
+        }
+        if let Some(new_id) = self.challenges.get(id) {
+            return new_id.clone();
+        }
+        if let Some(new_id) = self.events.get(id) {
+            return new_id.clone();
+        }
+        // Not found in any mapping, return as-is
+        id.to_string()
+    }
+
+    /// Translate IDs in a JSON value recursively.
+    ///
+    /// Looks for known ID field names and translates their values.
+    fn translate_json(&self, value: &serde_json::Value) -> serde_json::Value {
+        match value {
+            serde_json::Value::Object(obj) => {
+                let mut new_obj = serde_json::Map::new();
+                for (key, val) in obj {
+                    let new_val = if self.is_id_field(key) {
+                        // Translate the ID value
+                        if let Some(id_str) = val.as_str() {
+                            serde_json::Value::String(self.translate_id(id_str))
+                        } else {
+                            self.translate_json(val)
+                        }
+                    } else {
+                        self.translate_json(val)
+                    };
+                    new_obj.insert(key.clone(), new_val);
+                }
+                serde_json::Value::Object(new_obj)
+            }
+            serde_json::Value::Array(arr) => {
+                serde_json::Value::Array(arr.iter().map(|v| self.translate_json(v)).collect())
+            }
+            // Primitives pass through unchanged
+            other => other.clone(),
+        }
+    }
+
+    /// Check if a field name is known to contain an ID that needs translation.
+    fn is_id_field(&self, field_name: &str) -> bool {
+        matches!(
+            field_name,
+            "location_id"
+                | "region_id"
+                | "character_id"
+                | "with_npc"
+                | "npc_id"
+                | "from_character"
+                | "to_character"
+                | "with_character"
+                | "challenge_id"
+                | "event_id"
+                | "target_id"
+        )
     }
 }
 
@@ -434,7 +847,12 @@ fn convert_difficulty_to_stored_format(difficulty: &serde_json::Value) -> String
 ///
 /// Test fixtures use: `{"trigger_type": {"dialogue_topic": {...}}, ...}`
 /// StoredNarrativeTrigger expects: `{"trigger_type": {"type": "DialogueTopic", ...}, ...}`
-fn convert_triggers_to_stored_format(triggers: &[serde_json::Value]) -> String {
+///
+/// Also translates entity IDs (location_id, character_id, etc.) to per-test IDs.
+fn convert_triggers_to_stored_format(
+    triggers: &[serde_json::Value],
+    translator: &IdTranslator,
+) -> String {
     let converted: Vec<serde_json::Value> = triggers
         .iter()
         .map(|trigger| {
@@ -481,10 +899,12 @@ fn convert_triggers_to_stored_format(triggers: &[serde_json::Value]) -> String {
                                     serde_json::Value::String(pascal_type.to_string()),
                                 );
 
-                                // Copy inner fields
+                                // Copy inner fields, translating IDs
                                 if let Some(inner_obj) = type_val.as_object() {
                                     for (k, v) in inner_obj {
-                                        new_type.insert(k.clone(), v.clone());
+                                        // Translate IDs in the value
+                                        let translated_v = translator.translate_json(v);
+                                        new_type.insert(k.clone(), translated_v);
                                     }
                                 }
 
@@ -511,7 +931,12 @@ fn convert_triggers_to_stored_format(triggers: &[serde_json::Value]) -> String {
 ///
 /// Test fixtures use nested format: `{ "effect_type": { fields } }`
 /// StoredEventEffect expects: `{ "type": "EffectType", fields }`
-fn convert_effect_to_stored_format(effect: &serde_json::Value) -> serde_json::Value {
+///
+/// Also translates entity IDs to per-test IDs.
+fn convert_effect_to_stored_format(
+    effect: &serde_json::Value,
+    translator: &IdTranslator,
+) -> serde_json::Value {
     if let Some(effect_obj) = effect.as_object() {
         // Find the effect type key (the one that contains the nested object)
         // This handles the format: { "set_flag": { "flag_name": "x", "value": true } }
@@ -548,10 +973,11 @@ fn convert_effect_to_stored_format(effect: &serde_json::Value) -> serde_json::Va
                 serde_json::Value::String(pascal_type.to_string()),
             );
 
-            // Copy inner fields
+            // Copy inner fields, translating IDs
             if let Some(inner_obj) = type_val.as_object() {
                 for (k, v) in inner_obj {
-                    new_effect.insert(k.clone(), v.clone());
+                    let translated_v = translator.translate_json(v);
+                    new_effect.insert(k.clone(), translated_v);
                 }
             }
 
@@ -563,7 +989,12 @@ fn convert_effect_to_stored_format(effect: &serde_json::Value) -> serde_json::Va
 }
 
 /// Convert narrative event outcomes from test fixture format to stored format.
-fn convert_outcomes_to_stored_format(outcomes: &[serde_json::Value]) -> String {
+///
+/// Also translates entity IDs to per-test IDs.
+fn convert_outcomes_to_stored_format(
+    outcomes: &[serde_json::Value],
+    translator: &IdTranslator,
+) -> String {
     // Outcomes also need conversion for their condition field
     let converted: Vec<serde_json::Value> = outcomes
         .iter()
@@ -608,13 +1039,17 @@ fn convert_outcomes_to_stored_format(outcomes: &[serde_json::Value]) -> String {
                         if let Some(effects_arr) = val.as_array() {
                             let converted_effects: Vec<serde_json::Value> = effects_arr
                                 .iter()
-                                .map(convert_effect_to_stored_format)
+                                .map(|e| convert_effect_to_stored_format(e, translator))
                                 .collect();
                             new_outcome.insert(
                                 "effects".to_string(),
                                 serde_json::Value::Array(converted_effects),
                             );
                         }
+                    } else if key == "chain_events" {
+                        // Translate event_id in chain_events
+                        let translated = translator.translate_json(val);
+                        new_outcome.insert(key.clone(), translated);
                     } else {
                         new_outcome.insert(key.clone(), val.clone());
                     }
@@ -632,27 +1067,35 @@ fn convert_outcomes_to_stored_format(outcomes: &[serde_json::Value]) -> String {
 ///
 /// Creates all entities from the JSON fixtures in the database with proper relationships.
 ///
-/// # Fresh UUIDs
+/// # Per-Test Deterministic UUIDs
 ///
-/// This function generates **fresh UUIDs** for all entities instead of using the fixture IDs.
-/// This allows multiple tests to run against the same shared Neo4j container without conflicts.
-/// Tests are completely isolated by their unique IDs.
+/// This function generates **per-test deterministic UUIDs** for all entities.
+/// The same test always gets the same UUIDs (for VCR cassette stability),
+/// but different tests get different UUIDs (for isolation in shared Neo4j).
 ///
 /// The fixture data provides structure and names, but IDs are generated per-test:
-/// - `WorldId` - Fresh UUID per test
-/// - `LocationId` - Fresh UUID per test
-/// - `RegionId` - Fresh UUID per test
-/// - `CharacterId` - Fresh UUID per test
-/// - `ActId`, `SceneId`, `ChallengeId`, `NarrativeEventId` - All fresh per test
+/// - `WorldId` - Deterministic per test
+/// - `LocationId` - Deterministic per test
+/// - `RegionId` - Deterministic per test
+/// - `CharacterId` - Deterministic per test
+/// - `ActId`, `SceneId`, `ChallengeId`, `NarrativeEventId` - All deterministic per test
+///
+/// # Arguments
+///
+/// * `graph` - Neo4j graph connection
+/// * `clock` - Clock for timestamps
+/// * `test_world` - The test world data from JSON fixtures
+/// * `test_name` - The test function name (used as seed prefix for deterministic UUIDs)
 pub async fn seed_thornhaven_to_neo4j(
     graph: &Neo4jGraph,
     clock: Arc<dyn ClockPort>,
     test_world: &TestWorld,
+    test_name: &str,
 ) -> Result<SeededWorld, Box<dyn std::error::Error + Send + Sync>> {
     use neo4rs::query;
 
-    // Generate fresh world ID for this test (NOT from fixtures)
-    let world_id = WorldId::from(Uuid::new_v4());
+    // Generate deterministic world ID for this specific test
+    let world_id = WorldId::from(deterministic_uuid(test_name, "world:thornhaven"));
     let now = clock.now();
 
     // Build ID mappings: fixture_id -> fresh_id
@@ -688,11 +1131,14 @@ pub async fn seed_thornhaven_to_neo4j(
         )
         .await?;
 
-    // 2. Create Locations with FRESH IDs
+    // 2. Create Locations with deterministic IDs
     let mut location_ids = HashMap::new();
     for loc in &test_world.locations {
-        // Generate fresh ID for this test
-        let new_id = LocationId::from(Uuid::new_v4());
+        // Generate deterministic ID for this test
+        let new_id = LocationId::from(deterministic_uuid(
+            test_name,
+            &format!("location:{}", loc.name),
+        ));
         location_id_map.insert(loc.id, new_id);
 
         graph
@@ -720,12 +1166,12 @@ pub async fn seed_thornhaven_to_neo4j(
             )
             .await?;
 
-        // Create LOCATED_IN relationship to world
+        // Create CONTAINS_LOCATION relationship from world
         graph
             .run(
                 query(
                     "MATCH (l:Location {id: $loc_id}), (w:World {id: $world_id})
-                     CREATE (l)-[:LOCATED_IN]->(w)",
+                     CREATE (w)-[:CONTAINS_LOCATION]->(l)",
                 )
                 .param("loc_id", new_id.to_string())
                 .param("world_id", world_id.to_string()),
@@ -735,11 +1181,20 @@ pub async fn seed_thornhaven_to_neo4j(
         location_ids.insert(loc.name.clone(), new_id);
     }
 
-    // 3. Create Regions with FRESH IDs
+    // 3. Create Regions with deterministic IDs
     let mut region_ids = HashMap::new();
     for region in &test_world.regions {
-        // Generate fresh ID and map the fixture's location_id to the new location ID
-        let new_id = RegionId::from(Uuid::new_v4());
+        // Generate deterministic ID for this test (include location name for uniqueness)
+        let location_name = test_world
+            .locations
+            .iter()
+            .find(|l| l.id == region.location_id)
+            .map(|l| l.name.as_str())
+            .unwrap_or("unknown");
+        let new_id = RegionId::from(deterministic_uuid(
+            test_name,
+            &format!("region:{}:{}", location_name, region.name),
+        ));
         region_id_map.insert(region.id, new_id);
         let new_location_id = location_id_map
             .get(&region.location_id)
@@ -769,12 +1224,12 @@ pub async fn seed_thornhaven_to_neo4j(
             )
             .await?;
 
-        // Create LOCATED_IN relationship to location
+        // Create HAS_REGION relationship from location
         graph
             .run(
                 query(
                     "MATCH (r:Region {id: $region_id}), (l:Location {id: $loc_id})
-                     CREATE (r)-[:LOCATED_IN]->(l)",
+                     CREATE (l)-[:HAS_REGION]->(r)",
                 )
                 .param("region_id", new_id.to_string())
                 .param("loc_id", new_location_id.to_string()),
@@ -835,11 +1290,11 @@ pub async fn seed_thornhaven_to_neo4j(
         }
     }
 
-    // 5. Create NPCs with FRESH IDs
+    // 5. Create NPCs with deterministic IDs
     let mut npc_ids = HashMap::new();
     for npc in &test_world.npcs {
-        // Generate fresh ID for this test
-        let new_id = CharacterId::from(Uuid::new_v4());
+        // Generate deterministic ID for this test
+        let new_id = CharacterId::from(deterministic_uuid(test_name, &format!("npc:{}", npc.name)));
         npc_id_map.insert(npc.id, new_id);
 
         // Serialize archetype_history and stats as JSON strings
@@ -893,12 +1348,13 @@ pub async fn seed_thornhaven_to_neo4j(
             )
             .await?;
 
-        // Create BELONGS_TO relationship to world
+        // Create CONTAINS_CHARACTER relationship from world to character
+        // (matches the edge direction expected by character_repo.list_in_world)
         graph
             .run(
                 query(
                     "MATCH (c:Character {id: $char_id}), (w:World {id: $world_id})
-                     CREATE (c)-[:BELONGS_TO]->(w)",
+                     CREATE (w)-[:CONTAINS_CHARACTER]->(c)",
                 )
                 .param("char_id", new_id.to_string())
                 .param("world_id", world_id.to_string()),
@@ -908,83 +1364,116 @@ pub async fn seed_thornhaven_to_neo4j(
         npc_ids.insert(npc.name.clone(), new_id);
     }
 
-    // 6. Create NPC-Region relationships (WORKS_AT) using mapped IDs
-    for works_at in &test_world.works_at {
-        // Find the region for this location and map to fresh IDs
-        if let Some(loc_data) = test_world
-            .locations
-            .iter()
-            .find(|l| l.id == works_at.location_id)
-        {
-            if let Some(default_region) = loc_data.regions.first() {
-                let char_id = npc_id_map
-                    .get(&works_at.character_id)
-                    .copied()
-                    .unwrap_or_else(|| panic!("Character ID not found for works_at"));
-                let region_id = region_id_map
-                    .get(&default_region.id)
-                    .copied()
-                    .unwrap_or_else(|| panic!("Region ID not found for works_at"));
+    // 6. Create HOME_REGION relationships using mapped IDs
+    for home in &test_world.home_regions {
+        let char_id = npc_id_map
+            .get(&home.character_id)
+            .copied()
+            .unwrap_or_else(|| panic!("Character ID not found for home_region"));
+        let region_id = region_id_map
+            .get(&home.region_id)
+            .copied()
+            .unwrap_or_else(|| panic!("Region ID not found for home_region"));
 
-                graph
-                    .run(
-                        query(
-                            "MATCH (c:Character {id: $char_id}), (r:Region {id: $region_id})
-                             CREATE (c)-[:WORKS_AT {
-                                 role: $role,
-                                 shift: $schedule
-                             }]->(r)",
-                        )
-                        .param("char_id", char_id.to_string())
-                        .param("region_id", region_id.to_string())
-                        .param("role", works_at.role.clone())
-                        .param("schedule", works_at.schedule.clone()),
-                    )
-                    .await?;
-            }
-        }
+        graph
+            .run(
+                query(
+                    "MATCH (c:Character {id: $char_id}), (r:Region {id: $region_id})
+                     CREATE (c)-[:HOME_REGION]->(r)",
+                )
+                .param("char_id", char_id.to_string())
+                .param("region_id", region_id.to_string()),
+            )
+            .await?;
     }
 
-    // 7. Create FREQUENTS relationships using mapped IDs
-    for freq in &test_world.frequents {
-        if let Some(loc_data) = test_world
-            .locations
-            .iter()
-            .find(|l| l.id == freq.location_id)
-        {
-            if let Some(default_region) = loc_data.regions.first() {
-                let char_id = npc_id_map
-                    .get(&freq.character_id)
-                    .copied()
-                    .unwrap_or_else(|| panic!("Character ID not found for frequents"));
-                let region_id = region_id_map
-                    .get(&default_region.id)
-                    .copied()
-                    .unwrap_or_else(|| panic!("Region ID not found for frequents"));
+    // 7. Create WORKS_AT_REGION relationships using mapped IDs
+    for works_at in &test_world.works_at_region {
+        let char_id = npc_id_map
+            .get(&works_at.character_id)
+            .copied()
+            .unwrap_or_else(|| panic!("Character ID not found for works_at_region"));
+        let region_id = region_id_map
+            .get(&works_at.region_id)
+            .copied()
+            .unwrap_or_else(|| panic!("Region ID not found for works_at_region"));
 
-                graph
-                    .run(
-                        query(
-                            "MATCH (c:Character {id: $char_id}), (r:Region {id: $region_id})
-                             CREATE (c)-[:FREQUENTS {
-                                 frequency: $frequency,
-                                 time_of_day: $time_of_day
-                             }]->(r)",
-                        )
-                        .param("char_id", char_id.to_string())
-                        .param("region_id", region_id.to_string())
-                        .param("frequency", freq.frequency.clone())
-                        .param("time_of_day", freq.time_of_day.clone()),
-                    )
-                    .await?;
-            }
-        }
+        graph
+            .run(
+                query(
+                    "MATCH (c:Character {id: $char_id}), (r:Region {id: $region_id})
+                     CREATE (c)-[:WORKS_AT_REGION {
+                         role: $role,
+                         shift: $shift
+                     }]->(r)",
+                )
+                .param("char_id", char_id.to_string())
+                .param("region_id", region_id.to_string())
+                .param("role", works_at.role.clone())
+                .param("shift", works_at.shift.clone()),
+            )
+            .await?;
     }
 
-    // 8. Create Acts with FRESH IDs
+    // 8. Create FREQUENTS_REGION relationships using mapped IDs
+    for freq in &test_world.frequents_region {
+        let char_id = npc_id_map
+            .get(&freq.character_id)
+            .copied()
+            .unwrap_or_else(|| panic!("Character ID not found for frequents_region"));
+        let region_id = region_id_map
+            .get(&freq.region_id)
+            .copied()
+            .unwrap_or_else(|| panic!("Region ID not found for frequents_region"));
+
+        graph
+            .run(
+                query(
+                    "MATCH (c:Character {id: $char_id}), (r:Region {id: $region_id})
+                     CREATE (c)-[:FREQUENTS_REGION {
+                         frequency: $frequency,
+                         time_of_day: $time_of_day
+                     }]->(r)",
+                )
+                .param("char_id", char_id.to_string())
+                .param("region_id", region_id.to_string())
+                .param("frequency", freq.frequency.clone())
+                .param("time_of_day", freq.time_of_day.clone()),
+            )
+            .await?;
+    }
+
+    // 9. Create AVOIDS_REGION relationships using mapped IDs
+    for avoids in &test_world.avoids_region {
+        let char_id = npc_id_map
+            .get(&avoids.character_id)
+            .copied()
+            .unwrap_or_else(|| panic!("Character ID not found for avoids_region"));
+        let region_id = region_id_map
+            .get(&avoids.region_id)
+            .copied()
+            .unwrap_or_else(|| panic!("Region ID not found for avoids_region"));
+
+        graph
+            .run(
+                query(
+                    "MATCH (c:Character {id: $char_id}), (r:Region {id: $region_id})
+                     CREATE (c)-[:AVOIDS_REGION {
+                         reason: $reason
+                     }]->(r)",
+                )
+                .param("char_id", char_id.to_string())
+                .param("region_id", region_id.to_string())
+                .param("reason", avoids.reason.clone()),
+            )
+            .await?;
+    }
+
+    // 10. Create Acts with deterministic IDs
     let mut act_ids = HashMap::new();
     for act in &test_world.acts {
-        let new_id = ActId::from(Uuid::new_v4());
+        // Generate deterministic ID for this test
+        let new_id = ActId::from(deterministic_uuid(test_name, &format!("act:{}", act.name)));
         act_id_map.insert(act.id, new_id);
 
         graph
@@ -996,7 +1485,7 @@ pub async fn seed_thornhaven_to_neo4j(
                         name: $name,
                         description: $description,
                         stage: $stage,
-                        ordering: $ordering
+                        order_num: $order_num
                     })",
                 )
                 .param("id", new_id.to_string())
@@ -1004,16 +1493,16 @@ pub async fn seed_thornhaven_to_neo4j(
                 .param("name", act.name.clone())
                 .param("description", act.description.clone())
                 .param("stage", format!("{:?}", act.stage))
-                .param("ordering", act.order as i64),
+                .param("order_num", act.order as i64),
             )
             .await?;
 
-        // Create PART_OF relationship to world
+        // Create CONTAINS_ACT relationship from world to act
         graph
             .run(
                 query(
                     "MATCH (a:Act {id: $act_id}), (w:World {id: $world_id})
-                     CREATE (a)-[:PART_OF]->(w)",
+                     CREATE (w)-[:CONTAINS_ACT]->(a)",
                 )
                 .param("act_id", new_id.to_string())
                 .param("world_id", world_id.to_string()),
@@ -1023,10 +1512,14 @@ pub async fn seed_thornhaven_to_neo4j(
         act_ids.insert(act.name.clone(), new_id);
     }
 
-    // 9. Create Scenes with FRESH IDs
+    // 11. Create Scenes with deterministic IDs
     let mut scene_ids = HashMap::new();
     for scene in &test_world.scenes {
-        let new_id = SceneId::from(Uuid::new_v4());
+        // Generate deterministic ID for this test
+        let new_id = SceneId::from(deterministic_uuid(
+            test_name,
+            &format!("scene:{}", scene.name),
+        ));
         let new_act_id = act_id_map
             .get(&scene.act_id)
             .copied()
@@ -1072,10 +1565,16 @@ pub async fn seed_thornhaven_to_neo4j(
         scene_ids.insert(scene.name.clone(), new_id);
     }
 
-    // 10. Create Challenges with FRESH IDs
+    // 12. Create Challenges with deterministic IDs
     let mut challenge_ids = HashMap::new();
+    let mut challenge_id_map: HashMap<ChallengeId, ChallengeId> = HashMap::new();
     for challenge in &test_world.challenges {
-        let new_id = ChallengeId::from(Uuid::new_v4());
+        // Generate deterministic ID for this test
+        let new_id = ChallengeId::from(deterministic_uuid(
+            test_name,
+            &format!("challenge:{}", challenge.name),
+        ));
+        challenge_id_map.insert(challenge.id, new_id);
 
         // Convert difficulty from test fixture format to DifficultyStored format
         // Test fixtures use {"type": "dc", "value": 18}
@@ -1140,13 +1639,56 @@ pub async fn seed_thornhaven_to_neo4j(
         challenge_ids.insert(challenge.name.clone(), new_id);
     }
 
-    // 11. Create Narrative Events with FRESH IDs
+    // 13. Create Narrative Events with deterministic IDs
+    // First, build event ID map (needed for EventCompleted triggers)
+    let mut event_id_map: HashMap<NarrativeEventId, NarrativeEventId> = HashMap::new();
+    for event in &test_world.narrative_events {
+        let fixture_id = event.id;
+        let new_id = NarrativeEventId::from(deterministic_uuid(
+            test_name,
+            &format!("event:{}", event.name),
+        ));
+        event_id_map.insert(fixture_id, new_id);
+    }
+
+    // Build ID translator for trigger and effect conversion
+    let mut translator = IdTranslator::new();
+    for (old_id, new_id) in &location_id_map {
+        translator
+            .locations
+            .insert(old_id.to_string(), new_id.to_string());
+    }
+    for (old_id, new_id) in &region_id_map {
+        translator
+            .regions
+            .insert(old_id.to_string(), new_id.to_string());
+    }
+    for (old_id, new_id) in &npc_id_map {
+        translator
+            .characters
+            .insert(old_id.to_string(), new_id.to_string());
+    }
+    for (old_id, new_id) in &challenge_id_map {
+        translator
+            .challenges
+            .insert(old_id.to_string(), new_id.to_string());
+    }
+    for (old_id, new_id) in &event_id_map {
+        translator
+            .events
+            .insert(old_id.to_string(), new_id.to_string());
+    }
+
     let mut event_ids = HashMap::new();
     for event in &test_world.narrative_events {
-        let new_id = NarrativeEventId::from(Uuid::new_v4());
-        // Serialize JSON fields with format conversion
-        let triggers_json = convert_triggers_to_stored_format(&event.trigger_conditions);
-        let outcomes_json = convert_outcomes_to_stored_format(&event.outcomes);
+        // Get the pre-computed event ID
+        let new_id = *event_id_map
+            .get(&event.id)
+            .expect("Event ID should be in map");
+        // Serialize JSON fields with format conversion and ID translation
+        let triggers_json =
+            convert_triggers_to_stored_format(&event.trigger_conditions, &translator);
+        let outcomes_json = convert_outcomes_to_stored_format(&event.outcomes, &translator);
         let tags_json = serde_json::to_string(&event.tags).unwrap_or_else(|_| "[]".to_string());
 
         graph
@@ -1233,6 +1775,8 @@ pub async fn seed_thornhaven_to_neo4j(
 }
 
 /// Create a test player character in the world.
+///
+/// Uses per-test deterministic UUIDs based on the current thread name.
 pub async fn create_test_player(
     graph: &Neo4jGraph,
     world_id: WorldId,
@@ -1241,15 +1785,20 @@ pub async fn create_test_player(
 ) -> Result<(String, PlayerCharacterId), Box<dyn std::error::Error + Send + Sync>> {
     use neo4rs::query;
 
-    let user_id = Uuid::new_v4().to_string();
-    let character_id = PlayerCharacterId::from(Uuid::new_v4());
+    // Get test name for deterministic UUID generation
+    let test_name = get_test_name_from_thread();
+
+    // Generate deterministic IDs for this test
+    let user_id = deterministic_uuid(&test_name, &format!("user:{}", name)).to_string();
+    let character_id =
+        PlayerCharacterId::from(deterministic_uuid(&test_name, &format!("pc:{}", name)));
     let now = Utc::now();
 
     // Get location ID from region
     let mut result = graph
         .execute(
             query(
-                "MATCH (r:Region {id: $region_id})-[:LOCATED_IN]->(l:Location)
+                "MATCH (l:Location)-[:HAS_REGION]->(r:Region {id: $region_id})
                  RETURN l.id as location_id",
             )
             .param("region_id", starting_region_id.to_string()),

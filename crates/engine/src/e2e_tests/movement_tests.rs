@@ -144,10 +144,7 @@ async fn test_movement_changes_npc_context() {
         .region("Private Booth")
         .expect("Private Booth should exist");
     let mira_id = ctx.world.npc("Mira Thornwood").expect("Mira should exist");
-    let marcus_id = ctx
-        .world
-        .npc("Marcus Steelhelm")
-        .expect("Marcus should exist");
+    let grom_id = ctx.world.npc("Grom Ironhand").expect("Grom should exist");
 
     // Create player
     let (_, pc_id) = create_test_player(
@@ -164,10 +161,10 @@ async fn test_movement_changes_npc_context() {
         .await
         .expect("Staging Mira should succeed");
 
-    // Stage Marcus in Private Booth
-    approve_staging_with_npc(&ctx, private_booth, marcus_id)
+    // Stage Grom in Private Booth
+    approve_staging_with_npc(&ctx, private_booth, grom_id)
         .await
-        .expect("Staging Marcus should succeed");
+        .expect("Staging Grom should succeed");
 
     // Get staged NPCs at starting location
     let staged_before = ctx
@@ -200,8 +197,8 @@ async fn test_movement_changes_npc_context() {
         .await
         .expect("Should get staged NPCs");
     assert!(
-        staged_after.iter().any(|s| s.character_id == marcus_id),
-        "Marcus should be staged in Private Booth"
+        staged_after.iter().any(|s| s.character_id == grom_id),
+        "Grom should be staged in Private Booth"
     );
 }
 
@@ -236,7 +233,7 @@ async fn test_movement_triggers_location_event() {
     let event_id = Uuid::new_v4();
     let _location_id = ctx
         .world
-        .location("The Rusty Anchor")
+        .location("The Drowsy Dragon Inn")
         .expect("Location should exist");
 
     ctx.graph()

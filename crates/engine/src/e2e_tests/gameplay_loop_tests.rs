@@ -40,7 +40,7 @@ async fn test_thornhaven_world_seeded_correctly() {
     let mut result = ctx
         .graph()
         .execute(
-            query("MATCH (l:Location)-[:LOCATED_IN]->(:World {id: $id}) RETURN count(l) as count")
+            query("MATCH (:World {id: $id})-[:CONTAINS_LOCATION]->(l:Location) RETURN count(l) as count")
                 .param("id", ctx.world.world_id.to_string()),
         )
         .await
@@ -55,7 +55,7 @@ async fn test_thornhaven_world_seeded_correctly() {
         .graph()
         .execute(
             query(
-                "MATCH (r:Region)-[:LOCATED_IN]->(l:Location)-[:LOCATED_IN]->(:World {id: $id})
+                "MATCH (:World {id: $id})-[:CONTAINS_LOCATION]->(l:Location)-[:HAS_REGION]->(r:Region)
              RETURN count(r) as count",
             )
             .param("id", ctx.world.world_id.to_string()),
@@ -75,7 +75,7 @@ async fn test_thornhaven_world_seeded_correctly() {
     let mut result = ctx
         .graph()
         .execute(
-            query("MATCH (c:Character)-[:BELONGS_TO]->(:World {id: $id}) RETURN count(c) as count")
+            query("MATCH (:World {id: $id})-[:CONTAINS_CHARACTER]->(c:Character) RETURN count(c) as count")
                 .param("id", ctx.world.world_id.to_string()),
         )
         .await
@@ -83,7 +83,7 @@ async fn test_thornhaven_world_seeded_correctly() {
 
     let row = result.next().await.expect("No result").expect("Row error");
     let count: i64 = row.get("count").expect("count column");
-    assert_eq!(count, 8, "Should have 8 NPCs");
+    assert_eq!(count, 9, "Should have 9 NPCs (including Mira Thornwood)");
 
     // Verify key NPCs exist by name
     assert!(
@@ -228,13 +228,13 @@ async fn test_staging_npcs_with_work_schedules() {
         .graph()
         .execute(
             query(
-                "MATCH (c:Character)-[:WORKS_AT]->(r:Region)-[:LOCATED_IN]->(l:Location {id: $loc_id})
+                "MATCH (c:Character)-[:WORKS_AT_REGION]->(r:Region)<-[:HAS_REGION]-(l:Location {id: $loc_id})
                  RETURN c.name as name, c.default_disposition as disposition"
             )
             .param("loc_id", inn_id.to_string()),
         )
         .await
-        .expect("WORKS_AT query failed");
+        .expect("WORKS_AT_REGION query failed");
 
     let mut workers = Vec::new();
     while let Some(row) = result.next().await.expect("Row read error") {
@@ -261,11 +261,11 @@ async fn test_npcs_frequency_relationships() {
     let mut result = ctx
         .graph()
         .execute(query(
-            "MATCH (c:Character)-[f:FREQUENTS]->(r:Region)
+            "MATCH (c:Character)-[f:FREQUENTS_REGION]->(r:Region)
                  RETURN c.name as name, f.time_of_day as time_of_day, r.name as region",
         ))
         .await
-        .expect("FREQUENTS query failed");
+        .expect("FREQUENTS_REGION query failed");
 
     let mut frequents = Vec::new();
     while let Some(row) = result.next().await.expect("Row read error") {
@@ -305,12 +305,12 @@ async fn test_region_connections_exist() {
     let mut result = ctx
         .graph()
         .execute(query(
-            "MATCH (r1:Region)-[c:CONNECTS_TO]->(r2:Region)
+            "MATCH (r1:Region)-[c:CONNECTED_TO_REGION]->(r2:Region)
                  RETURN r1.name as from_region, r2.name as to_region, c.description as description
                  LIMIT 10",
         ))
         .await
-        .expect("CONNECTS_TO query failed");
+        .expect("CONNECTED_TO_REGION query failed");
 
     let mut connections = Vec::new();
     while let Some(row) = result.next().await.expect("Row read error") {
@@ -460,13 +460,13 @@ async fn test_full_world_structure_integrity() {
     // Verify all core entities for THIS test's world have correct relationships.
     // With parallel tests, we must scope all queries to this test's world_id.
 
-    // 1. All locations in this world have LOCATED_IN relationship
+    // 1. All locations in this world have CONTAINS_LOCATION relationship from world
     let mut result = ctx
         .graph()
         .execute(
             query(
                 "MATCH (l:Location {world_id: $id})
-                 WHERE NOT (l)-[:LOCATED_IN]->(:World {id: $id})
+                 WHERE NOT (:World {id: $id})-[:CONTAINS_LOCATION]->(l)
                  RETURN count(l) as orphan_count",
             )
             .param("id", ctx.world.world_id.to_string()),
@@ -483,8 +483,8 @@ async fn test_full_world_structure_integrity() {
         .graph()
         .execute(
             query(
-                "MATCH (r:Region)-[:LOCATED_IN]->(l:Location {world_id: $id})
-                 WHERE NOT (r)-[:LOCATED_IN]->(l)
+                "MATCH (l:Location {world_id: $id})-[:HAS_REGION]->(r:Region)
+                 WHERE NOT (l)-[:HAS_REGION]->(r)
                  RETURN count(r) as orphan_count",
             )
             .param("id", ctx.world.world_id.to_string()),
@@ -496,13 +496,13 @@ async fn test_full_world_structure_integrity() {
     let orphan_count: i64 = row.get("orphan_count").expect("orphan_count column");
     assert_eq!(orphan_count, 0, "All regions should belong to a location");
 
-    // 3. All characters in this world have BELONGS_TO relationship
+    // 3. All characters in this world have CONTAINS_CHARACTER relationship from world
     let mut result = ctx
         .graph()
         .execute(
             query(
                 "MATCH (c:Character {world_id: $id})
-                 WHERE NOT (c)-[:BELONGS_TO]->(:World {id: $id})
+                 WHERE NOT (:World {id: $id})-[:CONTAINS_CHARACTER]->(c)
                  RETURN count(c) as orphan_count",
             )
             .param("id", ctx.world.world_id.to_string()),
@@ -514,13 +514,13 @@ async fn test_full_world_structure_integrity() {
     let orphan_count: i64 = row.get("orphan_count").expect("orphan_count column");
     assert_eq!(orphan_count, 0, "All characters should belong to the world");
 
-    // 4. All acts in this world have PART_OF relationship
+    // 4. All acts in this world have CONTAINS_ACT relationship from world
     let mut result = ctx
         .graph()
         .execute(
             query(
                 "MATCH (a:Act {world_id: $id})
-                 WHERE NOT (a)-[:PART_OF]->(:World {id: $id})
+                 WHERE NOT (:World {id: $id})-[:CONTAINS_ACT]->(a)
                  RETURN count(a) as orphan_count",
             )
             .param("id", ctx.world.world_id.to_string()),

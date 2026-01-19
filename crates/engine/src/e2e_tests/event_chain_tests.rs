@@ -103,15 +103,16 @@ async fn test_first_event_triggers_on_location_entry() {
         .await
         .expect("Failed to save narrative event");
 
-    // Also tie the event to the location in Neo4j for trigger resolution
+    // Also tie the event to the region in Neo4j for trigger resolution
+    // The repository queries for TIED_TO_LOCATION edges to Region nodes
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
         .expect("Failed to create TIED_TO_LOCATION edge");
@@ -261,15 +262,15 @@ async fn test_subsequent_event_unlocks_after_completion() {
         .await
         .expect("Failed to save Event B");
 
-    // Tie Event B to location for trigger resolution
+    // Tie Event B to region for trigger resolution
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_b_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
         .expect("Failed to create TIED_TO_LOCATION edge");
@@ -386,15 +387,15 @@ async fn test_event_condition_checks_player_flags() {
         .await
         .expect("Failed to save narrative event");
 
-    // Tie event to location for trigger resolution
+    // Tie event to region for trigger resolution
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
         .expect("Failed to create TIED_TO_LOCATION edge");
@@ -551,15 +552,15 @@ async fn test_event_condition_checks_inventory() {
         .await
         .expect("Failed to save narrative event");
 
-    // Tie event to location for trigger resolution
+    // Tie event to region for trigger resolution
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
         .expect("Failed to create TIED_TO_LOCATION edge");
@@ -735,15 +736,15 @@ async fn test_event_condition_checks_stats() {
         .await
         .expect("Failed to save low CHA event");
 
-    // Tie event to location
+    // Tie event to region
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_low_cha_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
         .expect("Failed to create TIED_TO_LOCATION edge for low CHA event");
@@ -790,15 +791,15 @@ async fn test_event_condition_checks_stats() {
         .await
         .expect("Failed to save high CHA event");
 
-    // Tie event to location
+    // Tie event to region
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_high_cha_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
         .expect("Failed to create TIED_TO_LOCATION edge for high CHA event");
@@ -928,15 +929,15 @@ async fn test_chain_completes_in_order() {
         .await
         .expect("Failed to save Event A");
 
-    // Tie Event A to location
+    // Tie Event A to region
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_a_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
         .expect("Failed to create TIED_TO_LOCATION edge for Event A");
@@ -982,15 +983,15 @@ async fn test_chain_completes_in_order() {
         .await
         .expect("Failed to save Event B");
 
-    // Tie Event B to location
+    // Tie Event B to region
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_b_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
         .expect("Failed to create TIED_TO_LOCATION edge for Event B");
@@ -1036,15 +1037,15 @@ async fn test_chain_completes_in_order() {
         .await
         .expect("Failed to save Event C");
 
-    // Tie Event C to location
+    // Tie Event C to region
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_c_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
         .expect("Failed to create TIED_TO_LOCATION edge for Event C");
@@ -1269,15 +1270,15 @@ async fn test_chain_completion_triggers_final_effects() {
         .await
         .expect("Failed to save Event A");
 
-    // Tie Event A to location
+    // Tie Event A to region
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_a_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
         .expect("Failed to create TIED_TO_LOCATION edge for Event A");
@@ -1323,15 +1324,15 @@ async fn test_chain_completion_triggers_final_effects() {
         .await
         .expect("Failed to save Final Event");
 
-    // Tie Final Event to location
+    // Tie Final Event to region
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_final_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
         .expect("Failed to create TIED_TO_LOCATION edge for Final Event");
@@ -1543,14 +1544,14 @@ async fn test_partial_chain_persists_across_sessions() {
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_a_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
-        .expect("Failed to tie Event A to location");
+        .expect("Failed to tie Event A to region");
 
     // Event B: Requires Event A completion
     let event_b = NarrativeEvent::new(
@@ -1596,14 +1597,14 @@ async fn test_partial_chain_persists_across_sessions() {
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_b_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
-        .expect("Failed to tie Event B to location");
+        .expect("Failed to tie Event B to region");
 
     // Event C: Requires Event B completion
     let event_c = NarrativeEvent::new(
@@ -1649,14 +1650,14 @@ async fn test_partial_chain_persists_across_sessions() {
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_c_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
-        .expect("Failed to tie Event C to location");
+        .expect("Failed to tie Event C to region");
 
     // Step 1: Enter location, Event A triggers
     let result1 = ctx
@@ -1900,14 +1901,14 @@ async fn test_chain_branch_based_on_outcome() {
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_a_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
-        .expect("Failed to tie Event A to location");
+        .expect("Failed to tie Event A to region");
 
     // Event B: Accept path - requires Event A completed with "accept" outcome
     let event_b = NarrativeEvent::new(
@@ -1953,14 +1954,14 @@ async fn test_chain_branch_based_on_outcome() {
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_b_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
-        .expect("Failed to tie Event B to location");
+        .expect("Failed to tie Event B to region");
 
     // Event C: Refuse path - requires Event A completed with "refuse" outcome
     let event_c = NarrativeEvent::new(
@@ -2006,14 +2007,14 @@ async fn test_chain_branch_based_on_outcome() {
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_c_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
-        .expect("Failed to tie Event C to location");
+        .expect("Failed to tie Event C to region");
 
     // Step 1: Enter location - Event A should trigger
     let result1 = ctx
@@ -2173,14 +2174,14 @@ async fn test_alternate_branch_path() {
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_a_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
-        .expect("Failed to tie Event A to location");
+        .expect("Failed to tie Event A to region");
 
     // Event B: Accept path (should NOT trigger in this test)
     let event_b = NarrativeEvent::new(
@@ -2226,14 +2227,14 @@ async fn test_alternate_branch_path() {
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_b_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
-        .expect("Failed to tie Event B to location");
+        .expect("Failed to tie Event B to region");
 
     // Event C: Refuse path (should trigger in this test)
     let event_c = NarrativeEvent::new(
@@ -2279,14 +2280,14 @@ async fn test_alternate_branch_path() {
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_c_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
-        .expect("Failed to tie Event C to location");
+        .expect("Failed to tie Event C to region");
 
     // Step 1: Enter location - Event A triggers
     let result1 = ctx
@@ -2451,14 +2452,14 @@ async fn test_repeatable_chain_can_restart() {
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
-        .expect("Failed to tie event to location");
+        .expect("Failed to tie event to region");
 
     // Step 1: First trigger
     let result1 = ctx
@@ -2693,14 +2694,14 @@ async fn test_one_time_chain_cannot_repeat() {
     ctx.graph()
         .run(
             query(
-                r#"MATCH (e:NarrativeEvent {id: $event_id}), (l:Location {id: $location_id})
-                   MERGE (e)-[:TIED_TO_LOCATION]->(l)"#,
+                r#"MATCH (e:NarrativeEvent {id: $event_id}), (r:Region {id: $region_id})
+                   MERGE (e)-[:TIED_TO_LOCATION]->(r)"#,
             )
             .param("event_id", event_id.to_string())
-            .param("location_id", location_id.to_string()),
+            .param("region_id", common_room.to_string()),
         )
         .await
-        .expect("Failed to tie event to location");
+        .expect("Failed to tie event to region");
 
     // Step 1: First trigger - event should fire
     let result1 = ctx
