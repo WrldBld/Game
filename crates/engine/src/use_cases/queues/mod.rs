@@ -1080,17 +1080,34 @@ impl ProcessLlmRequest {
                     };
 
                 // Enrich challenge suggestion with metadata if present
+                // First check for explicit JSON suggestion, then fall back to triggered challenge tags
                 let challenge_suggestion = if let Some(raw) = parsed.challenge_suggestion {
                     self.enrich_challenge_suggestion(&raw, request_data.pc_id)
                         .await
+                } else if let Some(triggered_name) = parsed.triggered_challenge_names.first() {
+                    // Convert triggered challenge from <challenge> tag to challenge_suggestion
+                    self.create_challenge_suggestion_from_name(
+                        request_data.world_id,
+                        triggered_name,
+                        request_data.pc_id,
+                    )
+                    .await
                 } else {
                     None
                 };
 
                 // Enrich narrative event suggestion with metadata if present
+                // First check for explicit JSON suggestion, then fall back to triggered event tags
                 let narrative_event_suggestion =
                     if let Some(raw) = parsed.narrative_event_suggestion {
                         self.enrich_narrative_event_suggestion(&raw).await
+                    } else if let Some(triggered_name) = parsed.triggered_event_names.first() {
+                        // Convert triggered event from <event> tag to narrative_event_suggestion
+                        self.create_narrative_event_suggestion_from_name(
+                            request_data.world_id,
+                            triggered_name,
+                        )
+                        .await
                     } else {
                         None
                     };
@@ -1215,6 +1232,97 @@ impl ProcessLlmRequest {
             reasoning: raw.reasoning.clone(),
             matched_triggers: raw.matched_triggers.clone(),
             suggested_outcome: event.default_outcome().map(|s| s.to_string()),
+        })
+    }
+
+    /// Create a narrative event suggestion from an event name found in <event> tags.
+    ///
+    /// This bridges the <event name="..."><trigger>YES</trigger></event> format
+    /// to the NarrativeEventSuggestion structure expected by the approval queue.
+    async fn create_narrative_event_suggestion_from_name(
+        &self,
+        world_id: wrldbldr_domain::WorldId,
+        event_name: &str,
+    ) -> Option<crate::queue_types::NarrativeEventSuggestion> {
+        // Find the event by name in this world
+        let events = match self.narrative.list_events_for_world(world_id).await {
+            Ok(e) => e,
+            Err(e) => {
+                tracing::error!(
+                    world_id = %world_id,
+                    event_name = %event_name,
+                    error = %e,
+                    "Failed to list events for triggered event lookup"
+                );
+                return None;
+            }
+        };
+
+        let event = events
+            .into_iter()
+            .find(|e| e.name().as_str() == event_name)?;
+
+        tracing::info!(
+            event_id = %event.id(),
+            event_name = %event_name,
+            "Created narrative event suggestion from <event> tag"
+        );
+
+        Some(crate::queue_types::NarrativeEventSuggestion {
+            event_id: event.id().to_string(),
+            event_name: event.name().to_string(),
+            description: event.description().to_string(),
+            scene_direction: event.scene_direction().to_string(),
+            confidence: "high".to_string(), // Event tag means LLM determined it triggered
+            reasoning: "Player dialogue matched event trigger keywords".to_string(),
+            matched_triggers: vec![], // Could be populated from parsed quote if needed
+            suggested_outcome: event.default_outcome().map(|s| s.to_string()),
+        })
+    }
+
+    /// Create a challenge suggestion from a challenge name found in <challenge> tags.
+    ///
+    /// This bridges the <challenge name="..."><trigger>YES</trigger></challenge> format
+    /// to the ChallengeSuggestion structure expected by the approval queue.
+    async fn create_challenge_suggestion_from_name(
+        &self,
+        world_id: wrldbldr_domain::WorldId,
+        challenge_name: &str,
+        pc_id: Option<wrldbldr_domain::PlayerCharacterId>,
+    ) -> Option<crate::queue_types::ChallengeSuggestion> {
+        // Find the challenge by name in this world
+        let challenges = match self.challenge.list_for_world(world_id).await {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::error!(
+                    world_id = %world_id,
+                    challenge_name = %challenge_name,
+                    error = %e,
+                    "Failed to list challenges for triggered challenge lookup"
+                );
+                return None;
+            }
+        };
+
+        let challenge = challenges
+            .into_iter()
+            .find(|c| c.name().as_str() == challenge_name)?;
+
+        tracing::info!(
+            challenge_id = %challenge.id(),
+            challenge_name = %challenge_name,
+            "Created challenge suggestion from <challenge> tag"
+        );
+
+        Some(crate::queue_types::ChallengeSuggestion {
+            challenge_id: challenge.id().to_string(),
+            challenge_name: challenge.name().to_string(),
+            skill_name: challenge.check_stat().unwrap_or("").to_string(),
+            difficulty_display: challenge.difficulty().display(),
+            confidence: "high".to_string(), // Challenge tag means LLM determined it triggered
+            reasoning: "Player dialogue matched challenge trigger keywords".to_string(),
+            target_pc_id: pc_id,
+            outcomes: None,
         })
     }
 }
