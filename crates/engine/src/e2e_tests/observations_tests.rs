@@ -240,7 +240,7 @@ async fn test_observation_count_trigger() {
 
     use chrono::Utc;
     use wrldbldr_domain::{
-        NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
+        Description, NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
     };
 
     // Get an NPC to reference in the trigger
@@ -264,7 +264,7 @@ async fn test_observation_count_trigger() {
         Utc::now(),
     )
     .with_description("Triggered after many observations")
-    .with_scene_direction("Your keen eye has uncovered much")
+    .with_scene_direction(Description::new("Your keen eye has uncovered much").unwrap())
     .with_trigger_condition(trigger)
     .with_active(true);
 

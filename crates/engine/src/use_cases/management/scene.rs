@@ -47,7 +47,9 @@ impl SceneManagement {
 
         let mut scene = wrldbldr_domain::Scene::new(act_id, name);
         if let Some(description) = description {
-            scene = scene.with_directorial_notes(description);
+            let notes = wrldbldr_domain::Description::new(description)
+                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            scene = scene.with_directorial_notes(notes);
         }
 
         // Save the scene first
@@ -81,7 +83,9 @@ impl SceneManagement {
             scene.set_name(name);
         }
         if let Some(description) = description {
-            scene.set_directorial_notes(description);
+            let notes = wrldbldr_domain::Description::new(description)
+                .map_err(|e| ManagementError::InvalidInput(e.to_string()))?;
+            scene.set_directorial_notes(notes);
         }
 
         self.scene.save(&scene).await?;

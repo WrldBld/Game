@@ -124,7 +124,7 @@ impl ContinueConversation {
             .map(|s| {
                 s.npcs()
                     .iter()
-                    .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
+                    .filter(|npc| npc.is_present() && !npc.is_hidden_from_players())
                     .cloned()
                     .collect::<Vec<_>>()
             })
@@ -219,7 +219,7 @@ mod tests {
     use uuid::Uuid;
     use wrldbldr_domain::{
         CampbellArchetype, Character, CharacterId, CharacterName, ConversationId, LocationId,
-        MoodState, PlayerCharacterId, RegionId, StagedNpc, Staging, StagingSource, WorldId,
+        MoodState, PlayerCharacterId, RegionId, StagedNpc, Staging, StagingSource, UserId, WorldId,
         WorldName,
     };
 
@@ -444,7 +444,7 @@ mod tests {
         let npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             location_id,
@@ -508,7 +508,7 @@ mod tests {
 
         // PC has no current_region_id
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             location_id,
@@ -579,7 +579,7 @@ mod tests {
         let npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             location_id,
@@ -658,7 +658,7 @@ mod tests {
         let other_npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             location_id,
@@ -764,7 +764,7 @@ mod tests {
         let conversation_id = ConversationId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             location_id,
@@ -876,7 +876,7 @@ mod tests {
         let npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             location_id,
@@ -991,7 +991,7 @@ mod tests {
         let player_message = "Hello again!".to_string();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             location_id,
@@ -1117,7 +1117,7 @@ mod tests {
         let player_message = "Continuing...".to_string();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             location_id,

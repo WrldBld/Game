@@ -234,19 +234,19 @@ impl World {
 
     /// Set the time mode (manual, suggested, auto).
     pub fn set_time_mode(&mut self, mode: TimeMode, now: DateTime<Utc>) {
-        self.time_config.mode = mode;
+        self.time_config.set_mode(mode);
         self.updated_at = now;
     }
 
     /// Set the time cost configuration.
     pub fn set_time_costs(&mut self, costs: TimeCostConfig, now: DateTime<Utc>) {
-        self.time_config.time_costs = costs;
+        self.time_config.set_time_costs(costs);
         self.updated_at = now;
     }
 
     /// Get the time cost for a given action type.
     pub fn time_cost_for_action(&self, action: &str) -> u32 {
-        self.time_config.time_costs.cost_for_action(action)
+        self.time_config.time_costs().cost_for_action(action)
     }
 
     // =========================================================================
@@ -440,7 +440,7 @@ mod tests {
                 TimeMode::Manual,
                 world.updated_at() + chrono::Duration::seconds(1),
             );
-            assert!(matches!(world.time_config().mode, TimeMode::Manual));
+            assert!(matches!(world.time_config().mode(), TimeMode::Manual));
         }
     }
 

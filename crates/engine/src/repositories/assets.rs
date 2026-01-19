@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 use uuid::Uuid;
-use wrldbldr_domain::{self as domain, AssetId};
+use wrldbldr_domain::{self as domain, AssetId, EntityType};
 
 use crate::infrastructure::ports::{AssetRepo, ImageGenPort, ImageRequest, RepoError};
 
@@ -36,7 +36,7 @@ impl AssetsRepository {
 
     pub async fn list_for_entity(
         &self,
-        entity_type: &str,
+        entity_type: EntityType,
         entity_id: Uuid,
     ) -> Result<Vec<domain::GalleryAsset>, RepoError> {
         self.repo.list_for_entity(entity_type, entity_id).await
@@ -44,7 +44,7 @@ impl AssetsRepository {
 
     pub async fn set_active(
         &self,
-        entity_type: &str,
+        entity_type: EntityType,
         entity_id: Uuid,
         asset_id: AssetId,
     ) -> Result<(), RepoError> {

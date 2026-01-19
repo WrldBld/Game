@@ -83,7 +83,7 @@ mod tests {
     use chrono::Utc;
     use std::sync::Arc;
     use wrldbldr_domain::{
-        CharacterName, LocationId, PlayerCharacter, PlayerCharacterId, RegionId, WorldId,
+        CharacterName, LocationId, PlayerCharacter, PlayerCharacterId, RegionId, UserId, WorldId,
     };
 
     fn test_pc(world_id: WorldId) -> PlayerCharacter {
@@ -91,7 +91,7 @@ mod tests {
         let region_id = RegionId::new();
         let now = Utc::now();
         PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("Test PC").unwrap(),
             location_id,

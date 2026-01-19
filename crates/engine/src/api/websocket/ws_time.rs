@@ -3,13 +3,13 @@ use super::*;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::use_cases::time::TimeAdvanceResultData;
-use wrldbldr_domain::{GameTime, TimeAdvanceReason, TimeOfDay};
+use wrldbldr_domain::{ConnectionId, GameTime, TimeAdvanceReason, TimeOfDay};
 use wrldbldr_shared::types as protocol;
 use wrldbldr_shared::{ErrorCode, TimeRequest};
 
 pub(super) async fn handle_set_game_time(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     world_id: String,
     day: u32,
     hour: u8,
@@ -76,7 +76,7 @@ pub(super) async fn handle_set_game_time(
 
 pub(super) async fn handle_skip_to_period(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     world_id: String,
     period: String,
 ) -> Option<ServerMessage> {
@@ -151,7 +151,7 @@ pub(super) async fn handle_skip_to_period(
 
 pub(super) async fn handle_pause_game_time(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     world_id: String,
     paused: bool,
 ) -> Option<ServerMessage> {
@@ -209,7 +209,7 @@ pub(super) async fn handle_pause_game_time(
 
 pub(super) async fn handle_set_time_mode(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     world_id: String,
     mode: protocol::TimeMode,
 ) -> Option<ServerMessage> {
@@ -253,7 +253,7 @@ pub(super) async fn handle_set_time_mode(
     };
 
     // Convert protocol mode to domain mode at API boundary
-    config.mode = protocol_time_mode_to_domain(mode);
+    config.set_mode(protocol_time_mode_to_domain(mode));
 
     match state
         .app
@@ -289,7 +289,7 @@ pub(super) async fn handle_set_time_mode(
 
 pub(super) async fn handle_set_time_costs(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     world_id: String,
     costs: protocol::TimeCostConfig,
 ) -> Option<ServerMessage> {
@@ -333,7 +333,7 @@ pub(super) async fn handle_set_time_costs(
     };
 
     // Convert protocol time costs to domain at API boundary
-    config.time_costs = protocol_time_costs_to_domain(&costs);
+    config.set_time_costs(protocol_time_costs_to_domain(&costs));
 
     let updated = match state
         .app
@@ -358,7 +358,7 @@ pub(super) async fn handle_set_time_costs(
     // Convert domain config back to protocol for the response
     let msg = ServerMessage::TimeConfigUpdated {
         world_id: world_id_typed.to_string(),
-        config: time_config_to_protocol(&updated.normalized_config),
+        config: time_config_to_protocol(&updated.config),
     };
     state
         .connections
@@ -370,7 +370,7 @@ pub(super) async fn handle_set_time_costs(
 
 pub(super) async fn handle_respond_to_time_suggestion(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     suggestion_id: String,
     decision: protocol::TimeSuggestionDecision,
 ) -> Option<ServerMessage> {
@@ -782,17 +782,17 @@ pub(super) async fn handle_time_request(
                 .await
             {
                 Ok(config) => Ok(ResponseResult::success(serde_json::json!({
-                    "mode": format!("{:?}", config.mode).to_lowercase(),
+                    "mode": format!("{:?}", config.mode()).to_lowercase(),
                     "time_costs": {
-                        "travel_location": config.time_costs.travel_location,
-                        "travel_region": config.time_costs.travel_region,
-                        "rest_short": config.time_costs.rest_short,
-                        "rest_long": config.time_costs.rest_long,
-                        "conversation": config.time_costs.conversation,
-                        "challenge": config.time_costs.challenge,
-                        "scene_transition": config.time_costs.scene_transition,
+                        "travel_location": config.time_costs().travel_location,
+                        "travel_region": config.time_costs().travel_region,
+                        "rest_short": config.time_costs().rest_short,
+                        "rest_long": config.time_costs().rest_long,
+                        "conversation": config.time_costs().conversation,
+                        "challenge": config.time_costs().challenge,
+                        "scene_transition": config.time_costs().scene_transition,
                     },
-                    "show_time_to_players": config.show_time_to_players,
+                    "show_time_to_players": config.show_time_to_players(),
                 }))),
                 Err(crate::use_cases::time::TimeControlError::WorldNotFound(_)) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "World not found"),
@@ -845,7 +845,7 @@ pub(super) async fn handle_time_request(
             // Convert domain config back to protocol for broadcasting
             let update_msg = ServerMessage::TimeConfigUpdated {
                 world_id: update.world_id.to_string(),
-                config: time_config_to_protocol(&update.normalized_config),
+                config: time_config_to_protocol(&update.config),
             };
             state
                 .connections
@@ -926,21 +926,20 @@ pub(super) fn time_config_to_protocol(
     config: &wrldbldr_domain::GameTimeConfig,
 ) -> protocol::GameTimeConfig {
     protocol::GameTimeConfig {
-        mode: match config.mode {
+        mode: match config.mode() {
             wrldbldr_domain::TimeMode::Manual => protocol::TimeMode::Manual,
             wrldbldr_domain::TimeMode::Suggested => protocol::TimeMode::Suggested,
-            wrldbldr_domain::TimeMode::Auto => protocol::TimeMode::Suggested,
         },
         time_costs: protocol::TimeCostConfig {
-            travel_location: config.time_costs.travel_location,
-            travel_region: config.time_costs.travel_region,
-            rest_short: config.time_costs.rest_short,
-            rest_long: config.time_costs.rest_long,
-            conversation: config.time_costs.conversation,
-            challenge: config.time_costs.challenge,
-            scene_transition: config.time_costs.scene_transition,
+            travel_location: config.time_costs().travel_location,
+            travel_region: config.time_costs().travel_region,
+            rest_short: config.time_costs().rest_short,
+            rest_long: config.time_costs().rest_long,
+            conversation: config.time_costs().conversation,
+            challenge: config.time_costs().challenge,
+            scene_transition: config.time_costs().scene_transition,
         },
-        show_time_to_players: config.show_time_to_players,
+        show_time_to_players: config.show_time_to_players(),
         time_format: protocol::TimeFormat::TwelveHour,
         calendar_id: None, // Calendar configuration not yet exposed from domain
         epoch_year: None,
@@ -952,7 +951,6 @@ fn protocol_time_mode_to_domain(mode: protocol::TimeMode) -> wrldbldr_domain::Ti
     match mode {
         protocol::TimeMode::Manual => wrldbldr_domain::TimeMode::Manual,
         protocol::TimeMode::Suggested => wrldbldr_domain::TimeMode::Suggested,
-        protocol::TimeMode::Auto => wrldbldr_domain::TimeMode::Suggested, // Auto normalized to Suggested
     }
 }
 
@@ -975,17 +973,16 @@ fn protocol_time_costs_to_domain(
 pub(super) fn protocol_time_config_to_domain(
     config: &protocol::GameTimeConfig,
 ) -> wrldbldr_domain::GameTimeConfig {
-    wrldbldr_domain::GameTimeConfig {
-        mode: protocol_time_mode_to_domain(config.mode),
-        time_costs: protocol_time_costs_to_domain(&config.time_costs),
-        show_time_to_players: config.show_time_to_players,
-        time_format: wrldbldr_domain::TimeFormat::TwelveHour,
-        // Calendar settings use defaults when not provided in protocol
-        // (protocol will be extended to include these in a future update)
-        calendar_id: wrldbldr_domain::CalendarId::new("gregorian")
-            .expect("gregorian is a valid calendar ID"),
-        epoch_config: wrldbldr_domain::EpochConfig::default(),
-    }
+    // Calendar settings use defaults when not provided in protocol
+    // (protocol will be extended to include these in a future update)
+    wrldbldr_domain::GameTimeConfig::new(
+        protocol_time_mode_to_domain(config.mode),
+        protocol_time_costs_to_domain(&config.time_costs),
+        config.show_time_to_players,
+        wrldbldr_domain::TimeFormat::TwelveHour,
+        wrldbldr_domain::CalendarId::new("gregorian").expect("gregorian is a valid calendar ID"),
+        wrldbldr_domain::EpochConfig::default(),
+    )
 }
 
 /// Convert domain TimeSuggestion to protocol TimeSuggestionData.

@@ -189,10 +189,13 @@ impl Neo4jSceneRepo {
 
         let backdrop_override = node.get_optional_string("backdrop_override");
 
+        let notes = Description::new(directorial_notes)
+            .map_err(|e| RepoError::database("query", e.to_string()))?;
+
         let mut scene = Scene::new(act_id, name)
             .with_id(id)
             .with_time(time_context)
-            .with_directorial_notes(directorial_notes)
+            .with_directorial_notes(notes)
             .with_order(order_num as u32)
             .with_entry_conditions(entry_conditions);
 

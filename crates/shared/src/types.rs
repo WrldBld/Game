@@ -314,8 +314,6 @@ pub enum TimeMode {
     /// System suggests, DM approves (default)
     #[default]
     Suggested,
-    /// Time advances automatically
-    Auto,
 }
 
 // =============================================================================

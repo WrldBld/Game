@@ -58,7 +58,8 @@ impl ConversationScenario {
     pub async fn talk_to(&mut self, npc_id: CharacterId) -> Result<&ConversationStarted, E2EError> {
         let conversation = self.client.start_conversation(npc_id, "").await?;
         self.current_conversation = Some(conversation);
-        Ok(self.current_conversation.as_ref().unwrap())
+        // Safe: we just set it to Some above
+        Ok(self.current_conversation.as_ref().expect("just assigned"))
     }
 
     /// Start a conversation with an NPC with an opening message.
@@ -69,7 +70,8 @@ impl ConversationScenario {
     ) -> Result<&ConversationStarted, E2EError> {
         let conversation = self.client.start_conversation(npc_id, message).await?;
         self.current_conversation = Some(conversation);
-        Ok(self.current_conversation.as_ref().unwrap())
+        // Safe: we just set it to Some above
+        Ok(self.current_conversation.as_ref().expect("just assigned"))
     }
 
     /// Say something to the current NPC.

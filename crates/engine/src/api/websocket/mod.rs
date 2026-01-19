@@ -18,6 +18,8 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+use wrldbldr_domain::ConnectionId;
+
 mod ws_actantial;
 mod ws_approval;
 mod ws_challenge;
@@ -51,7 +53,7 @@ pub mod error_sanitizer;
 use wrldbldr_domain::{
     ActId, ChallengeId, CharacterId, EventChainId, GoalId, InteractionId, ItemId, LocationId,
     MoodState, NarrativeEventId, PlayerCharacterId, RegionId, SceneId, SkillId, StagingSource,
-    WantId, WorldId,
+    UserId, WantId, WorldId,
 };
 use wrldbldr_shared::{
     ClientMessage, ErrorCode, RequestPayload, ResponseResult, ServerMessage,
@@ -248,8 +250,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<WsState>) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
     // Create a unique client ID for this connection
-    let connection_id = Uuid::new_v4();
-    let user_id = connection_id.to_string(); // Anonymous user for now
+    let connection_id = ConnectionId::new();
+    let user_id = UserId::from_trusted(connection_id.to_string()); // Anonymous user for now
 
     // Create a bounded channel for sending messages to this client
     let (tx, mut rx) = mpsc::channel::<ServerMessage>(CONNECTION_CHANNEL_BUFFER);
@@ -257,7 +259,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<WsState>) {
     // Register the connection
     state
         .connections
-        .register(connection_id, user_id.clone(), tx.clone())
+        .register(connection_id, user_id, tx.clone())
         .await;
 
     tracing::info!(connection_id = %connection_id, "WebSocket connection established");
@@ -324,7 +326,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<WsState>) {
 async fn handle_message(
     msg: ClientMessage,
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     _sender: mpsc::Sender<ServerMessage>,
 ) -> Option<ServerMessage> {
     match msg {
@@ -716,7 +718,7 @@ async fn handle_message(
 
 async fn handle_request(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     request_id: String,
     payload: RequestPayload,
 ) -> Option<ServerMessage> {
@@ -836,7 +838,10 @@ async fn handle_request(
 fn error_response(code: ErrorCode, message: &str) -> ServerMessage {
     // Serialize ErrorCode to snake_case string (e.g., ErrorCode::NotFound -> "not_found")
     let code_str = serde_json::to_string(&code)
-        .unwrap_or_else(|_| "\"internal_error\"".to_string())
+        .unwrap_or_else(|e| {
+            tracing::warn!("Failed to serialize error code: {}", e);
+            "\"internal_error\"".to_string()
+        })
         .trim_matches('"')
         .to_string();
     ServerMessage::Error {

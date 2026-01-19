@@ -105,7 +105,7 @@ impl SuggestTime {
             .ok_or(SuggestTimeError::WorldNotFound(world_id))?;
 
         let config = world.time_config();
-        let cost_minutes = config.time_costs.cost_for_action(action_type);
+        let cost_minutes = config.time_costs().cost_for_action(action_type);
 
         // If no cost, nothing to do
         if cost_minutes == 0 {
@@ -113,12 +113,12 @@ impl SuggestTime {
         }
 
         // Check time mode
-        match config.mode {
+        match config.mode() {
             TimeMode::Manual => {
                 // DM controls time manually, no suggestions
                 Ok(SuggestTimeResult::ManualMode)
             }
-            TimeMode::Auto | TimeMode::Suggested => {
+            TimeMode::Suggested => {
                 // Create suggestion for DM approval
                 let mut resulting_time = world.game_time().clone();
                 let previous_period = resulting_time.time_of_day();
@@ -347,18 +347,16 @@ impl TimeControl {
             .await?
             .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
-        let normalized_config = normalize_domain_time_config(config);
-
         // Update via the individual setters (which auto-update updated_at)
         let now = self.clock.now();
-        world.set_time_mode(normalized_config.mode, now);
-        world.set_time_costs(normalized_config.time_costs.clone(), now);
+        world.set_time_mode(config.mode(), now);
+        world.set_time_costs(config.time_costs().clone(), now);
 
         self.world.save(&world).await?;
 
         Ok(TimeConfigUpdate {
             world_id,
-            normalized_config,
+            config,
         })
     }
 }
@@ -376,7 +374,7 @@ pub struct TimeAdvanceOutcome {
 #[derive(Debug, Clone)]
 pub struct TimeConfigUpdate {
     pub world_id: WorldId,
-    pub normalized_config: wrldbldr_domain::GameTimeConfig,
+    pub config: wrldbldr_domain::GameTimeConfig,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -489,46 +487,6 @@ pub enum TimeSuggestionError {
     Queue(#[from] QueueError),
 }
 
-/// Normalize domain time config, handling the Auto -> Suggested transition.
-///
-/// # TimeMode::Auto Behavior
-///
-/// **Important**: `TimeMode::Auto` is currently normalized to `TimeMode::Suggested`.
-///
-/// This is an intentional design decision with the following rationale:
-/// - The original vision for "Auto" mode was to automatically advance time without DM approval
-/// - However, this behavior was never fully implemented due to concerns about:
-///   - Game pacing control (auto-advancing could disrupt narrative flow)
-///   - Edge cases around period transitions (dawn/dusk/etc.)
-///   - Lack of undo capability if time advances incorrectly
-///
-/// As a result, "Auto" currently behaves identically to "Suggested" mode, where:
-/// - Time suggestions are generated for player actions
-/// - The DM must approve/modify/skip each suggestion
-///
-/// **API Contract Note**: If a client sets `TimeMode::Auto`, the UI may display "Automatic"
-/// but the actual behavior will be "Suggested" (DM approval required).
-///
-/// # TODO
-///
-/// Either:
-/// 1. Implement true auto-advancement behavior (advance time immediately without DM approval)
-/// 2. Remove the `Auto` variant from the protocol and mark it as deprecated in domain types
-///
-/// See: https://github.com/WrldBldr/Game/issues/XXX (replace with actual tracking issue)
-fn normalize_domain_time_config(
-    mut config: wrldbldr_domain::GameTimeConfig,
-) -> wrldbldr_domain::GameTimeConfig {
-    if matches!(config.mode, wrldbldr_domain::TimeMode::Auto) {
-        tracing::warn!(
-            "TimeMode::Auto is not fully implemented - normalizing to TimeMode::Suggested. \
-             Time suggestions will still require DM approval."
-        );
-        config.mode = wrldbldr_domain::TimeMode::Suggested;
-    }
-    config
-}
-
 /// Build domain-level time advance result data.
 ///
 /// This returns a domain type that can be converted to protocol format at the API boundary.
@@ -579,12 +537,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn when_time_mode_auto_then_suggests_time_and_does_not_persist() {
+    async fn when_time_mode_suggested_then_suggests_time_and_does_not_persist() {
         let now = Utc::now();
         let world_id = WorldId::new();
 
         let mut time_config = GameTimeConfig::default();
-        time_config.mode = TimeMode::Auto;
+        time_config.set_mode(TimeMode::Suggested);
 
         let world_name = WorldName::new("World").unwrap();
         let domain_world = wrldbldr_domain::World::new(world_name, now)
@@ -638,7 +596,7 @@ mod tests {
         let world_id = WorldId::new();
 
         let mut time_config = GameTimeConfig::default();
-        time_config.mode = TimeMode::Manual;
+        time_config.set_mode(TimeMode::Manual);
 
         let world_name = WorldName::new("World").unwrap();
         let domain_world = wrldbldr_domain::World::new(world_name, now)

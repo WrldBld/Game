@@ -18,7 +18,7 @@
 use chrono::Utc;
 use neo4rs::query;
 use uuid::Uuid;
-use wrldbldr_domain::{NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType};
+use wrldbldr_domain::{Description, NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType};
 
 use super::*;
 
@@ -91,7 +91,7 @@ async fn test_first_event_triggers_on_location_entry() {
     )
     .with_id(wrldbldr_domain::NarrativeEventId::from(event_id))
     .with_description("First event in chain - triggers on location entry")
-    .with_scene_direction("The tavern buzzes with activity as you enter")
+    .with_scene_direction(Description::new("The tavern buzzes with activity as you enter").unwrap())
     .with_trigger_condition(trigger)
     .with_priority(10);
 
@@ -208,7 +208,7 @@ async fn test_subsequent_event_unlocks_after_completion() {
     )
     .with_id(event_a_id)
     .with_description("First event in chain")
-    .with_scene_direction("The stranger nods at you")
+    .with_scene_direction(Description::new("The stranger nods at you").unwrap())
     .with_triggered_state(true, Some(now), Some("default".to_string()), 1);
 
     ctx.app
@@ -250,7 +250,7 @@ async fn test_subsequent_event_unlocks_after_completion() {
     )
     .with_id(event_b_id)
     .with_description("Second event in chain - triggers after Event A")
-    .with_scene_direction("The stranger approaches with more to say")
+    .with_scene_direction(Description::new("The stranger approaches with more to say").unwrap())
     .with_trigger_condition(location_trigger)
     .with_trigger_condition(event_completed_trigger)
     .with_priority(10);
@@ -375,7 +375,7 @@ async fn test_event_condition_checks_player_flags() {
     )
     .with_id(event_id)
     .with_description("Secret event only for those who met the stranger")
-    .with_scene_direction("A hooded figure beckons you to a corner booth")
+    .with_scene_direction(Description::new("A hooded figure beckons you to a corner booth").unwrap())
     .with_trigger_condition(location_trigger)
     .with_trigger_condition(flag_trigger)
     .with_priority(10);
@@ -540,7 +540,7 @@ async fn test_event_condition_checks_inventory() {
     )
     .with_id(event_id)
     .with_description("A secret passage reveals itself when you hold the key")
-    .with_scene_direction("The innkeeper notices the key in your possession and nods knowingly")
+    .with_scene_direction(Description::new("The innkeeper notices the key in your possession and nods knowingly").unwrap())
     .with_trigger_condition(location_trigger)
     .with_trigger_condition(inventory_trigger)
     .with_priority(10);
@@ -724,7 +724,7 @@ async fn test_event_condition_checks_stats() {
     )
     .with_id(event_low_cha_id)
     .with_description("Event requiring Old Tom to have high charisma")
-    .with_scene_direction("Old Tom captivates the room with his presence")
+    .with_scene_direction(Description::new("Old Tom captivates the room with his presence").unwrap())
     .with_trigger_condition(location_trigger_low)
     .with_trigger_condition(stat_trigger_low)
     .with_priority(10);
@@ -779,7 +779,7 @@ async fn test_event_condition_checks_stats() {
     )
     .with_id(event_high_cha_id)
     .with_description("Event requiring Vera to have high charisma")
-    .with_scene_direction("Vera's magnetic presence draws everyone's attention")
+    .with_scene_direction(Description::new("Vera's magnetic presence draws everyone's attention").unwrap())
     .with_trigger_condition(location_trigger_high)
     .with_trigger_condition(stat_trigger_high)
     .with_priority(10);
@@ -918,7 +918,7 @@ async fn test_chain_completes_in_order() {
     )
     .with_id(event_a_id)
     .with_description("First event in chain")
-    .with_scene_direction("A mysterious stranger catches your eye")
+    .with_scene_direction(Description::new("A mysterious stranger catches your eye").unwrap())
     .with_trigger_condition(location_trigger_a)
     .with_priority(10);
 
@@ -971,7 +971,7 @@ async fn test_chain_completes_in_order() {
     )
     .with_id(event_b_id)
     .with_description("Second event in chain")
-    .with_scene_direction("The stranger reveals a dark secret")
+    .with_scene_direction(Description::new("The stranger reveals a dark secret").unwrap())
     .with_trigger_condition(location_trigger_b)
     .with_trigger_condition(event_a_completed)
     .with_priority(10);
@@ -1025,7 +1025,7 @@ async fn test_chain_completes_in_order() {
     )
     .with_id(event_c_id)
     .with_description("Third event in chain")
-    .with_scene_direction("You must now make a fateful choice")
+    .with_scene_direction(Description::new("You must now make a fateful choice").unwrap())
     .with_trigger_condition(location_trigger_c)
     .with_trigger_condition(event_b_completed)
     .with_priority(10);
@@ -1259,7 +1259,7 @@ async fn test_chain_completion_triggers_final_effects() {
     )
     .with_id(event_a_id)
     .with_description("First event in quest chain")
-    .with_scene_direction("A desperate villager approaches you")
+    .with_scene_direction(Description::new("A desperate villager approaches you").unwrap())
     .with_trigger_condition(location_trigger_a)
     .with_priority(10);
 
@@ -1312,7 +1312,7 @@ async fn test_chain_completion_triggers_final_effects() {
     )
     .with_id(event_final_id)
     .with_description("Final event granting completion reward")
-    .with_scene_direction("The villager returns with a reward for your heroism")
+    .with_scene_direction(Description::new("The villager returns with a reward for your heroism").unwrap())
     .with_trigger_condition(location_trigger_final)
     .with_trigger_condition(event_a_completed)
     .with_priority(10);
@@ -1520,7 +1520,7 @@ async fn test_partial_chain_persists_across_sessions() {
     )
     .with_id(event_a_id)
     .with_description("First event in persistent chain")
-    .with_scene_direction("The adventure begins")
+    .with_scene_direction(Description::new("The adventure begins").unwrap())
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -1561,7 +1561,7 @@ async fn test_partial_chain_persists_across_sessions() {
     )
     .with_id(event_b_id)
     .with_description("Second event in persistent chain")
-    .with_scene_direction("The plot thickens")
+    .with_scene_direction(Description::new("The plot thickens").unwrap())
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -1614,7 +1614,7 @@ async fn test_partial_chain_persists_across_sessions() {
     )
     .with_id(event_c_id)
     .with_description("Third event in persistent chain")
-    .with_scene_direction("The conclusion")
+    .with_scene_direction(Description::new("The conclusion").unwrap())
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -1877,7 +1877,7 @@ async fn test_chain_branch_based_on_outcome() {
     )
     .with_id(event_a_id)
     .with_description("Event with branching outcomes")
-    .with_scene_direction("A mysterious figure makes you an offer")
+    .with_scene_direction(Description::new("A mysterious figure makes you an offer").unwrap())
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -1918,7 +1918,7 @@ async fn test_chain_branch_based_on_outcome() {
     )
     .with_id(event_b_id)
     .with_description("Quest accepted path")
-    .with_scene_direction("Having accepted the offer, you learn more details")
+    .with_scene_direction(Description::new("Having accepted the offer, you learn more details").unwrap())
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -1971,7 +1971,7 @@ async fn test_chain_branch_based_on_outcome() {
     )
     .with_id(event_c_id)
     .with_description("Quest refused path")
-    .with_scene_direction("Having refused, the stranger becomes hostile")
+    .with_scene_direction(Description::new("Having refused, the stranger becomes hostile").unwrap())
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -2150,7 +2150,7 @@ async fn test_alternate_branch_path() {
     )
     .with_id(event_a_id)
     .with_description("Event with branching outcomes")
-    .with_scene_direction("A shady character proposes a scheme")
+    .with_scene_direction(Description::new("A shady character proposes a scheme").unwrap())
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -2191,7 +2191,7 @@ async fn test_alternate_branch_path() {
     )
     .with_id(event_b_id)
     .with_description("Joined the scheme path")
-    .with_scene_direction("You've thrown in your lot with the schemer")
+    .with_scene_direction(Description::new("You've thrown in your lot with the schemer").unwrap())
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -2244,7 +2244,7 @@ async fn test_alternate_branch_path() {
     )
     .with_id(event_c_id)
     .with_description("Rejected the scheme path")
-    .with_scene_direction("You've made an enemy of the schemer")
+    .with_scene_direction(Description::new("You've made an enemy of the schemer").unwrap())
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -2427,7 +2427,7 @@ async fn test_repeatable_chain_can_restart() {
     )
     .with_id(event_id)
     .with_description("A daily quest that can be repeated")
-    .with_scene_direction("The innkeeper has another task for you")
+    .with_scene_direction(Description::new("The innkeeper has another task for you").unwrap())
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {
@@ -2669,7 +2669,7 @@ async fn test_one_time_chain_cannot_repeat() {
     )
     .with_id(event_id)
     .with_description("A main quest that can only happen once")
-    .with_scene_direction("The ancient prophecy is revealed")
+    .with_scene_direction(Description::new("The ancient prophecy is revealed").unwrap())
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {

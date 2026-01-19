@@ -374,8 +374,6 @@ pub enum TimeMode {
     /// System suggests, DM approves (default)
     #[default]
     Suggested,
-    /// Time advances automatically on actions
-    Auto,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

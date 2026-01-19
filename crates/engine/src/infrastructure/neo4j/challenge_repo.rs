@@ -258,7 +258,9 @@ impl Neo4jChallengeRepo {
         let order = node.get_i64_or("challenge_order", 0) as u32;
         let is_favorite = node.get_bool_or("is_favorite", false);
         let tags: Vec<String> = node.get_json_or_default("tags_json");
-        let check_stat: Option<String> = node.get_optional_string("check_stat");
+        let check_stat: Option<wrldbldr_domain::Stat> = node
+            .get_optional_string("check_stat")
+            .and_then(|s| s.parse().ok());
 
         let mut challenge = Challenge::new(world_id, name, difficulty)
             .with_id(id)
@@ -360,7 +362,9 @@ impl ChallengeRepo for Neo4jChallengeRepo {
         .param("tags_json", tags_json)
         .param(
             "check_stat",
-            challenge.check_stat().unwrap_or_default().to_string(),
+            challenge
+                .check_stat()
+                .map_or(String::new(), |s| s.to_string()),
         );
 
         self.graph

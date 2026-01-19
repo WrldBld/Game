@@ -20,7 +20,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use wrldbldr_domain::{ActId, SceneId};
 
 use crate::events::SceneUpdate;
-use crate::value_objects::{AssetPath, SceneName};
+use crate::value_objects::{AssetPath, Description, SceneName};
 
 // Re-export from entities for now (TimeContext, SceneCondition, SceneCharacter, SceneCharacterRole)
 pub use crate::entities::{SceneCharacter, SceneCharacterRole, SceneCondition, TimeContext};
@@ -69,7 +69,7 @@ pub struct Scene {
 
     // Direction
     /// DM guidance for LLM responses
-    directorial_notes: String,
+    directorial_notes: Description,
 
     // Ordering
     /// Order within the act (for sequential scenes)
@@ -108,7 +108,7 @@ impl Scene {
             time_context: TimeContext::Unspecified,
             backdrop_override: None,
             entry_conditions: Vec::new(),
-            directorial_notes: String::new(),
+            directorial_notes: Description::empty(),
             order: 0,
         }
     }
@@ -168,7 +168,7 @@ impl Scene {
     /// Returns the scene's directorial notes.
     #[inline]
     pub fn directorial_notes(&self) -> &str {
-        &self.directorial_notes
+        self.directorial_notes.as_str()
     }
 
     // =========================================================================
@@ -192,8 +192,8 @@ impl Scene {
     }
 
     /// Set the scene's directorial notes.
-    pub fn with_directorial_notes(mut self, notes: impl Into<String>) -> Self {
-        self.directorial_notes = notes.into();
+    pub fn with_directorial_notes(mut self, notes: Description) -> Self {
+        self.directorial_notes = notes;
         self
     }
 
@@ -261,12 +261,11 @@ impl Scene {
     }
 
     /// Set the scene's directorial notes.
-    pub fn set_directorial_notes(&mut self, notes: impl Into<String>) -> SceneUpdate {
-        let next = notes.into();
-        let previous = std::mem::replace(&mut self.directorial_notes, next);
+    pub fn set_directorial_notes(&mut self, notes: Description) -> SceneUpdate {
+        let previous = std::mem::replace(&mut self.directorial_notes, notes);
         SceneUpdate::DirectorialNotesChanged {
-            from: previous,
-            to: self.directorial_notes.clone(),
+            from: previous.to_string(),
+            to: self.directorial_notes.to_string(),
         }
     }
 
@@ -326,7 +325,7 @@ impl Serialize for Scene {
             time_context: self.time_context.clone(),
             backdrop_override: self.backdrop_override.as_ref().map(|a| a.to_string()),
             entry_conditions: self.entry_conditions.clone(),
-            directorial_notes: self.directorial_notes.clone(),
+            directorial_notes: self.directorial_notes.to_string(),
             order: self.order,
         };
         wire.serialize(serializer)
@@ -349,7 +348,7 @@ impl<'de> Deserialize<'de> for Scene {
             time_context: wire.time_context,
             backdrop_override: wire.backdrop_override.and_then(|s| AssetPath::new(s).ok()),
             entry_conditions: wire.entry_conditions,
-            directorial_notes: wire.directorial_notes,
+            directorial_notes: Description::new(wire.directorial_notes).unwrap_or_default(),
             order: wire.order,
         })
     }
@@ -391,7 +390,7 @@ mod tests {
 
             let scene = Scene::new(act_id, SceneName::new("The Climax").unwrap())
                 .with_time(TimeContext::Custom("Midnight".to_string()))
-                .with_directorial_notes("Dramatic tension!")
+                .with_directorial_notes(Description::new("Dramatic tension!").unwrap())
                 .with_order(5)
                 .with_backdrop_override("dark_throne_room.png");
 

@@ -33,8 +33,8 @@ use chrono::Utc;
 use neo4rs::query;
 use uuid::Uuid;
 use wrldbldr_domain::{
-    NarrativeEvent, NarrativeEventId, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
-    TriggerLogic,
+    Description, NarrativeEvent, NarrativeEventId, NarrativeEventName, NarrativeTrigger,
+    NarrativeTriggerType, TriggerLogic,
 };
 
 use crate::queue_types::DmApprovalDecision;
@@ -786,7 +786,7 @@ async fn test_triggered_event_not_in_prompt() {
         )
         .with_id(event_id)
         .with_description("This event has already been triggered")
-        .with_scene_direction("You recall what happened before")
+        .with_scene_direction(Description::new("You recall what happened before").unwrap())
         .with_trigger_condition(
             NarrativeTrigger::new(
                 NarrativeTriggerType::DialogueTopic {
@@ -885,7 +885,7 @@ async fn test_inactive_event_not_in_prompt() {
         )
         .with_id(event_id)
         .with_description("This event is not active")
-        .with_scene_direction("This should not appear")
+        .with_scene_direction(Description::new("This should not appear").unwrap())
         .with_trigger_condition(
             NarrativeTrigger::new(
                 NarrativeTriggerType::DialogueTopic {
@@ -984,7 +984,7 @@ async fn test_repeatable_triggered_event_in_prompt() {
         )
         .with_id(event_id)
         .with_description("This event can trigger multiple times")
-        .with_scene_direction("Here we go again")
+        .with_scene_direction(Description::new("Here we go again").unwrap())
         .with_trigger_condition(
             NarrativeTrigger::new(
                 NarrativeTriggerType::DialogueTopic {

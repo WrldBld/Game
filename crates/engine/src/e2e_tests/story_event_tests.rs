@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use wrldbldr_domain::{NarrativeEvent, NarrativeEventName};
+use wrldbldr_domain::{Description, NarrativeEvent, NarrativeEventName};
 
 use super::{E2EEventLog, E2ETestContext, TestOutcome};
 
@@ -47,7 +47,7 @@ async fn test_trigger_narrative_event() {
         Utc::now(),
     )
     .with_description("An event to be triggered")
-    .with_scene_direction("Something dramatic happens")
+    .with_scene_direction(Description::new("Something dramatic happens").unwrap())
     .with_priority(1)
     .with_active(true)
     .with_repeatable(false);
@@ -92,7 +92,7 @@ async fn test_repeatable_events() {
         Utc::now(),
     )
     .with_description("Can happen multiple times")
-    .with_scene_direction("This can repeat")
+    .with_scene_direction(Description::new("This can repeat").unwrap())
     .with_priority(1)
     .with_active(true)
     .with_repeatable(true);
@@ -111,7 +111,7 @@ async fn test_repeatable_events() {
         Utc::now(),
     )
     .with_description("Can only happen once")
-    .with_scene_direction("This is unique")
+    .with_scene_direction(Description::new("This is unique").unwrap())
     .with_priority(1)
     .with_active(true)
     .with_repeatable(false);
@@ -162,7 +162,7 @@ async fn test_event_priority() {
             Utc::now(),
         )
         .with_description("Priority test event")
-        .with_scene_direction("Test")
+        .with_scene_direction(Description::new("Test").unwrap())
         .with_priority(priority)
         .with_active(true)
         .with_repeatable(false);
@@ -239,7 +239,7 @@ async fn test_favorite_events() {
         Utc::now(),
     )
     .with_description("A favorited event")
-    .with_scene_direction("This is special")
+    .with_scene_direction(Description::new("This is special").unwrap())
     .with_priority(5)
     .with_active(true)
     .with_repeatable(false)

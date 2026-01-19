@@ -77,6 +77,20 @@ impl std::fmt::Display for TimeOfDay {
     }
 }
 
+impl std::str::FromStr for TimeOfDay {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "morning" => Ok(TimeOfDay::Morning),
+            "afternoon" => Ok(TimeOfDay::Afternoon),
+            "evening" => Ok(TimeOfDay::Evening),
+            "night" => Ok(TimeOfDay::Night),
+            _ => Err(format!("Invalid time of day: {}", s)),
+        }
+    }
+}
+
 // =============================================================================
 // Time Mode
 // =============================================================================
@@ -92,9 +106,6 @@ pub enum TimeMode {
     /// This is the default - provides consistency with DM oversight.
     #[default]
     Suggested,
-    /// Time advances automatically when players take actions.
-    /// Fast-paced, less DM overhead.
-    Auto,
 }
 
 impl TimeMode {
@@ -102,7 +113,6 @@ impl TimeMode {
         match self {
             TimeMode::Manual => "Manual",
             TimeMode::Suggested => "Suggested",
-            TimeMode::Auto => "Automatic",
         }
     }
 }
@@ -193,19 +203,19 @@ impl TimeCostConfig {
 #[serde(rename_all = "camelCase")]
 pub struct GameTimeConfig {
     /// How time suggestions are handled
-    pub mode: TimeMode,
+    mode: TimeMode,
     /// Default time costs per action type
-    pub time_costs: TimeCostConfig,
+    time_costs: TimeCostConfig,
     /// Whether to show exact time to players (vs just period)
-    pub show_time_to_players: bool,
+    show_time_to_players: bool,
     /// Time format preference for display
-    pub time_format: TimeFormat,
+    time_format: TimeFormat,
     /// Calendar system to use for this world (default: "gregorian")
     #[serde(default = "default_calendar_id")]
-    pub calendar_id: CalendarId,
+    calendar_id: CalendarId,
     /// Epoch configuration defining what minute 0 represents
     #[serde(default)]
-    pub epoch_config: EpochConfig,
+    epoch_config: EpochConfig,
 }
 
 /// Default calendar ID (Gregorian)
@@ -227,6 +237,25 @@ impl Default for GameTimeConfig {
 }
 
 impl GameTimeConfig {
+    /// Create a new GameTimeConfig with all fields specified.
+    pub fn new(
+        mode: TimeMode,
+        time_costs: TimeCostConfig,
+        show_time_to_players: bool,
+        time_format: TimeFormat,
+        calendar_id: CalendarId,
+        epoch_config: EpochConfig,
+    ) -> Self {
+        Self {
+            mode,
+            time_costs,
+            show_time_to_players,
+            time_format,
+            calendar_id,
+            epoch_config,
+        }
+    }
+
     /// Create a new GameTimeConfig with Gregorian calendar defaults.
     pub fn gregorian() -> Self {
         Self::default()
@@ -248,6 +277,54 @@ impl GameTimeConfig {
             epoch_config,
             ..Default::default()
         }
+    }
+
+    // =========================================================================
+    // Accessors
+    // =========================================================================
+
+    /// Returns how time suggestions are handled
+    pub fn mode(&self) -> TimeMode {
+        self.mode
+    }
+
+    /// Returns the default time costs per action type
+    pub fn time_costs(&self) -> &TimeCostConfig {
+        &self.time_costs
+    }
+
+    /// Returns whether to show exact time to players
+    pub fn show_time_to_players(&self) -> bool {
+        self.show_time_to_players
+    }
+
+    /// Returns the time format preference for display
+    pub fn time_format(&self) -> TimeFormat {
+        self.time_format
+    }
+
+    /// Returns the calendar system ID for this world
+    pub fn calendar_id(&self) -> &CalendarId {
+        &self.calendar_id
+    }
+
+    /// Returns the epoch configuration
+    pub fn epoch_config(&self) -> &EpochConfig {
+        &self.epoch_config
+    }
+
+    // =========================================================================
+    // Setters (for World aggregate)
+    // =========================================================================
+
+    /// Sets the time mode
+    pub fn set_mode(&mut self, mode: TimeMode) {
+        self.mode = mode;
+    }
+
+    /// Sets the time costs configuration
+    pub fn set_time_costs(&mut self, costs: TimeCostConfig) {
+        self.time_costs = costs;
     }
 }
 
@@ -364,16 +441,6 @@ impl GameTime {
         }
     }
 
-    /// Creates a new GameTime at the epoch (minute 0), paused.
-    ///
-    /// # Deprecated
-    ///
-    /// Use `GameTime::at_epoch()` instead. This method is kept for backward
-    /// compatibility but will be removed in a future version.
-    #[deprecated(since = "0.2.0", note = "Use GameTime::at_epoch() instead")]
-    pub fn new() -> Self {
-        Self::at_epoch()
-    }
 
     // =========================================================================
     // Accessors
@@ -628,13 +695,6 @@ mod tests {
             assert_eq!(gt.total_minutes(), -720);
         }
 
-        #[test]
-        #[allow(deprecated)]
-        fn deprecated_new_creates_at_epoch() {
-            let gt = GameTime::new();
-            assert_eq!(gt.total_minutes(), 0);
-            assert!(gt.is_paused());
-        }
     }
 
     mod day_calculation {

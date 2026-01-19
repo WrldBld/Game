@@ -1,3 +1,5 @@
+use wrldbldr_domain::{ConnectionId, UserId};
+
 use super::*;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::infrastructure::ports::JoinWorldError as PortJoinWorldError;
@@ -18,7 +20,7 @@ fn to_proto_join_error(err: PortJoinWorldError) -> wrldbldr_shared::JoinError {
 
 pub(super) async fn handle_join_world(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     world_id: Uuid,
     role: ProtoWorldRole,
     user_id: String,
@@ -93,6 +95,9 @@ pub(super) async fn handle_join_world(
     // =========================================================================
     // Phase 3: Commit (only after serialization succeeds)
     // =========================================================================
+    // Convert user_id String to UserId at API boundary
+    let user_id_typed = UserId::new(&user_id)
+        .unwrap_or_else(|_| UserId::from_trusted(connection_id.to_string()));
     let session = crate::stores::SessionStore::new(state.connections.clone());
     let committed = match state
         .app
@@ -102,7 +107,7 @@ pub(super) async fn handle_join_world(
         .commit(
             &session,
             connection_id,
-            user_id,
+            user_id_typed,
             world_id_typed,
             domain_role,
             pc_id_typed,
@@ -137,7 +142,7 @@ pub(super) async fn handle_join_world(
     // =========================================================================
     if let Some(joined) = &committed.user_joined {
         let user_joined_msg = ServerMessage::UserJoined {
-            user_id: joined.user_id.clone(),
+            user_id: joined.user_id.to_string(),
             username: None,
             role: joined.role.into(),
             pc: joined.pc.clone(),
@@ -155,7 +160,7 @@ pub(super) async fn handle_join_world(
         .connected_users
         .into_iter()
         .map(|u| wrldbldr_shared::ConnectedUser {
-            user_id: u.user_id,
+            user_id: u.user_id.to_string(),
             username: u.username,
             role: u.role.into(),
             pc_id: u.pc_id.map(|id| id.to_string()),
@@ -174,13 +179,13 @@ pub(super) async fn handle_join_world(
 
 pub(super) async fn handle_leave_world(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
 ) -> Option<ServerMessage> {
     // Broadcast UserLeft to other world members before leaving
     if let Some(conn_info) = state.connections.get(connection_id).await {
         if let Some(world_id) = conn_info.world_id {
             let user_left_msg = ServerMessage::UserLeft {
-                user_id: conn_info.user_id,
+                user_id: conn_info.user_id.to_string(),
             };
             state
                 .connections

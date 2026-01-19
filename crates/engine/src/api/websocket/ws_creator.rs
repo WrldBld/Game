@@ -71,7 +71,7 @@ pub(super) async fn handle_generation_request(
             // Prefer explicit user_id (for forward compatibility), fallback to connection user_id.
             let effective_user_id = user_id
                 .filter(|s| !s.is_empty())
-                .unwrap_or_else(|| conn_info.user_id.clone());
+                .unwrap_or_else(|| conn_info.user_id.to_string());
 
             let read_key = format!("{}:{}", effective_user_id, world_uuid);
 
@@ -263,7 +263,7 @@ pub(super) async fn handle_generation_request(
                 .app
                 .queue
                 .upsert_generation_read_state(
-                    &conn_info.user_id,
+                    conn_info.user_id.as_str(),
                     world_uuid,
                     &read_batches,
                     &read_suggestions,

@@ -7,7 +7,7 @@ use serde::Deserialize;
 use crate::infrastructure::ports::{
     ChatMessage, LlmPort, LlmRequest, NpcRegionRelationType, NpcWithRegionInfo, StagingRepo,
 };
-use wrldbldr_domain::{CharacterId, RegionId};
+use wrldbldr_domain::{CharacterId, RegionFrequency, RegionId, RegionShift};
 
 use super::types::StagedNpc;
 
@@ -28,15 +28,14 @@ pub async fn generate_rule_based_suggestions(
         .map(|npc| {
             let reasoning = match npc.relationship_type {
                 NpcRegionRelationType::HomeRegion => "Lives here".to_string(),
-                NpcRegionRelationType::WorksAt => match npc.shift.as_deref() {
-                    Some("day") => "Works here (day shift)".to_string(),
-                    Some("night") => "Works here (night shift)".to_string(),
-                    _ => "Works here".to_string(),
+                NpcRegionRelationType::WorksAt => match npc.shift {
+                    Some(RegionShift::Day) => "Works here (day shift)".to_string(),
+                    Some(RegionShift::Night) => "Works here (night shift)".to_string(),
+                    Some(RegionShift::Always) | None => "Works here".to_string(),
                 },
                 NpcRegionRelationType::Frequents => {
-                    let freq = npc.frequency.as_deref().unwrap_or("sometimes");
-                    let time = npc.time_of_day.as_deref();
-                    match time {
+                    let freq = npc.frequency.unwrap_or(RegionFrequency::Sometimes);
+                    match npc.time_of_day {
                         Some(t) => format!("Frequents this area {} ({})", freq, t),
                         None => format!("Frequents this area ({})", freq),
                     }
@@ -70,9 +69,9 @@ pub async fn generate_rule_based_suggestions(
                         name: staged.name.clone(),
                         sprite_asset: staged.sprite_asset.as_ref().map(|a| a.to_string()),
                         portrait_asset: staged.portrait_asset.as_ref().map(|a| a.to_string()),
-                        is_present: staged.is_present,
+                        is_present: staged.is_present(),
                         reasoning: staged.reasoning.clone(),
-                        is_hidden_from_players: staged.is_hidden_from_players,
+                        is_hidden_from_players: staged.is_hidden_from_players(),
                         mood: Some(staged.mood.to_string()),
                     });
                 }

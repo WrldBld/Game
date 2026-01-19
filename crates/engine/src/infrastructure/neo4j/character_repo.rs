@@ -1565,13 +1565,14 @@ impl CharacterRepo for Neo4jCharacterRepo {
                     if let Some(region_id_str) = w.get("region_id").and_then(|v| v.as_str()) {
                         if !region_id_str.is_empty() {
                             if let Ok(uuid) = Uuid::parse_str(region_id_str) {
+                                let shift = w
+                                    .get("shift")
+                                    .and_then(|v| v.as_str())
+                                    .and_then(|s| s.parse::<RegionShift>().ok());
                                 relationships.push(NpcRegionRelationship {
                                     region_id: RegionId::from_uuid(uuid),
                                     relationship_type: NpcRegionRelationType::WorksAt,
-                                    shift: w
-                                        .get("shift")
-                                        .and_then(|v| v.as_str())
-                                        .map(|s| s.to_string()),
+                                    shift,
                                     frequency: None,
                                     time_of_day: None,
                                     reason: None,
@@ -1588,18 +1589,20 @@ impl CharacterRepo for Neo4jCharacterRepo {
                     if let Some(region_id_str) = f.get("region_id").and_then(|v| v.as_str()) {
                         if !region_id_str.is_empty() {
                             if let Ok(uuid) = Uuid::parse_str(region_id_str) {
+                                let frequency = f
+                                    .get("frequency")
+                                    .and_then(|v| v.as_str())
+                                    .and_then(|s| s.parse::<RegionFrequency>().ok());
+                                let time_of_day = f
+                                    .get("time_of_day")
+                                    .and_then(|v| v.as_str())
+                                    .and_then(|s| s.parse::<TimeOfDay>().ok());
                                 relationships.push(NpcRegionRelationship {
                                     region_id: RegionId::from_uuid(uuid),
                                     relationship_type: NpcRegionRelationType::Frequents,
                                     shift: None,
-                                    frequency: f
-                                        .get("frequency")
-                                        .and_then(|v| v.as_str())
-                                        .map(|s| s.to_string()),
-                                    time_of_day: f
-                                        .get("time_of_day")
-                                        .and_then(|v| v.as_str())
-                                        .map(|s| s.to_string()),
+                                    frequency,
+                                    time_of_day,
                                     reason: None,
                                 });
                             }
@@ -1661,9 +1664,10 @@ impl CharacterRepo for Neo4jCharacterRepo {
         &self,
         id: CharacterId,
         region_id: RegionId,
-        shift: Option<String>,
+        shift: Option<RegionShift>,
     ) -> Result<(), RepoError> {
         // Remove existing WORKS_AT_REGION and create new one
+        let shift_str = shift.map(|s| s.to_string()).unwrap_or_else(|| "always".to_string());
         let q = query(
             "MATCH (c:Character {id: $id})
             OPTIONAL MATCH (c)-[old:WORKS_AT_REGION]->()
@@ -1674,7 +1678,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
         )
         .param("id", id.to_string())
         .param("region_id", region_id.to_string())
-        .param("shift", shift.unwrap_or_else(|| "always".to_string()));
+        .param("shift", shift_str);
 
         self.graph
             .run(q)
@@ -1689,8 +1693,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
         &self,
         id: CharacterId,
         region_id: RegionId,
-        frequency: String,
-        time_of_day: Option<String>,
+        frequency: RegionFrequency,
+        time_of_day: Option<TimeOfDay>,
     ) -> Result<(), RepoError> {
         let q = query(
             "MATCH (c:Character {id: $id})
@@ -1700,8 +1704,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
         )
         .param("id", id.to_string())
         .param("region_id", region_id.to_string())
-        .param("frequency", frequency)
-        .param("time_of_day", time_of_day.unwrap_or_default());
+        .param("frequency", frequency.to_string())
+        .param("time_of_day", time_of_day.map(|t| t.to_string()).unwrap_or_default());
 
         self.graph
             .run(q)
@@ -1847,6 +1851,11 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 _ => continue,
             };
 
+            // Parse shift/frequency/time_of_day strings to typed enums
+            let shift_typed = shift.as_ref().and_then(|s| s.parse::<RegionShift>().ok());
+            let frequency_typed = frequency.as_ref().and_then(|s| s.parse::<RegionFrequency>().ok());
+            let time_of_day_typed = time_of_day.as_ref().and_then(|s| s.parse::<TimeOfDay>().ok());
+
             // Parse default_mood from string - fail-fast on invalid values
             let default_mood_str: String = row.get("default_mood").map_err(|e| {
                 RepoError::database(
@@ -1873,9 +1882,9 @@ impl CharacterRepo for Neo4jCharacterRepo {
                 sprite_asset,
                 portrait_asset,
                 relationship_type,
-                shift,
-                frequency,
-                time_of_day,
+                shift: shift_typed,
+                frequency: frequency_typed,
+                time_of_day: time_of_day_typed,
                 reason,
                 default_mood,
             });

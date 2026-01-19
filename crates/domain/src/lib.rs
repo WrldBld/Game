@@ -102,6 +102,7 @@ pub use entities::{
     NarrativeTrigger,
     NarrativeTriggerType,
     NpcObservation,
+    NpcPresence,
     ObservationSummary,
     ObservationType,
     Outcome,
@@ -306,7 +307,11 @@ pub use value_objects::{
     PendingApprovalItem,
     Position,
     PositionEffectConfig,
+    RegionFrequency,
     RegionName,
+    RegionRelationship,
+    RegionRelationshipType,
+    RegionShift,
     Relationship,
     RelationshipEvent,
     RelationshipLevel,
@@ -323,6 +328,8 @@ pub use value_objects::{
     SocialViewSummary,
     Speaker,
     StagingContext,
+    // Stat enum for skill checks
+    Stat,
     // Stat block
     StatBlock,
     StatDefinition,

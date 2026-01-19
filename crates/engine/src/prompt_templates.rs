@@ -1,5 +1,7 @@
 //! Configurable LLM prompt templates used by the engine.
 
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 
 /// Categories for organizing prompt templates in the UI.

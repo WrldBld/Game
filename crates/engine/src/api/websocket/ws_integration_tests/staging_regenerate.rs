@@ -4,6 +4,7 @@ use super::*;
 async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_does_not_mutate_staging(
 ) {
     use crate::infrastructure::ports::{NpcRegionRelationType, NpcWithRegionInfo};
+    use wrldbldr_domain::RegionFrequency;
 
     let now = chrono::Utc::now();
 
@@ -71,7 +72,7 @@ async fn when_dm_requests_staging_regenerate_then_returns_llm_suggestions_and_do
                 portrait_asset: None,
                 relationship_type: NpcRegionRelationType::Frequents,
                 shift: None,
-                frequency: Some("often".to_string()),
+                frequency: Some(RegionFrequency::Often),
                 time_of_day: None,
                 reason: None,
                 default_mood: wrldbldr_domain::MoodState::default(),

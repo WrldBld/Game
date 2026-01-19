@@ -182,7 +182,7 @@ async fn test_time_reached_trigger() {
     use wrldbldr_domain::aggregates::narrative_event::{
         NarrativeEvent, NarrativeTrigger, NarrativeTriggerType,
     };
-    use wrldbldr_domain::NarrativeEventName;
+    use wrldbldr_domain::{Description, NarrativeEventName};
 
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
@@ -203,7 +203,7 @@ async fn test_time_reached_trigger() {
         Utc::now(),
     )
     .with_description("Something happens after enough time passes")
-    .with_scene_direction("The clock strikes twelve")
+    .with_scene_direction(Description::new("The clock strikes twelve").unwrap())
     .with_trigger_condition(trigger)
     .with_active(true);
 
@@ -239,7 +239,7 @@ async fn test_time_at_location_trigger() {
     use wrldbldr_domain::aggregates::narrative_event::{
         NarrativeEvent, NarrativeTrigger, NarrativeTriggerType,
     };
-    use wrldbldr_domain::NarrativeEventName;
+    use wrldbldr_domain::{Description, NarrativeEventName};
 
     let ctx = E2ETestContext::setup().await.expect("Setup should succeed");
 
@@ -266,7 +266,7 @@ async fn test_time_at_location_trigger() {
         Utc::now(),
     )
     .with_description("Something happens at the tavern in the evening")
-    .with_scene_direction("The evening crowd gathers")
+    .with_scene_direction(Description::new("The evening crowd gathers").unwrap())
     .with_trigger_condition(trigger)
     .with_active(true);
 

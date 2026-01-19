@@ -149,7 +149,7 @@ impl RequestStagingApproval {
 
         // Convert previous staging to domain type
         let previous_staging = input.previous_staging.map(|s| PreviousStagingData {
-            staging_id: s.id().into(),
+            staging_id: s.id(),
             approved_at: s.approved_at(),
             npcs: s
                 .npcs()
@@ -159,9 +159,9 @@ impl RequestStagingApproval {
                     name: n.name.clone(),
                     sprite_asset: n.sprite_asset.as_ref().map(|a| a.to_string()),
                     portrait_asset: n.portrait_asset.as_ref().map(|a| a.to_string()),
-                    is_present: n.is_present,
+                    is_present: n.is_present(),
                     reasoning: n.reasoning.clone(),
-                    is_hidden_from_players: n.is_hidden_from_players,
+                    is_hidden_from_players: n.is_hidden_from_players(),
                     mood: Some(n.mood.to_string()),
                 })
                 .collect(),

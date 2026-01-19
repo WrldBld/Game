@@ -50,6 +50,48 @@ pub struct Staging {
     visual_state_reasoning: Option<String>,
 }
 
+/// NPC presence state in a staging
+///
+/// Encapsulates the valid combinations of presence and visibility,
+/// preventing invalid states like "absent but hidden".
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NpcPresence {
+    /// Present and visible to players
+    #[default]
+    Visible,
+    /// Present but hidden from players (DM-only visibility)
+    Hidden,
+    /// Not present in this staging
+    Absent,
+}
+
+impl NpcPresence {
+    /// Returns true if the NPC is present (visible or hidden)
+    pub fn is_present(&self) -> bool {
+        matches!(self, Self::Visible | Self::Hidden)
+    }
+
+    /// Returns true if the NPC is visible to players
+    pub fn is_visible_to_players(&self) -> bool {
+        matches!(self, Self::Visible)
+    }
+
+    /// Returns true if the NPC is hidden from players
+    pub fn is_hidden_from_players(&self) -> bool {
+        matches!(self, Self::Hidden)
+    }
+
+    /// Convert from legacy boolean representation
+    pub fn from_booleans(is_present: bool, is_hidden_from_players: bool) -> Self {
+        match (is_present, is_hidden_from_players) {
+            (true, false) => Self::Visible,
+            (true, true) => Self::Hidden,
+            (false, _) => Self::Absent,
+        }
+    }
+}
+
 /// An NPC with presence status in a staging
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StagedNpc {
@@ -58,10 +100,8 @@ pub struct StagedNpc {
     pub name: String,
     pub sprite_asset: Option<AssetPath>,
     pub portrait_asset: Option<AssetPath>,
-    /// Whether NPC is present in this staging
-    pub is_present: bool,
-    /// When true, NPC is present but hidden from players
-    pub is_hidden_from_players: bool,
+    /// NPC's presence state (visible, hidden, or absent)
+    presence: NpcPresence,
     /// Reasoning for presence/absence (from rules or LLM)
     pub reasoning: String,
     /// NPC's current mood for this staging (Tier 2 of emotional model)
@@ -86,18 +126,37 @@ impl StagedNpc {
             name: name.into(),
             sprite_asset: None,
             portrait_asset: None,
-            is_present,
-            is_hidden_from_players: false,
+            presence: if is_present {
+                NpcPresence::Visible
+            } else {
+                NpcPresence::Absent
+            },
             reasoning: reasoning.into(),
             mood: MoodState::default(),
             has_incomplete_data: false,
         }
     }
 
+    // Presence accessors
+    /// Returns the NPC's presence state
+    pub fn presence(&self) -> NpcPresence {
+        self.presence
+    }
+
+    /// Returns true if this NPC is present (visible or hidden)
+    pub fn is_present(&self) -> bool {
+        self.presence.is_present()
+    }
+
+    /// Returns true if this NPC is hidden from players
+    pub fn is_hidden_from_players(&self) -> bool {
+        self.presence.is_hidden_from_players()
+    }
+
     /// Returns true if this NPC should be visible to players.
     /// An NPC is visible when present and not hidden from players.
     pub fn is_visible_to_players(&self) -> bool {
-        self.is_present && !self.is_hidden_from_players
+        self.presence.is_visible_to_players()
     }
 
     // Builder methods
@@ -121,8 +180,21 @@ impl StagedNpc {
         self
     }
 
+    pub fn with_presence(mut self, presence: NpcPresence) -> Self {
+        self.presence = presence;
+        self
+    }
+
+    /// Legacy builder for backward compatibility - sets presence based on hidden flag
     pub fn with_hidden_from_players(mut self, hidden: bool) -> Self {
-        self.is_hidden_from_players = hidden;
+        // Only modify if currently present
+        if self.presence.is_present() {
+            self.presence = if hidden {
+                NpcPresence::Hidden
+            } else {
+                NpcPresence::Visible
+            };
+        }
         self
     }
 }
@@ -366,14 +438,14 @@ impl Staging {
 
     /// Get only present NPCs
     pub fn present_npcs(&self) -> Vec<&StagedNpc> {
-        self.npcs.iter().filter(|n| n.is_present).collect()
+        self.npcs.iter().filter(|n| n.is_present()).collect()
     }
 
     /// Get present NPCs that are visible to players
     pub fn present_visible_npcs(&self) -> Vec<&StagedNpc> {
         self.npcs
             .iter()
-            .filter(|n| n.is_present && !n.is_hidden_from_players)
+            .filter(|n| n.is_visible_to_players())
             .collect()
     }
 }

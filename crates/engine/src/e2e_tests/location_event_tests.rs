@@ -20,7 +20,7 @@ async fn test_player_enters_location_trigger() {
 
     use chrono::Utc;
     use wrldbldr_domain::{
-        NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
+        Description, NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
     };
 
     let location_id = ctx
@@ -48,7 +48,7 @@ async fn test_player_enters_location_trigger() {
         now,
     )
     .with_description("Triggered when entering the tavern")
-    .with_scene_direction("The smell of ale greets you")
+    .with_scene_direction(Description::new("The smell of ale greets you").unwrap())
     .with_trigger_condition(trigger)
     .with_active(true);
 
@@ -280,7 +280,7 @@ async fn test_repeatable_location_event() {
 
     use chrono::Utc;
     use wrldbldr_domain::{
-        NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
+        Description, NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
     };
 
     let location_id = ctx
@@ -308,7 +308,7 @@ async fn test_repeatable_location_event() {
         now,
     )
     .with_description("Happens every visit")
-    .with_scene_direction("Welcome back")
+    .with_scene_direction(Description::new("Welcome back").unwrap())
     .with_trigger_condition(trigger)
     .with_active(true)
     .with_repeatable(true);

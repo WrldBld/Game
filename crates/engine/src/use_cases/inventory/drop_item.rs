@@ -89,7 +89,7 @@ mod tests {
     use std::sync::Arc;
     use wrldbldr_domain::{
         CharacterName, Item, ItemId, ItemName, LocationId, PlayerCharacter, PlayerCharacterId,
-        RegionId, WorldId,
+        RegionId, UserId, WorldId,
     };
 
     fn test_item(world_id: WorldId) -> Item {
@@ -100,7 +100,7 @@ mod tests {
         let location_id = LocationId::new();
         let now = Utc::now();
         let pc = PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("Test PC").unwrap(),
             location_id,

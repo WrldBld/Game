@@ -65,7 +65,7 @@ impl RecordVisit {
         // Create observations for each present, visible NPC
         for npc in npcs
             .iter()
-            .filter(|n| n.is_present && !n.is_hidden_from_players)
+            .filter(|n| n.is_present() && !n.is_hidden_from_players())
         {
             // Check if already observed to avoid duplicates
             let already_observed = self
@@ -104,9 +104,8 @@ mod tests {
     }
 
     fn test_staged_npc(character_id: CharacterId, is_present: bool, is_hidden: bool) -> StagedNpc {
-        let mut npc = StagedNpc::new(character_id, "Test NPC", is_present, "test reasoning");
-        npc.is_hidden_from_players = is_hidden;
-        npc
+        StagedNpc::new(character_id, "Test NPC", is_present, "test reasoning")
+            .with_hidden_from_players(is_hidden)
     }
 
     #[tokio::test]

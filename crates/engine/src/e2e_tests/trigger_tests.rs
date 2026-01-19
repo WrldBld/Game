@@ -10,7 +10,7 @@ use std::sync::Arc;
 use chrono::Utc;
 use neo4rs::query;
 use wrldbldr_domain::{
-    ChallengeId, CharacterId, NarrativeEvent, NarrativeEventName, NarrativeTrigger,
+    ChallengeId, CharacterId, Description, NarrativeEvent, NarrativeEventName, NarrativeTrigger,
     NarrativeTriggerType,
 };
 
@@ -54,7 +54,7 @@ async fn test_flag_set_trigger_evaluation() {
         now,
     )
     .with_description("Triggered when quest_accepted flag is set")
-    .with_scene_direction("The quest begins")
+    .with_scene_direction(Description::new("The quest begins").unwrap())
     .with_trigger_condition(trigger)
     .with_active(true)
     .with_priority(1);
@@ -135,7 +135,7 @@ async fn test_item_acquired_trigger_type() {
         now,
     )
     .with_description("Triggered when ancient key is found")
-    .with_scene_direction("You sense the key has power")
+    .with_scene_direction(Description::new("You sense the key has power").unwrap())
     .with_trigger_condition(trigger)
     .with_active(true)
     .with_priority(1);
@@ -219,7 +219,7 @@ async fn test_relationship_threshold_trigger_type() {
         now,
     )
     .with_description("Triggered when friendship threshold reached")
-    .with_scene_direction("The NPC trusts you now")
+    .with_scene_direction(Description::new("The NPC trusts you now").unwrap())
     .with_trigger_condition(trigger)
     .with_active(true)
     .with_priority(1);
@@ -294,7 +294,7 @@ async fn test_challenge_completed_trigger_type() {
         now,
     )
     .with_description("Triggered when a specific challenge is completed")
-    .with_scene_direction("Victory unlocks new possibilities")
+    .with_scene_direction(Description::new("Victory unlocks new possibilities").unwrap())
     .with_trigger_condition(trigger)
     .with_active(true)
     .with_priority(1);
@@ -375,7 +375,7 @@ async fn test_multiple_triggers_and_logic() {
         now,
     )
     .with_description("Requires multiple conditions")
-    .with_scene_direction("All conditions met")
+    .with_scene_direction(Description::new("All conditions met").unwrap())
     .with_trigger_condition(trigger1)
     .with_trigger_condition(trigger2)
     .with_active(true)
@@ -440,7 +440,7 @@ async fn test_event_marked_as_triggered() {
         now,
     )
     .with_description("Will be marked as triggered")
-    .with_scene_direction("Event happened")
+    .with_scene_direction(Description::new("Event happened").unwrap())
     .with_active(true)
     .with_priority(1);
 
@@ -538,7 +538,7 @@ async fn test_player_enters_location_trigger() {
         now,
     )
     .with_description("Triggered when player enters the tavern")
-    .with_scene_direction("The tavern is bustling with activity")
+    .with_scene_direction(Description::new("The tavern is bustling with activity").unwrap())
     .with_trigger_condition(trigger)
     .with_active(true)
     .with_priority(10);

@@ -252,6 +252,7 @@ pub struct TriggerHints {
 
 impl TriggerHints {
     /// Check if there are any trigger hints.
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.pc_mentions.is_empty() && self.interacts_with.is_empty() && self.custom.is_empty()
     }

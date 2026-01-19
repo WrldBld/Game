@@ -24,7 +24,11 @@ fn main() {
     tracing::info!("Starting WrldBldr Player");
 
     // Initialize platform-specific async runtime (Tokio for desktop, no-op for WASM)
-    let _runtime_guard = wrldbldr_player::infrastructure::platform::init_async_runtime();
+    let _runtime_guard = wrldbldr_player::infrastructure::platform::init_async_runtime()
+        .unwrap_or_else(|e| {
+            tracing::error!("Failed to initialize async runtime: {}", e);
+            std::process::exit(1);
+        });
 
     // Platform
     let platform = wrldbldr_player::infrastructure::platform::create_platform();

@@ -50,7 +50,7 @@ impl ApprovedNpc {
             .character_id
             .parse::<uuid::Uuid>()
             .map(CharacterId::from)
-            .map_err(|_| StagingError::Validation("Invalid character ID".to_string()))?;
+            .map_err(|e| StagingError::Validation(format!("Invalid character ID: {}", e)))?;
         Ok(Self {
             character_id,
             is_present: info.is_present,

@@ -1,6 +1,6 @@
 use super::*;
 use chrono::Utc;
-use wrldbldr_domain::{ConversationId, InteractionTarget, InteractionType};
+use wrldbldr_domain::{ConnectionId, ConversationId, InteractionTarget, InteractionType};
 
 use crate::queue_types::PlayerActionData;
 
@@ -8,7 +8,7 @@ use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 
 pub(super) async fn handle_start_conversation(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     npc_id: String,
     message: String,
 ) -> Option<ServerMessage> {
@@ -57,7 +57,7 @@ pub(super) async fn handle_start_conversation(
             world_id,
             pc_id,
             npc_uuid,
-            conn_info.user_id.clone(),
+            conn_info.user_id.to_string(),
             message,
         )
         .await
@@ -99,7 +99,7 @@ pub(super) async fn handle_start_conversation(
         state,
         world_id,
         conversation.action_queue_id,
-        conn_info.user_id.clone(),
+        conn_info.user_id.to_string(),
         "talk",
         1,
     )
@@ -116,7 +116,7 @@ pub(super) async fn handle_start_conversation(
 
 pub(super) async fn handle_continue_conversation(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     npc_id: String,
     message: String,
     conversation_id: Option<String>,
@@ -187,7 +187,7 @@ pub(super) async fn handle_continue_conversation(
             world_id,
             pc_id,
             npc_uuid,
-            conn_info.user_id.clone(),
+            conn_info.user_id.to_string(),
             message,
             conversation_uuid,
         )
@@ -221,7 +221,7 @@ pub(super) async fn handle_continue_conversation(
         state,
         world_id,
         conversation.action_queue_id,
-        conn_info.user_id.clone(),
+        conn_info.user_id.to_string(),
         "talk",
         1,
     )
@@ -229,14 +229,14 @@ pub(super) async fn handle_continue_conversation(
 
     Some(ServerMessage::ActionReceived {
         action_id: conversation.action_queue_id.to_string(),
-        player_id: conn_info.user_id,
+        player_id: conn_info.user_id.to_string(),
         action_type: "talk".to_string(),
     })
 }
 
 pub(super) async fn handle_perform_interaction(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     interaction_id: String,
 ) -> Option<ServerMessage> {
     let conn_info = match state.connections.get(connection_id).await {
@@ -315,7 +315,7 @@ pub(super) async fn handle_perform_interaction(
                 world_id,
                 pc_id,
                 npc_id,
-                conn_info.user_id.clone(),
+                conn_info.user_id.to_string(),
                 "Hello".to_string(),
             )
             .await
@@ -333,7 +333,7 @@ pub(super) async fn handle_perform_interaction(
             state,
             world_id,
             conversation.action_queue_id,
-            conn_info.user_id.clone(),
+            conn_info.user_id.to_string(),
             "talk",
             1,
         )
@@ -352,7 +352,7 @@ pub(super) async fn handle_perform_interaction(
 
     let action_data = PlayerActionData {
         world_id,
-        player_id: conn_info.user_id.clone(),
+        player_id: conn_info.user_id.to_string(),
         pc_id: Some(pc_id),
         action_type: action_type.to_string(),
         target: target.clone(),
@@ -382,7 +382,7 @@ pub(super) async fn handle_perform_interaction(
         state,
         world_id,
         action_id,
-        conn_info.user_id.clone(),
+        conn_info.user_id.to_string(),
         action_type,
         queue_depth,
     )
@@ -390,7 +390,7 @@ pub(super) async fn handle_perform_interaction(
 
     Some(ServerMessage::ActionReceived {
         action_id: action_id.to_string(),
-        player_id: conn_info.user_id,
+        player_id: conn_info.user_id.to_string(),
         action_type: action_type.to_string(),
     })
 }

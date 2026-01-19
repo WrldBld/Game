@@ -42,7 +42,7 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     );
 
     let pc = wrldbldr_domain::PlayerCharacter::new(
-        "player-1",
+        wrldbldr_domain::UserId::new("player-1").unwrap(),
         world_id,
         wrldbldr_domain::CharacterName::new("PC").unwrap(),
         location_id,

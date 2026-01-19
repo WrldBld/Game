@@ -5,11 +5,9 @@
 
 use std::sync::Arc;
 
-use uuid::Uuid;
-
 use crate::api::connections::ConnectionManager;
 use crate::infrastructure::ports::{ConnectionInfo, SessionError};
-use wrldbldr_domain::{PlayerCharacterId, WorldId, WorldRole};
+use wrldbldr_domain::{ConnectionId, PlayerCharacterId, UserId, WorldId, WorldRole};
 
 /// World session wrapper for use cases.
 pub struct SessionStore {
@@ -21,13 +19,13 @@ impl SessionStore {
         Self { connections }
     }
 
-    pub async fn set_user_id(&self, connection_id: Uuid, user_id: String) {
+    pub async fn set_user_id(&self, connection_id: ConnectionId, user_id: UserId) {
         self.connections.set_user_id(connection_id, user_id).await;
     }
 
     pub async fn join_world(
         &self,
-        connection_id: Uuid,
+        connection_id: ConnectionId,
         world_id: WorldId,
         role: WorldRole,
         pc_id: Option<PlayerCharacterId>,
@@ -47,7 +45,7 @@ impl SessionStore {
             .collect()
     }
 
-    pub async fn get_connection(&self, connection_id: Uuid) -> Option<ConnectionInfo> {
+    pub async fn get_connection(&self, connection_id: ConnectionId) -> Option<ConnectionInfo> {
         self.connections
             .get(connection_id)
             .await

@@ -423,9 +423,10 @@ fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
 
     let id: PlayerCharacterId =
         parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-    let user_id: String = node
+    let user_id_str: String = node
         .get("user_id")
         .map_err(|e| RepoError::database("query", e))?;
+    let user_id = UserId::from_trusted(user_id_str);
     let world_id: WorldId =
         parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
     let name: String = node

@@ -11,12 +11,9 @@
 //! - `(Challenge)-[:REQUIRES_COMPLETION_OF {success_required}]->(Challenge)` - Prerequisites
 //! - `(Challenge)-[:AVAILABLE_AT {always_available, time_restriction}]->(Location)` - Location availability
 //! - `(Challenge)-[:ON_SUCCESS_UNLOCKS]->(Location)` - Location unlocked on success
-//!
-//! The embedded fields `scene_id`, `skill_id`, and `prerequisite_challenges` are
-//! DEPRECATED and kept only for backward compatibility during migration.
 
 use crate::error::DomainError;
-use crate::value_objects::{ChallengeName, Description, Tag};
+use crate::value_objects::{ChallengeName, Description, Stat, Tag};
 use crate::{ChallengeId, LocationId, RegionId, SceneId, WorldId};
 use serde::{Deserialize, Serialize};
 
@@ -54,10 +51,10 @@ pub struct Challenge {
     is_favorite: bool,
     /// Tags for filtering
     tags: Vec<Tag>,
-    /// The stat to check for this challenge (e.g., "STR", "DEX", "ATHLETICS_MOD")
+    /// The stat to check for this challenge (e.g., Str, Dex)
     /// If None, the modifier will be 0 unless provided by the client.
     #[serde(default)]
-    check_stat: Option<String>,
+    check_stat: Option<Stat>,
 }
 
 impl Challenge {
@@ -133,8 +130,8 @@ impl Challenge {
         &self.tags
     }
 
-    pub fn check_stat(&self) -> Option<&str> {
-        self.check_stat.as_deref()
+    pub fn check_stat(&self) -> Option<Stat> {
+        self.check_stat
     }
 
     // === Builder Methods ===
@@ -146,8 +143,8 @@ impl Challenge {
     }
 
     /// Set the stat to check for this challenge.
-    pub fn with_check_stat(mut self, stat: impl Into<String>) -> Self {
-        self.check_stat = Some(stat.into());
+    pub fn with_check_stat(mut self, stat: Stat) -> Self {
+        self.check_stat = Some(stat);
         self
     }
 
@@ -1631,7 +1628,7 @@ mod tests {
         )
         .with_description(Description::new("A test").unwrap())
         .with_tag(combat_tag.clone())
-        .with_check_stat("STR")
+        .with_check_stat(Stat::Str)
         .with_active(false)
         .with_order(5)
         .with_is_favorite(true);
@@ -1639,7 +1636,7 @@ mod tests {
         assert_eq!(challenge.name().as_str(), "Test Challenge");
         assert_eq!(challenge.description().as_str(), "A test");
         assert_eq!(challenge.tags(), &[combat_tag]);
-        assert_eq!(challenge.check_stat(), Some("STR"));
+        assert_eq!(challenge.check_stat(), Some(Stat::Str));
         assert!(!challenge.active());
         assert_eq!(challenge.order(), 5);
         assert!(challenge.is_favorite());

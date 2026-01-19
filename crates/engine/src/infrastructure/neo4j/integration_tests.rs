@@ -4,8 +4,9 @@ use chrono::{TimeZone, Utc};
 use neo4rs::query;
 use uuid::Uuid;
 use wrldbldr_domain::{
-    EventOutcome, LocationId, MoodState, NarrativeEvent, NarrativeEventName, NarrativeTrigger,
-    NarrativeTriggerType, RegionId, StagedNpc, Staging, StagingSource, TriggerLogic, WorldId,
+    Description, EventOutcome, LocationId, MoodState, NarrativeEvent, NarrativeEventName,
+    NarrativeTrigger, NarrativeTriggerType, RegionId, StagedNpc, Staging, StagingSource,
+    TriggerLogic, WorldId,
 };
 
 use crate::e2e_tests::{clean_db, SharedNeo4jHarness};
@@ -64,7 +65,7 @@ async fn narrative_triggers_fallback_is_bounded_to_500() {
         .with_description("test")
         .with_trigger_conditions(vec![trigger.clone()])
         .with_trigger_logic(TriggerLogic::All)
-        .with_scene_direction("sd")
+        .with_scene_direction(Description::new("sd").unwrap())
         .with_outcomes(vec![outcome.clone()])
         .with_default_outcome("default")
         .with_priority(i as i32);

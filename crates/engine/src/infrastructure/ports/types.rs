@@ -19,8 +19,8 @@ pub use wrldbldr_domain::WorldRole;
 pub struct ConnectionInfo {
     /// Unique ID for this connection
     pub connection_id: ConnectionId,
-    /// User identifier (may be anonymous)
-    pub user_id: String,
+    /// User identifier (typed wrapper for validation)
+    pub user_id: UserId,
     /// The world this connection is associated with (if joined)
     pub world_id: Option<WorldId>,
     /// The role in the world
@@ -66,7 +66,7 @@ pub struct DirectorialContext {
 /// A user connected to a world (domain representation).
 #[derive(Debug, Clone)]
 pub struct ConnectedUserInfo {
-    pub user_id: String,
+    pub user_id: UserId,
     pub username: Option<String>,
     pub role: WorldRole,
     pub pc_id: Option<PlayerCharacterId>,
@@ -76,7 +76,7 @@ pub struct ConnectedUserInfo {
 /// Payload for user joined notification.
 #[derive(Debug, Clone)]
 pub struct UserJoinedInfo {
-    pub user_id: String,
+    pub user_id: UserId,
     pub role: WorldRole,
     pub pc: Option<serde_json::Value>,
 }
@@ -101,9 +101,9 @@ pub struct NpcDispositionInfo {
 pub struct NpcRegionRelationship {
     pub region_id: RegionId,
     pub relationship_type: NpcRegionRelationType,
-    pub shift: Option<String>,     // For WORKS_AT: "day", "night", "always"
-    pub frequency: Option<String>, // For FREQUENTS: "always", "often", "sometimes", "rarely"
-    pub time_of_day: Option<String>, // For FREQUENTS: "morning", "afternoon", "evening", "night"
+    pub shift: Option<RegionShift>,     // For WORKS_AT: Day, Night, Always
+    pub frequency: Option<RegionFrequency>, // For FREQUENTS: Always, Often, Sometimes, Rarely
+    pub time_of_day: Option<TimeOfDay>, // For FREQUENTS: Morning, Afternoon, Evening, Night
     pub reason: Option<String>,    // For AVOIDS: why they avoid it
 }
 
@@ -149,9 +149,9 @@ pub struct NpcWithRegionInfo {
     pub sprite_asset: Option<String>,
     pub portrait_asset: Option<String>,
     pub relationship_type: NpcRegionRelationType,
-    pub shift: Option<String>,
-    pub frequency: Option<String>,
-    pub time_of_day: Option<String>,
+    pub shift: Option<RegionShift>,
+    pub frequency: Option<RegionFrequency>,
+    pub time_of_day: Option<TimeOfDay>,
     pub reason: Option<String>,
     /// NPC's default mood (used when staging doesn't override)
     pub default_mood: MoodState,

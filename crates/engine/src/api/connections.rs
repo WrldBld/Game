@@ -10,12 +10,11 @@ use std::collections::HashMap;
 use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::timeout;
-use uuid::Uuid;
 
 /// Timeout for critical message sends (5 seconds)
 const CRITICAL_SEND_TIMEOUT: Duration = Duration::from_secs(5);
 
-use wrldbldr_domain::{PlayerCharacterId, WorldId, WorldRole};
+use wrldbldr_domain::{ConnectionId, PlayerCharacterId, UserId, WorldId, WorldRole};
 use wrldbldr_shared::ServerMessage;
 
 use crate::infrastructure::ports::{
@@ -26,9 +25,9 @@ use crate::infrastructure::ports::{
 #[derive(Debug, Clone)]
 pub struct ConnectionInfo {
     /// Unique ID for this connection
-    pub connection_id: Uuid,
-    /// User identifier (may be anonymous)
-    pub user_id: String,
+    pub connection_id: ConnectionId,
+    /// User identifier (typed wrapper for validation)
+    pub user_id: UserId,
     /// The world this connection is associated with (if joined)
     pub world_id: Option<WorldId>,
     /// The role in the world
@@ -49,7 +48,7 @@ impl ConnectionInfo {
 /// Manages all active WebSocket connections.
 pub struct ConnectionManager {
     /// Map of connection_id -> (ConnectionInfo, sender channel)
-    connections: RwLock<HashMap<Uuid, (ConnectionInfo, mpsc::Sender<ServerMessage>)>>,
+    connections: RwLock<HashMap<ConnectionId, (ConnectionInfo, mpsc::Sender<ServerMessage>)>>,
     /// Per-world directorial context (scene notes, NPC motivations, etc.)
     directorial_contexts: DashMap<WorldId, DirectorialContext>,
 }
@@ -66,8 +65,8 @@ impl ConnectionManager {
     /// Register a new connection.
     pub async fn register(
         &self,
-        connection_id: Uuid,
-        user_id: String,
+        connection_id: ConnectionId,
+        user_id: UserId,
         sender: mpsc::Sender<ServerMessage>,
     ) {
         let info = ConnectionInfo {
@@ -84,7 +83,7 @@ impl ConnectionManager {
     }
 
     /// Unregister a connection.
-    pub async fn unregister(&self, connection_id: Uuid) {
+    pub async fn unregister(&self, connection_id: ConnectionId) {
         let mut connections = self.connections.write().await;
         if connections.remove(&connection_id).is_some() {
             tracing::debug!(connection_id = %connection_id, "Connection unregistered");
@@ -92,7 +91,7 @@ impl ConnectionManager {
     }
 
     /// Get connection info by ID.
-    pub async fn get(&self, connection_id: Uuid) -> Option<ConnectionInfo> {
+    pub async fn get(&self, connection_id: ConnectionId) -> Option<ConnectionInfo> {
         let connections = self.connections.read().await;
         connections
             .get(&connection_id)
@@ -103,7 +102,7 @@ impl ConnectionManager {
     ///
     /// This is used when a client provides a stable user identifier
     /// (e.g., from browser storage) during JoinWorld.
-    pub async fn set_user_id(&self, connection_id: Uuid, user_id: String) {
+    pub async fn set_user_id(&self, connection_id: ConnectionId, user_id: UserId) {
         let mut connections = self.connections.write().await;
         if let Some((info, _)) = connections.get_mut(&connection_id) {
             tracing::debug!(
@@ -119,7 +118,7 @@ impl ConnectionManager {
     /// Join a world.
     pub async fn join_world(
         &self,
-        connection_id: Uuid,
+        connection_id: ConnectionId,
         world_id: WorldId,
         role: WorldRole,
         pc_id: Option<PlayerCharacterId>,
@@ -194,7 +193,7 @@ impl ConnectionManager {
     }
 
     /// Leave the current world.
-    pub async fn leave_world(&self, connection_id: Uuid) {
+    pub async fn leave_world(&self, connection_id: ConnectionId) {
         let mut connections = self.connections.write().await;
         if let Some((info, _)) = connections.get_mut(&connection_id) {
             let old_world = info.world_id.take();
@@ -241,7 +240,7 @@ impl ConnectionManager {
     pub async fn broadcast_to_world_except(
         &self,
         world_id: WorldId,
-        exclude_connection_id: Uuid,
+        exclude_connection_id: ConnectionId,
         message: ServerMessage,
     ) {
         let connections = self.connections.read().await;
@@ -296,7 +295,7 @@ impl ConnectionManager {
     /// Use for messages that must not be dropped: state changes, approvals, errors.
     pub async fn send_critical(
         &self,
-        connection_id: Uuid,
+        connection_id: ConnectionId,
         message: ServerMessage,
     ) -> Result<(), CriticalSendError> {
         let connections = self.connections.read().await;
@@ -452,7 +451,7 @@ pub enum CriticalSendError {
 impl From<&ConnectionInfo> for PortConnectionInfo {
     fn from(info: &ConnectionInfo) -> Self {
         PortConnectionInfo {
-            connection_id: info.connection_id.into(),
+            connection_id: info.connection_id,
             user_id: info.user_id.clone(),
             world_id: info.world_id,
             role: info.role,

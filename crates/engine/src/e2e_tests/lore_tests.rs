@@ -193,7 +193,7 @@ async fn test_lore_discovered_trigger() {
     use neo4rs::query;
     use uuid::Uuid;
     use wrldbldr_domain::{
-        NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
+        Description, NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
     };
 
     let lore_id = Uuid::new_v4();
@@ -239,7 +239,7 @@ async fn test_lore_discovered_trigger() {
         now,
     )
     .with_description("Triggered when specific lore is discovered")
-    .with_scene_direction("The knowledge changes everything")
+    .with_scene_direction(Description::new("The knowledge changes everything").unwrap())
     .with_trigger_condition(trigger)
     .with_active(true)
     .with_priority(1);

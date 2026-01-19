@@ -1,3 +1,5 @@
+use wrldbldr_domain::ConnectionId;
+
 use super::*;
 
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
@@ -5,7 +7,7 @@ use wrldbldr_shared::ErrorCode;
 
 pub(super) async fn handle_approval_decision(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     request_id: String,
     decision: wrldbldr_shared::ApprovalDecision,
 ) -> Option<ServerMessage> {

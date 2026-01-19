@@ -158,7 +158,7 @@ mod tests {
     use chrono::Utc;
     use wrldbldr_domain::{
         CampbellArchetype, Character, CharacterId, CharacterName, ConversationId, LocationId,
-        PlayerCharacterId, WorldId,
+        PlayerCharacterId, UserId, WorldId,
     };
 
     use crate::infrastructure::ports::{
@@ -233,7 +233,7 @@ mod tests {
         let npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             location_id,
@@ -275,7 +275,7 @@ mod tests {
         let conversation_id = ConversationId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("TestPC").unwrap(),
             location_id,
@@ -340,7 +340,7 @@ mod tests {
         let npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("TestPC").unwrap(),
             location_id,
@@ -401,7 +401,7 @@ mod tests {
         let npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("TestPC").unwrap(),
             location_id,

@@ -27,13 +27,17 @@ pub struct RuntimeGuard {
 /// Initialize the async runtime for desktop.
 /// Returns a guard that must be kept alive for the application's lifetime.
 /// The runtime is leaked intentionally since it needs to live for the entire program.
-pub fn init_async_runtime() -> RuntimeGuard {
-    let runtime = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+///
+/// # Errors
+///
+/// Returns an error if the Tokio runtime fails to initialize.
+pub fn init_async_runtime() -> Result<RuntimeGuard, std::io::Error> {
+    let runtime = tokio::runtime::Runtime::new()?;
     let runtime: &'static tokio::runtime::Runtime = Box::leak(Box::new(runtime));
     let enter_guard = runtime.enter();
-    RuntimeGuard {
+    Ok(RuntimeGuard {
         _enter_guard: enter_guard,
-    }
+    })
 }
 
 /// Desktop time provider using std::time

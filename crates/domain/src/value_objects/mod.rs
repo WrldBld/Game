@@ -19,6 +19,7 @@ mod region;
 mod relationship;
 mod rule_system;
 mod staging_context;
+mod stat;
 pub mod stat_block;
 mod world_state;
 
@@ -90,6 +91,9 @@ pub use names::{
 
 // Character lifecycle state enum
 pub use character_state::CharacterState;
+
+// Stat enum for ability/stat checks
+pub use stat::Stat;
 
 // Stat block value objects
 pub use stat_block::{StatBlock, StatModifier, StatValue};

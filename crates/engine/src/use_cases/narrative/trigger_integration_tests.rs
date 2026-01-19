@@ -517,7 +517,7 @@ fn test_extract_compendium_context_handles_empty_sheet() {
     let world_id = WorldId::new();
     let location_id = LocationId::new();
     let name = CharacterName::new("Empty").unwrap();
-    let pc = wrldbldr_domain::PlayerCharacter::new("test", world_id, name, location_id, now);
+    let pc = wrldbldr_domain::PlayerCharacter::new(wrldbldr_domain::UserId::new("test").unwrap(), world_id, name, location_id, now);
     let ctx = trigger_context_from_pc(&pc);
 
     // Assert: All fields should be empty/None

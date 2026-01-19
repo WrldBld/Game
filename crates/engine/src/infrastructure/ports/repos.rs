@@ -138,20 +138,20 @@ pub trait CharacterRepo: Send + Sync {
     ) -> Result<Vec<super::types::NpcRegionRelationship>, RepoError>;
     /// Set an NPC's home region
     async fn set_home_region(&self, id: CharacterId, region_id: RegionId) -> Result<(), RepoError>;
-    /// Set an NPC's work region with optional shift (day/night/always)
+    /// Set an NPC's work region with optional shift (Day/Night/Always)
     async fn set_work_region(
         &self,
         id: CharacterId,
         region_id: RegionId,
-        shift: Option<String>,
+        shift: Option<wrldbldr_domain::RegionShift>,
     ) -> Result<(), RepoError>;
-    /// Add a region the NPC frequents with frequency (always/often/sometimes/rarely)
+    /// Add a region the NPC frequents with frequency (Always/Often/Sometimes/Rarely)
     async fn add_frequents_region(
         &self,
         id: CharacterId,
         region_id: RegionId,
-        frequency: String,
-        time_of_day: Option<String>,
+        frequency: wrldbldr_domain::RegionFrequency,
+        time_of_day: Option<wrldbldr_domain::TimeOfDay>,
     ) -> Result<(), RepoError>;
     /// Add a region the NPC avoids
     async fn add_avoids_region(
@@ -773,12 +773,12 @@ pub trait AssetRepo: Send + Sync {
     async fn delete(&self, id: AssetId) -> Result<(), RepoError>;
     async fn list_for_entity(
         &self,
-        entity_type: &str,
+        entity_type: EntityType,
         entity_id: Uuid,
     ) -> Result<Vec<GalleryAsset>, RepoError>;
     async fn set_active(
         &self,
-        entity_type: &str,
+        entity_type: EntityType,
         entity_id: Uuid,
         asset_id: AssetId,
     ) -> Result<(), RepoError>;

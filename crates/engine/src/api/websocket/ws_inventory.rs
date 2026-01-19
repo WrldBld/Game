@@ -1,3 +1,5 @@
+use wrldbldr_domain::ConnectionId;
+
 use super::*;
 use wrldbldr_shared::ErrorCode;
 
@@ -13,7 +15,7 @@ pub(super) enum InventoryAction {
 
 pub(super) async fn handle_inventory_action(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     action: InventoryAction,
     pc_id: &str,
     item_id: &str,

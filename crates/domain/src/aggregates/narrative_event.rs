@@ -142,7 +142,7 @@ pub struct NarrativeEvent {
 
     // Scene Direction
     /// Narrative text shown to DM when event triggers (sets the scene)
-    scene_direction: String,
+    scene_direction: Description,
     /// Suggested opening dialogue or action
     suggested_opening: Option<String>,
     // NOTE: featured_npcs moved to FEATURES_NPC edges
@@ -221,7 +221,7 @@ impl NarrativeEvent {
             tags: Vec::new(),
             trigger_conditions: Vec::new(),
             trigger_logic: TriggerLogic::All,
-            scene_direction: String::new(),
+            scene_direction: Description::empty(),
             suggested_opening: None,
             outcomes: Vec::new(),
             default_outcome: None,
@@ -299,7 +299,7 @@ impl NarrativeEvent {
     /// Returns the event's scene direction.
     #[inline]
     pub fn scene_direction(&self) -> &str {
-        &self.scene_direction
+        self.scene_direction.as_str()
     }
 
     /// Returns the event's suggested opening.
@@ -467,8 +467,8 @@ impl NarrativeEvent {
     }
 
     /// Set the event's scene direction.
-    pub fn with_scene_direction(mut self, direction: impl Into<String>) -> Self {
-        self.scene_direction = direction.into();
+    pub fn with_scene_direction(mut self, direction: Description) -> Self {
+        self.scene_direction = direction;
         self
     }
 
@@ -610,15 +610,14 @@ impl NarrativeEvent {
     /// Set the event's scene direction.
     pub fn set_scene_direction(
         &mut self,
-        direction: impl Into<String>,
+        direction: Description,
         now: DateTime<Utc>,
     ) -> NarrativeEventUpdate {
-        let next = direction.into();
-        let previous = std::mem::replace(&mut self.scene_direction, next);
+        let previous = std::mem::replace(&mut self.scene_direction, direction);
         self.updated_at = now;
         NarrativeEventUpdate::SceneDirectionChanged {
-            from: previous,
-            to: self.scene_direction.clone(),
+            from: previous.to_string(),
+            to: self.scene_direction.to_string(),
         }
     }
 
@@ -1022,7 +1021,7 @@ impl Serialize for NarrativeEvent {
             tags: self.tags.iter().map(|t| t.to_string()).collect(),
             trigger_conditions: self.trigger_conditions.clone(),
             trigger_logic: self.trigger_logic,
-            scene_direction: self.scene_direction.clone(),
+            scene_direction: self.scene_direction.to_string(),
             suggested_opening: self.suggested_opening.clone(),
             outcomes: self.outcomes.clone(),
             default_outcome: self.default_outcome.clone(),
@@ -1067,7 +1066,7 @@ impl<'de> Deserialize<'de> for NarrativeEvent {
             tags,
             trigger_conditions: wire.trigger_conditions,
             trigger_logic: wire.trigger_logic,
-            scene_direction: wire.scene_direction,
+            scene_direction: Description::new(wire.scene_direction).unwrap_or_default(),
             suggested_opening: wire.suggested_opening,
             outcomes: wire.outcomes,
             default_outcome: wire.default_outcome,
@@ -1173,7 +1172,7 @@ mod tests {
             .with_description("A dramatic event")
             .with_tag(Tag::new("drama").unwrap())
             .with_tag(Tag::new("important").unwrap())
-            .with_scene_direction("Build tension slowly")
+            .with_scene_direction(Description::new("Build tension slowly").unwrap())
             .with_suggested_opening("The air grows thick...")
             .with_repeatable(true)
             .with_priority(10)

@@ -1,13 +1,11 @@
 use std::sync::Arc;
 
-use uuid::Uuid;
-
 use crate::infrastructure::ports::{
     ConnectedUserInfo, JoinWorldError as PortJoinWorldError, RepoError, SessionError,
     UserJoinedInfo, WorldRole,
 };
 use crate::stores::SessionStore as WorldSession;
-use wrldbldr_domain::{PlayerCharacterId, WorldId};
+use wrldbldr_domain::{ConnectionId, PlayerCharacterId, UserId, WorldId};
 
 use super::types::{PlayerCharacterSummary, WorldSnapshot};
 use super::{JoinWorld, JoinWorldError};
@@ -40,11 +38,11 @@ pub struct JoinWorldContext<'a> {
 
 /// Input for joining a world over WebSocket (domain types).
 pub struct JoinWorldInput {
-    pub connection_id: Uuid,
+    pub connection_id: ConnectionId,
     pub world_id: WorldId,
     pub role: WorldRole,
     /// Stable user identifier from the client (e.g., browser storage).
-    pub user_id: String,
+    pub user_id: UserId,
     pub pc_id: Option<PlayerCharacterId>,
 }
 
@@ -53,13 +51,17 @@ impl JoinWorldInput {
     ///
     /// Uses the From impl defined in protocol crate to convert WorldRole.
     /// Unknown protocol roles map to Spectator as the safe default.
+    /// The user_id String is converted to UserId, using a fallback for empty strings.
     pub fn from_protocol(
-        connection_id: Uuid,
+        connection_id: ConnectionId,
         world_id: WorldId,
         role: wrldbldr_shared::WorldRole,
         user_id: String,
         pc_id: Option<PlayerCharacterId>,
     ) -> Self {
+        // Convert String to UserId, using connection_id as fallback if empty
+        let user_id = UserId::new(&user_id)
+            .unwrap_or_else(|_| UserId::from_trusted(connection_id.to_string()));
         Self {
             connection_id,
             world_id,
@@ -114,7 +116,7 @@ impl JoinWorldFlow {
     /// # Arguments
     /// * `session` - The world session for connection management
     /// * `connection_id` - The WebSocket connection ID
-    /// * `user_id` - The stable user identifier from client
+    /// * `user_id` - The stable user identifier from client (typed)
     /// * `world_id` - The world being joined
     /// * `role` - The role in the world (DM, Player, Spectator)
     /// * `pc_id` - Player character ID (if role is Player)
@@ -122,15 +124,15 @@ impl JoinWorldFlow {
     pub async fn commit(
         &self,
         session: &WorldSession,
-        connection_id: Uuid,
-        user_id: String,
+        connection_id: ConnectionId,
+        user_id: UserId,
         world_id: WorldId,
         role: WorldRole,
         pc_id: Option<PlayerCharacterId>,
         pc_json: Option<serde_json::Value>,
     ) -> Result<JoinWorldCommitted, JoinWorldFlowError> {
         // Update user_id from the client (stable identifier from browser storage)
-        session.set_user_id(connection_id, user_id.clone()).await;
+        session.set_user_id(connection_id, user_id).await;
 
         // Register the connection to the world
         session

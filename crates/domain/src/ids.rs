@@ -84,8 +84,56 @@ define_id!(EventChainId);
 
 // Participant IDs (SessionId removed - using WorldId for connection scoping)
 define_id!(ParticipantId);
-define_id!(UserId);
 define_id!(ActionId);
+
+/// User identifier - wraps a client-provided string from browser storage.
+///
+/// Unlike other IDs which are UUIDs, UserId wraps a string because it comes
+/// from the client (typically browser localStorage) and is not a UUID.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct UserId(String);
+
+impl UserId {
+    /// Create a new UserId from a string, validating that it's not empty.
+    pub fn new(id: impl Into<String>) -> Result<Self, &'static str> {
+        let id = id.into();
+        if id.is_empty() {
+            return Err("UserId cannot be empty");
+        }
+        Ok(Self(id))
+    }
+
+    /// Create from trusted source (DB) without validation.
+    ///
+    /// Use this when loading from storage where the value was already validated.
+    pub fn from_trusted(id: String) -> Self {
+        Self(id)
+    }
+
+    /// Get the inner string value.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Consume and return the inner string.
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+
+    /// Check if the user ID is empty.
+    ///
+    /// Note: This should always return false for validated UserIds,
+    /// but may return true for UserIds created with `from_trusted`.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl fmt::Display for UserId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 // Asset and generation IDs
 define_id!(AssetId);

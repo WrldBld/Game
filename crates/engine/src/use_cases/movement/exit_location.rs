@@ -272,7 +272,7 @@ mod tests {
     use chrono::Utc;
     use wrldbldr_domain::{
         value_objects::{CharacterName, LocationName, RegionName},
-        Description, LocationId, LocationType, PlayerCharacterId, Region, RegionId, WorldId,
+        Description, LocationId, LocationType, PlayerCharacterId, Region, RegionId, UserId, WorldId,
     };
 
     use crate::infrastructure::ports::{
@@ -390,7 +390,7 @@ mod tests {
         let target_location_id = LocationId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             pc_location_id,
@@ -436,7 +436,7 @@ mod tests {
         let other_location_id = LocationId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             pc_location_id,
@@ -509,7 +509,7 @@ mod tests {
         let target_location_id = LocationId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             pc_location_id,
@@ -592,7 +592,7 @@ mod tests {
         );
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             pc_location_id,

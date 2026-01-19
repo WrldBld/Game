@@ -42,6 +42,7 @@ impl std::str::FromStr for RegionShift {
 /// How often an NPC visits a region
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RegionFrequency {
+    Always,
     Often,
     Sometimes,
     Rarely,
@@ -50,6 +51,7 @@ pub enum RegionFrequency {
 impl std::fmt::Display for RegionFrequency {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            RegionFrequency::Always => write!(f, "always"),
             RegionFrequency::Often => write!(f, "often"),
             RegionFrequency::Sometimes => write!(f, "sometimes"),
             RegionFrequency::Rarely => write!(f, "rarely"),
@@ -62,6 +64,7 @@ impl std::str::FromStr for RegionFrequency {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
+            "always" => Ok(RegionFrequency::Always),
             "often" => Ok(RegionFrequency::Often),
             "sometimes" | "" => Ok(RegionFrequency::Sometimes),
             "rarely" => Ok(RegionFrequency::Rarely),
@@ -104,6 +107,7 @@ impl RegionRelationshipType {
                 RegionShift::Night => matches!(time_of_day, TimeOfDay::Evening | TimeOfDay::Night),
             },
             RegionRelationshipType::Frequents { frequency } => match frequency {
+                RegionFrequency::Always => true,
                 RegionFrequency::Often => true,
                 RegionFrequency::Sometimes => {
                     matches!(time_of_day, TimeOfDay::Afternoon | TimeOfDay::Evening)

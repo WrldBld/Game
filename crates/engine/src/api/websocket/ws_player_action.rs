@@ -1,10 +1,12 @@
+use wrldbldr_domain::ConnectionId;
+
 use super::*;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use wrldbldr_shared::ErrorCode;
 
 pub(super) async fn handle_player_action(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     action_type: String,
     target: Option<String>,
     dialogue: Option<String>,
@@ -60,7 +62,7 @@ pub(super) async fn handle_player_action(
         .execute(
             world_id,
             pc_id,
-            conn_info.user_id.clone(),
+            conn_info.user_id.to_string(),
             action_type.clone(),
             target_npc,
             dialogue.clone(),

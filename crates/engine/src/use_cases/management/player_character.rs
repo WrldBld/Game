@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, WorldId};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, RegionId, UserId, WorldId};
 
 use crate::infrastructure::ports::{ClockPort, LocationRepo, PlayerCharacterRepo};
 
@@ -68,8 +68,11 @@ impl PlayerCharacterManagement {
             self.resolve_spawn(world_id, starting_region_id).await?;
 
         let now = self.clock.now();
+        // Convert user_id String to UserId, defaulting to "anonymous" if not provided
+        let user_id = UserId::new(user_id.unwrap_or_else(|| "anonymous".to_string()))
+            .unwrap_or_else(|_| UserId::from_trusted("anonymous".to_string()));
         let mut pc = wrldbldr_domain::PlayerCharacter::new(
-            user_id.unwrap_or_else(|| "anonymous".to_string()),
+            user_id,
             world_id,
             character_name,
             starting_location_id,

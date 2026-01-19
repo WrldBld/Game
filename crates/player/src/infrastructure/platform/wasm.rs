@@ -15,8 +15,10 @@ pub struct RuntimeGuard;
 
 /// Initialize the async runtime for WASM.
 /// Returns a no-op guard since the browser provides the async runtime.
-pub fn init_async_runtime() -> RuntimeGuard {
-    RuntimeGuard
+///
+/// This function always succeeds on WASM since no runtime initialization is needed.
+pub fn init_async_runtime() -> Result<RuntimeGuard, std::io::Error> {
+    Ok(RuntimeGuard)
 }
 
 /// WASM time provider using js_sys::Date

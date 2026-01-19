@@ -1,3 +1,5 @@
+use wrldbldr_domain::ConnectionId;
+
 use super::*;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use wrldbldr_shared::ErrorCode;
@@ -29,7 +31,7 @@ fn validate_ttl_hours(ttl_hours: i32) -> Result<(), ServerMessage> {
 
 pub(super) async fn handle_staging_approval(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     request_id: String,
     approved_npcs: Vec<wrldbldr_shared::ApprovedNpcInfo>,
     ttl_hours: i32,
@@ -111,7 +113,7 @@ pub(super) async fn handle_staging_approval(
         region_id,
         location_id,
         world_id,
-        approved_by: conn_info.user_id.clone(),
+        approved_by: conn_info.user_id.to_string(),
         ttl_hours,
         source: parse_staging_source(&source),
         approved_npcs: domain_approved_npcs,
@@ -165,7 +167,7 @@ pub(super) async fn handle_staging_approval(
 
 pub(super) async fn handle_staging_regenerate(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     request_id: String,
     guidance: String,
 ) -> Option<ServerMessage> {
@@ -245,7 +247,7 @@ pub(super) async fn handle_staging_regenerate(
 
 pub(super) async fn handle_pre_stage_region(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     region_id: String,
     npcs: Vec<wrldbldr_shared::ApprovedNpcInfo>,
     ttl_hours: i32,
@@ -310,7 +312,7 @@ pub(super) async fn handle_pre_stage_region(
         region_id: region_uuid,
         location_id: None,
         world_id,
-        approved_by: conn_info.user_id.clone(),
+        approved_by: conn_info.user_id.to_string(),
         ttl_hours,
         source: StagingSource::PreStaged,
         approved_npcs: domain_approved_npcs,

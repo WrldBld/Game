@@ -207,11 +207,11 @@ impl StagingRepo for Neo4jStagingRepo {
             .iter()
             .map(|n| n.character_id.to_string())
             .collect();
-        let npc_is_present: Vec<bool> = staging.npcs().iter().map(|n| n.is_present).collect();
+        let npc_is_present: Vec<bool> = staging.npcs().iter().map(|n| n.is_present()).collect();
         let npc_is_hidden_from_players: Vec<bool> = staging
             .npcs()
             .iter()
-            .map(|n| n.is_hidden_from_players)
+            .map(|n| n.is_hidden_from_players())
             .collect();
         let npc_reasoning: Vec<String> = staging
             .npcs()
@@ -462,12 +462,12 @@ impl StagingRepo for Neo4jStagingRepo {
                     ),
                 )
             })?;
-            let mood: MoodState = mood_str.parse().map_err(|_| {
+            let mood: MoodState = mood_str.parse().map_err(|e| {
                 RepoError::database(
                     "parse",
                     format!(
-                        "Invalid MoodState for NPC {} in region {}: '{}'",
-                        npc_id, region_id, mood_str
+                        "Invalid MoodState for NPC {} in region {}: '{}': {}",
+                        npc_id, region_id, mood_str, e
                     ),
                 )
             })?;
@@ -497,10 +497,10 @@ impl StagingRepo for Neo4jStagingRepo {
                         format!("Missing default_mood for NPC {}: {}", npc_id, e),
                     )
                 })?;
-                let mood: MoodState = mood_str.parse().map_err(|_| {
+                let mood: MoodState = mood_str.parse().map_err(|e| {
                     RepoError::database(
                         "parse",
-                        format!("Invalid MoodState for NPC {}: '{}'", npc_id, mood_str),
+                        format!("Invalid MoodState for NPC {}: '{}': {}", npc_id, mood_str, e),
                     )
                 })?;
                 Ok(mood)
@@ -642,12 +642,12 @@ fn row_to_staged_npc(row: Row) -> Result<StagedNpc, RepoError> {
             format!("Missing mood for staged NPC {}: {}", character_id_str, e),
         )
     })?;
-    let mood: MoodState = mood_str.parse().map_err(|_| {
+    let mood: MoodState = mood_str.parse().map_err(|e| {
         RepoError::database(
             "parse",
             format!(
-                "Invalid MoodState for staged NPC {}: '{}'",
-                character_id_str, mood_str
+                "Invalid MoodState for staged NPC {}: '{}': {}",
+                character_id_str, mood_str, e
             ),
         )
     })?;
@@ -698,10 +698,10 @@ fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging
     // Load game time as minutes (new format) or default to 0 for backwards compatibility
     let game_time_minutes = node.get_i64_or("game_time_minutes", 0);
     let approved_at = node.get_datetime_or("approved_at", fallback);
-    let source: StagingSource = source_str.parse().map_err(|_| {
+    let source: StagingSource = source_str.parse().map_err(|e| {
         RepoError::database(
             "parse",
-            format!("Invalid StagingSource for staging {}: '{}'", id, source_str),
+            format!("Invalid StagingSource for staging {}: '{}': {}", id, source_str, e),
         )
     })?;
     let dm_guidance = node.get_optional_string("dm_guidance");
@@ -775,12 +775,12 @@ fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
                 format!("Missing mood for collected NPC {}: {}", character_id_str, e),
             )
         })?;
-        let mood: MoodState = mood_str.parse().map_err(|_| {
+        let mood: MoodState = mood_str.parse().map_err(|e| {
             RepoError::database(
                 "parse",
                 format!(
-                    "Invalid MoodState for collected NPC {}: '{}'",
-                    character_id_str, mood_str
+                    "Invalid MoodState for collected NPC {}: '{}': {}",
+                    character_id_str, mood_str, e
                 ),
             )
         })?;
@@ -833,10 +833,10 @@ fn row_to_staging(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoErro
     // Load game time as minutes (new format) or default to 0 for backwards compatibility
     let game_time_minutes = node.get_i64_or("game_time_minutes", 0);
     let approved_at = node.get_datetime_or("approved_at", fallback);
-    let source: StagingSource = source_str.parse().map_err(|_| {
+    let source: StagingSource = source_str.parse().map_err(|e| {
         RepoError::database(
             "parse",
-            format!("Invalid StagingSource for staging {}: '{}'", id, source_str),
+            format!("Invalid StagingSource for staging {}: '{}': {}", id, source_str, e),
         )
     })?;
     let dm_guidance = node.get_optional_string("dm_guidance");

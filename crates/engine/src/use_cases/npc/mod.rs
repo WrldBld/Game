@@ -449,8 +449,8 @@ mod tests {
     use super::*;
     use chrono::{TimeZone, Utc};
     use wrldbldr_domain::{
-        CampbellArchetype, Character, CharacterName, NpcDispositionState, Region, RegionName,
-        WorldId,
+        CampbellArchetype, Character, CharacterName, NpcDispositionState, Region, RegionFrequency,
+        RegionName, WorldId,
     };
 
     use crate::infrastructure::ports::{
@@ -896,7 +896,7 @@ mod tests {
                         portrait_asset: None,
                         relationship_type: NpcRegionRelationType::Frequents,
                         shift: None,
-                        frequency: Some("often".to_string()),
+                        frequency: Some(RegionFrequency::Often),
                         time_of_day: None,
                         reason: None,
                         default_mood: MoodState::Calm,
@@ -912,7 +912,7 @@ mod tests {
 
             assert_eq!(result.len(), 1);
             assert_eq!(result[0].name, "RegionNPC");
-            assert_eq!(result[0].frequency, Some("often".to_string()));
+            assert_eq!(result[0].frequency, Some(RegionFrequency::Often));
         }
     }
 

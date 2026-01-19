@@ -75,7 +75,8 @@ pub use spell::{
     SpellDuration, SpellLevel, SpellRange,
 };
 pub use staging::{
-    ResolvedStateInfo, ResolvedVisualState, StagedNpc, Staging, StagingSource, VisualStateSource,
+    NpcPresence, ResolvedStateInfo, ResolvedVisualState, StagedNpc, Staging, StagingSource,
+    VisualStateSource,
 };
 pub use story_event::InfoImportance as StoryEventInfoImportance;
 pub use story_event::{

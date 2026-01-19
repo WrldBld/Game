@@ -147,15 +147,22 @@ impl AssetRepo for Neo4jAssetRepo {
     /// List all assets for an entity
     async fn list_for_entity(
         &self,
-        entity_type: &str,
+        entity_type: EntityType,
         entity_id: Uuid,
     ) -> Result<Vec<GalleryAsset>, RepoError> {
+        if !entity_type.has_assets() {
+            return Err(RepoError::constraint(format!(
+                "Entity type {:?} cannot have assets",
+                entity_type
+            )));
+        }
+
         let q = query(
             "MATCH (a:GalleryAsset {entity_type: $entity_type, entity_id: $entity_id})
             RETURN a
             ORDER BY a.created_at DESC",
         )
-        .param("entity_type", entity_type)
+        .param("entity_type", entity_type.to_string())
         .param("entity_id", entity_id.to_string());
 
         let mut result = self
@@ -179,10 +186,17 @@ impl AssetRepo for Neo4jAssetRepo {
     /// Set an asset as active (deactivates others of same type for same entity)
     async fn set_active(
         &self,
-        entity_type: &str,
+        entity_type: EntityType,
         entity_id: Uuid,
         asset_id: AssetId,
     ) -> Result<(), RepoError> {
+        if !entity_type.has_assets() {
+            return Err(RepoError::constraint(format!(
+                "Entity type {:?} cannot have assets",
+                entity_type
+            )));
+        }
+
         // First, get the asset to determine its asset_type
         let asset = self.get(asset_id).await?.ok_or_else(|| {
             RepoError::database("query", format!("Asset not found: {}", asset_id))
@@ -197,7 +211,7 @@ impl AssetRepo for Neo4jAssetRepo {
             })
             SET a.is_active = false",
         )
-        .param("entity_type", entity_type)
+        .param("entity_type", entity_type.to_string())
         .param("entity_id", entity_id.to_string())
         .param("asset_type", asset.asset_type().to_string());
 

@@ -569,7 +569,7 @@ impl OutcomeDecision {
         decision: ChallengeOutcomeDecision,
     ) -> Result<OutcomeDecisionResult, OutcomeDecisionError> {
         let approval_id = Uuid::parse_str(&resolution_id)
-            .map_err(|_| OutcomeDecisionError::InvalidResolutionId)?;
+            .map_err(|e| OutcomeDecisionError::InvalidResolutionId(format!("{}", e)))?;
 
         let approval_data: crate::queue_types::ApprovalRequestData = self
             .queue
@@ -714,8 +714,8 @@ pub struct ChallengeResolvedPayload {
 pub enum OutcomeDecisionError {
     #[error("Approval request not found")]
     ApprovalNotFound,
-    #[error("Invalid resolution ID")]
-    InvalidResolutionId,
+    #[error("Invalid resolution ID: {0}")]
+    InvalidResolutionId(String),
     #[error("Invalid challenge ID")]
     InvalidChallengeId,
     #[error("No challenge outcome data in approval request")]
@@ -792,7 +792,7 @@ mod tests {
     use wrldbldr_domain::{
         Challenge as DomainChallenge, ChallengeId, ChallengeName, ChallengeOutcomes, CharacterName,
         Difficulty, ItemId, LocationId, Outcome, OutcomeTrigger, OutcomeType,
-        PlayerCharacter as DomainPc, PlayerCharacterId, SceneId, WorldId,
+        PlayerCharacter as DomainPc, PlayerCharacterId, SceneId, UserId, WorldId,
     };
 
     use crate::infrastructure::ports::{
@@ -817,7 +817,7 @@ mod tests {
         let now = Utc::now();
 
         let pc = DomainPc::new(
-            "user-1",
+            UserId::new("user-1").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             LocationId::new(),

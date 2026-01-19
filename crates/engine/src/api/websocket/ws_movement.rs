@@ -1,3 +1,5 @@
+use wrldbldr_domain::ConnectionId;
+
 use super::*;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::api::websocket::ws_time::time_suggestion_to_protocol;
@@ -121,7 +123,7 @@ fn staging_approval_to_server_message(
 
 pub(super) async fn handle_move_to_region(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     pc_id: String,
     region_id: String,
 ) -> Option<ServerMessage> {
@@ -312,7 +314,7 @@ pub(super) async fn handle_move_to_region(
 
 pub(super) async fn handle_exit_to_location(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     pc_id: String,
     location_id: String,
     arrival_region_id: Option<String>,

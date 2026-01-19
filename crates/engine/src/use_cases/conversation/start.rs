@@ -120,7 +120,7 @@ impl StartConversation {
             .map(|s| {
                 s.npcs()
                     .iter()
-                    .filter(|npc| npc.is_present && !npc.is_hidden_from_players)
+                    .filter(|npc| npc.is_present() && !npc.is_hidden_from_players())
                     .cloned()
                     .collect::<Vec<_>>()
             })
@@ -207,7 +207,7 @@ mod tests {
     use uuid::Uuid;
     use wrldbldr_domain::{
         CampbellArchetype, Character, CharacterId, CharacterName, LocationId, MoodState,
-        PlayerCharacterId, RegionId, StagedNpc, Staging, StagingSource, WorldId, WorldName,
+        PlayerCharacterId, RegionId, StagedNpc, Staging, StagingSource, UserId, WorldId, WorldName,
     };
 
     use crate::queue_types::{
@@ -358,7 +358,7 @@ mod tests {
         let npc_id = CharacterId::new();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             location_id,
@@ -448,7 +448,7 @@ mod tests {
         let initial_dialogue = "Hello".to_string();
 
         let pc = wrldbldr_domain::PlayerCharacter::new(
-            "user",
+            UserId::new("user").unwrap(),
             world_id,
             CharacterName::new("PC").unwrap(),
             location_id,

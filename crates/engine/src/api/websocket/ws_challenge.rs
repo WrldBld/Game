@@ -2,7 +2,7 @@ use super::*;
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use serde_json::json;
-use wrldbldr_domain::{DiceRollInput, OutcomeType};
+use wrldbldr_domain::{ConnectionId, DiceRollInput, OutcomeType};
 use wrldbldr_shared::types::ProposedToolInfo;
 use wrldbldr_shared::{ChallengeRequest, ErrorCode, ResponseResult};
 
@@ -168,7 +168,7 @@ pub(super) async fn handle_challenge_request(
 
 pub(super) async fn handle_challenge_roll(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     challenge_id: String,
     roll: i32,
 ) -> Option<ServerMessage> {
@@ -243,13 +243,13 @@ pub(super) async fn handle_challenge_roll(
     // - Percentile: skill value (for CoC 7e)
     // - LadderRating: ladder position (for FATE)
     // - Resource: current value
-    let skill_modifier = if let Some(stat_name) = challenge.check_stat() {
+    let skill_modifier = if let Some(stat) = challenge.check_stat() {
         // Get the PC's sheet_data to look up stats
         match state.app.repositories.player_character.get(pc_id).await {
             Ok(Some(pc)) => {
                 // Look up the stat value from sheet_data using unified numeric extraction
                 if let Some(sheet_data) = pc.sheet_data() {
-                    sheet_data.get_numeric_value(stat_name).unwrap_or(0)
+                    sheet_data.get_numeric_value(stat.as_str()).unwrap_or(0)
                 } else {
                     0
                 }
@@ -364,7 +364,7 @@ pub(super) async fn handle_challenge_roll(
 
 pub(super) async fn handle_challenge_roll_input(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     challenge_id: String,
     input_type: wrldbldr_shared::DiceInputType,
 ) -> Option<ServerMessage> {
@@ -512,7 +512,7 @@ pub(super) async fn handle_challenge_roll_input(
 
 pub(super) async fn handle_trigger_challenge(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     challenge_id: String,
     target_character_id: String,
 ) -> Option<ServerMessage> {
@@ -576,7 +576,7 @@ pub(super) async fn handle_trigger_challenge(
 
 pub(super) async fn handle_challenge_suggestion_decision(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     request_id: String,
     approved: bool,
     _modified_difficulty: Option<String>,
@@ -634,7 +634,7 @@ pub(super) async fn handle_challenge_suggestion_decision(
 
 pub(super) async fn handle_challenge_outcome_decision(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     resolution_id: String,
     decision: wrldbldr_shared::ChallengeOutcomeDecisionData,
 ) -> Option<ServerMessage> {
@@ -714,7 +714,7 @@ pub(super) async fn handle_challenge_outcome_decision(
                 "Challenge outcome is missing target PC context",
             ))
         }
-        Err(crate::use_cases::challenge::OutcomeDecisionError::InvalidResolutionId) => Some(
+        Err(crate::use_cases::challenge::OutcomeDecisionError::InvalidResolutionId(_)) => Some(
             error_response(ErrorCode::ValidationError, "Invalid resolution ID format"),
         ),
         Err(e) => Some(error_response(

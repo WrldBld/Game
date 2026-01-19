@@ -1,10 +1,12 @@
+use wrldbldr_domain::ConnectionId;
+
 use super::*;
 
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 
 pub(super) async fn handle_directorial_update(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     context: wrldbldr_shared::DirectorialContext,
 ) -> Option<ServerMessage> {
     // Get connection info - only DMs can update directorial context
@@ -52,7 +54,7 @@ pub(super) async fn handle_directorial_update(
 
 pub(super) async fn handle_trigger_approach_event(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     npc_id: String,
     target_pc_id: String,
     description: String,
@@ -121,7 +123,7 @@ pub(super) async fn handle_trigger_approach_event(
 
 pub(super) async fn handle_trigger_location_event(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     region_id: String,
     description: String,
 ) -> Option<ServerMessage> {
@@ -179,7 +181,7 @@ pub(super) async fn handle_trigger_location_event(
 
 pub(super) async fn handle_share_npc_location(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     pc_id: String,
     npc_id: String,
     location_id: String,

@@ -453,7 +453,7 @@ mod tests {
                     .uri(format!("/api/worlds/{}/settings", world_id))
                     .method(axum::http::Method::PUT)
                     .header(axum::http::header::CONTENT_TYPE, "application/json")
-                    .body(Body::from(serde_json::to_vec(&settings).unwrap()))
+                    .body(Body::from(serde_json::to_vec(&settings).expect("test: settings should serialize")))
                     .unwrap(),
             )
             .await
@@ -516,7 +516,7 @@ mod tests {
                     .uri("/api/worlds/import")
                     .method(axum::http::Method::POST)
                     .header(axum::http::header::CONTENT_TYPE, "application/json")
-                    .body(Body::from(serde_json::to_vec(&export).unwrap()))
+                    .body(Body::from(serde_json::to_vec(&export).expect("test: export should serialize")))
                     .unwrap(),
             )
             .await

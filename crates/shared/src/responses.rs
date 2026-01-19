@@ -140,7 +140,7 @@ pub enum ErrorCode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequestError {
     /// Request was cancelled (e.g., channel closed)
-    Cancelled,
+    Cancelled(String),
     /// Request timed out waiting for response
     Timeout,
     /// Failed to send request over WebSocket
@@ -154,7 +154,7 @@ pub enum RequestError {
 impl std::fmt::Display for RequestError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RequestError::Cancelled => write!(f, "Request was cancelled"),
+            RequestError::Cancelled(msg) => write!(f, "Request was cancelled: {}", msg),
             RequestError::Timeout => write!(f, "Request timed out"),
             RequestError::SendFailed(msg) => write!(f, "Failed to send request: {}", msg),
             RequestError::NotConnected => write!(f, "Not connected to server"),

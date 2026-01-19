@@ -3,7 +3,7 @@ use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use crate::use_cases::narrative::decision::NarrativeDecisionError;
 use serde_json::json;
-use wrldbldr_domain::{self as domain, NarrativeTrigger};
+use wrldbldr_domain::{self as domain, ConnectionId, NarrativeTrigger};
 use wrldbldr_shared::{ErrorCode, NarrativeEventRequest, ResponseResult, TriggerSchema};
 
 pub(super) async fn handle_narrative_event_request(
@@ -262,7 +262,7 @@ pub(super) async fn handle_narrative_event_request(
 
 pub(super) async fn handle_narrative_event_decision(
     state: &WsState,
-    connection_id: Uuid,
+    connection_id: ConnectionId,
     request_id: String,
     event_id: String,
     approved: bool,
