@@ -195,6 +195,17 @@ tasks:
     cmds:
       - cat crates/engine/src/e2e_tests/logs/{{.CLI_ARGS}}.json | jq '.events[] | select(.event.type == "ConversationTurn" or .event.type == "ConversationStarted")'
 
+  e2e:cleanup:
+    desc: Clean up all data from the E2E test Neo4j database
+    cmds:
+      - ./scripts/cleanup-test-db.sh
+    interactive: true
+
+  e2e:cleanup:dry-run:
+    desc: Show what would be cleaned from E2E test database (no actual deletion)
+    cmds:
+      - ./scripts/cleanup-test-db.sh --dry-run
+
   # ===========================================================================
   # Architecture Enforcement
   # ===========================================================================
