@@ -36,6 +36,10 @@ use crate::presentation::state::{
 };
 use wrldbldr_shared::character_sheet::SheetValue;
 
+/// Animation timing for backdrop transitions.
+/// Must match the transition duration defined in tailwind.config.js.
+const BACKDROP_TRANSITION_MS: u64 = 500;
+
 /// Player Character View - visual novel gameplay interface
 ///
 /// Connection handling and back navigation are provided by WorldSessionLayout wrapper.
@@ -88,9 +92,9 @@ pub fn PCView() -> Element {
     use_effect(move || {
         if transitioning {
             let mut gs = game_state_for_effect.clone();
-            let sleep_future = platform.sleep_ms(500);
+            let sleep_future = platform.sleep_ms(BACKDROP_TRANSITION_MS);
             spawn_task(async move {
-                // Wait for animation to complete (0.5s defined in tailwind.config.js)
+                // Wait for animation to complete
                 sleep_future.await;
                 gs.clear_backdrop_transition();
             });

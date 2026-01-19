@@ -308,7 +308,7 @@ pub(super) async fn handle_narrative_event_decision(
         .use_cases
         .narrative
         .decision_flow
-        .execute(approval_id, decision, narrative_event_id, selected_outcome)
+        .execute(approval_id.into(), decision, narrative_event_id, selected_outcome)
         .await
     {
         Ok(result) => {

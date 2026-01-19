@@ -119,3 +119,7 @@ define_id!(StatModifierId);
 
 // Conversation IDs
 define_id!(ConversationId);
+
+// Approval and suggestion IDs
+define_id!(ApprovalRequestId);
+define_id!(TimeSuggestionId);

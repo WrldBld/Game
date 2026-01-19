@@ -91,7 +91,7 @@ async fn test_predefined_challenge_success_flow() {
             .execute(
                 roll_result
                     .approval_queue_id
-                    .expect("Should have approval queue ID"),
+                    .expect("Should have approval queue ID").into(),
                 DmApprovalDecision::Accept,
             )
             .await
@@ -175,7 +175,7 @@ async fn test_predefined_challenge_failure_flow() {
             .execute(
                 roll_result
                     .approval_queue_id
-                    .expect("Should have approval queue ID"),
+                    .expect("Should have approval queue ID").into(),
                 DmApprovalDecision::Accept,
             )
             .await
@@ -252,7 +252,7 @@ async fn test_challenge_critical_success_gives_item() {
             .execute(
                 roll_result
                     .approval_queue_id
-                    .expect("Should have approval queue ID"),
+                    .expect("Should have approval queue ID").into(),
                 DmApprovalDecision::Accept,
             )
             .await
@@ -326,7 +326,7 @@ async fn test_challenge_critical_failure_modifies_stat() {
             .execute(
                 roll_result
                     .approval_queue_id
-                    .expect("Should have approval queue ID"),
+                    .expect("Should have approval queue ID").into(),
                 DmApprovalDecision::Accept,
             )
             .await
@@ -394,7 +394,7 @@ async fn test_dm_rejects_challenge_outcome() {
             .execute(
                 roll_result
                     .approval_queue_id
-                    .expect("Should have approval queue ID"),
+                    .expect("Should have approval queue ID").into(),
                 DmApprovalDecision::Reject {
                     feedback: "Test rejection".to_string(),
                 },
@@ -464,7 +464,7 @@ async fn test_dm_modifies_challenge_outcome() {
             .execute(
                 roll_result
                     .approval_queue_id
-                    .expect("Should have approval queue ID"),
+                    .expect("Should have approval queue ID").into(),
                 DmApprovalDecision::AcceptWithModification {
                     modified_dialogue: modified_text.to_string(),
                     approved_tools: vec![],
@@ -648,7 +648,7 @@ async fn test_challenge_roll_with_different_difficulties() {
                 .execute(
                     roll_result
                         .approval_queue_id
-                        .expect("Should have approval queue ID"),
+                        .expect("Should have approval queue ID").into(),
                     DmApprovalDecision::Reject {
                         feedback: "Test rejection".to_string(),
                     },

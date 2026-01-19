@@ -87,7 +87,7 @@ async fn when_dm_approves_time_suggestion_then_time_advances_and_broadcasts() {
     resulting_time.advance_minutes(15);
 
     let suggestion = crate::use_cases::time::TimeSuggestion {
-        id: suggestion_id,
+        id: suggestion_id.into(),
         world_id,
         pc_id,
         pc_name: "PC".to_string(),

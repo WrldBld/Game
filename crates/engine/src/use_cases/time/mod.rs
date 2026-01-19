@@ -10,11 +10,10 @@
 //! - Skipping to time periods
 
 use std::sync::Arc;
-use uuid::Uuid;
 
 use wrldbldr_domain::{
     GameTime, PlayerCharacterId, TimeAdvanceReason, TimeMode, TimeOfDay, TimeSuggestionDecision,
-    WorldId,
+    TimeSuggestionId, WorldId,
 };
 
 use crate::infrastructure::ports::{ClockPort, QueueError, RepoError, WorldRepo};
@@ -133,7 +132,7 @@ impl SuggestTime {
                 };
 
                 let suggestion = TimeSuggestion {
-                    id: Uuid::new_v4(),
+                    id: TimeSuggestionId::new(),
                     world_id,
                     pc_id,
                     pc_name,
@@ -406,7 +405,7 @@ impl TimeSuggestions {
         &self,
         store: &TimeSuggestionStore,
         world_id: WorldId,
-        suggestion_id: Uuid,
+        suggestion_id: TimeSuggestionId,
         decision: TimeSuggestionDecision,
     ) -> Result<Option<TimeSuggestionResolution>, TimeSuggestionError> {
         let suggestion = match store.remove(suggestion_id).await {
@@ -456,7 +455,7 @@ impl TimeSuggestions {
 #[derive(Debug, Clone)]
 pub struct TimeSuggestionResolution {
     pub world_id: WorldId,
-    pub suggestion_id: Uuid,
+    pub suggestion_id: TimeSuggestionId,
     pub minutes_advanced: u32,
     /// Domain-level time advance data (convert to protocol at API boundary)
     pub advance_data: TimeAdvanceResultData,

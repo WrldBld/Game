@@ -2172,7 +2172,7 @@ pub async fn run_conversation_turn(
             .use_cases
             .approval
             .decision_flow
-            .execute(result.approval_id, DmApprovalDecision::Accept)
+            .execute(result.approval_id.into(), DmApprovalDecision::Accept)
             .await?;
 
         let npc_response = approval.final_dialogue.unwrap_or_default();
@@ -2280,7 +2280,7 @@ pub async fn start_conversation_with_npc(
             .use_cases
             .approval
             .decision_flow
-            .execute(result.approval_id, DmApprovalDecision::Accept)
+            .execute(result.approval_id.into(), DmApprovalDecision::Accept)
             .await?;
 
         let npc_response = approval.final_dialogue.unwrap_or_default();

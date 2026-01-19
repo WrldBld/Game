@@ -211,11 +211,11 @@ pub use game_time::{
 
 // Re-export ID types
 pub use ids::{
-    ActId, ActionId, AssetId, BatchId, ChallengeId, CharacterId, ConnectionId, ConversationId,
-    EventChainId, EventId, GoalId, GridMapId, InteractionId, ItemId, LocationId, LocationStateId,
-    LoreChunkId, LoreId, NarrativeEventId, ParticipantId, PlayerCharacterId, QueueItemId, RegionId,
-    RegionStateId, RelationshipId, SceneId, SkillId, StagingId, StatModifierId, StoryEventId,
-    UserId, WantId, WorkflowId, WorldId,
+    ActId, ActionId, ApprovalRequestId, AssetId, BatchId, ChallengeId, CharacterId, ConnectionId,
+    ConversationId, EventChainId, EventId, GoalId, GridMapId, InteractionId, ItemId, LocationId,
+    LocationStateId, LoreChunkId, LoreId, NarrativeEventId, ParticipantId, PlayerCharacterId,
+    QueueItemId, RegionId, RegionStateId, RelationshipId, SceneId, SkillId, StagingId,
+    StatModifierId, StoryEventId, TimeSuggestionId, UserId, WantId, WorkflowId, WorldId,
 };
 
 // Re-export value objects (explicit list in value_objects/mod.rs)

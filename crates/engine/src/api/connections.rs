@@ -452,7 +452,7 @@ pub enum CriticalSendError {
 impl From<&ConnectionInfo> for PortConnectionInfo {
     fn from(info: &ConnectionInfo) -> Self {
         PortConnectionInfo {
-            connection_id: info.connection_id,
+            connection_id: info.connection_id.into(),
             user_id: info.user_id.clone(),
             world_id: info.world_id,
             role: info.role,

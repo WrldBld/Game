@@ -383,8 +383,8 @@ mod tests {
     ) -> T {
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
-            .unwrap();
-        serde_json::from_slice(&body).unwrap()
+            .expect("test helper: failed to read response body");
+        serde_json::from_slice(&body).expect("test helper: failed to parse JSON response")
     }
 
     #[tokio::test]

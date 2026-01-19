@@ -1,7 +1,6 @@
 //! Domain types for staging use cases.
 
-use uuid::Uuid;
-use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId};
+use wrldbldr_domain::{CharacterId, LocationId, PlayerCharacterId, RegionId, StagingId};
 
 use super::StagingError;
 
@@ -109,7 +108,7 @@ impl NpcPresent {
 /// Domain type for previous staging info.
 #[derive(Debug, Clone)]
 pub struct PreviousStagingData {
-    pub staging_id: Uuid,
+    pub staging_id: StagingId,
     pub approved_at: chrono::DateTime<chrono::Utc>,
     pub npcs: Vec<StagedNpc>,
 }

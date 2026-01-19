@@ -158,7 +158,7 @@ async fn test_llm_response_has_internal_reasoning() {
             .use_cases
             .approval
             .decision_flow
-            .execute(result.approval_id, DmApprovalDecision::Accept)
+            .execute(result.approval_id.into(), DmApprovalDecision::Accept)
             .await
             .expect("Failed to approve");
 
@@ -365,7 +365,7 @@ async fn test_llm_response_extracts_topics() {
             .use_cases
             .approval
             .decision_flow
-            .execute(result.approval_id, DmApprovalDecision::Accept)
+            .execute(result.approval_id.into(), DmApprovalDecision::Accept)
             .await
             .expect("Failed to approve");
 
@@ -590,7 +590,7 @@ async fn test_llm_suggests_challenge_during_dialogue() {
             .use_cases
             .approval
             .decision_flow
-            .execute(result.approval_id, DmApprovalDecision::Accept)
+            .execute(result.approval_id.into(), DmApprovalDecision::Accept)
             .await
             .expect("Failed to approve");
 
@@ -844,7 +844,7 @@ async fn test_llm_suggests_narrative_event() {
             .use_cases
             .approval
             .decision_flow
-            .execute(result.approval_id, DmApprovalDecision::Accept)
+            .execute(result.approval_id.into(), DmApprovalDecision::Accept)
             .await
             .expect("Failed to approve");
 
@@ -1042,7 +1042,7 @@ async fn test_full_structured_output_integration() {
             .use_cases
             .approval
             .decision_flow
-            .execute(result.approval_id, DmApprovalDecision::Accept)
+            .execute(result.approval_id.into(), DmApprovalDecision::Accept)
             .await
             .expect("Failed to approve");
 
@@ -1227,7 +1227,7 @@ async fn test_llm_response_without_explicit_dialogue_tags() {
             .use_cases
             .approval
             .decision_flow
-            .execute(result.approval_id, DmApprovalDecision::Accept)
+            .execute(result.approval_id.into(), DmApprovalDecision::Accept)
             .await
             .expect("Failed to approve");
 

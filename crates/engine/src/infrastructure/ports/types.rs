@@ -4,7 +4,6 @@
 //! Helper types for port operations.
 
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
 use wrldbldr_domain::*;
 
 // WorldRole is re-exported from wrldbldr_domain (imported via `use wrldbldr_domain::*`)
@@ -19,7 +18,7 @@ pub use wrldbldr_domain::WorldRole;
 #[derive(Debug, Clone)]
 pub struct ConnectionInfo {
     /// Unique ID for this connection
-    pub connection_id: Uuid,
+    pub connection_id: ConnectionId,
     /// User identifier (may be anonymous)
     pub user_id: String,
     /// The world this connection is associated with (if joined)
@@ -233,7 +232,7 @@ pub struct PendingStagingRequest {
 /// Contains the suggested time advancement and context about the action.
 #[derive(Debug, Clone)]
 pub struct TimeSuggestion {
-    pub id: Uuid,
+    pub id: TimeSuggestionId,
     pub world_id: WorldId,
     pub pc_id: PlayerCharacterId,
     pub pc_name: String,

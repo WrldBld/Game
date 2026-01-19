@@ -429,7 +429,7 @@ pub(super) async fn handle_respond_to_time_suggestion(
         .resolve(
             &time_suggestions,
             world_id,
-            suggestion_uuid,
+            suggestion_uuid.into(),
             domain_decision,
         )
         .await

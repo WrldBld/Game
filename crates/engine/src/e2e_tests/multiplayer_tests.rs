@@ -526,7 +526,7 @@ async fn test_conversation_does_not_block_other_players() {
                 .use_cases
                 .approval
                 .decision_flow
-                .execute(result.approval_id, DmApprovalDecision::Accept)
+                .execute(result.approval_id.into(), DmApprovalDecision::Accept)
                 .await;
 
             // SEMANTIC ASSERTIONS: Validate the NPC dialogue is contextually appropriate
@@ -903,7 +903,7 @@ async fn test_dm_approval_triggers_player_response() {
             .use_cases
             .approval
             .decision_flow
-            .execute(approval_id, DmApprovalDecision::Accept)
+            .execute(approval_id.into(), DmApprovalDecision::Accept)
             .await
             .expect("Failed to approve suggestion");
 

@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
-use uuid::Uuid;
-
 use crate::infrastructure::ports::{QueueError, QueuePort, RepoError};
 use crate::use_cases::approval::{ApprovalError, ApproveSuggestion};
 use crate::use_cases::narrative::{EffectExecutionContext, ExecuteEffects};
 use crate::use_cases::narrative_operations::NarrativeOps;
-use wrldbldr_domain::{NarrativeEventId, WorldId};
+use wrldbldr_domain::{ApprovalRequestId, NarrativeEventId, WorldId};
 
 use crate::queue_types::DmApprovalDecision;
 
@@ -35,14 +33,14 @@ impl NarrativeDecisionFlow {
 
     pub async fn execute(
         &self,
-        approval_id: Uuid,
+        approval_id: ApprovalRequestId,
         decision: DmApprovalDecision,
         event_id: NarrativeEventId,
         selected_outcome: Option<String>,
     ) -> Result<NarrativeDecisionOutcome, NarrativeDecisionError> {
         let approval_data: crate::queue_types::ApprovalRequestData = self
             .queue
-            .get_approval_request(approval_id)
+            .get_approval_request(approval_id.to_uuid())
             .await?
             .ok_or(NarrativeDecisionError::ApprovalNotFound)?;
 
@@ -65,7 +63,7 @@ impl NarrativeDecisionFlow {
 
         let event = match self.narrative.get_event(event_id).await? {
             Some(event) => event,
-            None => return Err(NarrativeDecisionError::EventNotFound(event_id.to_string())),
+            None => return Err(NarrativeDecisionError::EventNotFound(event_id)),
         };
 
         let outcome_name = selected_outcome
@@ -142,7 +140,7 @@ pub enum NarrativeDecisionError {
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
     #[error("Event not found: {0}")]
-    EventNotFound(String),
+    EventNotFound(NarrativeEventId),
     #[error("PC context required for effect execution")]
     PcContextRequired,
 }

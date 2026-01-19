@@ -222,7 +222,7 @@ pub(super) async fn handle_content_request(
                 }))),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
-                    format!("Content not found: {}", content_id),
+                    "Content not found".to_string(),
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,

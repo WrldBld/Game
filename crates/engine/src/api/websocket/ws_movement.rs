@@ -525,7 +525,7 @@ async fn maybe_broadcast_time_suggestion(
             .await;
         state
             .pending_time_suggestions
-            .insert(suggestion.id, suggestion.clone())
+            .insert(suggestion.id.to_uuid(), suggestion.clone())
             .await;
         state.connections.broadcast_to_dms(world_id, msg).await;
     }

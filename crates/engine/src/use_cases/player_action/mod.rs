@@ -3,9 +3,7 @@
 
 use std::sync::Arc;
 
-use uuid::Uuid;
-
-use wrldbldr_domain::{CharacterId, ConversationId, PlayerCharacterId, WorldId};
+use wrldbldr_domain::{ActionId, CharacterId, ConversationId, PlayerCharacterId, WorldId};
 
 use crate::infrastructure::ports::{ClockPort, QueueError, QueuePort};
 use crate::queue_types::PlayerActionData;
@@ -64,7 +62,7 @@ impl HandlePlayerAction {
                 .map_err(PlayerActionError::Conversation)?;
 
             return Ok(PlayerActionProcessed {
-                action_id: conversation.action_queue_id,
+                action_id: ActionId::from(conversation.action_queue_id),
                 action_type,
                 player_id: user_id,
                 world_id,
@@ -90,7 +88,7 @@ impl HandlePlayerAction {
         let queue_depth = self.queue.get_pending_count("player_action").await?;
 
         Ok(PlayerActionProcessed {
-            action_id,
+            action_id: ActionId::from(action_id),
             action_type,
             player_id: user_id,
             world_id,
@@ -103,7 +101,7 @@ impl HandlePlayerAction {
 
 #[derive(Debug)]
 pub struct PlayerActionProcessed {
-    pub action_id: Uuid,
+    pub action_id: ActionId,
     pub action_type: String,
     pub player_id: String,
     pub world_id: WorldId,

@@ -66,7 +66,7 @@ pub(super) async fn handle_approval_decision(
         .use_cases
         .approval
         .decision_flow
-        .execute(approval_id, domain_decision)
+        .execute(approval_id.into(), domain_decision)
         .await
     {
         Ok(result) => {

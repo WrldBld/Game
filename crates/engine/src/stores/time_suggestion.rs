@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use wrldbldr_domain::TimeSuggestionId;
+
 use crate::api::websocket::TimeSuggestionStoreImpl;
 use crate::infrastructure::ports::TimeSuggestion;
 
@@ -15,11 +17,11 @@ impl TimeSuggestionStore {
         Self { store }
     }
 
-    pub async fn insert(&self, key: uuid::Uuid, suggestion: TimeSuggestion) {
-        self.store.insert(key, suggestion).await;
+    pub async fn insert(&self, suggestion: TimeSuggestion) {
+        self.store.insert(suggestion.id.to_uuid(), suggestion).await;
     }
 
-    pub async fn remove(&self, key: uuid::Uuid) -> Option<TimeSuggestion> {
-        self.store.remove(&key).await
+    pub async fn remove(&self, key: TimeSuggestionId) -> Option<TimeSuggestion> {
+        self.store.remove(&key.to_uuid()).await
     }
 }

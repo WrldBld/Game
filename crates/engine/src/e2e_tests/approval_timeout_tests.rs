@@ -628,7 +628,7 @@ async fn test_time_suggestion_expires_after_timeout() {
     resulting_game_time.advance_minutes(15);
 
     let suggestion = TimeSuggestion {
-        id: suggestion_id,
+        id: suggestion_id.into(),
         world_id: ctx.world.world_id,
         pc_id,
         pc_name: "Time Tester".to_string(),
@@ -726,7 +726,7 @@ async fn test_expired_time_decision_returns_error() {
         .resolve(
             &store_repo,
             ctx.world.world_id,
-            fake_suggestion_id,
+            fake_suggestion_id.into(),
             TimeSuggestionDecision::Approve,
         )
         .await;

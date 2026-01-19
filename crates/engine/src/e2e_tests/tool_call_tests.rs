@@ -152,7 +152,7 @@ async fn test_npc_triggers_perception_check_via_tool() {
             .use_cases
             .approval
             .decision_flow
-            .execute(result.approval_id, DmApprovalDecision::Accept)
+            .execute(result.approval_id.into(), DmApprovalDecision::Accept)
             .await
             .expect("Failed to approve");
 
@@ -280,7 +280,7 @@ async fn test_tool_call_outcome_affects_dialogue() {
             .execute(
                 roll_result
                     .approval_queue_id
-                    .expect("Should have approval queue ID"),
+                    .expect("Should have approval queue ID").into(),
                 DmApprovalDecision::Accept,
             )
             .await
@@ -414,7 +414,7 @@ async fn test_failed_challenge_changes_npc_response() {
             .execute(
                 roll_result
                     .approval_queue_id
-                    .expect("Should have approval queue ID"),
+                    .expect("Should have approval queue ID").into(),
                 DmApprovalDecision::Accept,
             )
             .await
@@ -653,7 +653,7 @@ async fn test_npc_gives_item_via_tool() {
             .approval
             .decision_flow
             .execute(
-                result.approval_id,
+                result.approval_id.into(),
                 DmApprovalDecision::AcceptWithModification {
                     modified_dialogue: approval_data.proposed_dialogue.clone(),
                     approved_tools: tool_ids,
@@ -844,7 +844,7 @@ async fn test_tool_effect_persists_after_conversation() {
                 .approval
                 .decision_flow
                 .execute(
-                    result.approval_id,
+                    result.approval_id.into(),
                     DmApprovalDecision::AcceptWithModification {
                         modified_dialogue: approval_data.proposed_dialogue.clone(),
                         approved_tools: tool_ids,
@@ -1104,7 +1104,7 @@ async fn test_dm_sees_proposed_tools() {
             .use_cases
             .approval
             .decision_flow
-            .execute(result.approval_id, DmApprovalDecision::Accept)
+            .execute(result.approval_id.into(), DmApprovalDecision::Accept)
             .await
             .expect("Failed to approve");
 
@@ -1241,7 +1241,7 @@ async fn test_dm_can_reject_tool_call() {
             .approval
             .decision_flow
             .execute(
-                result.approval_id,
+                result.approval_id.into(),
                 DmApprovalDecision::AcceptWithModification {
                     modified_dialogue: approval_data.proposed_dialogue.clone(),
                     approved_tools: vec![], // No tools approved
@@ -1450,7 +1450,7 @@ async fn test_dm_can_modify_tool_parameters() {
             .approval
             .decision_flow
             .execute(
-                result.approval_id,
+                result.approval_id.into(),
                 DmApprovalDecision::AcceptWithModification {
                     modified_dialogue: modified_dialogue.to_string(),
                     approved_tools: approved_tool_ids.clone(),
@@ -1689,7 +1689,7 @@ async fn test_multiple_tools_in_single_response() {
             .approval
             .decision_flow
             .execute(
-                result.approval_id,
+                result.approval_id.into(),
                 DmApprovalDecision::AcceptWithModification {
                     modified_dialogue: approval_data.proposed_dialogue.clone(),
                     approved_tools: all_tool_ids.clone(),

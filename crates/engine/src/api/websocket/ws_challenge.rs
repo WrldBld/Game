@@ -615,7 +615,7 @@ pub(super) async fn handle_challenge_suggestion_decision(
         .use_cases
         .approval
         .approve_suggestion
-        .execute(approval_id, decision)
+        .execute(approval_id.into(), decision)
         .await
     {
         Ok(_) => {

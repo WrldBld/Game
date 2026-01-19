@@ -158,7 +158,7 @@ async fn test_approved_give_item_creates_item_in_inventory() {
             .approval
             .decision_flow
             .execute(
-                result.approval_id,
+                result.approval_id.into(),
                 DmApprovalDecision::AcceptWithModification {
                     modified_dialogue: approval_data.proposed_dialogue.clone(),
                     approved_tools: tool_ids.clone(),
@@ -362,7 +362,7 @@ async fn test_rejected_tool_not_executed() {
             .approval
             .decision_flow
             .execute(
-                result.approval_id,
+                result.approval_id.into(),
                 DmApprovalDecision::AcceptWithModification {
                     modified_dialogue: approval_data.proposed_dialogue.clone(),
                     approved_tools: vec![], // No tools approved!
@@ -563,7 +563,7 @@ async fn test_multiple_tools_executed_in_order() {
             .approval
             .decision_flow
             .execute(
-                result.approval_id,
+                result.approval_id.into(),
                 DmApprovalDecision::AcceptWithModification {
                     modified_dialogue: approval_data.proposed_dialogue.clone(),
                     approved_tools: tool_ids.clone(),
@@ -750,7 +750,7 @@ async fn test_give_item_persists_after_conversation_end() {
                 .approval
                 .decision_flow
                 .execute(
-                    result.approval_id,
+                    result.approval_id.into(),
                     DmApprovalDecision::AcceptWithModification {
                         modified_dialogue: approval_data.proposed_dialogue.clone(),
                         approved_tools: tool_ids,
@@ -932,7 +932,7 @@ async fn test_tool_execution_fails_gracefully_on_invalid_args() {
         // This should NOT panic - errors should be logged and skipped
         let result = tool_executor
             .execute(
-                approval_id,
+                approval_id.into(),
                 DmApprovalDecision::AcceptWithModification {
                     modified_dialogue: "Here are some items for you.".to_string(),
                     approved_tools: invalid_tool_ids.clone(),
@@ -1120,7 +1120,7 @@ async fn test_partial_tool_approval() {
             .approval
             .decision_flow
             .execute(
-                result.approval_id,
+                result.approval_id.into(),
                 DmApprovalDecision::AcceptWithModification {
                     modified_dialogue: approval_data.proposed_dialogue.clone(),
                     approved_tools: approved_ids.clone(),
