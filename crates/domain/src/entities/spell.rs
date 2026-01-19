@@ -12,44 +12,54 @@ use crate::value_objects::Tag;
 ///
 /// This struct is designed to be system-agnostic while supporting the
 /// common elements found in most TTRPG spell systems.
+///
+/// # Design Decision (ADR-008 Tier 4)
+///
+/// This struct uses **public fields** as a simple data struct because:
+/// - No invariants to protect (any combination of spell properties is valid)
+/// - No business logic methods that require guarded access
+/// - Primarily a data carrier for spell information from external systems
+/// - Direct field access is clearer than accessor boilerplate
+///
+/// See [ADR-008](docs/architecture/ADR-008-tiered-encapsulation.md) for rationale.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Spell {
     /// Unique identifier for this spell
-    id: String,
+    pub id: String,
     /// Which game system this spell belongs to (e.g., "dnd5e", "pf2e")
-    system_id: String,
+    pub system_id: String,
     /// Display name of the spell
-    name: String,
+    pub name: String,
     /// Spell level (cantrip = 0 for D&D-like systems)
-    level: SpellLevel,
+    pub level: SpellLevel,
     /// School of magic (e.g., "Evocation", "Necromancy")
-    school: Option<String>,
+    pub school: Option<String>,
     /// How long it takes to cast
-    casting_time: CastingTime,
+    pub casting_time: CastingTime,
     /// Range of the spell
-    range: SpellRange,
+    pub range: SpellRange,
     /// Required components (verbal, somatic, material)
-    components: SpellComponents,
+    pub components: SpellComponents,
     /// How long the spell lasts
-    duration: SpellDuration,
+    pub duration: SpellDuration,
     /// Full description of the spell's effects
-    description: String,
+    pub description: String,
     /// Description of effects when cast at higher levels
-    higher_levels: Option<String>,
+    pub higher_levels: Option<String>,
     /// Classes that can learn this spell
-    classes: Vec<String>,
+    pub classes: Vec<String>,
     /// Source book reference (e.g., "PHB p.211")
-    source: String,
+    pub source: String,
     /// Tags for filtering and categorization
     #[serde(default)]
-    tags: Vec<Tag>,
+    pub tags: Vec<Tag>,
     /// Whether this spell can be cast as a ritual
     #[serde(default)]
-    ritual: bool,
+    pub ritual: bool,
     /// Whether this spell requires concentration
     #[serde(default)]
-    concentration: bool,
+    pub concentration: bool,
 }
 
 impl Spell {
@@ -87,124 +97,46 @@ impl Spell {
         }
     }
 
-    // Read-only accessors
-
-    /// Get the spell's unique identifier.
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
-    /// Get the system ID this spell belongs to.
-    pub fn system_id(&self) -> &str {
-        &self.system_id
-    }
-
-    /// Get the spell's display name.
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Get the spell's level.
-    pub fn level(&self) -> SpellLevel {
-        self.level
-    }
-
-    /// Get the school of magic.
-    pub fn school(&self) -> Option<&str> {
-        self.school.as_deref()
-    }
-
-    /// Get the casting time.
-    pub fn casting_time(&self) -> &CastingTime {
-        &self.casting_time
-    }
-
-    /// Get the spell's range.
-    pub fn range(&self) -> &SpellRange {
-        &self.range
-    }
-
-    /// Get the required components.
-    pub fn components(&self) -> &SpellComponents {
-        &self.components
-    }
-
-    /// Get the spell's duration.
-    pub fn duration(&self) -> &SpellDuration {
-        &self.duration
-    }
-
-    /// Get the spell's description.
-    pub fn description(&self) -> &str {
-        &self.description
-    }
-
-    /// Get the higher levels description.
-    pub fn higher_levels(&self) -> Option<&str> {
-        self.higher_levels.as_deref()
-    }
-
-    /// Get the classes that can learn this spell.
-    pub fn classes(&self) -> &[String] {
-        &self.classes
-    }
-
-    /// Get the source book reference.
-    pub fn source(&self) -> &str {
-        &self.source
-    }
-
-    /// Get the tags for filtering.
-    pub fn tags(&self) -> &[Tag] {
-        &self.tags
-    }
-
-    /// Check if this spell can be cast as a ritual.
-    pub fn ritual(&self) -> bool {
-        self.ritual
-    }
-
-    /// Check if this spell requires concentration.
-    pub fn concentration(&self) -> bool {
-        self.concentration
-    }
-
-    // Builder-style methods for optional fields
-
-    /// Set the school of magic.
-    pub fn with_school(mut self, school: impl Into<String>) -> Self {
-        self.school = Some(school.into());
-        self
-    }
-
-    /// Set the higher levels description.
-    pub fn with_higher_levels(mut self, higher_levels: impl Into<String>) -> Self {
-        self.higher_levels = Some(higher_levels.into());
-        self
-    }
-
-    /// Set the tags.
-    pub fn with_tags(mut self, tags: Vec<Tag>) -> Self {
-        self.tags = tags;
-        self
-    }
-
-    /// Add a single tag.
-    pub fn with_tag(mut self, tag: Tag) -> Self {
-        self.tags.push(tag);
-        self
-    }
-
-    /// Set whether the spell is a ritual.
-    pub fn with_ritual(mut self, ritual: bool) -> Self {
-        self.ritual = ritual;
-        self
-    }
-
-    /// Set whether the spell requires concentration.
-    pub fn with_concentration(mut self, concentration: bool) -> Self {
-        self.concentration = concentration;
-        self
+    /// Reconstruct a spell from all its component parts.
+    ///
+    /// This is useful when reconstructing from storage or when you have
+    /// all fields available and want to avoid the builder pattern overhead.
+    pub fn from_parts(
+        id: impl Into<String>,
+        system_id: impl Into<String>,
+        name: impl Into<String>,
+        level: SpellLevel,
+        school: Option<String>,
+        casting_time: CastingTime,
+        range: SpellRange,
+        components: SpellComponents,
+        duration: SpellDuration,
+        description: impl Into<String>,
+        higher_levels: Option<String>,
+        classes: Vec<String>,
+        source: impl Into<String>,
+        tags: Vec<Tag>,
+        ritual: bool,
+        concentration: bool,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            system_id: system_id.into(),
+            name: name.into(),
+            level,
+            school,
+            casting_time,
+            range,
+            components,
+            duration,
+            description: description.into(),
+            higher_levels,
+            classes,
+            source: source.into(),
+            tags,
+            ritual,
+            concentration,
+        }
     }
 }
 
@@ -584,7 +516,7 @@ mod tests {
 
     #[test]
     fn spell_equality() {
-        let spell = Spell::new(
+        let mut spell = Spell::new(
             "dnd5e_fireball",
             "dnd5e",
             "Fireball",
@@ -596,11 +528,10 @@ mod tests {
             "A bright streak flashes...",
             vec!["sorcerer".into(), "wizard".into()],
             "PHB p.241",
-        )
-        .with_school("Evocation")
-        .with_higher_levels("When cast at 4th level or higher...")
-        .with_tag(Tag::new("damage").unwrap())
-        .with_tag(Tag::new("fire").unwrap());
+        );
+        spell.school = Some("Evocation".to_string());
+        spell.higher_levels = Some("When cast at 4th level or higher...".to_string());
+        spell.tags = vec![Tag::new("damage").unwrap(), Tag::new("fire").unwrap()];
 
         let other = spell.clone();
         assert_eq!(spell, other);
@@ -608,28 +539,31 @@ mod tests {
 
     #[test]
     fn spell_accessors() {
-        let spell = Spell::new(
+        let spell = Spell::from_parts(
             "test_spell",
             "test_system",
             "Test Spell",
             SpellLevel::Level(1),
+            None,
             CastingTime::action(),
             SpellRange::touch(),
             SpellComponents::verbal_somatic(),
             SpellDuration::minutes(10),
             "Test description",
+            None,
             vec!["wizard".into()],
             "Test Source",
-        )
-        .with_ritual(true)
-        .with_concentration(true);
+            vec![],
+            true,
+            true,
+        );
 
-        assert_eq!(spell.id(), "test_spell");
-        assert_eq!(spell.system_id(), "test_system");
-        assert_eq!(spell.name(), "Test Spell");
-        assert_eq!(spell.level(), SpellLevel::Level(1));
-        assert!(spell.ritual());
-        assert!(spell.concentration());
+        assert_eq!(spell.id, "test_spell");
+        assert_eq!(spell.system_id, "test_system");
+        assert_eq!(spell.name, "Test Spell");
+        assert_eq!(spell.level, SpellLevel::Level(1));
+        assert!(spell.ritual);
+        assert!(spell.concentration);
     }
 
     #[test]

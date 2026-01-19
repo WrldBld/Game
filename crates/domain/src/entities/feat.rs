@@ -11,33 +11,43 @@ use crate::value_objects::Tag;
 ///
 /// This struct supports various TTRPG systems' concepts of character
 /// customization options (D&D feats, Pathfinder feats, etc.).
+///
+/// # Design Decision (ADR-008 Tier 4)
+///
+/// This struct uses public fields because it is a **simple data struct** with no invariants to protect:
+/// - No business rules that could be violated (e.g., any combination of fields is valid)
+/// - No complex state transitions
+/// - Primarily used for data transfer and storage
+///
+/// Adding private fields with accessors would add boilerplate without providing any safety benefits.
+/// See [ADR-008](docs/architecture/ADR-008-tiered-encapsulation.md) for rationale.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Feat {
     /// Unique identifier for this feat
-    id: String,
+    pub id: String,
     /// Which game system this feat belongs to (e.g., "dnd5e", "pf2e")
-    system_id: String,
+    pub system_id: String,
     /// Display name of the feat
-    name: String,
+    pub name: String,
     /// Full description of what the feat does
-    description: String,
+    pub description: String,
     /// Requirements to take this feat
     #[serde(default)]
-    prerequisites: Vec<Prerequisite>,
+    pub prerequisites: Vec<Prerequisite>,
     /// Mechanical benefits granted by the feat
     #[serde(default)]
-    benefits: Vec<FeatBenefit>,
+    pub benefits: Vec<FeatBenefit>,
     /// Source book reference (e.g., "PHB p.165")
-    source: String,
+    pub source: String,
     /// Category of feat (system-specific, e.g., "general", "combat", "skill")
-    category: Option<String>,
+    pub category: Option<String>,
     /// Whether this feat can be taken multiple times
     #[serde(default)]
-    repeatable: bool,
+    pub repeatable: bool,
     /// Tags for filtering and categorization
     #[serde(default)]
-    tags: Vec<Tag>,
+    pub tags: Vec<Tag>,
 }
 
 impl Feat {
@@ -63,94 +73,32 @@ impl Feat {
         }
     }
 
-    // Read-only accessors
-
-    /// Get the feat's unique identifier.
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
-    /// Get the system ID this feat belongs to.
-    pub fn system_id(&self) -> &str {
-        &self.system_id
-    }
-
-    /// Get the feat's display name.
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Get the feat's description.
-    pub fn description(&self) -> &str {
-        &self.description
-    }
-
-    /// Get the prerequisites for this feat.
-    pub fn prerequisites(&self) -> &[Prerequisite] {
-        &self.prerequisites
-    }
-
-    /// Get the benefits granted by this feat.
-    pub fn benefits(&self) -> &[FeatBenefit] {
-        &self.benefits
-    }
-
-    /// Get the source book reference.
-    pub fn source(&self) -> &str {
-        &self.source
-    }
-
-    /// Get the category of this feat.
-    pub fn category(&self) -> Option<&str> {
-        self.category.as_deref()
-    }
-
-    /// Check if this feat can be taken multiple times.
-    pub fn repeatable(&self) -> bool {
-        self.repeatable
-    }
-
-    /// Get the tags for filtering.
-    pub fn tags(&self) -> &[Tag] {
-        &self.tags
-    }
-
-    // Builder-style methods for optional fields
-
-    /// Set the prerequisites.
-    pub fn with_prerequisites(mut self, prerequisites: Vec<Prerequisite>) -> Self {
-        self.prerequisites = prerequisites;
-        self
-    }
-
-    /// Set the benefits.
-    pub fn with_benefits(mut self, benefits: Vec<FeatBenefit>) -> Self {
-        self.benefits = benefits;
-        self
-    }
-
-    /// Set the category.
-    pub fn with_category(mut self, category: impl Into<String>) -> Self {
-        self.category = Some(category.into());
-        self
-    }
-
-    /// Set whether the feat is repeatable.
-    pub fn with_repeatable(mut self, repeatable: bool) -> Self {
-        self.repeatable = repeatable;
-        self
-    }
-
-    /// Set the tags.
-    pub fn with_tags(mut self, tags: Vec<Tag>) -> Self {
-        self.tags = tags;
-        self
-    }
-
-    /// Add a single tag.
-    pub fn with_tag(mut self, tag: Tag) -> Self {
-        self.tags.push(tag);
-        self
+    /// Reconstruct a Feat from storage parts.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_parts(
+        id: String,
+        system_id: String,
+        name: String,
+        description: String,
+        prerequisites: Vec<Prerequisite>,
+        benefits: Vec<FeatBenefit>,
+        source: String,
+        category: Option<String>,
+        repeatable: bool,
+        tags: Vec<Tag>,
+    ) -> Self {
+        Self {
+            id,
+            system_id,
+            name,
+            description,
+            prerequisites,
+            benefits,
+            source,
+            category,
+            repeatable,
+            tags,
+        }
     }
 }
 
@@ -427,24 +375,24 @@ mod tests {
 
     #[test]
     fn feat_equality() {
-        let feat = Feat::new(
+        let mut feat = Feat::new(
             "dnd5e_great_weapon_master",
             "dnd5e",
             "Great Weapon Master",
             "You've learned to put the weight of a weapon...",
             "PHB p.167",
-        )
-        .with_benefits(vec![
+        );
+        feat.benefits = vec![
             FeatBenefit::Custom {
                 description: "On a critical hit or kill, bonus action attack".into(),
             },
             FeatBenefit::Custom {
                 description: "-5 to hit for +10 damage".into(),
             },
-        ])
-        .with_category("combat")
-        .with_tag(Tag::new("combat").unwrap())
-        .with_tag(Tag::new("melee").unwrap());
+        ];
+        feat.category = Some("combat".to_string());
+        feat.tags.push(Tag::new("combat").unwrap());
+        feat.tags.push(Tag::new("melee").unwrap());
 
         let other = feat.clone();
         assert_eq!(feat, other);
@@ -452,23 +400,23 @@ mod tests {
 
     #[test]
     fn feat_accessors() {
-        let feat = Feat::new(
+        let mut feat = Feat::new(
             "test_feat",
             "test_system",
             "Test Feat",
             "Test description",
             "Test Source",
-        )
-        .with_repeatable(true)
-        .with_category("general");
+        );
+        feat.repeatable = true;
+        feat.category = Some("general".to_string());
 
-        assert_eq!(feat.id(), "test_feat");
-        assert_eq!(feat.system_id(), "test_system");
-        assert_eq!(feat.name(), "Test Feat");
-        assert_eq!(feat.description(), "Test description");
-        assert_eq!(feat.source(), "Test Source");
-        assert!(feat.repeatable());
-        assert_eq!(feat.category(), Some("general"));
+        assert_eq!(feat.id, "test_feat");
+        assert_eq!(feat.system_id, "test_system");
+        assert_eq!(feat.name, "Test Feat");
+        assert_eq!(feat.description, "Test description");
+        assert_eq!(feat.source, "Test Source");
+        assert!(feat.repeatable);
+        assert_eq!(feat.category, Some("general".to_string()));
     }
 
     #[test]
@@ -492,7 +440,7 @@ mod tests {
             "PHB p.169",
         );
 
-        assert!(feat.prerequisites().is_empty());
+        assert!(feat.prerequisites.is_empty());
     }
 
     #[test]

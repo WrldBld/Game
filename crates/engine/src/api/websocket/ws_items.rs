@@ -66,13 +66,13 @@ pub(super) async fn handle_items_request(
             };
             let mut item = wrldbldr_domain::Item::new(world_uuid, item_name);
             if let Some(desc) = data.description {
-                item = item.with_description(desc);
+                item.description = Some(desc);
             }
             if let Some(item_type) = data.item_type {
-                item = item.with_type(item_type);
+                item.item_type = Some(item_type);
             }
             if let Some(props) = data.properties {
-                item = item.with_properties(serde_json::to_string(&props).unwrap_or_default());
+                item.properties = Some(serde_json::to_string(&props).unwrap_or_default());
             }
 
             let create_and_place = crate::use_cases::inventory::CreateAndPlaceItem::new(

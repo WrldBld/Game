@@ -310,7 +310,7 @@ async fn test_dm_approves_give_item_adds_to_inventory() {
         assert!(
             updated_inventory
                 .iter()
-                .any(|i| i.name().as_str() == "Test Potion"),
+                .any(|i| i.name.as_str() == "Test Potion"),
             "Should find Test Potion in inventory"
         );
 

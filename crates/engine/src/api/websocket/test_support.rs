@@ -461,10 +461,6 @@ pub(crate) fn build_test_app_with_ports(
         scene_repo.clone(),
         clock_port.clone(),
     ));
-    let assets = Arc::new(crate::repositories::AssetsRepository::new(
-        asset_repo.clone(),
-        image_gen,
-    ));
 
     // Build Repositories container (ADR-009: port traits injected directly)
     let repositories_container = Repositories {
@@ -489,7 +485,6 @@ pub(crate) fn build_test_app_with_ports(
         narrative_repo: narrative_repo.clone(),
         // Wrapper types
         narrative: narrative.clone(),
-        assets: assets.clone(),
     };
 
     // Use cases (not exercised by these tests, but required by App).
@@ -637,18 +632,20 @@ pub(crate) fn build_test_app_with_ports(
         )),
     );
 
-    let settings_entity = Arc::new(crate::repositories::SettingsRepository::new(
+    let settings_ops = Arc::new(crate::use_cases::settings::SettingsOps::new(
         settings_repo.clone(),
     ));
 
     let assets_uc = crate::use_cases::AssetUseCases::new(
         Arc::new(crate::use_cases::assets::GenerateAsset::new(
-            assets.clone(),
+            asset_repo.clone(),
+            image_gen.clone(),
             queue_port.clone(),
             clock_port.clone(),
         )),
         Arc::new(crate::use_cases::assets::GenerateExpressionSheet::new(
-            assets.clone(),
+            asset_repo.clone(),
+            image_gen.clone(),
             character_repo.clone(),
             queue_port.clone(),
             clock_port.clone(),
@@ -846,7 +843,7 @@ pub(crate) fn build_test_app_with_ports(
         crate::use_cases::management::SkillManagement::new(content_repo.clone()),
     );
 
-    let settings = settings_entity;
+    let settings = settings_ops;
 
     let join_world = Arc::new(crate::use_cases::session::JoinWorld::new(
         world_repo.clone(),

@@ -196,10 +196,10 @@ impl SceneChangeBuilder {
             Ok(items) => items
                 .into_iter()
                 .map(|item| RegionItemInfo {
-                    id: item.id().to_string(),
-                    name: item.name().to_string(),
-                    description: item.description().map(|s| s.to_string()),
-                    item_type: item.item_type().map(|s| s.to_string()),
+                    id: item.id.to_string(),
+                    name: item.name.as_str().to_string(),
+                    description: item.description.clone(),
+                    item_type: item.item_type.clone(),
                 })
                 .collect(),
             Err(e) => {

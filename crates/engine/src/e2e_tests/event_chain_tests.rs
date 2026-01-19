@@ -18,7 +18,9 @@
 use chrono::Utc;
 use neo4rs::query;
 use uuid::Uuid;
-use wrldbldr_domain::{Description, NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType};
+use wrldbldr_domain::{
+    Description, NarrativeEvent, NarrativeEventName, NarrativeTrigger, NarrativeTriggerType,
+};
 
 use super::*;
 
@@ -375,7 +377,9 @@ async fn test_event_condition_checks_player_flags() {
     )
     .with_id(event_id)
     .with_description("Secret event only for those who met the stranger")
-    .with_scene_direction(Description::new("A hooded figure beckons you to a corner booth").unwrap())
+    .with_scene_direction(
+        Description::new("A hooded figure beckons you to a corner booth").unwrap(),
+    )
     .with_trigger_condition(location_trigger)
     .with_trigger_condition(flag_trigger)
     .with_priority(10);
@@ -540,7 +544,10 @@ async fn test_event_condition_checks_inventory() {
     )
     .with_id(event_id)
     .with_description("A secret passage reveals itself when you hold the key")
-    .with_scene_direction(Description::new("The innkeeper notices the key in your possession and nods knowingly").unwrap())
+    .with_scene_direction(
+        Description::new("The innkeeper notices the key in your possession and nods knowingly")
+            .unwrap(),
+    )
     .with_trigger_condition(location_trigger)
     .with_trigger_condition(inventory_trigger)
     .with_priority(10);
@@ -724,7 +731,9 @@ async fn test_event_condition_checks_stats() {
     )
     .with_id(event_low_cha_id)
     .with_description("Event requiring Old Tom to have high charisma")
-    .with_scene_direction(Description::new("Old Tom captivates the room with his presence").unwrap())
+    .with_scene_direction(
+        Description::new("Old Tom captivates the room with his presence").unwrap(),
+    )
     .with_trigger_condition(location_trigger_low)
     .with_trigger_condition(stat_trigger_low)
     .with_priority(10);
@@ -779,7 +788,9 @@ async fn test_event_condition_checks_stats() {
     )
     .with_id(event_high_cha_id)
     .with_description("Event requiring Vera to have high charisma")
-    .with_scene_direction(Description::new("Vera's magnetic presence draws everyone's attention").unwrap())
+    .with_scene_direction(
+        Description::new("Vera's magnetic presence draws everyone's attention").unwrap(),
+    )
     .with_trigger_condition(location_trigger_high)
     .with_trigger_condition(stat_trigger_high)
     .with_priority(10);
@@ -1312,7 +1323,9 @@ async fn test_chain_completion_triggers_final_effects() {
     )
     .with_id(event_final_id)
     .with_description("Final event granting completion reward")
-    .with_scene_direction(Description::new("The villager returns with a reward for your heroism").unwrap())
+    .with_scene_direction(
+        Description::new("The villager returns with a reward for your heroism").unwrap(),
+    )
     .with_trigger_condition(location_trigger_final)
     .with_trigger_condition(event_a_completed)
     .with_priority(10);
@@ -1918,7 +1931,9 @@ async fn test_chain_branch_based_on_outcome() {
     )
     .with_id(event_b_id)
     .with_description("Quest accepted path")
-    .with_scene_direction(Description::new("Having accepted the offer, you learn more details").unwrap())
+    .with_scene_direction(
+        Description::new("Having accepted the offer, you learn more details").unwrap(),
+    )
     .with_trigger_condition(
         NarrativeTrigger::new(
             NarrativeTriggerType::PlayerEntersLocation {

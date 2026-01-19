@@ -474,8 +474,8 @@ impl ExecuteEffects {
         // Find the item in PC's inventory by name
         match self.pc.get_inventory(pc_id).await {
             Ok(inventory) => {
-                if let Some(item) = inventory.iter().find(|i| i.name().as_str() == item_name) {
-                    let item_id = item.id();
+                if let Some(item) = inventory.iter().find(|i| i.name.as_str() == item_name) {
+                    let item_id = item.id;
                     // Drop the item (removes from inventory)
                     let drop_item = crate::use_cases::inventory::DropItem::new(
                         self.item.clone(),

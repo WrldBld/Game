@@ -687,17 +687,12 @@ impl FiveToolsImporter {
             description,
             classes,
             source,
-        )
-        .with_tags(tags)
-        .with_ritual(ritual)
-        .with_concentration(concentration);
-
-        if let Some(school_name) = school {
-            spell = spell.with_school(school_name);
-        }
-        if let Some(higher) = higher_levels {
-            spell = spell.with_higher_levels(higher);
-        }
+        );
+        spell.tags = tags;
+        spell.ritual = ritual;
+        spell.concentration = concentration;
+        spell.school = school;
+        spell.higher_levels = higher_levels;
 
         Some(spell)
     }
@@ -892,14 +887,14 @@ impl FiveToolsImporter {
             raw.page.map(|p| p.to_string()).unwrap_or_default()
         );
 
-        let mut feat = Feat::new(id, "dnd5e", raw.name, description, source)
-            .with_prerequisites(prerequisites)
-            .with_benefits(benefits)
-            .with_repeatable(false)
-            .with_tags(Vec::new());
+        let mut feat = Feat::new(id, "dnd5e", raw.name, description, source);
+        feat.prerequisites = prerequisites;
+        feat.benefits = benefits;
+        feat.repeatable = false;
+        feat.tags = Vec::new();
 
         if let Some(cat) = raw.category {
-            feat = feat.with_category(cat);
+            feat.category = Some(cat);
         }
 
         Some(feat)
@@ -2022,56 +2017,61 @@ impl Dnd5eContentProvider {
 
     fn spell_to_content_item(spell: &Spell) -> ContentItem {
         let data = serde_json::json!({
-            "level": spell.level(),
-            "school": spell.school(),
-            "casting_time": spell.casting_time(),
-            "range": spell.range(),
-            "components": spell.components(),
-            "duration": spell.duration(),
-            "higher_levels": spell.higher_levels(),
-            "classes": spell.classes(),
-            "ritual": spell.ritual(),
-            "concentration": spell.concentration(),
+            "level": spell.level,
+            "school": spell.school,
+            "casting_time": spell.casting_time,
+            "range": spell.range,
+            "components": spell.components,
+            "duration": spell.duration,
+            "higher_levels": spell.higher_levels,
+            "classes": spell.classes,
+            "ritual": spell.ritual,
+            "concentration": spell.concentration,
         });
 
-        let mut tags: Vec<String> = spell.tags().iter().map(|t| t.to_string()).collect();
+        let mut tags: Vec<String> = spell.tags.iter().map(|t| t.to_string()).collect();
         tags.push("spell".to_string());
-        tags.push(spell.source().to_string());
-        if let Some(school) = spell.school() {
+        tags.push(spell.source.to_string());
+        if let Some(school) = &spell.school {
             tags.push(school.to_lowercase());
         }
-        if spell.ritual() {
+        if spell.ritual {
             tags.push("ritual".to_string());
         }
-        if spell.concentration() {
+        if spell.concentration {
             tags.push("concentration".to_string());
         }
 
-        ContentItem::new(spell.id(), ContentType::Spell, spell.name(), spell.source())
-            .with_description(spell.description())
+        ContentItem::new(&spell.id, ContentType::Spell, &spell.name, &spell.source)
+            .with_description(&spell.description)
             .with_data(data)
             .with_tags(tags)
     }
 
     fn feat_to_content_item(feat: &Feat) -> ContentItem {
         let data = serde_json::json!({
-            "prerequisites": feat.prerequisites(),
-            "benefits": feat.benefits(),
-            "category": feat.category(),
-            "repeatable": feat.repeatable(),
+            "prerequisites": feat.prerequisites,
+            "benefits": feat.benefits,
+            "category": feat.category,
+            "repeatable": feat.repeatable,
         });
 
-        let mut tags: Vec<String> = feat.tags().iter().map(|t| t.to_string()).collect();
+        let mut tags: Vec<String> = feat.tags.iter().map(|t| t.to_string()).collect();
         tags.push("feat".to_string());
-        tags.push(feat.source().to_string());
-        if let Some(cat) = feat.category() {
+        tags.push(feat.source.clone());
+        if let Some(cat) = &feat.category {
             tags.push(cat.to_lowercase());
         }
 
-        ContentItem::new(feat.id(), ContentType::Feat, feat.name(), feat.source())
-            .with_description(feat.description())
-            .with_data(data)
-            .with_tags(tags)
+        ContentItem::new(
+            feat.id.clone(),
+            ContentType::Feat,
+            feat.name.clone(),
+            feat.source.clone(),
+        )
+        .with_description(feat.description.clone())
+        .with_data(data)
+        .with_tags(tags)
     }
 }
 
@@ -2616,25 +2616,21 @@ mod tests {
             println!("Imported {} spells", spells.len());
 
             // Check a known spell exists
-            let fireball = spells.iter().find(|s| s.name() == "Fireball");
+            let fireball = spells.iter().find(|s| &s.name == "Fireball");
             assert!(fireball.is_some(), "Fireball spell should exist");
 
             if let Some(fireball) = fireball {
-                assert_eq!(
-                    fireball.level(),
-                    SpellLevel::Level(3),
-                    "Fireball is level 3"
-                );
+                assert_eq!(fireball.level, SpellLevel::Level(3), "Fireball is level 3");
                 // Note: Class associations are stored separately in sources.json,
                 // not directly on spells. The importer may have empty classes list.
             }
 
             // Check a cantrip
-            let fire_bolt = spells.iter().find(|s| s.name() == "Fire Bolt");
+            let fire_bolt = spells.iter().find(|s| &s.name == "Fire Bolt");
             assert!(fire_bolt.is_some(), "Fire Bolt cantrip should exist");
             if let Some(fire_bolt) = fire_bolt {
                 assert_eq!(
-                    fire_bolt.level(),
+                    fire_bolt.level,
                     SpellLevel::Cantrip,
                     "Fire Bolt is a cantrip"
                 );
@@ -2658,7 +2654,7 @@ mod tests {
                     println!("Imported {} feats", feats.len());
 
                     // Check a known feat exists
-                    let gwm = feats.iter().find(|f| f.name() == "Great Weapon Master");
+                    let gwm = feats.iter().find(|f| f.name == "Great Weapon Master");
                     assert!(gwm.is_some(), "Great Weapon Master feat should exist");
                 }
                 Err(e) => {

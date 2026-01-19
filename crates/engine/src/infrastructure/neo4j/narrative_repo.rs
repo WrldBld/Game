@@ -1446,7 +1446,8 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
         .with_trigger_conditions(trigger_conditions)
         .with_trigger_logic(trigger_logic)
         .with_scene_direction(
-            Description::new(scene_direction).map_err(|e| RepoError::database("query", e.to_string()))?,
+            Description::new(scene_direction)
+                .map_err(|e| RepoError::database("query", e.to_string()))?,
         )
         .with_outcomes(outcomes)
         .with_active(is_active)

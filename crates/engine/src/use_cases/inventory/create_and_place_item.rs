@@ -33,8 +33,8 @@ impl CreateAndPlaceItem {
     /// * `Ok(ItemId)` - ID of the created item
     /// * `Err(InventoryError)` - Failed to create/place item
     pub async fn execute(&self, item: Item, region_id: RegionId) -> Result<ItemId, InventoryError> {
-        let item_id = item.id();
-        let item_name = item.name().to_string();
+        let item_id = item.id;
+        let item_name = item.name.as_str();
 
         // Save the item
         self.item_repo.save(&item).await?;

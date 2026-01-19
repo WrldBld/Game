@@ -200,7 +200,7 @@ async fn test_approved_give_item_creates_item_in_inventory() {
                 if let Some(item_name) = tool.arguments.get("item_name").and_then(|v| v.as_str()) {
                     let found = final_inventory
                         .iter()
-                        .any(|i| i.name().as_str() == item_name);
+                        .any(|i| i.name.as_str().as_str() == item_name);
                     assert!(
                         found,
                         "Item '{}' should be in inventory after approval",
@@ -213,7 +213,7 @@ async fn test_approved_give_item_creates_item_in_inventory() {
         tracing::info!(
             initial_count = initial_count,
             final_count = final_inventory.len(),
-            items = ?final_inventory.iter().map(|i| i.name().as_str()).collect::<Vec<_>>(),
+            items = ?final_inventory.iter().map(|i| i.name.as_str().as_str()).collect::<Vec<_>>(),
             "Inventory state after tool execution"
         );
 
@@ -798,7 +798,7 @@ async fn test_give_item_persists_after_conversation_end() {
             initial_count = initial_count,
             mid_count = mid_inventory.len(),
             final_count = final_inventory.len(),
-            items = ?final_inventory.iter().map(|i| i.name().as_str()).collect::<Vec<_>>(),
+            items = ?final_inventory.iter().map(|i| i.name.as_str().as_str()).collect::<Vec<_>>(),
             "Inventory after conversation ended"
         );
 
@@ -813,10 +813,13 @@ async fn test_give_item_persists_after_conversation_end() {
 
         // All items should have valid names
         for item in &final_inventory {
-            assert!(!item.name().as_str().is_empty(), "Item should have a name");
+            assert!(
+                !item.name.as_str().as_str().is_empty(),
+                "Item should have a name"
+            );
             tracing::info!(
-                item_name = %item.name(),
-                item_id = %item.id(),
+                item_name = %item.name.as_str(),
+                item_id = %item.id,
                 "Item persists after conversation"
             );
         }
@@ -972,7 +975,7 @@ async fn test_tool_execution_fails_gracefully_on_invalid_args() {
             final_inventory.is_empty()
                 || final_inventory.iter().all(|i| {
                     // None of the items should be from our invalid tools
-                    i.name().as_str() != "12345" // The invalid type
+                    i.name.as_str().as_str() != "12345" // The invalid type
                 }),
             "Invalid tool arguments should not create items"
         );

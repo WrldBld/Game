@@ -101,10 +101,10 @@ pub struct NpcDispositionInfo {
 pub struct NpcRegionRelationship {
     pub region_id: RegionId,
     pub relationship_type: NpcRegionRelationType,
-    pub shift: Option<RegionShift>,     // For WORKS_AT: Day, Night, Always
+    pub shift: Option<RegionShift>, // For WORKS_AT: Day, Night, Always
     pub frequency: Option<RegionFrequency>, // For FREQUENTS: Always, Often, Sometimes, Rarely
     pub time_of_day: Option<TimeOfDay>, // For FREQUENTS: Morning, Afternoon, Evening, Night
-    pub reason: Option<String>,    // For AVOIDS: why they avoid it
+    pub reason: Option<String>,     // For AVOIDS: why they avoid it
 }
 
 /// Type of NPC-Region relationship

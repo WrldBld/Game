@@ -92,7 +92,8 @@ mod tests {
         let region_id = RegionId::new();
 
         let mut item_repo = MockItemRepo::new();
-        let item = test_item(world_id).with_id(item_id);
+        let mut item = test_item(world_id);
+        item.id = item_id;
         let item_clone = item.clone();
         item_repo
             .expect_get()

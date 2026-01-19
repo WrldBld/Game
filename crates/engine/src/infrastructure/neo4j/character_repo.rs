@@ -1667,7 +1667,9 @@ impl CharacterRepo for Neo4jCharacterRepo {
         shift: Option<RegionShift>,
     ) -> Result<(), RepoError> {
         // Remove existing WORKS_AT_REGION and create new one
-        let shift_str = shift.map(|s| s.to_string()).unwrap_or_else(|| "always".to_string());
+        let shift_str = shift
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "always".to_string());
         let q = query(
             "MATCH (c:Character {id: $id})
             OPTIONAL MATCH (c)-[old:WORKS_AT_REGION]->()
@@ -1705,7 +1707,10 @@ impl CharacterRepo for Neo4jCharacterRepo {
         .param("id", id.to_string())
         .param("region_id", region_id.to_string())
         .param("frequency", frequency.to_string())
-        .param("time_of_day", time_of_day.map(|t| t.to_string()).unwrap_or_default());
+        .param(
+            "time_of_day",
+            time_of_day.map(|t| t.to_string()).unwrap_or_default(),
+        );
 
         self.graph
             .run(q)
@@ -1853,8 +1858,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
             // Parse shift/frequency/time_of_day strings to typed enums
             let shift_typed = shift.as_ref().and_then(|s| s.parse::<RegionShift>().ok());
-            let frequency_typed = frequency.as_ref().and_then(|s| s.parse::<RegionFrequency>().ok());
-            let time_of_day_typed = time_of_day.as_ref().and_then(|s| s.parse::<TimeOfDay>().ok());
+            let frequency_typed = frequency
+                .as_ref()
+                .and_then(|s| s.parse::<RegionFrequency>().ok());
+            let time_of_day_typed = time_of_day
+                .as_ref()
+                .and_then(|s| s.parse::<TimeOfDay>().ok());
 
             // Parse default_mood from string - fail-fast on invalid values
             let default_mood_str: String = row.get("default_mood").map_err(|e| {

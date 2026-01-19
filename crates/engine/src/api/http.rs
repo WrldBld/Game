@@ -11,8 +11,8 @@ use uuid::Uuid;
 use crate::app::App;
 use crate::infrastructure::app_settings::AppSettings;
 use crate::infrastructure::ports::RepoError;
-use crate::repositories::settings::SettingsError;
 use crate::use_cases::management::ManagementError;
+use crate::use_cases::settings::SettingsError;
 use crate::use_cases::world::WorldError;
 
 /// Create all HTTP routes.
@@ -453,7 +453,9 @@ mod tests {
                     .uri(format!("/api/worlds/{}/settings", world_id))
                     .method(axum::http::Method::PUT)
                     .header(axum::http::header::CONTENT_TYPE, "application/json")
-                    .body(Body::from(serde_json::to_vec(&settings).expect("test: settings should serialize")))
+                    .body(Body::from(
+                        serde_json::to_vec(&settings).expect("test: settings should serialize"),
+                    ))
                     .unwrap(),
             )
             .await
@@ -516,7 +518,9 @@ mod tests {
                     .uri("/api/worlds/import")
                     .method(axum::http::Method::POST)
                     .header(axum::http::header::CONTENT_TYPE, "application/json")
-                    .body(Body::from(serde_json::to_vec(&export).expect("test: export should serialize")))
+                    .body(Body::from(
+                        serde_json::to_vec(&export).expect("test: export should serialize"),
+                    ))
                     .unwrap(),
             )
             .await

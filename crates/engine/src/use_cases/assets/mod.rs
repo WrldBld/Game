@@ -15,8 +15,9 @@ use wrldbldr_domain::{
 
 use crate::queue_types::AssetGenerationData;
 
-use crate::infrastructure::ports::{ClockPort, ImageGenError, ImageRequest, QueuePort, RepoError};
-use crate::repositories::AssetsRepository;
+use crate::infrastructure::ports::{
+    AssetRepo, ClockPort, ImageGenError, ImageGenPort, ImageRequest, QueuePort, RepoError,
+};
 
 // Type aliases for old names to maintain compatibility
 type QueueService = dyn QueuePort;
@@ -57,19 +58,22 @@ pub struct GenerateResult {
 ///
 /// Orchestrates image generation for game entities.
 pub struct GenerateAsset {
-    assets: Arc<AssetsRepository>,
+    asset_repo: Arc<dyn AssetRepo>,
+    image_gen: Arc<dyn ImageGenPort>,
     queue: Arc<QueueService>,
     clock: Arc<ClockService>,
 }
 
 impl GenerateAsset {
     pub fn new(
-        assets: Arc<AssetsRepository>,
+        asset_repo: Arc<dyn AssetRepo>,
+        image_gen: Arc<dyn ImageGenPort>,
         queue: Arc<QueueService>,
         clock: Arc<ClockService>,
     ) -> Self {
         Self {
-            assets,
+            asset_repo,
+            image_gen,
             queue,
             clock,
         }
@@ -96,7 +100,7 @@ impl GenerateAsset {
         workflow: &str,
     ) -> Result<GenerateResult, GenerateError> {
         // Check if service is available
-        let is_healthy = match self.assets.check_health().await {
+        let is_healthy = match self.image_gen.check_health().await {
             Ok(healthy) => healthy,
             Err(e) => {
                 tracing::warn!(error = %e, "Asset generation health check failed, treating as unavailable");
@@ -115,8 +119,8 @@ impl GenerateAsset {
             height: 512,
         };
 
-        let image_data = self
-            .assets
+        let image_result = self
+            .image_gen
             .generate(request)
             .await
             .map_err(|e| GenerateError::Failed(e.to_string()))?;
@@ -149,15 +153,15 @@ impl GenerateAsset {
 
         let asset_id = asset.id();
 
-        self.assets
+        self.asset_repo
             .save(&asset)
             .await
             .map_err(|e| GenerateError::Failed(e.to_string()))?;
 
         Ok(GenerateResult {
             asset_id,
-            image_data,
-            format: "png".to_string(),
+            image_data: image_result.image_data,
+            format: image_result.format,
         })
     }
 

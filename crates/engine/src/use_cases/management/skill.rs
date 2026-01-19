@@ -47,15 +47,17 @@ impl SkillManagement {
             None => SkillCategory::Other,
         };
 
-        let mut skill = wrldbldr_domain::Skill::custom(world_id, name, category_value);
-        if let Some(description) = description {
-            skill = skill.with_description(description);
-        }
-        if let Some(attribute) = attribute {
-            if !attribute.trim().is_empty() {
-                skill = skill.with_base_attribute(attribute);
-            }
-        }
+        let skill = wrldbldr_domain::Skill {
+            id: SkillId::new(),
+            world_id,
+            name,
+            description: description.unwrap_or_default(),
+            category: category_value,
+            base_attribute: attribute.filter(|a| !a.trim().is_empty()),
+            is_custom: true,
+            is_hidden: false,
+            order: 0,
+        };
 
         self.content.save_skill(&skill).await?;
         Ok(skill)
@@ -70,52 +72,52 @@ impl SkillManagement {
         attribute: Option<String>,
         is_hidden: Option<bool>,
     ) -> Result<wrldbldr_domain::Skill, ManagementError> {
-        let mut skill =
-            self.content
-                .get_skill(skill_id)
-                .await?
-                .ok_or(ManagementError::NotFound {
-                    entity_type: "Skill",
-                    id: skill_id.to_string(),
-                })?;
+        let skill = self
+            .content
+            .get_skill(skill_id)
+            .await?
+            .ok_or(ManagementError::NotFound {
+                entity_type: "Skill",
+                id: skill_id.to_string(),
+            })?;
 
         // Rebuild skill with updated values
         let new_name = if let Some(name) = name {
             require_non_empty(&name, "Skill name")?;
             name
         } else {
-            skill.name().to_string()
+            skill.name.clone()
         };
 
-        let new_description = description.unwrap_or_else(|| skill.description().to_string());
+        let new_description = description.unwrap_or_else(|| skill.description.clone());
         let new_category = if let Some(category) = category {
             category.parse::<SkillCategory>()?
         } else {
-            skill.category()
+            skill.category
         };
 
         let new_base_attribute = match attribute {
             Some(attr) if attr.trim().is_empty() => None,
             Some(attr) => Some(attr),
-            None => skill.base_attribute().map(|s| s.to_string()),
+            None => skill.base_attribute.clone(),
         };
 
-        let new_is_hidden = is_hidden.unwrap_or_else(|| skill.is_hidden());
+        let new_is_hidden = is_hidden.unwrap_or(skill.is_hidden);
 
-        skill = wrldbldr_domain::Skill::from_parts(
-            skill.id(),
-            skill.world_id(),
-            new_name,
-            new_description,
-            new_category,
-            new_base_attribute,
-            skill.is_custom(),
-            new_is_hidden,
-            skill.order(),
-        );
+        let updated_skill = wrldbldr_domain::Skill {
+            id: skill.id,
+            world_id: skill.world_id,
+            name: new_name,
+            description: new_description,
+            category: new_category,
+            base_attribute: new_base_attribute,
+            is_custom: skill.is_custom,
+            is_hidden: new_is_hidden,
+            order: skill.order,
+        };
 
-        self.content.save_skill(&skill).await?;
-        Ok(skill)
+        self.content.save_skill(&updated_skill).await?;
+        Ok(updated_skill)
     }
 
     pub async fn delete(&self, skill_id: SkillId) -> Result<(), ManagementError> {

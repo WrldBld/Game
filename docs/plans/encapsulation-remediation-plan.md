@@ -663,29 +663,29 @@ task e2e
 
 ## Progress Tracking
 
-- [ ] **Priority 1: ADR-009 Compliance**
-  - [ ] Phase 1.1: Eliminate AssetsRepository
-  - [ ] Phase 1.2: Eliminate SettingsRepository
-  - [ ] Phase 1.3: Delete repository files
-  - [ ] Phase 1.4: Update App composition
+- [x] **Priority 1: ADR-009 Compliance**
+  - [x] Phase 1.1: Eliminate AssetsRepository
+  - [x] Phase 1.2: Eliminate SettingsRepository
+  - [x] Phase 1.3: Delete repository files
+  - [x] Phase 1.4: Update App composition
 
-- [ ] **Priority 2: Entity Over-Encapsulation**
-  - [ ] Phase 2.1: Convert skill.rs
-  - [ ] Phase 2.2: Convert feat.rs
-  - [ ] Phase 2.3: Convert spell.rs
-  - [ ] Phase 2.4: Convert item.rs
-  - [ ] Phase 2.5: Convert class_feature.rs
-  - [ ] Update all call sites
+- [x] **Priority 2: Entity Over-Encapsulation**
+  - [x] Phase 2.1: Convert skill.rs
+  - [x] Phase 2.2: Convert feat.rs
+  - [x] Phase 2.3: Convert spell.rs
+  - [x] Phase 2.4: Convert item.rs
+  - [x] Phase 2.5: Convert class_feature.rs
+  - [x] Update all call sites
 
-- [ ] **Priority 3: UserId Consistency**
-  - [ ] Change return type to DomainError
-  - [ ] Add serde integration
-  - [ ] Update call sites
+- [x] **Priority 3: UserId Consistency**
+  - [x] Change return type to DomainError
+  - [x] Add serde integration
+  - [x] Update call sites
 
-- [ ] **Priority 4: Optional Improvements**
-  - [ ] Add serde validation to DiceFormula
-  - [ ] Add ADR-008 documentation comments
-  - [ ] Add validate() methods to complex VOs
+- [x] **Priority 4: Optional Improvements**
+  - [x] Add serde validation to DiceFormula
+  - [x] Add ADR-008 documentation comments
+  - [x] Add validate() methods to complex VOs
 
 ---
 

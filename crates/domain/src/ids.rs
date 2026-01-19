@@ -3,6 +3,8 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::error::DomainError;
+
 macro_rules! define_id {
     ($name:ident) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -95,10 +97,10 @@ pub struct UserId(String);
 
 impl UserId {
     /// Create a new UserId from a string, validating that it's not empty.
-    pub fn new(id: impl Into<String>) -> Result<Self, &'static str> {
+    pub fn new(id: impl Into<String>) -> Result<Self, DomainError> {
         let id = id.into();
         if id.is_empty() {
-            return Err("UserId cannot be empty");
+            return Err(DomainError::validation("UserId cannot be empty"));
         }
         Ok(Self(id))
     }
@@ -126,6 +128,19 @@ impl UserId {
     /// but may return true for UserIds created with `from_trusted`.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+}
+
+impl TryFrom<String> for UserId {
+    type Error = DomainError;
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Self::new(s)
+    }
+}
+
+impl From<UserId> for String {
+    fn from(id: UserId) -> String {
+        id.0
     }
 }
 

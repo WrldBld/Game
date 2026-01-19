@@ -53,18 +53,18 @@ impl GiveItem {
         let validated_name = domain::ItemName::new(item_name.clone())?;
         let mut item = domain::Item::new(pc.world_id(), validated_name);
         if let Some(desc) = item_description {
-            item = item.with_description(desc);
+            item.description = Some(desc);
         }
 
         // Save the item
         self.item_repo.save(&item).await?;
 
         // Add to PC's inventory
-        self.pc_repo.add_to_inventory(pc_id, item.id()).await?;
+        self.pc_repo.add_to_inventory(pc_id, item.id).await?;
 
         tracing::info!(
             pc_id = %pc_id,
-            item_id = %item.id(),
+            item_id = %item.id,
             item_name = %item_name,
             "Item given to player character"
         );

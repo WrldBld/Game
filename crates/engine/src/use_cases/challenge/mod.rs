@@ -886,10 +886,12 @@ mod tests {
         let mut item_repo = MockItemRepo::new();
         item_repo
             .expect_save()
-            .withf(|item| item.name().as_str() == "Key" && item.description() == Some("Rusty"))
+            .withf(|item| {
+                item.name.as_str() == "Key" && item.description.as_deref() == Some("Rusty")
+            })
             .returning(move |item| {
                 let expected_item_id_for_save = expected_item_id_for_save.clone();
-                let item_id = item.id();
+                let item_id = item.id;
                 *expected_item_id_for_save.lock().unwrap() = Some(item_id);
                 Ok(())
             });

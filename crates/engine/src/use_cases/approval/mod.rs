@@ -181,7 +181,9 @@ impl ApproveSuggestion {
 
         // Mark the queue item based on decision
         if approved {
-            self.queue.mark_complete(approval_queue_id.to_uuid()).await?;
+            self.queue
+                .mark_complete(approval_queue_id.to_uuid())
+                .await?;
         } else {
             self.queue
                 .mark_failed(approval_queue_id.to_uuid(), "Rejected by DM")

@@ -272,7 +272,8 @@ mod tests {
     use chrono::Utc;
     use wrldbldr_domain::{
         value_objects::{CharacterName, LocationName, RegionName},
-        Description, LocationId, LocationType, PlayerCharacterId, Region, RegionId, UserId, WorldId,
+        Description, LocationId, LocationType, PlayerCharacterId, Region, RegionId, UserId,
+        WorldId,
     };
 
     use crate::infrastructure::ports::{

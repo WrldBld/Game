@@ -96,8 +96,8 @@ pub(super) async fn handle_join_world(
     // Phase 3: Commit (only after serialization succeeds)
     // =========================================================================
     // Convert user_id String to UserId at API boundary
-    let user_id_typed = UserId::new(&user_id)
-        .unwrap_or_else(|_| UserId::from_trusted(connection_id.to_string()));
+    let user_id_typed =
+        UserId::new(&user_id).unwrap_or_else(|_| UserId::from_trusted(connection_id.to_string()));
     let session = crate::stores::SessionStore::new(state.connections.clone());
     let committed = match state
         .app

@@ -144,14 +144,14 @@ pub(super) async fn handle_skill_request(
 
 fn skill_to_json(skill: &domain::Skill) -> serde_json::Value {
     json!({
-        "id": skill.id().to_string(),
-        "world_id": skill.world_id().to_string(),
-        "name": skill.name(),
-        "description": skill.description(),
-        "category": skill.category().to_string(),
-        "base_attribute": skill.base_attribute(),
-        "is_custom": skill.is_custom(),
-        "is_hidden": skill.is_hidden(),
-        "order": skill.order(),
+        "id": skill.id.to_string(),
+        "world_id": skill.world_id.to_string(),
+        "name": skill.name,
+        "description": skill.description,
+        "category": skill.category.to_string(),
+        "base_attribute": skill.base_attribute,
+        "is_custom": skill.is_custom,
+        "is_hidden": skill.is_hidden,
+        "order": skill.order,
     })
 }

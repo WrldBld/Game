@@ -1,4 +1,7 @@
-//! Settings entity operations.
+// Settings use cases - port trait injection per ADR-009
+#![allow(dead_code)]
+
+//! Settings management use cases.
 //!
 //! Handles application settings at both global and per-world levels.
 //! Provides fallback logic from world-specific settings to global defaults.
@@ -10,19 +13,19 @@ use wrldbldr_shared::settings::settings_metadata;
 use wrldbldr_shared::settings::SettingsFieldMetadata;
 
 use crate::infrastructure::app_settings::AppSettings;
-use crate::infrastructure::ports::{RepoError, SettingsRepo};
+use crate::infrastructure::ports::SettingsRepo;
 
-/// Settings entity operations.
+/// Settings operations use case.
 ///
 /// Encapsulates all settings-related queries and mutations, providing:
 /// - Global settings management
 /// - Per-world settings with fallback to global
 /// - Settings metadata for UI/configuration
-pub struct SettingsRepository {
+pub struct SettingsOps {
     repo: Arc<dyn SettingsRepo>,
 }
 
-impl SettingsRepository {
+impl SettingsOps {
     pub fn new(repo: Arc<dyn SettingsRepo>) -> Self {
         Self { repo }
     }
@@ -98,5 +101,5 @@ impl SettingsRepository {
 #[derive(Debug, thiserror::Error)]
 pub enum SettingsError {
     #[error("Repository error: {0}")]
-    Repo(#[from] RepoError),
+    Repo(#[from] crate::infrastructure::ports::RepoError),
 }

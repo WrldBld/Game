@@ -3,6 +3,7 @@
 //! Domain representation of custom outcome text for challenges
 //! created on-the-fly by the DM.
 
+use crate::error::DomainError;
 use serde::{Deserialize, Serialize};
 
 /// Ad-hoc challenge outcomes for DM-created challenges
@@ -98,6 +99,42 @@ impl AdHocOutcomes {
             critical_failure: Some(critical_failure.into()),
             ..self
         }
+    }
+
+    /// Validate the ad-hoc outcomes configuration.
+    ///
+    /// Checks that:
+    /// - At least success or failure is non-empty
+    /// - If critical_success is set, critical_failure is also set (symmetric criticals)
+    pub fn validate(&self) -> Result<(), DomainError> {
+        if self.success.trim().is_empty() {
+            return Err(DomainError::validation(
+                "Success outcome cannot be empty".to_string(),
+            ));
+        }
+
+        if self.failure.trim().is_empty() {
+            return Err(DomainError::validation(
+                "Failure outcome cannot be empty".to_string(),
+            ));
+        }
+
+        // Check symmetric criticals (both set or both None)
+        match (&self.critical_success, &self.critical_failure) {
+            (None, None) | (Some(_), Some(_)) => {} // Both set or both None - OK
+            (Some(_), None) => {
+                return Err(DomainError::validation(
+                    "Critical success requires critical failure to also be set".to_string(),
+                ));
+            }
+            (None, Some(_)) => {
+                return Err(DomainError::validation(
+                    "Critical failure requires critical success to also be set".to_string(),
+                ));
+            }
+        }
+
+        Ok(())
     }
 }
 

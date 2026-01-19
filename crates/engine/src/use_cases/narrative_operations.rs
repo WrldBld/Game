@@ -533,7 +533,7 @@ impl NarrativeOps {
         let inventory: Vec<String> = match self.player_character_repo.get_inventory(pc_id).await {
             Ok(items) => items
                 .into_iter()
-                .map(|item| item.name().to_string())
+                .map(|item| item.name.as_str().to_string())
                 .collect(),
             Err(e) => {
                 tracing::warn!(

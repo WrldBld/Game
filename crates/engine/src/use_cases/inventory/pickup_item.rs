@@ -55,7 +55,7 @@ impl PickupItem {
         // Verify the item is in the PC's current region
         let pc_region = pc.current_region_id().ok_or(InventoryError::NotInRegion)?;
         let items_in_region = self.item_repo.list_in_region(pc_region).await?;
-        if !items_in_region.iter().any(|i| i.id() == item_id) {
+        if !items_in_region.iter().any(|i| i.id == item_id) {
             return Err(InventoryError::ItemNotInRegion);
         }
 
@@ -66,7 +66,7 @@ impl PickupItem {
         self.pc_repo.add_to_inventory(pc_id, item_id).await?;
 
         Ok(InventoryActionResult {
-            item_name: item.name().to_string(),
+            item_name: item.name.as_str().to_string(),
             quantity: 1,
         })
     }
@@ -157,7 +157,8 @@ mod tests {
         let item_id = ItemId::new();
 
         let mut item_repo = MockItemRepo::new();
-        let item = test_item(world_id).with_id(item_id);
+        let mut item = test_item(world_id);
+        item.id = item_id;
         let item_clone = item.clone();
         item_repo
             .expect_get()
@@ -187,7 +188,8 @@ mod tests {
         let region_id = RegionId::new();
 
         let mut item_repo = MockItemRepo::new();
-        let item = test_item(world_id).with_id(item_id);
+        let mut item = test_item(world_id);
+        item.id = item_id;
         let item_clone = item.clone();
         item_repo
             .expect_get()
@@ -221,7 +223,8 @@ mod tests {
         let region_id = RegionId::new();
 
         let mut item_repo = MockItemRepo::new();
-        let item = test_item(world_id).with_id(item_id);
+        let mut item = test_item(world_id);
+        item.id = item_id;
         let item_for_get = item.clone();
         let item_for_list = item.clone();
         item_repo

@@ -19,7 +19,6 @@ mod infrastructure;
 mod llm_context;
 mod prompt_templates;
 mod queue_types;
-mod repositories;
 mod stores;
 mod use_cases;
 

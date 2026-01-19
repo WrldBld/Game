@@ -29,7 +29,7 @@ async fn test_list_world_skills() {
         Ok(skill_list) => {
             println!("World has {} skills defined", skill_list.len());
             for skill in &skill_list {
-                println!("  Skill: {} ({:?})", skill.name(), skill.category());
+                println!("  Skill: {} ({:?})", skill.name, skill.category);
             }
         }
         Err(e) => {

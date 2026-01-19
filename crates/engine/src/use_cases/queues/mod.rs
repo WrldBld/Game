@@ -154,13 +154,10 @@ impl ProcessPlayerAction {
         };
 
         // Build the prompt with character context
-        let prompt = self
-            .build_prompt(&action_data)
-            .await
-            .unwrap_or_else(|e| {
-                tracing::warn!("Failed to build prompt: {}, using fallback", e);
-                self.build_fallback_prompt(&action_data)
-            });
+        let prompt = self.build_prompt(&action_data).await.unwrap_or_else(|e| {
+            tracing::warn!("Failed to build prompt: {}, using fallback", e);
+            self.build_fallback_prompt(&action_data)
+        });
 
         let llm_request = LlmRequestData {
             request_type: LlmRequestType::NpcResponse {
@@ -1213,7 +1210,9 @@ impl ProcessLlmRequest {
             // Store the dealiased UUID, not the alias, for auditing and persistence
             challenge_id: challenge_id_str,
             challenge_name: challenge.name().to_string(),
-            skill_name: challenge.check_stat().map_or(String::new(), |s| s.to_string()),
+            skill_name: challenge
+                .check_stat()
+                .map_or(String::new(), |s| s.to_string()),
             difficulty_display: challenge.difficulty().display(),
             confidence: raw.confidence.clone(),
             reasoning: raw.reasoning.clone(),
@@ -1355,7 +1354,9 @@ impl ProcessLlmRequest {
         Some(crate::queue_types::ChallengeSuggestion {
             challenge_id: challenge.id().to_string(),
             challenge_name: challenge.name().to_string(),
-            skill_name: challenge.check_stat().map_or(String::new(), |s| s.to_string()),
+            skill_name: challenge
+                .check_stat()
+                .map_or(String::new(), |s| s.to_string()),
             difficulty_display: challenge.difficulty().display(),
             confidence: "high".to_string(), // Challenge tag means LLM determined it triggered
             reasoning: "Player dialogue matched challenge trigger keywords".to_string(),

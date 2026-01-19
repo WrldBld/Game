@@ -297,9 +297,16 @@ impl DiceFormula {
     }
 }
 
-impl fmt::Display for DiceFormula {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.display())
+impl TryFrom<String> for DiceFormula {
+    type Error = DiceParseError;
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Self::parse(&s)
+    }
+}
+
+impl From<DiceFormula> for String {
+    fn from(formula: DiceFormula) -> String {
+        formula.display()
     }
 }
 

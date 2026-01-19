@@ -27,8 +27,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{AssetId, CharacterId};
 
-use crate::infrastructure::ports::{CharacterRepo, ClockPort, QueueError, QueuePort, RepoError};
-use crate::repositories::AssetsRepository;
+use crate::infrastructure::ports::{
+    AssetRepo, CharacterRepo, ClockPort, ImageGenPort, QueueError, QueuePort, RepoError,
+};
 
 // Type aliases for old names to maintain compatibility
 type CharacterRepository = dyn CharacterRepo;
@@ -133,7 +134,8 @@ pub struct SlicedExpression {
 /// Generate expression sheet use case.
 #[allow(dead_code)]
 pub struct GenerateExpressionSheet {
-    assets: Arc<AssetsRepository>,
+    asset_repo: Arc<dyn AssetRepo>,
+    image_gen: Arc<dyn ImageGenPort>,
     character: Arc<CharacterRepository>,
     queue: Arc<QueueService>,
     clock: Arc<ClockService>,
@@ -141,13 +143,15 @@ pub struct GenerateExpressionSheet {
 
 impl GenerateExpressionSheet {
     pub fn new(
-        assets: Arc<AssetsRepository>,
+        asset_repo: Arc<dyn AssetRepo>,
+        image_gen: Arc<dyn ImageGenPort>,
         character: Arc<CharacterRepository>,
         queue: Arc<QueueService>,
         clock: Arc<ClockService>,
     ) -> Self {
         Self {
-            assets,
+            asset_repo,
+            image_gen,
             character,
             queue,
             clock,

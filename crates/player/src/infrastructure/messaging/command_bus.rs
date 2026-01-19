@@ -126,7 +126,9 @@ impl CommandBus {
         let (id, result) = self.request_internal(payload).await?;
         // Request completed normally, id cleanup handled by resolve()
         let _ = id;
-        result.await.map_err(|e| RequestError::Cancelled(format!("response channel error: {}", e)))
+        result
+            .await
+            .map_err(|e| RequestError::Cancelled(format!("response channel error: {}", e)))
     }
 
     /// Internal request that returns the request ID for cleanup purposes.
@@ -168,7 +170,8 @@ impl CommandBus {
 
         match tokio::time::timeout(std::time::Duration::from_millis(timeout_ms), response_rx).await
         {
-            Ok(result) => result.map_err(|e| RequestError::Cancelled(format!("response channel error: {}", e))),
+            Ok(result) => result
+                .map_err(|e| RequestError::Cancelled(format!("response channel error: {}", e))),
             Err(_) => {
                 // Timeout occurred - clean up the pending request to prevent memory leak
                 {
@@ -238,7 +241,9 @@ impl CommandBus {
 
         async move {
             send_result.map_err(|e| RequestError::SendFailed(format!("channel closed: {}", e)))?;
-            response_rx.await.map_err(|e| RequestError::Cancelled(format!("response channel error: {}", e)))
+            response_rx
+                .await
+                .map_err(|e| RequestError::Cancelled(format!("response channel error: {}", e)))
         }
     }
 

@@ -5,6 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::error::DomainError;
 use crate::game_time::TimeOfDay;
 use crate::ids::{CharacterId, NarrativeEventId};
 
@@ -175,6 +176,52 @@ impl ActivationEvaluation {
         self.llm_reasoning = Some(reasoning);
         self.pending_soft_rules.clear();
         self
+    }
+
+    /// Validate the activation evaluation.
+    ///
+    /// Checks for:
+    /// - No overlapping rules (a rule can't be in both matched and unmatched)
+    /// - No duplicate soft rules
+    /// - Non-empty rule descriptions
+    pub fn validate(&self) -> Result<(), DomainError> {
+        // Check for rule overlaps
+        let matched_set: std::collections::HashSet<_> = self.matched_rules.iter().collect();
+        let unmatched_set: std::collections::HashSet<_> = self.unmatched_rules.iter().collect();
+        let overlap: Vec<_> = matched_set.intersection(&unmatched_set).cloned().collect();
+        if !overlap.is_empty() {
+            return Err(DomainError::validation(format!(
+                "Rules appear in both matched and unmatched: {:?}",
+                overlap
+            )));
+        }
+
+        // Check for empty rule descriptions
+        for rule in &self.matched_rules {
+            if rule.trim().is_empty() {
+                return Err(DomainError::validation(
+                    "Matched rule descriptions cannot be empty".to_string(),
+                ));
+            }
+        }
+
+        for rule in &self.unmatched_rules {
+            if rule.trim().is_empty() {
+                return Err(DomainError::validation(
+                    "Unmatched rule descriptions cannot be empty".to_string(),
+                ));
+            }
+        }
+
+        // Check for duplicate soft rules
+        let pending_set: std::collections::HashSet<_> = self.pending_soft_rules.iter().collect();
+        if pending_set.len() != self.pending_soft_rules.len() {
+            return Err(DomainError::validation(
+                "Duplicate soft rules detected".to_string(),
+            ));
+        }
+
+        Ok(())
     }
 }
 

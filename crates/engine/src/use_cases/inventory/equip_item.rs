@@ -46,7 +46,7 @@ impl EquipItem {
 
         // Verify the item is in the PC's inventory
         let inventory = self.pc_repo.get_inventory(pc_id).await?;
-        if !inventory.iter().any(|i| i.id() == item_id) {
+        if !inventory.iter().any(|i| i.id == item_id) {
             return Err(InventoryError::ItemNotInInventory(item_id));
         }
 
@@ -54,7 +54,7 @@ impl EquipItem {
         self.item_repo.set_equipped(pc_id, item_id).await?;
 
         Ok(InventoryActionResult {
-            item_name: item.name().to_string(),
+            item_name: item.name.as_str().to_string(),
             quantity: 1,
         })
     }
@@ -115,7 +115,8 @@ mod tests {
         let item_id = ItemId::new();
 
         let mut item_repo = MockItemRepo::new();
-        let item = test_item(world_id).with_id(item_id);
+        let mut item = test_item(world_id);
+        item.id = item_id;
         let item_clone = item.clone();
         item_repo
             .expect_get()
@@ -142,7 +143,8 @@ mod tests {
         let item_id = ItemId::new();
 
         let mut item_repo = MockItemRepo::new();
-        let item = test_item(world_id).with_id(item_id);
+        let mut item = test_item(world_id);
+        item.id = item_id;
         let item_clone = item.clone();
         item_repo
             .expect_get()
@@ -169,7 +171,8 @@ mod tests {
         let item_id = ItemId::new();
 
         let mut item_repo = MockItemRepo::new();
-        let item = test_item(world_id).with_id(item_id);
+        let mut item = test_item(world_id);
+        item.id = item_id;
         let item_for_get = item.clone();
         let item_for_inv = item.clone();
         item_repo

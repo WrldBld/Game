@@ -500,7 +500,10 @@ impl StagingRepo for Neo4jStagingRepo {
                 let mood: MoodState = mood_str.parse().map_err(|e| {
                     RepoError::database(
                         "parse",
-                        format!("Invalid MoodState for NPC {}: '{}': {}", npc_id, mood_str, e),
+                        format!(
+                            "Invalid MoodState for NPC {}: '{}': {}",
+                            npc_id, mood_str, e
+                        ),
                     )
                 })?;
                 Ok(mood)
@@ -701,7 +704,10 @@ fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging
     let source: StagingSource = source_str.parse().map_err(|e| {
         RepoError::database(
             "parse",
-            format!("Invalid StagingSource for staging {}: '{}': {}", id, source_str, e),
+            format!(
+                "Invalid StagingSource for staging {}: '{}': {}",
+                id, source_str, e
+            ),
         )
     })?;
     let dm_guidance = node.get_optional_string("dm_guidance");
@@ -836,7 +842,10 @@ fn row_to_staging(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoErro
     let source: StagingSource = source_str.parse().map_err(|e| {
         RepoError::database(
             "parse",
-            format!("Invalid StagingSource for staging {}: '{}': {}", id, source_str, e),
+            format!(
+                "Invalid StagingSource for staging {}: '{}': {}",
+                id, source_str, e
+            ),
         )
     })?;
     let dm_guidance = node.get_optional_string("dm_guidance");

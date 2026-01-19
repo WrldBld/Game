@@ -15,9 +15,9 @@ use crate::infrastructure::{
         RegionStateRepo, SceneRepo, SettingsRepo, StagingRepo, WorldRepo,
     },
 };
-use crate::repositories;
 use crate::use_cases;
 use crate::use_cases::content::{ContentService, ContentServiceConfig};
+use crate::use_cases::settings::SettingsOps;
 
 /// Main application state.
 ///
@@ -34,7 +34,7 @@ pub struct App {
 /// Container for all repository modules.
 ///
 /// Per ADR-009, all fields are now `Arc<dyn PortTrait>` - port traits injected directly.
-/// Only AssetsRepository remains as a wrapper because it coordinates 2 ports with real logic.
+/// Only wrapper types that add business logic beyond delegation remain (e.g., NarrativeOps).
 pub struct Repositories {
     // Port traits injected directly (ADR-009)
     pub character: Arc<dyn CharacterRepo>,
@@ -58,7 +58,6 @@ pub struct Repositories {
 
     // Wrapper types that add business logic beyond delegation
     pub narrative: Arc<use_cases::NarrativeOps>,
-    pub assets: Arc<repositories::AssetsRepository>,
 }
 
 /// Container for all use cases.
@@ -79,7 +78,7 @@ pub struct UseCases {
     pub visual_state: use_cases::VisualStateUseCases,
     pub management: use_cases::ManagementUseCases,
     pub session: use_cases::SessionUseCases,
-    pub settings: Arc<repositories::SettingsRepository>,
+    pub settings: Arc<SettingsOps>,
     pub staging: use_cases::StagingUseCases,
     pub npc: use_cases::NpcUseCases,
     pub story_events: use_cases::StoryEventUseCases,
@@ -146,10 +145,6 @@ impl App {
             repos.scene.clone(),
             clock_port.clone(),
         ));
-        let assets = Arc::new(repositories::AssetsRepository::new(
-            repos.asset.clone(),
-            image_gen,
-        ));
 
         let repositories_container = Repositories {
             // Port traits injected directly
@@ -173,7 +168,6 @@ impl App {
             narrative_repo: narrative_repo.clone(),
             // Wrapper types
             narrative: narrative.clone(),
-            assets: assets.clone(),
         };
 
         // Create time use case first (needed by movement)
@@ -320,12 +314,14 @@ impl App {
         );
 
         let generate_asset = Arc::new(use_cases::assets::GenerateAsset::new(
-            assets.clone(),
+            repos.asset.clone(),
+            image_gen.clone(),
             queue_port.clone(),
             clock_port.clone(),
         ));
         let expression_sheet = Arc::new(use_cases::assets::GenerateExpressionSheet::new(
-            assets.clone(),
+            repos.asset.clone(),
+            image_gen.clone(),
             repos.character.clone(),
             queue_port.clone(),
             clock_port.clone(),
@@ -416,8 +412,7 @@ impl App {
             ),
         ));
 
-        let settings_entity =
-            Arc::new(repositories::SettingsRepository::new(settings_repo.clone()));
+        let settings_ops = Arc::new(SettingsOps::new(settings_repo.clone()));
 
         let staging_uc = use_cases::StagingUseCases::new(
             Arc::new(use_cases::staging::RequestStagingApproval::new(
@@ -526,7 +521,7 @@ impl App {
             use_cases::management::SkillManagement::new(repos.content.clone()),
         );
 
-        let settings = settings_entity;
+        let settings = settings_ops;
 
         let join_world = Arc::new(use_cases::session::JoinWorld::new(
             repos.world.clone(),

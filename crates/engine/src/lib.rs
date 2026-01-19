@@ -4,8 +4,7 @@
 //!
 //! ## Structure
 //!
-//! - `repositories/` - Repository modules wrapping port traits for data access
-//! - `use_cases/` - User story orchestration across repositories
+//! - `use_cases/` - User story orchestration injecting port traits directly (ADR-009)
 //! - `infrastructure/` - External dependency implementations (ports + adapters)
 //! - `api/` - HTTP and WebSocket entry points
 //! - `app` - Application composition
@@ -17,7 +16,6 @@ pub mod infrastructure;
 pub mod llm_context;
 pub mod prompt_templates;
 pub mod queue_types;
-pub mod repositories;
 pub mod stores;
 pub mod use_cases;
 

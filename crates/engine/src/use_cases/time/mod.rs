@@ -354,10 +354,7 @@ impl TimeControl {
 
         self.world.save(&world).await?;
 
-        Ok(TimeConfigUpdate {
-            world_id,
-            config,
-        })
+        Ok(TimeConfigUpdate { world_id, config })
     }
 }
 

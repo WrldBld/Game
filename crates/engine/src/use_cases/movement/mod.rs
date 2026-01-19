@@ -254,7 +254,7 @@ pub async fn resolve_scene_for_region_with_evaluator(
     // Extract item names and flag names for LLM context
     let inventory_names: Vec<String> = inventory_items
         .iter()
-        .map(|i| i.name().to_string())
+        .map(|i| i.name.as_str().to_string())
         .collect();
     // LIMITATION: We use character IDs (UUIDs) instead of names because NpcObservation
     // only stores IDs. Fetching names would require an additional repository call per
@@ -269,7 +269,7 @@ pub async fn resolve_scene_for_region_with_evaluator(
 
     let mut context = SceneResolutionContext::new(time_of_day)
         .with_completed_scenes(completed_scenes)
-        .with_inventory(inventory_items.into_iter().map(|item| item.id()))
+        .with_inventory(inventory_items.into_iter().map(|item| item.id))
         .with_known_characters(observations.into_iter().map(|obs| obs.npc_id()))
         .with_flags(flags);
 

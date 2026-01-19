@@ -718,7 +718,7 @@ async fn resolve_interaction_target(
                 .await
                 .ok()
                 .flatten()
-                .map(|item| item.name().to_string());
+                .map(|item| item.name.as_str().to_string());
             (Some(id.to_string()), Some("item".to_string()), name)
         }
         wrldbldr_domain::InteractionTarget::Environment(label) => {
