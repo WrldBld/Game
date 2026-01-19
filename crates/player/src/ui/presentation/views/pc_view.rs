@@ -82,22 +82,20 @@ pub fn PCView() -> Element {
     let mut show_mini_map = use_signal(|| false);
 
     // Backdrop transition effect - auto-clear after animation completes
-    {
-        let game_state_for_effect = game_state.clone();
-        let transitioning = *game_state_for_effect.backdrop_transitioning.read();
-        let platform = crate::use_platform();
-        use_effect(move || {
-            if transitioning {
-                let mut gs = game_state_for_effect.clone();
-                let sleep_future = platform.sleep_ms(500);
-                spawn_task(async move {
-                    // Wait for animation to complete (0.5s defined in tailwind.config.js)
-                    sleep_future.await;
-                    gs.clear_backdrop_transition();
-                });
-            }
-        });
-    }
+    let game_state_for_effect = game_state.clone();
+    let transitioning = *game_state_for_effect.backdrop_transitioning.read();
+    let platform = crate::use_platform();
+    use_effect(move || {
+        if transitioning {
+            let mut gs = game_state_for_effect.clone();
+            let sleep_future = platform.sleep_ms(500);
+            spawn_task(async move {
+                // Wait for animation to complete (0.5s defined in tailwind.config.js)
+                sleep_future.await;
+                gs.clear_backdrop_transition();
+            });
+        }
+    });
     let mut map_regions: Signal<Vec<MapRegionData>> = use_signal(Vec::new);
     let mut is_loading_map = use_signal(|| false);
 
@@ -116,49 +114,47 @@ pub fn PCView() -> Element {
     use_typewriter_effect(&mut dialogue_state);
 
     // Auto-refresh observations when refresh counter changes (if panel is open)
-    // Track the refresh counter - this will trigger re-render when it changes
+    // Track of refresh counter - this will trigger re-render when it changes
     let observations_refresh = *game_state.observations_refresh_counter.read();
-    {
-        let is_panel_open = *show_known_npcs_panel.read();
-        let pc_id = game_state.selected_pc_id.read().clone();
-        let obs_svc = observation_service.clone();
+    let is_panel_open = *show_known_npcs_panel.read();
+    let pc_id = game_state.selected_pc_id.read().clone();
+    let obs_svc = observation_service.clone();
 
-        use_effect(move || {
-            // Use the counter to establish reactive dependency (even if we just log it)
-            let _ = observations_refresh;
+    use_effect(move || {
+        // Use counter to establish reactive dependency (even if we just log it)
+        let _ = observations_refresh;
 
-            // Only refresh if panel is currently open and we have a PC
-            if is_panel_open {
-                if let Some(pid) = pc_id.clone() {
-                    let obs_svc = obs_svc.clone();
-                    spawn_task(async move {
-                        match obs_svc.list_observations(&pid).await {
-                            Ok(observations) => {
-                                let npc_data: Vec<NpcObservationData> = observations
-                                    .into_iter()
-                                    .map(|o| NpcObservationData {
-                                        npc_id: o.npc_id,
-                                        npc_name: o.npc_name,
-                                        npc_portrait: o.npc_portrait,
-                                        location_name: o.location_name,
-                                        region_name: o.region_name,
-                                        game_time: o.game_time,
-                                        observation_type: o.observation_type,
-                                        observation_type_icon: o.observation_type_icon,
-                                        notes: o.notes,
-                                    })
-                                    .collect();
-                                known_npcs.set(npc_data);
-                            }
-                            Err(e) => {
-                                tracing::warn!("Failed to refresh observations: {}", e);
-                            }
+        // Only refresh if panel is currently open and we have a PC
+        if is_panel_open {
+            if let Some(pid) = pc_id.clone() {
+                let obs_svc = obs_svc.clone();
+                spawn_task(async move {
+                    match obs_svc.list_observations(&pid).await {
+                        Ok(observations) => {
+                            let npc_data: Vec<NpcObservationData> = observations
+                                .into_iter()
+                                .map(|o| NpcObservationData {
+                                    npc_id: o.npc_id,
+                                    npc_name: o.npc_name,
+                                    npc_portrait: o.npc_portrait,
+                                    location_name: o.location_name,
+                                    region_name: o.region_name,
+                                    game_time: o.game_time,
+                                    observation_type: o.observation_type,
+                                    observation_type_icon: o.observation_type_icon,
+                                    notes: o.notes,
+                                })
+                                .collect();
+                            known_npcs.set(npc_data);
                         }
-                    });
-                }
+                        Err(e) => {
+                            tracing::warn!("Failed to refresh observations: {}", e);
+                        }
+                    }
+                });
             }
-        });
-    }
+        }
+    });
 
     // Read scene characters from game state (reactive)
     let scene_characters = game_state.scene_characters.read().clone();
@@ -968,34 +964,32 @@ fn StagingPendingOverlay(region_name: String, started_at_ms: u64, timeout_second
     });
 
     // Timer effect to update countdown every second
-    {
-        let platform_for_effect = platform.clone();
-        use_effect(move || {
-            if timeout_seconds == 0 {
-                return; // No countdown if timeout is 0
-            }
+    let platform_for_effect = platform.clone();
+    use_effect(move || {
+        if timeout_seconds == 0 {
+            return; // No countdown if timeout is 0
+        }
 
-            let platform = platform_for_effect.clone();
-            spawn_task(async move {
-                loop {
-                    // Wait 1 second
-                    platform.sleep_ms(1000).await;
+        let platform = platform_for_effect.clone();
+        spawn_task(async move {
+            loop {
+                // Wait 1 second
+                platform.sleep_ms(1000).await;
 
-                    // Recalculate remaining time
-                    let elapsed_ms = platform.now_millis().saturating_sub(started_at_ms);
-                    let elapsed_secs = elapsed_ms / 1000;
-                    let new_remaining = timeout_seconds.saturating_sub(elapsed_secs);
+                // Recalculate remaining time
+                let elapsed_ms = platform.now_millis().saturating_sub(started_at_ms);
+                let elapsed_secs = elapsed_ms / 1000;
+                let new_remaining = timeout_seconds.saturating_sub(elapsed_secs);
 
-                    remaining_seconds.set(new_remaining);
+                remaining_seconds.set(new_remaining);
 
-                    // Stop updating if we've reached 0
-                    if new_remaining == 0 {
-                        break;
-                    }
+                // Stop updating if we've reached 0
+                if new_remaining == 0 {
+                    break;
                 }
-            });
+            }
         });
-    }
+    });
 
     let remaining = *remaining_seconds.read();
 
