@@ -778,7 +778,7 @@ pub enum OutcomeTrigger {
     /// Disable a challenge (remove from available)
     DisableChallenge { challenge_id: ChallengeId },
     /// Modify a character stat (HP, Sanity, etc.)
-    ModifyCharacterStat { stat: String, modifier: i32 },
+    ModifyCharacterStat { stat: Stat, modifier: i32 },
     /// Trigger a scene transition
     TriggerScene { scene_id: SceneId },
     /// Add an item to inventory
@@ -870,12 +870,8 @@ impl OutcomeTrigger {
                     ));
                 }
             }
-            Self::ModifyCharacterStat { stat, .. } => {
-                if stat.trim().is_empty() {
-                    return Err(DomainError::validation(
-                        "ModifyCharacterStat trigger requires non-empty stat name",
-                    ));
-                }
+            Self::ModifyCharacterStat { .. } => {
+                // Stat enum is always valid, no validation needed
             }
             Self::Custom { description } => {
                 if description.trim().is_empty() {
@@ -925,11 +921,8 @@ impl OutcomeTrigger {
         Self::DisableChallenge { challenge_id }
     }
 
-    pub fn modify_stat(stat: impl Into<String>, modifier: i32) -> Self {
-        Self::ModifyCharacterStat {
-            stat: stat.into(),
-            modifier,
-        }
+    pub fn modify_stat(stat: Stat, modifier: i32) -> Self {
+        Self::ModifyCharacterStat { stat, modifier }
     }
 
     pub fn scene(scene_id: SceneId) -> Self {

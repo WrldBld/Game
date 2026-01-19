@@ -7,9 +7,6 @@ use wrldbldr_domain::{
 use crate::infrastructure::ports::{ChallengeRepo, RepoError};
 use crate::use_cases::validation::ValidationError;
 
-// Type alias for old name to maintain compatibility
-type ChallengeRepository = dyn ChallengeRepo;
-
 use super::types::{
     ChallengeSummary, DifficultySummary, OutcomeSummary, OutcomeTriggerData, OutcomeTriggerSummary,
     OutcomesSummary, TriggerConditionSummary, TriggerTypeData, TriggerTypeSummary,
@@ -34,11 +31,11 @@ pub struct UpdateChallengeInput {
 }
 
 pub struct ChallengeOps {
-    challenge: Arc<ChallengeRepository>,
+    challenge: Arc<dyn ChallengeRepo>,
 }
 
 impl ChallengeOps {
-    pub fn new(challenge: Arc<ChallengeRepository>) -> Self {
+    pub fn new(challenge: Arc<dyn ChallengeRepo>) -> Self {
         Self { challenge }
     }
 
@@ -309,7 +306,7 @@ fn outcome_trigger_to_summary(trigger: &domain::OutcomeTrigger) -> OutcomeTrigge
         domain::OutcomeTrigger::ModifyCharacterStat { stat, modifier } => OutcomeTriggerSummary {
             trigger_type: "modify_character_stat".to_string(),
             data: OutcomeTriggerData::ModifyCharacterStat {
-                stat: stat.clone(),
+                stat: stat.to_string(),
                 modifier: *modifier,
             },
         },

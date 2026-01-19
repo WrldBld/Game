@@ -532,15 +532,18 @@ impl SceneRepo for Neo4jSceneRepo {
                     format!("Missing role for FEATURES_CHARACTER relationship: {}", e),
                 )
             })?;
-            let role: SceneCharacterRole = role_str.parse().map_err(|_| {
-                RepoError::database(
-                    "parse",
-                    format!(
-                        "Invalid SceneCharacterRole for Scene {}: '{}'",
-                        scene_id, role_str
-                    ),
-                )
-            })?;
+            let role: SceneCharacterRole = match role_str.parse::<SceneCharacterRole>() {
+                Ok(r) => r,
+                Err(_) => {
+                    return Err(RepoError::database(
+                        "parse",
+                        format!(
+                            "Invalid SceneCharacterRole for Scene {}: '{}'",
+                            scene_id, role_str
+                        ),
+                    ))
+                }
+            };
 
             // Parse entrance_cue, treating empty string as None
             let entrance_cue: Option<String> = row.get("entrance_cue").ok().and_then(

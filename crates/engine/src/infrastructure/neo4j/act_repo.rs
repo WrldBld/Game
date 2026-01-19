@@ -37,9 +37,15 @@ impl Neo4jActRepo {
                 format!("Missing required field 'stage' for act: {}", id),
             ));
         } else {
-            stage_str.parse().map_err(|_| {
-                RepoError::database("parse", format!("Invalid MonomythStage: '{}'", stage_str))
-            })?
+            match stage_str.parse::<MonomythStage>() {
+                Ok(stage) => stage,
+                Err(_) => {
+                    return Err(RepoError::database(
+                        "parse",
+                        format!("Invalid MonomythStage '{}': {}", stage_str, "unknown value"),
+                    ))
+                }
+            }
         };
         let description: String = node.get_string_or("description", "");
         let order_num = node.get_i64_or("order_num", 0);

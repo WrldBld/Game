@@ -16,7 +16,7 @@ use uuid::Uuid;
 use wrldbldr_domain::value_objects::DiceParseError;
 use wrldbldr_domain::{
     ChallengeId, ChallengeOutcomeDecision, DiceRollInput, OutcomeTrigger, OutcomeType,
-    PlayerCharacterId, WorldId,
+    PlayerCharacterId, QueueItemId, WorldId,
 };
 
 use crate::queue_types::{
@@ -77,12 +77,12 @@ pub struct RollResult {
     pub total: i32,
     /// The outcome type determined
     pub outcome_type: OutcomeType,
-    /// Narrative description of the outcome
+    /// Narrative description of outcome
     pub outcome_description: String,
     /// Whether this goes to DM for approval
     pub requires_approval: bool,
     /// ID of the approval queue item (if approval required)
-    pub approval_queue_id: Option<uuid::Uuid>,
+    pub approval_queue_id: Option<QueueItemId>,
     /// Challenge ID
     pub challenge_id: ChallengeId,
     /// Challenge name
@@ -474,15 +474,23 @@ impl ResolveOutcome {
                     "Giving item to player"
                 );
 
-                // Create a new item and add it to the PC's inventory
                 let give_item =
                     crate::use_cases::inventory::GiveItem::new(self.item.clone(), self.pc.clone());
-                if let Err(e) = give_item
+                give_item
                     .execute(target_pc_id, item_name.clone(), item_description.clone())
                     .await
-                {
-                    tracing::warn!(error = %e, "Failed to give item to player");
-                }
+                    .map_err(|e| {
+                        tracing::error!(
+                            error = %e,
+                            item = %item_name,
+                            pc_id = %target_pc_id,
+                            "Failed to give challenge reward item"
+                        );
+                        ChallengeError::TriggerExecutionFailed(format!(
+                            "Failed to give item '{}': {}",
+                            item_name, e
+                        ))
+                    })?;
                 Ok(())
             }
             OutcomeTrigger::TriggerScene { scene_id } => {
@@ -492,10 +500,21 @@ impl ResolveOutcome {
                     "Triggering scene transition"
                 );
 
-                // Set the scene as current for this world
-                if let Err(e) = self.scene.set_current(world_id, *scene_id).await {
-                    tracing::warn!(error = %e, "Failed to set current scene");
-                }
+                self.scene
+                    .set_current(world_id, *scene_id)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!(
+                            error = %e,
+                            scene_id = %scene_id,
+                            world_id = %world_id,
+                            "Failed to set current scene from challenge trigger"
+                        );
+                        ChallengeError::TriggerExecutionFailed(format!(
+                            "Failed to set scene '{}': {}",
+                            scene_id, e
+                        ))
+                    })?;
                 Ok(())
             }
             OutcomeTrigger::EnableChallenge { challenge_id } => {
@@ -505,10 +524,20 @@ impl ResolveOutcome {
                     "Enabling challenge"
                 );
 
-                // Enable the target challenge (make it available)
-                if let Err(e) = self.challenge.set_enabled(*challenge_id, true).await {
-                    tracing::warn!(error = %e, "Failed to enable challenge");
-                }
+                self.challenge
+                    .set_enabled(*challenge_id, true)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!(
+                            error = %e,
+                            target_challenge_id = %challenge_id,
+                            "Failed to enable challenge from trigger"
+                        );
+                        ChallengeError::TriggerExecutionFailed(format!(
+                            "Failed to enable challenge '{}': {}",
+                            challenge_id, e
+                        ))
+                    })?;
                 Ok(())
             }
             OutcomeTrigger::DisableChallenge { challenge_id } => {
@@ -518,10 +547,20 @@ impl ResolveOutcome {
                     "Disabling challenge"
                 );
 
-                // Disable the target challenge (remove from available)
-                if let Err(e) = self.challenge.set_enabled(*challenge_id, false).await {
-                    tracing::warn!(error = %e, "Failed to disable challenge");
-                }
+                self.challenge
+                    .set_enabled(*challenge_id, false)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!(
+                            error = %e,
+                            target_challenge_id = %challenge_id,
+                            "Failed to disable challenge from trigger"
+                        );
+                        ChallengeError::TriggerExecutionFailed(format!(
+                            "Failed to disable challenge '{}': {}",
+                            challenge_id, e
+                        ))
+                    })?;
                 Ok(())
             }
             OutcomeTrigger::ModifyCharacterStat { stat, modifier } => {
@@ -533,9 +572,22 @@ impl ResolveOutcome {
                     "Modifying character stat"
                 );
 
-                if let Err(e) = self.pc.modify_stat(target_pc_id, stat, *modifier).await {
-                    tracing::warn!(error = %e, "Failed to modify character stat");
-                }
+                self.pc
+                    .modify_stat(target_pc_id, &stat.to_string(), *modifier)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!(
+                            error = %e,
+                            stat = %stat,
+                            modifier = %modifier,
+                            pc_id = %target_pc_id,
+                            "Failed to modify character stat from challenge trigger"
+                        );
+                        ChallengeError::TriggerExecutionFailed(format!(
+                            "Failed to modify stat '{}': {}",
+                            stat, e
+                        ))
+                    })?;
                 Ok(())
             }
             OutcomeTrigger::Custom { description } => {
@@ -573,7 +625,7 @@ impl OutcomeDecision {
 
         let approval_data: crate::queue_types::ApprovalRequestData = self
             .queue
-            .get_approval_request(approval_id)
+            .get_approval_request(QueueItemId::from(approval_id))
             .await?
             .ok_or(OutcomeDecisionError::ApprovalNotFound)?;
 
@@ -597,7 +649,11 @@ impl OutcomeDecision {
 
                 // Challenge is now resolved. Queue cleanup is housekeeping - log failure
                 // but return success since the important operation completed.
-                if let Err(e) = self.queue.mark_complete(approval_id).await {
+                if let Err(e) = self
+                    .queue
+                    .mark_complete(QueueItemId::from(approval_id))
+                    .await
+                {
                     tracing::error!(
                         approval_id = %approval_id,
                         challenge_id = %outcome_data.challenge_id,
@@ -632,7 +688,11 @@ impl OutcomeDecision {
 
                 // Challenge is now resolved. Queue cleanup is housekeeping - log failure
                 // but return success since the important operation completed.
-                if let Err(e) = self.queue.mark_complete(approval_id).await {
+                if let Err(e) = self
+                    .queue
+                    .mark_complete(QueueItemId::from(approval_id))
+                    .await
+                {
                     tracing::error!(
                         approval_id = %approval_id,
                         challenge_id = %outcome_data.challenge_id,

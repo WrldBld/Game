@@ -4,7 +4,7 @@ use crate::infrastructure::ports::{QueueError, QueuePort, RepoError};
 use crate::use_cases::approval::{ApprovalError, ApproveSuggestion};
 use crate::use_cases::narrative::{EffectExecutionContext, ExecuteEffects};
 use crate::use_cases::narrative_operations::NarrativeOps;
-use wrldbldr_domain::{ApprovalRequestId, NarrativeEventId, WorldId};
+use wrldbldr_domain::{NarrativeEventId, QueueItemId, WorldId};
 
 use crate::queue_types::DmApprovalDecision;
 
@@ -33,14 +33,14 @@ impl NarrativeDecisionFlow {
 
     pub async fn execute(
         &self,
-        approval_id: ApprovalRequestId,
+        approval_id: QueueItemId,
         decision: DmApprovalDecision,
         event_id: NarrativeEventId,
         selected_outcome: Option<String>,
     ) -> Result<NarrativeDecisionOutcome, NarrativeDecisionError> {
         let approval_data: crate::queue_types::ApprovalRequestData = self
             .queue
-            .get_approval_request(approval_id.to_uuid())
+            .get_approval_request(approval_id)
             .await?
             .ok_or(NarrativeDecisionError::ApprovalNotFound)?;
 

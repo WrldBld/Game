@@ -11,7 +11,7 @@
 pub mod tool_executor;
 
 use std::sync::Arc;
-use wrldbldr_domain::{ApprovalRequestId, CharacterId, ConversationId, RegionId, WorldId};
+use wrldbldr_domain::{CharacterId, ConversationId, QueueItemId, RegionId, WorldId};
 
 use crate::queue_types::DmApprovalDecision;
 
@@ -100,7 +100,7 @@ impl ApproveStaging {
 #[derive(Debug)]
 pub struct SuggestionApprovalResult {
     /// The original suggestion ID
-    pub suggestion_id: ApprovalRequestId,
+    pub suggestion_id: QueueItemId,
     /// Whether it was approved
     pub approved: bool,
     /// The final dialogue (possibly modified)
@@ -138,14 +138,12 @@ impl ApproveSuggestion {
     /// * `Err(ApprovalError)` - Failed to process decision
     pub async fn execute(
         &self,
-        approval_queue_id: ApprovalRequestId,
+        approval_queue_id: QueueItemId,
         decision: DmApprovalDecision,
     ) -> Result<SuggestionApprovalResult, ApprovalError> {
         // Get the queue item first to extract NPC info
-        let queue_item: Option<crate::queue_types::ApprovalRequestData> = self
-            .queue
-            .get_approval_request(approval_queue_id.to_uuid())
-            .await?;
+        let queue_item: Option<crate::queue_types::ApprovalRequestData> =
+            self.queue.get_approval_request(approval_queue_id).await?;
 
         let (npc_id, npc_name, original_dialogue, conversation_id) = queue_item
             .map(|data| {
@@ -181,12 +179,10 @@ impl ApproveSuggestion {
 
         // Mark the queue item based on decision
         if approved {
-            self.queue
-                .mark_complete(approval_queue_id.to_uuid())
-                .await?;
+            self.queue.mark_complete(approval_queue_id).await?;
         } else {
             self.queue
-                .mark_failed(approval_queue_id.to_uuid(), "Rejected by DM")
+                .mark_failed(approval_queue_id, "Rejected by DM")
                 .await?;
         }
 
@@ -227,12 +223,12 @@ impl ApprovalDecisionFlow {
 
     pub async fn execute(
         &self,
-        approval_id: ApprovalRequestId,
+        approval_id: QueueItemId,
         decision: DmApprovalDecision,
     ) -> Result<ApprovalDecisionOutcome, ApprovalDecisionError> {
         let approval_data: crate::queue_types::ApprovalRequestData = self
             .queue
-            .get_approval_request(approval_id.to_uuid())
+            .get_approval_request(approval_id)
             .await?
             .ok_or(ApprovalDecisionError::ApprovalNotFound(approval_id))?;
 
@@ -330,7 +326,7 @@ pub enum ApprovalError {
 #[derive(Debug, thiserror::Error)]
 pub enum ApprovalDecisionError {
     #[error("Approval request not found: {0}")]
-    ApprovalNotFound(ApprovalRequestId),
+    ApprovalNotFound(QueueItemId),
     #[error("Queue error: {0}")]
     Queue(#[from] QueueError),
     #[error("Approval error: {0}")]

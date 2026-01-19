@@ -94,8 +94,11 @@ impl Neo4jLoreRepo {
                 format!("Missing required field 'category' for lore: {}", id),
             ));
         } else {
-            category_str.parse().map_err(|_| {
-                RepoError::database("parse", format!("Invalid LoreCategory: '{}'", category_str))
+            category_str.parse().map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!("Invalid LoreCategory '{}': {}", category_str, e),
+                )
             })?
         };
         let is_common_knowledge: bool = node.get_bool_or("is_common_knowledge", false);
@@ -146,12 +149,12 @@ impl Neo4jLoreRepo {
         let character_id_str: String = row
             .get("character_id")
             .map_err(|e| RepoError::database("query", e))?;
-        let known_chunk_ids_json: String = row.get::<String>("known_chunk_ids").map_err(|_| {
+        let known_chunk_ids_json: String = row.get::<String>("known_chunk_ids").map_err(|e| {
             RepoError::database(
                 "query",
                 format!(
-                    "Missing required column 'known_chunk_ids' for lore knowledge (lore_id: {})",
-                    lore_id_str
+                    "Missing required column 'known_chunk_ids' for lore knowledge (lore_id: {}): {}",
+                    lore_id_str, e
                 ),
             )
         })?;

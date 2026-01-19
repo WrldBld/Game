@@ -15,7 +15,8 @@ use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
 
 use crate::app::{App, Repositories, UseCases};
 use crate::infrastructure::ports::{
-    ClockPort, ImageGenError, ImageGenPort, LlmError, LlmPort, QueueError, QueueItem, RandomPort,
+    ClockPort, ImageGenError, ImageGenPort, LlmError, LlmPort, QueueError, QueueItem,
+    QueueItemStatus, QueuePort, RandomPort,
 };
 use crate::infrastructure::ports::{
     MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockContentRepo,
@@ -105,7 +106,10 @@ pub(crate) struct NoopQueue;
 
 #[async_trait::async_trait]
 impl QueuePort for NoopQueue {
-    async fn enqueue_player_action(&self, _data: &PlayerActionData) -> Result<Uuid, QueueError> {
+    async fn enqueue_player_action(
+        &self,
+        _data: &PlayerActionData,
+    ) -> Result<QueueItemId, QueueError> {
         Err(QueueError::Error("noop".to_string()))
     }
 
@@ -113,7 +117,7 @@ impl QueuePort for NoopQueue {
         Ok(None)
     }
 
-    async fn enqueue_llm_request(&self, _data: &LlmRequestData) -> Result<Uuid, QueueError> {
+    async fn enqueue_llm_request(&self, _data: &LlmRequestData) -> Result<QueueItemId, QueueError> {
         Err(QueueError::Error("noop".to_string()))
     }
 
@@ -121,7 +125,10 @@ impl QueuePort for NoopQueue {
         Ok(None)
     }
 
-    async fn enqueue_dm_approval(&self, _data: &ApprovalRequestData) -> Result<Uuid, QueueError> {
+    async fn enqueue_dm_approval(
+        &self,
+        _data: &ApprovalRequestData,
+    ) -> Result<QueueItemId, QueueError> {
         Err(QueueError::Error("noop".to_string()))
     }
 
@@ -132,7 +139,7 @@ impl QueuePort for NoopQueue {
     async fn enqueue_asset_generation(
         &self,
         _data: &AssetGenerationData,
-    ) -> Result<Uuid, QueueError> {
+    ) -> Result<QueueItemId, QueueError> {
         Err(QueueError::Error("noop".to_string()))
     }
 
@@ -140,11 +147,11 @@ impl QueuePort for NoopQueue {
         Ok(None)
     }
 
-    async fn mark_complete(&self, _id: Uuid) -> Result<(), QueueError> {
+    async fn mark_complete(&self, _id: QueueItemId) -> Result<(), QueueError> {
         Ok(())
     }
 
-    async fn mark_failed(&self, _id: Uuid, _error: &str) -> Result<(), QueueError> {
+    async fn mark_failed(&self, _id: QueueItemId, _error: &str) -> Result<(), QueueError> {
         Ok(())
     }
 
@@ -160,7 +167,11 @@ impl QueuePort for NoopQueue {
         Ok(vec![])
     }
 
-    async fn set_result_json(&self, _id: Uuid, _result_json: &str) -> Result<(), QueueError> {
+    async fn set_result_json(
+        &self,
+        _id: QueueItemId,
+        _result_json: &str,
+    ) -> Result<(), QueueError> {
         Ok(())
     }
 
@@ -173,7 +184,7 @@ impl QueuePort for NoopQueue {
 
     async fn get_approval_request(
         &self,
-        _id: Uuid,
+        _id: QueueItemId,
     ) -> Result<Option<ApprovalRequestData>, QueueError> {
         Ok(None)
     }
@@ -282,7 +293,10 @@ impl RecordingApprovalQueue {
 
 #[async_trait::async_trait]
 impl QueuePort for RecordingApprovalQueue {
-    async fn enqueue_player_action(&self, _data: &PlayerActionData) -> Result<Uuid, QueueError> {
+    async fn enqueue_player_action(
+        &self,
+        _data: &PlayerActionData,
+    ) -> Result<QueueItemId, QueueError> {
         Err(QueueError::Error("not implemented".to_string()))
     }
 
@@ -290,7 +304,7 @@ impl QueuePort for RecordingApprovalQueue {
         Ok(None)
     }
 
-    async fn enqueue_llm_request(&self, _data: &LlmRequestData) -> Result<Uuid, QueueError> {
+    async fn enqueue_llm_request(&self, _data: &LlmRequestData) -> Result<QueueItemId, QueueError> {
         Err(QueueError::Error("not implemented".to_string()))
     }
 
@@ -298,7 +312,10 @@ impl QueuePort for RecordingApprovalQueue {
         Ok(None)
     }
 
-    async fn enqueue_dm_approval(&self, _data: &ApprovalRequestData) -> Result<Uuid, QueueError> {
+    async fn enqueue_dm_approval(
+        &self,
+        _data: &ApprovalRequestData,
+    ) -> Result<QueueItemId, QueueError> {
         Err(QueueError::Error("not implemented".to_string()))
     }
 
@@ -309,7 +326,7 @@ impl QueuePort for RecordingApprovalQueue {
     async fn enqueue_asset_generation(
         &self,
         _data: &AssetGenerationData,
-    ) -> Result<Uuid, QueueError> {
+    ) -> Result<QueueItemId, QueueError> {
         Err(QueueError::Error("not implemented".to_string()))
     }
 
@@ -317,13 +334,13 @@ impl QueuePort for RecordingApprovalQueue {
         Ok(None)
     }
 
-    async fn mark_complete(&self, id: Uuid) -> Result<(), QueueError> {
+    async fn mark_complete(&self, id: QueueItemId) -> Result<(), QueueError> {
         let mut guard = self.state.lock().unwrap();
         guard.completed.push(id);
         Ok(())
     }
 
-    async fn mark_failed(&self, id: Uuid, error: &str) -> Result<(), QueueError> {
+    async fn mark_failed(&self, id: QueueItemId, error: &str) -> Result<(), QueueError> {
         let mut guard = self.state.lock().unwrap();
         guard.failed.push((id, error.to_string()));
         Ok(())
@@ -341,7 +358,11 @@ impl QueuePort for RecordingApprovalQueue {
         Ok(vec![])
     }
 
-    async fn set_result_json(&self, _id: Uuid, _result_json: &str) -> Result<(), QueueError> {
+    async fn set_result_json(
+        &self,
+        _id: QueueItemId,
+        _result_json: &str,
+    ) -> Result<(), QueueError> {
         Ok(())
     }
 
@@ -354,7 +375,7 @@ impl QueuePort for RecordingApprovalQueue {
 
     async fn get_approval_request(
         &self,
-        id: Uuid,
+        id: QueueItemId,
     ) -> Result<Option<ApprovalRequestData>, QueueError> {
         let guard = self.state.lock().unwrap();
         Ok(guard.approvals.get(&id).cloned())

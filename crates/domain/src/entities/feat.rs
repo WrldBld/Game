@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::value_objects::Tag;
+use crate::value_objects::{Stat, Tag};
 
 /// A feat, talent, or special ability that a character can acquire.
 ///
@@ -108,8 +108,8 @@ impl Feat {
 pub enum Prerequisite {
     /// Minimum ability score requirement
     MinStat {
-        /// The stat name (e.g., "STR", "Dexterity")
-        stat: String,
+        /// The stat (e.g., Str, Dex)
+        stat: Stat,
         /// Minimum value required
         value: i32,
     },
@@ -172,11 +172,8 @@ pub enum Prerequisite {
 
 impl Prerequisite {
     /// Create a minimum stat prerequisite.
-    pub fn min_stat(stat: impl Into<String>, value: i32) -> Self {
-        Prerequisite::MinStat {
-            stat: stat.into(),
-            value,
-        }
+    pub fn min_stat(stat: Stat, value: i32) -> Self {
+        Prerequisite::MinStat { stat, value }
     }
 
     /// Create a minimum level prerequisite.
@@ -216,14 +213,14 @@ pub enum FeatBenefit {
     /// Increase an ability score
     StatIncrease {
         /// The stat to increase
-        stat: String,
+        stat: Stat,
         /// Amount to increase by
         value: i32,
     },
     /// Choose from multiple stats to increase
     StatChoice {
         /// Options to choose from
-        options: Vec<String>,
+        options: Vec<Stat>,
         /// Amount to increase by
         value: i32,
         /// Number of choices to make
@@ -319,7 +316,7 @@ pub enum UsesFormula {
     /// Uses equal to a stat modifier (minimum 1)
     StatModifier {
         /// Which stat modifier to use
-        stat: String,
+        stat: Stat,
         /// Minimum value (usually 1)
         #[serde(default = "default_one_i32")]
         min: i32,
@@ -347,11 +344,8 @@ impl UsesFormula {
     }
 
     /// Create a stat modifier formula.
-    pub fn stat_modifier(stat: impl Into<String>) -> Self {
-        UsesFormula::StatModifier {
-            stat: stat.into(),
-            min: 1,
-        }
+    pub fn stat_modifier(stat: Stat) -> Self {
+        UsesFormula::StatModifier { stat, min: 1 }
     }
 }
 
@@ -421,9 +415,9 @@ mod tests {
 
     #[test]
     fn prerequisite_constructors() {
-        let prereq = Prerequisite::min_stat("STR", 13);
+        let prereq = Prerequisite::min_stat(Stat::Str, 13);
         assert!(
-            matches!(prereq, Prerequisite::MinStat { stat, value } if stat == "STR" && value == 13)
+            matches!(prereq, Prerequisite::MinStat { stat, value } if stat == Stat::Str && value == 13)
         );
 
         let prereq = Prerequisite::min_level(4);
@@ -447,8 +441,8 @@ mod tests {
     fn complex_prerequisites() {
         let prereq = Prerequisite::AnyOf {
             options: vec![
-                Prerequisite::min_stat("STR", 13),
-                Prerequisite::min_stat("DEX", 13),
+                Prerequisite::min_stat(Stat::Str, 13),
+                Prerequisite::min_stat(Stat::Dex, 13),
             ],
         };
 
@@ -467,8 +461,8 @@ mod tests {
         let uses = UsesFormula::proficiency_bonus();
         assert!(matches!(uses, UsesFormula::ProficiencyBonus));
 
-        let uses = UsesFormula::stat_modifier("WIS");
-        assert!(matches!(uses, UsesFormula::StatModifier { stat, min: 1 } if stat == "WIS"));
+        let uses = UsesFormula::stat_modifier(Stat::Wis);
+        assert!(matches!(uses, UsesFormula::StatModifier { stat, min: 1 } if stat == Stat::Wis));
     }
 
     #[test]

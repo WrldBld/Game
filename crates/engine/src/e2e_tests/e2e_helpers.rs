@@ -1850,27 +1850,33 @@ impl RecordingQueue {
 
 #[async_trait::async_trait]
 impl QueuePort for RecordingQueue {
-    async fn enqueue_player_action(&self, data: &PlayerActionData) -> Result<Uuid, QueueError> {
+    async fn enqueue_player_action(
+        &self,
+        data: &PlayerActionData,
+    ) -> Result<QueueItemId, QueueError> {
         self.player_actions.lock().unwrap().push(data.clone());
-        Ok(Uuid::new_v4())
+        Ok(Uuid::new_v4().into())
     }
 
     async fn dequeue_player_action(&self) -> Result<Option<QueueItem>, QueueError> {
         Ok(None)
     }
 
-    async fn enqueue_llm_request(&self, data: &LlmRequestData) -> Result<Uuid, QueueError> {
+    async fn enqueue_llm_request(&self, data: &LlmRequestData) -> Result<QueueItemId, QueueError> {
         self.llm_requests.lock().unwrap().push(data.clone());
-        Ok(Uuid::new_v4())
+        Ok(Uuid::new_v4().into())
     }
 
     async fn dequeue_llm_request(&self) -> Result<Option<QueueItem>, QueueError> {
         Ok(None)
     }
 
-    async fn enqueue_dm_approval(&self, data: &ApprovalRequestData) -> Result<Uuid, QueueError> {
+    async fn enqueue_dm_approval(
+        &self,
+        data: &ApprovalRequestData,
+    ) -> Result<QueueItemId, QueueError> {
         self.approvals.lock().unwrap().push(data.clone());
-        Ok(Uuid::new_v4())
+        Ok(Uuid::new_v4().into())
     }
 
     async fn dequeue_dm_approval(&self) -> Result<Option<QueueItem>, QueueError> {
@@ -1880,19 +1886,19 @@ impl QueuePort for RecordingQueue {
     async fn enqueue_asset_generation(
         &self,
         _data: &AssetGenerationData,
-    ) -> Result<Uuid, QueueError> {
-        Ok(Uuid::new_v4())
+    ) -> Result<QueueItemId, QueueError> {
+        Ok(Uuid::new_v4().into())
     }
 
     async fn dequeue_asset_generation(&self) -> Result<Option<QueueItem>, QueueError> {
         Ok(None)
     }
 
-    async fn mark_complete(&self, _id: Uuid) -> Result<(), QueueError> {
+    async fn mark_complete(&self, _id: QueueItemId) -> Result<(), QueueError> {
         Ok(())
     }
 
-    async fn mark_failed(&self, _id: Uuid, _error: &str) -> Result<(), QueueError> {
+    async fn mark_failed(&self, _id: QueueItemId, _error: &str) -> Result<(), QueueError> {
         Ok(())
     }
 
@@ -1908,7 +1914,11 @@ impl QueuePort for RecordingQueue {
         Ok(vec![])
     }
 
-    async fn set_result_json(&self, _id: Uuid, _result_json: &str) -> Result<(), QueueError> {
+    async fn set_result_json(
+        &self,
+        _id: QueueItemId,
+        _result_json: &str,
+    ) -> Result<(), QueueError> {
         Ok(())
     }
 
@@ -1921,7 +1931,7 @@ impl QueuePort for RecordingQueue {
 
     async fn get_approval_request(
         &self,
-        _id: Uuid,
+        _id: QueueItemId,
     ) -> Result<Option<ApprovalRequestData>, QueueError> {
         Ok(None)
     }

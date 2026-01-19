@@ -24,17 +24,11 @@
 //! ```
 
 use std::sync::Arc;
-use uuid::Uuid;
-use wrldbldr_domain::{AssetId, CharacterId};
+use wrldbldr_domain::{AssetId, CharacterId, QueueItemId};
 
 use crate::infrastructure::ports::{
     AssetRepo, CharacterRepo, ClockPort, ImageGenPort, QueueError, QueuePort, RepoError,
 };
-
-// Type aliases for old names to maintain compatibility
-type CharacterRepository = dyn CharacterRepo;
-type QueueService = dyn QueuePort;
-type ClockService = dyn ClockPort;
 
 /// Standard expression order in a 4x4 grid
 pub const STANDARD_EXPRESSION_ORDER: [&str; 16] = [
@@ -113,7 +107,7 @@ impl ExpressionSheetRequest {
 #[derive(Debug, Clone)]
 pub struct ExpressionSheetResult {
     /// Batch ID for tracking generation progress
-    pub batch_id: Uuid,
+    pub batch_id: QueueItemId,
     /// Character ID
     pub character_id: CharacterId,
     /// Expressions that will be generated
@@ -136,18 +130,18 @@ pub struct SlicedExpression {
 pub struct GenerateExpressionSheet {
     asset_repo: Arc<dyn AssetRepo>,
     image_gen: Arc<dyn ImageGenPort>,
-    character: Arc<CharacterRepository>,
-    queue: Arc<QueueService>,
-    clock: Arc<ClockService>,
+    character: Arc<dyn CharacterRepo>,
+    queue: Arc<dyn QueuePort>,
+    clock: Arc<dyn ClockPort>,
 }
 
 impl GenerateExpressionSheet {
     pub fn new(
         asset_repo: Arc<dyn AssetRepo>,
         image_gen: Arc<dyn ImageGenPort>,
-        character: Arc<CharacterRepository>,
-        queue: Arc<QueueService>,
-        clock: Arc<ClockService>,
+        character: Arc<dyn CharacterRepo>,
+        queue: Arc<dyn QueuePort>,
+        clock: Arc<dyn ClockPort>,
     ) -> Self {
         Self {
             asset_repo,

@@ -156,8 +156,11 @@ impl NodeExt for Node {
     }
 
     fn get_json_strict<T: serde::de::DeserializeOwned>(&self, field: &str) -> Result<T, RepoError> {
-        let s: String = self.get(field).map_err(|_| {
-            RepoError::database("query", format!("Missing required field: {}", field))
+        let s: String = self.get(field).map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Missing required field '{}': {}", field, e),
+            )
         })?;
         serde_json::from_str(&s).map_err(|e| {
             RepoError::database(
@@ -168,13 +171,20 @@ impl NodeExt for Node {
     }
 
     fn get_string_strict(&self, field: &str) -> Result<String, RepoError> {
-        self.get(field)
-            .map_err(|_| RepoError::database("query", format!("Missing required field: {}", field)))
+        self.get(field).map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Missing required field '{}': {}", field, e),
+            )
+        })
     }
 
     fn get_datetime_strict(&self, field: &str) -> Result<DateTime<Utc>, RepoError> {
-        let s: String = self.get(field).map_err(|_| {
-            RepoError::database("query", format!("Missing required field: {}", field))
+        let s: String = self.get(field).map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Missing required field '{}': {}", field, e),
+            )
         })?;
         DateTime::parse_from_rfc3339(&s)
             .map(|dt| dt.with_timezone(&Utc))
@@ -278,8 +288,11 @@ impl RowExt for Row {
         &self,
         column: &str,
     ) -> Result<T, RepoError> {
-        let s: String = self.get(column).map_err(|_| {
-            RepoError::database("query", format!("Missing required column: {}", column))
+        let s: String = self.get(column).map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Missing required column '{}': {}", column, e),
+            )
         })?;
         serde_json::from_str(&s).map_err(|e| {
             RepoError::database(
@@ -293,8 +306,11 @@ impl RowExt for Row {
     }
 
     fn get_string_strict(&self, column: &str) -> Result<String, RepoError> {
-        self.get(column).map_err(|_| {
-            RepoError::database("query", format!("Missing required column: {}", column))
+        self.get(column).map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Missing required column '{}': {}", column, e),
+            )
         })
     }
 }

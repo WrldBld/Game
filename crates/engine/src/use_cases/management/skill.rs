@@ -53,7 +53,9 @@ impl SkillManagement {
             name,
             description: description.unwrap_or_default(),
             category: category_value,
-            base_attribute: attribute.filter(|a| !a.trim().is_empty()),
+            base_attribute: attribute
+                .filter(|a| !a.trim().is_empty())
+                .and_then(|a| a.parse().ok()),
             is_custom: true,
             is_hidden: false,
             order: 0,
@@ -98,8 +100,8 @@ impl SkillManagement {
 
         let new_base_attribute = match attribute {
             Some(attr) if attr.trim().is_empty() => None,
-            Some(attr) => Some(attr),
-            None => skill.base_attribute.clone(),
+            Some(attr) => attr.parse().ok(),
+            None => skill.base_attribute,
         };
 
         let new_is_hidden = is_hidden.unwrap_or(skill.is_hidden);

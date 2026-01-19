@@ -382,8 +382,13 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
         };
 
         // Step 2: Parse JSON, modify stat in Rust
-        let mut stats: std::collections::HashMap<String, i64> =
-            serde_json::from_str(&stats_json).unwrap_or_default();
+        let mut stats: std::collections::HashMap<String, i64> = serde_json::from_str(&stats_json)
+            .map_err(|e| {
+            RepoError::database(
+                "data_corruption",
+                format!("Corrupted stats JSON for PlayerCharacter {}: {}", id, e),
+            )
+        })?;
 
         let current_value = stats.get(stat).copied().unwrap_or(0);
         let new_value = current_value + modifier as i64;

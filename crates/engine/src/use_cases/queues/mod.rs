@@ -161,7 +161,7 @@ impl ProcessPlayerAction {
 
         let llm_request = LlmRequestData {
             request_type: LlmRequestType::NpcResponse {
-                action_item_id: item.id,
+                action_item_id: item.id.to_uuid(),
             },
             world_id: action_data.world_id,
             pc_id: action_data.pc_id,
@@ -178,8 +178,8 @@ impl ProcessPlayerAction {
         self.queue.mark_complete(item.id).await?;
 
         Ok(Some(PlayerActionProcessed {
-            action_id: item.id,
-            llm_request_id,
+            action_id: item.id.to_uuid(),
+            llm_request_id: llm_request_id.to_uuid(),
         }))
     }
 
@@ -780,7 +780,7 @@ impl ProcessLlmRequest {
                 self.queue.mark_complete(item.id).await?;
 
                 Ok(Some(LlmRequestProcessed {
-                    request_id: item.id,
+                    request_id: item.id.to_uuid(),
                     approval_id: *resolution_id, // Use resolution_id as the "approval" for tracking
                     npc_dialogue: llm_response.content,
                     broadcast_events: vec![broadcast_event],
@@ -863,7 +863,7 @@ impl ProcessLlmRequest {
 
                 // Return only the completion event (progress was already emitted via callback)
                 Ok(Some(LlmRequestProcessed {
-                    request_id: item.id,
+                    request_id: item.id.to_uuid(),
                     approval_id: uuid::Uuid::nil(),
                     npc_dialogue: llm_response.content,
                     broadcast_events: vec![BroadcastEvent::SuggestionComplete {
@@ -1131,7 +1131,7 @@ impl ProcessLlmRequest {
                 // Create approval request
                 let approval_data = crate::queue_types::ApprovalRequestData {
                     world_id: request_data.world_id,
-                    source_action_id: item.id,
+                    source_action_id: item.id.to_uuid(),
                     decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
                     urgency: crate::queue_types::ApprovalUrgency::AwaitingPlayer,
                     pc_id: request_data.pc_id,
@@ -1158,8 +1158,8 @@ impl ProcessLlmRequest {
                 // Mark the LLM request as complete
                 self.queue.mark_complete(item.id).await?;
                 Ok(Some(LlmRequestProcessed {
-                    request_id: item.id,
-                    approval_id,
+                    request_id: item.id.to_uuid(),
+                    approval_id: approval_id.to_uuid(),
                     npc_dialogue,
                     broadcast_events: vec![],
                 }))

@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use wrldbldr_domain::WorldId;
+use wrldbldr_domain::{QueueItemId, WorldId};
 
 use super::error::QueueError;
 use crate::queue_types::{
@@ -177,14 +177,14 @@ pub trait ImageGenPort: Send + Sync {
 /// Queue item wrapper with metadata.
 #[derive(Debug, Clone)]
 pub struct QueueItem {
-    pub id: Uuid,
+    pub id: QueueItemId,
     pub data: QueueItemData,
     pub created_at: DateTime<Utc>,
     pub status: QueueItemStatus,
     pub error_message: Option<String>,
     /// Optional JSON result payload for completed items.
     ///
-    /// Used for queued suggestion results so the Creator UI can hydrate after reload.
+    /// Used for queued suggestion results so that Creator UI can hydrate after reload.
     pub result_json: Option<String>,
 }
 
@@ -208,32 +208,38 @@ pub enum QueueItemStatus {
 #[async_trait]
 pub trait QueuePort: Send + Sync {
     // Player action queue
-    async fn enqueue_player_action(&self, data: &PlayerActionData) -> Result<Uuid, QueueError>;
+    async fn enqueue_player_action(
+        &self,
+        data: &PlayerActionData,
+    ) -> Result<QueueItemId, QueueError>;
     async fn dequeue_player_action(&self) -> Result<Option<QueueItem>, QueueError>;
 
     // LLM request queue
-    async fn enqueue_llm_request(&self, data: &LlmRequestData) -> Result<Uuid, QueueError>;
+    async fn enqueue_llm_request(&self, data: &LlmRequestData) -> Result<QueueItemId, QueueError>;
     async fn dequeue_llm_request(&self) -> Result<Option<QueueItem>, QueueError>;
 
     // DM approval queue
-    async fn enqueue_dm_approval(&self, data: &ApprovalRequestData) -> Result<Uuid, QueueError>;
+    async fn enqueue_dm_approval(
+        &self,
+        data: &ApprovalRequestData,
+    ) -> Result<QueueItemId, QueueError>;
     async fn dequeue_dm_approval(&self) -> Result<Option<QueueItem>, QueueError>;
 
     // Asset generation queue
     async fn enqueue_asset_generation(
         &self,
         data: &AssetGenerationData,
-    ) -> Result<Uuid, QueueError>;
+    ) -> Result<QueueItemId, QueueError>;
     async fn dequeue_asset_generation(&self) -> Result<Option<QueueItem>, QueueError>;
 
     // Common operations
-    async fn mark_complete(&self, id: Uuid) -> Result<(), QueueError>;
-    async fn mark_failed(&self, id: Uuid, error: &str) -> Result<(), QueueError>;
+    async fn mark_complete(&self, id: QueueItemId) -> Result<(), QueueError>;
+    async fn mark_failed(&self, id: QueueItemId, error: &str) -> Result<(), QueueError>;
     async fn get_pending_count(&self, queue_type: &str) -> Result<usize, QueueError>;
 
     /// List queue items by type (newest first).
     ///
-    /// This is used by the WebSocket Creator UI to hydrate a unified generation queue.
+    /// This is used by WebSocket Creator UI to hydrate a unified generation queue.
     async fn list_by_type(
         &self,
         queue_type: &str,
@@ -241,7 +247,7 @@ pub trait QueuePort: Send + Sync {
     ) -> Result<Vec<QueueItem>, QueueError>;
 
     /// Persist a JSON result payload for a queue item.
-    async fn set_result_json(&self, id: Uuid, result_json: &str) -> Result<(), QueueError>;
+    async fn set_result_json(&self, id: QueueItemId, result_json: &str) -> Result<(), QueueError>;
 
     /// Cancel a pending LLM request by callback_id.
     ///
@@ -254,7 +260,7 @@ pub trait QueuePort: Send + Sync {
     /// Get an approval request by ID (for extracting NPC info when processing decision)
     async fn get_approval_request(
         &self,
-        id: Uuid,
+        id: QueueItemId,
     ) -> Result<Option<ApprovalRequestData>, QueueError>;
 
     /// Get the persisted generation queue read-state for a user in a world.

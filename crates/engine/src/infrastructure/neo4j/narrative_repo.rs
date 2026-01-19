@@ -1517,8 +1517,11 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
     let events: Vec<NarrativeEventId> = events_strs
         .iter()
         .map(|s| {
-            Uuid::parse_str(s).map(NarrativeEventId::from).map_err(|_| {
-                RepoError::database("parse", format!("Invalid event UUID in chain: {}", s))
+            Uuid::parse_str(s).map(NarrativeEventId::from).map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!("Invalid event UUID in chain: {} - {}", s, e),
+                )
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -1526,10 +1529,10 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
     let completed_events: Vec<NarrativeEventId> = completed_strs
         .iter()
         .map(|s| {
-            Uuid::parse_str(s).map(NarrativeEventId::from).map_err(|_| {
+            Uuid::parse_str(s).map(NarrativeEventId::from).map_err(|e| {
                 RepoError::database(
                     "parse",
-                    format!("Invalid completed event UUID in chain: {}", s),
+                    format!("Invalid completed event UUID in chain: {} - {}", s, e),
                 )
             })
         })

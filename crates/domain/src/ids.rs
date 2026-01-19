@@ -186,3 +186,10 @@ define_id!(ConversationId);
 // Approval and suggestion IDs
 define_id!(ApprovalRequestId);
 define_id!(TimeSuggestionId);
+
+// Conversion from QueueItemId to ActionId for player action tracking
+impl From<QueueItemId> for ActionId {
+    fn from(value: QueueItemId) -> Self {
+        Self(value.to_uuid())
+    }
+}

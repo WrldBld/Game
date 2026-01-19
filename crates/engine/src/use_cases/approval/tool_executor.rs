@@ -28,6 +28,9 @@ pub enum ToolExecutionError {
 
     #[error("Invalid argument: {0}")]
     InvalidArgument(String),
+
+    #[error("Unknown tool type: {0}")]
+    UnknownTool(String),
 }
 
 /// Result of executing a single tool.
@@ -127,11 +130,8 @@ impl ToolExecutor {
             "trigger_event" => self.execute_trigger_event(tool).await,
             "update_character_stat" => self.execute_update_character_stat(tool).await,
             _ => {
-                tracing::warn!(tool_name = %tool.name, "Unknown tool type - skipping execution");
-                Ok(ToolExecutionResult {
-                    tool_id: tool.id.clone(),
-                    description: format!("Unknown tool '{}' - no action taken", tool.name),
-                })
+                tracing::error!(tool_name = %tool.name, "Unknown tool type in LLM response");
+                Err(ToolExecutionError::UnknownTool(tool.name.clone()))
             }
         }
     }
@@ -423,7 +423,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_unknown_tool_returns_ok_with_message() {
+    async fn test_unknown_tool_returns_error() {
         let executor = mock_executor();
         let tool = ProposedTool {
             id: "call_unknown".to_string(),
@@ -436,8 +436,10 @@ mod tests {
             .execute_approved(&["call_unknown".to_string()], &[tool], None, None)
             .await;
 
-        assert_eq!(results.len(), 1);
-        assert!(results[0].description.contains("Unknown tool"));
+        assert!(
+            results.is_empty(),
+            "Unknown tool should not return a result"
+        );
     }
 
     #[tokio::test]

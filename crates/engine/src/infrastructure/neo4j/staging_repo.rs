@@ -755,12 +755,12 @@ fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
             .map(CharacterId::from)
             .map_err(|e| RepoError::database("query", format!("Invalid character_id: {}", e)))?;
 
-        let name: String = npc_map.get("name").map_err(|_| {
+        let name: String = npc_map.get("name").map_err(|e| {
             RepoError::database(
                 "query",
                 format!(
-                    "Missing required NPC name for character_id: {}",
-                    character_id_str
+                    "Missing required NPC name for character_id {}: {}",
+                    character_id_str, e
                 ),
             )
         })?;

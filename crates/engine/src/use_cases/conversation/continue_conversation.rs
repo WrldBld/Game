@@ -8,8 +8,7 @@
 //! for LLM processing.
 
 use std::sync::Arc;
-use uuid::Uuid;
-use wrldbldr_domain::{CharacterId, ConversationId, PlayerCharacterId, WorldId};
+use wrldbldr_domain::{CharacterId, ConversationId, PlayerCharacterId, QueueItemId, WorldId};
 
 use crate::queue_types::PlayerActionData;
 
@@ -24,8 +23,8 @@ use super::start::ConversationError;
 /// Response from continuing a conversation.
 #[derive(Debug)]
 pub struct ConversationContinued {
-    /// ID of the queued player action
-    pub action_queue_id: Uuid,
+    /// ID of queued player action
+    pub action_queue_id: QueueItemId,
     /// The conversation is still active
     pub conversation_active: bool,
     /// The conversation ID for tracking
@@ -271,7 +270,10 @@ mod tests {
 
     #[async_trait]
     impl QueuePort for RecordingQueuePort {
-        async fn enqueue_player_action(&self, data: &PlayerActionData) -> Result<Uuid, QueueError> {
+        async fn enqueue_player_action(
+            &self,
+            data: &PlayerActionData,
+        ) -> Result<QueueItemId, QueueError> {
             self.player_actions.lock().expect("lock").push(data.clone());
             Ok(self.enqueue_return_id)
         }
@@ -280,8 +282,11 @@ mod tests {
             Ok(None)
         }
 
-        async fn enqueue_llm_request(&self, _data: &LlmRequestData) -> Result<Uuid, QueueError> {
-            Ok(Uuid::new_v4())
+        async fn enqueue_llm_request(
+            &self,
+            _data: &LlmRequestData,
+        ) -> Result<QueueItemId, QueueError> {
+            Ok(Uuid::new_v4().into())
         }
 
         async fn dequeue_llm_request(&self) -> Result<Option<QueueItem>, QueueError> {
@@ -291,8 +296,8 @@ mod tests {
         async fn enqueue_dm_approval(
             &self,
             _data: &ApprovalRequestData,
-        ) -> Result<Uuid, QueueError> {
-            Ok(Uuid::new_v4())
+        ) -> Result<QueueItemId, QueueError> {
+            Ok(Uuid::new_v4().into())
         }
 
         async fn dequeue_dm_approval(&self) -> Result<Option<QueueItem>, QueueError> {
@@ -302,19 +307,19 @@ mod tests {
         async fn enqueue_asset_generation(
             &self,
             _data: &AssetGenerationData,
-        ) -> Result<Uuid, QueueError> {
-            Ok(Uuid::new_v4())
+        ) -> Result<QueueItemId, QueueError> {
+            Ok(Uuid::new_v4().into())
         }
 
         async fn dequeue_asset_generation(&self) -> Result<Option<QueueItem>, QueueError> {
             Ok(None)
         }
 
-        async fn mark_complete(&self, _id: Uuid) -> Result<(), QueueError> {
+        async fn mark_complete(&self, _id: QueueItemId) -> Result<(), QueueError> {
             Ok(())
         }
 
-        async fn mark_failed(&self, _id: Uuid, _error: &str) -> Result<(), QueueError> {
+        async fn mark_failed(&self, _id: QueueItemId, _error: &str) -> Result<(), QueueError> {
             Ok(())
         }
 
@@ -330,7 +335,11 @@ mod tests {
             Ok(vec![])
         }
 
-        async fn set_result_json(&self, _id: Uuid, _result_json: &str) -> Result<(), QueueError> {
+        async fn set_result_json(
+            &self,
+            _id: QueueItemId,
+            _result_json: &str,
+        ) -> Result<(), QueueError> {
             Ok(())
         }
 
@@ -343,7 +352,7 @@ mod tests {
 
         async fn get_approval_request(
             &self,
-            _id: Uuid,
+            _id: QueueItemId,
         ) -> Result<Option<ApprovalRequestData>, QueueError> {
             Ok(None)
         }

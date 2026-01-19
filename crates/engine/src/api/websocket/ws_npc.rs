@@ -31,12 +31,12 @@ pub(super) async fn handle_npc_request(
 
             let disposition_level: wrldbldr_domain::DispositionLevel =
                 disposition.parse().map_err(|e| {
-                    tracing::debug!(input = %disposition, error = ?e, "Disposition parsing failed");
+                    tracing::debug!(input = %disposition, error = %e, "Disposition parsing failed");
                     ServerMessage::Response {
                         request_id: request_id.to_string(),
                         result: ResponseResult::error(
                             ErrorCode::BadRequest,
-                            "Invalid disposition value",
+                            format!("Invalid disposition value: {}", e),
                         ),
                     }
                 })?;
@@ -98,11 +98,11 @@ pub(super) async fn handle_npc_request(
             let pc_id_typed = PlayerCharacterId::from_uuid(pc_uuid);
 
             let relationship_level: wrldbldr_domain::RelationshipLevel =
-                relationship.parse().map_err(|_| ServerMessage::Response {
+                relationship.parse().map_err(|e| ServerMessage::Response {
                     request_id: request_id.to_string(),
                     result: ResponseResult::error(
                         ErrorCode::BadRequest,
-                        "Invalid relationship value",
+                        format!("Invalid relationship value: {}", e),
                     ),
                 })?;
 

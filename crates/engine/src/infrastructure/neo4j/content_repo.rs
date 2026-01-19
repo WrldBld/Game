@@ -6,7 +6,7 @@
 use crate::infrastructure::neo4j::Neo4jGraph;
 use async_trait::async_trait;
 use neo4rs::{query, Row};
-use wrldbldr_domain::{Skill, SkillCategory, SkillId, WorldId};
+use wrldbldr_domain::{Skill, SkillCategory, SkillId, Stat, WorldId};
 
 use super::helpers::{parse_typed_id, NodeExt};
 use crate::infrastructure::ports::{ContentRepo, RepoError};
@@ -39,14 +39,16 @@ impl Neo4jContentRepo {
                 format!("Missing required field 'category' for skill: {}", id),
             ));
         } else {
-            category_str.parse().map_err(|_| {
+            category_str.parse().map_err(|e| {
                 RepoError::database(
                     "parse",
-                    format!("Invalid SkillCategory: '{}'", category_str),
+                    format!("Invalid SkillCategory '{}': {}", category_str, e),
                 )
             })?
         };
-        let base_attribute = node.get_optional_string("base_attribute");
+        let base_attribute: Option<Stat> = node
+            .get_optional_string("base_attribute")
+            .and_then(|s| s.parse().ok());
         let is_custom = node.get_bool_or("is_custom", false);
         let is_hidden = node.get_bool_or("is_hidden", false);
         let order_num = node.get_i64_or("order_num", 0);
@@ -110,7 +112,10 @@ impl ContentRepo for Neo4jContentRepo {
         .param("category", skill.category.to_string())
         .param(
             "base_attribute",
-            skill.base_attribute.clone().unwrap_or_default(),
+            skill
+                .base_attribute
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
         )
         .param("is_custom", skill.is_custom)
         .param("is_hidden", skill.is_hidden)

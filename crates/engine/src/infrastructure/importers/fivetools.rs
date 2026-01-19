@@ -45,7 +45,7 @@ static FIVETOOLS_TAG_REGEX: OnceLock<regex_lite::Regex> = OnceLock::new();
 static FIVETOOLS_DISPLAY_REGEX: OnceLock<regex_lite::Regex> = OnceLock::new();
 use wrldbldr_domain::{
     CastingTime, CastingTimeUnit, DurationUnit, Feat, FeatBenefit, MaterialComponent, Prerequisite,
-    Spell, SpellComponents, SpellDuration, SpellLevel, SpellRange,
+    Spell, SpellComponents, SpellDuration, SpellLevel, SpellRange, Stat,
 };
 
 // === Character Option Types ===
@@ -930,7 +930,11 @@ impl FiveToolsImporter {
         if let Some(abilities) = prereq.ability {
             for ability_map in abilities {
                 for (stat, value) in ability_map {
-                    result.push(Prerequisite::MinStat { stat, value });
+                    let parsed_stat = stat.parse().unwrap_or(Stat::Custom);
+                    result.push(Prerequisite::MinStat {
+                        stat: parsed_stat,
+                        value,
+                    });
                 }
             }
         }
@@ -956,8 +960,9 @@ impl FiveToolsImporter {
         // Fixed bonuses
         for (stat, value) in bonus.bonuses {
             if stat != "choose" {
+                let parsed_stat = stat.parse().unwrap_or(Stat::Custom);
                 result.push(FeatBenefit::StatIncrease {
-                    stat: stat.to_uppercase(),
+                    stat: parsed_stat,
                     value,
                 });
             }
@@ -965,7 +970,11 @@ impl FiveToolsImporter {
 
         // Choice bonuses
         if let Some(choice) = bonus.choose {
-            let options: Vec<String> = choice.from.into_iter().map(|s| s.to_uppercase()).collect();
+            let options: Vec<Stat> = choice
+                .from
+                .into_iter()
+                .filter_map(|s| s.parse().ok())
+                .collect();
             let count = choice.count.unwrap_or(1);
             let value = choice.amount.unwrap_or(1);
 

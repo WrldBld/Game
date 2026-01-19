@@ -589,28 +589,29 @@ pub(super) async fn handle_expression_request(
                         parts[0]
                             .trim()
                             .parse::<u32>()
-                            .map_err(|_| ServerMessage::Response {
+                            .map_err(|e| ServerMessage::Response {
                                 request_id: request_id.to_string(),
                                 result: ResponseResult::error(
                                     ErrorCode::BadRequest,
                                     format!(
-                                    "Invalid grid_layout columns '{}': must be a positive integer",
-                                    parts[0].trim()
-                                ),
+                                        "Invalid grid_layout columns '{}': must be a positive integer: {}",
+                                        parts[0].trim(), e
+                                    ),
                                 ),
                             })?;
                     let r =
                         parts[1]
                             .trim()
                             .parse::<u32>()
-                            .map_err(|_| ServerMessage::Response {
+                            .map_err(|e| ServerMessage::Response {
                                 request_id: request_id.to_string(),
                                 result: ResponseResult::error(
                                     ErrorCode::BadRequest,
                                     format!(
-                                        "Invalid grid_layout rows '{}': must be a positive integer",
-                                        parts[1].trim()
-                                    ),
+                                    "Invalid grid_layout rows '{}': must be a positive integer: {}",
+                                    parts[1].trim(),
+                                    e
+                                ),
                                 ),
                             })?;
                     if c == 0 || r == 0 {

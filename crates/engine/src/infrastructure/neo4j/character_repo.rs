@@ -68,19 +68,25 @@ impl From<&StatModifier> for StatModifierStored {
     }
 }
 
-impl From<StatModifierStored> for StatModifier {
-    fn from(value: StatModifierStored) -> Self {
-        let id = Uuid::parse_str(&value.id).unwrap_or_else(|e| {
-            let new_id = Uuid::new_v4();
-            tracing::warn!(
-                stored_id = %value.id,
-                new_id = %new_id,
-                error = %e,
-                "Corrupted UUID in stored stat modifier, generating new ID. Modifier may become orphaned."
-            );
-            new_id
-        });
-        StatModifier::from_storage(id.into(), value.source, value.value, value.active)
+impl TryFrom<StatModifierStored> for StatModifier {
+    type Error = RepoError;
+
+    fn try_from(value: StatModifierStored) -> Result<Self, Self::Error> {
+        let id = Uuid::parse_str(&value.id).map_err(|e| {
+            RepoError::database(
+                "data_corruption",
+                format!(
+                    "Corrupted UUID in stat modifier '{}': {}. Database integrity compromised.",
+                    value.id, e
+                ),
+            )
+        })?;
+        Ok(StatModifier::from_storage(
+            id.into(),
+            value.source,
+            value.value,
+            value.active,
+        ))
     }
 }
 
@@ -120,8 +126,10 @@ impl From<&StatBlock> for StatBlockStored {
     }
 }
 
-impl From<StatBlockStored> for StatBlock {
-    fn from(value: StatBlockStored) -> Self {
+impl TryFrom<StatBlockStored> for StatBlock {
+    type Error = RepoError;
+
+    fn try_from(value: StatBlockStored) -> Result<Self, Self::Error> {
         let mut stat_block = StatBlock::new()
             .with_current_hp(value.current_hp)
             .with_max_hp(value.max_hp);
@@ -131,10 +139,10 @@ impl From<StatBlockStored> for StatBlock {
         for (stat_name, mods) in value.modifiers {
             for mod_stored in mods {
                 stat_block =
-                    stat_block.with_modifier_added(&stat_name, StatModifier::from(mod_stored));
+                    stat_block.with_modifier_added(&stat_name, StatModifier::try_from(mod_stored)?);
             }
         }
-        stat_block
+        Ok(stat_block)
     }
 }
 
@@ -166,16 +174,19 @@ impl TryFrom<ArchetypeChangeStored> for ArchetypeChange {
             &value.timestamp,
             chrono::DateTime::UNIX_EPOCH,
         );
-        let from_archetype: CampbellArchetype = value.from.parse().map_err(|_| {
+        let from_archetype: CampbellArchetype = value.from.parse().map_err(|e| {
             RepoError::database(
                 "parse",
-                format!("Invalid 'from' archetype in history: '{}'", value.from),
+                format!(
+                    "Invalid 'from' archetype in history '{}': {}",
+                    value.from, e
+                ),
             )
         })?;
-        let to_archetype: CampbellArchetype = value.to.parse().map_err(|_| {
+        let to_archetype: CampbellArchetype = value.to.parse().map_err(|e| {
             RepoError::database(
                 "parse",
-                format!("Invalid 'to' archetype in history: '{}'", value.to),
+                format!("Invalid 'to' archetype in history '{}': {}", value.to, e),
             )
         })?;
         Ok(ArchetypeChange::new(
@@ -226,21 +237,21 @@ impl Neo4jCharacterRepo {
             .get("default_disposition")
             .map_err(|e| RepoError::database("query", e))?;
 
-        let base_archetype: CampbellArchetype = base_archetype_str.parse().map_err(|_| {
+        let base_archetype: CampbellArchetype = base_archetype_str.parse().map_err(|e| {
             RepoError::database(
                 "parse",
                 format!(
-                    "Invalid base_archetype for Character {}: '{}'",
-                    id, base_archetype_str
+                    "Invalid base_archetype for Character {}: '{}': {}",
+                    id, base_archetype_str, e
                 ),
             )
         })?;
-        let current_archetype: CampbellArchetype = current_archetype_str.parse().map_err(|_| {
+        let current_archetype: CampbellArchetype = current_archetype_str.parse().map_err(|e| {
             RepoError::database(
                 "parse",
                 format!(
-                    "Invalid current_archetype for Character {}: '{}'",
-                    id, current_archetype_str
+                    "Invalid current_archetype for Character {}: '{}': {}",
+                    id, current_archetype_str, e
                 ),
             )
         })?;
@@ -255,7 +266,7 @@ impl Neo4jCharacterRepo {
         let stats: StatBlock = node
             .get_json::<StatBlockStored>("stats")
             .map_err(|e| RepoError::database("query", e))?
-            .into();
+            .try_into()?;
 
         let default_disposition = default_disposition_str
             .parse()
@@ -268,12 +279,12 @@ impl Neo4jCharacterRepo {
                 format!("Missing default_mood for Character {}: {}", id, e),
             )
         })?;
-        let default_mood: MoodState = default_mood_str.parse().map_err(|_| {
+        let default_mood: MoodState = default_mood_str.parse().map_err(|e| {
             RepoError::database(
                 "parse",
                 format!(
-                    "Invalid MoodState for Character {}: '{}'",
-                    id, default_mood_str
+                    "Invalid MoodState for Character {}: '{}': {}",
+                    id, default_mood_str, e
                 ),
             )
         })?;
@@ -281,6 +292,12 @@ impl Neo4jCharacterRepo {
         // Parse expression_config from JSON - use default if missing
         let expression_config: ExpressionConfig = node
             .get::<String>("expression_config")
+            .map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!("Missing expression_config for Character {}: {}", id, e),
+                )
+            })
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default();
@@ -616,12 +633,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
             let rel_type_str: String = row
                 .get("rel_type")
                 .map_err(|e| RepoError::database("query", e))?;
-            let relationship_type: RelationshipType = rel_type_str.parse().map_err(|_| {
+            let relationship_type: RelationshipType = rel_type_str.parse().map_err(|e| {
                 RepoError::database(
                     "parse",
                     format!(
-                        "Invalid RelationshipType for relationship {}: '{}'",
-                        rel_id, rel_type_str
+                        "Invalid RelationshipType for relationship {}: '{}': {}",
+                        rel_id, rel_type_str, e
                     ),
                 )
             })?;
@@ -996,7 +1013,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
     ) -> Result<Option<NpcDispositionState>, RepoError> {
         let q = query(
             "MATCH (npc:Character {id: $npc_id})-[d:DISPOSITION_TOWARD]->(pc:PlayerCharacter {id: $pc_id})
-            RETURN d.disposition as disposition, d.relationship as relationship, 
+            RETURN d.disposition as disposition, d.relationship as relationship,
                    d.sentiment as sentiment, d.updated_at as updated_at,
                    d.disposition_reason as disposition_reason, d.relationship_points as relationship_points",
         )
@@ -1030,12 +1047,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
                     ),
                 )
             })?;
-            let relationship: RelationshipLevel = relationship_str.parse().map_err(|_| {
+            let relationship: RelationshipLevel = relationship_str.parse().map_err(|e| {
                 RepoError::database(
                     "parse",
                     format!(
-                        "Invalid RelationshipLevel for disposition (npc_id: {}, pc_id: {}): '{}'",
-                        npc_id, pc_id, relationship_str
+                        "Invalid RelationshipLevel for disposition (npc_id: {}, pc_id: {}): '{}': {}",
+                        npc_id, pc_id, relationship_str, e
                     ),
                 )
             })?;
@@ -1152,12 +1169,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
                     ),
                 )
             })?;
-            let relationship: RelationshipLevel = relationship_str.parse().map_err(|_| {
+            let relationship: RelationshipLevel = relationship_str.parse().map_err(|e| {
                 RepoError::database(
                     "parse",
                     format!(
-                        "Invalid RelationshipLevel for disposition (npc_id: {}, pc_id: {}): '{}'",
-                        npc_id, pc_id, relationship_str
+                        "Invalid RelationshipLevel for disposition (npc_id: {}, pc_id: {}): '{}': {}",
+                        npc_id, pc_id, relationship_str, e
                     ),
                 )
             })?;
@@ -1875,12 +1892,12 @@ impl CharacterRepo for Neo4jCharacterRepo {
                     ),
                 )
             })?;
-            let default_mood: MoodState = default_mood_str.parse().map_err(|_| {
+            let default_mood: MoodState = default_mood_str.parse().map_err(|e| {
                 RepoError::database(
                     "parse",
                     format!(
-                        "Invalid MoodState for NPC {} in region {}: '{}'",
-                        character_id, region_id, default_mood_str
+                        "Invalid MoodState for NPC {} in region {}: '{}': {}",
+                        character_id, region_id, default_mood_str, e
                     ),
                 )
             })?;

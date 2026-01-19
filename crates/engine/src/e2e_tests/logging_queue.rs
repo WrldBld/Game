@@ -13,7 +13,7 @@ use crate::queue_types::{
     ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
 };
 
-use crate::infrastructure::ports::{QueueError, QueueItem, QueuePort};
+use crate::infrastructure::ports::{QueueError, QueueItem, QueueItemStatus, QueuePort};
 
 use super::event_log::{E2EEvent, E2EEventLog};
 
@@ -33,7 +33,10 @@ impl LoggingQueue {
 #[async_trait]
 impl QueuePort for LoggingQueue {
     // Player action queue
-    async fn enqueue_player_action(&self, data: &PlayerActionData) -> Result<Uuid, QueueError> {
+    async fn enqueue_player_action(
+        &self,
+        data: &PlayerActionData,
+    ) -> Result<QueueItemId, QueueError> {
         let id = self.inner.enqueue_player_action(data).await?;
 
         self.event_log.log(E2EEvent::ActionEnqueued {
@@ -61,7 +64,7 @@ impl QueuePort for LoggingQueue {
     }
 
     // LLM request queue
-    async fn enqueue_llm_request(&self, data: &LlmRequestData) -> Result<Uuid, QueueError> {
+    async fn enqueue_llm_request(&self, data: &LlmRequestData) -> Result<QueueItemId, QueueError> {
         let id = self.inner.enqueue_llm_request(data).await?;
 
         self.event_log.log(E2EEvent::LlmRequestEnqueued {
@@ -78,7 +81,10 @@ impl QueuePort for LoggingQueue {
     }
 
     // DM approval queue
-    async fn enqueue_dm_approval(&self, data: &ApprovalRequestData) -> Result<Uuid, QueueError> {
+    async fn enqueue_dm_approval(
+        &self,
+        data: &ApprovalRequestData,
+    ) -> Result<QueueItemId, QueueError> {
         let id = self.inner.enqueue_dm_approval(data).await?;
 
         self.event_log.log(E2EEvent::ApprovalEnqueued {
@@ -98,7 +104,7 @@ impl QueuePort for LoggingQueue {
     async fn enqueue_asset_generation(
         &self,
         data: &AssetGenerationData,
-    ) -> Result<Uuid, QueueError> {
+    ) -> Result<QueueItemId, QueueError> {
         self.inner.enqueue_asset_generation(data).await
     }
 
@@ -107,11 +113,11 @@ impl QueuePort for LoggingQueue {
     }
 
     // Common operations (pass through)
-    async fn mark_complete(&self, id: Uuid) -> Result<(), QueueError> {
+    async fn mark_complete(&self, id: QueueItemId) -> Result<(), QueueError> {
         self.inner.mark_complete(id).await
     }
 
-    async fn mark_failed(&self, id: Uuid, error: &str) -> Result<(), QueueError> {
+    async fn mark_failed(&self, id: QueueItemId, error: &str) -> Result<(), QueueError> {
         // Log errors
         self.event_log.log(E2EEvent::Error {
             code: "QUEUE_ITEM_FAILED".to_string(),
@@ -134,7 +140,7 @@ impl QueuePort for LoggingQueue {
         self.inner.list_by_type(queue_type, limit).await
     }
 
-    async fn set_result_json(&self, id: Uuid, result_json: &str) -> Result<(), QueueError> {
+    async fn set_result_json(&self, id: QueueItemId, result_json: &str) -> Result<(), QueueError> {
         self.inner.set_result_json(id, result_json).await
     }
 
@@ -149,7 +155,7 @@ impl QueuePort for LoggingQueue {
 
     async fn get_approval_request(
         &self,
-        id: Uuid,
+        id: QueueItemId,
     ) -> Result<Option<ApprovalRequestData>, QueueError> {
         self.inner.get_approval_request(id).await
     }

@@ -1,6 +1,8 @@
 use super::*;
 use chrono::Utc;
-use wrldbldr_domain::{ConnectionId, ConversationId, InteractionTarget, InteractionType};
+use wrldbldr_domain::{
+    ConnectionId, ConversationId, InteractionTarget, InteractionType, QueueItemId,
+};
 
 use crate::queue_types::PlayerActionData;
 
@@ -429,7 +431,7 @@ fn interaction_target_label(target: &InteractionTarget) -> Option<String> {
 async fn broadcast_action_queued(
     state: &WsState,
     world_id: WorldId,
-    action_id: Uuid,
+    action_id: QueueItemId,
     player_id: String,
     action_type: &str,
     queue_depth: usize,

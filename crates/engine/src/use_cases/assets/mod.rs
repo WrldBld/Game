@@ -10,7 +10,8 @@ pub mod expression_sheet;
 use std::sync::Arc;
 use uuid::Uuid;
 use wrldbldr_domain::{
-    AssetId, AssetPath, AssetType, BatchId, EntityType, GalleryAsset, GenerationMetadata, WorldId,
+    AssetId, AssetPath, AssetType, BatchId, EntityType, GalleryAsset, GenerationMetadata,
+    QueueItemId, WorldId,
 };
 
 use crate::queue_types::AssetGenerationData;
@@ -176,7 +177,7 @@ impl GenerateAsset {
         workflow_id: &str,
         prompt: &str,
         count: u32,
-    ) -> Result<Uuid, GenerateError> {
+    ) -> Result<QueueItemId, GenerateError> {
         let data = AssetGenerationData {
             world_id,
             entity_type: entity_type.to_string(),
