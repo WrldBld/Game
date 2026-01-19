@@ -1036,8 +1036,7 @@ pub async fn seed_thornhaven_to_neo4j(
     let mut act_id_map: HashMap<ActId, ActId> = HashMap::new();
 
     // Serialize rule_system as JSON (matches WorldRepo::save format)
-    let rule_system_json = serde_json::to_string(&RuleSystemConfig::dnd_5e())
-        .expect("Failed to serialize rule_system");
+    let rule_system_json = serde_json::to_string(&RuleSystemConfig::dnd_5e())?;
 
     // 1. Create World node
     graph
@@ -1594,7 +1593,7 @@ pub async fn seed_thornhaven_to_neo4j(
         // Get the pre-computed event ID
         let new_id = *event_id_map
             .get(&event.id)
-            .expect("Event ID should be in map");
+            .ok_or_else(|| format!("Event ID not found in map: {}", event.id))?;
         // Serialize JSON fields with format conversion and ID translation
         let triggers_json =
             convert_triggers_to_stored_format(&event.trigger_conditions, &translator);

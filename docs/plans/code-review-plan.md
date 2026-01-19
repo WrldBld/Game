@@ -56,7 +56,10 @@ use_effect(move || { ... });
 **Violation 6 (lines 20-45)**: PC existence check effect
 - Remove scoped block wrapper
 
-### Status: TODO
+### Status: ✅ COMPLETE
+
+All 6 Dioxus hook violations fixed by removing scoped blocks.
+
 ### Verification
 ```bash
 # Build player crate to verify no compile errors
@@ -120,7 +123,9 @@ rg -i "password|secret|api_key|apikey|token|credential" \
 # - Hardcoded passwords, API keys, or tokens
 ```
 
-### Status: TODO
+### Status: ✅ COMPLETE
+
+Verified safe - all matches are domain concepts (secret_agenda, location_secrets) and LLM token budgets (max_tokens), not authentication secrets.
 
 ---
 
@@ -343,7 +348,9 @@ let json = serde_json::to_vec(&export)
 Ok(Json(json).into_response())
 ```
 
-### Status: TODO
+### Status: ✅ COMPLETE (No Changes Needed)
+
+All 16 `.unwrap()` calls are in the `#[cfg(test)]` module, not production code. Production handlers use proper `map_err` and `?` error handling. Test code using `.unwrap()` is acceptable since tests should panic on unexpected failures.
 
 ### Verification
 ```bash
@@ -388,7 +395,9 @@ None => return Err(NarrativeDecisionError::EventNotFound(event_id.to_string())),
 None => return Err(NarrativeDecisionError::EventNotFound(event_id)),
 ```
 
-### Status: TODO
+### Status: ✅ COMPLETE
+
+Changed `EventNotFound(String)` to `EventNotFound(NarrativeEventId)` for type safety.
 
 ### Verification
 ```bash
@@ -427,10 +436,12 @@ let new_id = *event_id_map
 // AFTER
 let new_id = *event_id_map
     .get(&event.id)
-    .ok_or_else(|| format!("Event ID not found in map for event: {}", event.name))?;
+    .ok_or_else(|| format!("Event ID not found in map: {}", event.id))?;
 ```
 
-### Status: TODO
+### Status: ✅ COMPLETE
+
+Replaced both `expect()` calls with `?` operator for proper error propagation.
 
 ### Verification
 ```bash
@@ -586,12 +597,14 @@ rg 'fn.*\(?id: Uuid\)?' crates/
 
 ## Progress Tracking
 
+- [x] Priority 1: Dioxus hook violations - COMPLETE: All 6 violations fixed
 - [x] Priority 1.5: Neo4j injection verification - VERIFIED SAFE
-- [x] Priority 2: HIGH - HTTP Error Mapping (API Layer) - COMPLETE: All 10 handlers fixed with proper error mapping
-- [ ] Priority 2.5: API Layer unwrap() Removal
-- [ ] Priority 3: EventNotFound Type Safety
-- [ ] Priority 4: Test Helper Error Handling
-- [ ] Priority 6: Minor Issues & Verification
+- [x] Priority 1.6: Secrets scan - VERIFIED SAFE (domain concepts only)
+- [x] Priority 2: HTTP Error Mapping - COMPLETE: All 10 handlers with proper error mapping
+- [x] Priority 2.5: API Layer unwrap() Removal - COMPLETE (no production unwraps existed)
+- [x] Priority 3: EventNotFound Type Safety - COMPLETE: Now uses NarrativeEventId
+- [x] Priority 4: Test Helper Error Handling - COMPLETE: expect() replaced with ?
+- [ ] Priority 6: Minor Issues & Verification (Optional - Low Priority)
   - [ ] 6.1 Error message echoing user input
   - [ ] 6.2 Location setters don't return events
   - [ ] 6.3 Magic numbers in Player crate
