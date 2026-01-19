@@ -12,24 +12,49 @@
 //!
 //! # Fingerprint Strategy
 //!
-//! The fingerprint uses SHA-256 hashing of the complete request content:
+//! The fingerprint uses SHA-256 hashing of normalized request content:
 //!
 //! - **System prompt**: Full content (None and empty string are normalized to equivalent)
 //! - **Messages**: Full role and content for each message in order
 //! - **Parameters**: Temperature (defaults to 0.7 if unset), max_tokens (defaults to 0 if unset)
+//! - **UUID Normalization**: All UUIDs are replaced with a placeholder before hashing,
+//!   ensuring fingerprints are stable across test runs even when entity IDs change.
 //!
-//! This creates exact-match fingerprints where identical requests always produce
+//! This creates stable fingerprints where semantically identical requests produce
 //! the same fingerprint, enabling reliable cassette lookups.
 
+use once_cell::sync::Lazy;
+use regex::Regex;
 use sha2::{Digest, Sha256};
 
 use crate::infrastructure::ports::LlmRequest;
+
+/// Regex pattern for matching UUIDs (both hyphenated and non-hyphenated forms).
+///
+/// Matches:
+/// - Standard hyphenated: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
+/// - Non-hyphenated: `xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+static UUID_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32}")
+        .expect("UUID regex should compile")
+});
+
+/// Placeholder used to replace UUIDs in fingerprint computation.
+const UUID_PLACEHOLDER: &str = "<UUID>";
 
 /// Default temperature when none specified in request.
 const DEFAULT_TEMPERATURE: f32 = 0.7;
 
 /// Characters to include in summary prefix for system prompt.
 const SUMMARY_PREFIX_LEN: usize = 40;
+
+/// Normalize a string by replacing all UUIDs with a placeholder.
+///
+/// This ensures fingerprints are stable across test runs even when
+/// entity IDs (which are UUIDs) change between runs.
+fn normalize_uuids(s: &str) -> String {
+    UUID_REGEX.replace_all(s, UUID_PLACEHOLDER).into_owned()
+}
 
 /// Fingerprint for matching LLM requests.
 ///
@@ -46,24 +71,27 @@ pub struct RequestFingerprint {
 impl RequestFingerprint {
     /// Create a fingerprint from an LLM request.
     ///
-    /// Hashes the full content of request elements to create a content-based
-    /// identifier for cassette matching.
+    /// Hashes normalized content of request elements to create a content-based
+    /// identifier for cassette matching. UUIDs are replaced with placeholders
+    /// to ensure stability across test runs.
     pub fn from_request(request: &LlmRequest) -> Self {
         let mut hasher = Sha256::new();
 
-        // Hash full system prompt (treat None and empty as equivalent)
+        // Hash normalized system prompt (treat None and empty as equivalent)
         let system = request.system_prompt.as_deref().unwrap_or("");
         if !system.is_empty() {
             hasher.update(b"system:");
-            hasher.update(system.as_bytes());
+            let normalized_system = normalize_uuids(system);
+            hasher.update(normalized_system.as_bytes());
         }
 
-        // Hash full message structure (role + full content)
+        // Hash normalized message structure (role + content with UUIDs replaced)
         for msg in &request.messages {
             hasher.update(b"msg:");
             hasher.update(format!("{:?}", msg.role).as_bytes());
             hasher.update(b":");
-            hasher.update(msg.content.as_bytes());
+            let normalized_content = normalize_uuids(&msg.content);
+            hasher.update(normalized_content.as_bytes());
         }
 
         // Hash key parameters
@@ -131,6 +159,35 @@ mod tests {
     use crate::infrastructure::ports::ChatMessage;
 
     #[test]
+    fn test_uuid_normalization() {
+        // Test hyphenated UUIDs
+        let input = "Character 550e8400-e29b-41d4-a716-446655440000 said hello";
+        let normalized = normalize_uuids(input);
+        assert_eq!(normalized, "Character <UUID> said hello");
+
+        // Test multiple UUIDs
+        let input =
+            "From 550e8400-e29b-41d4-a716-446655440000 to 6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+        let normalized = normalize_uuids(input);
+        assert_eq!(normalized, "From <UUID> to <UUID>");
+
+        // Test non-hyphenated UUIDs (32 hex chars)
+        let input = "ID: 550e8400e29b41d4a716446655440000";
+        let normalized = normalize_uuids(input);
+        assert_eq!(normalized, "ID: <UUID>");
+
+        // Test no UUIDs
+        let input = "No UUIDs here";
+        let normalized = normalize_uuids(input);
+        assert_eq!(normalized, "No UUIDs here");
+
+        // Test case insensitivity
+        let input = "Upper: 550E8400-E29B-41D4-A716-446655440000";
+        let normalized = normalize_uuids(input);
+        assert_eq!(normalized, "Upper: <UUID>");
+    }
+
+    #[test]
     fn test_same_request_same_fingerprint() {
         let request = LlmRequest::new(vec![ChatMessage::user("Hello, world!")])
             .with_system_prompt("You are a helpful assistant.");
@@ -139,6 +196,29 @@ mod tests {
         let fp2 = RequestFingerprint::from_request(&request);
 
         assert_eq!(fp1.to_hex(), fp2.to_hex());
+    }
+
+    #[test]
+    fn test_different_uuids_same_fingerprint() {
+        // Two requests that differ only in UUIDs should have the same fingerprint
+        let request1 = LlmRequest::new(vec![ChatMessage::user(
+            "Talk to NPC 550e8400-e29b-41d4-a716-446655440000",
+        )])
+        .with_system_prompt("You are roleplaying as NPC 6ba7b810-9dad-11d1-80b4-00c04fd430c8");
+
+        let request2 = LlmRequest::new(vec![ChatMessage::user(
+            "Talk to NPC aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        )])
+        .with_system_prompt("You are roleplaying as NPC 11111111-2222-3333-4444-555555555555");
+
+        let fp1 = RequestFingerprint::from_request(&request1);
+        let fp2 = RequestFingerprint::from_request(&request2);
+
+        assert_eq!(
+            fp1.to_hex(),
+            fp2.to_hex(),
+            "Requests differing only in UUIDs should have same fingerprint"
+        );
     }
 
     #[test]

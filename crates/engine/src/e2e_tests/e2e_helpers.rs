@@ -8,39 +8,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use chrono::{DateTime, TimeZone, Utc};
-use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 use uuid::Uuid;
 use wrldbldr_domain::{
     ActId, ChallengeId, CharacterId, LocationId, NarrativeEventId, RegionId, RuleSystemConfig,
     SceneId, WorldId,
 };
-
-// =============================================================================
-// Deterministic UUID Generation
-// =============================================================================
-
-/// Generate a deterministic UUID from a test name and entity seed.
-///
-/// Same test + same entity always produces same UUID, making tests reproducible.
-/// Different tests get different UUIDs for the same entity, ensuring isolation.
-///
-/// This is critical for:
-/// - VCR cassette stability - UUIDs appear in LLM prompts
-/// - Test isolation - parallel tests don't collide in shared Neo4j
-///
-/// # Arguments
-/// * `test_name` - The test function name (e.g., "test_pc_moves_to_connected_region")
-/// * `entity_seed` - The entity identifier (e.g., "world:thornhaven", "npc:Mira Thornwood")
-fn deterministic_uuid(test_name: &str, entity_seed: &str) -> Uuid {
-    let mut hasher = Sha256::new();
-    hasher.update(test_name.as_bytes());
-    hasher.update(b":");
-    hasher.update(entity_seed.as_bytes());
-    let hash = hasher.finalize();
-    // Use first 16 bytes of SHA-256 hash as UUID
-    Uuid::from_slice(&hash[..16]).expect("16 bytes makes valid UUID")
-}
 
 /// Get the current test name from the thread name.
 ///
@@ -158,13 +131,18 @@ impl SeededWorld {
 /// Full E2E test context with application stack and seeded world.
 ///
 /// Uses a shared Neo4j container across all tests for faster execution.
-/// Each test gets fresh UUIDs for all entities, ensuring complete isolation.
+/// Each test gets fresh random UUIDs for all entities, ensuring complete isolation
+/// without any cleanup overhead.
 ///
-/// # Cleanup
+/// # Isolation Strategy
 ///
-/// The context automatically cleans up all data associated with its world_id:
-/// - **Before seeding**: Removes stale data from previous/crashed runs
-/// - **After test (Drop)**: Removes all test data to keep Neo4j clean
+/// Tests are isolated via random UUIDs (Uuid::new_v4()). With ~340 undecillion
+/// possible UUIDs, collision is practically impossible. This eliminates the need
+/// for before/after cleanup, making tests faster and simpler.
+///
+/// The VCR fingerprinting system normalizes all UUIDs to `<UUID>` placeholders
+/// before hashing, and UUID aliasing (CHAL_0, EVT_0) is used in LLM prompts,
+/// so cassette matching works regardless of which random UUIDs are generated.
 pub struct E2ETestContext {
     /// Shared Neo4j harness (container is reused across tests)
     pub harness: Arc<SharedNeo4jHarness>,
@@ -180,7 +158,7 @@ pub struct E2ETestContext {
     /// Optional benchmark for timing analysis.
     /// Enable via `E2E_BENCHMARK=1` environment variable.
     pub benchmark: Option<Arc<E2EBenchmark>>,
-    /// Test name used for deterministic UUID generation.
+    /// Test name used for logging and benchmark identification.
     test_name: String,
     _temp_dir: TempDir,
 }
@@ -189,10 +167,9 @@ impl E2ETestContext {
     /// Create a new E2E test context with real Neo4j and mock LLM.
     ///
     /// This is the primary setup method for E2E tests. It:
-    /// 1. Gets test name from thread (automatic)
-    /// 2. Cleans up any stale data for this test's world_id
-    /// 3. Seeds the Thornhaven test world with per-test deterministic UUIDs
-    /// 4. Constructs the full App with all use cases
+    /// 1. Gets test name from thread (for logging/benchmarks)
+    /// 2. Seeds the Thornhaven test world with fresh random UUIDs
+    /// 3. Constructs the full App with all use cases
     ///
     /// If `E2E_BENCHMARK=1` is set, timing is tracked automatically.
     pub async fn setup() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
@@ -246,17 +223,13 @@ impl E2ETestContext {
 
     /// Internal setup method with optional event logging and benchmarking.
     ///
-    /// Uses a shared Neo4j container for all tests, with per-test deterministic
-    /// UUIDs to ensure complete isolation without container startup overhead.
+    /// Uses a shared Neo4j container for all tests, with fresh random UUIDs
+    /// to ensure complete isolation without container startup overhead.
     ///
-    /// # Cleanup Strategy
+    /// # Isolation Strategy
     ///
-    /// Before seeding, we clean up any existing data for this test's world_id.
-    /// This handles:
-    /// - Stale data from crashed previous runs
-    /// - Re-runs of the same test
-    ///
-    /// After the test (in Drop), we clean up again to keep Neo4j tidy.
+    /// Each test gets unique random UUIDs for all entities. No cleanup is needed
+    /// since collision is practically impossible with v4 UUIDs.
     ///
     /// If `E2E_BENCHMARK=1` is set, timing is tracked for:
     /// - Container connection
@@ -285,7 +258,7 @@ impl E2ETestContext {
 
         if let Some(ref b) = benchmark {
             b.end_phase("container");
-            b.start_phase("cleanup_before");
+            b.start_phase("seed");
         }
 
         // Load test world from JSON fixtures
@@ -306,22 +279,9 @@ impl E2ETestContext {
             Neo4jGraph::new(raw_graph)
         };
 
-        // Compute the world_id that will be used for this test
-        // (deterministic based on test name)
-        let world_id = WorldId::from(deterministic_uuid(test_name, "world:thornhaven"));
-
-        // Clean up any stale data from previous runs of this test
-        cleanup_world_data(&neo4j_graph, world_id).await?;
-
-        if let Some(ref b) = benchmark {
-            b.end_phase("cleanup_before");
-            b.start_phase("seed");
-        }
-
-        // Seed world to Neo4j with per-test deterministic UUIDs
-        // Each test gets its own unique IDs based on test name
-        let seeded =
-            seed_thornhaven_to_neo4j(&neo4j_graph, clock.clone(), &test_world, test_name).await?;
+        // Seed world to Neo4j with fresh random UUIDs
+        // Each test gets unique IDs, ensuring isolation without cleanup
+        let seeded = seed_thornhaven_to_neo4j(&neo4j_graph, clock.clone(), &test_world).await?;
 
         if let Some(ref b) = benchmark {
             b.end_phase("seed");
@@ -453,19 +413,10 @@ impl E2ETestContext {
     }
 }
 
-/// Automatically clean up test data and print benchmark summary when context is dropped.
+/// Print benchmark summary when context is dropped.
 ///
-/// # Cleanup Strategy
-///
-/// We rely primarily on **before-seeding cleanup** for correctness. The after-cleanup
-/// in Drop is a best-effort tidiness measure that may not run in all cases:
-/// - Single-threaded tokio runtime (default `#[tokio::test]`) can't use `block_in_place`
-/// - Test panics may skip cleanup
-///
-/// This is fine because:
-/// 1. Before-cleanup handles stale data from previous runs (the main concern)
-/// 2. Per-test deterministic UUIDs prevent cross-test interference
-/// 3. Neo4j container is ephemeral anyway
+/// No cleanup is needed since tests use random UUIDs for isolation.
+/// The Neo4j container is ephemeral and data doesn't persist between runs.
 ///
 /// # Benchmark
 ///
@@ -473,22 +424,6 @@ impl E2ETestContext {
 /// timing info right after each test completes.
 impl Drop for E2ETestContext {
     fn drop(&mut self) {
-        // Attempt best-effort cleanup of test data from Neo4j
-        // This may fail in single-threaded runtime - that's okay since before-cleanup
-        // handles stale data and per-test UUIDs prevent interference
-        let world_id = self.world.world_id;
-        let graph = self.neo4j_graph.clone();
-
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            // Try to spawn a detached cleanup task (fire-and-forget)
-            // This works in both single and multi-threaded runtimes
-            let _ = handle.spawn(async move {
-                if let Err(e) = cleanup_world_data(&graph, world_id).await {
-                    eprintln!("Warning: Failed to cleanup test data: {}", e);
-                }
-            });
-        }
-
         // Print benchmark summary if enabled
         if let Some(ref b) = self.benchmark {
             eprintln!("{}", b.summary().format_compact());
@@ -509,7 +444,8 @@ impl Drop for E2ETestContext {
 /// - Player characters in that world
 /// - Staging data, conversations, observations, etc.
 ///
-/// Called both before seeding (to clean stale data) and after test (to keep Neo4j tidy).
+/// Note: This is not used automatically by tests (random UUIDs provide isolation).
+/// It's kept for manual cleanup if needed during development or debugging.
 pub async fn cleanup_world_data(
     graph: &Neo4jGraph,
     world_id: WorldId,
@@ -1067,35 +1003,29 @@ fn convert_outcomes_to_stored_format(
 ///
 /// Creates all entities from the JSON fixtures in the database with proper relationships.
 ///
-/// # Per-Test Deterministic UUIDs
+/// # Random UUIDs for Isolation
 ///
-/// This function generates **per-test deterministic UUIDs** for all entities.
-/// The same test always gets the same UUIDs (for VCR cassette stability),
-/// but different tests get different UUIDs (for isolation in shared Neo4j).
+/// This function generates fresh random UUIDs (Uuid::new_v4()) for all entities.
+/// This ensures complete test isolation without any cleanup overhead.
 ///
-/// The fixture data provides structure and names, but IDs are generated per-test:
-/// - `WorldId` - Deterministic per test
-/// - `LocationId` - Deterministic per test
-/// - `RegionId` - Deterministic per test
-/// - `CharacterId` - Deterministic per test
-/// - `ActId`, `SceneId`, `ChallengeId`, `NarrativeEventId` - All deterministic per test
+/// The VCR fingerprinting system normalizes UUIDs to `<UUID>` placeholders before
+/// hashing, and UUID aliasing (CHAL_0, EVT_0) is used in LLM prompts, so cassette
+/// matching works regardless of which random UUIDs are generated.
 ///
 /// # Arguments
 ///
 /// * `graph` - Neo4j graph connection
 /// * `clock` - Clock for timestamps
 /// * `test_world` - The test world data from JSON fixtures
-/// * `test_name` - The test function name (used as seed prefix for deterministic UUIDs)
 pub async fn seed_thornhaven_to_neo4j(
     graph: &Neo4jGraph,
     clock: Arc<dyn ClockPort>,
     test_world: &TestWorld,
-    test_name: &str,
 ) -> Result<SeededWorld, Box<dyn std::error::Error + Send + Sync>> {
     use neo4rs::query;
 
-    // Generate deterministic world ID for this specific test
-    let world_id = WorldId::from(deterministic_uuid(test_name, "world:thornhaven"));
+    // Generate fresh random world ID for test isolation
+    let world_id = WorldId::from(Uuid::new_v4());
     let now = clock.now();
 
     // Build ID mappings: fixture_id -> fresh_id
@@ -1131,14 +1061,11 @@ pub async fn seed_thornhaven_to_neo4j(
         )
         .await?;
 
-    // 2. Create Locations with deterministic IDs
+    // 2. Create Locations with fresh random IDs
     let mut location_ids = HashMap::new();
     for loc in &test_world.locations {
-        // Generate deterministic ID for this test
-        let new_id = LocationId::from(deterministic_uuid(
-            test_name,
-            &format!("location:{}", loc.name),
-        ));
+        // Generate fresh random ID for test isolation
+        let new_id = LocationId::from(Uuid::new_v4());
         location_id_map.insert(loc.id, new_id);
 
         graph
@@ -1181,20 +1108,11 @@ pub async fn seed_thornhaven_to_neo4j(
         location_ids.insert(loc.name.clone(), new_id);
     }
 
-    // 3. Create Regions with deterministic IDs
+    // 3. Create Regions with fresh random IDs
     let mut region_ids = HashMap::new();
     for region in &test_world.regions {
-        // Generate deterministic ID for this test (include location name for uniqueness)
-        let location_name = test_world
-            .locations
-            .iter()
-            .find(|l| l.id == region.location_id)
-            .map(|l| l.name.as_str())
-            .unwrap_or("unknown");
-        let new_id = RegionId::from(deterministic_uuid(
-            test_name,
-            &format!("region:{}:{}", location_name, region.name),
-        ));
+        // Generate fresh random ID for test isolation
+        let new_id = RegionId::from(Uuid::new_v4());
         region_id_map.insert(region.id, new_id);
         let new_location_id = location_id_map
             .get(&region.location_id)
@@ -1290,11 +1208,11 @@ pub async fn seed_thornhaven_to_neo4j(
         }
     }
 
-    // 5. Create NPCs with deterministic IDs
+    // 5. Create NPCs with fresh random IDs
     let mut npc_ids = HashMap::new();
     for npc in &test_world.npcs {
-        // Generate deterministic ID for this test
-        let new_id = CharacterId::from(deterministic_uuid(test_name, &format!("npc:{}", npc.name)));
+        // Generate fresh random ID for test isolation
+        let new_id = CharacterId::from(Uuid::new_v4());
         npc_id_map.insert(npc.id, new_id);
 
         // Serialize archetype_history and stats as JSON strings
@@ -1469,11 +1387,11 @@ pub async fn seed_thornhaven_to_neo4j(
             .await?;
     }
 
-    // 10. Create Acts with deterministic IDs
+    // 10. Create Acts with fresh random IDs
     let mut act_ids = HashMap::new();
     for act in &test_world.acts {
-        // Generate deterministic ID for this test
-        let new_id = ActId::from(deterministic_uuid(test_name, &format!("act:{}", act.name)));
+        // Generate fresh random ID for test isolation
+        let new_id = ActId::from(Uuid::new_v4());
         act_id_map.insert(act.id, new_id);
 
         graph
@@ -1512,14 +1430,11 @@ pub async fn seed_thornhaven_to_neo4j(
         act_ids.insert(act.name.clone(), new_id);
     }
 
-    // 11. Create Scenes with deterministic IDs
+    // 11. Create Scenes with fresh random IDs
     let mut scene_ids = HashMap::new();
     for scene in &test_world.scenes {
-        // Generate deterministic ID for this test
-        let new_id = SceneId::from(deterministic_uuid(
-            test_name,
-            &format!("scene:{}", scene.name),
-        ));
+        // Generate fresh random ID for test isolation
+        let new_id = SceneId::from(Uuid::new_v4());
         let new_act_id = act_id_map
             .get(&scene.act_id)
             .copied()
@@ -1565,15 +1480,12 @@ pub async fn seed_thornhaven_to_neo4j(
         scene_ids.insert(scene.name.clone(), new_id);
     }
 
-    // 12. Create Challenges with deterministic IDs
+    // 12. Create Challenges with fresh random IDs
     let mut challenge_ids = HashMap::new();
     let mut challenge_id_map: HashMap<ChallengeId, ChallengeId> = HashMap::new();
     for challenge in &test_world.challenges {
-        // Generate deterministic ID for this test
-        let new_id = ChallengeId::from(deterministic_uuid(
-            test_name,
-            &format!("challenge:{}", challenge.name),
-        ));
+        // Generate fresh random ID for test isolation
+        let new_id = ChallengeId::from(Uuid::new_v4());
         challenge_id_map.insert(challenge.id, new_id);
 
         // Convert difficulty from test fixture format to DifficultyStored format
@@ -1639,15 +1551,13 @@ pub async fn seed_thornhaven_to_neo4j(
         challenge_ids.insert(challenge.name.clone(), new_id);
     }
 
-    // 13. Create Narrative Events with deterministic IDs
+    // 13. Create Narrative Events with fresh random IDs
     // First, build event ID map (needed for EventCompleted triggers)
     let mut event_id_map: HashMap<NarrativeEventId, NarrativeEventId> = HashMap::new();
     for event in &test_world.narrative_events {
         let fixture_id = event.id;
-        let new_id = NarrativeEventId::from(deterministic_uuid(
-            test_name,
-            &format!("event:{}", event.name),
-        ));
+        // Generate fresh random ID for test isolation
+        let new_id = NarrativeEventId::from(Uuid::new_v4());
         event_id_map.insert(fixture_id, new_id);
     }
 
@@ -1776,7 +1686,7 @@ pub async fn seed_thornhaven_to_neo4j(
 
 /// Create a test player character in the world.
 ///
-/// Uses per-test deterministic UUIDs based on the current thread name.
+/// Uses fresh random UUIDs for test isolation.
 pub async fn create_test_player(
     graph: &Neo4jGraph,
     world_id: WorldId,
@@ -1785,13 +1695,9 @@ pub async fn create_test_player(
 ) -> Result<(String, PlayerCharacterId), Box<dyn std::error::Error + Send + Sync>> {
     use neo4rs::query;
 
-    // Get test name for deterministic UUID generation
-    let test_name = get_test_name_from_thread();
-
-    // Generate deterministic IDs for this test
-    let user_id = deterministic_uuid(&test_name, &format!("user:{}", name)).to_string();
-    let character_id =
-        PlayerCharacterId::from(deterministic_uuid(&test_name, &format!("pc:{}", name)));
+    // Generate fresh random IDs for test isolation
+    let user_id = Uuid::new_v4().to_string();
+    let character_id = PlayerCharacterId::from(Uuid::new_v4());
     let now = Utc::now();
 
     // Get location ID from region

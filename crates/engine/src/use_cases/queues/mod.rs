@@ -11,6 +11,8 @@
 //! 3. DM Approval Queue -> (handled by DM via WebSocket)
 
 pub mod response_parser;
+pub mod uuid_aliaser;
+use uuid_aliaser::UuidAliaser;
 
 #[cfg(test)]
 mod llm_integration_tests;
@@ -873,12 +875,17 @@ impl ProcessLlmRequest {
             }
 
             LlmRequestType::NpcResponse { .. } => {
+                // Create UUID aliaser for this request - aliases UUIDs in prompts
+                // and dealiases them in responses for token efficiency
+                let mut aliaser = UuidAliaser::new();
+
                 // Build LLM request from the queued prompt data
                 let llm_request = if let Some(ref prompt) = request_data.prompt {
                     // Use the full GamePromptRequest to build a rich prompt
                     // Include structured output format from prompt_templates
 
                     // Format active challenges with their trigger hints
+                    // Use aliased IDs (CHAL_0, CHAL_1, etc.) instead of UUIDs
                     let challenges_context = if prompt.active_challenges.is_empty() {
                         String::new()
                     } else {
@@ -886,10 +893,11 @@ impl ProcessLlmRequest {
                             .active_challenges
                             .iter()
                             .map(|c| {
+                                let aliased_id = aliaser.alias_challenge(&c.id);
                                 format!(
                                     "- {} [{}]: {} - {} {}{}",
                                     c.name,
-                                    c.id,
+                                    aliased_id,
                                     c.description,
                                     c.skill_name,
                                     c.difficulty_display,
@@ -904,6 +912,7 @@ impl ProcessLlmRequest {
                     };
 
                     // Format active narrative events with their trigger hints
+                    // Use aliased IDs (EVT_0, EVT_1, etc.) instead of UUIDs
                     let events_context = if prompt.active_narrative_events.is_empty() {
                         String::new()
                     } else {
@@ -911,10 +920,11 @@ impl ProcessLlmRequest {
                             .active_narrative_events
                             .iter()
                             .map(|e| {
+                                let aliased_id = aliaser.alias_event(&e.id);
                                 format!(
                                     "- {} [{}]: {}{}",
                                     e.name,
-                                    e.id,
+                                    aliased_id,
                                     e.description,
                                     e.trigger_hints.format_for_prompt()
                                 )
@@ -1081,8 +1091,9 @@ impl ProcessLlmRequest {
 
                 // Enrich challenge suggestion with metadata if present
                 // First check for explicit JSON suggestion, then fall back to triggered challenge tags
+                // Pass the aliaser to dealias any aliased IDs (CHAL_0 -> UUID) in the LLM response
                 let challenge_suggestion = if let Some(raw) = parsed.challenge_suggestion {
-                    self.enrich_challenge_suggestion(&raw, request_data.pc_id)
+                    self.enrich_challenge_suggestion(&raw, request_data.pc_id, Some(&aliaser))
                         .await
                 } else if let Some(triggered_name) = parsed.triggered_challenge_names.first() {
                     // Convert triggered challenge from <challenge> tag to challenge_suggestion
@@ -1098,9 +1109,11 @@ impl ProcessLlmRequest {
 
                 // Enrich narrative event suggestion with metadata if present
                 // First check for explicit JSON suggestion, then fall back to triggered event tags
+                // Pass the aliaser to dealias any aliased IDs (EVT_0 -> UUID) in the LLM response
                 let narrative_event_suggestion =
                     if let Some(raw) = parsed.narrative_event_suggestion {
-                        self.enrich_narrative_event_suggestion(&raw).await
+                        self.enrich_narrative_event_suggestion(&raw, Some(&aliaser))
+                            .await
                     } else if let Some(triggered_name) = parsed.triggered_event_names.first() {
                         // Convert triggered event from <event> tag to narrative_event_suggestion
                         self.create_narrative_event_suggestion_from_name(
@@ -1155,13 +1168,23 @@ impl ProcessLlmRequest {
     }
 
     /// Enrich a raw challenge suggestion with challenge metadata from the database.
+    ///
+    /// If an aliaser is provided, the challenge_id will be dealiased first (e.g., CHAL_0 -> UUID).
+    /// This supports both aliased IDs from LLM responses and raw UUIDs for backward compatibility.
     async fn enrich_challenge_suggestion(
         &self,
         raw: &response_parser::RawChallengeSuggestion,
         pc_id: Option<wrldbldr_domain::PlayerCharacterId>,
+        aliaser: Option<&UuidAliaser>,
     ) -> Option<crate::queue_types::ChallengeSuggestion> {
+        // Dealias the challenge ID if an aliaser is provided (CHAL_0 -> UUID)
+        // Falls back to raw ID if not aliased or no aliaser provided
+        let challenge_id_str = aliaser
+            .and_then(|a| a.dealias(&raw.challenge_id))
+            .unwrap_or_else(|| raw.challenge_id.clone());
+
         // Parse the challenge ID
-        let challenge_id: wrldbldr_domain::ChallengeId = try_parse_typed_id(&raw.challenge_id)?;
+        let challenge_id: wrldbldr_domain::ChallengeId = try_parse_typed_id(&challenge_id_str)?;
 
         // Fetch challenge from database
         let challenge = match self.challenge.get(challenge_id).await {
@@ -1184,7 +1207,8 @@ impl ProcessLlmRequest {
         };
 
         Some(crate::queue_types::ChallengeSuggestion {
-            challenge_id: raw.challenge_id.clone(),
+            // Store the dealiased UUID, not the alias, for auditing and persistence
+            challenge_id: challenge_id_str,
             challenge_name: challenge.name().to_string(),
             skill_name: challenge.check_stat().unwrap_or("").to_string(),
             difficulty_display: challenge.difficulty().display(),
@@ -1196,12 +1220,22 @@ impl ProcessLlmRequest {
     }
 
     /// Enrich a raw narrative event suggestion with event metadata from the database.
+    ///
+    /// If an aliaser is provided, the event_id will be dealiased first (e.g., EVT_0 -> UUID).
+    /// This supports both aliased IDs from LLM responses and raw UUIDs for backward compatibility.
     async fn enrich_narrative_event_suggestion(
         &self,
         raw: &response_parser::RawNarrativeEventSuggestion,
+        aliaser: Option<&UuidAliaser>,
     ) -> Option<crate::queue_types::NarrativeEventSuggestion> {
+        // Dealias the event ID if an aliaser is provided (EVT_0 -> UUID)
+        // Falls back to raw ID if not aliased or no aliaser provided
+        let event_id_str = aliaser
+            .and_then(|a| a.dealias(&raw.event_id))
+            .unwrap_or_else(|| raw.event_id.clone());
+
         // Parse the event ID
-        let event_id: wrldbldr_domain::NarrativeEventId = try_parse_typed_id(&raw.event_id)?;
+        let event_id: wrldbldr_domain::NarrativeEventId = try_parse_typed_id(&event_id_str)?;
 
         // Fetch event from database
         let event = match self.narrative.get_event(event_id).await {
@@ -1224,7 +1258,8 @@ impl ProcessLlmRequest {
         };
 
         Some(crate::queue_types::NarrativeEventSuggestion {
-            event_id: raw.event_id.clone(),
+            // Store the dealiased UUID, not the alias, for auditing and persistence
+            event_id: event_id_str,
             event_name: event.name().to_string(),
             description: event.description().to_string(),
             scene_direction: event.scene_direction().to_string(),
