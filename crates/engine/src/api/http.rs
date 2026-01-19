@@ -10,6 +10,10 @@ use uuid::Uuid;
 
 use crate::app::App;
 use crate::infrastructure::app_settings::AppSettings;
+use crate::infrastructure::ports::RepoError;
+use crate::repositories::settings::SettingsError;
+use crate::use_cases::management::ManagementError;
+use crate::use_cases::world::WorldError;
 
 /// Create all HTTP routes.
 pub fn routes() -> Router<Arc<App>> {
@@ -51,7 +55,7 @@ async fn list_worlds(
         .world
         .list()
         .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .map_err(map_management_error)?;
     Ok(Json(worlds))
 }
 
@@ -65,7 +69,7 @@ async fn get_world(
         .world
         .get(wrldbldr_domain::WorldId::from_uuid(id))
         .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .map_err(map_management_error)?
         .ok_or(ApiError::NotFound)?;
     Ok(Json(world))
 }
@@ -80,7 +84,7 @@ async fn export_world(
         .export
         .execute(wrldbldr_domain::WorldId::from_uuid(id))
         .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .map_err(map_world_error)?;
     Ok(Json(export))
 }
 
@@ -94,7 +98,7 @@ async fn import_world(
         .import
         .execute(payload)
         .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .map_err(map_world_error)?;
     Ok(Json(ImportWorldResponse {
         id: world_id.to_string(),
     }))
@@ -110,7 +114,7 @@ async fn get_settings(State(app): State<Arc<App>>) -> Result<Json<AppSettings>, 
         .settings
         .get_global()
         .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .map_err(map_settings_error)?;
     Ok(Json(settings))
 }
 
@@ -123,7 +127,7 @@ async fn update_settings(
         .settings
         .update_global(settings)
         .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .map_err(map_settings_error)?;
     Ok(Json(updated))
 }
 
@@ -133,7 +137,7 @@ async fn reset_settings(State(app): State<Arc<App>>) -> Result<Json<AppSettings>
         .settings
         .reset_global()
         .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .map_err(map_settings_error)?;
     Ok(Json(settings))
 }
 
@@ -152,7 +156,7 @@ async fn get_world_settings(
         .settings
         .get_for_world(wrldbldr_domain::WorldId::from_uuid(id))
         .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .map_err(map_settings_error)?;
     Ok(Json(settings))
 }
 
@@ -174,7 +178,7 @@ async fn update_world_settings(
         .settings
         .update_for_world(wrldbldr_domain::WorldId::from_uuid(id), settings)
         .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .map_err(map_settings_error)?;
     Ok(Json(updated))
 }
 
@@ -187,7 +191,7 @@ async fn reset_world_settings(
         .settings
         .reset_for_world(wrldbldr_domain::WorldId::from_uuid(id))
         .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .map_err(map_settings_error)?;
     Ok(Json(settings))
 }
 
@@ -273,6 +277,51 @@ fn parse_rule_system_variant(value: &str) -> Result<wrldbldr_domain::RuleSystemV
 #[derive(serde::Serialize)]
 struct ImportWorldResponse {
     id: String,
+}
+
+// =============================================================================
+// Error Mapping Helpers
+// =============================================================================
+
+fn map_management_error(e: ManagementError) -> ApiError {
+    match e {
+        ManagementError::NotFound { .. } => ApiError::NotFound,
+        ManagementError::InvalidInput(msg) => ApiError::BadRequest(msg),
+        ManagementError::Domain(ref de) => {
+            if matches!(de, wrldbldr_domain::DomainError::Validation(_)) {
+                ApiError::BadRequest(e.to_string())
+            } else {
+                tracing::error!(error = %e, "Management operation failed");
+                ApiError::Internal(e.to_string())
+            }
+        }
+        e => {
+            tracing::error!(error = %e, "Management operation failed");
+            ApiError::Internal(e.to_string())
+        }
+    }
+}
+
+fn map_world_error(e: WorldError) -> ApiError {
+    match e {
+        WorldError::NotFound => ApiError::NotFound,
+        WorldError::ExportFailed(msg) | WorldError::ImportFailed(msg) => ApiError::BadRequest(msg),
+        e => {
+            tracing::error!(error = %e, "World operation failed");
+            ApiError::Internal(e.to_string())
+        }
+    }
+}
+
+fn map_settings_error(e: SettingsError) -> ApiError {
+    match e {
+        SettingsError::Repo(RepoError::NotFound { .. }) => ApiError::NotFound,
+        SettingsError::Repo(RepoError::ConstraintViolation(msg)) => ApiError::BadRequest(msg),
+        e => {
+            tracing::error!(error = %e, "Settings operation failed");
+            ApiError::Internal(e.to_string())
+        }
+    }
 }
 
 #[derive(Debug)]
