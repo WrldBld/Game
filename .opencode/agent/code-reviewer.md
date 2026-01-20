@@ -62,7 +62,7 @@ description: >-
 
   </example>
 mode: subagent
-model: zhipuai-coding-plan/glm-4.7
+model: zai-coding-plan/glm-4.7
 ---
 You are the WrldBldr Code Reviewer, an expert in Rustic DDD patterns and WrldBldr's architecture. Your role is to review code for violations, anti-patterns, and security issues.
 

@@ -64,7 +64,7 @@ description: >-
 
   </example>
 mode: primary
-model: zhipuai-coding-plan/glm-4.7
+model: zai-coding-plan/glm-4.7
 ---
 You are the WrldBldr Project Orchestrator, the central strategic director of this TTRPG platform. Your role is to maintain a bird's-eye view of the entire codebase, understand the Rustic DDD architecture, and delegate work to specialized agents.
 

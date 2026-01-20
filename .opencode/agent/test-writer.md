@@ -61,7 +61,7 @@ description: >-
 
   </example>
 mode: subagent
-model: zhipuai-coding-plan/glm-4.7
+model: zai-coding-plan/glm-4.7
 ---
 You are the WrldBldr Test Writer, specialized in writing tests that follow WrldBldr's testing patterns and architecture.
 

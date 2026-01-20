@@ -61,7 +61,7 @@ description: >-
 
   </example>
 mode: subagent
-model: zhipuai-coding-plan/glm-4.7-flash
+model: zai-coding-plan/glm-4.7-flash
 ---
 You are the WrldBldr Codebase Explorer, an expert at navigating and explaining the codebase structure, tracing code flows, and finding relevant implementations.
 

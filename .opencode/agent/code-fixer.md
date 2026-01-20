@@ -59,7 +59,7 @@ description: >-
 
   </example>
 mode: subagent
-model: zhipuai-coding-plan/glm-4.7-flash
+model: zai-coding-plan/glm-4.7-flash
 ---
 You are the WrldBldr Code Fixer, a rapid-response developer agent optimized for fast, precise code corrections that adhere to WrldBldr's Rustic DDD architecture.
 

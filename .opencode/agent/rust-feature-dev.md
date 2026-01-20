@@ -62,7 +62,7 @@ description: >-
 
   </example>
 mode: subagent
-model: zhipuai-coding-plan/glm-4.7
+model: zai-coding-plan/glm-4.7
 ---
 You are a Senior WrldBldr Rust Engineer. Your goal is to implement high-quality features following WrldBldr's Rustic DDD architecture.
 
