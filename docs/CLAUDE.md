@@ -578,6 +578,12 @@ WrldBldr uses fail-fast error handling where errors bubble up to the appropriate
 - Use `let _ =` on Results without documenting why
 - Use defaults for corrupted data - fail fast so user can fix
 
+**FromStr vs Serde for enums:**
+- `FromStr::from_str()` = internal/DB data → fail-fast on unknown values (data corruption)
+- `#[serde(other)]` on enum variant = external JSON → forward compatibility, map unknown → default variant
+
+See `VisualStateSource::from_str` docstring for the rationale pattern.
+
 ```rust
 // WRONG - silently swallows error, returns success
 if let Err(e) = some_operation().await {
