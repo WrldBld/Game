@@ -500,8 +500,8 @@ mod tests {
             .withf(move |id| *id == world_id)
             .returning(move |_| Ok(Some(world_for_get.clone())));
 
-        let staged_npc =
-            StagedNpc::new(npc_id, npc.name().to_string(), true, "here").with_mood(MoodState::Calm);
+        let mut staged_npc = StagedNpc::new(npc_id, npc.name().to_string(), true, "here");
+        staged_npc.mood = MoodState::Calm;
         let game_time_minutes = current_game_time.total_minutes();
         let staging = Staging::new(
             region_id,

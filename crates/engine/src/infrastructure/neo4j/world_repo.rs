@@ -22,20 +22,31 @@ impl Neo4jWorldRepo {
     }
 
     fn row_to_world(&self, row: Row) -> Result<World, RepoError> {
-        let node: neo4rs::Node = row.get("w").map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row
+            .get("w")
+            .map_err(|e| RepoError::database("query", format!("Failed to get 'w' node: {}", e)))?;
         let fallback = self.clock.now();
 
-        let id: WorldId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-        let name: String = node
-            .get("name")
-            .map_err(|e| RepoError::database("query", e))?;
-        let description: String = node
-            .get("description")
-            .map_err(|e| RepoError::database("query", e))?;
-        let rule_system: RuleSystemConfig = node
-            .get_json("rule_system")
-            .map_err(|e| RepoError::database("query", e))?;
+        let id: WorldId = parse_typed_id(&node, "id")
+            .map_err(|e| RepoError::database("query", format!("Failed to parse WorldId: {}", e)))?;
+        let name: String = node.get("name").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'name' for World {}: {}", id, e),
+            )
+        })?;
+        let description: String = node.get("description").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'description' for World {}: {}", id, e),
+            )
+        })?;
+        let rule_system: RuleSystemConfig = node.get_json("rule_system").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'rule_system' for World {}: {}", id, e),
+            )
+        })?;
         let created_at = node.get_datetime_or("created_at", fallback);
         let updated_at = node.get_datetime_or("updated_at", fallback);
 

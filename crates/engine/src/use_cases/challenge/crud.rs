@@ -71,10 +71,13 @@ impl ChallengeOps {
         .with_description(
             Description::new(input.description.unwrap_or_default()).unwrap_or_default(),
         )
-        .with_outcomes(domain::ChallengeOutcomes::simple(
-            input.success_outcome.unwrap_or_default(),
-            input.failure_outcome.unwrap_or_default(),
-        ))
+        .with_outcomes(domain::ChallengeOutcomes {
+            success: domain::Outcome::new(input.success_outcome.unwrap_or_default()),
+            failure: domain::Outcome::new(input.failure_outcome.unwrap_or_default()),
+            partial: None,
+            critical_success: None,
+            critical_failure: None,
+        })
         .with_order(0);
 
         // Validate triggers before saving
@@ -131,7 +134,13 @@ impl ChallengeOps {
         let failure_desc = input
             .failure_outcome
             .unwrap_or_else(|| challenge.outcomes().failure.description.clone());
-        let outcomes = domain::ChallengeOutcomes::simple(success_desc, failure_desc);
+        let outcomes = domain::ChallengeOutcomes {
+            success: domain::Outcome::new(success_desc),
+            failure: domain::Outcome::new(failure_desc),
+            partial: challenge.outcomes().partial.clone(),
+            critical_success: challenge.outcomes().critical_success.clone(),
+            critical_failure: challenge.outcomes().critical_failure.clone(),
+        };
 
         // Rebuild the challenge with updated values
         challenge = domain::Challenge::new(challenge.world_id(), name, difficulty)

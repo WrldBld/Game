@@ -712,33 +712,6 @@ pub struct ChallengeOutcomes {
     pub critical_failure: Option<Outcome>,
 }
 
-impl ChallengeOutcomes {
-    pub fn simple(success: impl Into<String>, failure: impl Into<String>) -> Self {
-        Self {
-            success: Outcome::new(success),
-            failure: Outcome::new(failure),
-            partial: None,
-            critical_success: None,
-            critical_failure: None,
-        }
-    }
-
-    pub fn with_partial(mut self, partial: impl Into<String>) -> Self {
-        self.partial = Some(Outcome::new(partial));
-        self
-    }
-
-    pub fn with_critical_success(mut self, critical: impl Into<String>) -> Self {
-        self.critical_success = Some(Outcome::new(critical));
-        self
-    }
-
-    pub fn with_critical_failure(mut self, critical: impl Into<String>) -> Self {
-        self.critical_failure = Some(Outcome::new(critical));
-        self
-    }
-}
-
 /// A single outcome with narrative text and triggered effects
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -755,11 +728,6 @@ impl Outcome {
             description: description.into(),
             triggers: Vec::new(),
         }
-    }
-
-    pub fn with_trigger(mut self, trigger: OutcomeTrigger) -> Self {
-        self.triggers.push(trigger);
-        self
     }
 }
 
@@ -1210,22 +1178,6 @@ pub struct ChallengePrerequisite {
     pub success_required: bool,
 }
 
-impl ChallengePrerequisite {
-    pub fn new(challenge_id: ChallengeId) -> Self {
-        Self {
-            challenge_id,
-            success_required: false,
-        }
-    }
-
-    pub fn requiring_success(challenge_id: ChallengeId) -> Self {
-        Self {
-            challenge_id,
-            success_required: true,
-        }
-    }
-}
-
 /// Data for AVAILABLE_AT edge between Challenge and Location
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1236,22 +1188,6 @@ pub struct ChallengeLocationAvailability {
     pub always_available: bool,
     /// Time restriction (if any): "Morning", "Afternoon", "Evening", "Night"
     pub time_restriction: Option<String>,
-}
-
-impl ChallengeLocationAvailability {
-    pub fn new(location_id: LocationId) -> Self {
-        Self {
-            location_id,
-            always_available: true,
-            time_restriction: None,
-        }
-    }
-
-    pub fn with_time_restriction(mut self, time: impl Into<String>) -> Self {
-        self.time_restriction = Some(time.into());
-        self.always_available = false;
-        self
-    }
 }
 
 /// Data for AVAILABLE_AT_REGION edge between Challenge and Region
@@ -1266,34 +1202,12 @@ pub struct ChallengeRegionAvailability {
     pub time_restriction: Option<String>,
 }
 
-impl ChallengeRegionAvailability {
-    pub fn new(region_id: RegionId) -> Self {
-        Self {
-            region_id,
-            always_available: true,
-            time_restriction: None,
-        }
-    }
-
-    pub fn with_time_restriction(mut self, time: impl Into<String>) -> Self {
-        self.time_restriction = Some(time.into());
-        self.always_available = false;
-        self
-    }
-}
-
 /// Data for ON_SUCCESS_UNLOCKS edge between Challenge and Location
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChallengeUnlock {
     /// The location that gets unlocked on successful completion
     pub location_id: LocationId,
-}
-
-impl ChallengeUnlock {
-    pub fn new(location_id: LocationId) -> Self {
-        Self { location_id }
-    }
 }
 
 #[cfg(test)]
@@ -1313,10 +1227,13 @@ mod tests {
         .with_description(
             Description::new("Examine the ancient statue for hidden compartments").unwrap(),
         )
-        .with_outcomes(ChallengeOutcomes::simple(
-            "You find a hidden mechanism in the statue's base",
-            "The statue appears to be solid stone",
-        ));
+        .with_outcomes(ChallengeOutcomes {
+            success: Outcome::new("You find a hidden mechanism in the statue's base"),
+            failure: Outcome::new("The statue appears to be solid stone"),
+            partial: None,
+            critical_success: None,
+            critical_failure: None,
+        });
 
         assert_eq!(challenge.name().as_str(), "Investigate the Statue");
         assert!(challenge.active());
@@ -1350,9 +1267,11 @@ mod tests {
 
     #[test]
     fn test_outcome_triggers() {
-        let outcome = Outcome::new("You discover a secret passage!")
-            .with_trigger(OutcomeTrigger::reveal_persistent("Map of the catacombs"))
-            .with_trigger(OutcomeTrigger::enable(ChallengeId::new()));
+        let mut outcome = Outcome::new("You discover a secret passage!");
+        outcome.triggers = vec![
+            OutcomeTrigger::reveal_persistent("Map of the catacombs"),
+            OutcomeTrigger::enable(ChallengeId::new()),
+        ];
 
         assert_eq!(outcome.triggers.len(), 2);
     }
@@ -1365,7 +1284,13 @@ mod tests {
             ChallengeName::new("Test").unwrap(),
             Difficulty::DC(15),
         )
-        .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!"));
+        .with_outcomes(ChallengeOutcomes {
+            success: Outcome::new("Success!"),
+            failure: Outcome::new("Failure!"),
+            partial: None,
+            critical_success: None,
+            critical_failure: None,
+        });
 
         // Roll 10 + modifier 5 = 15, meets DC 15
         let (outcome_type, outcome) = challenge.evaluate_roll(10, 5);
@@ -1386,11 +1311,13 @@ mod tests {
             ChallengeName::new("Test").unwrap(),
             Difficulty::DC(15),
         )
-        .with_outcomes(
-            ChallengeOutcomes::simple("Success!", "Failure!")
-                .with_critical_success("Critical!")
-                .with_critical_failure("Fumble!"),
-        );
+        .with_outcomes(ChallengeOutcomes {
+            success: Outcome::new("Success!"),
+            failure: Outcome::new("Failure!"),
+            partial: None,
+            critical_success: Some(Outcome::new("Critical!")),
+            critical_failure: Some(Outcome::new("Fumble!")),
+        });
 
         // Natural 20 = critical success
         let (outcome_type, outcome) = challenge.evaluate_roll(20, 0);
@@ -1411,7 +1338,13 @@ mod tests {
             ChallengeName::new("Test").unwrap(),
             Difficulty::Percentage(45),
         )
-        .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!"));
+        .with_outcomes(ChallengeOutcomes {
+            success: Outcome::new("Success!"),
+            failure: Outcome::new("Failure!"),
+            partial: None,
+            critical_success: None,
+            critical_failure: None,
+        });
 
         // Roll 30 <= 45 = success (lower is better)
         let (outcome_type, _) = challenge.evaluate_roll(30, 0);
@@ -1430,7 +1363,13 @@ mod tests {
             ChallengeName::new("Test").unwrap(),
             Difficulty::Descriptor(DifficultyDescriptor::Moderate),
         )
-        .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Partial!"));
+        .with_outcomes(ChallengeOutcomes {
+            success: Outcome::new("Success!"),
+            failure: Outcome::new("Failure!"),
+            partial: Some(Outcome::new("Partial!")),
+            critical_success: None,
+            critical_failure: None,
+        });
 
         // Roll 8 + modifier 3 = 11, >= 10 = full success
         let (outcome_type, _) = challenge.evaluate_roll(8, 3);
@@ -1492,7 +1431,13 @@ mod tests {
             ChallengeName::new("Test").unwrap(),
             Difficulty::Descriptor(DifficultyDescriptor::Moderate),
         )
-        .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Partial!"));
+        .with_outcomes(ChallengeOutcomes {
+            success: Outcome::new("Success!"),
+            failure: Outcome::new("Failure!"),
+            partial: Some(Outcome::new("Partial!")),
+            critical_success: None,
+            critical_failure: None,
+        });
 
         // Custom thresholds: 12+ success, 8+ partial
         let config = NarrativeResolutionConfig {
@@ -1525,7 +1470,13 @@ mod tests {
             ChallengeName::new("Test").unwrap(),
             Difficulty::Descriptor(DifficultyDescriptor::Hard), // Hard = +4 on ladder
         )
-        .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Tie!"));
+        .with_outcomes(ChallengeOutcomes {
+            success: Outcome::new("Success!"),
+            failure: Outcome::new("Failure!"),
+            partial: Some(Outcome::new("Tie!")),
+            critical_success: None,
+            critical_failure: None,
+        });
 
         let config = NarrativeResolutionConfig {
             style: NarrativeResolutionStyle::Ladder,
@@ -1556,7 +1507,13 @@ mod tests {
             ChallengeName::new("Test").unwrap(),
             Difficulty::Descriptor(DifficultyDescriptor::Moderate),
         )
-        .with_outcomes(ChallengeOutcomes::simple("Success!", "Failure!").with_partial("Partial!"));
+        .with_outcomes(ChallengeOutcomes {
+            success: Outcome::new("Success!"),
+            failure: Outcome::new("Failure!"),
+            partial: Some(Outcome::new("Partial!")),
+            critical_success: None,
+            critical_failure: None,
+        });
 
         let config = NarrativeResolutionConfig {
             style: NarrativeResolutionStyle::Blades,

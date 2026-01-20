@@ -24,19 +24,33 @@ impl Neo4jLocationRepo {
     fn row_to_location(&self, row: Row) -> Result<Location, RepoError> {
         let node: neo4rs::Node = row.get("l").map_err(|e| RepoError::database("query", e))?;
 
-        let id: LocationId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-        let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-        let name: String = node
-            .get("name")
-            .map_err(|e| RepoError::database("query", e))?;
-        let description: String = node
-            .get("description")
-            .map_err(|e| RepoError::database("query", e))?;
-        let location_type_str: String = node
-            .get("location_type")
-            .map_err(|e| RepoError::database("query", e))?;
+        let id: LocationId = parse_typed_id(&node, "id").map_err(|e| {
+            RepoError::database("query", format!("Failed to parse LocationId: {}", e))
+        })?;
+        let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse WorldId for Location {}: {}", id, e),
+            )
+        })?;
+        let name: String = node.get("name").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'name' for Location {}: {}", id, e),
+            )
+        })?;
+        let description: String = node.get("description").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'description' for Location {}: {}", id, e),
+            )
+        })?;
+        let location_type_str: String = node.get("location_type").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'location_type' for Location {}: {}", id, e),
+            )
+        })?;
 
         let backdrop_asset = node.get_optional_string("backdrop_asset");
         let map_asset = node.get_optional_string("map_asset");
@@ -109,13 +123,21 @@ impl Neo4jLocationRepo {
     fn row_to_region(&self, row: &Row) -> Result<Region, RepoError> {
         let node: neo4rs::Node = row.get("r").map_err(|e| RepoError::database("query", e))?;
 
-        let id: RegionId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-        let location_id: LocationId =
-            parse_typed_id(&node, "location_id").map_err(|e| RepoError::database("query", e))?;
-        let name_str: String = node
-            .get("name")
-            .map_err(|e| RepoError::database("query", e))?;
+        let id: RegionId = parse_typed_id(&node, "id").map_err(|e| {
+            RepoError::database("query", format!("Failed to parse RegionId: {}", e))
+        })?;
+        let location_id: LocationId = parse_typed_id(&node, "location_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse LocationId for Region {}: {}", id, e),
+            )
+        })?;
+        let name_str: String = node.get("name").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'name' for Region {}: {}", id, e),
+            )
+        })?;
         let name = value_objects::RegionName::new(name_str)
             .map_err(|e| RepoError::database("parse", e))?;
         let description = value_objects::Description::new(node.get_string_or("description", ""))
@@ -164,18 +186,35 @@ impl Neo4jLocationRepo {
         let from_id_str: String = row
             .get("from_id")
             .map_err(|e| RepoError::database("query", e))?;
-        let to_id_str: String = row
-            .get("to_id")
-            .map_err(|e| RepoError::database("query", e))?;
+        let to_id_str: String = row.get("to_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to get 'to_id' for RegionConnection with from_id={}: {}",
+                    from_id_str, e
+                ),
+            )
+        })?;
         let description = parse_optional_description(row.get_optional_string("description"));
         let bidirectional: bool = row.get("bidirectional").unwrap_or(true);
         let is_locked: bool = row.get("is_locked").unwrap_or(false);
         let lock_description = row.get_optional_string("lock_description");
 
-        let from_id =
-            uuid::Uuid::parse_str(&from_id_str).map_err(|e| RepoError::database("query", e))?;
-        let to_id =
-            uuid::Uuid::parse_str(&to_id_str).map_err(|e| RepoError::database("query", e))?;
+        let from_id = uuid::Uuid::parse_str(&from_id_str).map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse from_id for RegionConnection: {}", e),
+            )
+        })?;
+        let to_id = uuid::Uuid::parse_str(&to_id_str).map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to parse to_id for RegionConnection (from: {}, to: {}): {}",
+                    from_id, to_id_str, e
+                ),
+            )
+        })?;
 
         Ok(RegionConnection::from_parts(
             RegionId::from_uuid(from_id),
@@ -191,22 +230,45 @@ impl Neo4jLocationRepo {
         let from_id_str: String = row
             .get("from_id")
             .map_err(|e| RepoError::database("query", e))?;
-        let to_id_str: String = row
-            .get("to_id")
-            .map_err(|e| RepoError::database("query", e))?;
-        let connection_type_str: String = row
-            .get("connection_type")
-            .map_err(|e| RepoError::database("query", e))?;
+        let to_id_str: String = row.get("to_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to get 'to_id' for LocationConnection with from_id={}: {}",
+                    from_id_str, e
+                ),
+            )
+        })?;
+        let connection_type_str: String = row.get("connection_type").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to get 'connection_type' for LocationConnection (from: {}, to: {}): {}",
+                    from_id_str, to_id_str, e
+                ),
+            )
+        })?;
         let bidirectional: bool = row.get("bidirectional").unwrap_or(true);
         let travel_time: i64 = row.get("travel_time").unwrap_or(0);
         let is_locked: bool = row.get("is_locked").unwrap_or(false);
         let description = parse_optional_description(row.get_optional_string("description"));
         let lock_description = row.get_optional_string("lock_description");
 
-        let from_id =
-            uuid::Uuid::parse_str(&from_id_str).map_err(|e| RepoError::database("query", e))?;
-        let to_id =
-            uuid::Uuid::parse_str(&to_id_str).map_err(|e| RepoError::database("query", e))?;
+        let from_id = uuid::Uuid::parse_str(&from_id_str).map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse from_id for LocationConnection: {}", e),
+            )
+        })?;
+        let to_id = uuid::Uuid::parse_str(&to_id_str).map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to parse to_id for LocationConnection (from: {}, to: {}): {}",
+                    from_id, to_id_str, e
+                ),
+            )
+        })?;
 
         Ok(LocationConnection::from_parts(
             LocationId::from_uuid(from_id),

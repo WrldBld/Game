@@ -216,26 +216,52 @@ impl Neo4jCharacterRepo {
     fn row_to_character(&self, row: Row) -> Result<Character, RepoError> {
         let node: neo4rs::Node = row.get("c").map_err(|e| RepoError::database("query", e))?;
 
-        let id: CharacterId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-        let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-        let name: String = node
-            .get("name")
-            .map_err(|e| RepoError::database("query", e))?;
-        let description: String = node
-            .get("description")
-            .map_err(|e| RepoError::database("query", e))?;
+        let id: CharacterId = parse_typed_id(&node, "id").map_err(|e| {
+            RepoError::database("query", format!("Failed to parse CharacterId: {}", e))
+        })?;
+        let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse world_id for Character {}: {}", id, e),
+            )
+        })?;
+        let name: String = node.get("name").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'name' for Character {}: {}", id, e),
+            )
+        })?;
+        let description: String = node.get("description").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'description' for Character {}: {}", id, e),
+            )
+        })?;
 
-        let base_archetype_str: String = node
-            .get("base_archetype")
-            .map_err(|e| RepoError::database("query", e))?;
-        let current_archetype_str: String = node
-            .get("current_archetype")
-            .map_err(|e| RepoError::database("query", e))?;
-        let default_disposition_str: String = node
-            .get("default_disposition")
-            .map_err(|e| RepoError::database("query", e))?;
+        let base_archetype_str: String = node.get("base_archetype").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'base_archetype' for Character {}: {}", id, e),
+            )
+        })?;
+        let current_archetype_str: String = node.get("current_archetype").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to get 'current_archetype' for Character {}: {}",
+                    id, e
+                ),
+            )
+        })?;
+        let default_disposition_str: String = node.get("default_disposition").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to get 'default_disposition' for Character {}: {}",
+                    id, e
+                ),
+            )
+        })?;
 
         let base_archetype: CampbellArchetype = base_archetype_str.parse().map_err(|e| {
             RepoError::database(
@@ -258,14 +284,27 @@ impl Neo4jCharacterRepo {
 
         let archetype_history: Vec<ArchetypeChange> = node
             .get_json::<Vec<ArchetypeChangeStored>>("archetype_history")
-            .map_err(|e| RepoError::database("query", e))?
+            .map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!(
+                        "Failed to get 'archetype_history' for Character {}: {}",
+                        id, e
+                    ),
+                )
+            })?
             .into_iter()
             .map(ArchetypeChange::try_from)
             .collect::<Result<Vec<_>, _>>()?;
 
         let stats: StatBlock = node
             .get_json::<StatBlockStored>("stats")
-            .map_err(|e| RepoError::database("query", e))?
+            .map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!("Failed to get 'stats' for Character {}: {}", id, e),
+                )
+            })?
             .try_into()?;
 
         let default_disposition = default_disposition_str
@@ -1921,8 +1960,8 @@ impl CharacterRepo for Neo4jCharacterRepo {
 }
 
 fn node_to_want(node: &neo4rs::Node) -> Result<Want, RepoError> {
-    let want_id: WantId =
-        parse_typed_id(node, "id").map_err(|e| RepoError::database("query", e))?;
+    let want_id: WantId = parse_typed_id(node, "id")
+        .map_err(|e| RepoError::database("query", format!("Failed to parse WantId: {}", e)))?;
     let description: String = node.get_string_or("description", "");
     let intensity: f64 = node.get_f64_or("intensity", 0.5);
     let visibility_str: String = node.get_string_or("visibility", "Hidden");
@@ -1955,7 +1994,7 @@ fn parse_want_target_from_row(row: &Row) -> Result<Option<WantTarget>, RepoError
 
     let target_id = node
         .get_uuid("id")
-        .map_err(|e| RepoError::database("query", e))?;
+        .map_err(|e| RepoError::database("query", format!("Failed to parse target UUID: {}", e)))?;
     let target_name: String = node.get_string_or("name", "");
     let target_labels: Vec<String> = row.get("target_labels").unwrap_or_default();
 

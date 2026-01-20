@@ -138,9 +138,7 @@ impl TryFrom<OutcomeStored> for Outcome {
             None => Vec::new(),
         };
         let mut outcome = Outcome::new(value.description);
-        for trigger in triggers {
-            outcome = outcome.with_trigger(trigger);
-        }
+        outcome.triggers = triggers;
         Ok(outcome)
     }
 }
@@ -189,13 +187,21 @@ impl Neo4jChallengeRepo {
     fn row_to_challenge(&self, row: Row) -> Result<Challenge, RepoError> {
         let node: neo4rs::Node = row.get("c").map_err(|e| RepoError::database("query", e))?;
 
-        let id: ChallengeId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-        let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-        let name_str: String = node
-            .get("name")
-            .map_err(|e| RepoError::database("query", e))?;
+        let id: ChallengeId = parse_typed_id(&node, "id").map_err(|e| {
+            RepoError::database("query", format!("Failed to parse ChallengeId: {}", e))
+        })?;
+        let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse world_id for Challenge {}: {}", id, e),
+            )
+        })?;
+        let name_str: String = node.get("name").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'name' for Challenge {}: {}", id, e),
+            )
+        })?;
         let name = ChallengeName::new(name_str).map_err(|e| RepoError::database("parse", e))?;
         let description = parse_description_or_default(node.get_optional_string("description"));
 

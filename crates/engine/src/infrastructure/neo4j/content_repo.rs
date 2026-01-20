@@ -24,13 +24,20 @@ impl Neo4jContentRepo {
     fn row_to_skill(&self, row: Row) -> Result<Skill, RepoError> {
         let node: neo4rs::Node = row.get("s").map_err(|e| RepoError::database("query", e))?;
 
-        let id: SkillId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-        let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-        let name: String = node
-            .get("name")
-            .map_err(|e| RepoError::database("query", e))?;
+        let id: SkillId = parse_typed_id(&node, "id")
+            .map_err(|e| RepoError::database("query", format!("Failed to parse SkillId: {}", e)))?;
+        let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse world_id for Skill {}: {}", id, e),
+            )
+        })?;
+        let name: String = node.get("name").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'name' for Skill {}: {}", id, e),
+            )
+        })?;
         let description: String = node.get_string_or("description", "");
         let category_str = node.get_string_or("category", "");
         let category: SkillCategory = if category_str.is_empty() {

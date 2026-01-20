@@ -52,16 +52,25 @@ impl Neo4jLoreRepo {
     }
 
     fn row_to_chunk(&self, row: Row) -> Result<LoreChunk, RepoError> {
-        let node: neo4rs::Node = row.get("c").map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row
+            .get("c")
+            .map_err(|e| RepoError::database("query", format!("Failed to get 'c' node: {}", e)))?;
 
-        let id: LoreChunkId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-        let order: i64 = node
-            .get("order")
-            .map_err(|e| RepoError::database("query", e))?;
-        let content: String = node
-            .get("content")
-            .map_err(|e| RepoError::database("query", e))?;
+        let id: LoreChunkId = parse_typed_id(&node, "id").map_err(|e| {
+            RepoError::database("query", format!("Failed to parse LoreChunkId: {}", e))
+        })?;
+        let order: i64 = node.get("order").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'order' for LoreChunk {}: {}", id, e),
+            )
+        })?;
+        let content: String = node.get("content").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'content' for LoreChunk {}: {}", id, e),
+            )
+        })?;
         let title: Option<String> = node.get_optional_string("title");
         let discovery_hint: Option<String> = node.get_optional_string("discovery_hint");
 
@@ -76,16 +85,25 @@ impl Neo4jLoreRepo {
     }
 
     fn row_to_lore_without_chunks(&self, row: Row) -> Result<Lore, RepoError> {
-        let node: neo4rs::Node = row.get("l").map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row
+            .get("l")
+            .map_err(|e| RepoError::database("query", format!("Failed to get 'l' node: {}", e)))?;
         let fallback = self.clock.now();
 
-        let id: LoreId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-        let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-        let title: String = node
-            .get("title")
-            .map_err(|e| RepoError::database("query", e))?;
+        let id: LoreId = parse_typed_id(&node, "id")
+            .map_err(|e| RepoError::database("query", format!("Failed to parse LoreId: {}", e)))?;
+        let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse WorldId for Lore {}: {}", id, e),
+            )
+        })?;
+        let title: String = node.get("title").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'title' for Lore {}: {}", id, e),
+            )
+        })?;
         let summary: String = node.get_string_or("summary", "");
         let category_str: String = node.get_string_or("category", "");
         let category: LoreCategory = if category_str.is_empty() {
@@ -145,10 +163,10 @@ impl Neo4jLoreRepo {
         // Get the relationship properties
         let lore_id_str: String = row
             .get("lore_id")
-            .map_err(|e| RepoError::database("query", e))?;
-        let character_id_str: String = row
-            .get("character_id")
-            .map_err(|e| RepoError::database("query", e))?;
+            .map_err(|e| RepoError::database("query", format!("Failed to get 'lore_id': {}", e)))?;
+        let character_id_str: String = row.get("character_id").map_err(|e| {
+            RepoError::database("query", format!("Failed to get 'character_id': {}", e))
+        })?;
         let known_chunk_ids_json: String = row.get::<String>("known_chunk_ids").map_err(|e| {
             RepoError::database(
                 "query",
@@ -160,19 +178,31 @@ impl Neo4jLoreRepo {
         })?;
         let discovery_source_json: String = row
             .get("discovery_source")
-            .map_err(|e| RepoError::database("query", e))?;
+            .map_err(|e| RepoError::database("query", format!("Failed to get 'discovery_source' for lore knowledge (lore_id: {}, character_id: {}): {}", lore_id_str, character_id_str, e)))?;
         let discovered_at_str: String = row
             .get("discovered_at")
-            .map_err(|e| RepoError::database("query", e))?;
+            .map_err(|e| RepoError::database("query", format!("Failed to get 'discovered_at' for lore knowledge (lore_id: {}, character_id: {}): {}", lore_id_str, character_id_str, e)))?;
         let notes: Option<String> = row.get("notes").ok();
 
-        let lore_id = LoreId::from_uuid(
-            uuid::Uuid::parse_str(&lore_id_str).map_err(|e| RepoError::database("query", e))?,
-        );
-        let character_id = CharacterId::from_uuid(
-            uuid::Uuid::parse_str(&character_id_str)
-                .map_err(|e| RepoError::database("query", e))?,
-        );
+        let lore_id = LoreId::from_uuid(uuid::Uuid::parse_str(&lore_id_str).map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to parse LoreId for lore knowledge: '{}': {}",
+                    lore_id_str, e
+                ),
+            )
+        })?);
+        let character_id =
+            CharacterId::from_uuid(uuid::Uuid::parse_str(&character_id_str).map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!(
+                        "Failed to parse CharacterId for lore knowledge: '{}': {}",
+                        character_id_str, e
+                    ),
+                )
+            })?);
         let known_chunk_ids: Vec<LoreChunkId> = serde_json::from_str(&known_chunk_ids_json)
             .map_err(|e| RepoError::Serialization(e.to_string()))?;
         let discovery_source: LoreDiscoverySource = serde_json::from_str(&discovery_source_json)

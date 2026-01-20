@@ -147,16 +147,30 @@ impl Neo4jSceneRepo {
     /// not stored on the node. Use `get_location()` and `get_featured_characters()`
     /// to retrieve these relationships.
     fn row_to_scene(&self, row: Row) -> Result<Scene, RepoError> {
-        let node: neo4rs::Node = row.get("s").map_err(|e| RepoError::database("query", e))?;
+        let node: neo4rs::Node = row
+            .get("s")
+            .map_err(|e| RepoError::database("query", format!("Failed to get 's' node: {}", e)))?;
 
-        let id: SceneId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-        let act_id: ActId =
-            parse_typed_id(&node, "act_id").map_err(|e| RepoError::database("query", e))?;
-        let name: String = node
-            .get("name")
-            .map_err(|e| RepoError::database("query", e))?;
-        let name = SceneName::new(name).map_err(|e| RepoError::database("query", e.to_string()))?;
+        let id: SceneId = parse_typed_id(&node, "id")
+            .map_err(|e| RepoError::database("query", format!("Failed to parse SceneId: {}", e)))?;
+        let act_id: ActId = parse_typed_id(&node, "act_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse ActId for Scene {}: {}", id, e),
+            )
+        })?;
+        let name: String = node.get("name").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'name' for Scene {}: {}", id, e),
+            )
+        })?;
+        let name = SceneName::new(name).map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Invalid SceneName for Scene {}: {}", id, e),
+            )
+        })?;
         let directorial_notes: String = node.get_string_or("directorial_notes", "");
         let order_num: i64 = node.get_i64_or("order_num", 0);
 
@@ -437,13 +451,22 @@ impl SceneRepo for Neo4jSceneRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
-            let location_id_str: String = row
-                .get("location_id")
-                .map_err(|e| RepoError::database("query", e))?;
-            let location_id = LocationId::from(
-                uuid::Uuid::parse_str(&location_id_str)
-                    .map_err(|e| RepoError::database("query", e))?,
-            );
+            let location_id_str: String = row.get("location_id").map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!("Failed to get 'location_id' for Scene {}: {}", scene_id, e),
+                )
+            })?;
+            let location_id =
+                LocationId::from(uuid::Uuid::parse_str(&location_id_str).map_err(|e| {
+                    RepoError::database(
+                        "query",
+                        format!(
+                            "Failed to parse LocationId for Scene {}: '{}': {}",
+                            scene_id, location_id_str, e
+                        ),
+                    )
+                })?);
             Ok(Some(location_id))
         } else {
             Ok(None)
@@ -518,18 +541,30 @@ impl SceneRepo for Neo4jSceneRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
-            let char_id_str: String = row
-                .get("character_id")
-                .map_err(|e| RepoError::database("query", e))?;
-            let char_id = CharacterId::from(
-                uuid::Uuid::parse_str(&char_id_str).map_err(|e| RepoError::database("query", e))?,
-            );
+            let char_id_str: String = row.get("character_id").map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!("Failed to get 'character_id' for Scene {}: {}", scene_id, e),
+                )
+            })?;
+            let char_id = CharacterId::from(uuid::Uuid::parse_str(&char_id_str).map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!(
+                        "Failed to parse CharacterId for Scene {}: '{}': {}",
+                        scene_id, char_id_str, e
+                    ),
+                )
+            })?);
 
             // Parse role from string - fail-fast on invalid values
             let role_str: String = row.get("role").map_err(|e| {
                 RepoError::database(
                     "query",
-                    format!("Missing role for FEATURES_CHARACTER relationship: {}", e),
+                    format!(
+                        "Missing role for FEATURES_CHARACTER relationship for Scene {}: {}",
+                        scene_id, e
+                    ),
                 )
             })?;
             let role: SceneCharacterRole = match role_str.parse::<SceneCharacterRole>() {
@@ -770,13 +805,24 @@ impl SceneRepo for Neo4jSceneRepo {
             .await
             .map_err(|e| RepoError::database("query", e))?
         {
-            let scene_id_str: String = row
-                .get("scene_id")
-                .map_err(|e| RepoError::database("query", e))?;
-            let scene_id = SceneId::from(
-                uuid::Uuid::parse_str(&scene_id_str)
-                    .map_err(|e| RepoError::database("query", e))?,
-            );
+            let scene_id_str: String = row.get("scene_id").map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!(
+                        "Failed to get 'scene_id' for PlayerCharacter {}: {}",
+                        pc_id, e
+                    ),
+                )
+            })?;
+            let scene_id = SceneId::from(uuid::Uuid::parse_str(&scene_id_str).map_err(|e| {
+                RepoError::database(
+                    "query",
+                    format!(
+                        "Failed to parse SceneId for PlayerCharacter {}: '{}': {}",
+                        pc_id, scene_id_str, e
+                    ),
+                )
+            })?);
             scenes.push(scene_id);
         }
 

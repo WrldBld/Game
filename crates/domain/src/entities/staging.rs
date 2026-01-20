@@ -160,26 +160,6 @@ impl StagedNpc {
     }
 
     // Builder methods
-    pub fn with_incomplete_data(mut self, incomplete: bool) -> Self {
-        self.has_incomplete_data = incomplete;
-        self
-    }
-
-    pub fn with_sprite(mut self, asset: AssetPath) -> Self {
-        self.sprite_asset = Some(asset);
-        self
-    }
-
-    pub fn with_portrait(mut self, asset: AssetPath) -> Self {
-        self.portrait_asset = Some(asset);
-        self
-    }
-
-    pub fn with_mood(mut self, mood: MoodState) -> Self {
-        self.mood = mood;
-        self
-    }
-
     pub fn with_presence(mut self, presence: NpcPresence) -> Self {
         self.presence = presence;
         self
@@ -524,17 +504,6 @@ impl ResolvedVisualState {
         }
     }
 
-    // Builder methods
-    pub fn with_location_state(mut self, info: ResolvedStateInfo) -> Self {
-        self.location_state = Some(info);
-        self
-    }
-
-    pub fn with_region_state(mut self, info: ResolvedStateInfo) -> Self {
-        self.region_state = Some(info);
-        self
-    }
-
     pub fn has_any(&self) -> bool {
         self.location_state.is_some() || self.region_state.is_some()
     }
@@ -555,21 +524,5 @@ impl ResolvedStateInfo {
             atmosphere_override: None,
             ambient_sound: None,
         }
-    }
-
-    // Builder methods
-    pub fn with_backdrop(mut self, path: AssetPath) -> Self {
-        self.backdrop_override = Some(path);
-        self
-    }
-
-    pub fn with_atmosphere(mut self, atmosphere: Atmosphere) -> Self {
-        self.atmosphere_override = Some(atmosphere);
-        self
-    }
-
-    pub fn with_ambient_sound(mut self, path: AssetPath) -> Self {
-        self.ambient_sound = Some(path);
-        self
     }
 }

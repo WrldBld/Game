@@ -612,21 +612,47 @@ impl Neo4jStagingRepo {
 fn row_to_staged_npc(row: Row) -> Result<StagedNpc, RepoError> {
     let character_id_str: String = row
         .get("character_id")
-        .map_err(|e| RepoError::database("query", e))?;
-    let name: String = row
-        .get("name")
-        .map_err(|e| RepoError::database("query", e))?;
-    let is_present: bool = row
-        .get("is_present")
-        .map_err(|e| RepoError::database("query", e))?;
+        .map_err(|e| RepoError::database("query", format!("Failed to get character_id: {}", e)))?;
+    let name: String = row.get("name").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!(
+                "Failed to get 'name' for character_id {}: {}",
+                character_id_str, e
+            ),
+        )
+    })?;
+    let is_present: bool = row.get("is_present").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!(
+                "Failed to get 'is_present' for character_id {}: {}",
+                character_id_str, e
+            ),
+        )
+    })?;
     let is_hidden_from_players: bool = row.get("is_hidden_from_players").unwrap_or(false);
-    let reasoning: String = row
-        .get("reasoning")
-        .map_err(|e| RepoError::database("query", e))?;
+    let reasoning: String = row.get("reasoning").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!(
+                "Failed to get 'reasoning' for character_id {}: {}",
+                character_id_str, e
+            ),
+        )
+    })?;
 
     let character_id = uuid::Uuid::parse_str(&character_id_str)
         .map(CharacterId::from)
-        .map_err(|e| RepoError::database("query", format!("Invalid character_id: {}", e)))?;
+        .map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to parse CharacterId for character_id {}: {}",
+                    character_id_str, e
+                ),
+            )
+        })?;
 
     // Optional string fields
     let sprite_asset: Option<String> = row
@@ -658,45 +684,79 @@ fn row_to_staged_npc(row: Row) -> Result<StagedNpc, RepoError> {
     // Parse has_incomplete_data flag - defaults to false for existing data
     let has_incomplete_data: bool = row.get("has_incomplete_data").unwrap_or(false);
 
-    let mut npc = StagedNpc::new(character_id, name, is_present, reasoning)
-        .with_mood(mood)
-        .with_hidden_from_players(is_hidden_from_players)
-        .with_incomplete_data(has_incomplete_data);
+    let presence = if is_hidden_from_players {
+        NpcPresence::Hidden
+    } else if is_present {
+        NpcPresence::Visible
+    } else {
+        NpcPresence::Absent
+    };
+
+    let mut npc = StagedNpc::new(character_id, name, is_present, reasoning).with_presence(presence);
+    npc.mood = mood;
+    npc.has_incomplete_data = has_incomplete_data;
     if let Some(sprite_str) = sprite_asset {
         let sprite = AssetPath::new(sprite_str).map_err(|e| RepoError::database("parse", e))?;
-        npc = npc.with_sprite(sprite);
+        npc.sprite_asset = Some(sprite);
     }
     if let Some(portrait_str) = portrait_asset {
         let portrait = AssetPath::new(portrait_str).map_err(|e| RepoError::database("parse", e))?;
-        npc = npc.with_portrait(portrait);
+        npc.portrait_asset = Some(portrait);
     }
     Ok(npc)
 }
 
 /// Parse a staging row that includes collected NPCs
 fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoError> {
-    let node: Node = row.get("s").map_err(|e| RepoError::database("query", e))?;
+    let node: Node = row
+        .get("s")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 's' node: {}", e)))?;
 
-    let id: StagingId = parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-    let region_id: RegionId =
-        parse_typed_id(&node, "region_id").map_err(|e| RepoError::database("query", e))?;
-    let location_id: LocationId =
-        parse_typed_id(&node, "location_id").map_err(|e| RepoError::database("query", e))?;
-    let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
+    let id: StagingId = parse_typed_id(&node, "id")
+        .map_err(|e| RepoError::database("query", format!("Failed to parse StagingId: {}", e)))?;
+    let region_id: RegionId = parse_typed_id(&node, "region_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to parse RegionId for Staging {}: {}", id, e),
+        )
+    })?;
+    let location_id: LocationId = parse_typed_id(&node, "location_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to parse LocationId for Staging {}: {}", id, e),
+        )
+    })?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to parse WorldId for Staging {}: {}", id, e),
+        )
+    })?;
 
-    let ttl_hours: i64 = node
-        .get("ttl_hours")
-        .map_err(|e| RepoError::database("query", e))?;
-    let approved_by: String = node
-        .get("approved_by")
-        .map_err(|e| RepoError::database("query", e))?;
-    let source_str: String = node
-        .get("source")
-        .map_err(|e| RepoError::database("query", e))?;
-    let is_active: bool = node
-        .get("is_active")
-        .map_err(|e| RepoError::database("query", e))?;
+    let ttl_hours: i64 = node.get("ttl_hours").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'ttl_hours' for Staging {}: {}", id, e),
+        )
+    })?;
+    let approved_by: String = node.get("approved_by").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'approved_by' for Staging {}: {}", id, e),
+        )
+    })?;
+    let source_str: String = node.get("source").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'source' for Staging {}: {}", id, e),
+        )
+    })?;
+    let is_active: bool = node.get("is_active").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'is_active' for Staging {}: {}", id, e),
+        )
+    })?;
 
     // Load game time as minutes (new format) or default to 0 for backwards compatibility
     let game_time_minutes = node.get_i64_or("game_time_minutes", 0);
@@ -792,18 +852,26 @@ fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
         })?;
         let has_incomplete_data: bool = npc_map.get("has_incomplete_data").unwrap_or(false);
 
-        let mut npc = StagedNpc::new(character_id, name, is_present, reasoning)
-            .with_mood(mood)
-            .with_hidden_from_players(is_hidden_from_players)
-            .with_incomplete_data(has_incomplete_data);
+        let presence = if is_hidden_from_players {
+            NpcPresence::Hidden
+        } else if is_present {
+            NpcPresence::Visible
+        } else {
+            NpcPresence::Absent
+        };
+
+        let mut npc =
+            StagedNpc::new(character_id, name, is_present, reasoning).with_presence(presence);
+        npc.mood = mood;
+        npc.has_incomplete_data = has_incomplete_data;
         if let Some(sprite_str) = sprite_asset {
             let sprite = AssetPath::new(sprite_str).map_err(|e| RepoError::database("parse", e))?;
-            npc = npc.with_sprite(sprite);
+            npc.sprite_asset = Some(sprite);
         }
         if let Some(portrait_str) = portrait_asset {
             let portrait =
                 AssetPath::new(portrait_str).map_err(|e| RepoError::database("parse", e))?;
-            npc = npc.with_portrait(portrait);
+            npc.portrait_asset = Some(portrait);
         }
         npcs.push(npc);
     }
@@ -813,28 +881,55 @@ fn parse_collected_npcs(row: &Row) -> Result<Vec<StagedNpc>, RepoError> {
 
 #[allow(dead_code)]
 fn row_to_staging(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoError> {
-    let node: Node = row.get("s").map_err(|e| RepoError::database("query", e))?;
+    let node: Node = row
+        .get("s")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 's' node: {}", e)))?;
 
-    let id: StagingId = parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-    let region_id: RegionId =
-        parse_typed_id(&node, "region_id").map_err(|e| RepoError::database("query", e))?;
-    let location_id: LocationId =
-        parse_typed_id(&node, "location_id").map_err(|e| RepoError::database("query", e))?;
-    let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
+    let id: StagingId = parse_typed_id(&node, "id")
+        .map_err(|e| RepoError::database("query", format!("Failed to parse StagingId: {}", e)))?;
+    let region_id: RegionId = parse_typed_id(&node, "region_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to parse RegionId for Staging {}: {}", id, e),
+        )
+    })?;
+    let location_id: LocationId = parse_typed_id(&node, "location_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to parse LocationId for Staging {}: {}", id, e),
+        )
+    })?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to parse WorldId for Staging {}: {}", id, e),
+        )
+    })?;
 
-    let ttl_hours: i64 = node
-        .get("ttl_hours")
-        .map_err(|e| RepoError::database("query", e))?;
-    let approved_by: String = node
-        .get("approved_by")
-        .map_err(|e| RepoError::database("query", e))?;
-    let source_str: String = node
-        .get("source")
-        .map_err(|e| RepoError::database("query", e))?;
-    let is_active: bool = node
-        .get("is_active")
-        .map_err(|e| RepoError::database("query", e))?;
+    let ttl_hours: i64 = node.get("ttl_hours").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'ttl_hours' for Staging {}: {}", id, e),
+        )
+    })?;
+    let approved_by: String = node.get("approved_by").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'approved_by' for Staging {}: {}", id, e),
+        )
+    })?;
+    let source_str: String = node.get("source").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'source' for Staging {}: {}", id, e),
+        )
+    })?;
+    let is_active: bool = node.get("is_active").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'is_active' for Staging {}: {}", id, e),
+        )
+    })?;
 
     // Load game time as minutes (new format) or default to 0 for backwards compatibility
     let game_time_minutes = node.get_i64_or("game_time_minutes", 0);

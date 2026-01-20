@@ -765,33 +765,20 @@ impl NarrativeOps {
             stats_map
         };
 
-        // Build trigger context with enriched PC state using builder pattern
-        // NOTE: challenge_successes, turns_since_event, turn_count
-        // are caller-specific context that cannot be determined here.
-        // These should be passed in by callers that have this information.
-        let mut context = TriggerContext::new()
-            .with_flags(flags)
-            .with_inventory(inventory)
-            .with_completed_events(completed_events)
-            .with_event_outcomes(event_outcomes)
-            .with_completed_challenges(completed_challenges)
-            .with_custom_trigger_results(custom_trigger_results)
-            .with_known_spells(known_spells)
-            .with_character_feats(character_feats)
-            .with_class_levels(class_levels);
-
-        if let Some(loc_id) = location_id {
-            context = context.with_current_location(loc_id);
-        }
-        if let Some(scene_id) = current_scene {
-            context = context.with_current_scene(scene_id);
-        }
-        if let Some(time_ctx) = time_context_string {
-            context = context.with_time_context(time_ctx);
-        }
-        if let Some(origin) = origin_id {
-            context = context.with_origin_id(origin);
-        }
+        let mut context = TriggerContext::new();
+        context.flags = flags;
+        context.inventory = inventory;
+        context.completed_events = completed_events;
+        context.event_outcomes = event_outcomes;
+        context.completed_challenges = completed_challenges;
+        context.custom_trigger_results = custom_trigger_results;
+        context.known_spells = known_spells;
+        context.character_feats = character_feats;
+        context.class_levels = class_levels;
+        context.current_location = location_id;
+        context.current_scene = current_scene;
+        context.time_context = time_context_string;
+        context.origin_id = origin_id;
 
         // Add relationships to context
         for (from_char, sentiments) in relationships {
@@ -803,7 +790,7 @@ impl NarrativeOps {
         // Add character stats to context
         for (char_id, stats) in character_stats {
             for (stat_name, stat_value) in stats {
-                context.add_character_stat(char_id, stat_name, stat_value);
+                context.add_character_stat(char_id, &stat_name, stat_value);
             }
         }
 

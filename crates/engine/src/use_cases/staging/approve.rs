@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use uuid::Uuid;
-use wrldbldr_domain::{LocationId, RegionId, StagingSource, WorldId};
+use wrldbldr_domain::{LocationId, NpcPresence, RegionId, StagingSource, WorldId};
 
 use crate::infrastructure::ports::{
     CharacterRepo, ClockPort, LocationRepo, LocationStateRepo, RegionStateRepo, StagingRepo,
@@ -255,10 +255,17 @@ impl ApproveStagingRequest {
                 name,
                 npc_info.is_present,
                 npc_info.reasoning.clone().unwrap_or_default(),
-            )
-            .with_mood(mood)
-            .with_hidden_from_players(npc_info.is_hidden_from_players)
-            .with_incomplete_data(has_incomplete_data);
+            );
+            let presence = if npc_info.is_hidden_from_players {
+                NpcPresence::Hidden
+            } else if npc_info.is_present {
+                NpcPresence::Visible
+            } else {
+                NpcPresence::Absent
+            };
+            let mut staged_npc = staged_npc.with_presence(presence);
+            staged_npc.mood = mood;
+            staged_npc.has_incomplete_data = has_incomplete_data;
             if let Some(sprite_path) = sprite_asset {
                 let sprite = wrldbldr_domain::AssetPath::new(sprite_path.clone()).map_err(|e| {
                     StagingError::Validation(format!(
@@ -266,7 +273,7 @@ impl ApproveStagingRequest {
                         sprite_path, npc_info.character_id, e
                     ))
                 })?;
-                staged_npc = staged_npc.with_sprite(sprite);
+                staged_npc.sprite_asset = Some(sprite);
             }
             if let Some(portrait_path) = portrait_asset {
                 let portrait =
@@ -276,7 +283,7 @@ impl ApproveStagingRequest {
                             portrait_path, npc_info.character_id, e
                         ))
                     })?;
-                staged_npc = staged_npc.with_portrait(portrait);
+                staged_npc.portrait_asset = Some(portrait);
             }
             staged_npcs.push(staged_npc);
         }

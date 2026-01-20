@@ -364,13 +364,26 @@ use wrldbldr_domain::{Item, ItemId, ItemName, WorldId};
 pub fn row_to_item(row: Row) -> Result<Item, RepoError> {
     let node: Node = row.get("i").map_err(|e| RepoError::database("query", e))?;
 
-    let id: ItemId = parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-    let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-    let name_str: String = node
-        .get("name")
-        .map_err(|e| RepoError::database("query", e))?;
-    let name = ItemName::new(name_str).map_err(|e| RepoError::database("parse", e))?;
+    let id: ItemId = parse_typed_id(&node, "id")
+        .map_err(|e| RepoError::database("query", format!("Failed to parse ItemId: {}", e)))?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to parse world_id for Item {}: {}", id, e),
+        )
+    })?;
+    let name_str: String = node.get("name").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'name' for Item {}: {}", id, e),
+        )
+    })?;
+    let name = ItemName::new(name_str.clone()).map_err(|e| {
+        RepoError::database(
+            "parse",
+            format!("Failed to parse name '{}' for Item {}: {}", name_str, id, e),
+        )
+    })?;
     let description = node.get_optional_string("description");
     let item_type = node.get_optional_string("item_type");
     let is_unique = node.get_bool_or("is_unique", false);

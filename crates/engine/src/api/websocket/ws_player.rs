@@ -8,7 +8,7 @@ use wrldbldr_shared::{ObservationRequest, PlayerCharacterRequest, RelationshipRe
 pub(super) async fn handle_player_character_request(
     state: &WsState,
     request_id: &str,
-    _conn_info: &ConnectionInfo,
+    conn_info: &ConnectionInfo,
     request: PlayerCharacterRequest,
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
@@ -128,6 +128,17 @@ pub(super) async fn handle_player_character_request(
                 Err(e) => return Err(e),
             };
 
+            // Verify ownership (allow DMs to update any PC)
+            if !conn_info.is_dm() && conn_info.pc_id != Some(pc_id_typed) {
+                return Err(ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(
+                        ErrorCode::Unauthorized,
+                        "Can only update your own player character",
+                    ),
+                });
+            }
+
             match state
                 .app
                 .use_cases
@@ -155,6 +166,17 @@ pub(super) async fn handle_player_character_request(
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            // Verify ownership (allow DMs to delete any PC)
+            if !conn_info.is_dm() && conn_info.pc_id != Some(pc_id_typed) {
+                return Err(ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(
+                        ErrorCode::Unauthorized,
+                        "Can only delete your own player character",
+                    ),
+                });
+            }
 
             match state
                 .app
@@ -184,6 +206,17 @@ pub(super) async fn handle_player_character_request(
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            // Verify ownership (allow DMs to update location of any PC)
+            if !conn_info.is_dm() && conn_info.pc_id != Some(pc_id_typed) {
+                return Err(ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(
+                        ErrorCode::Unauthorized,
+                        "Can only update your own player character location",
+                    ),
+                });
+            }
 
             match state
                 .app

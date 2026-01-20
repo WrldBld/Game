@@ -240,37 +240,63 @@ impl AssetRepo for Neo4jAssetRepo {
 fn row_to_gallery_asset(row: Row) -> Result<GalleryAsset, RepoError> {
     let node: Node = row.get("a").map_err(|e| RepoError::database("query", e))?;
 
-    let id: AssetId = parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-    let entity_type_str: String = node
-        .get("entity_type")
-        .map_err(|e| RepoError::database("query", e))?;
-    let entity_id: String = node
-        .get("entity_id")
-        .map_err(|e| RepoError::database("query", e))?;
-    let asset_type_str: String = node
-        .get("asset_type")
-        .map_err(|e| RepoError::database("query", e))?;
-    let file_path_str: String = node
-        .get("file_path")
-        .map_err(|e| RepoError::database("query", e))?;
-    let file_path = AssetPath::new(file_path_str)
-        .map_err(|e| RepoError::database("query", format!("Invalid asset path: {}", e)))?;
+    let id: AssetId = parse_typed_id(&node, "id")
+        .map_err(|e| RepoError::database("query", format!("Failed to parse AssetId: {}", e)))?;
+    let entity_type_str: String = node.get("entity_type").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'entity_type' for Asset {}: {}", id, e),
+        )
+    })?;
+    let entity_id: String = node.get("entity_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'entity_id' for Asset {}: {}", id, e),
+        )
+    })?;
+    let asset_type_str: String = node.get("asset_type").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'asset_type' for Asset {}: {}", id, e),
+        )
+    })?;
+    let file_path_str: String = node.get("file_path").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'file_path' for Asset {}: {}", id, e),
+        )
+    })?;
+    let file_path = AssetPath::new(file_path_str).map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Invalid asset path for Asset {}: {}", id, e),
+        )
+    })?;
     let is_active: bool = node.get_bool_or("is_active", false);
     let label = node.get_optional_string("label");
-    let created_at_str: String = node
-        .get("created_at")
-        .map_err(|e| RepoError::database("query", e))?;
+    let created_at_str: String = node.get("created_at").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'created_at' for Asset {}: {}", id, e),
+        )
+    })?;
 
     let entity_type = parse_entity_type(&entity_type_str)?;
-    let asset_type = AssetType::from_str(&asset_type_str)
-        .map_err(|e| RepoError::database("query", format!("Invalid asset type: {}", e)))?;
+    let asset_type = AssetType::from_str(&asset_type_str).map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Invalid asset type for Asset {}: {}", id, e),
+        )
+    })?;
 
     let generation_metadata: Option<GenerationMetadata> = node
         .get_json_or_default::<Option<GenerationMetadataStored>>("generation_metadata")
         .map(Into::into);
 
     let created_at = chrono::DateTime::parse_from_rfc3339(&created_at_str)
-        .map_err(|e| RepoError::database("query", format!("Invalid datetime: {}", e)))?
+        .map_err(|e| {
+            RepoError::database("query", format!("Invalid datetime for Asset {}: {}", id, e))
+        })?
         .with_timezone(&chrono::Utc);
 
     Ok(GalleryAsset::reconstruct(

@@ -743,37 +743,33 @@ impl NarrativeEvent {
     fn trigger_matches(&self, trigger: &NarrativeTriggerType, context: &TriggerContext) -> bool {
         match trigger {
             NarrativeTriggerType::FlagSet { flag_name } => {
-                context.flags().get(flag_name).copied().unwrap_or(false)
+                context.flags.get(flag_name).copied().unwrap_or(false)
             }
             NarrativeTriggerType::FlagNotSet { flag_name } => {
-                !context.flags().get(flag_name).copied().unwrap_or(false)
+                !context.flags.get(flag_name).copied().unwrap_or(false)
             }
             NarrativeTriggerType::PlayerEntersLocation { location_id, .. } => {
-                context.current_location().as_ref() == Some(location_id)
+                context.current_location.as_ref() == Some(location_id)
             }
             NarrativeTriggerType::HasItem {
                 item_name,
                 quantity,
             } => {
-                let count = context
-                    .inventory()
-                    .iter()
-                    .filter(|i| *i == item_name)
-                    .count() as u32;
+                let count = context.inventory.iter().filter(|i| *i == item_name).count() as u32;
                 count >= quantity.unwrap_or(1)
             }
             NarrativeTriggerType::MissingItem { item_name } => {
-                !context.inventory().contains(item_name)
+                !context.inventory.contains(item_name)
             }
             NarrativeTriggerType::EventCompleted {
                 event_id,
                 outcome_name,
                 ..
             } => {
-                if context.completed_events().contains(event_id) {
+                if context.completed_events.contains(event_id) {
                     if let Some(required_outcome) = outcome_name {
                         context
-                            .event_outcomes()
+                            .event_outcomes
                             .get(event_id)
                             .map(|o| o == required_outcome)
                             .unwrap_or(false)
@@ -787,12 +783,12 @@ impl NarrativeEvent {
             NarrativeTriggerType::TurnCount { turns, since_event } => {
                 if let Some(event_id) = since_event {
                     context
-                        .turns_since_event()
+                        .turns_since_event
                         .get(event_id)
                         .map(|t| *t >= *turns)
                         .unwrap_or(false)
                 } else {
-                    context.turn_count() >= *turns
+                    context.turn_count >= *turns
                 }
             }
             NarrativeTriggerType::ChallengeCompleted {
@@ -800,10 +796,10 @@ impl NarrativeEvent {
                 requires_success,
                 ..
             } => {
-                if context.completed_challenges().contains(challenge_id) {
+                if context.completed_challenges.contains(challenge_id) {
                     if let Some(need_success) = requires_success {
                         context
-                            .challenge_successes()
+                            .challenge_successes
                             .get(challenge_id)
                             .map(|s| *s == *need_success)
                             .unwrap_or(false)
@@ -816,15 +812,16 @@ impl NarrativeEvent {
             }
             NarrativeTriggerType::DialogueTopic { keywords, .. } => keywords
                 .iter()
-                .any(|k| context.recent_dialogue_topics().contains(k)),
+                .any(|k| context.recent_dialogue_topics.contains(k)),
             NarrativeTriggerType::TimeAtLocation {
                 location_id,
                 time_context: required_time,
                 ..
             } => {
-                let at_location = context.current_location().as_ref() == Some(location_id);
+                let at_location = context.current_location.as_ref() == Some(location_id);
                 let time_matches = context
-                    .time_context()
+                    .time_context
+                    .as_deref()
                     .map(|current_time: &str| {
                         current_time.trim().to_lowercase() == required_time.trim().to_lowercase()
                     })
@@ -834,7 +831,8 @@ impl NarrativeEvent {
             NarrativeTriggerType::NpcAction {
                 action_keywords, ..
             } => context
-                .recent_player_action()
+                .recent_player_action
+                .as_deref()
                 .map(|action: &str| {
                     action_keywords
                         .iter()
@@ -878,7 +876,7 @@ impl NarrativeEvent {
             } => {
                 if *llm_evaluation {
                     context
-                        .custom_trigger_results()
+                        .custom_trigger_results
                         .get(description)
                         .copied()
                         .unwrap_or(false)
@@ -889,12 +887,12 @@ impl NarrativeEvent {
 
             // === Compendium-based triggers ===
             NarrativeTriggerType::KnowsSpell { spell_id, .. } => context
-                .known_spells()
+                .known_spells
                 .iter()
                 .any(|s: &String| s.eq_ignore_ascii_case(spell_id)),
 
             NarrativeTriggerType::HasFeat { feat_id, .. } => context
-                .character_feats()
+                .character_feats
                 .iter()
                 .any(|f: &String| f.eq_ignore_ascii_case(feat_id)),
 
@@ -903,19 +901,20 @@ impl NarrativeEvent {
                 min_level,
                 ..
             } => context
-                .class_levels()
+                .class_levels
                 .iter()
                 .find(|(id, _): &(&String, &u8)| id.eq_ignore_ascii_case(class_id))
                 .map(|(_, level)| min_level.is_none_or(|min| *level >= min))
                 .unwrap_or(false),
 
             NarrativeTriggerType::HasOrigin { origin_id, .. } => context
-                .origin_id()
+                .origin_id
+                .as_deref()
                 .map(|o: &str| o.eq_ignore_ascii_case(origin_id))
                 .unwrap_or(false),
 
             NarrativeTriggerType::KnowsCreature { creature_id, .. } => context
-                .known_creatures()
+                .known_creatures
                 .iter()
                 .any(|c: &String| c.eq_ignore_ascii_case(creature_id)),
         }
@@ -1339,7 +1338,8 @@ mod tests {
             // With flag set
             let mut flags = HashMap::new();
             flags.insert("quest_started".to_string(), true);
-            let context = TriggerContext::new().with_flags(flags);
+            let mut context = TriggerContext::new();
+            context.flags = flags;
             let eval = event.evaluate_triggers(&context);
             assert!(eval.is_triggered);
         }

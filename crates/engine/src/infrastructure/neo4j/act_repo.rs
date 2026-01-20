@@ -24,12 +24,20 @@ impl Neo4jActRepo {
     fn row_to_act(&self, row: Row) -> Result<Act, RepoError> {
         let node: neo4rs::Node = row.get("a").map_err(|e| RepoError::database("query", e))?;
 
-        let id: ActId = parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-        let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-        let name: String = node
-            .get("name")
-            .map_err(|e| RepoError::database("query", e))?;
+        let id: ActId = parse_typed_id(&node, "id")
+            .map_err(|e| RepoError::database("query", format!("Failed to parse ActId: {}", e)))?;
+        let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse world_id for Act {}: {}", id, e),
+            )
+        })?;
+        let name: String = node.get("name").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'name' for Act {}: {}", id, e),
+            )
+        })?;
         let stage_str = node.get_string_or("stage", "");
         let stage: MonomythStage = if stage_str.is_empty() {
             return Err(RepoError::database(
@@ -42,7 +50,10 @@ impl Neo4jActRepo {
                 Err(_) => {
                     return Err(RepoError::database(
                         "parse",
-                        format!("Invalid MonomythStage '{}': {}", stage_str, "unknown value"),
+                        format!(
+                        "Invalid MonomythStage for Act {}: '{}' is not a valid MonomythStage value",
+                        id, stage_str
+                    ),
                     ))
                 }
             }

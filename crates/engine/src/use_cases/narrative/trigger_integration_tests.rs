@@ -469,25 +469,25 @@ fn test_extract_compendium_context_populates_all_fields() {
     let ctx = trigger_context_from_pc(&pc);
 
     // Assert: All fields should be populated
-    assert!(ctx.origin_id().is_some(), "origin_id should be populated");
-    assert_eq!(ctx.origin_id().unwrap(), "elf");
+    assert!(ctx.origin_id.is_some(), "origin_id should be populated");
+    assert_eq!(ctx.origin_id.as_deref().unwrap(), "elf");
 
     assert!(
-        !ctx.class_levels().is_empty(),
+        !ctx.class_levels.is_empty(),
         "class_levels should be populated"
     );
-    assert_eq!(ctx.class_levels().get("wizard"), Some(&3));
+    assert_eq!(ctx.class_levels.get("wizard"), Some(&3));
 
     assert!(
-        !ctx.known_spells().is_empty(),
+        !ctx.known_spells.is_empty(),
         "known_spells should be populated"
     );
-    assert!(ctx.known_spells().contains(&"fireball".to_string()));
-    assert!(ctx.known_spells().contains(&"magic_missile".to_string()));
+    assert!(ctx.known_spells.contains(&"fireball".to_string()));
+    assert!(ctx.known_spells.contains(&"magic_missile".to_string()));
 
     // Wizard doesn't have feats
     assert!(
-        ctx.character_feats().is_empty(),
+        ctx.character_feats.is_empty(),
         "Wizard should have no feats"
     );
 }
@@ -499,12 +499,12 @@ fn test_extract_compendium_context_handles_multiclass() {
     let ctx = trigger_context_from_pc(&pc);
 
     // Assert: Both classes should be present
-    assert_eq!(ctx.class_levels().len(), 2);
-    assert_eq!(ctx.class_levels().get("fighter"), Some(&3));
-    assert_eq!(ctx.class_levels().get("wizard"), Some(&2));
+    assert_eq!(ctx.class_levels.len(), 2);
+    assert_eq!(ctx.class_levels.get("fighter"), Some(&3));
+    assert_eq!(ctx.class_levels.get("wizard"), Some(&2));
 
     // Should have feat
-    assert!(ctx.character_feats().contains(&"war_caster".to_string()));
+    assert!(ctx.character_feats.contains(&"war_caster".to_string()));
 }
 
 #[test]
@@ -527,10 +527,10 @@ fn test_extract_compendium_context_handles_empty_sheet() {
     let ctx = trigger_context_from_pc(&pc);
 
     // Assert: All fields should be empty/None
-    assert!(ctx.origin_id().is_none());
-    assert!(ctx.class_levels().is_empty());
-    assert!(ctx.known_spells().is_empty());
-    assert!(ctx.character_feats().is_empty());
+    assert!(ctx.origin_id.is_none());
+    assert!(ctx.class_levels.is_empty());
+    assert!(ctx.known_spells.is_empty());
+    assert!(ctx.character_feats.is_empty());
 }
 
 // =============================================================================

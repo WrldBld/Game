@@ -708,8 +708,8 @@ mod tests {
             .returning(move |_| Ok(Some(world_for_get.clone())));
 
         // Staging has a different NPC, not the one we're trying to talk to
-        let staged_npc =
-            StagedNpc::new(other_npc_id, "Other NPC", true, "here").with_mood(MoodState::Calm);
+        let mut staged_npc = StagedNpc::new(other_npc_id, "Other NPC", true, "here");
+        staged_npc.mood = MoodState::Calm;
         let game_time_minutes = current_game_time.total_minutes();
         let staging = Staging::new(
             region_id,
@@ -813,8 +813,9 @@ mod tests {
             .withf(move |id| *id == world_id)
             .returning(move |_| Ok(Some(world_for_get.clone())));
 
-        let staged_npc =
-            StagedNpc::new(npc_id, npc.name().to_string(), true, "here").with_mood(MoodState::Calm);
+        let mut npc = StagedNpc::new(npc_id, npc.name().to_string(), true, "here");
+        npc.mood = MoodState::Calm;
+        let staged_npc = npc;
         let game_time_minutes = current_game_time.total_minutes();
         let staging = Staging::new(
             region_id,
@@ -925,8 +926,9 @@ mod tests {
             .withf(move |id| *id == world_id)
             .returning(move |_| Ok(Some(world_for_get.clone())));
 
-        let staged_npc =
-            StagedNpc::new(npc_id, npc.name().to_string(), true, "here").with_mood(MoodState::Calm);
+        let mut npc = StagedNpc::new(npc_id, npc.name().to_string(), true, "here");
+        npc.mood = MoodState::Calm;
+        let staged_npc = npc;
         let game_time_minutes = current_game_time.total_minutes();
         let staging = Staging::new(
             region_id,
@@ -1040,8 +1042,9 @@ mod tests {
             .withf(move |id| *id == world_id)
             .returning(move |_| Ok(Some(world_for_get.clone())));
 
-        let staged_npc =
-            StagedNpc::new(npc_id, npc.name().to_string(), true, "here").with_mood(MoodState::Calm);
+        let mut npc = StagedNpc::new(npc_id, npc.name().to_string(), true, "here");
+        npc.mood = MoodState::Calm;
+        let staged_npc = npc;
         let game_time_minutes = current_game_time.total_minutes();
         let staging = Staging::new(
             region_id,
@@ -1166,8 +1169,9 @@ mod tests {
             .withf(move |id| *id == world_id)
             .returning(move |_| Ok(Some(world_for_get.clone())));
 
-        let staged_npc =
-            StagedNpc::new(npc_id, npc.name().to_string(), true, "here").with_mood(MoodState::Calm);
+        let mut npc = StagedNpc::new(npc_id, npc.name().to_string(), true, "here");
+        npc.mood = MoodState::Calm;
+        let staged_npc = npc;
         let game_time_minutes = current_game_time.total_minutes();
         let staging = Staging::new(
             region_id,

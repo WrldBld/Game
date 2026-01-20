@@ -1354,13 +1354,21 @@ impl NarrativeRepo for Neo4jNarrativeRepo {
 fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<NarrativeEvent, RepoError> {
     let node: Node = row.get("e").map_err(|e| RepoError::database("query", e))?;
 
-    let id: NarrativeEventId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-    let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-    let name: String = node
-        .get("name")
-        .map_err(|e| RepoError::database("query", e))?;
+    let id: NarrativeEventId = parse_typed_id(&node, "id").map_err(|e| {
+        RepoError::database("query", format!("Failed to parse NarrativeEventId: {}", e))
+    })?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to parse world_id for NarrativeEvent {}: {}", id, e),
+        )
+    })?;
+    let name: String = node.get("name").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'name' for NarrativeEvent {}: {}", id, e),
+        )
+    })?;
 
     let description = node.get_string_or("description", "");
     let scene_direction = node.get_string_or("scene_direction", "");
@@ -1480,13 +1488,21 @@ fn row_to_narrative_event(row: Row, fallback: DateTime<Utc>) -> Result<Narrative
 fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, RepoError> {
     let node: Node = row.get("c").map_err(|e| RepoError::database("query", e))?;
 
-    let id: EventChainId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-    let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-    let name: String = node
-        .get("name")
-        .map_err(|e| RepoError::database("query", e))?;
+    let id: EventChainId = parse_typed_id(&node, "id").map_err(|e| {
+        RepoError::database("query", format!("Failed to parse EventChainId: {}", e))
+    })?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to parse world_id for EventChain {}: {}", id, e),
+        )
+    })?;
+    let name: String = node.get("name").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'name' for EventChain {}: {}", id, e),
+        )
+    })?;
 
     let description: String = node.get_string_or("description", "");
     let events_strs: Vec<String> = node.get("events").map_err(|e| {
@@ -1564,18 +1580,32 @@ fn row_to_event_chain(row: Row, fallback: DateTime<Utc>) -> Result<EventChain, R
 fn row_to_story_event(row: Row, fallback: DateTime<Utc>) -> Result<StoryEvent, RepoError> {
     let node: Node = row.get("e").map_err(|e| RepoError::database("query", e))?;
 
-    let id: StoryEventId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-    let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-    let event_type_json: String = node
-        .get("event_type_json")
-        .map_err(|e| RepoError::database("query", e))?;
+    let id: StoryEventId = parse_typed_id(&node, "id").map_err(|e| {
+        RepoError::database("query", format!("Failed to parse StoryEventId: {}", e))
+    })?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to parse world_id for StoryEvent {}: {}", id, e),
+        )
+    })?;
+    let event_type_json: String = node.get("event_type_json").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!(
+                "Failed to get 'event_type_json' for StoryEvent {}: {}",
+                id, e
+            ),
+        )
+    })?;
     let timestamp = node.get_datetime_or("timestamp", fallback);
     let game_time = node.get_optional_string("game_time");
-    let summary: String = node
-        .get("summary")
-        .map_err(|e| RepoError::database("query", e))?;
+    let summary: String = node.get("summary").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'summary' for StoryEvent {}: {}", id, e),
+        )
+    })?;
     let is_hidden = node.get_bool_or("is_hidden", false);
     let tags_raw: Vec<String> = node.get_json_or_default("tags_json");
 

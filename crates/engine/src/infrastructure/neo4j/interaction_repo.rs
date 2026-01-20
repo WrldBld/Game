@@ -27,13 +27,21 @@ impl Neo4jInteractionRepo {
     fn row_to_interaction(&self, row: Row) -> Result<InteractionTemplate, RepoError> {
         let node: neo4rs::Node = row.get("i").map_err(|e| RepoError::database("query", e))?;
 
-        let id: InteractionId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-        let scene_id: SceneId =
-            parse_typed_id(&node, "scene_id").map_err(|e| RepoError::database("query", e))?;
-        let name: String = node
-            .get("name")
-            .map_err(|e| RepoError::database("query", e))?;
+        let id: InteractionId = parse_typed_id(&node, "id").map_err(|e| {
+            RepoError::database("query", format!("Failed to parse InteractionId: {}", e))
+        })?;
+        let scene_id: SceneId = parse_typed_id(&node, "scene_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse scene_id for Interaction {}: {}", id, e),
+            )
+        })?;
+        let name: String = node.get("name").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'name' for Interaction {}: {}", id, e),
+            )
+        })?;
         let prompt_hints: String = node.get_string_or("prompt_hints", "");
         let is_available = node.get_bool_or("is_available", true);
         let order_num = node.get_i64_or("order_num", 0);

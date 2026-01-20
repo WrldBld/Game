@@ -885,14 +885,16 @@ mod tests {
         );
 
         // Build success outcome with triggers using builder pattern
-        let success_outcome = Outcome::new("success")
-            .with_trigger(OutcomeTrigger::reveal_persistent("secret"))
-            .with_trigger(OutcomeTrigger::GiveItem {
+        let mut success_outcome = Outcome::new("success");
+        success_outcome.triggers = vec![
+            OutcomeTrigger::reveal_persistent("secret"),
+            OutcomeTrigger::GiveItem {
                 item_name: "Key".to_string(),
                 item_description: Some("Rusty".to_string()),
-            })
-            .with_trigger(OutcomeTrigger::modify_stat(Stat::Con, -1))
-            .with_trigger(OutcomeTrigger::scene(scene_id));
+            },
+            OutcomeTrigger::modify_stat(Stat::Con, -1),
+            OutcomeTrigger::scene(scene_id),
+        ];
 
         // ChallengeOutcomes doesn't have a constructor that takes Outcome objects directly,
         // so we use serde roundtrip to construct it with our custom success outcome.

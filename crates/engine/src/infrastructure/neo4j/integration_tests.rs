@@ -129,13 +129,14 @@ async fn save_pending_staging_creates_includes_npc_edges_for_all_npcs() {
         24,
         now,
     );
-    let staging = staging.with_active(false).with_npcs(vec![
-        StagedNpc::new(npc_ids[0].into(), "NPC 0", true, "r0").with_mood(MoodState::Calm),
-        StagedNpc::new(npc_ids[1].into(), "NPC 1", true, "r1")
-            .with_hidden_from_players(true)
-            .with_mood(MoodState::Nervous),
-        StagedNpc::new(npc_ids[2].into(), "NPC 2", false, "r2").with_mood(MoodState::Happy),
-    ]);
+    let mut npc0 = StagedNpc::new(npc_ids[0].into(), "NPC 0", true, "r0");
+    npc0.mood = MoodState::Calm;
+    let mut npc1 =
+        StagedNpc::new(npc_ids[1].into(), "NPC 1", true, "r1").with_hidden_from_players(true);
+    npc1.mood = MoodState::Nervous;
+    let mut npc2 = StagedNpc::new(npc_ids[2].into(), "NPC 2", false, "r2");
+    npc2.mood = MoodState::Happy;
+    let staging = staging.with_active(false).with_npcs(vec![npc0, npc1, npc2]);
 
     repo.save_pending_staging(&staging)
         .await

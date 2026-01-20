@@ -418,259 +418,62 @@ impl ChainedEvent {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TriggerContext {
-    current_location: Option<LocationId>,
-    current_scene: Option<SceneId>,
-    time_context: Option<String>,
-    flags: HashMap<String, bool>,
-    inventory: Vec<String>,
-    completed_events: Vec<NarrativeEventId>,
-    event_outcomes: HashMap<NarrativeEventId, String>,
-    turns_since_event: HashMap<NarrativeEventId, u32>,
-    completed_challenges: Vec<ChallengeId>,
-    challenge_successes: HashMap<ChallengeId, bool>,
-    turn_count: u32,
-    recent_dialogue_topics: Vec<String>,
-    recent_player_action: Option<String>,
+    pub current_location: Option<LocationId>,
+    pub current_scene: Option<SceneId>,
+    pub time_context: Option<String>,
+    pub flags: HashMap<String, bool>,
+    pub inventory: Vec<String>,
+    pub completed_events: Vec<NarrativeEventId>,
+    pub event_outcomes: HashMap<NarrativeEventId, String>,
+    pub turns_since_event: HashMap<NarrativeEventId, u32>,
+    pub completed_challenges: Vec<ChallengeId>,
+    pub challenge_successes: HashMap<ChallengeId, bool>,
+    pub turn_count: u32,
+    pub recent_dialogue_topics: Vec<String>,
+    pub recent_player_action: Option<String>,
     /// Pre-evaluated custom trigger results.
     /// Key is the trigger description, value is whether the trigger is met.
     /// If a custom trigger is not in this map, it will be treated as not triggered.
-    custom_trigger_results: HashMap<String, bool>,
+    pub custom_trigger_results: HashMap<String, bool>,
     /// Relationship sentiment values between characters.
     /// Outer key is the character whose feelings we're checking (e.g., NPC).
     /// Inner key is the character they have feelings toward (e.g., PC).
     /// Value is sentiment from -1.0 (hatred) to 1.0 (love).
     #[serde(default)]
-    relationships: HashMap<CharacterId, HashMap<CharacterId, f32>>,
+    pub relationships: HashMap<CharacterId, HashMap<CharacterId, f32>>,
     /// Character stat values for StatThreshold trigger evaluation.
     /// Outer key is the CharacterId, inner key is the stat name.
     /// Value is the effective stat value (base + active modifiers).
     #[serde(default)]
-    character_stats: HashMap<CharacterId, HashMap<String, i32>>,
+    pub character_stats: HashMap<CharacterId, HashMap<String, i32>>,
 
     // === Compendium-based trigger context ===
     /// Player character's known spells (spell IDs from compendium).
     #[serde(default)]
-    known_spells: Vec<String>,
+    pub known_spells: Vec<String>,
 
     /// Player character's acquired feats (feat IDs from compendium).
     #[serde(default)]
-    character_feats: Vec<String>,
+    pub character_feats: Vec<String>,
 
     /// Player character's class levels (class_id -> level).
     #[serde(default)]
-    class_levels: HashMap<String, u8>,
+    pub class_levels: HashMap<String, u8>,
 
     /// Player character's origin/race ID (from compendium).
     #[serde(default)]
-    origin_id: Option<String>,
+    pub origin_id: Option<String>,
 
     /// Creatures the player character knows about (creature IDs).
     #[serde(default)]
-    known_creatures: Vec<String>,
+    pub known_creatures: Vec<String>,
 }
 
 impl TriggerContext {
-    /// Create a new empty trigger context.
     pub fn new() -> Self {
         Self::default()
     }
 
-    // Read accessors
-    pub fn current_location(&self) -> Option<LocationId> {
-        self.current_location
-    }
-
-    pub fn current_scene(&self) -> Option<SceneId> {
-        self.current_scene
-    }
-
-    pub fn time_context(&self) -> Option<&str> {
-        self.time_context.as_deref()
-    }
-
-    pub fn flags(&self) -> &HashMap<String, bool> {
-        &self.flags
-    }
-
-    pub fn inventory(&self) -> &[String] {
-        &self.inventory
-    }
-
-    pub fn completed_events(&self) -> &[NarrativeEventId] {
-        &self.completed_events
-    }
-
-    pub fn event_outcomes(&self) -> &HashMap<NarrativeEventId, String> {
-        &self.event_outcomes
-    }
-
-    pub fn turns_since_event(&self) -> &HashMap<NarrativeEventId, u32> {
-        &self.turns_since_event
-    }
-
-    pub fn completed_challenges(&self) -> &[ChallengeId] {
-        &self.completed_challenges
-    }
-
-    pub fn challenge_successes(&self) -> &HashMap<ChallengeId, bool> {
-        &self.challenge_successes
-    }
-
-    pub fn turn_count(&self) -> u32 {
-        self.turn_count
-    }
-
-    pub fn recent_dialogue_topics(&self) -> &[String] {
-        &self.recent_dialogue_topics
-    }
-
-    pub fn recent_player_action(&self) -> Option<&str> {
-        self.recent_player_action.as_deref()
-    }
-
-    pub fn custom_trigger_results(&self) -> &HashMap<String, bool> {
-        &self.custom_trigger_results
-    }
-
-    pub fn relationships(&self) -> &HashMap<CharacterId, HashMap<CharacterId, f32>> {
-        &self.relationships
-    }
-
-    pub fn character_stats(&self) -> &HashMap<CharacterId, HashMap<String, i32>> {
-        &self.character_stats
-    }
-
-    pub fn known_spells(&self) -> &[String] {
-        &self.known_spells
-    }
-
-    pub fn character_feats(&self) -> &[String] {
-        &self.character_feats
-    }
-
-    pub fn class_levels(&self) -> &HashMap<String, u8> {
-        &self.class_levels
-    }
-
-    pub fn origin_id(&self) -> Option<&str> {
-        self.origin_id.as_deref()
-    }
-
-    pub fn known_creatures(&self) -> &[String] {
-        &self.known_creatures
-    }
-
-    // Builder methods
-    pub fn with_current_location(mut self, location_id: LocationId) -> Self {
-        self.current_location = Some(location_id);
-        self
-    }
-
-    pub fn with_current_scene(mut self, scene_id: SceneId) -> Self {
-        self.current_scene = Some(scene_id);
-        self
-    }
-
-    pub fn with_time_context(mut self, time_context: impl Into<String>) -> Self {
-        self.time_context = Some(time_context.into());
-        self
-    }
-
-    pub fn with_flags(mut self, flags: HashMap<String, bool>) -> Self {
-        self.flags = flags;
-        self
-    }
-
-    pub fn with_inventory(mut self, inventory: Vec<String>) -> Self {
-        self.inventory = inventory;
-        self
-    }
-
-    pub fn with_completed_events(mut self, events: Vec<NarrativeEventId>) -> Self {
-        self.completed_events = events;
-        self
-    }
-
-    pub fn with_event_outcomes(mut self, outcomes: HashMap<NarrativeEventId, String>) -> Self {
-        self.event_outcomes = outcomes;
-        self
-    }
-
-    pub fn with_turns_since_event(mut self, turns: HashMap<NarrativeEventId, u32>) -> Self {
-        self.turns_since_event = turns;
-        self
-    }
-
-    pub fn with_completed_challenges(mut self, challenges: Vec<ChallengeId>) -> Self {
-        self.completed_challenges = challenges;
-        self
-    }
-
-    pub fn with_challenge_successes(mut self, successes: HashMap<ChallengeId, bool>) -> Self {
-        self.challenge_successes = successes;
-        self
-    }
-
-    pub fn with_turn_count(mut self, turn_count: u32) -> Self {
-        self.turn_count = turn_count;
-        self
-    }
-
-    pub fn with_recent_dialogue_topics(mut self, topics: Vec<String>) -> Self {
-        self.recent_dialogue_topics = topics;
-        self
-    }
-
-    pub fn with_recent_player_action(mut self, action: impl Into<String>) -> Self {
-        self.recent_player_action = Some(action.into());
-        self
-    }
-
-    pub fn with_known_spells(mut self, spells: Vec<String>) -> Self {
-        self.known_spells = spells;
-        self
-    }
-
-    pub fn with_character_feats(mut self, feats: Vec<String>) -> Self {
-        self.character_feats = feats;
-        self
-    }
-
-    pub fn with_class_levels(mut self, levels: HashMap<String, u8>) -> Self {
-        self.class_levels = levels;
-        self
-    }
-
-    pub fn with_origin_id(mut self, origin_id: impl Into<String>) -> Self {
-        self.origin_id = Some(origin_id.into());
-        self
-    }
-
-    pub fn with_known_creatures(mut self, creatures: Vec<String>) -> Self {
-        self.known_creatures = creatures;
-        self
-    }
-
-    /// Add a pre-evaluated custom trigger result.
-    pub fn add_custom_trigger_result(&mut self, description: String, met: bool) {
-        self.custom_trigger_results.insert(description, met);
-    }
-
-    /// Add multiple pre-evaluated custom trigger results.
-    pub fn with_custom_trigger_results(
-        mut self,
-        results: impl IntoIterator<Item = (String, bool)>,
-    ) -> Self {
-        self.custom_trigger_results = results.into_iter().collect();
-        self
-    }
-
-    /// Add a relationship sentiment value.
-    ///
-    /// # Arguments
-    /// * `from_character` - The character whose feelings we're recording (e.g., NPC)
-    /// * `to_character` - The character they have feelings toward (e.g., PC)
-    /// * `sentiment` - Sentiment value from -1.0 (hatred) to 1.0 (love)
     pub fn add_relationship(
         &mut self,
         from_character: CharacterId,
@@ -683,9 +486,6 @@ impl TriggerContext {
             .insert(to_character, sentiment);
     }
 
-    /// Get the relationship sentiment between two characters.
-    ///
-    /// Returns None if no relationship data exists for this pair.
     pub fn get_relationship(
         &self,
         from_character: CharacterId,
@@ -697,41 +497,23 @@ impl TriggerContext {
             .copied()
     }
 
-    /// Add a character's stat value.
-    ///
-    /// # Arguments
-    /// * `character_id` - The character whose stat we're recording
-    /// * `stat_name` - The name of the stat (e.g., "STR", "health", "sanity")
-    /// * `value` - The effective stat value (base + active modifiers)
-    pub fn add_character_stat(
-        &mut self,
-        character_id: CharacterId,
-        stat_name: impl Into<String>,
-        value: i32,
-    ) {
+    pub fn add_character_stat(&mut self, character_id: CharacterId, stat_name: &str, value: i32) {
         self.character_stats
             .entry(character_id)
             .or_default()
-            .insert(stat_name.into(), value);
+            .insert(stat_name.to_string(), value);
     }
 
-    /// Add all stats for a character at once.
-    ///
-    /// # Arguments
-    /// * `character_id` - The character whose stats we're recording
-    /// * `stats` - Map of stat name to effective value
-    pub fn add_character_stats(&mut self, character_id: CharacterId, stats: HashMap<String, i32>) {
-        self.character_stats.insert(character_id, stats);
-    }
-
-    /// Get a character's stat value.
-    ///
-    /// Returns None if the character or stat doesn't exist in the context.
     pub fn get_character_stat(&self, character_id: CharacterId, stat_name: &str) -> Option<i32> {
         self.character_stats
             .get(&character_id)
             .and_then(|stats| stats.get(stat_name))
             .copied()
+    }
+
+    pub fn add_custom_trigger_result(&mut self, description: &str, met: bool) {
+        self.custom_trigger_results
+            .insert(description.to_string(), met);
     }
 }
 

@@ -426,17 +426,28 @@ impl PlayerCharacterRepo for Neo4jPlayerCharacterRepo {
 fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
     let node: Node = row.get("pc").map_err(|e| RepoError::database("query", e))?;
 
-    let id: PlayerCharacterId =
-        parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-    let user_id_str: String = node
-        .get("user_id")
-        .map_err(|e| RepoError::database("query", e))?;
+    let id: PlayerCharacterId = parse_typed_id(&node, "id").map_err(|e| {
+        RepoError::database("query", format!("Failed to parse PlayerCharacterId: {}", e))
+    })?;
+    let user_id_str: String = node.get("user_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'user_id' for PlayerCharacter {}: {}", id, e),
+        )
+    })?;
     let user_id = UserId::from_trusted(user_id_str);
-    let world_id: WorldId =
-        parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-    let name: String = node
-        .get("name")
-        .map_err(|e| RepoError::database("query", e))?;
+    let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to parse WorldId for PlayerCharacter {}: {}", id, e),
+        )
+    })?;
+    let name: String = node.get("name").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!("Failed to get 'name' for PlayerCharacter {}: {}", id, e),
+        )
+    })?;
     let description = node.get_optional_string("description");
 
     // Parse sheet_data from JSON
@@ -454,28 +465,74 @@ fn row_to_player_character(row: Row) -> Result<PlayerCharacter, RepoError> {
         }
     };
 
-    let current_location_id: LocationId = parse_typed_id(&node, "current_location_id")
-        .map_err(|e| RepoError::database("query", e))?;
+    let current_location_id: LocationId =
+        parse_typed_id(&node, "current_location_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to parse current_location_id for PlayerCharacter {}: {}",
+                    id, e
+                ),
+            )
+        })?;
     let current_region_id: Option<RegionId> = parse_optional_typed_id(&node, "current_region_id")
-        .map_err(|e| RepoError::database("query", e))?;
-    let starting_location_id: LocationId = parse_typed_id(&node, "starting_location_id")
-        .map_err(|e| RepoError::database("query", e))?;
+        .map_err(|e| {
+        RepoError::database(
+            "query",
+            format!(
+                "Failed to parse current_region_id for PlayerCharacter {}: {}",
+                id, e
+            ),
+        )
+    })?;
+    let starting_location_id: LocationId =
+        parse_typed_id(&node, "starting_location_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!(
+                    "Failed to parse starting_location_id for PlayerCharacter {}: {}",
+                    id, e
+                ),
+            )
+        })?;
 
     let sprite_asset = node.get_optional_string("sprite_asset");
     let portrait_asset = node.get_optional_string("portrait_asset");
 
-    let created_at_str: String = node
-        .get("created_at")
-        .map_err(|e| RepoError::database("query", e))?;
+    let created_at_str: String = node.get("created_at").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!(
+                "Failed to get 'created_at' for PlayerCharacter {}: {}",
+                id, e
+            ),
+        )
+    })?;
     let created_at = chrono::DateTime::parse_from_rfc3339(&created_at_str)
-        .map_err(|e| RepoError::database("query", format!("Invalid created_at: {}", e)))?
+        .map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Invalid created_at for PlayerCharacter {}: {}", id, e),
+            )
+        })?
         .with_timezone(&chrono::Utc);
 
-    let last_active_at_str: String = node
-        .get("last_active_at")
-        .map_err(|e| RepoError::database("query", e))?;
+    let last_active_at_str: String = node.get("last_active_at").map_err(|e| {
+        RepoError::database(
+            "query",
+            format!(
+                "Failed to get 'last_active_at' for PlayerCharacter {}: {}",
+                id, e
+            ),
+        )
+    })?;
     let last_active_at = chrono::DateTime::parse_from_rfc3339(&last_active_at_str)
-        .map_err(|e| RepoError::database("query", format!("Invalid last_active_at: {}", e)))?
+        .map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Invalid last_active_at for PlayerCharacter {}: {}", id, e),
+            )
+        })?
         .with_timezone(&chrono::Utc);
 
     // Status flags with defaults

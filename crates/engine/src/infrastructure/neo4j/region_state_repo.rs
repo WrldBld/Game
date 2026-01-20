@@ -28,18 +28,42 @@ impl Neo4jRegionStateRepo {
         let node: neo4rs::Node = row.get("s").map_err(|e| RepoError::database("query", e))?;
         let fallback = self.clock.now();
 
-        let id: RegionStateId =
-            parse_typed_id(&node, "id").map_err(|e| RepoError::database("query", e))?;
-        let region_id: RegionId =
-            parse_typed_id(&node, "region_id").map_err(|e| RepoError::database("query", e))?;
-        let location_id: LocationId =
-            parse_typed_id(&node, "location_id").map_err(|e| RepoError::database("query", e))?;
-        let world_id: WorldId =
-            parse_typed_id(&node, "world_id").map_err(|e| RepoError::database("query", e))?;
-        let name_str: String = node
-            .get("name")
-            .map_err(|e| RepoError::database("query", e))?;
-        let name = StateName::new(&name_str).map_err(|e| RepoError::database("parse", e))?;
+        let id: RegionStateId = parse_typed_id(&node, "id").map_err(|e| {
+            RepoError::database("query", format!("Failed to parse RegionStateId: {}", e))
+        })?;
+        let region_id: RegionId = parse_typed_id(&node, "region_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse region_id for RegionState {}: {}", id, e),
+            )
+        })?;
+        let location_id: LocationId = parse_typed_id(&node, "location_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse location_id for RegionState {}: {}", id, e),
+            )
+        })?;
+        let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to parse world_id for RegionState {}: {}", id, e),
+            )
+        })?;
+        let name_str: String = node.get("name").map_err(|e| {
+            RepoError::database(
+                "query",
+                format!("Failed to get 'name' for RegionState {}: {}", id, e),
+            )
+        })?;
+        let name = StateName::new(&name_str).map_err(|e| {
+            RepoError::database(
+                "parse",
+                format!(
+                    "Failed to parse name '{}' for RegionState {}: {}",
+                    name_str, id, e
+                ),
+            )
+        })?;
         let description =
             Description::new(node.get_string_or("description", "")).unwrap_or_default();
 
@@ -47,17 +71,41 @@ impl Neo4jRegionStateRepo {
             .get_optional_string("backdrop_override")
             .map(AssetPath::new)
             .transpose()
-            .map_err(|e| RepoError::database("parse", e))?;
+            .map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Failed to parse backdrop_override for RegionState {}: {}",
+                        id, e
+                    ),
+                )
+            })?;
         let atmosphere_override: Option<Atmosphere> = node
             .get_optional_string("atmosphere_override")
             .map(Atmosphere::new)
             .transpose()
-            .map_err(|e| RepoError::database("parse", e))?;
+            .map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Failed to parse atmosphere_override for RegionState {}: {}",
+                        id, e
+                    ),
+                )
+            })?;
         let ambient_sound: Option<AssetPath> = node
             .get_optional_string("ambient_sound")
             .map(AssetPath::new)
             .transpose()
-            .map_err(|e| RepoError::database("parse", e))?;
+            .map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Failed to parse ambient_sound for RegionState {}: {}",
+                        id, e
+                    ),
+                )
+            })?;
 
         // Parse activation rules from JSON - fail-fast on invalid JSON
         let activation_rules_str =
