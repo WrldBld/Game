@@ -5,6 +5,7 @@
 //! construction logic - only the send mechanism differs.
 
 use uuid::Uuid;
+use wrldbldr_domain::DispositionLevel;
 use wrldbldr_shared::{
     AdHocOutcomes, ApprovalDecision, ApprovedNpcInfo, ChallengeOutcomeDecisionData, ClientMessage,
     DiceInputType, DirectorialContext, NpcRequest, RequestPayload, TimeRequest, WorldRole,
@@ -306,7 +307,7 @@ impl ClientMessageBuilder {
     pub fn set_npc_disposition(
         npc_id: &str,
         pc_id: &str,
-        disposition: &str,
+        disposition: DispositionLevel,
         reason: Option<&str>,
     ) -> ClientMessage {
         ClientMessage::Request {
@@ -314,7 +315,7 @@ impl ClientMessageBuilder {
             payload: RequestPayload::Npc(NpcRequest::SetNpcDisposition {
                 npc_id: npc_id.to_string(),
                 pc_id: pc_id.to_string(),
-                disposition: disposition.to_string(),
+                disposition,
                 reason: reason.map(|s| s.to_string()),
             }),
         }
@@ -482,7 +483,8 @@ mod tests {
 
     #[test]
     fn test_set_npc_disposition_generates_request_id() {
-        let msg = ClientMessageBuilder::set_npc_disposition("npc_1", "pc_1", "friendly", None);
+        let msg =
+            ClientMessageBuilder::set_npc_disposition("npc_1", "pc_1", DispositionLevel::Friendly, None);
         match msg {
             ClientMessage::Request {
                 request_id,

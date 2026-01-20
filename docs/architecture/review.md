@@ -440,18 +440,40 @@ let query = query(&format!("MATCH (c:Character {{id: '{}'}}) RETURN c", id));
 
 | Issue | How to Detect | Severity |
 |-------|--------------|----------|
+| Silent error swallowing | `if let Err(e) = ... { log }` then returns `Ok` | CRITICAL |
+| Lost error context | `.map_err(|_| SomeError::Generic)` or `.ok()` | HIGH |
+| Discarded Result | `let _ =` on a Result without `// INTENTIONAL` comment | MEDIUM |
 | Silent unwrap | `.unwrap()` on Result without justification | HIGH |
-| Lost error context | `.map_err(|_| SomeError::Generic)` | MEDIUM |
-| Panic in library code | `panic!()`, `unreachable!()` without comment | MEDIUM |
 | Missing `?` propagation | Manual match on Result when `?` would work | LOW |
-| Inconsistent error mapping | Ad-hoc string errors across layers | MEDIUM |
 
+**Fail-Fast Requirement:**
+- Errors MUST bubble up to users (player or DM depending on who initiated)
+- Use `?` operator for propagation
+- **NO silent defaults for corrupted data** - fail fast so user can fix the issue
+- Convert errors with full context using `.map_err()`
+
+**Anti-pattern** (WRONG):
 ```rust
-// WRONG - loses context
-repo.get(id).await.map_err(|_| MyError::NotFound)?;
+// Silent swallowing - user thinks it succeeded
+if let Err(e) = some_operation().await {
+    tracing::error!(error = %e, "Operation failed");
+}
+Ok(result)
 
-// CORRECT - preserves context
-repo.get(id).await.map_err(|e| MyError::repo("get character", e))?;
+// Silent default - hides corrupted data
+let value = input.parse().ok().unwrap_or_default();
+```
+
+**Correct pattern:**
+```rust
+// Propagate error to user
+some_operation().await?;
+Ok(result)
+
+// Convert with context
+let value = input.parse().map_err(|e| {
+    MyError::Validation(format!("Invalid input '{}': {}", input, e))
+})?;
 ```
 
 ### 4. Type Safety

@@ -219,16 +219,15 @@ impl TimeControl {
             .await?
             .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
-        let previous_time = world.game_time().clone();
-        // Use the aggregate's advance_hours which auto-updates updated_at
-        let _ = world.advance_hours(hours, self.clock.now());
+        let result = world.advance_hours(hours, self.clock.now());
 
         self.world.save(&world).await?;
 
         Ok(TimeAdvanceOutcome {
-            previous_time,
-            new_time: world.game_time().clone(),
-            minutes_advanced: hours * 60,
+            previous_time: result.previous_time,
+            new_time: result.new_time,
+            minutes_advanced: result.minutes_advanced,
+            period_changed: result.period_changed,
         })
     }
 
@@ -245,6 +244,7 @@ impl TimeControl {
             .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
         let previous_time = world.game_time().clone();
+        let previous_period = previous_time.time_of_day();
         let result = world.advance_time(minutes, reason, self.clock.now());
 
         self.world.save(&world).await?;
@@ -253,6 +253,7 @@ impl TimeControl {
             previous_time,
             new_time: result.new_time.clone(),
             minutes_advanced: result.minutes_advanced,
+            period_changed: previous_period != result.new_time.time_of_day(),
         })
     }
 
@@ -269,6 +270,7 @@ impl TimeControl {
             .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
         let previous_time = world.game_time().clone();
+        let previous_period = previous_time.time_of_day();
         // Mutate game time directly - aggregate setters auto-update updated_at
         world.game_time_mut().set_day_and_hour(day, hour as u32);
 
@@ -278,6 +280,7 @@ impl TimeControl {
             previous_time,
             new_time: world.game_time().clone(),
             minutes_advanced: 0,
+            period_changed: previous_period != world.game_time().time_of_day(),
         })
     }
 
@@ -293,6 +296,7 @@ impl TimeControl {
             .ok_or(TimeControlError::WorldNotFound(world_id))?;
 
         let previous_time = world.game_time().clone();
+        let previous_period = previous_time.time_of_day();
         let minutes_until = world.game_time().minutes_until_period(period);
         world.game_time_mut().skip_to_period(period);
 
@@ -302,6 +306,7 @@ impl TimeControl {
             previous_time,
             new_time: world.game_time().clone(),
             minutes_advanced: minutes_until,
+            period_changed: previous_period != period,
         })
     }
 
@@ -363,6 +368,7 @@ pub struct TimeAdvanceOutcome {
     pub previous_time: GameTime,
     pub new_time: GameTime,
     pub minutes_advanced: u32,
+    pub period_changed: bool,
 }
 
 /// Result of updating time configuration.

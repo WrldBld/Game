@@ -733,6 +733,47 @@ RepoError::NotFound {
 RepoError::Generic("not found".to_string())
 ```
 
+### Fail-Fast Error Philosophy
+
+WrldBldr uses fail-fast error handling where errors bubble up to the appropriate user:
+
+| Error Type | Target | How |
+|------------|--------|-----|
+| Player action error | Player | WebSocket `Error` message |
+| DM action error | DM | WebSocket `Error` message |
+| System/infrastructure error | Both + logs | Generic message to user, full context to logs |
+
+**DO:**
+- Propagate errors with `?` operator
+- Log context before converting to user-friendly errors
+- Include entity IDs and operation names in error context
+
+**DON'T:**
+- Silently swallow errors with `if let Err(e) = ... { log }` then returns `Ok`
+- Use `.ok()` without logging what was lost
+- Use `let _ =` on Results without documenting why
+- Use `unwrap()` on Results without justification
+
+**When to use fallbacks (warn + default):**
+- Non-critical data enrichment (e.g., optional asset paths)
+- Backward compatibility during migrations
+- Always log a warning so issues are discoverable
+
+**Pattern for fallback with logging:**
+```rust
+let value = match input.parse::<TargetType>() {
+    Ok(v) => v,
+    Err(e) => {
+        tracing::warn!(
+            input = %input,
+            error = %e,
+            "Failed to parse, using default"
+        );
+        TargetType::default()
+    }
+};
+```
+
 ### Dioxus Hooks (CRITICAL)
 
 **Hooks must be called unconditionally at the top of components.** Never call hooks inside conditionals, loops, or closures.

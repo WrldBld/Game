@@ -420,8 +420,7 @@ impl NarrativeOps {
         let resolved_location_id = location_id.or(pc_location_id);
         let resolved_region_id = pc_region_id;
 
-        if let Err(e) = self
-            .narrative
+        self.narrative
             .record_dialogue_context(
                 world_id,
                 event_id,
@@ -436,10 +435,7 @@ impl NarrativeOps {
                 world_game_time.clone(),
                 timestamp,
             )
-            .await
-        {
-            tracing::error!(error = %e, "Failed to record dialogue conversation context");
-        }
+            .await?;
 
         Ok(event_id)
     }

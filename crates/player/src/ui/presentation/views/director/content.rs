@@ -1,6 +1,7 @@
 //! Director mode content - Directing gameplay
 
 use dioxus::prelude::*;
+use wrldbldr_domain::DispositionLevel;
 
 use crate::application::dto::{ApprovalDecision, ApprovedNpcInfo, ChallengeData, SkillData};
 use crate::infrastructure::spawn_task;
@@ -327,11 +328,22 @@ pub fn DirectorModeContent() -> Element {
                                             disposition = %evt.disposition,
                                             "DM changed NPC disposition"
                                         );
+                                        // Parse disposition string to enum
+                                        let disposition = match evt.disposition.parse::<DispositionLevel>() {
+                                            Ok(d) => d,
+                                            Err(_) => {
+                                                tracing::warn!(
+                                                    disposition = %evt.disposition,
+                                                    "Invalid disposition value, using Neutral"
+                                                );
+                                                DispositionLevel::Neutral
+                                            }
+                                        };
                                         // Send disposition change to engine
                                         let msg = ClientMessageBuilder::set_npc_disposition(
                                             &evt.npc_id,
                                             &evt.pc_id,
-                                            &evt.disposition,
+                                            disposition,
                                             evt.reason.as_deref(),
                                         );
                                         if let Err(e) = command_bus_disposition.send(msg) {

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use wrldbldr_domain::{DispositionLevel, MoodState};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -6,7 +7,7 @@ pub enum NpcRequest {
     SetNpcDisposition {
         npc_id: String,
         pc_id: String,
-        disposition: String,
+        disposition: DispositionLevel,
         #[serde(default)]
         reason: Option<String>,
     },
@@ -22,7 +23,7 @@ pub enum NpcRequest {
     SetNpcMood {
         npc_id: String,
         region_id: String,
-        mood: String,
+        mood: MoodState,
         #[serde(default)]
         reason: Option<String>,
     },

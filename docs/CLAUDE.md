@@ -557,16 +557,45 @@ pub fn apply_damage(&mut self, amount: i32) -> DamageOutcome { ... }
 pub fn apply_damage(&mut self, amount: i32) { ... }  // Caller has no idea what happened
 ```
 
-### Error Handling
+### Error Handling - Fail-Fast Philosophy
 
-Never swallow errors:
+WrldBldr uses fail-fast error handling where errors bubble up to the appropriate user:
+
+| Error Type | Target | How |
+|------------|--------|-----|
+| Player action error | Player | WebSocket `Error` message |
+| DM action error | DM | WebSocket `Error` message |
+| System/infrastructure error | Both + logs | Generic message to user, full context to logs |
+
+**DO**:
+- Propagate errors with `?` operator
+- Log context before converting to user-friendly errors
+- Include entity IDs and operation names in error context
+
+**DON'T**:
+- Silently swallow errors with `if let Err(e) = ... { log }` returning `Ok`
+- Use `.ok()` to discard errors - always propagate or convert with context
+- Use `let _ =` on Results without documenting why
+- Use defaults for corrupted data - fail fast so user can fix
 
 ```rust
-// WRONG
-let result = repo.get(id).unwrap();
+// WRONG - silently swallows error, returns success
+if let Err(e) = some_operation().await {
+    tracing::error!(error = %e, "Operation failed");
+}
+Ok(result)  // User thinks it succeeded!
 
-// CORRECT
-let result = repo.get(id).await?;
+// WRONG - discards error, uses default
+let value = input.parse().ok().unwrap_or_default();
+
+// CORRECT - propagates error to user
+some_operation().await?;
+Ok(result)
+
+// CORRECT - converts error with context
+let value = input.parse().map_err(|e| {
+    MyError::Validation(format!("Invalid input '{}': {}", input, e))
+})?;
 ```
 
 ### Dioxus Hooks (CRITICAL)

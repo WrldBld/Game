@@ -3,6 +3,7 @@
 //! These structs represent the character's personal collection of abilities,
 //! including tracking of uses, preparation states, and choices made.
 
+use crate::value_objects::Stat;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -24,8 +25,8 @@ pub struct CharacterSpells {
     slots: HashMap<u8, SpellSlotPool>,
     /// Pact magic slots (for warlocks and similar)
     pact_slots: Option<SpellSlotPool>,
-    /// Primary spellcasting ability (e.g., "INT", "WIS", "CHA")
-    spellcasting_ability: Option<String>,
+    /// Primary spellcasting ability (e.g., INT, WIS, CHA)
+    spellcasting_ability: Option<Stat>,
 }
 
 impl CharacterSpells {
@@ -67,8 +68,8 @@ impl CharacterSpells {
     }
 
     /// Get the primary spellcasting ability.
-    pub fn spellcasting_ability(&self) -> Option<&str> {
-        self.spellcasting_ability.as_deref()
+    pub fn spellcasting_ability(&self) -> Option<Stat> {
+        self.spellcasting_ability
     }
 
     // Builder-style methods for optional fields
@@ -80,7 +81,7 @@ impl CharacterSpells {
     }
 
     /// Set the spellcasting ability.
-    pub fn with_spellcasting_ability(mut self, ability: impl Into<String>) -> Self {
+    pub fn with_spellcasting_ability(mut self, ability: impl Into<Stat>) -> Self {
         self.spellcasting_ability = Some(ability.into());
         self
     }

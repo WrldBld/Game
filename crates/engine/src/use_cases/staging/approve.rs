@@ -95,7 +95,7 @@ impl ApproveStagingRequest {
         let current_game_time_minutes = world.game_time().total_minutes();
         let approved_at = self.clock.now();
 
-        let staged_npcs = self.build_staged_npcs(&input.approved_npcs).await;
+        let staged_npcs = self.build_staged_npcs(&input.approved_npcs).await?;
 
         let staging = wrldbldr_domain::Staging::new(
             input.region_id,
@@ -193,7 +193,7 @@ impl ApproveStagingRequest {
     async fn build_staged_npcs(
         &self,
         approved_npcs: &[ApprovedNpc],
-    ) -> Vec<wrldbldr_domain::StagedNpc> {
+    ) -> Result<Vec<wrldbldr_domain::StagedNpc>, StagingError> {
         let mut staged_npcs = Vec::new();
 
         for npc_info in approved_npcs {
@@ -238,11 +238,17 @@ impl ApproveStagingRequest {
                 }
             };
 
-            let mood = npc_info
-                .mood
-                .as_deref()
-                .and_then(|m| m.parse::<wrldbldr_domain::MoodState>().ok())
-                .unwrap_or(default_mood);
+            let mood = match npc_info.mood.as_deref() {
+                Some(mood_str) => mood_str
+                    .parse::<wrldbldr_domain::MoodState>()
+                    .map_err(|_| {
+                        StagingError::Validation(format!(
+                            "Invalid mood state '{}' for character {}",
+                            mood_str, npc_info.character_id
+                        ))
+                    })?,
+                None => default_mood,
+            };
 
             let mut staged_npc = wrldbldr_domain::StagedNpc::new(
                 npc_info.character_id,
@@ -253,19 +259,29 @@ impl ApproveStagingRequest {
             .with_mood(mood)
             .with_hidden_from_players(npc_info.is_hidden_from_players)
             .with_incomplete_data(has_incomplete_data);
-            if let Some(sprite) = sprite_asset.and_then(|s| wrldbldr_domain::AssetPath::new(s).ok())
-            {
+            if let Some(sprite_path) = sprite_asset {
+                let sprite = wrldbldr_domain::AssetPath::new(sprite_path.clone()).map_err(|e| {
+                    StagingError::Validation(format!(
+                        "Invalid sprite asset path '{}' for character {}: {}",
+                        sprite_path, npc_info.character_id, e
+                    ))
+                })?;
                 staged_npc = staged_npc.with_sprite(sprite);
             }
-            if let Some(portrait) =
-                portrait_asset.and_then(|s| wrldbldr_domain::AssetPath::new(s).ok())
-            {
+            if let Some(portrait_path) = portrait_asset {
+                let portrait =
+                    wrldbldr_domain::AssetPath::new(portrait_path.clone()).map_err(|e| {
+                        StagingError::Validation(format!(
+                            "Invalid portrait asset path '{}' for character {}: {}",
+                            portrait_path, npc_info.character_id, e
+                        ))
+                    })?;
                 staged_npc = staged_npc.with_portrait(portrait);
             }
             staged_npcs.push(staged_npc);
         }
 
-        staged_npcs
+        Ok(staged_npcs)
     }
 
     async fn build_npcs_present(&self, approved_npcs: &[ApprovedNpc]) -> Vec<NpcPresent> {

@@ -29,19 +29,8 @@ pub(super) async fn handle_npc_request(
             };
             let pc_id_typed = PlayerCharacterId::from_uuid(pc_uuid);
 
-            let disposition_level: wrldbldr_domain::DispositionLevel =
-                disposition.parse().map_err(|e| {
-                    tracing::debug!(input = %disposition, error = %e, "Disposition parsing failed");
-                    ServerMessage::Response {
-                        request_id: request_id.to_string(),
-                        result: ResponseResult::error(
-                            ErrorCode::BadRequest,
-                            format!("Invalid disposition value: {}", e),
-                        ),
-                    }
-                })?;
-
-            if disposition_level == wrldbldr_domain::DispositionLevel::Unknown {
+            // disposition is already typed as DispositionLevel from the wire format
+            if disposition == wrldbldr_domain::DispositionLevel::Unknown {
                 return Ok(ResponseResult::error(
                     ErrorCode::BadRequest,
                     "Invalid disposition value",
@@ -53,7 +42,7 @@ pub(super) async fn handle_npc_request(
                 .use_cases
                 .npc
                 .disposition
-                .set_disposition(npc_id_typed, pc_id_typed, disposition_level, reason.clone())
+                .set_disposition(npc_id_typed, pc_id_typed, disposition, reason.clone())
                 .await
             {
                 Ok(result) => result,
@@ -441,7 +430,7 @@ pub(super) async fn handle_npc_request(
                 }
             };
 
-            let mood_state: MoodState = mood.parse().unwrap_or(MoodState::Calm);
+            // mood is already typed as MoodState from the wire format
 
             if !conn_info.is_dm() {
                 return Err(ServerMessage::Response {
@@ -468,7 +457,7 @@ pub(super) async fn handle_npc_request(
                 .use_cases
                 .npc
                 .mood
-                .set_mood(region_uuid, npc_uuid, mood_state)
+                .set_mood(region_uuid, npc_uuid, mood)
                 .await
             {
                 Ok(change) => {
@@ -489,7 +478,7 @@ pub(super) async fn handle_npc_request(
                     Ok(ResponseResult::success(serde_json::json!({
                         "npc_id": npc_id,
                         "region_id": region_id,
-                        "mood": mood_state.to_string(),
+                        "mood": mood.to_string(),
                     })))
                 }
                 Err(crate::use_cases::npc::NpcError::NotFound) => {
