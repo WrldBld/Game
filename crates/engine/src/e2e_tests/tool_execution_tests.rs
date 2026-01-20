@@ -20,6 +20,7 @@
 use std::sync::Arc;
 
 use serde_json::json;
+use wrldbldr_domain::QueueItemId;
 
 use crate::queue_types::{ApprovalRequestData, DmApprovalDecision, ProposedTool};
 
@@ -94,7 +95,7 @@ async fn test_approved_give_item_creates_item_in_inventory() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         // Process player action queue -> creates LLM request
         ctx.app
@@ -122,7 +123,7 @@ async fn test_approved_give_item_creates_item_in_inventory() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -200,7 +201,7 @@ async fn test_approved_give_item_creates_item_in_inventory() {
                 if let Some(item_name) = tool.arguments.get("item_name").and_then(|v| v.as_str()) {
                     let found = final_inventory
                         .iter()
-                        .any(|i| i.name.as_str().as_str() == item_name);
+                        .any(|i| i.name.as_str() == item_name);
                     assert!(
                         found,
                         "Item '{}' should be in inventory after approval",
@@ -213,7 +214,7 @@ async fn test_approved_give_item_creates_item_in_inventory() {
         tracing::info!(
             initial_count = initial_count,
             final_count = final_inventory.len(),
-            items = ?final_inventory.iter().map(|i| i.name.as_str().as_str()).collect::<Vec<_>>(),
+            items = ?final_inventory.iter().map(|i| i.name.as_str()).collect::<Vec<_>>(),
             "Inventory state after tool execution"
         );
 
@@ -299,7 +300,7 @@ async fn test_rejected_tool_not_executed() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         // Process through queues
         ctx.app
@@ -326,7 +327,7 @@ async fn test_rejected_tool_not_executed() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -491,7 +492,7 @@ async fn test_multiple_tools_executed_in_order() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         // Process through queues
         ctx.app
@@ -518,7 +519,7 @@ async fn test_multiple_tools_executed_in_order() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -722,7 +723,7 @@ async fn test_give_item_persists_after_conversation_end() {
             let approval_data = ctx
                 .app
                 .queue
-                .get_approval_request(result.approval_id)
+                .get_approval_request(result.approval_id.into())
                 .await
                 .expect("Failed to get approval request")
                 .expect("Approval request not found");
@@ -798,7 +799,7 @@ async fn test_give_item_persists_after_conversation_end() {
             initial_count = initial_count,
             mid_count = mid_inventory.len(),
             final_count = final_inventory.len(),
-            items = ?final_inventory.iter().map(|i| i.name.as_str().as_str()).collect::<Vec<_>>(),
+            items = ?final_inventory.iter().map(|i| i.name.as_str()).collect::<Vec<_>>(),
             "Inventory after conversation ended"
         );
 
@@ -814,7 +815,7 @@ async fn test_give_item_persists_after_conversation_end() {
         // All items should have valid names
         for item in &final_inventory {
             assert!(
-                !item.name.as_str().as_str().is_empty(),
+                !item.name.as_str().is_empty(),
                 "Item should have a name"
             );
             tracing::info!(
@@ -975,7 +976,7 @@ async fn test_tool_execution_fails_gracefully_on_invalid_args() {
             final_inventory.is_empty()
                 || final_inventory.iter().all(|i| {
                     // None of the items should be from our invalid tools
-                    i.name.as_str().as_str() != "12345" // The invalid type
+                    i.name.as_str() != "12345" // The invalid type
                 }),
             "Invalid tool arguments should not create items"
         );
@@ -1051,7 +1052,7 @@ async fn test_partial_tool_approval() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         // Process through queues
         ctx.app
@@ -1078,7 +1079,7 @@ async fn test_partial_tool_approval() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");

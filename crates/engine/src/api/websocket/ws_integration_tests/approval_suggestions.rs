@@ -1,4 +1,5 @@
 use super::*;
+use crate::infrastructure::ports::QueuePort;
 
 #[tokio::test]
 async fn when_dm_accepts_approval_suggestion_then_marks_complete_and_broadcasts_dialogue() {

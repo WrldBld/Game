@@ -852,7 +852,7 @@ mod tests {
     use wrldbldr_domain::{
         Challenge as DomainChallenge, ChallengeId, ChallengeName, ChallengeOutcomes, CharacterName,
         Difficulty, ItemId, LocationId, Outcome, OutcomeTrigger, OutcomeType,
-        PlayerCharacter as DomainPc, PlayerCharacterId, SceneId, UserId, WorldId,
+        PlayerCharacter as DomainPc, PlayerCharacterId, SceneId, Stat, UserId, WorldId,
     };
 
     use crate::infrastructure::ports::{
@@ -891,7 +891,7 @@ mod tests {
                 item_name: "Key".to_string(),
                 item_description: Some("Rusty".to_string()),
             })
-            .with_trigger(OutcomeTrigger::modify_stat("hp", -1))
+            .with_trigger(OutcomeTrigger::modify_stat(Stat::Con, -1))
             .with_trigger(OutcomeTrigger::scene(scene_id));
 
         // ChallengeOutcomes doesn't have a constructor that takes Outcome objects directly,
@@ -971,7 +971,7 @@ mod tests {
             .returning(|_, _| Ok(()));
         pc_repo
             .expect_modify_stat()
-            .withf(move |id, stat, delta| *id == pc_id && stat == "hp" && *delta == -1)
+            .withf(move |id, stat, delta| *id == pc_id && stat == "CON" && *delta == -1)
             .returning(|_, _, _| Ok(()));
 
         let character_repo = MockCharacterRepo::new();

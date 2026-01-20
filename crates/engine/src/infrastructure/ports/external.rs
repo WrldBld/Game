@@ -7,7 +7,8 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use wrldbldr_domain::{QueueItemId, WorldId};
+pub use wrldbldr_domain::QueueItemId;
+use wrldbldr_domain::WorldId;
 
 use super::error::QueueError;
 use crate::queue_types::{

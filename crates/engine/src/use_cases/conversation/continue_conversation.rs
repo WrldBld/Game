@@ -229,7 +229,7 @@ mod tests {
     use crate::infrastructure::ports::{
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockLocationRepo,
         MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
-        MockStagingRepo, MockWorldRepo, QueueError, QueueItem, QueuePort,
+        MockStagingRepo, MockWorldRepo, QueueError, QueueItem, QueueItemId, QueuePort,
     };
     use crate::use_cases::NarrativeOps;
 
@@ -247,12 +247,12 @@ mod tests {
 
     #[derive(Debug)]
     struct RecordingQueuePort {
-        enqueue_return_id: Uuid,
+        enqueue_return_id: QueueItemId,
         player_actions: Mutex<Vec<PlayerActionData>>,
     }
 
     impl RecordingQueuePort {
-        fn new(enqueue_return_id: Uuid) -> Self {
+        fn new(enqueue_return_id: QueueItemId) -> Self {
             Self {
                 enqueue_return_id,
                 player_actions: Mutex::new(Vec::new()),
@@ -264,7 +264,7 @@ mod tests {
         }
     }
 
-    fn build_queue(queue_id: Uuid) -> Arc<RecordingQueuePort> {
+    fn build_queue(queue_id: QueueItemId) -> Arc<RecordingQueuePort> {
         Arc::new(RecordingQueuePort::new(queue_id))
     }
 
@@ -412,7 +412,7 @@ mod tests {
             .returning(|_| Ok(None));
 
         let clock = build_clock(now);
-        let queue_port = build_queue(Uuid::new_v4());
+        let queue_port = build_queue(QueueItemId::new());
 
         let use_case = super::ContinueConversation::new(
             Arc::new(MockCharacterRepo::new()),
@@ -476,7 +476,7 @@ mod tests {
             .returning(|_| Ok(None));
 
         let clock = build_clock(now);
-        let queue_port = build_queue(Uuid::new_v4());
+        let queue_port = build_queue(QueueItemId::new());
 
         let use_case = super::ContinueConversation::new(
             Arc::new(character_repo),
@@ -547,7 +547,7 @@ mod tests {
             .returning(move |_| Ok(Some(npc_for_get.clone())));
 
         let clock = build_clock(now);
-        let queue_port = build_queue(Uuid::new_v4());
+        let queue_port = build_queue(QueueItemId::new());
 
         let use_case = super::ContinueConversation::new(
             Arc::new(character_repo),
@@ -625,7 +625,7 @@ mod tests {
             .returning(|_| Ok(None));
 
         let clock = build_clock(now);
-        let queue_port = build_queue(Uuid::new_v4());
+        let queue_port = build_queue(QueueItemId::new());
 
         let use_case = super::ContinueConversation::new(
             Arc::new(character_repo),
@@ -731,7 +731,7 @@ mod tests {
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
         let clock = build_clock(now);
-        let queue_port = build_queue(Uuid::new_v4());
+        let queue_port = build_queue(QueueItemId::new());
 
         let use_case = super::ContinueConversation::new(
             Arc::new(character_repo),
@@ -843,7 +843,7 @@ mod tests {
             .returning(|_| Ok(false));
 
         let clock = build_clock(now);
-        let queue_port = build_queue(Uuid::new_v4());
+        let queue_port = build_queue(QueueItemId::new());
 
         let use_case = super::ContinueConversation::new(
             Arc::new(character_repo),
@@ -955,7 +955,7 @@ mod tests {
             .returning(|_, _| Ok(None));
 
         let clock = build_clock(now);
-        let queue_port = build_queue(Uuid::new_v4());
+        let queue_port = build_queue(QueueItemId::new());
 
         let use_case = super::ContinueConversation::new(
             Arc::new(character_repo),
@@ -1070,7 +1070,7 @@ mod tests {
             .returning(|_| Ok(true));
 
         let clock = build_clock(now);
-        let queue_id = Uuid::new_v4();
+        let queue_id = QueueItemId::new();
         let queue_port = build_queue(queue_id);
 
         let use_case = super::ContinueConversation::new(
@@ -1196,7 +1196,7 @@ mod tests {
             .returning(move |_, _| Ok(Some(found_conversation_id)));
 
         let clock = build_clock(now);
-        let queue_id = Uuid::new_v4();
+        let queue_id = QueueItemId::new();
         let queue_port = build_queue(queue_id);
 
         let use_case = super::ContinueConversation::new(

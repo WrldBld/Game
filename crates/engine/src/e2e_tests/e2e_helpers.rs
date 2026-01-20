@@ -31,7 +31,7 @@ use crate::infrastructure::clock::FixedClock;
 use crate::infrastructure::neo4j::{Neo4jGraph, Neo4jRepositories};
 use crate::infrastructure::ports::{
     ClockPort, FinishReason, ImageGenError, ImageGenPort, ImageRequest, ImageResult, LlmError,
-    LlmPort, LlmRequest, LlmResponse, QueueError, QueueItem, QueuePort,
+    LlmPort, LlmRequest, LlmResponse, QueueError, QueueItem, QueueItemId, QueuePort,
 };
 use crate::infrastructure::queue::SqliteQueue;
 use crate::infrastructure::settings::SqliteSettingsRepo;

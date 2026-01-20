@@ -34,7 +34,7 @@ use neo4rs::query;
 use uuid::Uuid;
 use wrldbldr_domain::{
     Description, NarrativeEvent, NarrativeEventId, NarrativeEventName, NarrativeTrigger,
-    NarrativeTriggerType, TriggerLogic,
+    NarrativeTriggerType, QueueItemId, TriggerLogic,
 };
 
 use crate::queue_types::DmApprovalDecision;
@@ -209,7 +209,7 @@ async fn test_simple_dialogue_event_triggers_on_matching_keywords() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         // Process player action -> creates LLM request
         ctx.app
@@ -237,7 +237,7 @@ async fn test_simple_dialogue_event_triggers_on_matching_keywords() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -365,7 +365,7 @@ async fn test_simple_dialogue_event_no_trigger_on_unrelated_dialogue() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         ctx.app
             .use_cases
@@ -390,7 +390,7 @@ async fn test_simple_dialogue_event_no_trigger_on_unrelated_dialogue() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -669,7 +669,7 @@ async fn test_multi_condition_event_triggers_when_flag_set() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         ctx.app
             .use_cases
@@ -694,7 +694,7 @@ async fn test_multi_condition_event_triggers_when_flag_set() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -1123,7 +1123,7 @@ async fn test_challenge_triggers_on_matching_dialogue() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         ctx.app
             .use_cases
@@ -1148,7 +1148,7 @@ async fn test_challenge_triggers_on_matching_dialogue() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -1261,7 +1261,7 @@ async fn test_challenge_no_trigger_on_unrelated_dialogue() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         ctx.app
             .use_cases
@@ -1286,7 +1286,7 @@ async fn test_challenge_no_trigger_on_unrelated_dialogue() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");

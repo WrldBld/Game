@@ -215,7 +215,7 @@ mod tests {
 
     use crate::infrastructure::ports::{
         ClockPort, MockCharacterRepo, MockPlayerCharacterRepo, MockSceneRepo, MockStagingRepo,
-        MockWorldRepo, QueueError, QueueItem, QueuePort,
+        MockWorldRepo, QueueError, QueueItem, QueueItemId, QueuePort,
     };
 
     struct FixedClock(chrono::DateTime<chrono::Utc>);
@@ -228,12 +228,12 @@ mod tests {
 
     #[derive(Debug)]
     struct RecordingQueuePort {
-        enqueue_return_id: Uuid,
+        enqueue_return_id: QueueItemId,
         player_actions: Mutex<Vec<PlayerActionData>>,
     }
 
     impl RecordingQueuePort {
-        fn new(enqueue_return_id: Uuid) -> Self {
+        fn new(enqueue_return_id: QueueItemId) -> Self {
             Self {
                 enqueue_return_id,
                 player_actions: Mutex::new(Vec::new()),
@@ -416,7 +416,7 @@ mod tests {
             .returning(|_, _| Ok(None));
 
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let queue_id = Uuid::new_v4();
+        let queue_id = QueueItemId::new();
         let queue_port = Arc::new(RecordingQueuePort::new(queue_id));
 
         let use_case = super::StartConversation::new(
@@ -523,7 +523,7 @@ mod tests {
             .returning(move |_, _| Ok(Some(staging_for_get.clone())));
 
         let clock: Arc<dyn ClockPort> = Arc::new(FixedClock(now));
-        let queue_id = Uuid::new_v4();
+        let queue_id = QueueItemId::new();
         let queue_port = Arc::new(RecordingQueuePort::new(queue_id));
 
         let use_case = super::StartConversation::new(

@@ -19,6 +19,8 @@
 
 use std::sync::Arc;
 
+use wrldbldr_domain::QueueItemId;
+
 use crate::queue_types::DmApprovalDecision;
 
 use super::{
@@ -88,7 +90,7 @@ async fn test_llm_response_has_internal_reasoning() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         // Process player action queue -> creates LLM request
         ctx.app
@@ -117,7 +119,7 @@ async fn test_llm_response_has_internal_reasoning() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -289,7 +291,7 @@ async fn test_llm_response_extracts_topics() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         // Process through the queue pipeline
         ctx.app
@@ -317,7 +319,7 @@ async fn test_llm_response_extracts_topics() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -490,7 +492,7 @@ async fn test_llm_suggests_challenge_during_dialogue() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         // Process through the queue pipeline
         ctx.app
@@ -518,7 +520,7 @@ async fn test_llm_suggests_challenge_during_dialogue() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -729,7 +731,7 @@ async fn test_llm_suggests_narrative_event() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         // Process through the queue pipeline
         ctx.app
@@ -757,7 +759,7 @@ async fn test_llm_suggests_narrative_event() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -954,7 +956,7 @@ async fn test_full_structured_output_integration() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         // Process through the queue pipeline
         ctx.app
@@ -982,7 +984,7 @@ async fn test_full_structured_output_integration() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -1176,7 +1178,7 @@ async fn test_llm_response_without_explicit_dialogue_tags() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         // Process through the queue pipeline
         ctx.app
@@ -1204,7 +1206,7 @@ async fn test_llm_response_without_explicit_dialogue_tags() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");

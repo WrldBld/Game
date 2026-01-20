@@ -497,7 +497,7 @@ async fn test_queue_processes_player_action_to_llm_request() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         // Process the player action queue
         let processed = ctx

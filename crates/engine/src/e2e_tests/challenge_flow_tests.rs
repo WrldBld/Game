@@ -79,6 +79,7 @@ async fn test_predefined_challenge_success_flow() {
         assert!(!roll_result
             .approval_queue_id
             .expect("Should have approval queue ID")
+            .as_uuid()
             .is_nil());
         assert_eq!(roll_result.total, 23); // 18 + 5
 
@@ -164,6 +165,7 @@ async fn test_predefined_challenge_failure_flow() {
         assert!(!roll_result
             .approval_queue_id
             .expect("Should have approval queue ID")
+            .as_uuid()
             .is_nil());
         assert_eq!(roll_result.total, 3);
 

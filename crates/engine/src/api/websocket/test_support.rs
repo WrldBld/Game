@@ -16,7 +16,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
 use crate::app::{App, Repositories, UseCases};
 use crate::infrastructure::ports::{
     ClockPort, ImageGenError, ImageGenPort, LlmError, LlmPort, QueueError, QueueItem,
-    QueueItemStatus, QueuePort, RandomPort,
+    QueueItemId, QueueItemStatus, QueuePort, RandomPort,
 };
 use crate::infrastructure::ports::{
     MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockContentRepo,
@@ -28,7 +28,7 @@ use crate::queue_types::{
     ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
 };
 
-pub(crate) use crate::infrastructure::ports::{MockWorldRepo, QueuePort};
+pub(crate) use crate::infrastructure::ports::MockWorldRepo;
 
 pub(crate) struct TestAppRepos {
     pub(crate) world_repo: MockWorldRepo,
@@ -336,13 +336,13 @@ impl QueuePort for RecordingApprovalQueue {
 
     async fn mark_complete(&self, id: QueueItemId) -> Result<(), QueueError> {
         let mut guard = self.state.lock().unwrap();
-        guard.completed.push(id);
+        guard.completed.push(id.to_uuid());
         Ok(())
     }
 
     async fn mark_failed(&self, id: QueueItemId, error: &str) -> Result<(), QueueError> {
         let mut guard = self.state.lock().unwrap();
-        guard.failed.push((id, error.to_string()));
+        guard.failed.push((id.to_uuid(), error.to_string()));
         Ok(())
     }
 
@@ -378,7 +378,7 @@ impl QueuePort for RecordingApprovalQueue {
         id: QueueItemId,
     ) -> Result<Option<ApprovalRequestData>, QueueError> {
         let guard = self.state.lock().unwrap();
-        Ok(guard.approvals.get(&id).cloned())
+        Ok(guard.approvals.get(&id.to_uuid()).cloned())
     }
 
     async fn get_generation_read_state(

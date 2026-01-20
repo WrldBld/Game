@@ -13,7 +13,7 @@ use crate::queue_types::{
     ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
 };
 
-use crate::infrastructure::ports::{QueueError, QueueItem, QueueItemStatus, QueuePort};
+use crate::infrastructure::ports::{QueueError, QueueItem, QueueItemId, QueueItemStatus, QueuePort};
 
 use super::event_log::{E2EEvent, E2EEventLog};
 
@@ -40,7 +40,7 @@ impl QueuePort for LoggingQueue {
         let id = self.inner.enqueue_player_action(data).await?;
 
         self.event_log.log(E2EEvent::ActionEnqueued {
-            id,
+            id: id.to_uuid(),
             action_type: data.action_type.clone(),
             target: data.target.clone(),
             dialogue: data.dialogue.clone(),
@@ -55,7 +55,7 @@ impl QueuePort for LoggingQueue {
 
         if let Some(ref item) = result {
             self.event_log.log(E2EEvent::ActionProcessed {
-                id: item.id,
+                id: item.id.to_uuid(),
                 duration_ms: start.elapsed().as_millis() as u64,
             });
         }
@@ -68,7 +68,7 @@ impl QueuePort for LoggingQueue {
         let id = self.inner.enqueue_llm_request(data).await?;
 
         self.event_log.log(E2EEvent::LlmRequestEnqueued {
-            id,
+            id: id.to_uuid(),
             request_type: format!("{:?}", data.request_type),
             callback_id: data.callback_id.clone(),
         });
@@ -88,7 +88,7 @@ impl QueuePort for LoggingQueue {
         let id = self.inner.enqueue_dm_approval(data).await?;
 
         self.event_log.log(E2EEvent::ApprovalEnqueued {
-            id,
+            id: id.to_uuid(),
             decision_type: format!("{:?}", data.decision_type),
             urgency: format!("{:?}", data.urgency),
         });

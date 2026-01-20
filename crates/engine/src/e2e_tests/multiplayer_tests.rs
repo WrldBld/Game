@@ -744,7 +744,7 @@ async fn test_dm_sees_player_actions_in_queue() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request should exist");
@@ -886,7 +886,7 @@ async fn test_dm_approval_triggers_player_response() {
         let pending_approval = ctx
             .app
             .queue
-            .get_approval_request(approval_id)
+            .get_approval_request(approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval should exist");

@@ -21,6 +21,8 @@
 
 use std::sync::Arc;
 
+use wrldbldr_domain::QueueItemId;
+
 use crate::queue_types::DmApprovalDecision;
 
 use super::{
@@ -98,7 +100,7 @@ async fn test_npc_triggers_perception_check_via_tool() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         // Process player action queue -> creates LLM request
         ctx.app
@@ -128,7 +130,7 @@ async fn test_npc_triggers_perception_check_via_tool() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -558,7 +560,7 @@ async fn test_npc_gives_item_via_tool() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         // Process player action queue -> creates LLM request
         ctx.app
@@ -587,7 +589,7 @@ async fn test_npc_gives_item_via_tool() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -820,7 +822,7 @@ async fn test_tool_effect_persists_after_conversation() {
             let approval_data = ctx
                 .app
                 .queue
-                .get_approval_request(result.approval_id)
+                .get_approval_request(result.approval_id.into())
                 .await
                 .expect("Failed to get approval request")
                 .expect("Approval request not found");
@@ -1029,7 +1031,7 @@ async fn test_dm_sees_proposed_tools() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -1216,7 +1218,7 @@ async fn test_dm_can_reject_tool_call() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -1367,7 +1369,7 @@ async fn test_dm_can_modify_tool_parameters() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.is_nil(), "Action should be queued");
+        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
 
         // Process through the queues
         ctx.app
@@ -1395,7 +1397,7 @@ async fn test_dm_can_modify_tool_parameters() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
@@ -1578,7 +1580,7 @@ async fn test_multiple_tools_in_single_response() {
             .expect("Failed to start conversation");
 
         assert!(
-            !started.action_queue_id.is_nil(),
+            !started.action_queue_id.as_uuid().is_nil(),
             "Action should be queued"
         );
 
@@ -1611,7 +1613,7 @@ async fn test_multiple_tools_in_single_response() {
         let approval_data = ctx
             .app
             .queue
-            .get_approval_request(result.approval_id)
+            .get_approval_request(result.approval_id.into())
             .await
             .expect("Failed to get approval request")
             .expect("Approval request not found");
