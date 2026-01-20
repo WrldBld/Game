@@ -241,10 +241,10 @@ impl ApproveStagingRequest {
             let mood = match npc_info.mood.as_deref() {
                 Some(mood_str) => mood_str
                     .parse::<wrldbldr_domain::MoodState>()
-                    .map_err(|_| {
+                    .map_err(|e| {
                         StagingError::Validation(format!(
-                            "Invalid mood state '{}' for character {}",
-                            mood_str, npc_info.character_id
+                            "Invalid mood state '{}' for character {}: {}",
+                            mood_str, npc_info.character_id, e
                         ))
                     })?,
                 None => default_mood,

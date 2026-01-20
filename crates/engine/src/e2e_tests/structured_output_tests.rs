@@ -1178,7 +1178,10 @@ async fn test_llm_response_without_explicit_dialogue_tags() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
+        assert!(
+            !started.action_queue_id.as_uuid().is_nil(),
+            "Action should be queued"
+        );
 
         // Process through the queue pipeline
         ctx.app

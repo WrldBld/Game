@@ -209,7 +209,10 @@ async fn test_simple_dialogue_event_triggers_on_matching_keywords() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
+        assert!(
+            !started.action_queue_id.as_uuid().is_nil(),
+            "Action should be queued"
+        );
 
         // Process player action -> creates LLM request
         ctx.app
@@ -365,7 +368,10 @@ async fn test_simple_dialogue_event_no_trigger_on_unrelated_dialogue() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
+        assert!(
+            !started.action_queue_id.as_uuid().is_nil(),
+            "Action should be queued"
+        );
 
         ctx.app
             .use_cases
@@ -669,7 +675,10 @@ async fn test_multi_condition_event_triggers_when_flag_set() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
+        assert!(
+            !started.action_queue_id.as_uuid().is_nil(),
+            "Action should be queued"
+        );
 
         ctx.app
             .use_cases
@@ -1123,7 +1132,10 @@ async fn test_challenge_triggers_on_matching_dialogue() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
+        assert!(
+            !started.action_queue_id.as_uuid().is_nil(),
+            "Action should be queued"
+        );
 
         ctx.app
             .use_cases
@@ -1261,7 +1273,10 @@ async fn test_challenge_no_trigger_on_unrelated_dialogue() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
+        assert!(
+            !started.action_queue_id.as_uuid().is_nil(),
+            "Action should be queued"
+        );
 
         ctx.app
             .use_cases

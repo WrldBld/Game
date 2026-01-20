@@ -483,8 +483,12 @@ mod tests {
 
     #[test]
     fn test_set_npc_disposition_generates_request_id() {
-        let msg =
-            ClientMessageBuilder::set_npc_disposition("npc_1", "pc_1", DispositionLevel::Friendly, None);
+        let msg = ClientMessageBuilder::set_npc_disposition(
+            "npc_1",
+            "pc_1",
+            DispositionLevel::Friendly,
+            None,
+        );
         match msg {
             ClientMessage::Request {
                 request_id,

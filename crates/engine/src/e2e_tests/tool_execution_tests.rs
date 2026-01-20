@@ -95,7 +95,10 @@ async fn test_approved_give_item_creates_item_in_inventory() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
+        assert!(
+            !started.action_queue_id.as_uuid().is_nil(),
+            "Action should be queued"
+        );
 
         // Process player action queue -> creates LLM request
         ctx.app
@@ -199,9 +202,7 @@ async fn test_approved_give_item_creates_item_in_inventory() {
             // Verify item properties
             for tool in &give_item_tools {
                 if let Some(item_name) = tool.arguments.get("item_name").and_then(|v| v.as_str()) {
-                    let found = final_inventory
-                        .iter()
-                        .any(|i| i.name.as_str() == item_name);
+                    let found = final_inventory.iter().any(|i| i.name.as_str() == item_name);
                     assert!(
                         found,
                         "Item '{}' should be in inventory after approval",
@@ -300,7 +301,10 @@ async fn test_rejected_tool_not_executed() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
+        assert!(
+            !started.action_queue_id.as_uuid().is_nil(),
+            "Action should be queued"
+        );
 
         // Process through queues
         ctx.app
@@ -814,10 +818,7 @@ async fn test_give_item_persists_after_conversation_end() {
 
         // All items should have valid names
         for item in &final_inventory {
-            assert!(
-                !item.name.as_str().is_empty(),
-                "Item should have a name"
-            );
+            assert!(!item.name.as_str().is_empty(), "Item should have a name");
             tracing::info!(
                 item_name = %item.name.as_str(),
                 item_id = %item.id,

@@ -1369,7 +1369,10 @@ async fn test_dm_can_modify_tool_parameters() {
             .await
             .expect("Failed to start conversation");
 
-        assert!(!started.action_queue_id.as_uuid().is_nil(), "Action should be queued");
+        assert!(
+            !started.action_queue_id.as_uuid().is_nil(),
+            "Action should be queued"
+        );
 
         // Process through the queues
         ctx.app

@@ -13,7 +13,9 @@ use crate::queue_types::{
     ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
 };
 
-use crate::infrastructure::ports::{QueueError, QueueItem, QueueItemId, QueueItemStatus, QueuePort};
+use crate::infrastructure::ports::{
+    QueueError, QueueItem, QueueItemId, QueueItemStatus, QueuePort,
+};
 
 use super::event_log::{E2EEvent, E2EEventLog};
 

@@ -83,10 +83,12 @@ impl ConversationScenario {
             .as_ref()
             .ok_or_else(|| E2EError::RequestFailed("No active conversation".to_string()))?;
 
-        let npc_uuid: uuid::Uuid = conversation
-            .npc_id
-            .parse()
-            .map_err(|_| E2EError::RequestFailed("Invalid NPC ID in conversation".to_string()))?;
+        let npc_uuid: uuid::Uuid = conversation.npc_id.parse().map_err(|e| {
+            E2EError::RequestFailed(format!(
+                "Invalid NPC ID '{}' in conversation: {}",
+                conversation.npc_id, e
+            ))
+        })?;
 
         let response = self
             .client
@@ -110,10 +112,12 @@ impl ConversationScenario {
             .as_ref()
             .ok_or_else(|| E2EError::RequestFailed("No active conversation".to_string()))?;
 
-        let npc_uuid: uuid::Uuid = conversation
-            .npc_id
-            .parse()
-            .map_err(|_| E2EError::RequestFailed("Invalid NPC ID in conversation".to_string()))?;
+        let npc_uuid: uuid::Uuid = conversation.npc_id.parse().map_err(|e| {
+            E2EError::RequestFailed(format!(
+                "Invalid NPC ID '{}' in conversation: {}",
+                conversation.npc_id, e
+            ))
+        })?;
 
         self.client
             .continue_conversation(
