@@ -486,7 +486,7 @@ pub(super) async fn handle_time_request(
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    &sanitize_repo_error(&e, "getting game time"),
                 )),
             }
         }

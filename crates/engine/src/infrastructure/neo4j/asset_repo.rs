@@ -111,7 +111,12 @@ impl AssetRepo for Neo4jAssetRepo {
                     "MATCH (e:Item {id: $entity_id}), (a:GalleryAsset {id: $asset_id})
                     MERGE (e)-[:HAS_ASSET]->(a)",
                 ),
-                _ => return Ok(()), // Other entity types can't have assets
+                _ => {
+                    return Err(RepoError::constraint(format!(
+                        "Entity type {:?} does not support assets",
+                        asset.entity_type()
+                    )))
+                }
             };
 
             self.graph

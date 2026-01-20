@@ -2106,7 +2106,7 @@ impl CompendiumProvider for Dnd5eContentProvider {
     fn count_content(&self, content_type: &ContentType) -> Result<usize, ContentError> {
         // Optimized count that uses cached data without ContentItem conversion.
         let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| ContentError::LoadError("No tokio runtime available".to_string()))?;
+            .map_err(|e| ContentError::LoadError(format!("Tokio runtime error: {}", e)))?;
 
         tokio::task::block_in_place(|| {
             rt.block_on(async {
@@ -2173,7 +2173,7 @@ impl CompendiumProvider for Dnd5eContentProvider {
         // This moves the current task to a blocking thread, preventing deadlocks
         // when called from within an async context.
         let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| ContentError::LoadError("No tokio runtime available".to_string()))?;
+            .map_err(|e| ContentError::LoadError(format!("Tokio runtime error: {}", e)))?;
 
         tokio::task::block_in_place(|| {
             rt.block_on(async {

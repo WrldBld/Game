@@ -43,18 +43,12 @@ impl RecordVisit {
         game_time_minutes: i64,
     ) -> Result<(), RepoError> {
         // Get the region to find its location_id
-        let region = self.location_repo.get_region(region_id).await?;
-        let location_id = match region {
-            Some(r) => r.location_id(),
-            None => {
-                tracing::warn!(
-                    region_id = %region_id,
-                    pc_id = %pc_id,
-                    "Cannot record visit: region not found"
-                );
-                return Ok(()); // Region not found, nothing to record
-            }
-        };
+        let region = self
+            .location_repo
+            .get_region(region_id)
+            .await?
+            .ok_or_else(|| RepoError::not_found("Region", region_id.to_string()))?;
+        let location_id = region.location_id();
 
         let now = self.clock.now(); // Real time for created_at
 
@@ -238,7 +232,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn handles_missing_region_gracefully() {
+    async fn returns_error_for_missing_region() {
         let observation_repo = MockObservationRepo::new();
         let mut location_repo = MockLocationRepo::new();
         let clock = MockClockPort::new();
@@ -266,7 +260,7 @@ mod tests {
             .execute(pc_id, region_id, &npcs, game_time_minutes)
             .await;
 
-        // Should succeed without creating observations
-        assert!(result.is_ok());
+        assert!(result.is_err());
+        assert!(matches!(result, Err(RepoError::NotFound { .. })));
     }
 }

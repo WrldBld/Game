@@ -452,13 +452,17 @@ impl ResolveOutcome {
                 if *persist {
                     // Create a "deduced" observation from the challenge
                     // This records that the PC learned this information
-                    if let Err(e) = self
-                        .observation
+                    self.observation
                         .save_deduced_info(target_pc_id, info.clone())
                         .await
-                    {
-                        tracing::warn!(error = %e, "Failed to persist revealed information");
-                    }
+                        .map_err(|e| {
+                            tracing::error!(
+                                target_pc_id = %target_pc_id,
+                                error = %e,
+                                "Failed to persist revealed information"
+                            );
+                            ChallengeError::Repo(e)
+                        })?;
                 }
                 Ok(())
             }
@@ -647,21 +651,9 @@ impl OutcomeDecision {
                     .await
                     .map_err(OutcomeDecisionError::Resolve)?;
 
-                // Challenge is now resolved. Queue cleanup is housekeeping - log failure
-                // but return success since the important operation completed.
-                if let Err(e) = self
-                    .queue
+                self.queue
                     .mark_complete(QueueItemId::from(approval_id))
-                    .await
-                {
-                    tracing::error!(
-                        approval_id = %approval_id,
-                        challenge_id = %outcome_data.challenge_id,
-                        error = %e,
-                        "Failed to mark approval as complete after successful challenge resolution. \
-                         Queue item may remain and require manual cleanup."
-                    );
-                }
+                    .await?;
 
                 Ok(OutcomeDecisionResult::Resolved(ChallengeResolvedPayload {
                     challenge_id: outcome_data.challenge_id.clone(),
@@ -686,21 +678,9 @@ impl OutcomeDecision {
                     .await
                     .map_err(OutcomeDecisionError::Resolve)?;
 
-                // Challenge is now resolved. Queue cleanup is housekeeping - log failure
-                // but return success since the important operation completed.
-                if let Err(e) = self
-                    .queue
+                self.queue
                     .mark_complete(QueueItemId::from(approval_id))
-                    .await
-                {
-                    tracing::error!(
-                        approval_id = %approval_id,
-                        challenge_id = %outcome_data.challenge_id,
-                        error = %e,
-                        "Failed to mark approval as complete after successful challenge resolution. \
-                         Queue item may remain and require manual cleanup."
-                    );
-                }
+                    .await?;
 
                 Ok(OutcomeDecisionResult::Resolved(ChallengeResolvedPayload {
                     challenge_id: outcome_data.challenge_id.clone(),
