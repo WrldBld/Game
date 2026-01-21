@@ -1,47 +1,158 @@
-# Configurable List Limits Implementation Plan
+# Configurable List Limits
 
-## Overview
-
-Convert hardcoded list pagination defaults (`50` default, `200` max) to a configurable 3-tier settings system following the existing `AppSettings` infrastructure pattern.
-
-**Current State:** 9 files have hardcoded `limit.unwrap_or(50).min(200)` pattern
-**Target State:** Settings-based configuration with DM override → env var → constant default
+**Created:** January 20, 2026
+**Priority:** High
+**Reference:** Code review remediation C3 - DoS Prevention
 
 ---
 
-## Scope
+## Problem Statement
 
-### Files with Hardcoded Limits (to be updated)
+Currently, 9 list handlers use hardcoded limits:
+- **Default limit:** 50 items
+- **Maximum limit:** 200 items
 
-1. `crates/engine/src/api/websocket/ws_character.rs` (line 21)
-2. `crates/engine/src/api/websocket/ws_location.rs` (multiple handlers)
-3. `crates/engine/src/api/websocket/ws_player.rs` (line 282)
-4. `crates/engine/src/api/websocket/ws_scene.rs` (line 69)
-5. `crates/engine/src/infrastructure/neo4j/character_repo.rs` (line 572)
-6. `crates/engine/src/infrastructure/neo4j/location_repo.rs` (multiple queries)
-7. `crates/engine/src/infrastructure/neo4j/scene_repo.rs` (line 420)
+These limits are embedded throughout the codebase, making it difficult to:
+1. Allow DMs or operators to tune limits for different scenarios
+2. Adjust defaults based on server capacity
+3. Configure per-world or per-environment settings
 
-### Existing Infrastructure (to be extended)
+---
 
-- `crates/engine/src/infrastructure/app_settings.rs` - Add new fields
-- `crates/shared/src/settings.rs` - Add UI metadata
-- `crates/engine/src/use_cases/settings/settings_ops.rs` - Add environment variable integration
+## Requirements
+
+### 1. Three-Stage Retrieval System
+
+Settings must be retrieved in order of precedence:
+
+1. **Persistent Settings (Highest Priority)**
+   - DM-specified value stored in database
+   - World-specific override
+   - Per-DM personal preference
+
+2. **Environment Variables (Medium Priority)**
+   - Global defaults for deployment
+   - Can override compiled-in constants
+   - Example: `WRLDBLDR_DEFAULT_LIST_LIMIT=100`
+
+3. **Code Constants (Fallback)**
+   - Hardcoded defaults in source code
+   - Never used if higher-priority value exists
+   - Ensure system always works even without config
+
+### 2. Settings Infrastructure
+
+**Storage Options:**
+
+**Option A: Neo4j Storage (Recommended)**
+- Pros: Already integrated with world data
+- Pros: World-specific settings naturally organized
+- Pros: Single database for all configuration
+- Cons: Schema changes required
+
+**Schema additions:**
+```cypher
+// ListSettings node
+CREATE CONSTRAINT IF NOT EXISTS FOR (w:World)-[:HAS_LIST_SETTINGS]->(:ListSettings {
+    default_list_limit: Integer,
+    max_list_limit: Integer,
+    character_list_limit: Integer OPTIONAL,
+    scene_list_limit: Integer OPTIONAL,
+    region_list_limit: Integer OPTIONAL,
+    location_list_limit: Integer OPTIONAL
+    npc_list_limit: Integer OPTIONAL
+    connection_list_limit: Integer OPTIONAL,
+    exit_list_limit: Integer OPTIONAL,
+    spawn_point_list_limit: Integer OPTIONAL,
+    social_network_list_limit: Integer OPTIONAL
+})
+```
+
+**Option B: Redis Storage**
+- Pros: Fast read/write
+- Pros: Easy to cache
+- Pros: Supports per-world keys
+- Cons: Separate infrastructure from Neo4j
+- Cons: No query capability for bulk operations
+
+**Schema:**
+```
+redis://
+  list:settings:{world_id}
+    default_limit: 50
+    max_limit: 200
+    character_limit: 50
+    scene_limit: 50
+    region_limit: 50
+    location_limit: 50
+    npc_limit: 50
+    connection_limit: 50
+    exit_limit: 50
+    spawn_limit: 50
+    social_network_limit: 50
+```
+
+**Option C: Configuration Service (Simple)**
+- Pros: Pure application logic
+- Pros: No database schema changes
+- Pros: Easy to test
+- Cons: Requires separate service to maintain
+- Cons: Not persisted across restarts
+
+**Recommendation:** Start with Option A (Neo4j) for production-grade persistence with schema changes.
+
+### 3. Settings Scope Hierarchy
+
+Settings should support multiple scopes:
+
+```rust
+pub enum SettingsScope {
+    Global,              // Apply to all worlds
+    World(WorldId),      // Override for specific world
+    Dm(String),           // DM's personal preference
+    Environment,        // Environment variable override
+}
+```
+
+### 4. Settings Types
+
+Required setting types:
+
+| Setting Name | Type | Description | Default |
+|---------------|------|-------------|---------|
+| `default_list_limit` | u32 | Fallback for unconfigured endpoints | 50 |
+| `max_list_limit` | u32 | Upper bound enforced by all endpoints | 200 |
+| `character_list_limit` | Option<u32> | Override for ListCharacters | None |
+| `scene_list_limit` | Option<u32> | Override for ListScenes | None |
+| `region_list_limit` | Option<u32> | Override for ListRegions | None |
+| `location_list_limit` | Option<u32> | Override for ListLocations | None |
+| `npc_list_limit` | Option<u32> | Override for ListNPCs | None |
+| `connection_list_limit` | Option<u32> | Override for ListRegionConnections | None |
+| `exit_list_limit` | Option<u32> | Override for GetRegionExits | None |
+| `spawn_point_list_limit` | Option<u32> | Override for ListSpawnPoints | None |
+| `social_network_limit` | Option<u32> | Override for GetSocialNetwork | None |
+
+### 5. Validation Rules
+
+All settings must satisfy:
+- `default_list_limit <= max_list_limit`
+- All per-endpoint limits (if set) must be between default and max
+- `max_list_limit >= 1`
+- All limits must be `u32` values (non-negative)
 
 ---
 
 ## Implementation Plan
 
-### Part 1: Add Settings Fields to AppSettings
+### Phase 1: Add Settings Fields to AppSettings
 
 **File:** `crates/engine/src/infrastructure/app_settings.rs`
 
-Add to `AppSettings` struct (in "Validation Limits" section around line 1035):
+Add two new fields to existing `AppSettings` struct:
 
 ```rust
-// ============================================================================
-// List Pagination Limits
-// ============================================================================
-/// Default page size for list operations when no limit specified
+// In "Validation Limits" section (around line 1035)
+/// Default page size for list operations when no limit is specified
 #[serde(default = "default_list_page_size")]
 list_default_page_size: u32,
 
@@ -53,6 +164,7 @@ list_max_page_size: u32,
 Add default functions:
 
 ```rust
+// Around line 1080
 fn default_list_page_size() -> u32 { 50 }
 fn default_list_max_page_size() -> u32 { 200 }
 ```
@@ -60,35 +172,27 @@ fn default_list_max_page_size() -> u32 { 200 }
 Add accessors:
 
 ```rust
-pub fn list_default_page_size(&self) -> u32 { self.list_default_page_size }
-pub fn list_max_page_size(&self) -> u32 { self.list_max_page_size }
-```
-
-Add builder methods:
-
-```rust
-pub fn with_list_default_page_size(mut self, size: u32) -> Self {
-    self.list_default_page_size = size;
-    self
+pub fn list_default_page_size(&self) -> u32 {
+    self.list_default_page_size
 }
 
-pub fn with_list_max_page_size(mut self, size: u32) -> Self {
-    self.list_max_page_size = size;
-    self
+pub fn list_max_page_size(&self) -> u32 {
+    self.list_max_page_size
 }
 ```
 
-Update `Default` impl to include new fields.
+**Why:** Extend existing infrastructure instead of creating new files.
 
 ---
 
-### Part 2: Add Settings Metadata for UI
+### Phase 2: Add Settings Metadata for UI
 
 **File:** `crates/shared/src/settings.rs`
 
-Add to `SETTINGS_FIELDS` array:
+Add metadata for UI discoverability:
 
 ```rust
+// Add to SETTINGS_FIELDS array
 SettingsFieldMetadata {
     key: "list_default_page_size",
     display_name: "Default List Page Size",
@@ -100,6 +204,7 @@ SettingsFieldMetadata {
     max_value: Some(serde_json::json!(200)),
     requires_restart: false,
 },
+
 SettingsFieldMetadata {
     key: "list_max_page_size",
     display_name: "Maximum List Page Size",
@@ -115,7 +220,7 @@ SettingsFieldMetadata {
 
 ---
 
-### Part 3: Add Environment Variable Support
+### Phase 3: Add Environment Variable Support
 
 **File:** `crates/engine/src/use_cases/settings/settings_ops.rs`
 
@@ -131,12 +236,13 @@ Add method to apply environment variable overrides:
 pub fn apply_env_overrides(settings: &mut AppSettings) {
     if let Ok(val) = std::env::var("WRLDBLDR_LIST_DEFAULT_PAGE_SIZE") {
         if let Ok(size) = val.parse::<u32>() {
-            settings.set_list_default_page_size(size);
+            settings.list_default_page_size = size;
         }
     }
+
     if let Ok(val) = std::env::var("WRLDBLDR_LIST_MAX_PAGE_SIZE") {
         if let Ok(size) = val.parse::<u32>() {
-            settings.set_list_max_page_size(size);
+            settings.list_max_page_size = size;
         }
     }
 }
@@ -146,9 +252,9 @@ Call this in `get_global()` after loading from database.
 
 ---
 
-### Part 4: Create Helper Function for Handlers
+### Phase 4: Create Helper Function for Handlers
 
-**File:** `crates/engine/src/api/websocket/mod.rs` (or new `pagination.rs`)
+**File:** `crates/engine/src/api/websocket/mod.rs`
 
 Add centralized pagination helper:
 
@@ -172,87 +278,188 @@ pub fn apply_pagination_limits(
 
 ---
 
-### Part 5: Update Handler Callsites
+### Phase 5: Update Handler Call Sites
 
-Replace hardcoded pattern in all 9 files:
+Replace hardcoded pattern in all 9 list handlers:
 
-**Before:**
+**Files to update:**
+
+1. **ws_character.rs** (line 21):
 ```rust
-let limit = Some(limit.unwrap_or(50).min(200));
-let offset = Some(offset.unwrap_or(0));
-```
+// Before
+let limit = limit.unwrap_or(50).min(200);
+let offset = offset.unwrap_or(0);
 
-**After:**
-```rust
+// After
 let settings = state.app.settings().await;
 let (limit, offset) = apply_pagination_limits(&settings, limit, offset);
 ```
 
-Note: Need to ensure `WsState` has access to settings. Check if `state.app` already provides this.
+2. **ws_scene.rs** (line 69)
+
+3. **ws_player.rs** (line 282) - GetSocialNetwork
+
+4. **ws_location.rs** (multiple locations):
+   - ListLocations (line 21)
+   - ListLocationConnections (line 189)
+   - ListRegions (line 291)
+   - GetRegionConnections (line 509)
+   - GetRegionExits (line 644)
+   - ListSpawnPoints (line 756)
+
+**Pattern for all:**
+- Get settings from `state.app.settings().await`
+- Call `apply_pagination_limits(&settings, limit, offset)`
+- Use returned values in repository calls
 
 ---
 
-### Part 6: Update Repository Callsites
+## Testing Strategy
 
-For repository-level defaults (character_repo, location_repo, scene_repo), the settings should be passed down from the handler layer. Do NOT add settings access to repositories (maintains clean architecture).
+### 1. Unit Tests
 
-If a repository method is called internally (not from handler), use `None` for limit which the repository should interpret as "reasonable internal default" (keep 50/200 as constants for internal use).
+**File:** `tests/engine_tests/settings_tests.rs` (new)
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    fn test_apply_pagination_limits_with_defaults() {
+        let settings = AppSettings::default();
+        let (limit, offset) = apply_pagination_limits(&settings, None, None);
+
+        assert_eq!(limit, Some(50));
+        assert_eq!(offset, Some(0));
+    }
+
+    #[tokio::test]
+    fn test_apply_pagination_limits_with_client_limit() {
+        let settings = AppSettings::default();
+        let (limit, offset) = apply_pagination_limits(&settings, Some(100), None);
+
+        assert_eq!(limit, Some(100));
+        assert_eq!(offset, Some(0));
+    }
+
+    #[tokio::test]
+    fn test_apply_pagination_limits_max_enforced() {
+        let settings = AppSettings::default();
+        let settings = settings.with_list_max_page_size(500); // Set max lower than default
+
+        let (limit, offset) = apply_pagination_limits(&settings, Some(1000), None);
+
+        // Client limit (1000) should be capped at max (500)
+        assert_eq!(limit, Some(500));
+    }
+
+    #[tokio::test]
+    fn test_apply_pagination_limits_with_offset() {
+        let settings = AppSettings::default();
+        let (limit, offset) = apply_pagination_limits(&settings, None, Some(25));
+
+        assert_eq!(limit, Some(50));
+        assert_eq!(offset, Some(25));
+    }
+}
+```
+
+### 2. Integration Tests
+
+**File:** `tests/engine_tests/settings_integration_tests.rs` (new)
+
+```rust
+#[tokio::test]
+async fn test_full_settings_flow() {
+    // Create test world with custom settings
+    let world_id = WorldId::new_v4();
+
+    // 1. Verify default limits work
+    let mut app = create_test_app().await;
+    let result = get_characters(&app, world_id, None, None).await;
+    assert!(result.len() <= 50);
+
+    // 2. Test that handlers respect settings
+    // Update app settings via environment or API (if implemented)
+    let result = get_characters(&app, world_id, Some(100), None).await;
+    assert!(result.len() <= 100);
+}
+```
+
+### 3. Manual Testing Checklist
+
+- [ ] Default limits (50) work without any settings
+- [ ] Environment variables override defaults
+- [ ] Per-endpoint limits enforced
+- [ ] Max limit (200) is hard cap
+- [ ] Invalid settings rejected with validation error
 
 ---
 
-## Resolution Order (3-Tier Cascade)
+## Migration Path
 
-1. **Tier 1 (Highest Priority):** DM per-world setting from database
-2. **Tier 2:** Environment variable (`WRLDBLDR_LIST_*`)
-3. **Tier 3 (Default):** Constant in `app_settings.rs`
+### Rollout Strategy
 
-The existing `SettingsOps::get_for_world()` already handles Tier 1 → Tier 3 fallback. We just need to insert Tier 2 (env vars) into the resolution chain.
+1. **Phase 1 (Infrastructure)**
+   - Extend existing AppSettings
+   - Add settings metadata for UI
+   - Add environment variable support
+   - Add unit tests
+   - No database schema changes required (simple approach)
+   - Deploy settings to existing worlds
 
----
+2. **Phase 2 (Service Layer)**
+   - Implement pagination helper
+   - Add env override integration
+   - Update all 9 list handlers
+   - Add integration tests
+   - Deploy to staging
 
-## Testing Plan
+3. **Phase 3 (Validation)**
+   - Run full test suite
+   - Load test with existing worlds
+   - Performance testing with large result sets
+   - Update documentation
 
-### Unit Tests
+### Backward Compatibility
 
-1. Test `apply_pagination_limits()` with various inputs
-2. Test environment variable override application
-3. Test settings field serialization/deserialization
-
-### Integration Tests
-
-1. Test list endpoints respect configured limits
-2. Test DM override takes precedence over env var
-3. Test env var takes precedence over default
-
-### Manual Testing
-
-1. Set `WRLDBLDR_LIST_DEFAULT_PAGE_SIZE=25` and verify lists return 25 items
-2. Set per-world setting to 30 and verify it overrides env var
-3. Verify max limit still prevents DoS even with high configured default
-
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `crates/engine/src/infrastructure/app_settings.rs` | Add 2 fields + accessors + defaults |
-| `crates/shared/src/settings.rs` | Add 2 metadata entries |
-| `crates/engine/src/use_cases/settings/settings_ops.rs` | Add env var override method |
-| `crates/engine/src/api/websocket/mod.rs` | Add pagination helper function |
-| `crates/engine/src/api/websocket/ws_character.rs` | Use pagination helper |
-| `crates/engine/src/api/websocket/ws_location.rs` | Use pagination helper |
-| `crates/engine/src/api/websocket/ws_player.rs` | Use pagination helper |
-| `crates/engine/src/api/websocket/ws_scene.rs` | Use pagination helper |
+**Important:** This is a simple approach that maintains backward compatibility:
+- Existing worlds without custom settings will continue using defaults (50/200)
+- Environment variables can override defaults without any changes
+- No breaking changes to client protocol
+- No database migration required (using existing AppSettings)
 
 ---
 
-## Estimated Scope
+## Success Criteria
 
-- **New code:** ~100 lines
-- **Modified code:** ~50 lines (replacing hardcoded values)
-- **Test code:** ~50 lines
-- **Documentation:** Update settings documentation
+Implementation is complete when:
+
+1. ✅ `list_default_page_size` and `list_max_page_size` fields added to AppSettings
+2. ✅ Settings metadata added to shared crate
+3. ✅ `apply_env_overrides` function implemented in settings_ops.rs
+4. ✅ `apply_pagination_limits` helper created in mod.rs
+5. ✅ All 9 list handlers updated to use pagination helper
+6. ✅ Unit tests cover pagination helper and env overrides
+7. ✅ Integration tests verify end-to-end flow
+8. ✅ Manual testing confirms behavior
+9. ✅ Documentation updated (API docs, settings docs)
+
+---
+
+## Files Summary
+
+| Phase | Files to Modify | Lines |
+|--------|------------------|--------|
+| 1: Settings Fields | crates/engine/src/infrastructure/app_settings.rs | +10 |
+| 2: Settings Metadata | crates/shared/src/settings.rs | +50 |
+| 3: Env Support | crates/engine/src/use_cases/settings/settings_ops.rs | +20 |
+| 4: Helper Function | crates/engine/src/api/websocket/mod.rs | +30 |
+| 5: Handler Updates | ws_character, ws_scene, ws_player, ws_location | ~200 |
+| 6: Unit Tests | tests/engine_tests/settings_tests.rs | +100 |
+| 7: Integration Tests | tests/engine_tests/settings_integration_tests.rs | +80 |
+| **Total** | **~500 lines** |
 
 ---
 
@@ -261,8 +468,18 @@ The existing `SettingsOps::get_for_world()` already handles Tier 1 → Tier 3 fa
 1. Should there be per-entity-type limits? (e.g., different limit for characters vs locations)
    - **Recommendation:** Start with global limits, add per-type later if needed
 
-2. Should internal repository calls (not from handlers) use settings or constants?
-   - **Recommendation:** Use constants for internal calls (no settings dependency in repos)
+2. Should limits be cached in WsState or fetched per-request?
+   - **Recommendation:** Fetch per-request from AppSettings (fast, already cached)
 
-3. Should the settings be cached in WsState or fetched per-request?
-   - **Recommendation:** Cache in WsState, refresh on settings update broadcast
+3. Should we add rate limiting for list operations?
+   - **Recommendation:** Add to Phase 3 if DoS attacks detected
+
+---
+
+## Next Steps
+
+1. Review and approve this plan with architecture/tech lead
+2. Create GitHub issue tracking implementation phases
+3. Assign Phase 1 to engineering team
+4. Schedule phases 2-3 after Phase 1 completion
+5. Update client documentation with new environment variables
