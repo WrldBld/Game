@@ -109,12 +109,12 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     repos
         .location_repo
         .expect_get_connections()
-        .returning(|_| Ok(vec![]));
+        .returning(|_, _| Ok(vec![]));
 
     repos
         .location_repo
         .expect_get_location_exits()
-        .returning(|_| Ok(vec![]));
+        .returning(|_, _| Ok(vec![]));
 
     // Unstaged region -> pending.
     repos

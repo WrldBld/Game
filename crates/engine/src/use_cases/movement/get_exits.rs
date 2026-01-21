@@ -75,7 +75,7 @@ impl GetRegionExits {
     /// * `Err(RepoError)` - Repository operation failed
     pub async fn execute(&self, region_id: RegionId) -> Result<RegionExitsResult, RepoError> {
         // First, try explicit region exits (the preferred method)
-        let region_exits = self.location_repo.get_region_exits(region_id).await?;
+        let region_exits = self.location_repo.get_region_exits(region_id, None).await?;
         if !region_exits.is_empty() {
             return self.resolve_explicit_exits(region_id, region_exits).await;
         }
@@ -135,7 +135,7 @@ impl GetRegionExits {
         // Get exits from this location
         let location_exits = self
             .location_repo
-            .get_location_exits(region.location_id())
+            .get_location_exits(region.location_id(), None)
             .await?;
 
         let mut result = RegionExitsResult::default();
@@ -151,7 +151,7 @@ impl GetRegionExits {
                         // Try to find a spawn point in the target location
                         let regions = self
                             .location_repo
-                            .list_regions_in_location(exit.to_location)
+                            .list_regions_in_location(exit.to_location, None, None)
                             .await?;
                         match regions.into_iter().find(|r| r.is_spawn_point()) {
                             Some(r) => r.id(),

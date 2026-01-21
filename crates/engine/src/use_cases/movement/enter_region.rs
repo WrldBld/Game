@@ -243,7 +243,7 @@ impl EnterRegion {
         from_region_id: RegionId,
         to_region_id: RegionId,
     ) -> ConnectionCheckResult {
-        let connections = match self.location.get_connections(from_region_id).await {
+        let connections = match self.location.get_connections(from_region_id, None).await {
             Ok(c) => c,
             Err(_) => return ConnectionCheckResult::NoConnection,
         };
@@ -547,8 +547,8 @@ mod tests {
             .returning(move |_| Ok(Some(to_region_for_get.clone())));
         location_repo
             .expect_get_connections()
-            .withf(move |id| *id == from_region_id)
-            .returning(|_| Ok(vec![]));
+            .withf(move |id, _limit| *id == from_region_id)
+            .returning(|_, _| Ok(vec![]));
 
         let use_case = build_use_case(
             pc_repo,
@@ -615,8 +615,8 @@ mod tests {
         };
         location_repo
             .expect_get_connections()
-            .withf(move |id| *id == from_region_id)
-            .returning(move |_| Ok(vec![conn.clone()]));
+            .withf(move |id, _limit| *id == from_region_id)
+            .returning(move |_, _| Ok(vec![conn.clone()]));
 
         let use_case = build_use_case(
             pc_repo,

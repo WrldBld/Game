@@ -240,6 +240,8 @@ impl ApprovalDecisionFlow {
 
         if result.approved {
             // Record dialogue exchange
+            // Note: Dialogue recording is non-critical - if it fails, the approval still completes
+            // Tools are executed first, and dialogue is for narrative history only
             let dialogue = result.final_dialogue.clone().unwrap_or_default();
             if !dialogue.is_empty() {
                 if let (Some(pc_id), Some(npc_id)) = (approval_data.pc_id, approval_data.npc_id) {
@@ -260,7 +262,13 @@ impl ApprovalDecisionFlow {
                         )
                         .await
                     {
-                        tracing::error!(error = %e, "Failed to record dialogue exchange");
+                        // Log but don't fail - dialogue recording is for history, not core functionality
+                        tracing::error!(
+                            error = %e,
+                            npc_id = %npc_id,
+                            scene_id = ?approval_data.scene_id,
+                            "Failed to record dialogue exchange (non-critical, approval completed successfully)"
+                        );
                     }
                 }
             }

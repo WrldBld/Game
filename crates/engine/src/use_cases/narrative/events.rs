@@ -122,6 +122,7 @@ impl NarrativeEventOps {
 
     pub async fn update(
         &self,
+        world_id: WorldId,
         event_id: NarrativeEventId,
         name: Option<String>,
         description: Option<String>,
@@ -134,6 +135,11 @@ impl NarrativeEventOps {
             .get_event(event_id)
             .await?
             .ok_or(NarrativeEventError::NotFound(event_id))?;
+
+        // Validate event belongs to requested world
+        if event.world_id() != world_id {
+            return Err(NarrativeEventError::WorldMismatch);
+        }
 
         if let Some(name) = name {
             let name = NarrativeEventName::new(name)
@@ -154,13 +160,29 @@ impl NarrativeEventOps {
         Ok(narrative_event_to_summary(&event))
     }
 
-    pub async fn delete(&self, event_id: NarrativeEventId) -> Result<(), NarrativeEventError> {
+    pub async fn delete(
+        &self,
+        world_id: WorldId,
+        event_id: NarrativeEventId,
+    ) -> Result<(), NarrativeEventError> {
+        let event = self
+            .narrative
+            .get_event(event_id)
+            .await?
+            .ok_or(NarrativeEventError::NotFound(event_id))?;
+
+        // Validate event belongs to requested world
+        if event.world_id() != world_id {
+            return Err(NarrativeEventError::WorldMismatch);
+        }
+
         self.narrative.delete_event(event_id).await?;
         Ok(())
     }
 
     pub async fn set_active(
         &self,
+        world_id: WorldId,
         event_id: NarrativeEventId,
         active: bool,
     ) -> Result<(), NarrativeEventError> {
@@ -169,6 +191,12 @@ impl NarrativeEventOps {
             .get_event(event_id)
             .await?
             .ok_or(NarrativeEventError::NotFound(event_id))?;
+
+        // Validate event belongs to requested world
+        if event.world_id() != world_id {
+            return Err(NarrativeEventError::WorldMismatch);
+        }
+
         event.set_active(active, self.clock.now());
         self.narrative.save_event(&event).await?;
         Ok(())
@@ -176,6 +204,7 @@ impl NarrativeEventOps {
 
     pub async fn set_favorite(
         &self,
+        world_id: WorldId,
         event_id: NarrativeEventId,
         favorite: bool,
     ) -> Result<(), NarrativeEventError> {
@@ -184,6 +213,12 @@ impl NarrativeEventOps {
             .get_event(event_id)
             .await?
             .ok_or(NarrativeEventError::NotFound(event_id))?;
+
+        // Validate event belongs to requested world
+        if event.world_id() != world_id {
+            return Err(NarrativeEventError::WorldMismatch);
+        }
+
         event.set_favorite(favorite, self.clock.now());
         self.narrative.save_event(&event).await?;
         Ok(())

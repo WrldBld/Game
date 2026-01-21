@@ -7,6 +7,9 @@ use wrldbldr_shared::ErrorCode;
 /// Maximum allowed TTL in hours (1 year).
 const MAX_TTL_HOURS: i32 = 8760;
 
+/// Maximum guidance length to prevent unbounded text processing.
+const MAX_GUIDANCE_LENGTH: usize = 2000;
+
 /// Maximum number of NPCs that can be approved in a single request.
 /// Prevents DoS via oversized payloads.
 const MAX_APPROVED_NPCS: usize = 100;
@@ -68,7 +71,15 @@ pub(super) async fn handle_staging_approval(
     }
 
     // request_id is a correlation token; resolve it to a region_id.
-    let pending = state.pending_staging_requests.remove(&request_id).await;
+    // Check idempotency first to prevent double-approval race condition.
+    if state.pending_staging_requests.contains_processed(&request_id) {
+        return Some(error_response(
+            ErrorCode::Conflict,
+            "Staging request already processed",
+        ));
+    }
+
+    let pending = state.pending_staging_requests.remove_and_mark_processed(&request_id).await;
 
     let (region_id, location_id) = if let Some(pending) = pending {
         (pending.region_id, Some(pending.location_id))
@@ -184,6 +195,14 @@ pub(super) async fn handle_staging_regenerate(
 
     if let Err(e) = require_dm(&conn_info) {
         return Some(e);
+    }
+
+    // Validate guidance length
+    if guidance.len() > MAX_GUIDANCE_LENGTH {
+        return Some(error_response(
+            ErrorCode::BadRequest,
+            &format!("Guidance too long (max {} chars)", MAX_GUIDANCE_LENGTH),
+        ));
     }
 
     // request_id is a correlation token; resolve it to a region_id.

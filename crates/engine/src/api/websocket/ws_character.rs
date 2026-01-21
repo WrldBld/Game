@@ -12,18 +12,21 @@ pub(super) async fn handle_character_request(
     request: CharacterRequest,
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
-        CharacterRequest::ListCharacters { world_id } => {
+        CharacterRequest::ListCharacters { world_id, limit, offset } => {
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            let limit = Some(limit.unwrap_or(50).min(200));
+            let offset = Some(offset.unwrap_or(0));
 
             match state
                 .app
                 .use_cases
                 .management
                 .character
-                .list_in_world(world_id_typed)
+                .list_in_world(world_id_typed, limit, offset)
                 .await
             {
                 Ok(chars) => {
@@ -123,12 +126,20 @@ pub(super) async fn handle_character_request(
                 Err(e) => return Err(e),
             };
 
+            let world_id = conn_info.world_id.ok_or_else(|| {
+                error_response(
+                    ErrorCode::BadRequest,
+                    "Not connected to a world",
+                )
+            })?;
+
             match state
                 .app
                 .use_cases
                 .management
                 .character
                 .update(
+                    world_id,
                     char_id,
                     data.name,
                     data.description,
@@ -150,6 +161,9 @@ pub(super) async fn handle_character_request(
                 }))),
                 Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Character not found"),
+                ),
+                Err(crate::use_cases::management::ManagementError::Unauthorized { .. }) => Ok(
+                    ResponseResult::error(ErrorCode::Unauthorized, "Character not in current world"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))

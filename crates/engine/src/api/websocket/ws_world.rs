@@ -150,6 +150,8 @@ pub(super) async fn handle_world_request(
                 Err(e) => return Err(e),
             };
 
+            require_dm_for_request(conn_info, request_id)?;
+
             match state
                 .app
                 .use_cases
@@ -159,10 +161,13 @@ pub(super) async fn handle_world_request(
                 .await
             {
                 Ok(export) => Ok(ResponseResult::success(serde_json::json!(export))),
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to export world");
+                    Ok(ResponseResult::error(
+                        ErrorCode::InternalError,
+                        "Failed to export world",
+                    ))
+                },
             }
         }
 
@@ -189,9 +194,10 @@ pub(super) async fn handle_world_request(
                     ));
                 }
                 Err(e) => {
+                    tracing::error!(error = %e, "Failed to get world");
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        "Failed to get world",
                     ));
                 }
             };

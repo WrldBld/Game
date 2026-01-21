@@ -9,6 +9,14 @@ use crate::use_cases::lore::{
 
 use wrldbldr_shared::{LoreDiscoverySourceData, LoreRequest};
 
+/// Maximum string lengths for lore fields to prevent unbounded inputs.
+const MAX_LORE_TITLE: usize = 200;
+const MAX_LORE_SUMMARY: usize = 1000;
+const MAX_LORE_CHUNK_CONTENT: usize = 10000;
+const MAX_LORE_CHUNKS: usize = 100;
+const MAX_LORE_TAGS: usize = 50;
+const MAX_TAG_LENGTH: usize = 50;
+
 /// Convert protocol discovery source to domain input type.
 fn proto_discovery_source_to_domain(source: LoreDiscoverySourceData) -> LoreDiscoverySourceInput {
     match source {
@@ -79,6 +87,80 @@ pub(super) async fn handle_lore_request(
                 Err(e) => return Err(e),
             };
 
+            // Validate title length
+            if data.title.len() > MAX_LORE_TITLE {
+                return Err(ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        format!("Title too long (max {} chars)", MAX_LORE_TITLE),
+                    ),
+                });
+            }
+
+            // Validate summary length
+            if let Some(summary) = &data.summary {
+                if summary.len() > MAX_LORE_SUMMARY {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            format!("Summary too long (max {} chars)", MAX_LORE_SUMMARY),
+                        ),
+                    });
+                }
+            }
+
+            // Validate chunk count
+            if data.chunks.as_ref().map(|c| c.len()).unwrap_or(0) > MAX_LORE_CHUNKS {
+                return Err(ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        format!("Too many chunks (max {})", MAX_LORE_CHUNKS),
+                    ),
+                });
+            }
+
+            // Validate each chunk
+            for chunk in data.chunks.iter().flatten() {
+                if chunk.content.len() > MAX_LORE_CHUNK_CONTENT {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            format!("Chunk content too long (max {} chars)", MAX_LORE_CHUNK_CONTENT),
+                        ),
+                    });
+                }
+            }
+
+            // Validate tags count
+            if let Some(tags) = &data.tags {
+                if tags.len() > MAX_LORE_TAGS {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            format!("Too many tags (max {})", MAX_LORE_TAGS),
+                        ),
+                    });
+                }
+
+                // Validate each tag length
+                for tag in tags {
+                    if tag.len() > MAX_TAG_LENGTH {
+                        return Err(ServerMessage::Response {
+                            request_id: request_id.to_string(),
+                            result: ResponseResult::error(
+                                ErrorCode::BadRequest,
+                                format!("Tag too long (max {} chars)", MAX_TAG_LENGTH),
+                            ),
+                        });
+                    }
+                }
+            }
+
             // Convert protocol data to domain input
             let input = CreateLoreInput {
                 title: data.title,
@@ -123,6 +205,58 @@ pub(super) async fn handle_lore_request(
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(e) => return Err(e),
             };
+
+            // Validate title length
+            if let Some(title) = &data.title {
+                if title.len() > MAX_LORE_TITLE {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            format!("Title too long (max {} chars)", MAX_LORE_TITLE),
+                        ),
+                    });
+                }
+            }
+
+            // Validate summary length
+            if let Some(summary) = &data.summary {
+                if summary.len() > MAX_LORE_SUMMARY {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            format!("Summary too long (max {} chars)", MAX_LORE_SUMMARY),
+                        ),
+                    });
+                }
+            }
+
+            // Validate tags count
+            if let Some(tags) = &data.tags {
+                if tags.len() > MAX_LORE_TAGS {
+                    return Err(ServerMessage::Response {
+                        request_id: request_id.to_string(),
+                        result: ResponseResult::error(
+                            ErrorCode::BadRequest,
+                            format!("Too many tags (max {})", MAX_LORE_TAGS),
+                        ),
+                    });
+                }
+
+                // Validate each tag length
+                for tag in tags {
+                    if tag.len() > MAX_TAG_LENGTH {
+                        return Err(ServerMessage::Response {
+                            request_id: request_id.to_string(),
+                            result: ResponseResult::error(
+                                ErrorCode::BadRequest,
+                                format!("Tag too long (max {} chars)", MAX_TAG_LENGTH),
+                            ),
+                        });
+                    }
+                }
+            }
 
             // Convert protocol data to domain input
             let input = UpdateLoreInput {
@@ -178,6 +312,17 @@ pub(super) async fn handle_lore_request(
                 Ok(u) => wrldbldr_domain::LoreId::from_uuid(u),
                 Err(e) => return Err(e),
             };
+
+            // Validate chunk content length
+            if data.content.len() > MAX_LORE_CHUNK_CONTENT {
+                return Err(ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(
+                        ErrorCode::BadRequest,
+                        format!("Chunk content too long (max {} chars)", MAX_LORE_CHUNK_CONTENT),
+                    ),
+                });
+            }
 
             // Convert protocol data to domain input
             let input = CreateLoreChunkInput {

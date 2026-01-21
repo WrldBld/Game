@@ -8,6 +8,9 @@ use crate::queue_types::PlayerActionData;
 
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 
+/// Maximum conversation message length to prevent unbounded text processing.
+const MAX_MESSAGE_LENGTH: usize = 2000;
+
 pub(super) async fn handle_start_conversation(
     state: &WsState,
     connection_id: ConnectionId,
@@ -173,10 +176,19 @@ pub(super) async fn handle_continue_conversation(
     };
 
     let message = message.trim().to_string();
+
+    // Validate message length
     if message.is_empty() {
         return Some(error_response(
             ErrorCode::ValidationError,
             "Conversation message cannot be empty",
+        ));
+    }
+
+    if message.len() > MAX_MESSAGE_LENGTH {
+        return Some(error_response(
+            ErrorCode::BadRequest,
+            &format!("Message too long (max {} chars)", MAX_MESSAGE_LENGTH),
         ));
     }
 

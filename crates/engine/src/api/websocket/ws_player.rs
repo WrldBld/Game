@@ -12,7 +12,8 @@ pub(super) async fn handle_player_character_request(
     request: PlayerCharacterRequest,
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
-        PlayerCharacterRequest::ListPlayerCharacters { world_id } => {
+        // Note: list_in_world doesn't support pagination yet
+        PlayerCharacterRequest::ListPlayerCharacters { world_id, limit: _, offset: _ } => {
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
@@ -51,7 +52,19 @@ pub(super) async fn handle_player_character_request(
                 .get(pc_id_typed)
                 .await
             {
-                Ok(Some(pc)) => Ok(ResponseResult::success(pc_to_json(pc))),
+                Ok(Some(pc)) => {
+                    // Verify ownership (allow DMs to access any PC)
+                    if !conn_info.is_dm() && pc.user_id() != conn_info.user_id.as_str() {
+                        return Err(ServerMessage::Response {
+                            request_id: request_id.to_string(),
+                            result: ResponseResult::error(
+                                ErrorCode::Unauthorized,
+                                "Cannot access other player's character",
+                            ),
+                        });
+                    }
+                    Ok(ResponseResult::success(pc_to_json(pc)))
+                }
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Player character not found",
@@ -68,6 +81,17 @@ pub(super) async fn handle_player_character_request(
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            // Verify user_id matches connection's user_id (no spoofing)
+            if user_id != conn_info.user_id.as_str() {
+                return Err(ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(
+                        ErrorCode::Unauthorized,
+                        "Cannot access other user's character",
+                    ),
+                });
+            }
 
             match state
                 .app
@@ -105,7 +129,7 @@ pub(super) async fn handle_player_character_request(
                 .create(
                     world_id_typed,
                     data.name,
-                    data.user_id,
+                    Some(conn_info.user_id.as_str().to_string()),  // Use authenticated user
                     starting_region_id,
                     data.sheet_data,
                 )
@@ -249,18 +273,21 @@ pub(super) async fn handle_relationship_request(
     request: RelationshipRequest,
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
-        RelationshipRequest::GetSocialNetwork { world_id } => {
+        RelationshipRequest::GetSocialNetwork { world_id, limit, offset } => {
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            let limit = Some(limit.unwrap_or(50).min(200));
+            let offset = Some(offset.unwrap_or(0));
 
             match state
                 .app
                 .use_cases
                 .management
                 .relationship
-                .list_for_world(world_id_typed)
+                .list_for_world(world_id_typed, limit, offset)
                 .await
             {
                 Ok(relationships) => {
@@ -467,7 +494,6 @@ fn pc_to_json(pc: wrldbldr_domain::PlayerCharacter) -> serde_json::Value {
     let sheet_data = pc.sheet_data().cloned();
     serde_json::json!({
         "id": pc.id().to_string(),
-        "user_id": pc.user_id(),
         "world_id": pc.world_id().to_string(),
         "name": pc.name().to_string(),
         "description": pc.description(),

@@ -160,6 +160,8 @@ impl PlayerCharacterService {
             .request_with_timeout(
                 RequestPayload::PlayerCharacter(PlayerCharacterRequest::ListPlayerCharacters {
                     world_id: world_id.to_string(),
+                    limit: None,
+                    offset: None,
                 }),
                 get_request_timeout_ms(),
             )

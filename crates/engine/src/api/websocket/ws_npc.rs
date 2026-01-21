@@ -47,9 +47,10 @@ pub(super) async fn handle_npc_request(
             {
                 Ok(result) => result,
                 Err(e) => {
+                    tracing::error!(error = %e, "Failed to set NPC disposition");
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        "Failed to set NPC disposition",
                     ))
                 }
             };
@@ -112,9 +113,10 @@ pub(super) async fn handle_npc_request(
             {
                 Ok(result) => result,
                 Err(e) => {
+                    tracing::error!(error = %e, "Failed to set NPC relationship");
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        "Failed to set NPC relationship",
                     ))
                 }
             };
@@ -151,9 +153,10 @@ pub(super) async fn handle_npc_request(
             {
                 Ok(list) => list,
                 Err(e) => {
+                    tracing::error!(error = %e, "Failed to retrieve NPC dispositions");
                     return Ok(ResponseResult::error(
                         ErrorCode::InternalError,
-                        e.to_string(),
+                        "Failed to retrieve NPC dispositions",
                     ))
                 }
             };
@@ -223,10 +226,13 @@ pub(super) async fn handle_npc_request(
                     ErrorCode::NotFound,
                     "Character not found",
                 )),
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to list character region relationships");
+                    Ok(ResponseResult::error(
+                        ErrorCode::InternalError,
+                        "Failed to list character region relationships",
+                    ))
+                },
             }
         }
 
@@ -261,10 +267,13 @@ pub(super) async fn handle_npc_request(
                     ErrorCode::NotFound,
                     "Character not found",
                 )),
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to set character home region");
+                    Ok(ResponseResult::error(
+                        ErrorCode::InternalError,
+                        "Failed to set character home region",
+                    ))
+                },
             }
         }
 
@@ -299,10 +308,13 @@ pub(super) async fn handle_npc_request(
                     ErrorCode::NotFound,
                     "Character not found",
                 )),
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to set character work region");
+                    Ok(ResponseResult::error(
+                        ErrorCode::InternalError,
+                        "Failed to set character work region",
+                    ))
+                },
             }
         }
 
@@ -353,10 +365,13 @@ pub(super) async fn handle_npc_request(
                     ErrorCode::NotFound,
                     "Character not found",
                 )),
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to remove character region relationship");
+                    Ok(ResponseResult::error(
+                        ErrorCode::InternalError,
+                        "Failed to remove character region relationship",
+                    ))
+                },
             }
         }
 
@@ -397,10 +412,13 @@ pub(super) async fn handle_npc_request(
                     ErrorCode::NotFound,
                     "Region not found",
                 )),
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to list region NPCs");
+                    Ok(ResponseResult::error(
+                        ErrorCode::InternalError,
+                        "Failed to list region NPCs",
+                    ))
+                },
             }
         }
 
@@ -484,10 +502,13 @@ pub(super) async fn handle_npc_request(
                 Err(crate::use_cases::npc::NpcError::NotFound) => {
                     Ok(ResponseResult::error(ErrorCode::NotFound, "NPC not found"))
                 }
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to set NPC mood");
+                    Ok(ResponseResult::error(
+                        ErrorCode::InternalError,
+                        "Failed to set NPC mood",
+                    ))
+                },
             }
         }
 
@@ -526,10 +547,13 @@ pub(super) async fn handle_npc_request(
                     "mood": mood.to_string(),
                     "default_expression": mood.default_expression(),
                 }))),
-                Err(e) => Ok(ResponseResult::error(
-                    ErrorCode::InternalError,
-                    e.to_string(),
-                )),
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to get NPC mood");
+                    Ok(ResponseResult::error(
+                        ErrorCode::InternalError,
+                        "Failed to get NPC mood",
+                    ))
+                },
             }
         }
     }

@@ -11,18 +11,21 @@ pub(super) async fn handle_location_request(
     request: LocationRequest,
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
-        LocationRequest::ListLocations { world_id } => {
+        LocationRequest::ListLocations { world_id, limit, offset } => {
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            let limit = Some(limit.unwrap_or(50).min(200));
+            let offset = Some(offset.unwrap_or(0));
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .list_locations(world_id_typed)
+                .list_locations(world_id_typed, limit, offset)
                 .await
             {
                 Ok(locations) => {
@@ -122,12 +125,19 @@ pub(super) async fn handle_location_request(
                 Err(e) => return Err(e),
             };
 
+            let world_id = conn_info.world_id.ok_or_else(|| {
+                error_response(
+                    ErrorCode::BadRequest,
+                    "Not connected to a world",
+                )
+            })?;
+
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .update_location(location_id_typed, data.name, data.description, data.setting)
+                .update_location(world_id, location_id_typed, data.name, data.description, data.setting)
                 .await
             {
                 Ok(location) => Ok(ResponseResult::success(serde_json::json!({
@@ -141,6 +151,9 @@ pub(super) async fn handle_location_request(
                 }))),
                 Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Location not found"),
+                ),
+                Err(crate::use_cases::management::ManagementError::Unauthorized { .. }) => Ok(
+                    ResponseResult::error(ErrorCode::Unauthorized, "Location not in current world"),
                 ),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
@@ -179,18 +192,20 @@ pub(super) async fn handle_location_request(
             }
         }
 
-        LocationRequest::GetLocationConnections { location_id } => {
+        LocationRequest::GetLocationConnections { location_id, limit } => {
             let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            let limit = Some(limit.unwrap_or(50).min(200));
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .list_location_connections(location_id_typed)
+                .list_location_connections(location_id_typed, limit)
                 .await
             {
                 Ok(connections) => {
@@ -281,18 +296,21 @@ pub(super) async fn handle_region_request(
     request: RegionRequest,
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
-        RegionRequest::ListRegions { location_id } => {
+        RegionRequest::ListRegions { location_id, limit, offset } => {
             let location_id_typed = match parse_location_id_for_request(&location_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            let limit = Some(limit.unwrap_or(50).min(200));
+            let offset = Some(offset.unwrap_or(0));
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .list_regions(location_id_typed)
+                .list_regions(location_id_typed, limit, offset)
                 .await
             {
                 Ok(regions) => {
@@ -499,18 +517,20 @@ pub(super) async fn handle_region_request(
             }
         }
 
-        RegionRequest::GetRegionConnections { region_id } => {
+        RegionRequest::GetRegionConnections { region_id, limit } => {
             let region_id_typed = match parse_region_id_for_request(&region_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            let limit = Some(limit.unwrap_or(50).min(200));
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .list_region_connections(region_id_typed)
+                .list_region_connections(region_id_typed, limit)
                 .await
             {
                 Ok(connections) => {
@@ -634,18 +654,20 @@ pub(super) async fn handle_region_request(
             }
         }
 
-        RegionRequest::GetRegionExits { region_id } => {
+        RegionRequest::GetRegionExits { region_id, limit } => {
             let region_id_typed = match parse_region_id_for_request(&region_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),
             };
+
+            let limit = Some(limit.unwrap_or(50).min(200));
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .list_region_exits(region_id_typed)
+                .list_region_exits(region_id_typed, limit)
                 .await
             {
                 Ok(exits) => {
@@ -746,7 +768,9 @@ pub(super) async fn handle_region_request(
             }
         }
 
-        RegionRequest::ListSpawnPoints { world_id } => {
+        RegionRequest::ListSpawnPoints { world_id, limit: _, offset: _ } => {
+            // Note: limit/offset are accepted in protocol but not yet implemented in use case
+            // The use case iterates through all locations to find spawn points
             let world_id_typed = match parse_world_id_for_request(&world_id, request_id) {
                 Ok(id) => id,
                 Err(e) => return Err(e),

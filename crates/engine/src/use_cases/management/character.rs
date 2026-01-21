@@ -21,8 +21,10 @@ impl CharacterManagement {
     pub async fn list_in_world(
         &self,
         world_id: WorldId,
+        limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<wrldbldr_domain::Character>, ManagementError> {
-        Ok(self.character.list_in_world(world_id).await?)
+        Ok(self.character.list_in_world(world_id, limit, offset).await?)
     }
 
     pub async fn get(
@@ -75,6 +77,7 @@ impl CharacterManagement {
 
     pub async fn update(
         &self,
+        world_id: WorldId,
         character_id: CharacterId,
         name: Option<String>,
         description: Option<String>,
@@ -91,6 +94,13 @@ impl CharacterManagement {
                     entity_type: "Character",
                     id: character_id.to_string(),
                 })?;
+
+        // Validate character belongs to requested world
+        if character.world_id() != world_id {
+            return Err(ManagementError::Unauthorized {
+                message: "Character not in current world".to_string(),
+            });
+        }
 
         // For name/description, we need to rebuild the character using builder pattern
         // since fields are private. We use the with_* methods for immutable updates.

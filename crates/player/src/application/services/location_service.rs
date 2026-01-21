@@ -121,6 +121,8 @@ impl LocationService {
             .request_with_timeout(
                 RequestPayload::Location(LocationRequest::ListLocations {
                     world_id: world_id.to_string(),
+                    limit: None,
+                    offset: None,
                 }),
                 get_request_timeout_ms(),
             )
@@ -204,6 +206,7 @@ impl LocationService {
             .request_with_timeout(
                 RequestPayload::Location(LocationRequest::GetLocationConnections {
                     location_id: location_id.to_string(),
+                    limit: None,
                 }),
                 get_request_timeout_ms(),
             )
@@ -235,6 +238,8 @@ impl LocationService {
             .request_with_timeout(
                 RequestPayload::Region(RegionRequest::ListRegions {
                     location_id: location_id.to_string(),
+                    limit: None,
+                    offset: None,
                 }),
                 get_request_timeout_ms(),
             )

@@ -5,7 +5,7 @@
 //!
 //! Handles the WebSocket protocol between Engine and Player clients.
 
-use std::{sync::Arc, time::Duration};
+use std::{sync::{Arc, RwLock}, time::Duration};
 
 use axum::{
     extract::{
@@ -104,12 +104,14 @@ impl WsState {
 /// TTL-based implementation of PendingStagingStore (1 hour TTL).
 pub struct PendingStagingStoreImpl {
     inner: TtlCache<String, PendingStagingRequest>,
+    processed_ids: Arc<RwLock<std::collections::HashSet<String>>>,
 }
 
 impl PendingStagingStoreImpl {
     pub fn new() -> Self {
         Self {
             inner: TtlCache::new(STAGING_REQUEST_TTL),
+            processed_ids: Arc::new(RwLock::new(std::collections::HashSet::new())),
         }
     }
 
@@ -128,7 +130,28 @@ impl PendingStagingStoreImpl {
         self.inner.remove(&key.to_string()).await
     }
 
-    /// Check if a key exists.
+    /// Remove and mark as processed in one atomic operation.
+    /// Returns the removed request if it existed and wasn't already processed.
+    pub async fn remove_and_mark_processed(&self, key: &str) -> Option<PendingStagingRequest> {
+        let key_str = key.to_string();
+
+        // Atomic check-and-mark: if already processed, return None
+        if !self.mark_processed(key) {
+            return None;
+        }
+
+        // If we successfully marked it as processed, attempt to remove from cache
+        // This handles the race where the request was just removed but not yet marked
+        self.inner.remove(&key_str).await
+    }
+
+    /// Check if a request has already been processed.
+    pub fn contains_processed(&self, key: &str) -> bool {
+        let processed_ids = self.processed_ids.read().unwrap();
+        processed_ids.contains(key)
+    }
+
+    /// Check if a key exists in the pending cache.
     pub async fn contains(&self, key: &str) -> bool {
         self.inner.contains(&key.to_string()).await
     }
@@ -147,6 +170,15 @@ impl PendingStagingStoreImpl {
 impl Default for PendingStagingStoreImpl {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl PendingStagingStoreImpl {
+    /// Atomic check-and-mark operation to prevent double-approval.
+    /// Returns true if the key was removed from processed_ids (was not already present).
+    pub fn mark_processed(&self, key: &str) -> bool {
+        let mut processed_ids = self.processed_ids.write().unwrap();
+        processed_ids.remove(key)
     }
 }
 
@@ -722,6 +754,14 @@ async fn handle_request(
     request_id: String,
     payload: RequestPayload,
 ) -> Option<ServerMessage> {
+    // Validate request_id length
+    if request_id.is_empty() || request_id.len() > 100 {
+        return Some(ServerMessage::Response {
+            request_id: "invalid".to_string(),
+            result: ResponseResult::error(ErrorCode::BadRequest, "Invalid request_id"),
+        });
+    }
+
     let conn_info = match state.connections.get(connection_id).await {
         Some(info) => info,
         None => {

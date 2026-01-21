@@ -162,11 +162,11 @@ impl PlayerCharacterManagement {
             return Ok((region.location_id(), Some(region.id())));
         }
 
-        let locations = self.location.list_locations_in_world(world_id).await?;
+        let locations = self.location.list_locations_in_world(world_id, None, None).await?;
         for location in &locations {
             let regions = self
                 .location
-                .list_regions_in_location(location.id())
+                .list_regions_in_location(location.id(), None, None)
                 .await?;
             if let Some(spawn) = regions.iter().find(|r| r.is_spawn_point()) {
                 return Ok((location.id(), Some(spawn.id())));
@@ -178,7 +178,7 @@ impl PlayerCharacterManagement {
             .ok_or_else(|| ManagementError::InvalidInput("No locations in world".to_string()))?;
         let regions = self
             .location
-            .list_regions_in_location(fallback_location.id())
+            .list_regions_in_location(fallback_location.id(), None, None)
             .await?;
         let region = regions
             .first()

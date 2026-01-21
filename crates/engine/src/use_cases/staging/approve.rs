@@ -109,9 +109,9 @@ impl ApproveStagingRequest {
         )
         .with_npcs(staged_npcs);
 
-        self.staging.save_pending_staging(&staging).await?;
+        // Use atomic save_and_activate to ensure both operations succeed or fail together
         self.staging
-            .activate_staging(staging.id(), input.region_id)
+            .save_and_activate_pending_staging(&staging, input.region_id)
             .await?;
 
         if let Some(loc_state_str) = &input.location_state_id {
@@ -120,13 +120,9 @@ impl ApproveStagingRequest {
                 // Validate that the location state exists before setting it as active
                 match self.location_state.get(loc_state_id).await {
                     Ok(Some(_)) => {
-                        if let Err(e) = self
-                            .location_state
+                        self.location_state
                             .set_active(location_id, loc_state_id)
-                            .await
-                        {
-                            tracing::warn!(error = %e, "Failed to set active location state");
-                        }
+                            .await?;
                     }
                     Ok(None) => {
                         tracing::warn!(
@@ -152,13 +148,9 @@ impl ApproveStagingRequest {
                 // Validate that the region state exists before setting it as active
                 match self.region_state.get(reg_state_id).await {
                     Ok(Some(_)) => {
-                        if let Err(e) = self
-                            .region_state
+                        self.region_state
                             .set_active(input.region_id, reg_state_id)
-                            .await
-                        {
-                            tracing::warn!(error = %e, "Failed to set active region state");
-                        }
+                            .await?;
                     }
                     Ok(None) => {
                         tracing::warn!(

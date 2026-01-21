@@ -24,8 +24,10 @@ impl RelationshipManagement {
     pub async fn list_for_world(
         &self,
         world_id: WorldId,
+        limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<wrldbldr_domain::Relationship>, ManagementError> {
-        let characters = self.character.list_in_world(world_id).await?;
+        let characters = self.character.list_in_world(world_id, limit, offset).await?;
         let mut relationships = Vec::new();
         for character in characters {
             relationships.extend(self.character.get_relationships(character.id()).await?);

@@ -7,6 +7,10 @@ use super::{CreateLocationConnectionData, CreateLocationData, UpdateLocationData
 pub enum LocationRequest {
     ListLocations {
         world_id: String,
+        #[serde(default)]
+        limit: Option<u32>,
+        #[serde(default)]
+        offset: Option<u32>,
     },
     GetLocation {
         location_id: String,
@@ -24,6 +28,8 @@ pub enum LocationRequest {
     },
     GetLocationConnections {
         location_id: String,
+        #[serde(default)]
+        limit: Option<u32>,
     },
     CreateLocationConnection {
         data: CreateLocationConnectionData,

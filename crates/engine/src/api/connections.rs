@@ -140,7 +140,7 @@ impl ConnectionManager {
                 {
                     // If same user is reconnecting, allow takeover
                     if let Some(ref joining_uid) = joining_user_id {
-                        if &info.user_id == joining_uid || info.user_id.is_empty() {
+                        if &info.user_id == joining_uid {
                             tracing::info!(
                                 old_connection_id = %id,
                                 new_connection_id = %connection_id,
@@ -298,22 +298,29 @@ impl ConnectionManager {
         connection_id: ConnectionId,
         message: ServerMessage,
     ) -> Result<(), CriticalSendError> {
-        let connections = self.connections.read().await;
-        if let Some((_, sender)) = connections.get(&connection_id) {
-            match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message)).await {
-                Ok(Ok(())) => Ok(()),
+        let senders = {
+            let connections = self.connections.read().await;
+            connections
+                .get(&connection_id)
+                .map(|(_, sender)| sender.clone())
+                .into_iter()
+                .collect::<Vec<_>>()
+        }; // Lock released here
+
+        let mut errors = Vec::new();
+        for sender in senders {
+            match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
+                Ok(Ok(())) => return Ok(()),
                 Ok(Err(_)) => {
-                    tracing::error!(connection_id = %connection_id, "Channel closed for critical message");
-                    Err(CriticalSendError::ChannelClosed)
+                    errors.push(CriticalSendError::ChannelClosed);
                 }
                 Err(_) => {
-                    tracing::error!(connection_id = %connection_id, "Timeout sending critical message");
-                    Err(CriticalSendError::Timeout)
+                    errors.push(CriticalSendError::Timeout);
                 }
             }
-        } else {
-            Err(CriticalSendError::ConnectionNotFound)
         }
+
+        Err(CriticalSendError::ConnectionNotFound)
     }
 
     /// Broadcast a critical message to all connections in a world.
@@ -321,23 +328,29 @@ impl ConnectionManager {
     /// Waits with timeout for each send. Logs errors but continues to other connections.
     /// Use for messages that must not be dropped.
     pub async fn broadcast_critical_to_world(&self, world_id: WorldId, message: ServerMessage) {
-        let connections = self.connections.read().await;
-        for (info, sender) in connections.values() {
-            if info.world_id == Some(world_id) {
-                match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
-                    Ok(Ok(())) => {}
-                    Ok(Err(_)) => {
-                        tracing::error!(
-                            connection_id = %info.connection_id,
-                            "Channel closed during critical broadcast"
-                        );
-                    }
-                    Err(_) => {
-                        tracing::error!(
-                            connection_id = %info.connection_id,
-                            "Timeout during critical broadcast (slow client?)"
-                        );
-                    }
+        let connections: Vec<_> = {
+            let connections = self.connections.read().await;
+            connections
+                .values()
+                .filter(|(info, _)| info.world_id == Some(world_id))
+                .map(|(info, sender)| (info.clone(), sender.clone()))
+                .collect()
+        }; // Lock released here
+
+        for (info, sender) in connections {
+            match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
+                Ok(Ok(())) => {}
+                Ok(Err(_)) => {
+                    tracing::error!(
+                        connection_id = %info.connection_id,
+                        "Channel closed during critical broadcast"
+                    );
+                }
+                Err(_) => {
+                    tracing::error!(
+                        connection_id = %info.connection_id,
+                        "Timeout during critical broadcast (slow client?)"
+                    );
                 }
             }
         }
@@ -345,23 +358,29 @@ impl ConnectionManager {
 
     /// Broadcast a critical message to all DMs in a world.
     pub async fn broadcast_critical_to_dms(&self, world_id: WorldId, message: ServerMessage) {
-        let connections = self.connections.read().await;
-        for (info, sender) in connections.values() {
-            if info.world_id == Some(world_id) && info.is_dm() {
-                match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
-                    Ok(Ok(())) => {}
-                    Ok(Err(_)) => {
-                        tracing::error!(
-                            connection_id = %info.connection_id,
-                            "Channel closed during critical DM broadcast"
-                        );
-                    }
-                    Err(_) => {
-                        tracing::error!(
-                            connection_id = %info.connection_id,
-                            "Timeout during critical DM broadcast"
-                        );
-                    }
+        let connections: Vec<_> = {
+            let connections = self.connections.read().await;
+            connections
+                .values()
+                .filter(|(info, _)| info.world_id == Some(world_id) && info.is_dm())
+                .map(|(info, sender)| (info.clone(), sender.clone()))
+                .collect()
+        }; // Lock released here
+
+        for (info, sender) in connections {
+            match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
+                Ok(Ok(())) => {}
+                Ok(Err(_)) => {
+                    tracing::error!(
+                        connection_id = %info.connection_id,
+                        "Channel closed during critical DM broadcast"
+                    );
+                }
+                Err(_) => {
+                    tracing::error!(
+                        connection_id = %info.connection_id,
+                        "Timeout during critical DM broadcast"
+                    );
                 }
             }
         }
@@ -369,25 +388,31 @@ impl ConnectionManager {
 
     /// Send a critical message to a specific PC's player.
     pub async fn send_critical_to_pc(&self, pc_id: PlayerCharacterId, message: ServerMessage) {
-        let connections = self.connections.read().await;
-        for (info, sender) in connections.values() {
-            if info.pc_id == Some(pc_id) || info.spectate_pc_id == Some(pc_id) {
-                match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
-                    Ok(Ok(())) => {}
-                    Ok(Err(_)) => {
-                        tracing::error!(
-                            connection_id = %info.connection_id,
-                            pc_id = %pc_id,
-                            "Channel closed during critical PC send"
-                        );
-                    }
-                    Err(_) => {
-                        tracing::error!(
-                            connection_id = %info.connection_id,
-                            pc_id = %pc_id,
-                            "Timeout during critical PC send"
-                        );
-                    }
+        let connections: Vec<_> = {
+            let connections = self.connections.read().await;
+            connections
+                .values()
+                .filter(|(info, _)| info.pc_id == Some(pc_id) || info.spectate_pc_id == Some(pc_id))
+                .map(|(info, sender)| (info.clone(), sender.clone()))
+                .collect()
+        }; // Lock released here
+
+        for (info, sender) in connections {
+            match timeout(CRITICAL_SEND_TIMEOUT, sender.send(message.clone())).await {
+                Ok(Ok(())) => {}
+                Ok(Err(_)) => {
+                    tracing::error!(
+                        connection_id = %info.connection_id,
+                        pc_id = %pc_id,
+                        "Channel closed during critical PC send"
+                    );
+                }
+                Err(_) => {
+                    tracing::error!(
+                        connection_id = %info.connection_id,
+                        pc_id = %pc_id,
+                        "Timeout during critical PC send"
+                    );
                 }
             }
         }

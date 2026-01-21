@@ -55,7 +55,7 @@ async fn test_scenes_loaded_for_act() {
             .app
             .repositories
             .scene
-            .list_for_act(first_act.id())
+            .list_for_act(first_act.id(), None, None)
             .await
             .expect("Should list scenes");
 
@@ -134,7 +134,7 @@ async fn test_scene_directorial_notes() {
             .app
             .repositories
             .scene
-            .list_for_act(act.id())
+            .list_for_act(act.id(), None, None)
             .await
             .expect("Should list scenes");
 

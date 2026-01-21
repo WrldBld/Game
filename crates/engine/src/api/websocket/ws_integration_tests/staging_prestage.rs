@@ -99,17 +99,17 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     repos
         .location_repo
         .expect_get_connections()
-        .returning(|_| Ok(vec![]));
+        .returning(|_, _| Ok(vec![]));
 
     repos
         .location_repo
         .expect_get_location_exits()
-        .returning(|_| Ok(vec![]));
+        .returning(|_, _| Ok(vec![]));
 
     repos
         .location_repo
         .expect_get_region_exits()
-        .returning(|_| Ok(vec![]));
+        .returning(|_, _| Ok(vec![]));
 
     repos
         .item_repo

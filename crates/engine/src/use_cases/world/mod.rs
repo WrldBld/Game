@@ -87,17 +87,17 @@ impl ExportWorld {
             .ok_or(WorldError::NotFound)?;
 
         // Get all locations
-        let locations = self.location.list_locations_in_world(world_id).await?;
+        let locations = self.location.list_locations_in_world(world_id, None, None).await?;
 
         // Get all regions
         let mut regions = Vec::new();
         for loc in &locations {
-            let loc_regions = self.location.list_regions_in_location(loc.id()).await?;
+            let loc_regions = self.location.list_regions_in_location(loc.id(), None, None).await?;
             regions.extend(loc_regions);
         }
 
         // Get all characters
-        let characters = self.character.list_in_world(world_id).await?;
+        let characters = self.character.list_in_world(world_id, None, None).await?;
 
         // Get all items
         let items = self.inventory.list_in_world(world_id).await?;

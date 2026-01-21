@@ -7,6 +7,10 @@ use super::{CreateRegionConnectionData, CreateRegionData, UpdateRegionData};
 pub enum RegionRequest {
     ListRegions {
         location_id: String,
+        #[serde(default)]
+        limit: Option<u32>,
+        #[serde(default)]
+        offset: Option<u32>,
     },
     GetRegion {
         region_id: String,
@@ -25,6 +29,8 @@ pub enum RegionRequest {
 
     GetRegionConnections {
         region_id: String,
+        #[serde(default)]
+        limit: Option<u32>,
     },
     CreateRegionConnection {
         from_id: String,
@@ -42,6 +48,8 @@ pub enum RegionRequest {
 
     GetRegionExits {
         region_id: String,
+        #[serde(default)]
+        limit: Option<u32>,
     },
     CreateRegionExit {
         region_id: String,
@@ -59,5 +67,9 @@ pub enum RegionRequest {
 
     ListSpawnPoints {
         world_id: String,
+        #[serde(default)]
+        limit: Option<u32>,
+        #[serde(default)]
+        offset: Option<u32>,
     },
 }

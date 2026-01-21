@@ -64,14 +64,16 @@ pub(super) async fn handle_scene_request(
     request: SceneRequest,
 ) -> Result<ResponseResult, ServerMessage> {
     match request {
-        SceneRequest::ListScenes { act_id } => {
+        SceneRequest::ListScenes { act_id, limit, offset } => {
             let act_id_typed = parse_act_id_for_request(&act_id, request_id)?;
+            let limit = Some(limit.unwrap_or(50).min(200));
+            let offset = Some(offset.unwrap_or(0));
             match state
                 .app
                 .use_cases
                 .management
                 .scene
-                .list_for_act(act_id_typed)
+                .list_for_act(act_id_typed, limit, offset)
                 .await
             {
                 Ok(scenes) => {

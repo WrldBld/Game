@@ -22,8 +22,10 @@ impl LocationManagement {
     pub async fn list_locations(
         &self,
         world_id: WorldId,
+        limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<wrldbldr_domain::Location>, ManagementError> {
-        Ok(self.location.list_locations_in_world(world_id).await?)
+        Ok(self.location.list_locations_in_world(world_id, limit, offset).await?)
     }
 
     pub async fn get_location(
@@ -64,12 +66,13 @@ impl LocationManagement {
 
     pub async fn update_location(
         &self,
+        world_id: WorldId,
         location_id: LocationId,
         name: Option<String>,
         description: Option<String>,
         setting: Option<String>,
     ) -> Result<wrldbldr_domain::Location, ManagementError> {
-        let mut location =
+        let location =
             self.location
                 .get_location(location_id)
                 .await?
@@ -77,6 +80,15 @@ impl LocationManagement {
                     entity_type: "Location",
                     id: location_id.to_string(),
                 })?;
+
+        // Validate entity belongs to requested world
+        if location.world_id() != world_id {
+            return Err(ManagementError::Unauthorized {
+                message: "Location not in current world".to_string(),
+            });
+        }
+
+        let mut location = location;
 
         if let Some(name) = name {
             require_non_empty(&name, "Location name")?;
@@ -107,8 +119,10 @@ impl LocationManagement {
     pub async fn list_regions(
         &self,
         location_id: LocationId,
+        limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<wrldbldr_domain::Region>, ManagementError> {
-        Ok(self.location.list_regions_in_location(location_id).await?)
+        Ok(self.location.list_regions_in_location(location_id, limit, offset).await?)
     }
 
     pub async fn get_region(
@@ -193,11 +207,11 @@ impl LocationManagement {
         world_id: WorldId,
     ) -> Result<Vec<wrldbldr_domain::Region>, ManagementError> {
         let mut spawn_points = Vec::new();
-        let locations = self.location.list_locations_in_world(world_id).await?;
+        let locations = self.location.list_locations_in_world(world_id, None, None).await?;
         for location in locations {
             let regions = self
                 .location
-                .list_regions_in_location(location.id())
+                .list_regions_in_location(location.id(), None, None)
                 .await?;
             spawn_points.extend(regions.into_iter().filter(|r| r.is_spawn_point()));
         }
@@ -207,8 +221,9 @@ impl LocationManagement {
     pub async fn list_location_connections(
         &self,
         location_id: LocationId,
+        limit: Option<u32>,
     ) -> Result<Vec<wrldbldr_domain::LocationConnection>, ManagementError> {
-        Ok(self.location.get_location_exits(location_id).await?)
+        Ok(self.location.get_location_exits(location_id, limit).await?)
     }
 
     pub async fn create_location_connection(
@@ -246,8 +261,9 @@ impl LocationManagement {
     pub async fn list_region_connections(
         &self,
         region_id: RegionId,
+        limit: Option<u32>,
     ) -> Result<Vec<wrldbldr_domain::RegionConnection>, ManagementError> {
-        Ok(self.location.get_connections(region_id).await?)
+        Ok(self.location.get_connections(region_id, limit).await?)
     }
 
     pub async fn create_region_connection(
@@ -298,7 +314,7 @@ impl LocationManagement {
         from_region: RegionId,
         to_region: RegionId,
     ) -> Result<(), ManagementError> {
-        let connections = self.location.get_connections(from_region).await?;
+        let connections = self.location.get_connections(from_region, None).await?;
         let existing = connections
             .into_iter()
             .find(|c| c.to_region == to_region)
@@ -324,8 +340,9 @@ impl LocationManagement {
     pub async fn list_region_exits(
         &self,
         region_id: RegionId,
+        limit: Option<u32>,
     ) -> Result<Vec<wrldbldr_domain::RegionExit>, ManagementError> {
-        Ok(self.location.get_region_exits(region_id).await?)
+        Ok(self.location.get_region_exits(region_id, limit).await?)
     }
 
     pub async fn create_region_exit(

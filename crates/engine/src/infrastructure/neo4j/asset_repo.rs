@@ -189,6 +189,7 @@ impl AssetRepo for Neo4jAssetRepo {
     }
 
     /// Set an asset as active (deactivates others of same type for same entity)
+    /// Uses explicit transaction to ensure atomicity.
     async fn set_active(
         &self,
         entity_type: EntityType,
@@ -207,6 +208,13 @@ impl AssetRepo for Neo4jAssetRepo {
             RepoError::database("query", format!("Asset not found: {}", asset_id))
         })?;
 
+        // Use single transaction to ensure deactivate and activate are atomic
+        let mut txn = self
+            .graph
+            .start_txn()
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
         // Deactivate all assets of the same type for this entity
         let deactivate_q = query(
             "MATCH (a:GalleryAsset {
@@ -220,8 +228,7 @@ impl AssetRepo for Neo4jAssetRepo {
         .param("entity_id", entity_id.to_string())
         .param("asset_type", asset.asset_type().to_string());
 
-        self.graph
-            .run(deactivate_q)
+        txn.run(deactivate_q)
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
@@ -229,8 +236,12 @@ impl AssetRepo for Neo4jAssetRepo {
         let activate_q = query("MATCH (a:GalleryAsset {id: $id}) SET a.is_active = true")
             .param("id", asset_id.to_string());
 
-        self.graph
-            .run(activate_q)
+        txn.run(activate_q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        // Commit transaction
+        txn.commit()
             .await
             .map_err(|e| RepoError::database("query", e))?;
 

@@ -558,13 +558,36 @@ impl CharacterRepo for Neo4jCharacterRepo {
         Ok(characters)
     }
 
-    async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<Character>, RepoError> {
-        let q = query(
-            "MATCH (w:World {id: $world_id})-[:CONTAINS_CHARACTER]->(c:Character)
-            RETURN c
-            ORDER BY c.name",
-        )
-        .param("world_id", world_id.to_string());
+    async fn list_in_world(
+        &self,
+        world_id: WorldId,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<Character>, RepoError> {
+        // Add LIMIT with max 200 to prevent DoS
+        let limit = limit.unwrap_or(50).min(200);
+        let skip = offset.unwrap_or(0);
+
+        let query_str = if skip > 0 {
+            format!(
+                "MATCH (w:World {{id: $world_id}})-[:CONTAINS_CHARACTER]->(c:Character)
+                RETURN c
+                ORDER BY c.name
+                SKIP {} LIMIT {}",
+                skip, limit
+            )
+        } else {
+            format!(
+                "MATCH (w:World {{id: $world_id}})-[:CONTAINS_CHARACTER]->(c:Character)
+                RETURN c
+                ORDER BY c.name
+                LIMIT {}",
+                limit
+            )
+        };
+
+        let q = query(&query_str)
+            .param("world_id", world_id.to_string());
 
         let mut result = self
             .graph
@@ -586,7 +609,7 @@ impl CharacterRepo for Neo4jCharacterRepo {
 
     async fn list_npcs_in_world(&self, world_id: WorldId) -> Result<Vec<Character>, RepoError> {
         // All characters in a world are NPCs (PlayerCharacters are separate)
-        self.list_in_world(world_id).await
+        self.list_in_world(world_id, None, None).await
     }
 
     async fn update_position(&self, id: CharacterId, region_id: RegionId) -> Result<(), RepoError> {
@@ -2009,11 +2032,13 @@ fn parse_want_target_from_row(row: &Row) -> Result<Option<WantTarget>, RepoError
             id: ItemId::from_uuid(target_id),
             name: target_name,
         }))
-    } else {
+    } else if target_labels.iter().any(|label| label == "Character") {
         Ok(Some(WantTarget::Character {
             id: CharacterId::from_uuid(target_id),
             name: target_name,
         }))
+    } else {
+        Err(RepoError::database("query", format!("Unknown WantTarget labels: {:?}", target_labels)))
     }
 }
 

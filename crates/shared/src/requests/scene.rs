@@ -7,6 +7,10 @@ use super::{CreateSceneData, UpdateSceneData};
 pub enum SceneRequest {
     ListScenes {
         act_id: String,
+        #[serde(default)]
+        limit: Option<u32>,
+        #[serde(default)]
+        offset: Option<u32>,
     },
     GetScene {
         scene_id: String,

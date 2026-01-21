@@ -36,6 +36,10 @@ pub enum ManagementError {
         entity_type: &'static str,
         id: String,
     },
+    #[error("Unauthorized: {message}")]
+    Unauthorized {
+        message: String,
+    },
     #[error("Invalid input: {0}")]
     InvalidInput(String),
     #[error("Repository error: {0}")]

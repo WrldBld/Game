@@ -70,6 +70,85 @@ pub enum ApprovalDecision {
     Unknown,
 }
 
+impl ApprovalDecision {
+    /// Validate approval decision constraints
+    pub fn validate(&self) -> Result<(), String> {
+        match self {
+            ApprovalDecision::AcceptWithModification {
+                modified_dialogue,
+                approved_tools,
+                rejected_tools,
+                item_recipients,
+            } => {
+                // Validate modified_dialogue (max 5000 chars)
+                if !modified_dialogue.is_empty() && modified_dialogue.len() > 5000 {
+                    return Err("Modified dialogue too long (max 5000 chars)".to_string());
+                }
+
+                // Validate approved_tools (max 50 items, 100 chars each)
+                if approved_tools.len() > 50 {
+                    return Err("Too many approved tools (max 50)".to_string());
+                }
+                for tool in approved_tools {
+                    if tool.len() > 100 {
+                        return Err("Tool name too long (max 100 chars)".to_string());
+                    }
+                }
+
+                // Validate rejected_tools (max 50 items, 100 chars each)
+                if rejected_tools.len() > 50 {
+                    return Err("Too many rejected tools (max 50)".to_string());
+                }
+                for tool in rejected_tools {
+                    if tool.len() > 100 {
+                        return Err("Tool name too long (max 100 chars)".to_string());
+                    }
+                }
+
+                // Validate item_recipients (max 20 items, max 10 recipients per item)
+                if item_recipients.len() > 20 {
+                    return Err("Too many item grants (max 20)".to_string());
+                }
+                for recipients in item_recipients.values() {
+                    if recipients.len() > 10 {
+                        return Err("Too many recipients for item (max 10)".to_string());
+                    }
+                }
+
+                Ok(())
+            }
+            ApprovalDecision::AcceptWithRecipients { item_recipients } => {
+                // Validate item_recipients (max 20 items, max 10 recipients per item)
+                if item_recipients.len() > 20 {
+                    return Err("Too many item grants (max 20)".to_string());
+                }
+                for recipients in item_recipients.values() {
+                    if recipients.len() > 10 {
+                        return Err("Too many recipients for item (max 10)".to_string());
+                    }
+                }
+                Ok(())
+            }
+            ApprovalDecision::Reject { feedback } => {
+                // Validate feedback (max 5000 chars)
+                if !feedback.is_empty() && feedback.len() > 5000 {
+                    return Err("Feedback too long (max 5000 chars)".to_string());
+                }
+                Ok(())
+            }
+            ApprovalDecision::TakeOver { dm_response } => {
+                // Validate dm_response (max 5000 chars)
+                if !dm_response.is_empty() && dm_response.len() > 5000 {
+                    return Err("DM response too long (max 5000 chars)".to_string());
+                }
+                Ok(())
+            }
+            ApprovalDecision::Accept => Ok(()),
+            &ApprovalDecision::Unknown => Ok(()), // Unknown is always valid (forward compatibility)
+        }
+    }
+}
+
 // =============================================================================
 // Suggestion Types
 // =============================================================================

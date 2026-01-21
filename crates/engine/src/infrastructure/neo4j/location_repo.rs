@@ -390,13 +390,35 @@ impl LocationRepo for Neo4jLocationRepo {
         Ok(())
     }
 
-    async fn list_locations_in_world(&self, world_id: WorldId) -> Result<Vec<Location>, RepoError> {
-        let q = query(
-            "MATCH (w:World {id: $world_id})-[:CONTAINS_LOCATION]->(l:Location)
-            RETURN l
-            ORDER BY l.name",
-        )
-        .param("world_id", world_id.to_string());
+    async fn list_locations_in_world(
+        &self,
+        world_id: WorldId,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<Location>, RepoError> {
+        let limit = limit.unwrap_or(50).min(200);
+        let skip = offset.unwrap_or(0);
+
+        let query_str = if skip > 0 {
+            format!(
+                "MATCH (w:World {{id: $world_id}})-[:CONTAINS_LOCATION]->(l:Location)
+                RETURN l
+                ORDER BY l.name
+                SKIP {} LIMIT {}",
+                skip, limit
+            )
+        } else {
+            format!(
+                "MATCH (w:World {{id: $world_id}})-[:CONTAINS_LOCATION]->(l:Location)
+                RETURN l
+                ORDER BY l.name
+                LIMIT {}",
+                limit
+            )
+        };
+
+        let q = query(&query_str)
+            .param("world_id", world_id.to_string());
 
         let mut result = self
             .graph
@@ -519,13 +541,32 @@ impl LocationRepo for Neo4jLocationRepo {
     async fn list_regions_in_location(
         &self,
         location_id: LocationId,
+        limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<Region>, RepoError> {
-        let q = query(
-            "MATCH (l:Location {id: $location_id})-[:HAS_REGION]->(r:Region)
-            RETURN r
-            ORDER BY r.order",
-        )
-        .param("location_id", location_id.to_string());
+        let limit = limit.unwrap_or(50).min(200);
+        let skip = offset.unwrap_or(0);
+
+        let query_str = if skip > 0 {
+            format!(
+                "MATCH (l:Location {{id: $location_id}})-[:HAS_REGION]->(r:Region)
+                RETURN r
+                ORDER BY r.order
+                SKIP {} LIMIT {}",
+                skip, limit
+            )
+        } else {
+            format!(
+                "MATCH (l:Location {{id: $location_id}})-[:HAS_REGION]->(r:Region)
+                RETURN r
+                ORDER BY r.order
+                LIMIT {}",
+                limit
+            )
+        };
+
+        let q = query(&query_str)
+            .param("location_id", location_id.to_string());
 
         let mut result = self
             .graph
@@ -568,16 +609,22 @@ impl LocationRepo for Neo4jLocationRepo {
     async fn get_connections(
         &self,
         region_id: RegionId,
+        limit: Option<u32>,
     ) -> Result<Vec<RegionConnection>, RepoError> {
-        let q = query(
-            "MATCH (from:Region {id: $id})-[rel:CONNECTED_TO_REGION]->(to:Region)
+        let limit = limit.unwrap_or(50).min(200);
+        let query_str = format!(
+            "MATCH (from:Region {{id: $id}})-[rel:CONNECTED_TO_REGION]->(to:Region)
             RETURN from.id as from_id, to.id as to_id,
                    rel.description as description,
                    rel.bidirectional as bidirectional,
                    rel.is_locked as is_locked,
-                   rel.lock_description as lock_description",
-        )
-        .param("id", region_id.to_string());
+                   rel.lock_description as lock_description
+            LIMIT {}",
+            limit
+        );
+
+        let q = query(&query_str)
+            .param("id", region_id.to_string());
 
         let mut result = self
             .graph
@@ -598,14 +645,29 @@ impl LocationRepo for Neo4jLocationRepo {
     }
 
     async fn save_connection(&self, connection: &RegionConnection) -> Result<(), RepoError> {
+        // Use explicit transaction to ensure both directions are created atomically
+        let mut txn = self
+            .graph
+            .start_txn()
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
         let q = query(
-            "MATCH (from:Region {id: $from_id})
-            MATCH (to:Region {id: $to_id})
+            "MATCH (from:Region {id: $from_id}), (to:Region {id: $to_id})
             MERGE (from)-[rel:CONNECTED_TO_REGION]->(to)
             SET rel.description = $description,
                 rel.bidirectional = $bidirectional,
                 rel.is_locked = $is_locked,
                 rel.lock_description = $lock_description
+            WITH from, to
+            FOREACH (_ IN CASE WHEN $bidirectional THEN [1] ELSE [] END |
+                MERGE (to)-[:CONNECTED_TO_REGION]->(from)
+                SET to_rel = rel
+                SET to_rel.description = $description,
+                    to_rel.bidirectional = $bidirectional,
+                    to_rel.is_locked = $is_locked,
+                    to_rel.lock_description = $lock_description
+            )
             RETURN from.id as from_id",
         )
         .param("from_id", connection.from_region.to_string())
@@ -630,56 +692,15 @@ impl LocationRepo for Neo4jLocationRepo {
                 .to_string(),
         );
 
-        self.graph
-            .run(q)
+        txn.run(q)
             .await
             .map_err(|e| RepoError::database("query", e))?;
 
-        // If bidirectional, also create the reverse connection
-        if connection.bidirectional {
-            let reverse_q = query(
-                "MATCH (from:Region {id: $to_id})
-                MATCH (to:Region {id: $from_id})
-                MERGE (from)-[rel:CONNECTED_TO_REGION]->(to)
-                SET rel.description = $description,
-                    rel.bidirectional = $bidirectional,
-                    rel.is_locked = $is_locked,
-                    rel.lock_description = $lock_description
-                RETURN from.id as from_id",
-            )
-            .param("from_id", connection.from_region.to_string())
-            .param("to_id", connection.to_region.to_string())
-            .param(
-                "description",
-                connection
-                    .description
-                    .as_ref()
-                    .map(|d| d.as_str())
-                    .unwrap_or_default()
-                    .to_string(),
-            )
-            .param("bidirectional", connection.bidirectional)
-            .param("is_locked", connection.is_locked)
-            .param(
-                "lock_description",
-                connection
-                    .lock_description
-                    .as_deref()
-                    .unwrap_or_default()
-                    .to_string(),
-            );
+        // Commit transaction
+        txn.commit()
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
 
-            self.graph
-                .run(reverse_q)
-                .await
-                .map_err(|e| RepoError::database("query", e))?;
-        }
-
-        tracing::debug!(
-            "Saved connection from {} to {}",
-            connection.from_region,
-            connection.to_region
-        );
         Ok(())
     }
 
@@ -722,18 +743,24 @@ impl LocationRepo for Neo4jLocationRepo {
     async fn get_location_exits(
         &self,
         location_id: LocationId,
+        limit: Option<u32>,
     ) -> Result<Vec<LocationConnection>, RepoError> {
-        let q = query(
-            "MATCH (from:Location {id: $id})-[r:CONNECTED_TO]->(to:Location)
+        let limit = limit.unwrap_or(50).min(200);
+        let query_str = format!(
+            "MATCH (from:Location {{id: $id}})-[r:CONNECTED_TO]->(to:Location)
             RETURN from.id as from_id, to.id as to_id,
                    r.connection_type as connection_type,
                    r.description as description,
                    r.bidirectional as bidirectional,
                    r.travel_time as travel_time,
                    r.is_locked as is_locked,
-                   r.lock_description as lock_description",
-        )
-        .param("id", location_id.to_string());
+                   r.lock_description as lock_description
+            LIMIT {}",
+            limit
+        );
+
+        let q = query(&query_str)
+            .param("id", location_id.to_string());
 
         let mut result = self
             .graph
@@ -874,15 +901,24 @@ impl LocationRepo for Neo4jLocationRepo {
         Ok(())
     }
 
-    async fn get_region_exits(&self, region_id: RegionId) -> Result<Vec<RegionExit>, RepoError> {
-        let q = query(
-            "MATCH (r:Region {id: $id})-[rel:EXITS_TO_LOCATION]->(l:Location)
+    async fn get_region_exits(
+        &self,
+        region_id: RegionId,
+        limit: Option<u32>,
+    ) -> Result<Vec<RegionExit>, RepoError> {
+        let limit = limit.unwrap_or(50).min(200);
+        let query_str = format!(
+            "MATCH (r:Region {{id: $id}})-[rel:EXITS_TO_LOCATION]->(l:Location)
             RETURN r.id as from_region, l.id as to_location,
                    rel.arrival_region_id as arrival_region_id,
                    rel.description as description,
-                   rel.bidirectional as bidirectional",
-        )
-        .param("id", region_id.to_string());
+                   rel.bidirectional as bidirectional
+            LIMIT {}",
+            limit
+        );
+
+        let q = query(&query_str)
+            .param("id", region_id.to_string());
 
         let mut result = self
             .graph

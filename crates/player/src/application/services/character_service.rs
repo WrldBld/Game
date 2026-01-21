@@ -73,6 +73,8 @@ impl CharacterService {
             .request_with_timeout(
                 RequestPayload::Character(CharacterRequest::ListCharacters {
                     world_id: world_id.to_string(),
+                    limit: None,
+                    offset: None,
                 }),
                 get_request_timeout_ms(),
             )

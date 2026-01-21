@@ -7,6 +7,10 @@ use super::{CreatePlayerCharacterData, UpdatePlayerCharacterData};
 pub enum PlayerCharacterRequest {
     ListPlayerCharacters {
         world_id: String,
+        #[serde(default)]
+        limit: Option<u32>,
+        #[serde(default)]
+        offset: Option<u32>,
     },
     GetPlayerCharacter {
         pc_id: String,

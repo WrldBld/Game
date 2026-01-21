@@ -151,7 +151,8 @@ pub(super) async fn handle_content_request(
             // Validate filter if present
             if let Some(ref f) = filter {
                 if let Err(e) = validate_filter(f) {
-                    return Ok(ResponseResult::error(ErrorCode::BadRequest, e.to_string()));
+                    tracing::error!(error = %e, "Content filter validation failed");
+                    return Ok(ResponseResult::error(ErrorCode::BadRequest, "Invalid content filter"));
                 }
             }
 

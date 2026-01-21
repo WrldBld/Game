@@ -11,6 +11,9 @@ use crate::queue_types::LlmRequestType;
 
 use wrldbldr_shared::{ActantialRoleData, AiRequest, ExpressionRequest, GenerationRequest};
 
+/// Maximum grid dimensions to prevent unbounded rendering.
+const MAX_GRID_SIZE: u32 = 100;
+
 /// Convert protocol ActantialRoleData to domain ActantialRole.
 fn proto_role_to_domain(role: ActantialRoleData) -> ActantialRole {
     match role {
@@ -68,10 +71,8 @@ pub(super) async fn handle_generation_request(
                 }
             };
 
-            // Prefer explicit user_id (for forward compatibility), fallback to connection user_id.
-            let effective_user_id = user_id
-                .filter(|s| !s.is_empty())
-                .unwrap_or_else(|| conn_info.user_id.to_string());
+            // Always use connection user_id - never trust client-provided user_id
+            let effective_user_id = conn_info.user_id.to_string();
 
             let read_key = format!("{}:{}", effective_user_id, world_uuid);
 
@@ -620,6 +621,15 @@ pub(super) async fn handle_expression_request(
                             result: ResponseResult::error(
                                 ErrorCode::BadRequest,
                                 "Invalid grid_layout: columns and rows must be at least 1",
+                            ),
+                        });
+                    }
+                    if c > MAX_GRID_SIZE || r > MAX_GRID_SIZE {
+                        return Err(ServerMessage::Response {
+                            request_id: request_id.to_string(),
+                            result: ResponseResult::error(
+                                ErrorCode::BadRequest,
+                                format!("Grid size exceeds maximum (max {}x{})", MAX_GRID_SIZE, MAX_GRID_SIZE),
                             ),
                         });
                     }

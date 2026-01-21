@@ -146,21 +146,26 @@ pub(super) async fn handle_goal_request(
                 Err(e) => return Err(e),
             };
 
+            let world_id = conn_info.world_id.ok_or_else(|| {
+                error_response(
+                    ErrorCode::BadRequest,
+                    "Not connected to a world",
+                )
+            })?;
+
             match state
                 .app
                 .use_cases
                 .actantial
                 .goals
-                .update(goal_id_typed, data.name, data.description)
+                .update(world_id, goal_id_typed, data.name, data.description)
                 .await
             {
                 Ok(details) => {
-                    if let Some(world_id) = conn_info.world_id {
-                        let msg = ServerMessage::GoalUpdated {
-                            goal: goal_details_to_data(&details),
-                        };
-                        state.connections.broadcast_to_world(world_id, msg).await;
-                    }
+                    let msg = ServerMessage::GoalUpdated {
+                        goal: goal_details_to_data(&details),
+                    };
+                    state.connections.broadcast_to_world(world_id, msg).await;
 
                     Ok(ResponseResult::success(GoalResponse {
                         id: details.goal.id().to_string(),
@@ -170,6 +175,9 @@ pub(super) async fn handle_goal_request(
                 }
                 Err(crate::use_cases::actantial::ActantialError::NotFound { .. }) => {
                     Ok(ResponseResult::error(ErrorCode::NotFound, "Goal not found"))
+                }
+                Err(crate::use_cases::actantial::ActantialError::Unauthorized { .. }) => {
+                    Ok(ResponseResult::error(ErrorCode::Unauthorized, "Goal not in current world"))
                 }
                 Err(crate::use_cases::actantial::ActantialError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, msg))
@@ -189,25 +197,33 @@ pub(super) async fn handle_goal_request(
                 Err(e) => return Err(e),
             };
 
+            let world_id = conn_info.world_id.ok_or_else(|| {
+                error_response(
+                    ErrorCode::BadRequest,
+                    "Not connected to a world",
+                )
+            })?;
+
             match state
                 .app
                 .use_cases
                 .actantial
                 .goals
-                .delete(goal_id_typed)
+                .delete(world_id, goal_id_typed)
                 .await
             {
                 Ok(()) => {
-                    if let Some(world_id) = conn_info.world_id {
-                        let msg = ServerMessage::GoalDeleted {
-                            goal_id: goal_id_typed.to_string(),
-                        };
-                        state.connections.broadcast_to_world(world_id, msg).await;
-                    }
+                    let msg = ServerMessage::GoalDeleted {
+                        goal_id: goal_id_typed.to_string(),
+                    };
+                    state.connections.broadcast_to_world(world_id, msg).await;
                     Ok(ResponseResult::success_empty())
                 }
                 Err(crate::use_cases::actantial::ActantialError::NotFound { .. }) => {
                     Ok(ResponseResult::error(ErrorCode::NotFound, "Goal not found"))
+                }
+                Err(crate::use_cases::actantial::ActantialError::Unauthorized { .. }) => {
+                    Ok(ResponseResult::error(ErrorCode::Unauthorized, "Goal not in current world"))
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,

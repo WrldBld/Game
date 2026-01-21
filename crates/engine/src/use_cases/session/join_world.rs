@@ -51,8 +51,8 @@ impl JoinWorld {
             .await?
             .ok_or(JoinWorldError::WorldNotFound(world_id))?;
 
-        let locations = self.location.list_locations_in_world(world_id).await?;
-        let characters = self.character.list_in_world(world_id).await?;
+        let locations = self.location.list_locations_in_world(world_id, None, None).await?;
+        let characters = self.character.list_in_world(world_id, None, None).await?;
         let current_scene = self.scene.get_current(world_id).await?;
 
         // Build scene summary

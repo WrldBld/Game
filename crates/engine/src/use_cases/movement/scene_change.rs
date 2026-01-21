@@ -145,7 +145,7 @@ impl SceneChangeBuilder {
         &self,
         region_id: RegionId,
     ) -> Result<NavigationInfo, SceneChangeError> {
-        let connections = self.location.get_connections(region_id).await?;
+        let connections = self.location.get_connections(region_id, None).await?;
 
         let mut connected_regions = Vec::new();
         for connection in connections {

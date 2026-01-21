@@ -33,7 +33,7 @@ impl CanMove {
     /// * `Ok(false)` - No connection exists or connection is locked
     /// * `Err(RepoError)` - Repository operation failed
     pub async fn execute(&self, from: RegionId, to: RegionId) -> Result<bool, RepoError> {
-        let connections = self.location_repo.get_connections(from).await?;
+        let connections = self.location_repo.get_connections(from, None).await?;
         Ok(connections
             .iter()
             .any(|c| c.to_region == to && !c.is_locked))

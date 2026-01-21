@@ -237,7 +237,7 @@ impl ExitLocation {
         }
 
         // Fall back to first spawn point in location
-        let regions = self.location.list_regions_in_location(location_id).await?;
+        let regions = self.location.list_regions_in_location(location_id, None, None).await?;
 
         regions
             .into_iter()
@@ -548,8 +548,8 @@ mod tests {
 
         location_repo
             .expect_list_regions_in_location()
-            .withf(move |id| *id == target_location_id)
-            .returning(|_| Ok(vec![]));
+            .withf(move |id, _limit, _offset| *id == target_location_id)
+            .returning(|_, _, _| Ok(vec![]));
 
         let use_case = build_use_case(
             pc_repo,

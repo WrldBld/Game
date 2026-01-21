@@ -32,6 +32,14 @@ pub(super) async fn handle_approval_decision(
         Err(e) => return Some(e),
     };
 
+    // Validate approval decision
+    if let Err(e) = decision.validate() {
+        return Some(error_response(
+            ErrorCode::BadRequest,
+            &e,
+        ));
+    }
+
     // Convert protocol decision to domain decision
     let domain_decision = match decision {
         wrldbldr_shared::ApprovalDecision::Accept => crate::queue_types::DmApprovalDecision::Accept,

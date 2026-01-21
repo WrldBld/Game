@@ -199,6 +199,121 @@ impl StagingRepo for Neo4jStagingRepo {
         Ok(stagings)
     }
 
+    /// Save a pending staging for DM approval and immediately activate it.
+    /// Uses explicit transaction to ensure save and activate are atomic.
+    async fn save_and_activate_pending_staging(
+        &self,
+        staging: &Staging,
+        region_id: RegionId,
+    ) -> Result<(), RepoError> {
+        // Use explicit transaction to ensure save and activate are atomic
+        let mut txn = self
+            .graph
+            .start_txn()
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        // First, save the staging node and all NPC relationships
+        let npc_character_ids: Vec<String> = staging
+            .npcs()
+            .iter()
+            .map(|n| n.character_id.to_string())
+            .collect();
+        let npc_is_present: Vec<bool> = staging.npcs().iter().map(|n| n.is_present()).collect();
+        let npc_is_hidden_from_players: Vec<bool> = staging
+            .npcs()
+            .iter()
+            .map(|n| n.is_hidden_from_players())
+            .collect();
+        let npc_reasoning: Vec<String> = staging
+            .npcs()
+            .iter()
+            .map(|n| n.reasoning.to_string())
+            .collect();
+        let npc_mood: Vec<String> = staging.npcs().iter().map(|n| n.mood.to_string()).collect();
+        let npc_has_incomplete_data: Vec<bool> = staging
+            .npcs()
+            .iter()
+            .map(|n| n.has_incomplete_data)
+            .collect();
+
+        let save_q = query(
+            "MATCH (r:Region {id: $region_id})
+            CREATE (s:Staging {
+                id: $id,
+                region_id: $region_id,
+                location_id: $location_id,
+                world_id: $world_id,
+                game_time_minutes: $game_time_minutes,
+                approved_at: $approved_at,
+                ttl_hours: $ttl_hours,
+                approved_by: $approved_by,
+                source: $source,
+                dm_guidance: $dm_guidance,
+                is_active: $is_active
+            })
+            CREATE (r)-[:HAS_STAGING]->(s)
+            WITH s
+            UNWIND range(0, size($npc_character_ids) - 1) as i
+            MATCH (c:Character {id: $npc_character_ids[i]})
+            CREATE (s)-[:INCLUDES_NPC {
+                is_present: $npc_is_present[i],
+                is_hidden_from_players: $npc_is_hidden_from_players[i],
+                reasoning: $npc_reasoning[i],
+                mood: $npc_mood[i],
+                has_incomplete_data: $npc_has_incomplete_data[i]
+            }]->(c)",
+        )
+        .param("id", staging.id().to_string())
+        .param("region_id", staging.region_id().to_string())
+        .param("location_id", staging.location_id().to_string())
+        .param("world_id", staging.world_id().to_string())
+        .param("game_time_minutes", staging.game_time_minutes())
+        .param("approved_at", staging.approved_at().to_rfc3339())
+        .param("ttl_hours", staging.ttl_hours() as i64)
+        .param("approved_by", staging.approved_by().to_string())
+        .param("source", staging.source().to_string())
+        .param(
+            "dm_guidance",
+            staging.dm_guidance().unwrap_or_default().to_string(),
+        )
+        .param("is_active", staging.is_active())
+        .param("npc_character_ids", npc_character_ids)
+        .param("npc_is_present", npc_is_present)
+        .param("npc_is_hidden_from_players", npc_is_hidden_from_players)
+        .param("npc_reasoning", npc_reasoning)
+        .param("npc_mood", npc_mood)
+        .param("npc_has_incomplete_data", npc_has_incomplete_data);
+
+        txn.run(save_q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        // Then activate the staging (remove old current staging, set this one as current)
+        let activate_q = query(
+            "MATCH (r:Region {id: $region_id})
+            OPTIONAL MATCH (r)-[old:CURRENT_STAGING]->(:Staging)
+            DELETE old
+            WITH r
+            MATCH (s:Staging {id: $staging_id})
+            SET s.is_active = true
+            CREATE (r)-[:CURRENT_STAGING]->(s)",
+        )
+        .param("region_id", region_id.to_string())
+        .param("staging_id", staging.id().to_string());
+
+        txn.run(activate_q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        // Commit transaction
+        txn.commit()
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        Ok(())
+    }
+
     /// Save a pending staging for DM approval.
     /// Creates the staging node first, then adds NPC relationships separately (no APOC dependency).
     async fn save_pending_staging(&self, staging: &Staging) -> Result<(), RepoError> {
@@ -348,11 +463,19 @@ impl StagingRepo for Neo4jStagingRepo {
     }
 
     /// Activate a staging, replacing any existing current staging for the region.
+    /// Uses explicit transaction to ensure atomicity with save_pending_staging.
     async fn activate_staging(
         &self,
         staging_id: StagingId,
         region_id: RegionId,
     ) -> Result<(), RepoError> {
+        // Use explicit transaction to ensure save and activate are atomic
+        let mut txn = self
+            .graph
+            .start_txn()
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
         // Remove existing CURRENT_STAGING relationship and add new one
         let q = query(
             "MATCH (r:Region {id: $region_id})
@@ -366,10 +489,15 @@ impl StagingRepo for Neo4jStagingRepo {
         .param("region_id", region_id.to_string())
         .param("staging_id", staging_id.to_string());
 
-        self.graph
-            .run(q)
+        txn.run(q)
             .await
             .map_err(|e| RepoError::database("query", e))?;
+
+        // Commit transaction
+        txn.commit()
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
         Ok(())
     }
 

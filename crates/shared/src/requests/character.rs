@@ -7,6 +7,10 @@ use super::{ChangeArchetypeData, CreateCharacterData, UpdateCharacterData};
 pub enum CharacterRequest {
     ListCharacters {
         world_id: String,
+        #[serde(default)]
+        limit: Option<u32>,
+        #[serde(default)]
+        offset: Option<u32>,
     },
     GetCharacter {
         character_id: String,

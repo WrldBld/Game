@@ -82,12 +82,21 @@ pub(super) async fn handle_narrative_event_request(
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
             let trigger_conditions = parse_optional_triggers(data.trigger_conditions, request_id)?;
             let outcomes = parse_optional_outcomes(data.outcomes, request_id)?;
+
+            let world_id = conn_info.world_id.ok_or_else(|| {
+                error_response(
+                    ErrorCode::BadRequest,
+                    "Not connected to a world",
+                )
+            })?;
+
             match state
                 .app
                 .use_cases
                 .narrative
                 .events
                 .update(
+                    world_id,
                     event_id_typed,
                     data.name,
                     data.description,
@@ -100,6 +109,9 @@ pub(super) async fn handle_narrative_event_request(
                 Err(crate::use_cases::narrative::NarrativeEventError::NotFound(_)) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Event not found"),
                 ),
+                Err(crate::use_cases::narrative::NarrativeEventError::WorldMismatch) => Ok(
+                    ResponseResult::error(ErrorCode::Unauthorized, "Event not in current world"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "update narrative event"),
@@ -109,15 +121,29 @@ pub(super) async fn handle_narrative_event_request(
         NarrativeEventRequest::DeleteNarrativeEvent { event_id } => {
             require_dm_for_request(conn_info, request_id)?;
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
+
+            let world_id = conn_info.world_id.ok_or_else(|| {
+                error_response(
+                    ErrorCode::BadRequest,
+                    "Not connected to a world",
+                )
+            })?;
+
             match state
                 .app
                 .use_cases
                 .narrative
                 .events
-                .delete(event_id_typed)
+                .delete(world_id, event_id_typed)
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
+                Err(crate::use_cases::narrative::NarrativeEventError::NotFound(_)) => Ok(
+                    ResponseResult::error(ErrorCode::NotFound, "Event not found"),
+                ),
+                Err(crate::use_cases::narrative::NarrativeEventError::WorldMismatch) => Ok(
+                    ResponseResult::error(ErrorCode::Unauthorized, "Event not in current world"),
+                ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
                     sanitize_repo_error(&e, "delete narrative event"),
@@ -127,17 +153,28 @@ pub(super) async fn handle_narrative_event_request(
         NarrativeEventRequest::SetNarrativeEventActive { event_id, active } => {
             require_dm_for_request(conn_info, request_id)?;
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
+
+            let world_id = conn_info.world_id.ok_or_else(|| {
+                error_response(
+                    ErrorCode::BadRequest,
+                    "Not connected to a world",
+                )
+            })?;
+
             match state
                 .app
                 .use_cases
                 .narrative
                 .events
-                .set_active(event_id_typed, active)
+                .set_active(world_id, event_id_typed, active)
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(crate::use_cases::narrative::NarrativeEventError::NotFound(_)) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Event not found"),
+                ),
+                Err(crate::use_cases::narrative::NarrativeEventError::WorldMismatch) => Ok(
+                    ResponseResult::error(ErrorCode::Unauthorized, "Event not in current world"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
@@ -148,17 +185,28 @@ pub(super) async fn handle_narrative_event_request(
         NarrativeEventRequest::SetNarrativeEventFavorite { event_id, favorite } => {
             require_dm_for_request(conn_info, request_id)?;
             let event_id_typed = parse_narrative_event_id_for_request(&event_id, request_id)?;
+
+            let world_id = conn_info.world_id.ok_or_else(|| {
+                error_response(
+                    ErrorCode::BadRequest,
+                    "Not connected to a world",
+                )
+            })?;
+
             match state
                 .app
                 .use_cases
                 .narrative
                 .events
-                .set_favorite(event_id_typed, favorite)
+                .set_favorite(world_id, event_id_typed, favorite)
                 .await
             {
                 Ok(()) => Ok(ResponseResult::success_empty()),
                 Err(crate::use_cases::narrative::NarrativeEventError::NotFound(_)) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Event not found"),
+                ),
+                Err(crate::use_cases::narrative::NarrativeEventError::WorldMismatch) => Ok(
+                    ResponseResult::error(ErrorCode::Unauthorized, "Event not in current world"),
                 ),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,

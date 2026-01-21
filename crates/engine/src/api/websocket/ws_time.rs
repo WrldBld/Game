@@ -814,7 +814,11 @@ pub(super) async fn handle_time_request(
                 };
 
             // Convert protocol config to domain config at API boundary
-            let domain_config = protocol_time_config_to_domain(&config);
+            let domain_config = protocol_time_config_to_domain(&config)
+                .map_err(|e| ServerMessage::Response {
+                    request_id: request_id.to_string(),
+                    result: ResponseResult::error(ErrorCode::InternalError, &e),
+                })?;
 
             let update = match state
                 .app
@@ -972,17 +976,20 @@ fn protocol_time_costs_to_domain(
 /// Convert protocol GameTimeConfig to domain GameTimeConfig.
 pub(super) fn protocol_time_config_to_domain(
     config: &protocol::GameTimeConfig,
-) -> wrldbldr_domain::GameTimeConfig {
+) -> Result<wrldbldr_domain::GameTimeConfig, String> {
     // Calendar settings use defaults when not provided in protocol
     // (protocol will be extended to include these in a future update)
-    wrldbldr_domain::GameTimeConfig::new(
+    let calendar_id = wrldbldr_domain::CalendarId::new("gregorian")
+        .map_err(|e| format!("Failed to initialize calendar: {}", e))?;
+
+    Ok(wrldbldr_domain::GameTimeConfig::new(
         protocol_time_mode_to_domain(config.mode),
         protocol_time_costs_to_domain(&config.time_costs),
         config.show_time_to_players,
         wrldbldr_domain::TimeFormat::TwelveHour,
-        wrldbldr_domain::CalendarId::new("gregorian").expect("gregorian is a valid calendar ID"),
+        calendar_id,
         wrldbldr_domain::EpochConfig::default(),
-    )
+    ))
 }
 
 /// Convert domain TimeSuggestion to protocol TimeSuggestionData.

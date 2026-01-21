@@ -26,6 +26,10 @@ pub enum ActantialError {
         entity_type: &'static str,
         id: String,
     },
+    #[error("Unauthorized: {message}")]
+    Unauthorized {
+        message: String,
+    },
     #[error("Invalid input: {0}")]
     InvalidInput(String),
     #[error("Repository error: {0}")]
@@ -102,6 +106,7 @@ impl GoalOps {
 
     pub async fn update(
         &self,
+        world_id: WorldId,
         goal_id: GoalId,
         name: Option<String>,
         description: Option<String>,
@@ -114,6 +119,13 @@ impl GoalOps {
                 entity_type: "Goal",
                 id: goal_id.to_string(),
             })?;
+
+        // Validate goal belongs to requested world
+        if details.goal.world_id() != world_id {
+            return Err(ActantialError::Unauthorized {
+                message: "Goal not in current world".to_string(),
+            });
+        }
 
         // Rebuild the goal with updated values using from_parts
         let new_name = if let Some(name) = name {
@@ -139,13 +151,27 @@ impl GoalOps {
         Ok(details)
     }
 
-    pub async fn delete(&self, goal_id: GoalId) -> Result<(), ActantialError> {
-        if self.goal.get(goal_id).await?.is_none() {
-            return Err(ActantialError::NotFound {
+    pub async fn delete(
+        &self,
+        world_id: WorldId,
+        goal_id: GoalId,
+    ) -> Result<(), ActantialError> {
+        let details = self
+            .goal
+            .get(goal_id)
+            .await?
+            .ok_or(ActantialError::NotFound {
                 entity_type: "Goal",
                 id: goal_id.to_string(),
+            })?;
+
+        // Validate goal belongs to requested world
+        if details.goal.world_id() != world_id {
+            return Err(ActantialError::Unauthorized {
+                message: "Goal not in current world".to_string(),
             });
         }
+
         self.goal.delete(goal_id).await?;
         Ok(())
     }

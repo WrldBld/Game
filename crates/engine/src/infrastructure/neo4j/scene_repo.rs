@@ -407,13 +407,35 @@ impl SceneRepo for Neo4jSceneRepo {
         Ok(scenes)
     }
 
-    async fn list_for_act(&self, act_id: ActId) -> Result<Vec<Scene>, RepoError> {
-        let q = query(
-            "MATCH (a:Act {id: $act_id})-[:CONTAINS_SCENE]->(s:Scene)
-            RETURN s
-            ORDER BY s.order_num",
-        )
-        .param("act_id", act_id.to_string());
+    async fn list_for_act(
+        &self,
+        act_id: ActId,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<Scene>, RepoError> {
+        let limit = limit.unwrap_or(50).min(200);
+        let skip = offset.unwrap_or(0);
+
+        let query_str = if skip > 0 {
+            format!(
+                "MATCH (a:Act {{id: $act_id}})-[:CONTAINS_SCENE]->(s:Scene)
+                RETURN s
+                ORDER BY s.order_num
+                SKIP {} LIMIT {}",
+                skip, limit
+            )
+        } else {
+            format!(
+                "MATCH (a:Act {{id: $act_id}})-[:CONTAINS_SCENE]->(s:Scene)
+                RETURN s
+                ORDER BY s.order_num
+                LIMIT {}",
+                limit
+            )
+        };
+
+        let q = query(&query_str)
+            .param("act_id", act_id.to_string());
 
         let mut result = self
             .graph

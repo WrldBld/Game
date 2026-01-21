@@ -47,7 +47,12 @@ pub trait CharacterRepo: Send + Sync {
 
     // Queries
     async fn list_in_region(&self, region_id: RegionId) -> Result<Vec<Character>, RepoError>;
-    async fn list_in_world(&self, world_id: WorldId) -> Result<Vec<Character>, RepoError>;
+    async fn list_in_world(
+        &self,
+        world_id: WorldId,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<Character>, RepoError>;
     async fn list_npcs_in_world(&self, world_id: WorldId) -> Result<Vec<Character>, RepoError>;
 
     // Position
@@ -231,7 +236,12 @@ pub trait LocationRepo: Send + Sync {
     async fn get_location(&self, id: LocationId) -> Result<Option<Location>, RepoError>;
     async fn save_location(&self, location: &Location) -> Result<(), RepoError>;
     async fn delete_location(&self, id: LocationId) -> Result<(), RepoError>;
-    async fn list_locations_in_world(&self, world_id: WorldId) -> Result<Vec<Location>, RepoError>;
+    async fn list_locations_in_world(
+        &self,
+        world_id: WorldId,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<Location>, RepoError>;
 
     // Region CRUD
     async fn get_region(&self, id: RegionId) -> Result<Option<Region>, RepoError>;
@@ -240,12 +250,15 @@ pub trait LocationRepo: Send + Sync {
     async fn list_regions_in_location(
         &self,
         location_id: LocationId,
+        limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<Region>, RepoError>;
 
     // Connections
     async fn get_connections(
         &self,
         region_id: RegionId,
+        limit: Option<u32>,
     ) -> Result<Vec<RegionConnection>, RepoError>;
     async fn save_connection(&self, connection: &RegionConnection) -> Result<(), RepoError>;
     async fn delete_connection(
@@ -258,6 +271,7 @@ pub trait LocationRepo: Send + Sync {
     async fn get_location_exits(
         &self,
         location_id: LocationId,
+        limit: Option<u32>,
     ) -> Result<Vec<LocationConnection>, RepoError>;
     async fn save_location_connection(
         &self,
@@ -270,7 +284,11 @@ pub trait LocationRepo: Send + Sync {
     ) -> Result<(), RepoError>;
 
     // Region exits (to locations)
-    async fn get_region_exits(&self, region_id: RegionId) -> Result<Vec<RegionExit>, RepoError>;
+    async fn get_region_exits(
+        &self,
+        region_id: RegionId,
+        limit: Option<u32>,
+    ) -> Result<Vec<RegionExit>, RepoError>;
     async fn save_region_exit(&self, exit: &RegionExit) -> Result<(), RepoError>;
     async fn delete_region_exit(
         &self,
@@ -288,7 +306,12 @@ pub trait SceneRepo: Send + Sync {
     async fn get_current(&self, world_id: WorldId) -> Result<Option<Scene>, RepoError>;
     async fn set_current(&self, world_id: WorldId, scene_id: SceneId) -> Result<(), RepoError>;
     async fn list_for_region(&self, region_id: RegionId) -> Result<Vec<Scene>, RepoError>;
-    async fn list_for_act(&self, act_id: ActId) -> Result<Vec<Scene>, RepoError>;
+    async fn list_for_act(
+        &self,
+        act_id: ActId,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<Scene>, RepoError>;
 
     // Location edge management (graph-first design)
     /// Get the location for a scene via AT_LOCATION edge.
@@ -541,6 +564,11 @@ pub trait StagingRepo: Send + Sync {
     ) -> Result<(), RepoError>;
     async fn get_pending_staging(&self, world_id: WorldId) -> Result<Vec<Staging>, RepoError>;
     async fn save_pending_staging(&self, staging: &Staging) -> Result<(), RepoError>;
+    async fn save_and_activate_pending_staging(
+        &self,
+        staging: &Staging,
+        region_id: RegionId,
+    ) -> Result<(), RepoError>;
     async fn delete_pending_staging(&self, id: StagingId) -> Result<(), RepoError>;
 
     /// Get active staging for a region, checking TTL expiry.

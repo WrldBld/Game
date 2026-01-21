@@ -43,9 +43,14 @@ pub enum ResponseResult {
 impl ResponseResult {
     /// Create a success response with data
     pub fn success<T: Serialize>(data: T) -> Self {
-        ResponseResult::Success {
-            data: Some(serde_json::to_value(data).unwrap_or_default()),
-        }
+        let value = match serde_json::to_value(&data) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to serialize response data");
+                None
+            }
+        };
+        ResponseResult::Success { data: value }
     }
 
     /// Create a success response without data
@@ -68,10 +73,17 @@ impl ResponseResult {
         message: impl Into<String>,
         details: T,
     ) -> Self {
+        let details_value = match serde_json::to_value(&details) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to serialize error details");
+                None
+            }
+        };
         ResponseResult::Error {
             code,
             message: message.into(),
-            details: Some(serde_json::to_value(details).unwrap_or_default()),
+            details: details_value,
         }
     }
 
@@ -196,11 +208,18 @@ impl EntityChangedData {
         world_id: impl Into<String>,
         data: &T,
     ) -> Self {
+        let data_value = match serde_json::to_value(data) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to serialize entity creation data");
+                None
+            }
+        };
         Self {
             entity_type,
             entity_id: entity_id.into(),
             change_type: ChangeType::Created,
-            data: Some(serde_json::to_value(data).unwrap_or_default()),
+            data: data_value,
             world_id: world_id.into(),
         }
     }
@@ -212,11 +231,18 @@ impl EntityChangedData {
         world_id: impl Into<String>,
         data: &T,
     ) -> Self {
+        let data_value = match serde_json::to_value(data) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to serialize entity update data");
+                None
+            }
+        };
         Self {
             entity_type,
             entity_id: entity_id.into(),
             change_type: ChangeType::Updated,
-            data: Some(serde_json::to_value(data).unwrap_or_default()),
+            data: data_value,
             world_id: world_id.into(),
         }
     }

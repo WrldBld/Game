@@ -20,8 +20,10 @@ impl SceneManagement {
     pub async fn list_for_act(
         &self,
         act_id: ActId,
+        limit: Option<u32>,
+        offset: Option<u32>,
     ) -> Result<Vec<wrldbldr_domain::Scene>, ManagementError> {
-        Ok(self.scene.list_for_act(act_id).await?)
+        Ok(self.scene.list_for_act(act_id, limit, offset).await?)
     }
 
     pub async fn get(

@@ -60,12 +60,12 @@ impl TestAppRepos {
         // Default to an empty world surface unless tests override.
         character_repo
             .expect_list_in_world()
-            .returning(|_world_id| Ok(Vec::new()));
+            .returning(|_world_id, _limit, _offset| Ok(Vec::new()));
 
         let mut location_repo = MockLocationRepo::new();
         location_repo
             .expect_list_locations_in_world()
-            .returning(|_world_id| Ok(Vec::new()));
+            .returning(|_world_id, _limit, _offset| Ok(Vec::new()));
 
         let mut scene_repo = MockSceneRepo::new();
         scene_repo
