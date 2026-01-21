@@ -167,6 +167,17 @@ pub struct AppSettings {
     /// Policy for how to handle failures while queueing prompts for a batch.
     #[serde(default = "default_batch_queue_failure_policy")]
     pub batch_queue_failure_policy: BatchQueueFailurePolicy,
+
+    // ============================================================================
+    // List Pagination Limits - Environment Overrides
+    // ============================================================================
+    /// Environment variable override for default list page size
+    #[serde(default)]
+    pub list_default_page_size_override: Option<u32>,
+
+    /// Environment variable override for max list page size
+    #[serde(default)]
+    pub list_max_page_size_override: Option<u32>,
 }
 
 fn default_outcome_branch_count() -> usize {
@@ -208,6 +219,8 @@ impl Default for AppSettings {
             context_budget: ContextBudgetConfig::default(),
             style_reference_asset_id: None,
             batch_queue_failure_policy: default_batch_queue_failure_policy(),
+            list_default_page_size_override: None,
+            list_max_page_size_override: None,
         }
     }
 }
