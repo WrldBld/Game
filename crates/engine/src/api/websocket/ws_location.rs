@@ -2,6 +2,7 @@ use super::*;
 
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use crate::api::websocket::apply_pagination_limits;
 use wrldbldr_shared::{LocationRequest, RegionRequest};
 
 pub(super) async fn handle_location_request(
@@ -17,15 +18,31 @@ pub(super) async fn handle_location_request(
                 Err(e) => return Err(e),
             };
 
-            let limit = Some(limit.unwrap_or(50).min(200));
-            let offset = Some(offset.unwrap_or(0));
+            let settings = match state
+                .app
+                .use_cases
+                .settings
+                .get_for_world(world_id_typed)
+                .await
+            {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        world_id = %world_id,
+                        "Failed to load settings for list locations, using defaults"
+                    );
+                    crate::infrastructure::app_settings::AppSettings::default()
+                }
+            };
+            let (limit, offset) = apply_pagination_limits(&settings, limit, offset);
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .list_locations(world_id_typed, limit, offset)
+                .list_locations(world_id_typed, Some(limit), offset)
                 .await
             {
                 Ok(locations) => {
@@ -198,14 +215,24 @@ pub(super) async fn handle_location_request(
                 Err(e) => return Err(e),
             };
 
-            let limit = Some(limit.unwrap_or(50).min(200));
+            let settings = match state.app.use_cases.settings.get_global().await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "Failed to load global settings for list location connections, using defaults"
+                    );
+                    crate::infrastructure::app_settings::AppSettings::default()
+                }
+            };
+            let (limit, _) = apply_pagination_limits(&settings, limit, None);
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .list_location_connections(location_id_typed, limit)
+                .list_location_connections(location_id_typed, Some(limit))
                 .await
             {
                 Ok(connections) => {
@@ -302,15 +329,24 @@ pub(super) async fn handle_region_request(
                 Err(e) => return Err(e),
             };
 
-            let limit = Some(limit.unwrap_or(50).min(200));
-            let offset = Some(offset.unwrap_or(0));
+            let settings = match state.app.use_cases.settings.get_global().await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "Failed to load global settings for list regions, using defaults"
+                    );
+                    crate::infrastructure::app_settings::AppSettings::default()
+                }
+            };
+            let (limit, offset) = apply_pagination_limits(&settings, limit, offset);
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .list_regions(location_id_typed, limit, offset)
+                .list_regions(location_id_typed, Some(limit), offset)
                 .await
             {
                 Ok(regions) => {
@@ -523,14 +559,24 @@ pub(super) async fn handle_region_request(
                 Err(e) => return Err(e),
             };
 
-            let limit = Some(limit.unwrap_or(50).min(200));
+            let settings = match state.app.use_cases.settings.get_global().await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "Failed to load global settings for list region connections, using defaults"
+                    );
+                    crate::infrastructure::app_settings::AppSettings::default()
+                }
+            };
+            let (limit, _) = apply_pagination_limits(&settings, limit, None);
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .list_region_connections(region_id_typed, limit)
+                .list_region_connections(region_id_typed, Some(limit))
                 .await
             {
                 Ok(connections) => {
@@ -660,14 +706,24 @@ pub(super) async fn handle_region_request(
                 Err(e) => return Err(e),
             };
 
-            let limit = Some(limit.unwrap_or(50).min(200));
+            let settings = match state.app.use_cases.settings.get_global().await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "Failed to load global settings for list region exits, using defaults"
+                    );
+                    crate::infrastructure::app_settings::AppSettings::default()
+                }
+            };
+            let (limit, _) = apply_pagination_limits(&settings, limit, None);
 
             match state
                 .app
                 .use_cases
                 .management
                 .location
-                .list_region_exits(region_id_typed, limit)
+                .list_region_exits(region_id_typed, Some(limit))
                 .await
             {
                 Ok(exits) => {

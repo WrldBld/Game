@@ -2,6 +2,7 @@ use super::*;
 
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use crate::api::websocket::apply_pagination_limits;
 use serde_json::json;
 use wrldbldr_domain::{self as domain, InteractionTarget, InteractionType};
 use wrldbldr_shared::{ActRequest, ErrorCode, InteractionRequest, ResponseResult, SceneRequest};
@@ -66,14 +67,23 @@ pub(super) async fn handle_scene_request(
     match request {
         SceneRequest::ListScenes { act_id, limit, offset } => {
             let act_id_typed = parse_act_id_for_request(&act_id, request_id)?;
-            let limit = Some(limit.unwrap_or(50).min(200));
-            let offset = Some(offset.unwrap_or(0));
+            let settings = match state.app.use_cases.settings.get_global().await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "Failed to load global settings for list scenes, using defaults"
+                    );
+                    crate::infrastructure::app_settings::AppSettings::default()
+                }
+            };
+            let (limit, offset) = apply_pagination_limits(&settings, limit, offset);
             match state
                 .app
                 .use_cases
                 .management
                 .scene
-                .list_for_act(act_id_typed, limit, offset)
+                .list_for_act(act_id_typed, Some(limit), offset)
                 .await
             {
                 Ok(scenes) => {

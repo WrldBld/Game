@@ -95,6 +95,65 @@ impl SettingsOps {
     pub fn metadata(&self) -> Vec<SettingsFieldMetadata> {
         settings_metadata()
     }
+
+    /// Load settings with environment variable overrides applied.
+    ///
+    /// Takes base settings (from file or database) and applies overrides
+    /// from environment variables.
+    pub fn load_settings_from_env(base_settings: AppSettings) -> AppSettings {
+        let mut settings = base_settings;
+        Self::apply_env_list_limits(&mut settings);
+        settings
+    }
+
+    /// Apply list limit environment variable overrides to settings.
+    ///
+    /// Supported environment variables:
+    /// - WRLDBLDR_LIST_DEFAULT_PAGE_SIZE: Override default list page size (range: 10-200)
+    /// - WRLDBLDR_LIST_MAX_PAGE_SIZE: Override max list page size (range: 50-1000)
+    pub fn apply_env_list_limits(settings: &mut AppSettings) {
+        let mut updated = std::mem::take(settings);
+
+        if let Ok(val) = std::env::var("WRLDBLDR_LIST_DEFAULT_PAGE_SIZE") {
+            if let Ok(size) = val.parse::<u32>() {
+                if size >= 10 && size <= 200 {
+                    updated = updated.with_list_default_page_size_override(Some(size));
+                    tracing::info!(size, "Applied WRLDBLDR_LIST_DEFAULT_PAGE_SIZE environment variable");
+                } else {
+                    tracing::warn!(
+                        size,
+                        "WRLDBLDR_LIST_DEFAULT_PAGE_SIZE out of range [10, 200], ignoring"
+                    );
+                }
+            } else {
+                tracing::warn!(
+                    val = %val,
+                    "WRLDBLDR_LIST_DEFAULT_PAGE_SIZE is not a valid u32, ignoring"
+                );
+            }
+        }
+
+        if let Ok(val) = std::env::var("WRLDBLDR_LIST_MAX_PAGE_SIZE") {
+            if let Ok(size) = val.parse::<u32>() {
+                if size >= 50 && size <= 1000 {
+                    updated = updated.with_list_max_page_size_override(Some(size));
+                    tracing::info!(size, "Applied WRLDBLDR_LIST_MAX_PAGE_SIZE environment variable");
+                } else {
+                    tracing::warn!(
+                        size,
+                        "WRLDBLDR_LIST_MAX_PAGE_SIZE out of range [50, 1000], ignoring"
+                    );
+                }
+            } else {
+                tracing::warn!(
+                    val = %val,
+                    "WRLDBLDR_LIST_MAX_PAGE_SIZE is not a valid u32, ignoring"
+                );
+            }
+        }
+
+        *settings = updated;
+    }
 }
 
 /// Errors that can occur during settings operations.

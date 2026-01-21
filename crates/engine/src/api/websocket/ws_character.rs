@@ -2,6 +2,7 @@ use super::*;
 
 use crate::api::connections::ConnectionInfo;
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
+use crate::api::websocket::apply_pagination_limits;
 
 use wrldbldr_shared::CharacterRequest;
 
@@ -18,15 +19,31 @@ pub(super) async fn handle_character_request(
                 Err(e) => return Err(e),
             };
 
-            let limit = Some(limit.unwrap_or(50).min(200));
-            let offset = Some(offset.unwrap_or(0));
+            let settings = match state
+                .app
+                .use_cases
+                .settings
+                .get_for_world(world_id_typed)
+                .await
+            {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        world_id = %world_id,
+                        "Failed to load settings for list characters, using defaults"
+                    );
+                    crate::infrastructure::app_settings::AppSettings::default()
+                }
+            };
+            let (limit, offset) = apply_pagination_limits(&settings, limit, offset);
 
             match state
                 .app
                 .use_cases
                 .management
                 .character
-                .list_in_world(world_id_typed, limit, offset)
+                .list_in_world(world_id_typed, Some(limit), offset)
                 .await
             {
                 Ok(chars) => {

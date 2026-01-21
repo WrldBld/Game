@@ -908,6 +908,41 @@ where
     })
 }
 
+/// Apply pagination limits using settings-based defaults.
+///
+/// Returns (limit, offset) with proper bounds:
+/// - Client-provided limit is respected if specified
+/// - Environment variable overrides default if set
+/// - Maximum limit is always enforced (hard cap)
+///
+/// # Example
+/// ```ignore
+/// let settings = state.app.settings().await;
+/// let (limit, offset) = apply_pagination_limits(&settings, client_limit, client_offset);
+/// ```
+///
+/// # Priority Order
+/// 1. Client-provided limit (highest)
+/// 2. Environment variable override (medium)
+/// 3. Default setting (lowest)
+/// 4. Maximum limit (hard cap, always applied)
+pub fn apply_pagination_limits(
+    settings: &crate::infrastructure::app_settings::AppSettings,
+    client_limit: Option<u32>,
+    client_offset: Option<u32>,
+) -> (u32, Option<u32>) {
+    let effective_default = settings.list_default_page_size_effective();
+    let effective_max = settings.list_max_page_size_effective();
+
+    // Client limit, or default, capped at max
+    let limit = client_limit.unwrap_or(effective_default).min(effective_max);
+
+    // Offset (default to 0)
+    let offset = client_offset.unwrap_or(0);
+
+    (limit, Some(offset))
+}
+
 // =============================================================================
 // WebSocket Integration Tests
 // =============================================================================
@@ -917,6 +952,9 @@ pub(crate) mod test_support;
 
 #[cfg(test)]
 mod error_mapping_tests;
+
+#[cfg(test)]
+mod list_limits_tests;
 
 #[cfg(test)]
 mod ws_integration_tests;

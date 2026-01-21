@@ -1005,6 +1005,12 @@ fn default_presence_cache_ttl_hours() -> i32 {
 fn default_use_llm_presence() -> bool {
     true
 }
+fn default_list_default_page_size() -> u32 {
+    50
+}
+fn default_list_max_page_size() -> u32 {
+    200
+}
 
 /// All configurable application settings
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -1037,6 +1043,25 @@ pub struct AppSettings {
     max_name_length: usize,
     /// Maximum length for descriptions
     max_description_length: usize,
+
+    // ============================================================================
+    // List Pagination Limits
+    // ============================================================================
+    /// Default page size for list operations when no limit is specified
+    #[serde(default = "default_list_default_page_size")]
+    list_default_page_size: u32,
+
+    /// Maximum allowed page size for list operations (DoS prevention)
+    #[serde(default = "default_list_max_page_size")]
+    list_max_page_size: u32,
+
+    /// Environment variable override for default list page size
+    #[serde(default)]
+    list_default_page_size_override: Option<u32>,
+
+    /// Environment variable override for max list page size
+    #[serde(default)]
+    list_max_page_size_override: Option<u32>,
 
     // ============================================================================
     // Animation (synced to Player)
@@ -1122,6 +1147,10 @@ impl Default for AppSettings {
             context_budget: ContextBudgetConfig::default(),
             style_reference_asset_id: None,
             batch_queue_failure_policy: default_batch_queue_failure_policy(),
+            list_default_page_size: default_list_default_page_size(),
+            list_max_page_size: default_list_max_page_size(),
+            list_default_page_size_override: None,
+            list_max_page_size_override: None,
         }
     }
 }
@@ -1259,6 +1288,28 @@ impl AppSettings {
     /// Policy for how to handle failures while queueing prompts for a batch
     pub fn batch_queue_failure_policy(&self) -> BatchQueueFailurePolicy {
         self.batch_queue_failure_policy
+    }
+
+    /// Default page size for list operations when no limit is specified
+    pub fn list_default_page_size(&self) -> u32 {
+        self.list_default_page_size
+    }
+
+    /// Maximum allowed page size for list operations (DoS prevention)
+    pub fn list_max_page_size(&self) -> u32 {
+        self.list_max_page_size
+    }
+
+    /// Get effective default list page size (with environment override applied)
+    pub fn list_default_page_size_effective(&self) -> u32 {
+        self.list_default_page_size_override
+            .unwrap_or(self.list_default_page_size)
+    }
+
+    /// Get effective max list page size (with environment override applied)
+    pub fn list_max_page_size_effective(&self) -> u32 {
+        self.list_max_page_size_override
+            .unwrap_or(self.list_max_page_size)
     }
 
     // ============================================================================
@@ -1440,6 +1491,34 @@ impl AppSettings {
             batch_queue_failure_policy,
             ..self
         }
+    }
+
+    /// Set default list page size
+    pub fn with_list_default_page_size(self, list_default_page_size: u32) -> Self {
+        Self {
+            list_default_page_size,
+            ..self
+        }
+    }
+
+    /// Set max list page size
+    pub fn with_list_max_page_size(self, list_max_page_size: u32) -> Self {
+        Self {
+            list_max_page_size,
+            ..self
+        }
+    }
+
+    /// Set environment variable override for default list page size
+    pub fn with_list_default_page_size_override(mut self, size: Option<u32>) -> Self {
+        self.list_default_page_size_override = size;
+        self
+    }
+
+    /// Set environment variable override for max list page size
+    pub fn with_list_max_page_size_override(mut self, size: Option<u32>) -> Self {
+        self.list_max_page_size_override = size;
+        self
     }
 }
 
