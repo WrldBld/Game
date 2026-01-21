@@ -49,6 +49,16 @@ pub(super) async fn handle_join_world(
                 error: wrldbldr_shared::JoinError::WorldNotFound,
             })
         }
+        Err(crate::use_cases::session::JoinWorldFlowError::SceneHasNoLocation(_)) => {
+            tracing::error!(
+                world_id = %world_id,
+                "Scene has no location - data integrity error during join"
+            );
+            return Some(ServerMessage::WorldJoinFailed {
+                world_id,
+                error: wrldbldr_shared::JoinError::Unknown,
+            });
+        }
         Err(crate::use_cases::session::JoinWorldFlowError::JoinError(e)) => {
             return Some(ServerMessage::WorldJoinFailed {
                 world_id,
@@ -121,6 +131,16 @@ pub(super) async fn handle_join_world(
                 world_id,
                 error: wrldbldr_shared::JoinError::WorldNotFound,
             })
+        }
+        Err(crate::use_cases::session::JoinWorldFlowError::SceneHasNoLocation(_)) => {
+            tracing::error!(
+                world_id = %world_id,
+                "Scene has no location - data integrity error during commit"
+            );
+            return Some(ServerMessage::WorldJoinFailed {
+                world_id,
+                error: wrldbldr_shared::JoinError::Unknown,
+            });
         }
         Err(crate::use_cases::session::JoinWorldFlowError::JoinError(e)) => {
             return Some(ServerMessage::WorldJoinFailed {

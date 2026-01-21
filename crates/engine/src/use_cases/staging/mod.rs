@@ -14,7 +14,7 @@ mod llm_integration_tests;
 
 use std::sync::Arc;
 
-use wrldbldr_domain::{RegionId, WorldId};
+use wrldbldr_domain::{CharacterId, RegionId, WorldId};
 
 use crate::infrastructure::app_settings::AppSettings;
 use crate::infrastructure::ports::{RepoError, SettingsRepo};
@@ -89,6 +89,8 @@ pub enum StagingError {
     WorldNotFound(WorldId),
     #[error("Region not found: {0}")]
     RegionNotFound(RegionId),
+    #[error("Character not found: {0}")]
+    CharacterNotFound(wrldbldr_domain::CharacterId),
     #[error("Validation error: {0}")]
     Validation(String),
     #[error("Repository error: {0}")]

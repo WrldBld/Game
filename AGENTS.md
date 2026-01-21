@@ -153,6 +153,17 @@ impl MapBounds {
 }
 ```
 
+**Reviewing encapsulation (for code reviewers/agents):**
+
+When auditing encapsulation decisions, don't just count getters—analyze the full type:
+
+1. **Read the entire impl block** - A struct with 12 trivial getters may also have `validate_triggers()`, `evaluate_roll()`, or state machine methods that justify encapsulation
+2. **Look for mutation methods with constraints** - Methods like `use_slot()`, `start_generating()`, or `reorder_events()` indicate invariants
+3. **Check if removing encapsulation would expose violations** - Could callers create invalid states with public fields?
+4. **Ask "what would break?"** not "how many lines saved?" - Line count reduction is not the goal; protecting invariants is
+
+**Common false positive:** Counting getters in `entities/` files and assuming they're over-encapsulated. Many entities have business logic methods beyond accessors (e.g., `Challenge.evaluate_roll()`, `EventChain.current_position` tracking).
+
 See [ADR-008](docs/architecture/ADR-008-tiered-encapsulation.md) for rationale.
 
 ### Crate Structure (4 crates)

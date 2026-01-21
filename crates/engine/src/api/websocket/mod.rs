@@ -1072,6 +1072,14 @@ fn parse_uuid_for_request(
     request_id: &str,
     error_msg: &str,
 ) -> Result<Uuid, ServerMessage> {
+    // Reject obviously invalid UUID strings (too long)
+    if id_str.len() > 100 {
+        return Err(ServerMessage::Response {
+            request_id: request_id.to_string(),
+            result: ResponseResult::error(ErrorCode::BadRequest, "ID string too long"),
+        });
+    }
+
     Uuid::parse_str(id_str).map_err(|e| {
         tracing::debug!(input = %id_str, error = %e, "UUID parsing failed");
         ServerMessage::Response {

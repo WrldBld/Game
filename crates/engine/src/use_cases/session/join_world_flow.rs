@@ -5,7 +5,7 @@ use crate::infrastructure::ports::{
     UserJoinedInfo, WorldRole,
 };
 use crate::stores::SessionStore as WorldSession;
-use wrldbldr_domain::{ConnectionId, PlayerCharacterId, UserId, WorldId};
+use wrldbldr_domain::{ConnectionId, PlayerCharacterId, SceneId, UserId, WorldId};
 
 use super::types::{PlayerCharacterSummary, WorldSnapshot};
 use super::{JoinWorld, JoinWorldError};
@@ -256,6 +256,8 @@ pub enum JoinWorldFlowError {
     Repo(#[from] RepoError),
     #[error("Join error: {0}")]
     JoinError(PortJoinWorldError),
+    #[error("Scene has no location: {0}")]
+    SceneHasNoLocation(wrldbldr_domain::SceneId),
 }
 
 impl From<JoinWorldError> for JoinWorldFlowError {
@@ -263,6 +265,7 @@ impl From<JoinWorldError> for JoinWorldFlowError {
         match err {
             JoinWorldError::WorldNotFound(_) => JoinWorldFlowError::WorldNotFound,
             JoinWorldError::Repo(e) => JoinWorldFlowError::Repo(e),
+            JoinWorldError::SceneHasNoLocation(id) => JoinWorldFlowError::SceneHasNoLocation(id),
         }
     }
 }

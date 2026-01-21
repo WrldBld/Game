@@ -875,7 +875,7 @@ const MAX_STATE_NAME_LENGTH: usize = 100;
 /// A validated state name (non-empty, <=100 chars, trimmed)
 ///
 /// Used for LocationState and RegionState names.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct StateName(String);
 
@@ -905,6 +905,12 @@ impl StateName {
     /// Returns the name as a string slice.
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl Default for StateName {
+    fn default() -> Self {
+        Self("Default".to_string())
     }
 }
 
@@ -1656,9 +1662,9 @@ mod tests {
         }
 
         #[test]
-        fn default_is_empty() {
+        fn default_returns_valid_name() {
             let name = StateName::default();
-            assert_eq!(name.as_str(), "");
+            assert_eq!(name.as_str(), "Default");
         }
     }
 }

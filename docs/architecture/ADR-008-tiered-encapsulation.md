@@ -201,6 +201,43 @@ pub struct MapBounds {
 }
 ```
 
+## Reviewing Encapsulation (for Code Reviewers/Agents)
+
+When auditing encapsulation decisions during code review, **do not just count getters**. Analyze the full type implementation:
+
+### Review Checklist
+
+1. **Read the entire impl block** - A struct with 12 trivial getters may also have `validate_triggers()`, `evaluate_roll()`, or state machine methods that justify encapsulation
+
+2. **Look for mutation methods with constraints** - Methods like `use_slot()`, `start_generating()`, or `reorder_events()` indicate invariants that must be protected
+
+3. **Check if removing encapsulation would expose invariant violations** - Could callers create invalid states with public fields? Would they bypass validation?
+
+4. **Ask "what would break?" not "how many lines saved?"** - Line count reduction is not the goal; protecting invariants is
+
+### Common False Positives
+
+**Counting getters in `entities/` directory:** Many entities have business logic beyond accessors:
+
+| File | Trivial Getters | Business Logic (Justifies Encapsulation) |
+|------|-----------------|------------------------------------------|
+| `challenge.rs` | 12 | `evaluate_roll()`, `validate_triggers()`, `matches_trigger()` |
+| `generation_batch.rs` | 11 | State machine: `start_generating()` → `complete_generation()` → `finalize()` |
+| `event_chain.rs` | 12 | Position tracking: `add_event()`, `reorder_events()`, `current_position` |
+| `character_content.rs` | 32 | Resource management: `use_slot()`, `restore_all_slots()` |
+
+These are **Tier 1-2 aggregates**, not Tier 4 data structs, despite having trivial getter syntax.
+
+### Correct Analysis Example
+
+```
+❌ WRONG: "challenge.rs has 27 getters → over-encapsulated → convert to public fields"
+
+✅ RIGHT: "challenge.rs has 27 getters BUT also has evaluate_roll(),
+          validate_triggers(), and matches_trigger() which enforce
+          game rules → Tier 1 aggregate → keep encapsulated"
+```
+
 ## References
 
 - AGENTS.md "Rustic DDD Philosophy" section

@@ -24,28 +24,44 @@ pub struct AdHocOutcomes {
 
 impl AdHocOutcomes {
     /// Create ad-hoc outcomes with all fields
+    ///
+    /// Returns an error if:
+    /// - Success outcome is empty
+    /// - Failure outcome is empty
+    /// - Critical outcomes are not symmetric (both set or both None)
     pub fn new(
         success: impl Into<String>,
         failure: impl Into<String>,
         critical_success: Option<String>,
         critical_failure: Option<String>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, DomainError> {
+        let outcomes = Self {
             success: success.into(),
             failure: failure.into(),
             critical_success,
             critical_failure,
-        }
+        };
+        outcomes.validate()?;
+        Ok(outcomes)
     }
 
     /// Create basic outcomes with only success/failure
-    pub fn basic(success: impl Into<String>, failure: impl Into<String>) -> Self {
-        Self {
+    ///
+    /// Returns an error if:
+    /// - Success outcome is empty
+    /// - Failure outcome is empty
+    pub fn basic(
+        success: impl Into<String>,
+        failure: impl Into<String>,
+    ) -> Result<Self, DomainError> {
+        let outcomes = Self {
             success: success.into(),
             failure: failure.into(),
             critical_success: None,
             critical_failure: None,
-        }
+        };
+        outcomes.validate()?;
+        Ok(outcomes)
     }
 
     // --- Accessors ---
@@ -149,7 +165,8 @@ mod tests {
             "You fail!",
             Some("Critical success!".to_string()),
             Some("Critical failure!".to_string()),
-        );
+        )
+        .unwrap();
 
         assert_eq!(outcomes.success(), "You succeed!");
         assert_eq!(outcomes.failure(), "You fail!");
@@ -159,7 +176,8 @@ mod tests {
 
     #[test]
     fn test_basic() {
-        let outcomes = AdHocOutcomes::basic("You pick the lock", "The lock resists your efforts");
+        let outcomes =
+            AdHocOutcomes::basic("You pick the lock", "The lock resists your efforts").unwrap();
 
         assert_eq!(outcomes.success(), "You pick the lock");
         assert_eq!(outcomes.failure(), "The lock resists your efforts");
@@ -170,6 +188,7 @@ mod tests {
     #[test]
     fn test_builder_pattern() {
         let outcomes = AdHocOutcomes::basic("Success", "Failure")
+            .unwrap()
             .with_critical_success("Epic success!")
             .with_critical_failure("Catastrophic failure!");
 
@@ -181,7 +200,9 @@ mod tests {
 
     #[test]
     fn test_with_criticals() {
-        let outcomes = AdHocOutcomes::basic("Win", "Lose").with_criticals("Big win", "Big lose");
+        let outcomes = AdHocOutcomes::basic("Win", "Lose")
+            .unwrap()
+            .with_criticals("Big win", "Big lose");
 
         assert_eq!(outcomes.critical_success(), Some("Big win"));
         assert_eq!(outcomes.critical_failure(), Some("Big lose"));
@@ -189,10 +210,104 @@ mod tests {
 
     #[test]
     fn test_outcomes_equality() {
-        let outcomes =
-            AdHocOutcomes::new("Success", "Failure", Some("Crit success".to_string()), None);
+        let outcomes = AdHocOutcomes::new(
+            "Success",
+            "Failure",
+            Some("Crit success".to_string()),
+            Some("Crit failure".to_string()),
+        )
+        .unwrap();
 
         let other = outcomes.clone();
         assert_eq!(outcomes, other);
+    }
+
+    #[test]
+    fn test_validation_empty_success() {
+        let result = AdHocOutcomes::new("", "Failure", None, None);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Success outcome cannot be empty"));
+    }
+
+    #[test]
+    fn test_validation_empty_failure() {
+        let result = AdHocOutcomes::new("Success", "", None, None);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Failure outcome cannot be empty"));
+    }
+
+    #[test]
+    fn test_validation_asymmetric_critical_success() {
+        let result =
+            AdHocOutcomes::new("Success", "Failure", Some("Crit success".to_string()), None);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Critical success requires critical failure"));
+    }
+
+    #[test]
+    fn test_validation_asymmetric_critical_failure() {
+        let result =
+            AdHocOutcomes::new("Success", "Failure", None, Some("Crit failure".to_string()));
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Critical failure requires critical success"));
+    }
+
+    #[test]
+    fn test_validation_whitespace_only() {
+        let result = AdHocOutcomes::new("   ", "Failure", None, None);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Success outcome cannot be empty"));
+    }
+
+    #[test]
+    fn test_validation_both_criticals_set() {
+        let result = AdHocOutcomes::new(
+            "Success",
+            "Failure",
+            Some("Crit success".to_string()),
+            Some("Crit failure".to_string()),
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validation_both_criticals_none() {
+        let result = AdHocOutcomes::new("Success", "Failure", None, None);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_basic_validation_empty_success() {
+        let result = AdHocOutcomes::basic("", "Failure");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Success outcome cannot be empty"));
+    }
+
+    #[test]
+    fn test_basic_validation_empty_failure() {
+        let result = AdHocOutcomes::basic("Success", "");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Failure outcome cannot be empty"));
     }
 }

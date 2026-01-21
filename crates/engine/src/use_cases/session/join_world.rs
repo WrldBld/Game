@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::infrastructure::ports::{
     CharacterRepo, LocationRepo, PlayerCharacterRepo, RepoError, SceneRepo, WorldRepo,
 };
-use wrldbldr_domain::{LocationId, PlayerCharacterId, WorldId, WorldRole};
+use wrldbldr_domain::{LocationId, PlayerCharacterId, SceneId, WorldId, WorldRole};
 
 use super::types::{
     CharacterSummary, LocationSummary, PlayerCharacterSummary, SceneSummary, WorldSnapshot,
@@ -62,17 +62,35 @@ impl JoinWorld {
                 .scene
                 .get_location(scene.id())
                 .await
-                .ok()
-                .flatten()
-                .unwrap_or_else(LocationId::new);
+                .map_err(|e| {
+                    tracing::error!(
+                        scene_id = ?scene.id(),
+                        error = %e,
+                        "Failed to fetch scene location"
+                    );
+                    JoinWorldError::Repo(e)
+                })?
+                .ok_or_else(|| {
+                    tracing::error!(
+                        scene_id = ?scene.id(),
+                        "Scene has no location - data integrity error"
+                    );
+                    JoinWorldError::SceneHasNoLocation(scene.id())
+                })?;
 
             // Get featured characters via graph edge
             let featured_characters: Vec<String> = self
                 .scene
                 .get_featured_characters(scene.id())
                 .await
-                .ok()
-                .unwrap_or_default()
+                .unwrap_or_else(|e| {
+                    tracing::warn!(
+                        scene_id = ?scene.id(),
+                        error = %e,
+                        "Failed to fetch featured characters, using empty list"
+                    );
+                    Vec::new()
+                })
                 .iter()
                 .map(|sc| sc.character_id.to_string())
                 .collect();
@@ -195,6 +213,8 @@ pub struct JoinWorldResult {
 pub enum JoinWorldError {
     #[error("World not found: {0}")]
     WorldNotFound(WorldId),
+    #[error("Scene has no location: {0}")]
+    SceneHasNoLocation(SceneId),
     #[error("Repository error: {0}")]
     Repo(#[from] RepoError),
 }

@@ -170,7 +170,7 @@ impl ApproveStagingRequest {
             }
         }
 
-        let npcs_present = self.build_npcs_present(&input.approved_npcs).await;
+        let npcs_present = self.build_npcs_present(&input.approved_npcs).await?;
         let visual_state = self
             .build_visual_state_for_staging(location_id, input.region_id)
             .await;
@@ -189,46 +189,17 @@ impl ApproveStagingRequest {
         let mut staged_npcs = Vec::new();
 
         for npc_info in approved_npcs {
-            let (name, sprite_asset, portrait_asset, default_mood, has_incomplete_data) = match self
+            let character = self
                 .character
                 .get(npc_info.character_id)
                 .await
-            {
-                Ok(Some(c)) => (
-                    c.name().to_string(),
-                    c.sprite_asset().map(|s| s.to_string()),
-                    c.portrait_asset().map(|s| s.to_string()),
-                    *c.default_mood(),
-                    false,
-                ),
-                Ok(None) => {
-                    tracing::warn!(
-                        character_id = %npc_info.character_id,
-                        "Character not found during staging approval, NPC will have incomplete data"
-                    );
-                    (
-                        String::new(),
-                        None,
-                        None,
-                        wrldbldr_domain::MoodState::default(),
-                        true,
-                    )
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        character_id = %npc_info.character_id,
-                        error = %e,
-                        "Failed to fetch character during staging approval, NPC will have incomplete data"
-                    );
-                    (
-                        String::new(),
-                        None,
-                        None,
-                        wrldbldr_domain::MoodState::default(),
-                        true,
-                    )
-                }
-            };
+                .map_err(|e| StagingError::Repo(e))?
+                .ok_or(StagingError::CharacterNotFound(npc_info.character_id))?;
+
+            let name = character.name().to_string();
+            let sprite_asset = character.sprite_asset().map(|s| s.to_string());
+            let portrait_asset = character.portrait_asset().map(|s| s.to_string());
+            let default_mood = *character.default_mood();
 
             let mood = match npc_info.mood.as_deref() {
                 Some(mood_str) => mood_str
@@ -255,9 +226,8 @@ impl ApproveStagingRequest {
             } else {
                 NpcPresence::Absent
             };
-            let mut staged_npc = staged_npc.with_presence(presence);
+            staged_npc = staged_npc.with_presence(presence);
             staged_npc.mood = mood;
-            staged_npc.has_incomplete_data = has_incomplete_data;
             if let Some(sprite_path) = sprite_asset {
                 let sprite = wrldbldr_domain::AssetPath::new(sprite_path.clone()).map_err(|e| {
                     StagingError::Validation(format!(
@@ -283,36 +253,20 @@ impl ApproveStagingRequest {
         Ok(staged_npcs)
     }
 
-    async fn build_npcs_present(&self, approved_npcs: &[ApprovedNpc]) -> Vec<NpcPresent> {
+    async fn build_npcs_present(&self, approved_npcs: &[ApprovedNpc]) -> Result<Vec<NpcPresent>, StagingError> {
         let mut npcs_present = Vec::new();
         for npc_info in approved_npcs {
             if npc_info.is_present && !npc_info.is_hidden_from_players {
-                let (name, sprite_asset, portrait_asset) = match self
+                let character = self
                     .character
                     .get(npc_info.character_id)
                     .await
-                {
-                    Ok(Some(character)) => (
-                        character.name().to_string(),
-                        character.sprite_asset().map(|s| s.to_string()),
-                        character.portrait_asset().map(|s| s.to_string()),
-                    ),
-                    Ok(None) => {
-                        tracing::warn!(
-                            character_id = %npc_info.character_id,
-                            "Character not found when building NPCs present, using empty defaults"
-                        );
-                        (String::new(), None, None)
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            character_id = %npc_info.character_id,
-                            error = %e,
-                            "Failed to fetch character when building NPCs present, using empty defaults"
-                        );
-                        (String::new(), None, None)
-                    }
-                };
+                    .map_err(|e| StagingError::Repo(e))?
+                    .ok_or(StagingError::CharacterNotFound(npc_info.character_id))?;
+
+                let name = character.name().to_string();
+                let sprite_asset = character.sprite_asset().map(|s| s.to_string());
+                let portrait_asset = character.portrait_asset().map(|s| s.to_string());
 
                 npcs_present.push(NpcPresent {
                     character_id: npc_info.character_id,
@@ -325,7 +279,7 @@ impl ApproveStagingRequest {
             }
         }
 
-        npcs_present
+        Ok(npcs_present)
     }
 
     async fn build_visual_state_for_staging(

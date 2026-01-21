@@ -140,6 +140,12 @@ pub(super) async fn handle_staging_approval(
                 &format!("Region not found: {}", id),
             ))
         }
+        Err(crate::use_cases::staging::StagingError::CharacterNotFound(id)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                &format!("Character not found: {}", id),
+            ))
+        }
         Err(crate::use_cases::staging::StagingError::WorldNotFound(id)) => {
             return Some(error_response(
                 ErrorCode::NotFound,
@@ -343,6 +349,9 @@ pub(super) async fn handle_pre_stage_region(
         return Some(match e {
             crate::use_cases::staging::StagingError::RegionNotFound(id) => {
                 error_response(ErrorCode::NotFound, &format!("Region not found: {}", id))
+            }
+            crate::use_cases::staging::StagingError::CharacterNotFound(id) => {
+                error_response(ErrorCode::NotFound, &format!("Character not found: {}", id))
             }
             crate::use_cases::staging::StagingError::WorldNotFound(id) => {
                 error_response(ErrorCode::NotFound, &format!("World not found: {}", id))

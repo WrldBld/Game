@@ -335,7 +335,7 @@ pub fn parse_tool_tags(raw: &str) -> Vec<ProposedTool> {
         let arguments: serde_json::Value = match serde_json::from_str(json_str) {
             Ok(args) => args,
             Err(e) => {
-                tracing::warn!(
+                tracing::error!(
                     tool_name = %name,
                     json = json_str,
                     error = %e,

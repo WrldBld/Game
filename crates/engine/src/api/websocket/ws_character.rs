@@ -61,7 +61,7 @@ pub(super) async fn handle_character_request(
                 }
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "list characters"),
                 )),
             }
         }
@@ -73,22 +73,41 @@ pub(super) async fn handle_character_request(
             };
 
             match state.app.use_cases.management.character.get(char_id).await {
-                Ok(Some(character)) => Ok(ResponseResult::success(serde_json::json!({
-                    "id": character.id().to_string(),
-                    "name": character.name().to_string(),
-                    "description": if character.description().is_empty() { None } else { Some(character.description().to_string()) },
-                    "archetype": Some(character.current_archetype().to_string()),
-                    "sprite_asset": character.sprite_asset(),
-                    "portrait_asset": character.portrait_asset(),
-                    "sheet_data": None::<wrldbldr_shared::character_sheet::CharacterSheetValues>,
-                }))),
+                Ok(Some(character)) => {
+                    // Cross-world validation: non-DMs can only access characters from their world
+                    if !conn_info.is_dm() {
+                        if let Some(world_id) = conn_info.world_id {
+                            if character.world_id() != world_id {
+                                return Ok(ResponseResult::error(
+                                    ErrorCode::Unauthorized,
+                                    "Character not in current world",
+                                ));
+                            }
+                        } else {
+                            return Ok(ResponseResult::error(
+                                ErrorCode::BadRequest,
+                                "Not connected to a world",
+                            ));
+                        }
+                    }
+
+                    Ok(ResponseResult::success(serde_json::json!({
+                        "id": character.id().to_string(),
+                        "name": character.name().to_string(),
+                        "description": if character.description().is_empty() { None } else { Some(character.description().to_string()) },
+                        "archetype": Some(character.current_archetype().to_string()),
+                        "sprite_asset": character.sprite_asset(),
+                        "portrait_asset": character.portrait_asset(),
+                        "sheet_data": None::<wrldbldr_shared::character_sheet::CharacterSheetValues>,
+                    })))
+                }
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
                     "Character not found",
                 )),
                 Err(e) => Ok(ResponseResult::error(
                     ErrorCode::InternalError,
-                    e.to_string(),
+                    sanitize_repo_error(&e, "get character"),
                 )),
             }
         }

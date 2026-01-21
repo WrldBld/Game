@@ -249,12 +249,15 @@ impl From<ApprovedNpcInfo> for ProtoApprovedNpcInfo {
 
 impl From<AdHocOutcomes> for ProtoAdHocOutcomes {
     fn from(local: AdHocOutcomes) -> Self {
+        // UI validation (AdHocChallengeModal) guarantees success/failure are non-empty
+        // and criticals are symmetric. If this panics, it's a bug in the UI.
         Self::new(
             local.success,
             local.failure,
             local.critical_success,
             local.critical_failure,
         )
+        .expect("AdHocOutcomes from UI should be valid")
     }
 }
 
