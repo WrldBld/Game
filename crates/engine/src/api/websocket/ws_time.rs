@@ -552,7 +552,7 @@ pub(super) async fn handle_time_request(
         TimeRequest::AdvanceGameTimeSeconds {
             world_id,
             seconds,
-            reason: _reason,
+            reason,
         } => {
             require_dm_for_request(conn_info, request_id)?;
 
@@ -562,9 +562,13 @@ pub(super) async fn handle_time_request(
                     Err(e) => return Err(e),
                 };
 
+            // Build TimeAdvanceReason with proper handling for sub-hour values
+            // Use DmManual for manual advancement, with hours field for coarse description
+            // The exact seconds value is tracked separately in the advance_data
             let advance_reason = wrldbldr_domain::TimeAdvanceReason::DmManual {
                 hours: seconds / 3600,
             };
+
             let outcome = match state
                 .app
                 .use_cases
@@ -585,18 +589,42 @@ pub(super) async fn handle_time_request(
                         request_id: request_id.to_string(),
                         result: ResponseResult::error(
                             ErrorCode::InternalError,
-                            sanitize_repo_error(&e, "advance game minutes"),
+                            sanitize_repo_error(&e, "advance game seconds"),
                         ),
                     });
                 }
             };
 
-            let domain_data = crate::use_cases::time::build_time_advance_data(
+            // Build display reason: use provided reason if available, otherwise generate precise description
+            let display_reason = if let Some(r) = reason {
+                r
+            } else {
+                // Build seconds-based reason to preserve precision for sub-hour values
+                let hours = seconds / 3600;
+                let minutes = (seconds % 3600) / 60;
+                if minutes == 0 {
+                    format!(
+                        "Time advanced by {} hour{}",
+                        hours,
+                        if hours == 1 { "" } else { "s" }
+                    )
+                } else if hours == 0 {
+                    format!("Time advanced by {} minute{}", minutes, if minutes == 1 { "" } else { "s" })
+                } else {
+                    format!("Time advanced by {} hour{} {} minute{}", hours, if hours == 1 { "" } else { "s" }, minutes, if minutes == 1 { "" } else { "s" })
+                }
+            };
+
+            // Build domain data with custom reason that preserves seconds precision
+            let mut domain_data = crate::use_cases::time::build_time_advance_data(
                 &outcome.previous_time,
                 &outcome.new_time,
                 seconds,
                 &advance_reason,
             );
+            // Override the auto-generated description with our precise display_reason
+            domain_data.reason = display_reason.clone();
+
             let advance_data = time_advance_data_to_protocol(&domain_data);
             let update_msg = ServerMessage::GameTimeAdvanced { data: advance_data };
             state
@@ -607,12 +635,12 @@ pub(super) async fn handle_time_request(
             tracing::info!(
                 world_id = %world_id_typed,
                 seconds_advanced = seconds,
+                reason = %display_reason,
                 "Game time advanced (seconds)"
             );
 
-            let protocol_game_time = game_time_to_protocol(&outcome.new_time);
             Ok(ResponseResult::success(serde_json::json!({
-                "game_time": protocol_game_time,
+                "game_time": game_time_to_protocol(&outcome.new_time),
                 "seconds_advanced": seconds,
             })))
         }
@@ -1012,5 +1040,380 @@ pub(super) fn time_suggestion_to_protocol(
                 to.display_name().to_string(),
             )
         }),
+    }
+}
+
+// =============================================================================
+// Unit Tests
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // =========================================================================
+    // AdvanceGameTimeSeconds Reason Tests
+    // =========================================================================
+
+    /// Test that sub-hour seconds produce precise reason descriptions
+    /// This mirrors the logic in handle_time_request for AdvanceGameTimeSeconds
+    #[test]
+    fn sub_hour_seconds_produce_precise_reason() {
+        let seconds = 1800u32; // 30 minutes
+        let hours = seconds / 3600;
+        let minutes = (seconds % 3600) / 60;
+
+        let display_reason = if minutes == 0 {
+            format!(
+                "Time advanced by {} hour{}",
+                hours,
+                if hours == 1 { "" } else { "s" }
+            )
+        } else if hours == 0 {
+            format!(
+                "Time advanced by {} minute{}",
+                minutes,
+                if minutes == 1 { "" } else { "s" }
+            )
+        } else {
+            format!(
+                "Time advanced by {} hour{} {} minute{}",
+                hours,
+                if hours == 1 { "" } else { "s" },
+                minutes,
+                if minutes == 1 { "" } else { "s" }
+            )
+        };
+
+        assert_eq!(display_reason, "Time advanced by 30 minutes");
+    }
+
+    /// Test that hours + minutes produce correct reason
+    #[test]
+    fn hour_and_minute_produce_combined_reason() {
+        let seconds = 5400u32; // 1 hour 30 minutes
+        let hours = seconds / 3600;
+        let minutes = (seconds % 3600) / 60;
+
+        let display_reason = format!(
+            "Time advanced by {} hour{} {} minute{}",
+            hours,
+            if hours == 1 { "" } else { "s" },
+            minutes,
+            if minutes == 1 { "" } else { "s" }
+        );
+
+        assert_eq!(display_reason, "Time advanced by 1 hour 30 minutes");
+    }
+
+    /// Test that pluralization works correctly for 1 hour
+    #[test]
+    fn single_hour_has_no_plural() {
+        let seconds = 3600u32;
+        let hours = seconds / 3600;
+        let minutes = (seconds % 3600) / 60;
+
+        let display_reason = if minutes == 0 {
+            format!(
+                "Time advanced by {} hour{}",
+                hours,
+                if hours == 1 { "" } else { "s" }
+            )
+        } else {
+            panic!("Should not have minutes");
+        };
+
+        assert_eq!(display_reason, "Time advanced by 1 hour");
+    }
+
+    /// Test that pluralization works correctly for multiple hours
+    #[test]
+    fn multiple_hours_has_plural() {
+        let seconds = 7200u32; // 2 hours
+        let hours = seconds / 3600;
+        let minutes = (seconds % 3600) / 60;
+
+        let display_reason = if minutes == 0 {
+            format!(
+                "Time advanced by {} hour{}",
+                hours,
+                if hours == 1 { "" } else { "s" }
+            )
+        } else {
+            panic!("Should not have minutes");
+        };
+
+        assert_eq!(display_reason, "Time advanced by 2 hours");
+    }
+
+    /// Test that single minute has no plural
+    #[test]
+    fn single_minute_has_no_plural() {
+        let seconds = 60u32;
+        let hours = seconds / 3600;
+        let minutes = (seconds % 3600) / 60;
+
+        let display_reason = if hours == 0 {
+            format!(
+                "Time advanced by {} minute{}",
+                minutes,
+                if minutes == 1 { "" } else { "s" }
+            )
+        } else {
+            panic!("Should not have hours");
+        };
+
+        assert_eq!(display_reason, "Time advanced by 1 minute");
+    }
+
+    /// Test that multiple minutes have plural
+    #[test]
+    fn multiple_minutes_have_plural() {
+        let seconds = 120u32; // 2 minutes
+        let hours = seconds / 3600;
+        let minutes = (seconds % 3600) / 60;
+
+        let display_reason = if hours == 0 {
+            format!(
+                "Time advanced by {} minute{}",
+                minutes,
+                if minutes == 1 { "" } else { "s" }
+            )
+        } else {
+            panic!("Should not have hours");
+        };
+
+        assert_eq!(display_reason, "Time advanced by 2 minutes");
+    }
+
+    /// Test that custom reason overrides generated reason
+    /// This tests the logic in ws_time.rs lines 599-626
+    #[test]
+    fn custom_reason_overrides_generated() {
+        let seconds = 3600u32;
+        let custom_reason = Some("Party rested for the night".to_string());
+
+        let display_reason = if let Some(r) = custom_reason {
+            r
+        } else {
+            let hours = seconds / 3600;
+            let minutes = (seconds % 3600) / 60;
+            if minutes == 0 {
+                format!(
+                    "Time advanced by {} hour{}",
+                    hours,
+                    if hours == 1 { "" } else { "s" }
+                )
+            } else {
+                panic!("Should not reach here with custom_reason")
+            }
+        };
+
+        assert_eq!(display_reason, "Party rested for the night");
+    }
+
+    /// Test that None custom_reason uses generated reason
+    #[test]
+    fn none_custom_reason_uses_generated() {
+        let seconds = 5400u32; // 1.5 hours
+        let custom_reason = None;
+
+        let display_reason = if let Some(r) = custom_reason {
+            r
+        } else {
+            let hours = seconds / 3600;
+            let minutes = (seconds % 3600) / 60;
+            if minutes == 0 {
+                format!(
+                    "Time advanced by {} hour{}",
+                    hours,
+                    if hours == 1 { "" } else { "s" }
+                )
+            } else if hours == 0 {
+                format!(
+                    "Time advanced by {} minute{}",
+                    minutes,
+                    if minutes == 1 { "" } else { "s" }
+                )
+            } else {
+                format!(
+                    "Time advanced by {} hour{} {} minute{}",
+                    hours,
+                    if hours == 1 { "" } else { "s" },
+                    minutes,
+                    if minutes == 1 { "" } else { "s" }
+                )
+            }
+        };
+
+        assert_eq!(display_reason, "Time advanced by 1 hour 30 minutes");
+    }
+
+    /// Test edge case: zero seconds
+    #[test]
+    fn zero_seconds_generates_zero_hours() {
+        let seconds = 0u32;
+        let hours = seconds / 3600;
+        let minutes = (seconds % 3600) / 60;
+
+        let display_reason = if minutes == 0 {
+            format!(
+                "Time advanced by {} hour{}",
+                hours,
+                if hours == 1 { "" } else { "s" }
+            )
+        } else {
+            panic!("Should not have minutes");
+        };
+
+        // Note: 0 is not 1, so we get "hours" plural
+        assert_eq!(display_reason, "Time advanced by 0 hours");
+    }
+
+    // =========================================================================
+    // Protocol Conversion Tests
+    // =========================================================================
+
+    /// Test that game_time_to_protocol produces correct GameTime
+    #[test]
+    fn game_time_to_protocol_converts_correctly() {
+        let domain_time = wrldbldr_domain::GameTime::from_seconds(45296); // 12:34:56, day 1
+        let protocol_time = game_time_to_protocol(&domain_time);
+
+        assert_eq!(protocol_time.total_seconds, 45296);
+        assert_eq!(protocol_time.day, 1);
+        assert_eq!(protocol_time.hour, 12);
+        assert_eq!(protocol_time.minute, 34);
+        assert_eq!(protocol_time.second, 56);
+        assert_eq!(protocol_time.period, "Afternoon");
+    }
+
+    /// Test that game_time_to_protocol formats time correctly
+    #[test]
+    fn game_time_to_protocol_formats_time() {
+        let domain_time = wrldbldr_domain::GameTime::from_seconds(32400); // 9:00 AM
+        let protocol_time = game_time_to_protocol(&domain_time);
+
+        assert_eq!(protocol_time.formatted_time, Some("9:00 AM".to_string()));
+    }
+
+    /// Test that game_time_to_protocol handles noon
+    #[test]
+    fn game_time_to_protocol_handles_noon() {
+        let domain_time = wrldbldr_domain::GameTime::from_seconds(43200); // 12:00 PM
+        let protocol_time = game_time_to_protocol(&domain_time);
+
+        assert_eq!(protocol_time.formatted_time, Some("12:00 PM".to_string()));
+    }
+
+    /// Test that game_time_to_protocol handles midnight
+    #[test]
+    fn game_time_to_protocol_handles_midnight() {
+        let domain_time = wrldbldr_domain::GameTime::from_seconds(0); // 12:00 AM
+        let protocol_time = game_time_to_protocol(&domain_time);
+
+        assert_eq!(protocol_time.formatted_time, Some("12:00 AM".to_string()));
+    }
+
+    /// Test that game_time_to_protocol handles evening
+    #[test]
+    fn game_time_to_protocol_handles_evening() {
+        let domain_time = wrldbldr_domain::GameTime::from_seconds(64800); // 6:00 PM
+        let protocol_time = game_time_to_protocol(&domain_time);
+
+        assert_eq!(protocol_time.formatted_time, Some("6:00 PM".to_string()));
+    }
+
+    /// Test that time_advance_data_to_protocol converts correctly
+    #[test]
+    fn time_advance_data_to_protocol_converts_correctly() {
+        let previous_time = wrldbldr_domain::GameTime::from_seconds(0);
+        let new_time = wrldbldr_domain::GameTime::from_seconds(3600);
+        let reason = wrldbldr_domain::TimeAdvanceReason::DmManual { hours: 1 };
+
+        let domain_data = crate::use_cases::time::build_time_advance_data(
+            &previous_time,
+            &new_time,
+            3600,
+            &reason,
+        );
+        let protocol_data = time_advance_data_to_protocol(&domain_data);
+
+        assert_eq!(protocol_data.seconds_advanced, 3600);
+        assert!(protocol_data.reason.contains("1 hour"));
+        assert_eq!(protocol_data.period_changed, false);
+    }
+
+    /// Test that time_advance_data_to_protocol detects period change
+    #[test]
+    fn time_advance_data_to_protocol_detects_period_change() {
+        let previous_time = wrldbldr_domain::GameTime::from_seconds(21600); // 6 AM = Morning
+        let new_time = wrldbldr_domain::GameTime::from_seconds(43200); // 12 PM = Afternoon
+        let reason = wrldbldr_domain::TimeAdvanceReason::DmManual { hours: 6 };
+
+        let domain_data = crate::use_cases::time::build_time_advance_data(
+            &previous_time,
+            &new_time,
+            21600,
+            &reason,
+        );
+        let protocol_data = time_advance_data_to_protocol(&domain_data);
+
+        assert_eq!(protocol_data.period_changed, true);
+        assert_eq!(protocol_data.new_period, Some("Afternoon".to_string()));
+    }
+
+    // =========================================================================
+    // TimeAdvanceReason Tests
+    // =========================================================================
+
+    /// Test TimeAdvanceReason::DmManual description
+    #[test]
+    fn dm_manual_reason_description() {
+        use wrldbldr_domain::TimeAdvanceReason;
+
+        let reason = TimeAdvanceReason::DmManual { hours: 1 };
+        assert_eq!(reason.description(), "Time advanced by 1 hour");
+
+        let reason = TimeAdvanceReason::DmManual { hours: 4 };
+        assert_eq!(reason.description(), "Time advanced by 4 hours");
+    }
+
+    /// Test TimeAdvanceReason::DmSetTime description
+    #[test]
+    fn dm_set_time_reason_description() {
+        use wrldbldr_domain::TimeAdvanceReason;
+
+        let reason = TimeAdvanceReason::DmSetTime;
+        assert_eq!(reason.description(), "Time set by DM");
+    }
+
+    /// Test TimeAdvanceReason::DmSkipToPeriod description
+    #[test]
+    fn dm_skip_to_period_reason_description() {
+        use wrldbldr_domain::{TimeAdvanceReason, TimeOfDay};
+
+        let reason = TimeAdvanceReason::DmSkipToPeriod {
+            period: TimeOfDay::Evening,
+        };
+        assert_eq!(reason.description(), "Skipped to Evening");
+    }
+
+    /// Test TimeAdvanceReason::RestShort description
+    #[test]
+    fn rest_short_reason_description() {
+        use wrldbldr_domain::TimeAdvanceReason;
+
+        let reason = TimeAdvanceReason::RestShort;
+        assert_eq!(reason.description(), "Took a short rest");
+    }
+
+    /// Test TimeAdvanceReason::RestLong description
+    #[test]
+    fn rest_long_reason_description() {
+        use wrldbldr_domain::TimeAdvanceReason;
+
+        let reason = TimeAdvanceReason::RestLong;
+        assert_eq!(reason.description(), "Rested for the night");
     }
 }

@@ -107,7 +107,8 @@ pub fn TimeControlPanel() -> Element {
                         // Quick skip to next period
                         if let Some(ref gt) = game_time {
                             if let Some(world_id) = *session_state.world_id().read() {
-                                let next_period = time_of_day(gt).to_string();
+                                let current_period = time_of_day(gt);
+                                let next_period = crate::presentation::game_time_format::next_period(current_period).to_string();
                                 let msg = ClientMessageBuilder::skip_to_period(&world_id.to_string(), &next_period);
                                 let _ = command_bus.send(msg);
                             }
@@ -261,10 +262,15 @@ fn TimeSuggestionCard(suggestion: TimeSuggestionData) -> Element {
                 button {
                     onclick: move |_| {
                         let seconds = *custom_seconds.read();
-                        // Use to time suggestion response method via CommandBus
+                        // Send Modify decision if custom_seconds differs from suggested_seconds
+                        let decision = if seconds == suggestion.suggested_seconds {
+                            "approve"
+                        } else {
+                            "modify"
+                        };
                         let msg = ClientMessageBuilder::respond_to_time_suggestion(
                             &suggestion_id_approve,
-                            "approve",
+                            decision,
                             Some(seconds),
                         );
                         let _ = command_bus.send(msg);
@@ -369,7 +375,8 @@ fn AdvanceTimeModal(on_close: EventHandler<()>) -> Element {
                             let h = *hours.read();
                             let r = reason.read().clone();
                             if let Some(world_id) = *session_state.world_id().read() {
-                                let msg = ClientMessageBuilder::advance_time(&world_id.to_string(), h * 60, &r);
+                                let seconds = h * 3600;
+                                let msg = ClientMessageBuilder::advance_time(&world_id.to_string(), seconds, &r);
                                 let _ = command_bus.send(msg);
                             }
                             on_close.call(());

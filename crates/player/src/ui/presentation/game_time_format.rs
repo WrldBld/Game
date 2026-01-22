@@ -29,6 +29,16 @@ pub fn time_of_day(game_time: &GameTime) -> TimeOfDay {
     }
 }
 
+/// Get the next time period (wrapping from Night to Morning)
+pub fn next_period(current: TimeOfDay) -> TimeOfDay {
+    match current {
+        TimeOfDay::Morning => TimeOfDay::Afternoon,
+        TimeOfDay::Afternoon => TimeOfDay::Evening,
+        TimeOfDay::Evening => TimeOfDay::Night,
+        TimeOfDay::Night => TimeOfDay::Morning,
+    }
+}
+
 pub fn display_time(game_time: &GameTime) -> String {
     // Use server-provided formatted_time if available
     if let Some(ref formatted) = game_time.formatted_time {

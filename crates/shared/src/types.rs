@@ -326,15 +326,23 @@ impl GameTime {
     /// Create from total seconds (canonical constructor)
     pub fn from_total_seconds(total_seconds: i64, is_paused: bool) -> Self {
         // Calculate day/hour/minute/second from total_seconds
-        // Assumes 24-hour days, 60-minute hours, 60-second minutes
+        // Uses div_euclid/rem_euclid for correct handling of negative values
+        // to match domain behavior
         let seconds_per_day = 24 * 60 * 60;
-        let day = (total_seconds / seconds_per_day) as u32 + 1; // 1-based days
-        let remaining = total_seconds % seconds_per_day;
-        let hour = (remaining / 3600) as u8;
-        let remaining_of_hour = remaining % 3600;
-        let minute = (remaining_of_hour / 60) as u8;
-        let second = (remaining_of_hour % 60) as u8;
+        let second_of_day = total_seconds.rem_euclid(seconds_per_day);
+        let hour = (second_of_day / 3600) as u8;
+        let second_of_hour = second_of_day.rem_euclid(3600);
+        let minute = (second_of_hour / 60) as u8;
+        let second = second_of_hour.rem_euclid(60) as u8;
         let period = Self::compute_period(hour);
+
+        // Calculate 1-based day number using euclidean division
+        let day = if total_seconds >= 0 {
+            (total_seconds / seconds_per_day) as u32 + 1
+        } else {
+            // For negative values: -86400..-1 is day 1, -172800..-86401 is day 2
+            ((-total_seconds - 1) / seconds_per_day) as u32 + 1
+        };
 
         Self {
             total_seconds,
@@ -1481,5 +1489,252 @@ impl TriggerSchema {
                 ],
             },
         ]
+    }
+}
+
+// =============================================================================
+// GameTime Tests
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod game_time_from_total_seconds {
+        use super::*;
+
+        /// Test that zero total_seconds produces correct time
+        #[test]
+        fn zero_total_seconds_produces_midnight_day_one() {
+            let gt = GameTime::from_total_seconds(0, false);
+            assert_eq!(gt.total_seconds, 0);
+            assert_eq!(gt.day, 1);
+            assert_eq!(gt.hour, 0);
+            assert_eq!(gt.minute, 0);
+            assert_eq!(gt.second, 0);
+            assert_eq!(gt.period, "Night");
+        }
+
+        /// Test positive total_seconds within first day
+        #[test]
+        fn positive_seconds_within_first_day() {
+            let gt = GameTime::from_total_seconds(45296, false); // 12:34:56
+            assert_eq!(gt.total_seconds, 45296);
+            assert_eq!(gt.day, 1);
+            assert_eq!(gt.hour, 12);
+            assert_eq!(gt.minute, 34);
+            assert_eq!(gt.second, 56);
+            assert_eq!(gt.period, "Afternoon");
+        }
+
+        /// Test positive total_seconds spanning multiple days
+        #[test]
+        fn positive_seconds_across_multiple_days() {
+            let gt = GameTime::from_total_seconds(200000, false); // Day 3, 7:33:20
+            assert_eq!(gt.total_seconds, 200000);
+            assert_eq!(gt.day, 3);
+            assert_eq!(gt.hour, 7);
+            assert_eq!(gt.minute, 33);
+            assert_eq!(gt.second, 20);
+            assert_eq!(gt.period, "Morning");
+        }
+
+        /// Test negative total_seconds (-1 second uses Euclidean math)
+        #[test]
+        fn negative_one_second_wraps_to_previous_day_end() {
+            let gt = GameTime::from_total_seconds(-1, false);
+            // -1 should give us 23:59:59 of day 1 (before epoch)
+            assert_eq!(gt.total_seconds, -1);
+            assert_eq!(gt.day, 1); // Day 1 before epoch
+            assert_eq!(gt.hour, 23);
+            assert_eq!(gt.minute, 59);
+            assert_eq!(gt.second, 59);
+            assert_eq!(gt.period, "Night");
+        }
+
+        /// Test negative total_seconds at day boundary
+        #[test]
+        fn negative_day_boundary_eight_sixty_four_hundred() {
+            let gt = GameTime::from_total_seconds(-86400, false);
+            // Exactly one day before epoch
+            assert_eq!(gt.total_seconds, -86400);
+            assert_eq!(gt.day, 1);
+            assert_eq!(gt.hour, 0);
+            assert_eq!(gt.minute, 0);
+            assert_eq!(gt.second, 0);
+        }
+
+        /// Test negative total_seconds past day boundary
+        #[test]
+        fn negative_past_day_boundary_eight_sixty_four_hundred_one() {
+            let gt = GameTime::from_total_seconds(-86401, false);
+            // Just past one day boundary
+            assert_eq!(gt.total_seconds, -86401);
+            assert_eq!(gt.day, 2); // Day 2 before epoch
+            assert_eq!(gt.hour, 23);
+            assert_eq!(gt.minute, 59);
+            assert_eq!(gt.second, 59);
+        }
+
+        /// Test negative total_seconds with specific time (-1:00:30)
+        #[test]
+        fn negative_specific_time_hour_minute_second() {
+            let gt = GameTime::from_total_seconds(-3630, false); // -1:00:30
+            assert_eq!(gt.total_seconds, -3630);
+            assert_eq!(gt.day, 1);
+            assert_eq!(gt.hour, 22);
+            assert_eq!(gt.minute, 59);
+            assert_eq!(gt.second, 30);
+        }
+
+        /// Test negative total_seconds across multiple days
+        #[test]
+        fn negative_multiple_days_before_epoch() {
+            let gt = GameTime::from_total_seconds(-200000, false);
+            // ~2.3 days before epoch
+            assert_eq!(gt.total_seconds, -200000);
+            assert_eq!(gt.day, 3);
+            // -200000 rem_euclid 86400 = 59200
+            // 59200 / 3600 = 16 hours
+            // 59200 rem_euclid 3600 = 1600 seconds
+            // 1600 / 60 = 26 minutes
+            // 1600 rem_euclid 60 = 40 seconds
+            assert_eq!(gt.hour, 16);
+            assert_eq!(gt.minute, 26);
+            assert_eq!(gt.second, 40);
+        }
+
+        /// Test period calculation at negative time boundaries
+        #[test]
+        fn negative_time_period_morning() {
+            let gt = GameTime::from_total_seconds(-18000, false); // -5 hours = 19:00 previous day
+            assert_eq!(gt.hour, 19);
+            assert_eq!(gt.period, "Evening");
+        }
+
+        /// Test period calculation at negative time in morning range
+        #[test]
+        fn negative_time_in_morning_period() {
+            let gt = GameTime::from_total_seconds(-25000, false);
+            // -25000 / 86400 = 0 rem_euclid = 61400
+            // 61400 / 3600 = 17 hours = 5 PM = Evening
+            // Let's verify: 86400 - 25000 = 61400, 61400 / 3600 = 17.055...
+            assert_eq!(gt.hour, 17);
+            assert_eq!(gt.period, "Afternoon");
+        }
+    }
+
+    mod game_time_display {
+        use super::*;
+
+        #[test]
+        fn display_without_formatted_fields() {
+            let gt = GameTime::new(3, 14, 30, false);
+            let display = gt.display();
+            assert_eq!(display, "Day 3, 2:30 PM");
+        }
+
+        #[test]
+        fn display_with_formatted_time() {
+            let mut gt = GameTime::new(3, 14, 30, false);
+            gt.formatted_time = Some("2:30 PM".to_string());
+            let display = gt.display();
+            assert_eq!(display, "Day 3, 2:30 PM");
+        }
+
+        #[test]
+        fn display_with_formatted_date_and_time() {
+            let mut gt = GameTime::new(3, 14, 30, false);
+            gt.formatted_date = Some("15th of Hammer, 1492 DR".to_string());
+            gt.formatted_time = Some("2:30 PM".to_string());
+            let display = gt.display();
+            assert_eq!(display, "15th of Hammer, 1492 DR, 2:30 PM");
+        }
+
+        #[test]
+        fn display_morning() {
+            let gt = GameTime::new(1, 9, 0, false);
+            let display = gt.display();
+            assert_eq!(display, "Day 1, 9:00 AM");
+        }
+
+        #[test]
+        fn display_noon() {
+            let gt = GameTime::new(1, 12, 0, false);
+            let display = gt.display();
+            assert_eq!(display, "Day 1, 12:00 PM");
+        }
+
+        #[test]
+        fn display_midnight() {
+            let gt = GameTime::new(1, 0, 0, false);
+            let display = gt.display();
+            assert_eq!(display, "Day 1, 12:00 AM");
+        }
+    }
+
+    mod time_suggestion_decision_conversion {
+        use super::*;
+
+        #[test]
+        fn decision_approve_to_domain() {
+            let decision = TimeSuggestionDecision::Approve;
+            let domain: wrldbldr_domain::TimeSuggestionDecision = decision.try_into().unwrap();
+            assert!(matches!(
+                domain,
+                wrldbldr_domain::TimeSuggestionDecision::Approve
+            ));
+        }
+
+        #[test]
+        fn decision_modify_to_domain() {
+            let decision = TimeSuggestionDecision::Modify { seconds: 600 };
+            let domain: wrldbldr_domain::TimeSuggestionDecision = decision.try_into().unwrap();
+            assert!(matches!(
+                domain,
+                wrldbldr_domain::TimeSuggestionDecision::Modify { seconds: 600 }
+            ));
+        }
+
+        #[test]
+        fn decision_skip_to_domain() {
+            let decision = TimeSuggestionDecision::Skip;
+            let domain: wrldbldr_domain::TimeSuggestionDecision = decision.try_into().unwrap();
+            assert!(matches!(
+                domain,
+                wrldbldr_domain::TimeSuggestionDecision::Skip
+            ));
+        }
+
+        #[test]
+        fn decision_unknown_fails_conversion() {
+            let decision = TimeSuggestionDecision::Unknown;
+            let result: Result<wrldbldr_domain::TimeSuggestionDecision, _> = decision.try_into();
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn decision_from_domain_approve() {
+            let domain = wrldbldr_domain::TimeSuggestionDecision::Approve;
+            let protocol: TimeSuggestionDecision = domain.into();
+            assert!(matches!(protocol, TimeSuggestionDecision::Approve));
+        }
+
+        #[test]
+        fn decision_from_domain_modify() {
+            let domain = wrldbldr_domain::TimeSuggestionDecision::Modify { seconds: 900 };
+            let protocol: TimeSuggestionDecision = domain.into();
+            assert!(matches!(
+                protocol,
+                TimeSuggestionDecision::Modify { seconds: 900 }
+            ));
+        }
+
+        #[test]
+        fn decision_from_domain_skip() {
+            let domain = wrldbldr_domain::TimeSuggestionDecision::Skip;
+            let protocol: TimeSuggestionDecision = domain.into();
+            assert!(matches!(protocol, TimeSuggestionDecision::Skip));
+        }
     }
 }
