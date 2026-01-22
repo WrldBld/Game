@@ -72,45 +72,128 @@ Location (City)
 
 ### Backend Implemented (UI Pending)
 
-- [x] **US-VS-001**: As a DM, I can create location states with visual overrides (backdrop, atmosphere, sound)
-  - *Backend*: `LocationState` entity with CRUD operations in `location_state.rs`, `location_state_repo.rs`
-  - *UI*: Creator mode editor not yet implemented
+- [x] **US-VS-001**: As a DM, I can create location states with visual overrides so that city-wide scenes shift with events
+  - *Acceptance Criteria*:
+    - A location state can be created with optional overrides for backdrop, atmosphere, ambience, and map overlays
+    - A location can list all its available location states ordered by priority
+    - A location state can be updated and deleted without breaking existing staging records
+  - *Implementation Notes*: `LocationState` entity + repository CRUD in `crates/domain/src/entities/location_state.rs` and `crates/engine/src/repositories/location_state.rs`
+  - *Required Data Fields*: `id`, `location_id`, `world_id`, `name`, `description`, `priority`, `is_default`, `activation_rules`, `activation_logic`, `backdrop_override`, `atmosphere_override`, `ambient_sound`, `map_overlay`
+  - *UI States*: No creator UI yet; stored data is not user-editable in Player or DM panels
+  - *Error Handling*: Reject invalid IDs or missing location; validation errors for empty name/invalid rule payloads
+  - *Cross-Refs*: [Asset System](./asset-system.md) for asset paths, [Staging System](./staging-system.md) for activation lifecycle
 
-- [x] **US-VS-002**: As a DM, I can create region states with visual overrides
-  - *Backend*: `RegionState` entity with CRUD operations in `region_state.rs`, `region_state_repo.rs`
-  - *UI*: Creator mode editor not yet implemented
+- [x] **US-VS-002**: As a DM, I can create region states with visual overrides so that specific regions react to time and events
+  - *Acceptance Criteria*:
+    - A region state can be created with the same override fields as a location state
+    - Region states are scoped to a single region and sortable by priority
+    - Region state updates preserve activation rules and default flags
+  - *Implementation Notes*: `RegionState` entity + repository CRUD in `crates/domain/src/entities/region_state.rs` and `crates/engine/src/repositories/region_state.rs`
+  - *Required Data Fields*: `id`, `region_id`, `location_id`, `world_id`, `name`, `description`, `priority`, `is_default`, `activation_rules`, `activation_logic`, `backdrop_override`, `atmosphere_override`, `ambient_sound`
+  - *UI States*: No creator UI yet; region state metadata is backend-only
+  - *Error Handling*: Reject invalid region IDs, duplicate defaults, or invalid rule payloads
+  - *Cross-Refs*: [Scene System](./scene-system.md) for region rendering, [Navigation System](./navigation-system.md) for region context
 
-- [x] **US-VS-003**: As a DM, I can define hard activation rules (date, time, event, flag)
-  - *Backend*: `ActivationRule` enum in domain with all rule types
-  - *UI*: Rule editor not yet implemented
+- [x] **US-VS-003**: As a DM, I can define hard activation rules so that visual states activate deterministically
+  - *Acceptance Criteria*:
+    - Hard rule types (Always, DateExact, DateRange, TimeOfDay, EventTriggered, FlagSet, CharacterPresent) are available
+    - Activation logic supports `all`, `any`, and `at_least` semantics
+    - Rule evaluation returns pass/fail based on current game time, flags, and staged NPCs
+  - *Implementation Notes*: `ActivationRule` enum and evaluation utilities in `crates/domain/src/value_objects/activation_rules.rs`
+  - *Required Data Fields*: `activation_rules`, `activation_logic`, and rule-specific fields (date range, time period, event id, flag key, npc id)
+  - *UI States*: Rule editing UI not yet implemented; rules are authored via data import or tooling
+  - *Error Handling*: Validation errors for malformed rule definitions or unknown rule type
+  - *Cross-Refs*: [Game Time System](./game-time-system.md), [Narrative System](./narrative-system.md), [Staging System](./staging-system.md)
 
-- [x] **US-VS-005**: As a DM, I can set priorities for states when multiple might match
-  - *Backend*: `priority` field on RegionState, resolution logic implemented
-  - *UI*: Priority control not yet implemented
+- [x] **US-VS-005**: As a DM, I can set priorities for states so that conflicts resolve predictably
+  - *Acceptance Criteria*:
+    - State resolution chooses the highest-priority matching state within a scope
+    - Priority ties use consistent ordering (e.g., stable by name or creation order)
+    - Priority can be updated without changing state IDs
+  - *Implementation Notes*: `priority` field on `LocationState` and `RegionState`; resolution logic in `crates/engine/src/use_cases/visual_state/resolve_state.rs`
+  - *Required Data Fields*: `priority` (integer)
+  - *UI States*: Priority input not yet exposed in UI; stored via backend tooling
+  - *Error Handling*: Invalid priority values default to zero or reject during validation
+  - *Cross-Refs*: [Staging System](./staging-system.md), [Scene System](./scene-system.md)
 
-- [x] **US-VS-006**: As a DM, I can mark a state as the default fallback
-  - *Backend*: `is_default` field, `get_default()` method
-  - *UI*: Default toggle not yet implemented
+- [x] **US-VS-006**: As a DM, I can mark a state as the default so that fallback visuals always exist
+  - *Acceptance Criteria*:
+    - Each location/region can have exactly one default state
+    - Resolution falls back to default when no rule matches
+    - Default designation persists through updates and deletions
+  - *Implementation Notes*: `is_default` flag and `get_default()` lookup in repositories
+  - *Required Data Fields*: `is_default`
+  - *UI States*: Default toggle not yet available; defaults set via backend tooling
+  - *Error Handling*: Reject multiple defaults for the same scope; error when no default exists and no match
+  - *Cross-Refs*: [Staging System](./staging-system.md), [Scene System](./scene-system.md)
 
 ### UI Pending
 
-- [ ] **US-VS-004**: As a DM, I can define soft activation rules (custom LLM conditions)
-  - *Implementation*: Free-text condition with optional LLM prompt
+- [ ] **US-VS-004**: As a DM, I can define soft activation rules so that AI can evaluate nuanced conditions
+  - *Acceptance Criteria*:
+    - DM can enter free-text conditions and optional LLM prompts per rule
+    - Soft rules are evaluated by LLM only after hard rules pass
+    - LLM reasoning is stored and visible in staging approval
+  - *Implementation Notes*: Extend `ActivationRule` with `Custom` payload and route to AI evaluation in `crates/engine/src/use_cases/visual_state/resolve_state.rs`
+  - *Required Data Fields*: `custom_condition`, `llm_prompt`, `visual_state_reasoning`, `visual_state_source`
+  - *UI States*: Rule editor supports adding/removing custom rules; shows validation errors inline
+  - *Error Handling*: LLM timeout returns fallback to default state and logs reasoning failure
+  - *Cross-Refs*: [Prompt Template System](./prompt-template-system.md), [Dialogue System](./dialogue-system.md)
 
-- [ ] **US-VS-007**: As a DM, I see resolved visual states in the staging approval popup
-  - *Implementation*: Extend StagingApproval component
+- [ ] **US-VS-007**: As a DM, I see resolved visual states in the staging approval popup so that I can approve the full scene
+  - *Acceptance Criteria*:
+    - Staging approval UI displays resolved location and region states with reasons
+    - DM can see the effective backdrop/atmosphere preview before approving
+    - Approved states are persisted on the staging record
+  - *Implementation Notes*: Extend staging approval payloads and UI in `crates/player/src/ui/presentation/components/dm_panel/staging_approval.rs`
+  - *Required Data Fields*: `resolved_location_state`, `resolved_region_state`, `available_location_states`, `available_region_states`, `visual_state_reasoning`
+  - *UI States*: Loading while preview assets resolve; empty state when no visual state data
+  - *Error Handling*: If payload missing, UI shows fallback message and allows approval without visual state
+  - *Cross-Refs*: [Staging System](./staging-system.md), [Scene System](./scene-system.md)
 
-- [ ] **US-VS-008**: As a DM, I can override the auto-resolved visual state during staging
-  - *Implementation*: State selector in staging approval
+- [ ] **US-VS-008**: As a DM, I can override the auto-resolved visual state during staging so that I can direct the scene
+  - *Acceptance Criteria*:
+    - DM can select a different location or region state from the available list
+    - Override selection is saved with staging approval and marked as `DmOverride`
+    - Override changes trigger a `VisualStateChanged` broadcast to players
+  - *Implementation Notes*: Extend staging approval request/response to include optional overrides; update resolver to accept overrides
+  - *Required Data Fields*: `location_state_id`, `region_state_id`, `visual_state_source`
+  - *UI States*: Selector dropdowns with default values; disabled state when no alternatives
+  - *Error Handling*: Reject override IDs not in available options; show validation error in DM UI
+  - *Cross-Refs*: [Staging System](./staging-system.md), [Navigation System](./navigation-system.md)
 
-- [ ] **US-VS-009**: As a player, I see the appropriate backdrop based on current state
-  - *Implementation*: State-aware scene rendering
+- [ ] **US-VS-009**: As a player, I see the appropriate backdrop based on current visual state so that the scene feels responsive
+  - *Acceptance Criteria*:
+    - Player view renders location/region overrides based on active visual state
+    - Region overrides take precedence over location overrides
+    - Backdrop updates when a `VisualStateChanged` message arrives
+  - *Implementation Notes*: Use resolved visual state fields in scene rendering components; integrate with scene state store
+  - *Required Data Fields*: `location_state`, `region_state`, `backdrop_override`, `atmosphere_override`
+  - *UI States*: Loading placeholder while asset downloads; fallback to default location/region backdrop
+  - *Error Handling*: Missing assets fall back to default images with warning logging
+  - *Cross-Refs*: [Scene System](./scene-system.md), [Asset System](./asset-system.md)
 
-- [ ] **US-VS-010**: As a player, I hear ambient sounds based on current state
-  - *Implementation*: Audio system integration
+- [ ] **US-VS-010**: As a player, I hear ambient sounds based on current visual state so that the location feels alive
+  - *Acceptance Criteria*:
+    - Ambient sound changes when visual state changes
+    - Region ambience overrides location ambience
+    - Audio respects mute/volume settings
+  - *Implementation Notes*: Integrate audio playback with visual state updates in player app services
+  - *Required Data Fields*: `ambient_sound`, client audio settings
+  - *UI States*: Audio loading indicator in settings panel; fallback to silence when no sound is defined
+  - *Error Handling*: Audio load failure logs and continues without blocking UI
+  - *Cross-Refs*: [Scene System](./scene-system.md), [Asset System](./asset-system.md)
 
-- [ ] **US-VS-011**: As a DM, I can preview what a region looks like in different states
-  - *Implementation*: State preview in editor
+- [ ] **US-VS-011**: As a DM, I can preview what a region looks like in different states so that I can author content confidently
+  - *Acceptance Criteria*:
+    - DM can switch between states and see combined backdrop + atmosphere preview
+    - Preview reflects time-of-day and location defaults
+    - Preview works without staging a live scene
+  - *Implementation Notes*: Add preview UI in creator mode using state resolution with mock context
+  - *Required Data Fields*: `state_id`, preview context (time, flags), asset paths
+  - *UI States*: Preview loading, empty state when no assets, error state for missing assets
+  - *Error Handling*: Preview failures do not affect live staging; show errors inline
+  - *Cross-Refs*: [Asset System](./asset-system.md), [Scene System](./scene-system.md)
 
 ---
 
@@ -550,8 +633,22 @@ When staging is requested, states are resolved as follows:
 
 ---
 
+## UI Design Documentation
+
+For detailed UI/UX mockups covering:
+- Visual State Catalog browser and selection
+- Pre-stage modal with state selection + generation
+- Staging approval with state override
+- Visual State details modal
+- Generation workflow
+
+See: [Visual State Catalog UI Design](../designs/visual-state-catalog-ui.md)
+
+---
+
 ## Revision History
 
 | Date | Change |
 |------|--------|
+| 2026-01-22 | Added UI design documentation link |
 | 2026-01-05 | Initial version - Phase 1 domain design |

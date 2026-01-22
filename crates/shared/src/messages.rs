@@ -630,6 +630,9 @@ pub enum ServerMessage {
         /// Items visible in this region (can be picked up)
         #[serde(default)]
         region_items: Vec<RegionItemData>,
+        /// Resolved visual state for scene display
+        #[serde(default)]
+        visual_state: Option<crate::types::ResolvedVisualStateData>,
     },
 
     /// Movement was blocked (locked door, etc.)

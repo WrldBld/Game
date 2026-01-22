@@ -653,6 +653,8 @@ pub fn DirectorModeContent() -> Element {
                                     approved_npcs,
                                     result.ttl_hours,
                                     &result.source,
+                                    result.location_state_id,
+                                    result.region_state_id,
                                 );
                                 if let Err(e) = command_bus_approve.send(msg) {
                                     tracing::error!("Failed to send staging approval: {}", e);

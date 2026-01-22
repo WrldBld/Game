@@ -49,6 +49,7 @@ mod ws_staging;
 mod ws_stat;
 mod ws_story_events;
 mod ws_time;
+mod ws_visual_state;
 mod ws_world;
 
 pub mod error_sanitizer;
@@ -521,6 +522,7 @@ async fn handle_message(
                 RequestPayload::Stat(_) => "Stat",
                 RequestPayload::CharacterSheet(_) => "CharacterSheet",
                 RequestPayload::Content(_) => "Content",
+                RequestPayload::VisualState(_) => "VisualState",
                 RequestPayload::Unknown => "Unknown",
             };
 
@@ -932,6 +934,9 @@ async fn handle_request(
         }
         RequestPayload::Content(req) => {
             ws_content::handle_content_request(state, &request_id, &conn_info, req).await
+        }
+        RequestPayload::VisualState(req) => {
+            ws_visual_state::handle_visual_state_request(state, &request_id, &conn_info, req).await
         }
         RequestPayload::Unknown => Ok(ResponseResult::error(
             ErrorCode::BadRequest,

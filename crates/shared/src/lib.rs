@@ -275,6 +275,12 @@ pub use requests::{
     stat::StatRequest,
     story_event::StoryEventRequest,
     time::TimeRequest,
+    visual_state::{
+        CreateVisualStateRequest, DeleteVisualStateRequest, GenerateVisualStateRequest,
+        GeneratedVisualStateData, GetVisualStateCatalogRequest, GetVisualStateDetailsRequest,
+        SetActiveVisualStateRequest, UpdateVisualStateRequest, VisualStateCatalogData,
+        VisualStateRequest, VisualStateType,
+    },
     want::WantRequest,
     world::WorldRequest,
     // Create data types

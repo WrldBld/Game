@@ -58,6 +58,45 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     );
     npc = npc.with_id(npc_id);
 
+    // Visual state fixtures: minimal states to satisfy fail-fast validation
+    let location_state_id = wrldbldr_domain::LocationStateId::new();
+    let location_state = wrldbldr_domain::LocationState::from_parts(
+        location_state_id,
+        location_id,
+        world_id,
+        wrldbldr_domain::StateName::new("Test Location State").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None, // backdrop_override
+        None, // atmosphere_override
+        None, // ambient_sound
+        None, // map_overlay
+        vec![wrldbldr_domain::ActivationRule::Always],
+        wrldbldr_domain::ActivationLogic::All,
+        0, // priority
+        true, // is_default
+        now,
+        now,
+    );
+
+    let region_state_id = wrldbldr_domain::RegionStateId::new();
+    let region_state = wrldbldr_domain::RegionState::from_parts(
+        region_state_id,
+        region_id,
+        location_id,
+        world_id,
+        wrldbldr_domain::StateName::new("Test Region State").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None, // backdrop_override
+        None, // atmosphere_override
+        None, // ambient_sound
+        vec![wrldbldr_domain::ActivationRule::Always],
+        wrldbldr_domain::ActivationLogic::All,
+        0, // priority
+        true, // is_default
+        now,
+        now,
+    );
+
     let mut world_repo = MockWorldRepo::new();
     let world_for_get = world.clone();
     world_repo
@@ -150,23 +189,59 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
         .expect_get_pc_flags()
         .returning(|_| Box::pin(async { Ok(vec![]) }));
 
-    // Visual state resolution: no states.
+    // Visual state resolution: return active states to satisfy fail-fast validation
+    let location_state_for_list = vec![location_state.clone()];
+    let location_state_for_active = location_state.clone();
+    let region_state_for_list = vec![region_state.clone()];
+    let region_state_for_active = region_state.clone();
+
     repos
         .location_state_repo
         .expect_list_for_location()
-        .returning(|_| Ok(vec![]));
+        .times(0..)
+        .returning(move |_| Ok(location_state_for_list.clone()));
     repos
         .region_state_repo
         .expect_list_for_region()
-        .returning(|_| Ok(vec![]));
+        .times(0..)
+        .returning(move |_| Ok(region_state_for_list.clone()));
     repos
         .location_state_repo
         .expect_get_active()
-        .returning(|_| Ok(None));
+        .times(0..)
+        .returning(move |_| Ok(Some(location_state_for_active.clone())));
     repos
         .region_state_repo
         .expect_get_active()
-        .returning(|_| Ok(None));
+        .times(0..)
+        .returning(move |_| Ok(Some(region_state_for_active.clone())));
+    // get() is called to build visual state response
+    let location_state_for_get = location_state.clone();
+    let location_state_id_for_get = location_state_id;
+    repos
+        .location_state_repo
+        .expect_get()
+        .times(0..)
+        .returning(move |id| {
+            if id == location_state_id_for_get {
+                Ok(Some(location_state_for_get.clone()))
+            } else {
+                Ok(None)
+            }
+        });
+    let region_state_for_get = region_state.clone();
+    let region_state_id_for_get = region_state_id;
+    repos
+        .region_state_repo
+        .expect_get()
+        .times(0..)
+        .returning(move |id| {
+            if id == region_state_id_for_get {
+                Ok(Some(region_state_for_get.clone()))
+            } else {
+                Ok(None)
+            }
+        });
 
     // Character details used by PreStageRegion.
     let npc_for_get = npc.clone();
@@ -187,11 +262,17 @@ async fn when_dm_prestages_region_then_player_entering_gets_scene_changed_withou
     let shared = Arc::new(Mutex::new(SharedStaging::default()));
 
     let shared_for_save_and_activate = shared.clone();
+    let location_state_id_for_assertion = location_state_id;
+    let region_state_id_for_assertion = region_state_id;
     repos
         .staging_repo
-        .expect_save_and_activate_pending_staging()
-        .withf(move |_s, r| *r == region_id)
-        .returning(move |s, _region| {
+        .expect_save_and_activate_pending_staging_with_states()
+        .withf(move |s, r, loc_state_id, reg_state_id| {
+            *r == region_id
+                && loc_state_id == &Some(location_state_id_for_assertion)
+                && reg_state_id == &Some(region_state_id_for_assertion)
+        })
+        .returning(move |s, _region, _loc_state_id, _reg_state_id| {
             let mut guard = shared_for_save_and_activate.lock().unwrap();
             guard.active = Some(s.clone());
             Ok(())

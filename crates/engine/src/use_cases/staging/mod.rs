@@ -11,6 +11,8 @@ mod types;
 
 #[cfg(test)]
 mod llm_integration_tests;
+#[cfg(test)]
+mod tests;
 
 use std::sync::Arc;
 
@@ -24,7 +26,7 @@ pub use approve::{ApproveStagingInput, ApproveStagingRequest};
 pub use auto_approve::AutoApproveStagingTimeout;
 pub use regenerate::RegenerateStagingSuggestions;
 pub use request_approval::{RequestStagingApproval, StagingApprovalContext, StagingApprovalInput};
-pub use types::{ApprovedNpc, StagingApprovalData};
+pub use types::{ApprovedNpc, ResolvedStateInfo, ResolvedVisualState, StagingApprovalData};
 
 /// Fetches world settings with graceful fallback to defaults.
 ///

@@ -6,8 +6,8 @@ use uuid::Uuid;
 use wrldbldr_domain::{LocationId, NpcPresence, RegionId, StagingSource, WorldId};
 
 use crate::infrastructure::ports::{
-    CharacterRepo, ClockPort, LocationRepo, LocationStateRepo, RegionStateRepo, StagingRepo,
-    WorldRepo,
+    CharacterRepo, ClockPort, LocationRepo, LocationStateRepo, RegionStateRepo, RepoError,
+    StagingRepo, WorldRepo,
 };
 
 use super::types::{ApprovedNpc, NpcPresent, ResolvedStateInfo, ResolvedVisualState};
@@ -97,7 +97,18 @@ impl ApproveStagingRequest {
 
         let staged_npcs = self.build_staged_npcs(&input.approved_npcs).await?;
 
-        let staging = wrldbldr_domain::Staging::new(
+        // Resolve visual state IDs: use provided IDs or fall back to active states
+        let (resolved_location_state_id, resolved_region_state_id, visual_state_source) =
+            self.resolve_visual_state_ids(
+                location_id,
+                input.region_id,
+                &input.location_state_id,
+                &input.region_state_id,
+                &input.source,
+            )
+            .await?;
+
+        let mut staging = wrldbldr_domain::Staging::new(
             input.region_id,
             location_id,
             input.world_id,
@@ -107,73 +118,35 @@ impl ApproveStagingRequest {
             input.ttl_hours,
             approved_at,
         )
-        .with_npcs(staged_npcs);
+        .with_npcs(staged_npcs)
+        .with_visual_state_source(visual_state_source);
 
-        // Use atomic save_and_activate to ensure both operations succeed or fail together
+        // Set visual state IDs on staging (they've already been validated)
+        if let Some(loc_state_id) = resolved_location_state_id {
+            staging = staging.with_location_state(loc_state_id);
+        }
+
+        if let Some(reg_state_id) = resolved_region_state_id {
+            staging = staging.with_region_state(reg_state_id);
+        }
+
+        // Use atomic save_and_activate with state updates to ensure all operations succeed or fail together
         self.staging
-            .save_and_activate_pending_staging(&staging, input.region_id)
+            .save_and_activate_pending_staging_with_states(
+                &staging,
+                input.region_id,
+                resolved_location_state_id,
+                resolved_region_state_id,
+            )
             .await?;
 
-        if let Some(loc_state_str) = &input.location_state_id {
-            if let Ok(loc_uuid) = Uuid::parse_str(loc_state_str) {
-                let loc_state_id = wrldbldr_domain::LocationStateId::from_uuid(loc_uuid);
-                // Validate that the location state exists before setting it as active
-                match self.location_state.get(loc_state_id).await {
-                    Ok(Some(_)) => {
-                        self.location_state
-                            .set_active(location_id, loc_state_id)
-                            .await?;
-                    }
-                    Ok(None) => {
-                        tracing::warn!(
-                            location_state_id = %loc_state_str,
-                            location_id = %location_id,
-                            "Location state ID provided but not found in database, skipping"
-                        );
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            error = %e,
-                            location_state_id = %loc_state_str,
-                            "Failed to validate location state existence"
-                        );
-                    }
-                }
-            }
-        }
-
-        if let Some(reg_state_str) = &input.region_state_id {
-            if let Ok(reg_uuid) = Uuid::parse_str(reg_state_str) {
-                let reg_state_id = wrldbldr_domain::RegionStateId::from_uuid(reg_uuid);
-                // Validate that the region state exists before setting it as active
-                match self.region_state.get(reg_state_id).await {
-                    Ok(Some(_)) => {
-                        self.region_state
-                            .set_active(input.region_id, reg_state_id)
-                            .await?;
-                    }
-                    Ok(None) => {
-                        tracing::warn!(
-                            region_state_id = %reg_state_str,
-                            region_id = %input.region_id,
-                            "Region state ID provided but not found in database, skipping"
-                        );
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            error = %e,
-                            region_state_id = %reg_state_str,
-                            "Failed to validate region state existence"
-                        );
-                    }
-                }
-            }
-        }
-
         let npcs_present = self.build_npcs_present(&input.approved_npcs).await?;
+
+        // Build visual state response using the resolved IDs from approval
+        // This ensures the response matches what was actually saved
         let visual_state = self
-            .build_visual_state_for_staging(location_id, input.region_id)
-            .await;
+            .build_visual_state_for_staging(resolved_location_state_id, resolved_region_state_id)
+            .await?;
 
         Ok(StagingReadyPayload {
             region_id: input.region_id,
@@ -284,29 +257,48 @@ impl ApproveStagingRequest {
 
     async fn build_visual_state_for_staging(
         &self,
-        location_id: LocationId,
-        region_id: RegionId,
-    ) -> Option<ResolvedVisualState> {
-        let location_state = match self.location_state.get_active(location_id).await {
-            Ok(state) => state,
-            Err(e) => {
-                tracing::warn!(location_id = %location_id, error = %e, "Failed to fetch location state for staging");
-                None
+        location_state_id: Option<wrldbldr_domain::LocationStateId>,
+        region_state_id: Option<wrldbldr_domain::RegionStateId>,
+    ) -> Result<Option<ResolvedVisualState>, StagingError> {
+        let location_state = match location_state_id {
+            Some(id) => {
+                let state = self
+                    .location_state
+                    .get(id)
+                    .await
+                    .map_err(StagingError::Repo)?
+                    .ok_or_else(|| {
+                        StagingError::Repo(RepoError::not_found("LocationState", id.to_string()))
+                    })?;
+                Some(state)
             }
-        };
-        let region_state = match self.region_state.get_active(region_id).await {
-            Ok(state) => state,
-            Err(e) => {
-                tracing::warn!(region_id = %region_id, error = %e, "Failed to fetch region state for staging");
-                None
-            }
+            None => None,
         };
 
+        let region_state = match region_state_id {
+            Some(id) => {
+                let state = self
+                    .region_state
+                    .get(id)
+                    .await
+                    .map_err(StagingError::Repo)?
+                    .ok_or_else(|| {
+                        StagingError::Repo(RepoError::not_found("RegionState", id.to_string()))
+                    })?;
+                Some(state)
+            }
+            None => None,
+        };
+
+        // Both being None is a data integrity error - staging was approved without resolving visual state IDs
         if location_state.is_none() && region_state.is_none() {
-            return None;
+            return Err(StagingError::Repo(RepoError::database(
+                "build_visual_state_for_staging",
+                "Both location_state_id and region_state_id are None - staging was approved without resolving visual state IDs",
+            )));
         }
 
-        Some(ResolvedVisualState {
+        Ok(Some(ResolvedVisualState {
             location_state: location_state.map(|s| ResolvedStateInfo {
                 id: s.id().to_string(),
                 name: s.name().to_string(),
@@ -321,7 +313,7 @@ impl ApproveStagingRequest {
                 atmosphere_override: s.atmosphere_override().map(|s| s.to_string()),
                 ambient_sound: s.ambient_sound().map(|s| s.to_string()),
             }),
-        })
+        }))
     }
 
     /// Validates the approved_npcs array.
@@ -337,5 +329,170 @@ impl ApproveStagingRequest {
 
         // CharacterId is already typed, no further validation needed
         Ok(())
+    }
+
+    /// Resolve visual state IDs for staging approval.
+    ///
+    /// Returns (location_state_id, region_state_id, visual_state_source).
+    ///
+    /// Logic:
+    /// - If IDs provided by DM: validate they exist, use them, set source to DmOverride
+    /// - If no IDs provided (manual DM approval or auto-approval): resolve active states, use them, set source to Default
+    ///   - If no active states exist, return Validation error (at least one state must be active)
+    async fn resolve_visual_state_ids(
+        &self,
+        location_id: LocationId,
+        region_id: RegionId,
+        provided_location_state_id: &Option<String>,
+        provided_region_state_id: &Option<String>,
+        source: &StagingSource,
+    ) -> Result<(
+        Option<wrldbldr_domain::LocationStateId>,
+        Option<wrldbldr_domain::RegionStateId>,
+        wrldbldr_domain::VisualStateSource,
+    ), StagingError> {
+        // Determine visual state source based on whether states were provided
+        if provided_location_state_id.is_some() || provided_region_state_id.is_some() {
+            // DM provided explicit IDs - validate they exist
+            let resolved_location_id = if let Some(loc_state_str) = provided_location_state_id {
+                let loc_uuid = Uuid::parse_str(loc_state_str).map_err(|e| {
+                    StagingError::Validation(format!("Invalid location_state_id UUID: {}", e))
+                })?;
+                let loc_state_id = wrldbldr_domain::LocationStateId::from_uuid(loc_uuid);
+
+                // Validate that the location state exists
+                self.location_state
+                    .get(loc_state_id)
+                    .await
+                    .map_err(|e| StagingError::Repo(e))?
+                    .ok_or_else(|| {
+                        StagingError::Validation(format!(
+                            "Location state not found: {}",
+                            loc_state_str
+                        ))
+                    })?;
+
+                Some(loc_state_id)
+            } else {
+                None
+            };
+
+            let resolved_region_id = if let Some(reg_state_str) = provided_region_state_id {
+                let reg_uuid = Uuid::parse_str(reg_state_str).map_err(|e| {
+                    StagingError::Validation(format!("Invalid region_state_id UUID: {}", e))
+                })?;
+                let reg_state_id = wrldbldr_domain::RegionStateId::from_uuid(reg_uuid);
+
+                // Validate that the region state exists
+                self.region_state
+                    .get(reg_state_id)
+                    .await
+                    .map_err(|e| StagingError::Repo(e))?
+                    .ok_or_else(|| {
+                        StagingError::Validation(format!("Region state not found: {}", reg_state_str))
+                    })?;
+
+                Some(reg_state_id)
+            } else {
+                None
+            };
+
+            Ok((
+                resolved_location_id,
+                resolved_region_id,
+                wrldbldr_domain::VisualStateSource::DmOverride,
+            ))
+        } else {
+            // No IDs provided - resolve active states
+            let resolved_location_id = self
+                .location_state
+                .get_active(location_id)
+                .await
+                .map_err(|e| StagingError::Repo(e))?
+                .map(|state| state.id());
+
+            let resolved_region_id = self
+                .region_state
+                .get_active(region_id)
+                .await
+                .map_err(|e| StagingError::Repo(e))?
+                .map(|state| state.id());
+
+            // Require at least one active state for all approvals (no backcompat)
+            if resolved_location_id.is_none() && resolved_region_id.is_none() {
+                return Err(StagingError::Validation(
+                    "No visual state IDs provided and no active states exist. Please select a location or region state."
+                        .to_string(),
+                ));
+            }
+
+            tracing::debug!(
+                location_id = %location_id,
+                region_id = %region_id,
+                resolved_location_id = ?resolved_location_id,
+                resolved_region_id = ?resolved_region_id,
+                source = ?source,
+                "Resolved visual states for approval"
+            );
+
+            Ok((
+                resolved_location_id,
+                resolved_region_id,
+                wrldbldr_domain::VisualStateSource::Default,
+            ))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infrastructure::ports::{
+        MockCharacterRepo, MockClockPort, MockLocationRepo, MockLocationStateRepo,
+        MockRegionStateRepo, MockStagingRepo, MockWorldRepo, RepoError,
+    };
+
+    /// Test: build_visual_state_for_staging fails when both IDs are None.
+    ///
+    /// This verifies fail-fast behavior when staging is approved without
+    /// resolving visual state IDs (no backcompat - at least one state must be resolved).
+    #[tokio::test]
+    async fn test_build_visual_state_for_staging_fails_when_both_ids_none() {
+        // Setup mocks (only mock_location_state and mock_region_state are called by build_visual_state_for_staging)
+        let mock_staging = MockStagingRepo::new();
+        let mock_world = MockWorldRepo::new();
+        let mock_character = MockCharacterRepo::new();
+        let mock_location = MockLocationRepo::new();
+        let mock_location_state = MockLocationStateRepo::new();
+        let mock_region_state = MockRegionStateRepo::new();
+        let mock_clock = MockClockPort::new();
+
+        // Create use case instance
+        let use_case = ApproveStagingRequest::new(
+            Arc::new(mock_staging),
+            Arc::new(mock_world),
+            Arc::new(mock_character),
+            Arc::new(mock_location),
+            Arc::new(mock_location_state),
+            Arc::new(mock_region_state),
+            Arc::new(mock_clock),
+        );
+
+        // Call build_visual_state_for_staging with both IDs as None
+        let result = use_case
+            .build_visual_state_for_staging(None, None)
+            .await;
+
+        // Assert it returns the expected error
+        assert!(result.is_err());
+        match result {
+            Err(StagingError::Repo(RepoError::Database { operation, message })) => {
+                assert_eq!(operation, "build_visual_state_for_staging");
+                assert!(message.contains("Both location_state_id and region_state_id are None"));
+                assert!(message.contains("staging was approved without resolving visual state IDs"));
+            }
+            Err(other) => panic!("Expected StagingError::Repo(Database), got: {:?}", other),
+            Ok(_) => panic!("Expected error, got Ok result"),
+        }
     }
 }

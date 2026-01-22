@@ -569,6 +569,13 @@ pub trait StagingRepo: Send + Sync {
         staging: &Staging,
         region_id: RegionId,
     ) -> Result<(), RepoError>;
+    async fn save_and_activate_pending_staging_with_states(
+        &self,
+        staging: &Staging,
+        region_id: RegionId,
+        location_state_id: Option<LocationStateId>,
+        region_state_id: Option<RegionStateId>,
+    ) -> Result<(), RepoError>;
     async fn delete_pending_staging(&self, id: StagingId) -> Result<(), RepoError>;
 
     /// Get active staging for a region, checking TTL expiry.

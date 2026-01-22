@@ -81,28 +81,47 @@ pub(super) async fn handle_staging_approval(
 
     let pending = state.pending_staging_requests.remove_and_mark_processed(&request_id).await;
 
-    let (region_id, location_id) = if let Some(pending) = pending {
-        (pending.region_id, Some(pending.location_id))
-    } else {
-        // Check if request_id looks like a UUID (staging request token)
-        // If so, it was likely already processed by timeout or another handler
-        if uuid::Uuid::parse_str(&request_id).is_ok() {
+    let (region_id, location_id) = match pending {
+        Some(pending) => (pending.region_id, Some(pending.location_id)),
+        None => {
             return Some(error_response(
                 ErrorCode::Conflict,
-                "Staging request already processed or expired",
-            ));
+                "Staging request not found or already processed",
+            ))
         }
-        // Backward-compat: allow request_id to be the region_id.
-        let region_id = match parse_region_id(&request_id) {
-            Ok(id) => id,
-            Err(e) => return Some(e),
-        };
-        (region_id, None)
     };
 
     let world_id = match conn_info.world_id {
         Some(id) => id,
         None => return Some(error_response(ErrorCode::BadRequest, "World not joined")),
+    };
+
+    // Validate location_state_id as UUID if provided
+    let validated_location_state_id = match &location_state_id {
+        Some(id_str) => match uuid::Uuid::parse_str(id_str) {
+            Ok(_) => Some(id_str.clone()),
+            Err(e) => {
+                return Some(error_response(
+                    ErrorCode::ValidationError,
+                    &format!("Invalid location_state_id UUID: {}", e),
+                ))
+            }
+        },
+        None => None,
+    };
+
+    // Validate region_state_id as UUID if provided
+    let validated_region_state_id = match &region_state_id {
+        Some(id_str) => match uuid::Uuid::parse_str(id_str) {
+            Ok(_) => Some(id_str.clone()),
+            Err(e) => {
+                return Some(error_response(
+                    ErrorCode::ValidationError,
+                    &format!("Invalid region_state_id UUID: {}", e),
+                ))
+            }
+        },
+        None => None,
     };
 
     // Convert protocol types to domain types
@@ -128,8 +147,8 @@ pub(super) async fn handle_staging_approval(
         ttl_hours,
         source: parse_staging_source(&source),
         approved_npcs: domain_approved_npcs,
-        location_state_id,
-        region_state_id,
+        location_state_id: validated_location_state_id,
+        region_state_id: validated_region_state_id,
     };
 
     let payload = match state.app.use_cases.staging.approve.execute(input).await {
@@ -151,6 +170,9 @@ pub(super) async fn handle_staging_approval(
                 ErrorCode::NotFound,
                 &format!("World not found: {}", id),
             ))
+        }
+        Err(crate::use_cases::staging::StagingError::Validation(message)) => {
+            return Some(error_response(ErrorCode::ValidationError, &message))
         }
         Err(e) => {
             return Some(error_response(
@@ -318,6 +340,34 @@ pub(super) async fn handle_pre_stage_region(
         None => return Some(error_response(ErrorCode::BadRequest, "World not joined")),
     };
 
+    // Validate location_state_id as UUID if provided
+    let validated_location_state_id = match &location_state_id {
+        Some(id_str) => match uuid::Uuid::parse_str(id_str) {
+            Ok(_) => Some(id_str.clone()),
+            Err(e) => {
+                return Some(error_response(
+                    ErrorCode::ValidationError,
+                    &format!("Invalid location_state_id UUID: {}", e),
+                ))
+            }
+        },
+        None => None,
+    };
+
+    // Validate region_state_id as UUID if provided
+    let validated_region_state_id = match &region_state_id {
+        Some(id_str) => match uuid::Uuid::parse_str(id_str) {
+            Ok(_) => Some(id_str.clone()),
+            Err(e) => {
+                return Some(error_response(
+                    ErrorCode::ValidationError,
+                    &format!("Invalid region_state_id UUID: {}", e),
+                ))
+            }
+        },
+        None => None,
+    };
+
     // Convert protocol types to domain types
     let domain_approved_npcs: Vec<crate::use_cases::staging::ApprovedNpc> = match npcs
         .iter()
@@ -341,8 +391,8 @@ pub(super) async fn handle_pre_stage_region(
         ttl_hours,
         source: StagingSource::PreStaged,
         approved_npcs: domain_approved_npcs,
-        location_state_id,
-        region_state_id,
+        location_state_id: validated_location_state_id,
+        region_state_id: validated_region_state_id,
     };
 
     if let Err(e) = state.app.use_cases.staging.approve.execute(input).await {
@@ -355,6 +405,9 @@ pub(super) async fn handle_pre_stage_region(
             }
             crate::use_cases::staging::StagingError::WorldNotFound(id) => {
                 error_response(ErrorCode::NotFound, &format!("World not found: {}", id))
+            }
+            crate::use_cases::staging::StagingError::Validation(message) => {
+                error_response(ErrorCode::ValidationError, &message)
             }
             _ => error_response(
                 ErrorCode::InternalError,

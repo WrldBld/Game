@@ -6,6 +6,7 @@
 //! This module handles determining which LocationState and RegionState
 //! should be active based on current context and activation rules.
 
+mod catalog;
 mod resolve_state;
 
 #[cfg(test)]
@@ -18,10 +19,18 @@ use std::sync::Arc;
 /// Container for visual state use cases.
 pub struct VisualStateUseCases {
     pub resolve: Arc<ResolveVisualState>,
+    pub catalog: Arc<VisualStateCatalog>,
 }
 
 impl VisualStateUseCases {
-    pub fn new(resolve: Arc<ResolveVisualState>) -> Self {
-        Self { resolve }
+    pub fn new(resolve: Arc<ResolveVisualState>, catalog: Arc<VisualStateCatalog>) -> Self {
+        Self { resolve, catalog }
+    }
+}
+
+
+impl VisualStateUseCases {
+    pub fn new(resolve: Arc<ResolveVisualState>, catalog: Arc<VisualStateCatalog>) -> Self {
+        Self { resolve, catalog }
     }
 }

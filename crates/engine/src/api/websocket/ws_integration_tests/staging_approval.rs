@@ -67,6 +67,45 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     );
     hidden_npc = hidden_npc.with_id(hidden_npc_id);
 
+    // Visual state fixtures: minimal states to satisfy fail-fast validation
+    let location_state_id = wrldbldr_domain::LocationStateId::new();
+    let location_state = wrldbldr_domain::LocationState::from_parts(
+        location_state_id,
+        location_id,
+        world_id,
+        wrldbldr_domain::StateName::new("Test Location State").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None, // backdrop_override
+        None, // atmosphere_override
+        None, // ambient_sound
+        None, // map_overlay
+        vec![wrldbldr_domain::ActivationRule::Always],
+        wrldbldr_domain::ActivationLogic::All,
+        0, // priority
+        true, // is_default
+        now,
+        now,
+    );
+
+    let region_state_id = wrldbldr_domain::RegionStateId::new();
+    let region_state = wrldbldr_domain::RegionState::from_parts(
+        region_state_id,
+        region_id,
+        location_id,
+        world_id,
+        wrldbldr_domain::StateName::new("Test Region State").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None, // backdrop_override
+        None, // atmosphere_override
+        None, // ambient_sound
+        vec![wrldbldr_domain::ActivationRule::Always],
+        wrldbldr_domain::ActivationLogic::All,
+        0, // priority
+        true, // is_default
+        now,
+        now,
+    );
+
     // World repo: serve the world for both time + visual state resolution.
     let mut world_repo = MockWorldRepo::new();
     let world_for_get = world.clone();
@@ -188,28 +227,60 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
         .times(0..)
         .returning(|_| Box::pin(async { Ok(vec![]) }));
 
-    // Visual state resolution: no states.
+    // Visual state resolution: return active states to satisfy fail-fast validation
+    let location_state_for_list = vec![location_state.clone()];
+    let location_state_for_active = location_state.clone();
+    let region_state_for_list = vec![region_state.clone()];
+    let region_state_for_active = region_state.clone();
+
     repos
         .location_state_repo
         .expect_list_for_location()
         .times(0..)
-        .returning(|_| Ok(vec![]));
+        .returning(move |_| Ok(location_state_for_list.clone()));
     repos
         .region_state_repo
         .expect_list_for_region()
         .times(0..)
-        .returning(|_| Ok(vec![]));
+        .returning(move |_| Ok(region_state_for_list.clone()));
     // get_active is called during movement (enter_region) AND during approval
     repos
         .location_state_repo
         .expect_get_active()
         .times(0..)
-        .returning(|_| Ok(None));
+        .returning(move |_| Ok(Some(location_state_for_active.clone())));
     repos
         .region_state_repo
         .expect_get_active()
         .times(0..)
-        .returning(|_| Ok(None));
+        .returning(move |_| Ok(Some(region_state_for_active.clone())));
+    // get() is called to build visual state response
+    let location_state_for_get = location_state.clone();
+    let location_state_id_for_get = location_state_id;
+    repos
+        .location_state_repo
+        .expect_get()
+        .times(0..)
+        .returning(move |id| {
+            if id == location_state_id_for_get {
+                Ok(Some(location_state_for_get.clone()))
+            } else {
+                Ok(None)
+            }
+        });
+    let region_state_for_get = region_state.clone();
+    let region_state_id_for_get = region_state_id;
+    repos
+        .region_state_repo
+        .expect_get()
+        .times(0..)
+        .returning(move |id| {
+            if id == region_state_id_for_get {
+                Ok(Some(region_state_for_get.clone()))
+            } else {
+                Ok(None)
+            }
+        });
 
     // Items in region: empty.
     repos
@@ -235,10 +306,12 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
     let world_id_for_staging = world_id;
     let visible_npc_id_for_staging = visible_npc_id;
     let hidden_npc_id_for_staging = hidden_npc_id;
+    let location_state_id_for_assertion = location_state_id;
+    let region_state_id_for_assertion = region_state_id;
     repos
         .staging_repo
-        .expect_save_and_activate_pending_staging()
-        .withf(move |s, r| {
+        .expect_save_and_activate_pending_staging_with_states()
+        .withf(move |s, r, loc_state_id, reg_state_id| {
             s.region_id() == region_id_for_staging
                 && s.location_id() == location_id_for_staging
                 && s.world_id() == world_id_for_staging
@@ -254,8 +327,10 @@ async fn when_player_enters_unstaged_region_then_dm_can_approve_and_player_recei
                         && n.is_hidden_from_players()
                 })
                 && *r == region_id_for_staging
+                && loc_state_id == &Some(location_state_id_for_assertion) // Resolved from active state
+                && reg_state_id == &Some(region_state_id_for_assertion) // Resolved from active state
         })
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _, _| Ok(()));
 
     // Character details for StagingReady payload.
     let visible_npc_for_get = visible_npc.clone();
@@ -446,6 +521,45 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
     .with_description(wrldbldr_domain::Description::new("desc").unwrap())
     .with_id(location_id);
 
+    // Visual state fixtures: minimal states to satisfy fail-fast validation
+    let location_state_id = wrldbldr_domain::LocationStateId::new();
+    let location_state = wrldbldr_domain::LocationState::from_parts(
+        location_state_id,
+        location_id,
+        world_id,
+        wrldbldr_domain::StateName::new("Test Location State").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None, // backdrop_override
+        None, // atmosphere_override
+        None, // ambient_sound
+        None, // map_overlay
+        vec![wrldbldr_domain::ActivationRule::Always],
+        wrldbldr_domain::ActivationLogic::All,
+        0, // priority
+        true, // is_default
+        now,
+        now,
+    );
+
+    let region_state_id = wrldbldr_domain::RegionStateId::new();
+    let region_state = wrldbldr_domain::RegionState::from_parts(
+        region_state_id,
+        region_id,
+        location_id,
+        world_id,
+        wrldbldr_domain::StateName::new("Test Region State").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None, // backdrop_override
+        None, // atmosphere_override
+        None, // ambient_sound
+        vec![wrldbldr_domain::ActivationRule::Always],
+        wrldbldr_domain::ActivationLogic::All,
+        0, // priority
+        true, // is_default
+        now,
+        now,
+    );
+
     let region = wrldbldr_domain::Region::from_parts(
         region_id,
         location_id,
@@ -502,22 +616,26 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
         .expect_get_staged_npcs()
         .returning(|_| Ok(vec![]));
 
-    // Verify that save_and_activate_pending_staging is called with TTL from settings (7 hours)
+    // Verify that save_and_activate_pending_staging_with_states is called with TTL from settings (7 hours)
     let region_id_for_staging = region_id;
     let location_id_for_staging = location_id;
     let world_id_for_staging = world_id;
+    let location_state_id_for_assertion = location_state_id;
+    let region_state_id_for_assertion = region_state_id;
     repos
         .staging_repo
-        .expect_save_and_activate_pending_staging()
-        .withf(move |s, r| {
+        .expect_save_and_activate_pending_staging_with_states()
+        .withf(move |s, r, loc_state_id, reg_state_id| {
             s.region_id() == region_id_for_staging
                 && s.location_id() == location_id_for_staging
                 && s.world_id() == world_id_for_staging
                 && s.ttl_hours() == 7 // Custom TTL from settings (not default 3)
                 && s.source() == wrldbldr_domain::StagingSource::AutoApproved
                 && *r == region_id_for_staging
+                && loc_state_id == &Some(location_state_id_for_assertion) // Resolved from active state
+                && reg_state_id == &Some(region_state_id_for_assertion) // Resolved from active state
         })
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _, _| Ok(()));
 
     // Character repo: no NPCs for rule-based suggestions
     repos
@@ -525,15 +643,42 @@ async fn auto_approve_staging_timeout_uses_world_settings_for_ttl() {
         .expect_get_npcs_for_region()
         .returning(|_| Ok(vec![]));
 
-    // Location state and region state repos
+    // Location state and region state repos: return active states to satisfy fail-fast validation
+    let location_state_for_active = location_state.clone();
+    let region_state_for_active = region_state.clone();
     repos
         .location_state_repo
         .expect_get_active()
-        .returning(|_| Ok(None));
+        .returning(move |_| Ok(Some(location_state_for_active.clone())));
     repos
         .region_state_repo
         .expect_get_active()
-        .returning(|_| Ok(None));
+        .returning(move |_| Ok(Some(region_state_for_active.clone())));
+    // get() is called to build visual state response
+    let location_state_for_get = location_state.clone();
+    let region_state_for_get = region_state.clone();
+    repos
+        .location_state_repo
+        .expect_get()
+        .times(0..)
+        .returning(move |id| {
+            if id == location_state_id {
+                Ok(Some(location_state_for_get.clone()))
+            } else {
+                Ok(None)
+            }
+        });
+    repos
+        .region_state_repo
+        .expect_get()
+        .times(0..)
+        .returning(move |id| {
+            if id == region_state_id {
+                Ok(Some(region_state_for_get.clone()))
+            } else {
+                Ok(None)
+            }
+        });
 
     let app = build_test_app(repos, now);
 
@@ -590,6 +735,45 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
     .with_description(wrldbldr_domain::Description::new("desc").unwrap())
     .with_id(location_id);
 
+    // Visual state fixtures: minimal states to satisfy fail-fast validation
+    let location_state_id = wrldbldr_domain::LocationStateId::new();
+    let location_state = wrldbldr_domain::LocationState::from_parts(
+        location_state_id,
+        location_id,
+        world_id,
+        wrldbldr_domain::StateName::new("Test Location State").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None, // backdrop_override
+        None, // atmosphere_override
+        None, // ambient_sound
+        None, // map_overlay
+        vec![wrldbldr_domain::ActivationRule::Always],
+        wrldbldr_domain::ActivationLogic::All,
+        0, // priority
+        true, // is_default
+        now,
+        now,
+    );
+
+    let region_state_id = wrldbldr_domain::RegionStateId::new();
+    let region_state = wrldbldr_domain::RegionState::from_parts(
+        region_state_id,
+        region_id,
+        location_id,
+        world_id,
+        wrldbldr_domain::StateName::new("Test Region State").unwrap(),
+        wrldbldr_domain::Description::default(),
+        None, // backdrop_override
+        None, // atmosphere_override
+        None, // ambient_sound
+        vec![wrldbldr_domain::ActivationRule::Always],
+        wrldbldr_domain::ActivationLogic::All,
+        0, // priority
+        true, // is_default
+        now,
+        now,
+    );
+
     let region = wrldbldr_domain::Region::from_parts(
         region_id,
         location_id,
@@ -642,23 +826,27 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
         .expect_get_staged_npcs()
         .returning(|_| Ok(vec![]));
 
-    // Verify that save_and_activate_pending_staging is called with DEFAULT TTL (3 hours)
+    // Verify that save_and_activate_pending_staging_with_states is called with DEFAULT TTL (3 hours)
     // since settings fetch failed and we fall back to AppSettings::default()
     let region_id_for_staging = region_id;
     let location_id_for_staging = location_id;
     let world_id_for_staging = world_id;
+    let location_state_id_for_assertion = location_state_id;
+    let region_state_id_for_assertion = region_state_id;
     repos
         .staging_repo
-        .expect_save_and_activate_pending_staging()
-        .withf(move |s, r| {
+        .expect_save_and_activate_pending_staging_with_states()
+        .withf(move |s, r, loc_state_id, reg_state_id| {
             s.region_id() == region_id_for_staging
                 && s.location_id() == location_id_for_staging
                 && s.world_id() == world_id_for_staging
                 && s.ttl_hours() == 3 // Default TTL (settings fetch failed)
                 && s.source() == wrldbldr_domain::StagingSource::AutoApproved
                 && *r == region_id_for_staging
+                && loc_state_id == &Some(location_state_id_for_assertion) // Resolved from active state
+                && reg_state_id == &Some(region_state_id_for_assertion) // Resolved from active state
         })
-        .returning(|_, _| Ok(()));
+        .returning(|_, _, _, _| Ok(()));
 
     // Character repo: no NPCs
     repos
@@ -666,15 +854,42 @@ async fn auto_approve_staging_timeout_falls_back_to_defaults_on_settings_error()
         .expect_get_npcs_for_region()
         .returning(|_| Ok(vec![]));
 
-    // Location state and region state repos
+    // Location state and region state repos: return active states to satisfy fail-fast validation
+    let location_state_for_active = location_state.clone();
+    let region_state_for_active = region_state.clone();
     repos
         .location_state_repo
         .expect_get_active()
-        .returning(|_| Ok(None));
+        .returning(move |_| Ok(Some(location_state_for_active.clone())));
     repos
         .region_state_repo
         .expect_get_active()
-        .returning(|_| Ok(None));
+        .returning(move |_| Ok(Some(region_state_for_active.clone())));
+    // get() is called to build visual state response
+    let location_state_for_get = location_state.clone();
+    let region_state_for_get = region_state.clone();
+    repos
+        .location_state_repo
+        .expect_get()
+        .times(0..)
+        .returning(move |id| {
+            if id == location_state_id {
+                Ok(Some(location_state_for_get.clone()))
+            } else {
+                Ok(None)
+            }
+        });
+    repos
+        .region_state_repo
+        .expect_get()
+        .times(0..)
+        .returning(move |id| {
+            if id == region_state_id {
+                Ok(Some(region_state_for_get.clone()))
+            } else {
+                Ok(None)
+            }
+        });
 
     let app = build_test_app(repos, now);
 

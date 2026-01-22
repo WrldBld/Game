@@ -9,10 +9,11 @@ use crate::infrastructure::{
     clock::{SystemClock, SystemRandom},
     neo4j::Neo4jRepositories,
     ports::{
-        ActRepo, ChallengeRepo, CharacterRepo, ClockPort, ContentRepo, FlagRepo, GoalRepo,
-        ImageGenPort, InteractionRepo, ItemRepo, LlmPort, LocationRepo, LocationStateRepo,
-        LoreRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, PromptTemplateRepo,
-        QueuePort, RandomPort, RegionStateRepo, SceneRepo, SettingsRepo, StagingRepo, WorldRepo,
+        ActRepo, AssetRepo, ChallengeRepo, CharacterRepo, ClockPort, ContentRepo, FlagRepo,
+        GoalRepo, ImageGenPort, InteractionRepo, ItemRepo, LlmPort, LocationRepo,
+        LocationStateRepo, LoreRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo,
+        PromptTemplateRepo, QueuePort, RandomPort, RegionStateRepo, SceneRepo, SettingsRepo,
+        StagingRepo, WorldRepo,
     },
 };
 use crate::use_cases;
@@ -57,6 +58,7 @@ pub struct Repositories {
     pub lore: Arc<dyn LoreRepo>,
     pub narrative_repo: Arc<dyn NarrativeRepo>,
     pub prompt_templates: Arc<dyn PromptTemplateRepo>,
+    pub asset: Arc<dyn AssetRepo>,
 
     // Wrapper types that add business logic beyond delegation
     pub narrative: Arc<use_cases::NarrativeOps>,
@@ -171,6 +173,7 @@ impl App {
             lore: lore_repo.clone(),
             narrative_repo: narrative_repo.clone(),
             prompt_templates: prompt_templates_repo.clone(),
+            asset: repos.asset.clone(),
             // Wrapper types
             narrative: narrative.clone(),
         };
@@ -191,6 +194,8 @@ impl App {
                 repos.player_character.clone(),
                 repos.location.clone(),
                 repos.staging.clone(),
+                repos.location_state.clone(),
+                repos.region_state.clone(),
                 repos.observation.clone(),
                 record_visit.clone(),
                 narrative.clone(),
@@ -205,6 +210,8 @@ impl App {
                 repos.player_character.clone(),
                 repos.location.clone(),
                 repos.staging.clone(),
+                repos.location_state.clone(),
+                repos.region_state.clone(),
                 repos.observation.clone(),
                 record_visit.clone(),
                 narrative.clone(),
@@ -416,12 +423,24 @@ impl App {
             Arc::new(use_cases::time::TimeSuggestions::new(time_control.clone()));
         let time_uc = use_cases::TimeUseCases::new(suggest_time, time_control, time_suggestions);
 
-        let visual_state_uc = use_cases::VisualStateUseCases::new(Arc::new(
-            use_cases::visual_state::ResolveVisualState::new(
-                repos.location_state.clone(),
-                repos.region_state.clone(),
-            ),
+        let visual_state_resolve = Arc::new(use_cases::visual_state::ResolveVisualState::new(
+            repos.location_state.clone(),
+            repos.region_state.clone(),
         ));
+
+        let visual_state_catalog = Arc::new(use_cases::visual_state::VisualStateCatalog::new(
+            repos.location.clone(),
+            repos.region.clone(),
+            repos.location_state.clone(),
+            repos.region_state.clone(),
+            image_gen.clone(),
+            repos.asset.clone(),
+            clock_port.clone(),
+            random_port.clone(),
+        ));
+
+        let visual_state_uc =
+            use_cases::VisualStateUseCases::new(visual_state_resolve, visual_state_catalog);
 
         let settings_ops = Arc::new(SettingsOps::new(settings_repo.clone()));
 

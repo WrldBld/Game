@@ -38,6 +38,7 @@ pub mod skill;
 pub mod stat;
 pub mod story_event;
 pub mod time;
+pub mod visual_state;
 pub mod want;
 pub mod world;
 
@@ -80,6 +81,7 @@ pub enum RequestPayload {
     Stat(stat::StatRequest),
     CharacterSheet(character_sheet::CharacterSheetRequest),
     Content(content::ContentRequest),
+    VisualState(visual_state::VisualStateRequest),
 
     #[serde(other)]
     Unknown,

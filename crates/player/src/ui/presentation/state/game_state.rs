@@ -143,7 +143,14 @@ pub struct StagingApprovalData {
     pub llm_based_npcs: Vec<StagedNpcData>,
     pub default_ttl_hours: i32,
     pub waiting_pcs: Vec<WaitingPcData>,
+    // Visual State Fields
+    pub resolved_visual_state: Option<ResolvedVisualStateData>,
+    pub available_location_states: Vec<StateOptionData>,
+    pub available_region_states: Vec<StateOptionData>,
 }
+
+/// Resolved visual state for staging (re-export from shared)
+pub use wrldbldr_shared::types::{ResolvedStateInfoData, ResolvedVisualStateData, StateOptionData};
 
 /// Staging status for a specific region (for DM panel display)
 #[derive(Clone, Debug, PartialEq)]
@@ -264,8 +271,10 @@ pub struct GameState {
     /// Current moods of NPCs in the scene (npc_id -> mood string)
     /// Updated by NpcMoodChanged events, used for expression/sprite display
     pub npc_moods: Signal<HashMap<String, String>>,
-    /// Whether the backdrop is transitioning (fade effect during scene change)
+    /// Whether to backdrop is transitioning (fade effect during scene change)
     pub backdrop_transitioning: Signal<bool>,
+    /// Resolved visual state override from staging (for backdrop/atmosphere)
+    pub visual_state_override: Signal<Option<ResolvedVisualStateData>>,
 }
 
 impl GameState {
@@ -299,6 +308,7 @@ impl GameState {
             time_advance_notification: Signal::new(None),
             npc_moods: Signal::new(HashMap::new()),
             backdrop_transitioning: Signal::new(false),
+            visual_state_override: Signal::new(None),
         }
     }
 
@@ -338,6 +348,8 @@ impl GameState {
         self.region_items.set(region_items);
         // Clear NPC moods when changing scene - they'll be repopulated from staging
         self.clear_npc_moods();
+        // Clear visual state override - new staging will provide fresh overrides
+        self.clear_visual_state_override();
     }
 
     /// Trigger a backdrop fade transition effect
@@ -514,7 +526,17 @@ impl GameState {
         self.npc_moods.write().clear();
     }
 
-    /// Set the staging status for a specific region
+    /// Set visual state override from staging approval
+    pub fn set_visual_state_override(&mut self, visual_state: Option<ResolvedVisualStateData>) {
+        self.visual_state_override.set(visual_state);
+    }
+
+    /// Clear visual state override (when changing scenes)
+    pub fn clear_visual_state_override(&mut self) {
+        self.visual_state_override.set(None);
+    }
+
+    /// Set to staging status for a specific region
     pub fn set_region_staging_status(&mut self, region_id: String, status: RegionStagingStatus) {
         self.region_staging_statuses
             .write()
@@ -668,7 +690,23 @@ impl GameState {
 
     /// Get the backdrop URL for the current scene
     pub fn backdrop_url(&self) -> Option<String> {
-        // First check scene override, then location backdrop
+        // Check visual state override first (from staging approval)
+        let visual_override = self.visual_state_override.read();
+        if let Some(ref state) = *visual_override {
+            // Priority: region state > location state
+            if let Some(ref region_state) = state.region_state {
+                if let Some(ref backdrop) = region_state.backdrop_override {
+                    return Some(backdrop.clone());
+                }
+            }
+            if let Some(ref location_state) = state.location_state {
+                if let Some(ref backdrop) = location_state.backdrop_override {
+                    return Some(backdrop.clone());
+                }
+            }
+        }
+
+        // Then check scene override, then location backdrop
         let scene_binding = self.current_scene.read();
         if let Some(scene) = scene_binding.as_ref() {
             if let Some(ref backdrop) = scene.backdrop_asset {
@@ -711,6 +749,7 @@ impl GameState {
         self.time_mode.set(TimeMode::default());
         self.time_paused.set(true);
         self.time_advance_notification.set(None);
+        self.clear_visual_state_override();
     }
 
     /// Clear all state

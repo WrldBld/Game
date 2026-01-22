@@ -606,16 +606,18 @@ pub fn handle_server_message(
             npcs_present,
             navigation,
             region_items,
+            visual_state,
         } => {
             tracing::info!(
-                "Scene changed for PC {}: {} in {} ({} NPCs, {} regions, {} exits, {} items)",
+                "Scene changed for PC {}: {} in {} ({} NPCs, {} regions, {} exits, {} items, visual state: {})",
                 pc_id,
                 region.name,
                 region.location_name,
                 npcs_present.len(),
                 navigation.connected_regions.len(),
                 navigation.exits.len(),
-                region_items.len()
+                region_items.len(),
+                visual_state.is_some()
             );
 
             // Clear any active dialogue when changing scenes
@@ -630,6 +632,9 @@ pub fn handle_server_message(
                 navigation,
                 region_items,
             );
+
+            // Apply visual state override if provided in SceneChanged
+            game_state.set_visual_state_override(visual_state);
 
             session_state.add_log_entry(
                 "System".to_string(),
@@ -867,7 +872,9 @@ pub fn handle_server_message(
             llm_based_npcs,
             default_ttl_hours,
             waiting_pcs,
-            .. // Visual state fields - TODO: Handle in UI when implemented
+            resolved_visual_state,
+            available_location_states,
+            available_region_states,
         } => {
             tracing::info!(
                 "Staging approval required for region {} ({}): {} rule-based, {} LLM-based NPCs",
@@ -919,6 +926,9 @@ pub fn handle_server_message(
                 llm_based_npcs: llm_npcs,
                 default_ttl_hours,
                 waiting_pcs: waiting,
+                resolved_visual_state,
+                available_location_states,
+                available_region_states,
             });
 
             session_state.add_log_entry(
@@ -961,7 +971,7 @@ pub fn handle_server_message(
         PlayerEvent::StagingReady {
             region_id,
             npcs_present,
-            .. // visual_state - TODO: Handle in UI when implemented
+            visual_state,
         } => {
             tracing::info!(
                 "Staging ready for region {}: {} NPCs present",
@@ -973,6 +983,9 @@ pub fn handle_server_message(
             game_state.clear_staging_pending();
             // Clear the DM approval popup (staging has been approved)
             game_state.clear_pending_staging_approval();
+
+            // Set visual state override if provided in staging
+            game_state.set_visual_state_override(visual_state);
 
             // Update region staging status to Active with NPC names
             let npc_names: Vec<String> = npcs_present.iter().map(|n| n.name.clone()).collect();

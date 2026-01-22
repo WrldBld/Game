@@ -10,8 +10,8 @@ use wrldbldr_domain::{
 };
 
 use crate::infrastructure::ports::{
-    ClockPort, FlagRepo, LocationRepo, ObservationRepo, PlayerCharacterRepo, RepoError, SceneRepo,
-    StagingRepo, WorldRepo,
+    ClockPort, FlagRepo, LocationRepo, LocationStateRepo, ObservationRepo, PlayerCharacterRepo,
+    RegionStateRepo, RepoError, SceneRepo, StagingRepo, WorldRepo,
 };
 use crate::use_cases::narrative_operations::NarrativeOps;
 use crate::use_cases::observation::RecordVisit;
@@ -25,7 +25,7 @@ use super::{resolve_scene_for_region, resolve_staging_for_region, suggest_time_f
 pub struct EnterRegionResult {
     /// The region entered
     pub region: Region,
-    /// NPCs present in the region (empty if staging pending)
+    /// NPCs present in region (empty if staging pending)
     pub npcs: Vec<StagedNpc>,
     /// Narrative events triggered by entry
     pub triggered_events: Vec<NarrativeEvent>,
@@ -37,6 +37,8 @@ pub struct EnterRegionResult {
     pub resolved_scene: Option<DomainScene>,
     /// Time suggestion for this movement (if time mode is Suggested)
     pub time_suggestion: Option<TimeSuggestion>,
+    /// Visual state from active staging (if any)
+    pub visual_state: Option<crate::use_cases::staging::ResolvedVisualState>,
 }
 
 /// Status of staging for a region.
@@ -58,6 +60,8 @@ pub struct EnterRegion {
     player_character: Arc<dyn PlayerCharacterRepo>,
     location: Arc<dyn LocationRepo>,
     staging: Arc<dyn StagingRepo>,
+    location_state: Arc<dyn LocationStateRepo>,
+    region_state: Arc<dyn RegionStateRepo>,
     observation: Arc<dyn ObservationRepo>,
     record_visit: Arc<RecordVisit>,
     narrative: Arc<NarrativeOps>,
@@ -74,6 +78,8 @@ impl EnterRegion {
         player_character: Arc<dyn PlayerCharacterRepo>,
         location: Arc<dyn LocationRepo>,
         staging: Arc<dyn StagingRepo>,
+        location_state: Arc<dyn LocationStateRepo>,
+        region_state: Arc<dyn RegionStateRepo>,
         observation: Arc<dyn ObservationRepo>,
         record_visit: Arc<RecordVisit>,
         narrative: Arc<NarrativeOps>,
@@ -88,6 +94,8 @@ impl EnterRegion {
             player_character,
             location,
             staging,
+            location_state,
+            region_state,
             observation,
             record_visit,
             narrative,
@@ -163,8 +171,10 @@ impl EnterRegion {
         let real_timestamp = self.clock.now();
 
         // 6. Check for valid staging (with TTL check using game time)
-        let (npcs, staging_status) = resolve_staging_for_region(
+        let (npcs, staging_status, visual_state) = resolve_staging_for_region(
             self.staging.as_ref(),
+            self.location_state.as_ref(),
+            self.region_state.as_ref(),
             region_id,
             region.location_id(),
             pc.world_id(),
@@ -232,6 +242,7 @@ impl EnterRegion {
             pc,
             resolved_scene,
             time_suggestion,
+            visual_state,
         })
     }
 
@@ -304,8 +315,9 @@ mod tests {
 
     use crate::infrastructure::ports::{
         ClockPort, MockChallengeRepo, MockCharacterRepo, MockFlagRepo, MockLocationRepo,
-        MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo, MockSceneRepo,
-        MockStagingRepo, MockWorldRepo, RepoError,
+        MockLocationStateRepo, MockNarrativeRepo, MockObservationRepo,
+        MockPlayerCharacterRepo, MockRegionStateRepo, MockSceneRepo, MockStagingRepo,
+        MockWorldRepo, RepoError,
     };
 
     use crate::use_cases::scene::ResolveScene;
@@ -337,6 +349,12 @@ mod tests {
 
         let staging_repo: Arc<dyn crate::infrastructure::ports::StagingRepo> =
             Arc::new(MockStagingRepo::new());
+
+        let location_state_repo: Arc<dyn crate::infrastructure::ports::LocationStateRepo> =
+            Arc::new(MockLocationStateRepo::new());
+
+        let region_state_repo: Arc<dyn crate::infrastructure::ports::RegionStateRepo> =
+            Arc::new(MockRegionStateRepo::new());
 
         let observation_repo: Arc<dyn crate::infrastructure::ports::ObservationRepo> =
             Arc::new(MockObservationRepo::new());
@@ -374,6 +392,8 @@ mod tests {
             player_character_repo,
             location_repo,
             staging_repo,
+            location_state_repo,
+            region_state_repo,
             observation_repo,
             record_visit,
             narrative,

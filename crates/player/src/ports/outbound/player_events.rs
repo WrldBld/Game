@@ -246,6 +246,8 @@ pub enum PlayerEvent {
         npcs_present: Vec<NpcPresenceData>,
         navigation: NavigationData,
         region_items: Vec<RegionItemData>,
+        /// Resolved visual state for scene display
+        visual_state: Option<ResolvedVisualStateData>,
     },
 
     /// PC was selected for play

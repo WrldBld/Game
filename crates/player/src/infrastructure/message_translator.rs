@@ -94,12 +94,14 @@ pub fn translate(msg: ServerMessage) -> PlayerEvent {
             npcs_present,
             navigation,
             region_items,
+            visual_state,
         } => PlayerEvent::SceneChanged {
             pc_id,
             region,
             npcs_present,
             navigation,
             region_items,
+            visual_state,
         },
 
         ServerMessage::PcSelected {

@@ -163,14 +163,16 @@ impl ClientMessageBuilder {
         approved_npcs: Vec<ApprovedNpcInfo>,
         ttl_hours: i32,
         source: &str,
+        location_state_id: Option<String>,
+        region_state_id: Option<String>,
     ) -> ClientMessage {
         ClientMessage::StagingApprovalResponse {
             request_id: request_id.to_string(),
             approved_npcs,
             ttl_hours,
             source: source.to_string(),
-            location_state_id: None, // TODO: Visual state selection not yet implemented in UI
-            region_state_id: None,
+            location_state_id,
+            region_state_id,
         }
     }
 
@@ -187,13 +189,15 @@ impl ClientMessageBuilder {
         region_id: &str,
         npcs: Vec<ApprovedNpcInfo>,
         ttl_hours: i32,
+        location_state_id: Option<String>,
+        region_state_id: Option<String>,
     ) -> ClientMessage {
         ClientMessage::PreStageRegion {
             region_id: region_id.to_string(),
             npcs,
             ttl_hours,
-            location_state_id: None, // TODO: Visual state selection not yet implemented in UI
-            region_state_id: None,
+            location_state_id,
+            region_state_id,
         }
     }
 

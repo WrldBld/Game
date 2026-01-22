@@ -13,7 +13,7 @@ use neo4rs::{query, Node, Row};
 use wrldbldr_domain::MoodState;
 use wrldbldr_domain::*;
 
-use super::helpers::{parse_typed_id, NodeExt};
+use super::helpers::{parse_typed_id, NodeExt, RowExt};
 use crate::infrastructure::ports::{ClockPort, RepoError, StagingRepo};
 
 pub struct Neo4jStagingRepo {
@@ -249,7 +249,11 @@ impl StagingRepo for Neo4jStagingRepo {
                 approved_by: $approved_by,
                 source: $source,
                 dm_guidance: $dm_guidance,
-                is_active: $is_active
+                is_active: $is_active,
+                location_state_id: $location_state_id,
+                region_state_id: $region_state_id,
+                visual_state_source: $visual_state_source,
+                visual_state_reasoning: $visual_state_reasoning
             })
             CREATE (r)-[:HAS_STAGING]->(s)
             WITH s
@@ -277,6 +281,10 @@ impl StagingRepo for Neo4jStagingRepo {
             staging.dm_guidance().unwrap_or_default().to_string(),
         )
         .param("is_active", staging.is_active())
+        .param("location_state_id", staging.location_state_id().map(|id| id.to_string()))
+        .param("region_state_id", staging.region_state_id().map(|id| id.to_string()))
+        .param("visual_state_source", staging.visual_state_source().to_string())
+        .param("visual_state_reasoning", staging.visual_state_reasoning().unwrap_or_default().to_string())
         .param("npc_character_ids", npc_character_ids)
         .param("npc_is_present", npc_is_present)
         .param("npc_is_hidden_from_players", npc_is_hidden_from_players)
@@ -304,6 +312,229 @@ impl StagingRepo for Neo4jStagingRepo {
         txn.run(activate_q)
             .await
             .map_err(|e| RepoError::database("query", e))?;
+
+        // Commit transaction
+        txn.commit()
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        Ok(())
+    }
+
+    /// Save a pending staging for DM approval and immediately activate it,
+    /// also setting active location/region states atomically.
+    ///
+    /// Uses explicit transaction to ensure all operations succeed or fail together.
+    async fn save_and_activate_pending_staging_with_states(
+        &self,
+        staging: &Staging,
+        region_id: RegionId,
+        location_state_id: Option<LocationStateId>,
+        region_state_id: Option<RegionStateId>,
+    ) -> Result<(), RepoError> {
+        // Use explicit transaction to ensure save, activate, and state updates are atomic
+        let mut txn = self
+            .graph
+            .start_txn()
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        // First, save the staging node and all NPC relationships
+        let npc_character_ids: Vec<String> = staging
+            .npcs()
+            .iter()
+            .map(|n| n.character_id.to_string())
+            .collect();
+        let npc_is_present: Vec<bool> = staging.npcs().iter().map(|n| n.is_present()).collect();
+        let npc_is_hidden_from_players: Vec<bool> = staging
+            .npcs()
+            .iter()
+            .map(|n| n.is_hidden_from_players())
+            .collect();
+        let npc_reasoning: Vec<String> = staging
+            .npcs()
+            .iter()
+            .map(|n| n.reasoning.to_string())
+            .collect();
+        let npc_mood: Vec<String> = staging.npcs().iter().map(|n| n.mood.to_string()).collect();
+        let npc_has_incomplete_data: Vec<bool> = staging
+            .npcs()
+            .iter()
+            .map(|n| n.has_incomplete_data)
+            .collect();
+
+        let save_q = query(
+            "MATCH (r:Region {id: $region_id})
+            CREATE (s:Staging {
+                id: $id,
+                region_id: $region_id,
+                location_id: $location_id,
+                world_id: $world_id,
+                game_time_seconds: $game_time_seconds,
+                approved_at: $approved_at,
+                ttl_hours: $ttl_hours,
+                approved_by: $approved_by,
+                source: $source,
+                dm_guidance: $dm_guidance,
+                is_active: $is_active,
+                location_state_id: $location_state_id,
+                region_state_id: $region_state_id,
+                visual_state_source: $visual_state_source,
+                visual_state_reasoning: $visual_state_reasoning
+            })
+            CREATE (r)-[:HAS_STAGING]->(s)
+            WITH s
+            UNWIND range(0, size($npc_character_ids) - 1) as i
+            MATCH (c:Character {id: $npc_character_ids[i]})
+            CREATE (s)-[:INCLUDES_NPC {
+                is_present: $npc_is_present[i],
+                is_hidden_from_players: $npc_is_hidden_from_players[i],
+                reasoning: $npc_reasoning[i],
+                mood: $npc_mood[i],
+                has_incomplete_data: $npc_has_incomplete_data[i]
+            }]->(c)",
+        )
+        .param("id", staging.id().to_string())
+        .param("region_id", staging.region_id().to_string())
+        .param("location_id", staging.location_id().to_string())
+        .param("world_id", staging.world_id().to_string())
+        .param("game_time_seconds", staging.game_time_seconds())
+        .param("approved_at", staging.approved_at().to_rfc3339())
+        .param("ttl_hours", staging.ttl_hours() as i64)
+        .param("approved_by", staging.approved_by().to_string())
+        .param("source", staging.source().to_string())
+        .param(
+            "dm_guidance",
+            staging.dm_guidance().unwrap_or_default().to_string(),
+        )
+        .param("is_active", staging.is_active())
+        .param("location_state_id", staging.location_state_id().map(|id| id.to_string()))
+        .param("region_state_id", staging.region_state_id().map(|id| id.to_string()))
+        .param("visual_state_source", staging.visual_state_source().to_string())
+        .param("visual_state_reasoning", staging.visual_state_reasoning().unwrap_or_default().to_string())
+        .param("npc_character_ids", npc_character_ids)
+        .param("npc_is_present", npc_is_present)
+        .param("npc_is_hidden_from_players", npc_is_hidden_from_players)
+        .param("npc_reasoning", npc_reasoning)
+        .param("npc_mood", npc_mood)
+        .param("npc_has_incomplete_data", npc_has_incomplete_data);
+
+        txn.run(save_q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        // Activate the staging (remove old current staging, set this one as current)
+        // Also set active location and region states in the same transaction
+        let activate_q = if let Some(loc_state_id) = location_state_id {
+            // With location state
+            if let Some(reg_state_id) = region_state_id {
+                // Both states provided
+                query(
+                    "MATCH (r:Region {id: $region_id})
+                    OPTIONAL MATCH (r)-[old:CURRENT_STAGING]->(:Staging)
+                    DELETE old
+                    WITH r
+                    MATCH (s:Staging {id: $staging_id}), (loc:Location {id: $location_id}), (ls:LocationState {id: $location_state_id}), (rs:RegionState {id: $region_state_id})
+                    OPTIONAL MATCH (loc)-[old_loc:ACTIVE_STATE]->(:LocationState)
+                    OPTIONAL MATCH (r)-[old_reg:ACTIVE_STATE]->(:RegionState)
+                    DELETE old_loc, old_reg
+                    SET s.is_active = true
+                    CREATE (r)-[:CURRENT_STAGING]->(s)
+                    CREATE (loc)-[:ACTIVE_STATE]->(ls)
+                    CREATE (r)-[:ACTIVE_STATE]->(rs)
+                    RETURN count(*) as rows_affected",
+                )
+                .param("region_id", region_id.to_string())
+                .param("staging_id", staging.id().to_string())
+                .param("location_id", staging.location_id().to_string())
+                .param("location_state_id", loc_state_id.to_string())
+                .param("region_state_id", reg_state_id.to_string())
+            } else {
+                // Only location state provided
+                query(
+                    "MATCH (r:Region {id: $region_id})
+                    OPTIONAL MATCH (r)-[old:CURRENT_STAGING]->(:Staging)
+                    DELETE old
+                    WITH r
+                    MATCH (s:Staging {id: $staging_id}), (loc:Location {id: $location_id}), (ls:LocationState {id: $location_state_id})
+                    OPTIONAL MATCH (loc)-[old_loc:ACTIVE_STATE]->(:LocationState)
+                    DELETE old_loc
+                    SET s.is_active = true
+                    CREATE (r)-[:CURRENT_STAGING]->(s)
+                    CREATE (loc)-[:ACTIVE_STATE]->(ls)
+                    RETURN count(*) as rows_affected",
+                )
+                .param("region_id", region_id.to_string())
+                .param("staging_id", staging.id().to_string())
+                .param("location_id", staging.location_id().to_string())
+                .param("location_state_id", loc_state_id.to_string())
+            }
+        } else if let Some(reg_state_id) = region_state_id {
+            // Only region state provided
+            query(
+                "MATCH (r:Region {id: $region_id})
+                OPTIONAL MATCH (r)-[old:CURRENT_STAGING]->(:Staging)
+                DELETE old
+                WITH r
+                MATCH (s:Staging {id: $staging_id}), (rs:RegionState {id: $region_state_id})
+                OPTIONAL MATCH (r)-[old_reg:ACTIVE_STATE]->(:RegionState)
+                DELETE old_reg
+                SET s.is_active = true
+                CREATE (r)-[:CURRENT_STAGING]->(s)
+                CREATE (r)-[:ACTIVE_STATE]->(rs)
+                RETURN count(*) as rows_affected",
+            )
+            .param("region_id", region_id.to_string())
+            .param("staging_id", staging.id().to_string())
+            .param("region_state_id", reg_state_id.to_string())
+        } else {
+            // No states provided - just activate staging
+            query(
+                "MATCH (r:Region {id: $region_id})
+                OPTIONAL MATCH (r)-[old:CURRENT_STAGING]->(:Staging)
+                DELETE old
+                WITH r
+                MATCH (s:Staging {id: $staging_id})
+                SET s.is_active = true
+                CREATE (r)-[:CURRENT_STAGING]->(s)
+                RETURN count(*) as rows_affected",
+            )
+            .param("region_id", region_id.to_string())
+            .param("staging_id", staging.id().to_string())
+        };
+
+        // Execute and check row count to ensure state nodes exist
+        let mut result = txn
+            .execute(activate_q)
+            .await
+            .map_err(|e| RepoError::database("query", e))?;
+
+        // Check if at least one row was affected (need to pass transaction handle to next)
+        if let Some(row) = result
+            .next(&mut txn)
+            .await
+            .map_err(|e| RepoError::database("query", e))?
+        {
+            let rows_affected: i64 = row
+                .get("rows_affected")
+                .map_err(|e| RepoError::database("query", format!("Failed to get row count: {}", e)))?;
+
+            if rows_affected == 0 {
+                // State nodes don't exist
+                return Err(RepoError::database(
+                    "activate_staging",
+                    format!(
+                        "Failed to activate staging: state nodes not found. location_state_id: {:?}, region_state_id: {:?}",
+                        location_state_id, region_state_id
+                    ),
+                ));
+            }
+        } else {
+            return Err(RepoError::database(
+                "activate_staging",
+                "No result returned from activation query".to_string(),
+            ));
+        }
 
         // Commit transaction
         txn.commit()
@@ -353,7 +584,11 @@ impl StagingRepo for Neo4jStagingRepo {
                 approved_by: $approved_by,
                 source: $source,
                 dm_guidance: $dm_guidance,
-                is_active: $is_active
+                is_active: $is_active,
+                location_state_id: $location_state_id,
+                region_state_id: $region_state_id,
+                visual_state_source: $visual_state_source,
+                visual_state_reasoning: $visual_state_reasoning
             })
             CREATE (r)-[:HAS_STAGING]->(s)
             WITH s
@@ -381,6 +616,10 @@ impl StagingRepo for Neo4jStagingRepo {
             staging.dm_guidance().unwrap_or_default().to_string(),
         )
         .param("is_active", staging.is_active())
+        .param("location_state_id", staging.location_state_id().map(|id| id.to_string()))
+        .param("region_state_id", staging.region_state_id().map(|id| id.to_string()))
+        .param("visual_state_source", staging.visual_state_source().to_string())
+        .param("visual_state_reasoning", staging.visual_state_reasoning().unwrap_or_default().to_string())
         .param("npc_character_ids", npc_character_ids)
         .param("npc_is_present", npc_is_present)
         .param("npc_is_hidden_from_players", npc_is_hidden_from_players)
@@ -433,7 +672,22 @@ impl StagingRepo for Neo4jStagingRepo {
                 mood: COALESCE(rel.mood, c.default_mood, 'calm'),
                 has_incomplete_data: COALESCE(rel.has_incomplete_data, false)
             }) as npcs
-            RETURN s, npcs",
+            RETURN s.id as id,
+                   s.region_id as region_id,
+                   s.location_id as location_id,
+                   s.world_id as world_id,
+                   s.game_time_seconds as game_time_seconds,
+                   s.approved_at as approved_at,
+                   s.ttl_hours as ttl_hours,
+                   s.approved_by as approved_by,
+                   s.source as source,
+                   s.dm_guidance as dm_guidance,
+                   s.is_active as is_active,
+                   s.location_state_id as location_state_id,
+                   s.region_state_id as region_state_id,
+                   s.visual_state_source as visual_state_source,
+                   s.visual_state_reasoning as visual_state_reasoning,
+                   npcs",
         )
         .param("region_id", region_id.to_string());
 
@@ -523,7 +777,22 @@ impl StagingRepo for Neo4jStagingRepo {
                 mood: COALESCE(rel.mood, c.default_mood, 'calm'),
                 has_incomplete_data: COALESCE(rel.has_incomplete_data, false)
             }) as npcs
-            RETURN s, npcs
+            RETURN s.id as id,
+                   s.region_id as region_id,
+                   s.location_id as location_id,
+                   s.world_id as world_id,
+                   s.game_time_seconds as game_time_seconds,
+                   s.approved_at as approved_at,
+                   s.ttl_hours as ttl_hours,
+                   s.approved_by as approved_by,
+                   s.source as source,
+                   s.dm_guidance as dm_guidance,
+                   s.is_active as is_active,
+                   s.location_state_id as location_state_id,
+                   s.region_state_id as region_state_id,
+                   s.visual_state_source as visual_state_source,
+                   s.visual_state_reasoning as visual_state_reasoning,
+                   npcs
             ORDER BY s.approved_at DESC
             LIMIT $limit",
         )
@@ -835,64 +1104,68 @@ fn row_to_staged_npc(row: Row) -> Result<StagedNpc, RepoError> {
 
 /// Parse a staging row that includes collected NPCs
 fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoError> {
-    let node: Node = row
-        .get("s")
-        .map_err(|e| RepoError::database("query", format!("Failed to get 's' node: {}", e)))?;
+    // Parse staging fields directly from row (not from Node) since query uses explicit aliases
+    let id: String = row
+        .get("id")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 'id': {}", e)))?;
+    let id: StagingId = uuid::Uuid::parse_str(&id)
+        .map(StagingId::from)
+        .map_err(|e| RepoError::database("parse", format!("Failed to parse StagingId '{}': {}", id, e)))?;
 
-    let id: StagingId = parse_typed_id(&node, "id")
-        .map_err(|e| RepoError::database("query", format!("Failed to parse StagingId: {}", e)))?;
-    let region_id: RegionId = parse_typed_id(&node, "region_id").map_err(|e| {
-        RepoError::database(
-            "query",
-            format!("Failed to parse RegionId for Staging {}: {}", id, e),
-        )
-    })?;
-    let location_id: LocationId = parse_typed_id(&node, "location_id").map_err(|e| {
-        RepoError::database(
-            "query",
-            format!("Failed to parse LocationId for Staging {}: {}", id, e),
-        )
-    })?;
-    let world_id: WorldId = parse_typed_id(&node, "world_id").map_err(|e| {
-        RepoError::database(
-            "query",
-            format!("Failed to parse WorldId for Staging {}: {}", id, e),
-        )
-    })?;
+    let region_id: String = row
+        .get("region_id")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 'region_id': {}", e)))?;
+    let region_id: RegionId = uuid::Uuid::parse_str(&region_id)
+        .map(RegionId::from)
+        .map_err(|e| {
+            RepoError::database(
+                "parse",
+                format!("Failed to parse RegionId '{}': {}", region_id, e),
+            )
+        })?;
 
-    let ttl_hours: i64 = node.get("ttl_hours").map_err(|e| {
-        RepoError::database(
-            "query",
-            format!("Failed to get 'ttl_hours' for Staging {}: {}", id, e),
-        )
-    })?;
-    let approved_by: String = node.get("approved_by").map_err(|e| {
-        RepoError::database(
-            "query",
-            format!("Failed to get 'approved_by' for Staging {}: {}", id, e),
-        )
-    })?;
-    let source_str: String = node.get("source").map_err(|e| {
-        RepoError::database(
-            "query",
-            format!("Failed to get 'source' for Staging {}: {}", id, e),
-        )
-    }    )?;
-    let is_active: bool = node.get("is_active").map_err(|e| {
-        RepoError::database(
-            "query",
-            format!("Failed to get 'is_active' for Staging {}: {}", id, e),
-        )
-    })?;
+    let location_id: String = row
+        .get("location_id")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 'location_id': {}", e)))?;
+    let location_id: LocationId = uuid::Uuid::parse_str(&location_id)
+        .map(LocationId::from)
+        .map_err(|e| {
+            RepoError::database(
+                "parse",
+                format!("Failed to parse LocationId '{}': {}", location_id, e),
+            )
+        })?;
+
+    let world_id: String = row
+        .get("world_id")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 'world_id': {}", e)))?;
+    let world_id: WorldId = uuid::Uuid::parse_str(&world_id)
+        .map(WorldId::from)
+        .map_err(|e| {
+            RepoError::database(
+                "parse",
+                format!("Failed to parse WorldId '{}': {}", world_id, e),
+            )
+        })?;
+
+    let ttl_hours: i64 = row
+        .get("ttl_hours")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 'ttl_hours': {}", e)))?;
+    let approved_by: String = row
+        .get("approved_by")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 'approved_by': {}", e)))?;
+    let source_str: String = row
+        .get("source")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 'source': {}", e)))?;
+    let is_active: bool = row
+        .get("is_active")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 'is_active': {}", e)))?;
 
     // Load game time as seconds (new format)
-    let game_time_seconds: i64 = node.get("game_time_seconds").map_err(|e| {
-        RepoError::database(
-            "query",
-            format!("Failed to get 'game_time_seconds' for Staging {}: {}", id, e),
-        )
-    })?;
-    let approved_at = node.get_datetime_or("approved_at", fallback);
+    let game_time_seconds: i64 = row
+        .get("game_time_seconds")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 'game_time_seconds': {}", e)))?;
+    let approved_at = row.get_datetime_or("approved_at", fallback);
     let source: StagingSource = source_str.parse().map_err(|e| {
         RepoError::database(
             "parse",
@@ -902,7 +1175,65 @@ fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging
             ),
         )
     })?;
-    let dm_guidance = node.get_optional_string("dm_guidance");
+    let dm_guidance = row
+        .get::<Option<String>>("dm_guidance")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 'dm_guidance': {}", e)))?;
+
+    // Parse visual state fields - fail-fast on invalid UUIDs
+    let location_state_id: Option<LocationStateId> = match row
+        .get::<Option<String>>("location_state_id")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 'location_state_id': {}", e)))?
+    {
+        Some(s) => {
+            let uuid = uuid::Uuid::parse_str(&s).map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid location_state_id UUID for staging {}: '{}': {}",
+                        id, s, e
+                    ),
+                )
+            })?;
+            Some(LocationStateId::from(uuid))
+        }
+        None => None,
+    };
+
+    let region_state_id: Option<RegionStateId> = match row
+        .get::<Option<String>>("region_state_id")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 'region_state_id': {}", e)))?
+    {
+        Some(s) => {
+            let uuid = uuid::Uuid::parse_str(&s).map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid region_state_id UUID for staging {}: '{}': {}",
+                        id, s, e
+                    ),
+                )
+            })?;
+            Some(RegionStateId::from(uuid))
+        }
+        None => None,
+    };
+
+    let visual_state_source_str: String = row
+        .get("visual_state_source")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 'visual_state_source': {}", e)))?;
+    let visual_state_source: VisualStateSource = visual_state_source_str.parse().map_err(|e| {
+        RepoError::database(
+            "parse",
+            format!(
+                "Invalid VisualStateSource for staging {}: '{}': {}",
+                id, visual_state_source_str, e
+            ),
+        )
+    })?;
+
+    let visual_state_reasoning = row
+        .get::<Option<String>>("visual_state_reasoning")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 'visual_state_reasoning': {}", e)))?;
 
     // Parse collected NPCs from row
     let npcs = parse_collected_npcs(&row)?;
@@ -920,10 +1251,10 @@ fn row_to_staging_with_npcs(row: Row, fallback: DateTime<Utc>) -> Result<Staging
         source,
         dm_guidance,
         is_active,
-        None, // location_state_id
-        None, // region_state_id
-        VisualStateSource::default(),
-        None, // visual_state_reasoning
+        location_state_id,
+        region_state_id,
+        visual_state_source,
+        visual_state_reasoning,
     ))
 }
 
@@ -1082,6 +1413,54 @@ fn row_to_staging(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoErro
     })?;
     let dm_guidance = node.get_optional_string("dm_guidance");
 
+    // Parse visual state fields from node - fail-fast on invalid UUIDs and missing values
+    let location_state_id: Option<LocationStateId> = match node.get_optional_string("location_state_id") {
+        Some(s) => {
+            let uuid = uuid::Uuid::parse_str(&s).map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid location_state_id UUID for staging {}: '{}': {}",
+                        id, s, e
+                    ),
+                )
+            })?;
+            Some(LocationStateId::from(uuid))
+        }
+        None => None,
+    };
+
+    let region_state_id: Option<RegionStateId> = match node.get_optional_string("region_state_id") {
+        Some(s) => {
+            let uuid = uuid::Uuid::parse_str(&s).map_err(|e| {
+                RepoError::database(
+                    "parse",
+                    format!(
+                        "Invalid region_state_id UUID for staging {}: '{}': {}",
+                        id, s, e
+                    ),
+                )
+            })?;
+            Some(RegionStateId::from(uuid))
+        }
+        None => None,
+    };
+
+    let visual_state_source_str: String = node
+        .get("visual_state_source")
+        .map_err(|e| RepoError::database("query", format!("Failed to get 'visual_state_source': {}", e)))?;
+    let visual_state_source: VisualStateSource = visual_state_source_str.parse().map_err(|e| {
+        RepoError::database(
+            "parse",
+            format!(
+                "Invalid VisualStateSource for staging {}: '{}': {}",
+                id, visual_state_source_str, e
+            ),
+        )
+    })?;
+
+    let visual_state_reasoning = node.get_optional_string("visual_state_reasoning");
+
     Ok(Staging::from_stored(
         id,
         region_id,
@@ -1095,9 +1474,9 @@ fn row_to_staging(row: Row, fallback: DateTime<Utc>) -> Result<Staging, RepoErro
         source,
         dm_guidance,
         is_active,
-        None, // location_state_id - will be loaded from edges in future
-        None, // region_state_id
-        VisualStateSource::default(),
-        None, // visual_state_reasoning
+        location_state_id,
+        region_state_id,
+        visual_state_source,
+        visual_state_reasoning,
     ))
 }

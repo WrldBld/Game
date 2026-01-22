@@ -278,6 +278,7 @@ pub(super) async fn handle_move_to_region(
                             .into_iter()
                             .map(region_item_to_proto)
                             .collect(),
+                        visual_state: result.visual_state.as_ref().map(|vs| vs.to_protocol()),
                     })
                 }
             }
@@ -476,6 +477,7 @@ pub(super) async fn handle_exit_to_location(
                             .into_iter()
                             .map(region_item_to_proto)
                             .collect(),
+                        visual_state: result.visual_state.as_ref().map(|vs| vs.to_protocol()),
                     })
                 }
             }
