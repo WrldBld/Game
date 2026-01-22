@@ -691,18 +691,20 @@ pub fn handle_server_message(
                 period_changed
             );
 
-            game_state.apply_game_time_update(new_time);
+            // Clone values before using them in methods that take ownership
+            let new_time_for_update = new_time.clone();
+            game_state.apply_game_time_update(new_time_for_update);
 
             // Set toast notification if show_time_to_players is enabled
             if *session_state.should_show_time_to_players().read() {
                 let created_at_ms = platform.now_millis();
                 game_state.set_time_advance_notification(
                     previous_time,
-                    new_time,
+                    new_time.clone(),
                     seconds_advanced,
-                    reason,
+                    reason.clone(),
                     period_changed,
-                    new_period,
+                    new_period.clone(),
                     created_at_ms,
                 );
             }
@@ -800,6 +802,7 @@ pub fn handle_server_message(
         }
 
         PlayerEvent::TimeConfigUpdated {
+            world_id: _,
             mode,
             show_time_to_players,
         } => {

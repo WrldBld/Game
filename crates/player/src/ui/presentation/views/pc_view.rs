@@ -269,7 +269,7 @@ pub fn PCView() -> Element {
 
                 if has_dialogue {
                     DialogueBox {
-                        speaker_name: speaker_name,
+                        speaker_name: speaker_name.clone(),
                         dialogue_text: displayed_text,
                         is_typing: is_typing,
                         is_llm_processing: is_llm_processing,

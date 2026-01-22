@@ -27,7 +27,7 @@ const MAX_HTTP_BODY_SIZE: usize = 10 * 1024 * 1024;
 // =============================================================================
 
 /// Information about a prompt template (metadata).
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 struct TemplateInfo {
     key: String,
     label: String,
@@ -564,7 +564,8 @@ fn map_settings_error(e: SettingsError) -> ApiError {
 mod prompt_template_tests {
     use super::*;
     use axum::body::Body;
-    use crate::api::websocket::test_support::build_test_app;
+    use crate::api::websocket::test_support::{build_test_app, TestAppRepos};
+    use crate::api::websocket::test_support::MockWorldRepo;
     use crate::infrastructure::ports::MockPromptTemplateRepo;
     use chrono::Utc;
     use tower::ServiceExt;

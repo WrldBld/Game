@@ -456,7 +456,7 @@ mod tests {
             Err(crate::infrastructure::ports::QueueError::Error("not implemented".to_string()))
         }
 
-        async fn dequeue_player_action(&self) -> Result<Option<crate::queue_types::QueueItem>, crate::infrastructure::ports::QueueError> {
+        async fn dequeue_player_action(&self) -> Result<Option<crate::infrastructure::ports::QueueItem>, crate::infrastructure::ports::QueueError> {
             Ok(None)
         }
 
@@ -464,7 +464,7 @@ mod tests {
             Err(crate::infrastructure::ports::QueueError::Error("not implemented".to_string()))
         }
 
-        async fn dequeue_llm_request(&self) -> Result<Option<crate::queue_types::QueueItem>, crate::infrastructure::ports::QueueError> {
+        async fn dequeue_llm_request(&self) -> Result<Option<crate::infrastructure::ports::QueueItem>, crate::infrastructure::ports::QueueError> {
             Ok(None)
         }
 
@@ -475,7 +475,7 @@ mod tests {
             Ok(wrldbldr_domain::QueueItemId::new())
         }
 
-        async fn dequeue_dm_approval(&self) -> Result<Option<crate::queue_types::QueueItem>, crate::infrastructure::ports::QueueError> {
+        async fn dequeue_dm_approval(&self) -> Result<Option<crate::infrastructure::ports::QueueItem>, crate::infrastructure::ports::QueueError> {
             Ok(None)
         }
 
@@ -486,7 +486,7 @@ mod tests {
             Err(crate::infrastructure::ports::QueueError::Error("not implemented".to_string()))
         }
 
-        async fn dequeue_asset_generation(&self) -> Result<Option<crate::queue_types::QueueItem>, crate::infrastructure::ports::QueueError> {
+        async fn dequeue_asset_generation(&self) -> Result<Option<crate::infrastructure::ports::QueueItem>, crate::infrastructure::ports::QueueError> {
             Ok(None)
         }
 
@@ -506,7 +506,7 @@ mod tests {
             &self,
             _queue_type: &str,
             _limit: usize,
-        ) -> Result<Vec<crate::queue_types::QueueItem>, crate::infrastructure::ports::QueueError> {
+        ) -> Result<Vec<crate::infrastructure::ports::QueueItem>, crate::infrastructure::ports::QueueError> {
             Ok(vec![])
         }
 
@@ -559,7 +559,7 @@ mod tests {
     async fn test_dialogue_approval_emits_time_suggestion_when_mode_is_suggested() {
         let now = Utc::now();
         let world_id = WorldId::new();
-        let user_id = wrldbldr_domain::UserId::new();
+        let user_id = wrldbldr_domain::UserId::new("test-user").expect("valid user id");
         let pc_id = wrldbldr_domain::PlayerCharacterId::new();
         let npc_id = CharacterId::new();
         let approval_id = QueueItemId::new();
@@ -567,7 +567,7 @@ mod tests {
         let location_id = wrldbldr_domain::LocationId::new();
 
         // Set up world with Suggested time mode and conversation cost
-        let time_config = GameTimeConfig::new();
+        let mut time_config = GameTimeConfig::default();
         time_config.set_mode(TimeMode::Suggested);
         time_config.set_time_costs(TimeCostConfig {
             conversation: 300, // 5 minutes
@@ -580,11 +580,12 @@ mod tests {
             .with_time_config(time_config)
             .with_game_time(GameTime::at_epoch());
 
-        let mut world_repo = MockWorldRepo::new();
-        world_repo
+        let mut world_repo_mock = MockWorldRepo::new();
+        world_repo_mock
             .expect_get()
             .withf(move |id| *id == world_id)
             .returning(move |_| Ok(Some(world.clone())));
+        let world_repo: Arc<dyn WorldRepo> = Arc::new(world_repo_mock);
 
         // Set up player character
         let pc_name = CharacterName::new("TestPC").unwrap();
@@ -595,11 +596,12 @@ mod tests {
             location_id,
             now,
         );
-        let mut pc_repo = MockPlayerCharacterRepo::new();
-        pc_repo
+        let mut pc_repo_mock = MockPlayerCharacterRepo::new();
+        pc_repo_mock
             .expect_get()
             .withf(move |id| *id == pc_id)
             .returning(move |_| Ok(Some(pc.clone())));
+        let pc_repo: Arc<dyn PlayerCharacterRepo> = Arc::new(pc_repo_mock);
 
         // Set up queue
         let approval_data = crate::queue_types::ApprovalRequestData {
@@ -625,127 +627,51 @@ mod tests {
             conversation_id: Some(conversation_id),
         };
 
-        let queue = Arc::new(SimpleQueue::new());
-        queue.insert_approval(approval_id.to_uuid(), approval_data);
+        let simple_queue = SimpleQueue::new();
+        simple_queue.insert_approval(approval_id.to_uuid(), approval_data);
+        let queue: Arc<dyn QueuePort> = Arc::new(simple_queue);
 
         // Set up narrative repos and real NarrativeOps
+        let mut narrative_repo_mock = crate::infrastructure::ports::MockNarrativeRepo::new();
+        narrative_repo_mock
+            .expect_save_story_event()
+            .returning(|_| Ok(()));
+        narrative_repo_mock
+            .expect_update_spoke_to()
+            .returning(|_, _, _, _| Ok(()));
+        narrative_repo_mock
+            .expect_record_dialogue_context()
+            .returning(|_, _, _, _, _, _, _, _, _, _, _, _| Ok(()));
+
+        let mut scene_repo_mock = crate::infrastructure::ports::MockSceneRepo::new();
+        scene_repo_mock
+            .expect_get_current()
+            .returning(|_| Ok(None));
+
         let narrative = Arc::new(crate::use_cases::narrative_operations::NarrativeOps::new(
-            Arc::new(crate::infrastructure::ports::MockNarrativeRepo::new()),
+            Arc::new(narrative_repo_mock),
             Arc::new(crate::infrastructure::ports::MockLocationRepo::new()),
-            Arc::new(world_repo.clone()),
-            Arc::new(pc_repo.clone()),
+            world_repo.clone(),
+            pc_repo.clone(),
             Arc::new(crate::infrastructure::ports::MockCharacterRepo::new()),
             Arc::new(crate::infrastructure::ports::MockObservationRepo::new()),
             Arc::new(crate::infrastructure::ports::MockChallengeRepo::new()),
             Arc::new(crate::infrastructure::ports::MockFlagRepo::new()),
-            Arc::new(crate::infrastructure::ports::MockSceneRepo::new()),
+            Arc::new(scene_repo_mock),
             build_clock(now),
         ));
 
         let tool_executor = Arc::new(tool_executor::ToolExecutor::new(
             Arc::new(crate::infrastructure::ports::MockItemRepo::new()),
-            Arc::new(pc_repo.clone()),
+            pc_repo.clone(),
             Arc::new(crate::infrastructure::ports::MockCharacterRepo::new()),
         ));
 
         // Set up real SuggestTime with mocked repos
         let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
-            Arc::new(world_repo.clone()),
+            world_repo.clone(),
             build_clock(now),
         ));
-
-        let world_name = wrldbldr_domain::value_objects::WorldName::new("TestWorld").unwrap();
-        let world = wrldbldr_domain::aggregates::World::new(world_name, now)
-            .with_id(world_id)
-            .with_time_config(time_config)
-            .with_game_time(GameTime::at_epoch());
-
-        let mut world_repo = MockWorldRepo::new();
-        world_repo
-            .expect_get()
-            .withf(move |id| *id == world_id)
-            .returning(move |_| Ok(Some(world.clone())));
-
-        // Set up player character
-        let pc_name = CharacterName::new("TestPC").unwrap();
-        let pc = wrldbldr_domain::aggregates::PlayerCharacter::new(
-            world_id,
-            pc_name.clone(),
-            "Fighter".to_string(),
-        );
-        let mut pc_repo = MockPlayerCharacterRepo::new();
-        pc_repo
-            .expect_get()
-            .withf(move |id| *id == pc_id)
-            .returning(move |_| Ok(Some(pc.clone())));
-
-        // Set up queue
-        let approval_data = crate::queue_types::ApprovalRequestData {
-            world_id,
-            source_action_id: Uuid::new_v4(),
-            decision_type: crate::queue_types::ApprovalDecisionType::NpcResponse,
-            urgency: crate::queue_types::ApprovalUrgency::Normal,
-            pc_id: Some(pc_id),
-            npc_id: Some(npc_id),
-            npc_name: "TestNPC".to_string(),
-            proposed_dialogue: "Hello there!".to_string(),
-            internal_reasoning: "NPC greeting".to_string(),
-            proposed_tools: vec![],
-            retry_count: 0,
-            challenge_suggestion: None,
-            narrative_event_suggestion: None,
-            challenge_outcome: None,
-            player_dialogue: Some("Hi!".to_string()),
-            scene_id: None,
-            location_id: None,
-            game_time: None,
-            topics: vec![],
-            conversation_id: Some(conversation_id),
-        };
-
-        let mut queue = MockQueuePort::new();
-        queue
-            .expect_get_approval_request()
-            .withf(move |id| *id == approval_id)
-            .returning(move |_| Ok(Some(approval_data.clone())));
-        queue
-            .expect_mark_complete()
-            .returning(|_| Ok(()));
-
-        // Set up mock narrative and tool executor
-        let mut narrative = crate::use_cases::narrative_operations::MockNarrativeOps::new();
-        narrative.expect_record_dialogue_exchange().returning(|_, _, _, _, _, _, _, _, _, _| Ok(()));
-
-        let tool_executor = Arc::new(tool_executor::ToolExecutor::new(
-            Arc::new(crate::infrastructure::ports::MockItemRepo::new()),
-            Arc::new(MockPlayerCharacterRepo::new()),
-            Arc::new(crate::infrastructure::ports::MockCharacterRepo::new()),
-        ));
-
-        // Set up SuggestTime mock
-        let mut suggest_time = crate::use_cases::time::MockSuggestTime::new();
-        let expected_description = "Conversation with TestNPC".to_string();
-        suggest_time
-            .expect_execute()
-            .withf(move |wid, pc, _, action_type, desc| {
-                *wid == world_id && *pc == pc_id && action_type == "conversation" && *desc == expected_description
-            })
-            .returning(move |_, _, _, _, _| {
-                Ok(crate::use_cases::time::SuggestTimeResult::SuggestionCreated(
-                    crate::infrastructure::ports::TimeSuggestion {
-                        id: wrldbldr_domain::TimeSuggestionId::new(),
-                        world_id,
-                        pc_id,
-                        pc_name: pc_name.as_str().to_string(),
-                        action_type: "conversation".to_string(),
-                        action_description: "Conversation with TestNPC".to_string(),
-                        suggested_seconds: 300,
-                        current_time: GameTime::at_epoch(),
-                        resulting_time: GameTime::at_epoch(),
-                        period_change: None,
-                    },
-                ))
-            });
 
         let clock = build_clock(now);
 
@@ -756,8 +682,8 @@ mod tests {
             queue.clone(),
             tool_executor,
             suggest_time,
-            Arc::new(world_repo),
-            Arc::new(pc_repo),
+            world_repo,
+            pc_repo,
         );
 
         let result = flow
@@ -776,7 +702,7 @@ mod tests {
     async fn test_dialogue_approval_no_suggestion_when_mode_is_manual() {
         let now = Utc::now();
         let world_id = WorldId::new();
-        let user_id = wrldbldr_domain::UserId::new();
+        let user_id = wrldbldr_domain::UserId::new("test-user").expect("valid user id");
         let location_id = wrldbldr_domain::LocationId::new();
         let pc_id = wrldbldr_domain::PlayerCharacterId::new();
         let npc_id = CharacterId::new();
@@ -784,7 +710,7 @@ mod tests {
         let conversation_id = Uuid::new_v4();
 
         // Set up world with Manual time mode
-        let time_config = GameTimeConfig::new();
+        let mut time_config = GameTimeConfig::default();
         time_config.set_mode(TimeMode::Manual);
         time_config.set_time_costs(TimeCostConfig {
             conversation: 300,
@@ -794,27 +720,30 @@ mod tests {
         let world_name = wrldbldr_domain::value_objects::WorldName::new("TestWorld").unwrap();
         let world = wrldbldr_domain::aggregates::World::new(world_name, now)
             .with_id(world_id)
-            .with_time_config(time_config);
+            .with_time_config(time_config)
+            .with_game_time(GameTime::at_epoch());
 
-        let mut world_repo = MockWorldRepo::new();
-        world_repo
+        let mut world_repo_mock = MockWorldRepo::new();
+        world_repo_mock
             .expect_get()
             .withf(move |id| *id == world_id)
             .returning(move |_| Ok(Some(world.clone())));
+        let world_repo: Arc<dyn WorldRepo> = Arc::new(world_repo_mock);
 
         let pc_name = CharacterName::new("TestPC").unwrap();
         let pc = wrldbldr_domain::aggregates::PlayerCharacter::new(
             user_id,
             world_id,
-            pc_name,
+            pc_name.clone(),
             location_id,
             now,
         );
-        let mut pc_repo = MockPlayerCharacterRepo::new();
-        pc_repo
+        let mut pc_repo_mock = MockPlayerCharacterRepo::new();
+        pc_repo_mock
             .expect_get()
             .withf(move |id| *id == pc_id)
             .returning(move |_| Ok(Some(pc.clone())));
+        let pc_repo: Arc<dyn PlayerCharacterRepo> = Arc::new(pc_repo_mock);
 
         let approval_data = crate::queue_types::ApprovalRequestData {
             world_id,
@@ -839,45 +768,63 @@ mod tests {
             conversation_id: Some(conversation_id),
         };
 
-        let queue = Arc::new(SimpleQueue::new());
-        queue.insert_approval(approval_id.to_uuid(), approval_data);
+        let simple_queue = SimpleQueue::new();
+        simple_queue.insert_approval(approval_id.to_uuid(), approval_data);
+        let queue: Arc<dyn QueuePort> = Arc::new(simple_queue);
+
+        // Set up narrative repos with expectations
+        let mut narrative_repo_mock = crate::infrastructure::ports::MockNarrativeRepo::new();
+        narrative_repo_mock
+            .expect_save_story_event()
+            .returning(|_| Ok(()));
+        narrative_repo_mock
+            .expect_update_spoke_to()
+            .returning(|_, _, _, _| Ok(()));
+        narrative_repo_mock
+            .expect_record_dialogue_context()
+            .returning(|_, _, _, _, _, _, _, _, _, _, _, _| Ok(()));
+
+        let mut scene_repo_mock = crate::infrastructure::ports::MockSceneRepo::new();
+        scene_repo_mock
+            .expect_get_current()
+            .returning(|_| Ok(None));
 
         let narrative = Arc::new(crate::use_cases::narrative_operations::NarrativeOps::new(
-            Arc::new(crate::infrastructure::ports::MockNarrativeRepo::new()),
+            Arc::new(narrative_repo_mock),
             Arc::new(crate::infrastructure::ports::MockLocationRepo::new()),
-            Arc::new(world_repo.clone()),
-            Arc::new(pc_repo.clone()),
+            world_repo.clone(),
+            pc_repo.clone(),
             Arc::new(crate::infrastructure::ports::MockCharacterRepo::new()),
             Arc::new(crate::infrastructure::ports::MockObservationRepo::new()),
             Arc::new(crate::infrastructure::ports::MockChallengeRepo::new()),
             Arc::new(crate::infrastructure::ports::MockFlagRepo::new()),
-            Arc::new(crate::infrastructure::ports::MockSceneRepo::new()),
+            Arc::new(scene_repo_mock),
             build_clock(now),
         ));
 
         let tool_executor = Arc::new(tool_executor::ToolExecutor::new(
             Arc::new(crate::infrastructure::ports::MockItemRepo::new()),
-            Arc::new(pc_repo.clone()),
+            pc_repo.clone(),
             Arc::new(crate::infrastructure::ports::MockCharacterRepo::new()),
         ));
 
         // In Manual mode, suggest_time returns ManualMode
         let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
-            Arc::new(world_repo.clone()),
+            world_repo.clone(),
             build_clock(now),
         ));
 
         let clock = build_clock(now);
 
-        let approve_suggestion = Arc::new(ApproveSuggestion::new(Arc::new(queue.clone())));
+        let approve_suggestion = Arc::new(ApproveSuggestion::new(queue.clone()));
         let flow = ApprovalDecisionFlow::new(
             approve_suggestion,
-            Arc::new(narrative),
-            Arc::new(queue.clone()),
+            narrative,
+            queue.clone(),
             tool_executor,
-            Arc::new(suggest_time),
-            Arc::new(world_repo),
-            Arc::new(pc_repo),
+            suggest_time,
+            world_repo,
+            pc_repo,
         );
 
         let result = flow
@@ -893,13 +840,15 @@ mod tests {
     async fn test_dialogue_approval_no_suggestion_when_cost_is_zero() {
         let now = Utc::now();
         let world_id = WorldId::new();
+        let user_id = wrldbldr_domain::UserId::new("test-user").expect("valid user id");
+        let location_id = wrldbldr_domain::LocationId::new();
         let pc_id = wrldbldr_domain::PlayerCharacterId::new();
         let npc_id = CharacterId::new();
         let approval_id = QueueItemId::new();
         let conversation_id = Uuid::new_v4();
 
         // Set up world with Suggested mode but zero conversation cost
-        let mut time_config = GameTimeConfig::new();
+        let mut time_config = GameTimeConfig::default();
         time_config.set_mode(TimeMode::Suggested);
         time_config.set_time_costs(TimeCostConfig {
             conversation: 0, // No cost
@@ -909,21 +858,30 @@ mod tests {
         let world_name = wrldbldr_domain::value_objects::WorldName::new("TestWorld").unwrap();
         let world = wrldbldr_domain::aggregates::World::new(world_name, now)
             .with_id(world_id)
-            .with_time_config(time_config);
+            .with_time_config(time_config)
+            .with_game_time(GameTime::at_epoch());
 
-        let mut world_repo = MockWorldRepo::new();
-        world_repo
+        let mut world_repo_mock = MockWorldRepo::new();
+        world_repo_mock
             .expect_get()
             .withf(move |id| *id == world_id)
             .returning(move |_| Ok(Some(world.clone())));
+        let world_repo: Arc<dyn WorldRepo> = Arc::new(world_repo_mock);
 
         let pc_name = CharacterName::new("TestPC").unwrap();
-        let pc = wrldbldr_domain::aggregates::PlayerCharacter::new(                        user_id,                    location_id,now);
-        let mut pc_repo = MockPlayerCharacterRepo::new();
-        pc_repo
+        let pc = wrldbldr_domain::aggregates::PlayerCharacter::new(
+            user_id,
+            world_id,
+            pc_name.clone(),
+            location_id,
+            now,
+        );
+        let mut pc_repo_mock = MockPlayerCharacterRepo::new();
+        pc_repo_mock
             .expect_get()
             .withf(move |id| *id == pc_id)
             .returning(move |_| Ok(Some(pc.clone())));
+        let pc_repo: Arc<dyn PlayerCharacterRepo> = Arc::new(pc_repo_mock);
 
         let approval_data = crate::queue_types::ApprovalRequestData {
             world_id,
@@ -948,43 +906,63 @@ mod tests {
             conversation_id: Some(conversation_id),
         };
 
-        let mut queue = MockQueuePort::new();
-        queue
-            .expect_get_approval_request()
-            .withf(move |id| *id == approval_id)
-            .returning(move |_| Ok(Some(approval_data.clone())));
-        queue
-            .expect_mark_complete()
-            .returning(|_| Ok(()));
+        let simple_queue = SimpleQueue::new();
+        simple_queue.insert_approval(approval_id.to_uuid(), approval_data);
+        let queue: Arc<dyn QueuePort> = Arc::new(simple_queue);
 
-        let mut narrative = crate::use_cases::narrative_operations::MockNarrativeOps::new();
-        narrative.expect_record_dialogue_exchange().returning(|_, _, _, _, _, _, _, _, _, _| Ok(()));
+        // Set up narrative repos with expectations
+        let mut narrative_repo_mock = crate::infrastructure::ports::MockNarrativeRepo::new();
+        narrative_repo_mock
+            .expect_save_story_event()
+            .returning(|_| Ok(()));
+        narrative_repo_mock
+            .expect_update_spoke_to()
+            .returning(|_, _, _, _| Ok(()));
+        narrative_repo_mock
+            .expect_record_dialogue_context()
+            .returning(|_, _, _, _, _, _, _, _, _, _, _, _| Ok(()));
+
+        let mut scene_repo_mock = crate::infrastructure::ports::MockSceneRepo::new();
+        scene_repo_mock
+            .expect_get_current()
+            .returning(|_| Ok(None));
+
+        let narrative = Arc::new(crate::use_cases::narrative_operations::NarrativeOps::new(
+            Arc::new(narrative_repo_mock),
+            Arc::new(crate::infrastructure::ports::MockLocationRepo::new()),
+            world_repo.clone(),
+            pc_repo.clone(),
+            Arc::new(crate::infrastructure::ports::MockCharacterRepo::new()),
+            Arc::new(crate::infrastructure::ports::MockObservationRepo::new()),
+            Arc::new(crate::infrastructure::ports::MockChallengeRepo::new()),
+            Arc::new(crate::infrastructure::ports::MockFlagRepo::new()),
+            Arc::new(scene_repo_mock),
+            build_clock(now),
+        ));
 
         let tool_executor = Arc::new(tool_executor::ToolExecutor::new(
             Arc::new(crate::infrastructure::ports::MockItemRepo::new()),
-            Arc::new(MockPlayerCharacterRepo::new()),
+            pc_repo.clone(),
             Arc::new(crate::infrastructure::ports::MockCharacterRepo::new()),
         ));
 
-        let mut suggest_time = crate::use_cases::time::MockSuggestTime::new();
-        // When cost is zero, should return NoCost
-        suggest_time
-            .expect_execute()
-            .returning(|_, _, _, _, _| {
-                Ok(crate::use_cases::time::SuggestTimeResult::NoCost)
-            });
+        // In Suggested mode with zero cost, suggest_time returns NoCost
+        let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
+            world_repo.clone(),
+            build_clock(now),
+        ));
 
         let clock = build_clock(now);
 
-        let approve_suggestion = Arc::new(ApproveSuggestion::new(Arc::new(queue.clone())));
+        let approve_suggestion = Arc::new(ApproveSuggestion::new(queue.clone()));
         let flow = ApprovalDecisionFlow::new(
             approve_suggestion,
-            Arc::new(narrative),
-            Arc::new(queue.clone()),
+            narrative,
+            queue.clone(),
             tool_executor,
-            Arc::new(suggest_time),
-            Arc::new(world_repo),
-            Arc::new(pc_repo),
+            suggest_time,
+            world_repo,
+            pc_repo,
         );
 
         let result = flow
@@ -1000,29 +978,41 @@ mod tests {
     async fn test_dialogue_approval_no_suggestion_on_reject() {
         let now = Utc::now();
         let world_id = WorldId::new();
+        let user_id = wrldbldr_domain::UserId::new("test-user").expect("valid user id");
+        let location_id = wrldbldr_domain::LocationId::new();
         let pc_id = wrldbldr_domain::PlayerCharacterId::new();
         let npc_id = CharacterId::new();
         let approval_id = QueueItemId::new();
         let conversation_id = Uuid::new_v4();
 
-        let time_config = GameTimeConfig::new();
+        let time_config = GameTimeConfig::default();
         let world_name = wrldbldr_domain::value_objects::WorldName::new("TestWorld").unwrap();
         let world = wrldbldr_domain::aggregates::World::new(world_name, now)
             .with_id(world_id)
-            .with_time_config(time_config);
+            .with_time_config(time_config)
+            .with_game_time(GameTime::at_epoch());
 
-        let mut world_repo = MockWorldRepo::new();
-        world_repo
+        let mut world_repo_mock = MockWorldRepo::new();
+        world_repo_mock
             .expect_get()
+            .withf(move |id| *id == world_id)
             .returning(move |_| Ok(Some(world.clone())));
+        let world_repo: Arc<dyn WorldRepo> = Arc::new(world_repo_mock);
 
         let pc_name = CharacterName::new("TestPC").unwrap();
-        let pc = wrldbldr_domain::aggregates::PlayerCharacter::new(                        user_id,                    location_id,now);
-        let mut pc_repo = MockPlayerCharacterRepo::new();
-        pc_repo
+        let pc = wrldbldr_domain::aggregates::PlayerCharacter::new(
+            user_id,
+            world_id,
+            pc_name.clone(),
+            location_id,
+            now,
+        );
+        let mut pc_repo_mock = MockPlayerCharacterRepo::new();
+        pc_repo_mock
             .expect_get()
             .withf(move |id| *id == pc_id)
             .returning(move |_| Ok(Some(pc.clone())));
+        let pc_repo: Arc<dyn PlayerCharacterRepo> = Arc::new(pc_repo_mock);
 
         let approval_data = crate::queue_types::ApprovalRequestData {
             world_id,
@@ -1047,36 +1037,46 @@ mod tests {
             conversation_id: Some(conversation_id),
         };
 
-        let mut queue = MockQueuePort::new();
-        queue
-            .expect_get_approval_request()
-            .withf(move |id| *id == approval_id)
-            .returning(move |_| Ok(Some(approval_data.clone())));
-        queue
-            .expect_mark_failed()
-            .returning(|_, _| Ok(()));
+        let simple_queue = SimpleQueue::new();
+        simple_queue.insert_approval(approval_id.to_uuid(), approval_data);
+        let queue: Arc<dyn QueuePort> = Arc::new(simple_queue);
 
-        let narrative = crate::use_cases::narrative_operations::MockNarrativeOps::new();
+        let narrative = Arc::new(crate::use_cases::narrative_operations::NarrativeOps::new(
+            Arc::new(crate::infrastructure::ports::MockNarrativeRepo::new()),
+            Arc::new(crate::infrastructure::ports::MockLocationRepo::new()),
+            world_repo.clone(),
+            pc_repo.clone(),
+            Arc::new(crate::infrastructure::ports::MockCharacterRepo::new()),
+            Arc::new(crate::infrastructure::ports::MockObservationRepo::new()),
+            Arc::new(crate::infrastructure::ports::MockChallengeRepo::new()),
+            Arc::new(crate::infrastructure::ports::MockFlagRepo::new()),
+            Arc::new(crate::infrastructure::ports::MockSceneRepo::new()),
+            build_clock(now),
+        ));
+
         let tool_executor = Arc::new(tool_executor::ToolExecutor::new(
             Arc::new(crate::infrastructure::ports::MockItemRepo::new()),
-            Arc::new(MockPlayerCharacterRepo::new()),
+            pc_repo.clone(),
             Arc::new(crate::infrastructure::ports::MockCharacterRepo::new()),
         ));
 
         // SuggestTime should NOT be called when approval is rejected
-        let suggest_time = crate::use_cases::time::MockSuggestTime::new();
+        let suggest_time = Arc::new(crate::use_cases::time::SuggestTime::new(
+            world_repo.clone(),
+            build_clock(now),
+        ));
 
         let clock = build_clock(now);
 
-        let approve_suggestion = Arc::new(ApproveSuggestion::new(Arc::new(queue.clone())));
+        let approve_suggestion = Arc::new(ApproveSuggestion::new(queue.clone()));
         let flow = ApprovalDecisionFlow::new(
             approve_suggestion,
-            Arc::new(narrative),
-            Arc::new(queue.clone()),
+            narrative,
+            queue.clone(),
             tool_executor,
-            Arc::new(suggest_time),
-            Arc::new(world_repo),
-            Arc::new(pc_repo),
+            suggest_time,
+            world_repo,
+            pc_repo,
         );
 
         let result = flow
@@ -1093,4 +1093,3 @@ mod tests {
         assert!(result.time_suggestion.is_none(), "No time suggestion on reject");
     }
 }
-

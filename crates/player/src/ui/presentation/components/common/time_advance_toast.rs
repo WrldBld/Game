@@ -21,11 +21,12 @@ pub fn TimeAdvanceToast() -> Element {
 
     let notification = game_state.time_advance_notification.read().clone();
 
-    // Hook for auto-dismiss timer
+    // Hook for auto-dismiss timer - clone notification for the effect to avoid move
     let game_state_dismiss = game_state.clone();
+    let notification_for_effect = notification.clone();
 
     use_effect(move || {
-        if notification.is_some() {
+        if notification_for_effect.is_some() {
             // Auto-dismiss after 5 seconds
             let mut game_state = game_state_dismiss.clone();
             spawn_task(async move {
@@ -45,7 +46,10 @@ pub fn TimeAdvanceToast() -> Element {
                     class: "fixed bottom-4 right-4 z-50 pointer-events-auto transition-all duration-300",
                     div {
                         class: "bg-gradient-to-r from-blue-900 to-purple-900 text-white rounded-lg shadow-lg p-4 max-w-md animate-slide-up",
-                        onclick: move |_| game_state.clear_time_advance_notification(),
+                        onclick: move |_| {
+                            let mut gs = game_state.clone();
+                            gs.clear_time_advance_notification();
+                        },
 
                         // Header with close icon
                         div {

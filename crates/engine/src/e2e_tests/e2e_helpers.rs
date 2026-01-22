@@ -33,6 +33,7 @@ use crate::infrastructure::ports::{
     ClockPort, FinishReason, ImageGenError, ImageGenPort, ImageRequest, ImageResult, LlmError,
     LlmPort, LlmRequest, LlmResponse, QueueError, QueueItem, QueueItemId, QueuePort,
 };
+use crate::infrastructure::prompt_templates::SqlitePromptTemplateRepo;
 use crate::infrastructure::queue::SqliteQueue;
 use crate::infrastructure::settings::SqliteSettingsRepo;
 use crate::queue_types::{
@@ -312,10 +313,13 @@ impl E2ETestContext {
         };
 
         let settings_repo = Arc::new(SqliteSettingsRepo::new(&queue_db_str, clock.clone()).await?);
+        let prompt_templates_repo = Arc::new(
+            SqlitePromptTemplateRepo::new(&queue_db_str, clock.clone()).await?
+        );
         let image_gen: Arc<dyn ImageGenPort> = Arc::new(NoopImageGen);
         let content_config = ContentServiceConfig::default();
 
-        let app = App::new(repos, llm, image_gen, queue, settings_repo, content_config);
+        let app = App::new(repos, llm, image_gen, queue, settings_repo, prompt_templates_repo, content_config);
 
         if let Some(ref b) = benchmark {
             b.end_phase("app_init");
