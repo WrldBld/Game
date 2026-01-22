@@ -39,8 +39,8 @@ pub use external::{
 pub use repos::{
     ActRepo, AssetRepo, ChallengeRepo, CharacterRepo, ContentRepo,
     FlagRepo, GoalRepo, InteractionRepo, ItemRepo, LocationRepo, LocationStateRepo,
-    LoreRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, RegionStateRepo,
-    SceneRepo, SettingsRepo, StagingRepo, WorldRepo,
+    LoreRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, PromptTemplateRepo,
+    RegionStateRepo, SceneRepo, SettingsRepo, StagingRepo, WorldRepo,
 };
 
 // =============================================================================
@@ -52,8 +52,8 @@ pub use repos::{
     MockContentRepo, MockFlagRepo, MockGoalRepo, MockInteractionRepo,
     MockItemRepo, MockLocationRepo, MockLocationStateRepo, MockLoreRepo,
     MockNarrativeRepo, MockObservationRepo, MockPlayerCharacterRepo,
-    MockRegionStateRepo, MockSceneRepo, MockSettingsRepo, MockStagingRepo,
-    MockWorldRepo,
+    MockPromptTemplateRepo, MockRegionStateRepo, MockSceneRepo, MockSettingsRepo,
+    MockStagingRepo, MockWorldRepo,
 };
 
 #[cfg(test)]

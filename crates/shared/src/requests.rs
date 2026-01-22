@@ -167,6 +167,12 @@ pub struct UpdateLocationData {
     pub description: Option<String>,
     #[serde(default)]
     pub setting: Option<String>,
+    /// Default TTL in hours for staging cache in this location
+    #[serde(default)]
+    pub presence_cache_ttl_hours: Option<i32>,
+    /// Whether to use LLM for staging decisions in this location
+    #[serde(default)]
+    pub use_llm_presence: Option<bool>,
 }
 
 /// Data for creating a location connection

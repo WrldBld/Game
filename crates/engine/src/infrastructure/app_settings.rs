@@ -1011,6 +1011,12 @@ fn default_list_default_page_size() -> u32 {
 fn default_list_max_page_size() -> u32 {
     200
 }
+fn default_staging_timeout_seconds() -> u64 {
+    30
+}
+fn default_auto_approve_on_timeout() -> bool {
+    true
+}
 
 /// All configurable application settings
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -1086,6 +1092,14 @@ pub struct AppSettings {
     #[serde(default = "default_use_llm_presence")]
     default_use_llm_presence: bool,
 
+    /// Seconds to wait before auto-approving staging requests (0 = disabled)
+    #[serde(default = "default_staging_timeout_seconds")]
+    staging_timeout_seconds: u64,
+
+    /// Whether to auto-approve staging requests with rule-based NPCs when DM doesn't respond within timeout
+    #[serde(default = "default_auto_approve_on_timeout")]
+    auto_approve_on_timeout: bool,
+
     // ============================================================================
     // Challenge System
     // ============================================================================
@@ -1140,6 +1154,8 @@ impl Default for AppSettings {
             default_max_stat_value: 20,
             default_presence_cache_ttl_hours: 3,
             default_use_llm_presence: true,
+            staging_timeout_seconds: default_staging_timeout_seconds(),
+            auto_approve_on_timeout: default_auto_approve_on_timeout(),
             outcome_branch_count: 2,
             outcome_branch_min: 1,
             outcome_branch_max: 4,
@@ -1253,6 +1269,16 @@ impl AppSettings {
     /// Whether to use LLM for staging decisions by default
     pub fn default_use_llm_presence(&self) -> bool {
         self.default_use_llm_presence
+    }
+
+    /// Seconds to wait before auto-approving staging requests (0 = disabled)
+    pub fn staging_timeout_seconds(&self) -> u64 {
+        self.staging_timeout_seconds
+    }
+
+    /// Whether to auto-approve staging requests with rule-based NPCs when DM doesn't respond within timeout
+    pub fn auto_approve_on_timeout(&self) -> bool {
+        self.auto_approve_on_timeout
     }
 
     /// Number of outcome branches to generate for each challenge result tier
@@ -1430,6 +1456,22 @@ impl AppSettings {
     pub fn with_default_use_llm_presence(self, default_use_llm_presence: bool) -> Self {
         Self {
             default_use_llm_presence,
+            ..self
+        }
+    }
+
+    /// Set staging timeout in seconds
+    pub fn with_staging_timeout_seconds(self, staging_timeout_seconds: u64) -> Self {
+        Self {
+            staging_timeout_seconds,
+            ..self
+        }
+    }
+
+    /// Set whether to auto-approve staging requests on timeout
+    pub fn with_auto_approve_on_timeout(self, auto_approve_on_timeout: bool) -> Self {
+        Self {
+            auto_approve_on_timeout,
             ..self
         }
     }

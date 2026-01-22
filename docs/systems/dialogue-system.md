@@ -83,6 +83,10 @@ This is the heart of the AI game master experience:
   - *Design*: Template metadata + overrides resolved at request time
   - *Reference*: `crates/domain/src/value_objects/prompt_templates.rs`
 
+- [ ] **US-DLG-017**: As a player, I can end a conversation so that I can return to exploration without waiting for more dialogue
+  - *Design*: Player action ends active conversation and clears dialogue UI
+  - *Files*: `crates/engine/src/use_cases/conversation/end.rs`, `crates/player/src/ui/presentation/components/action_panel.rs`
+
 ### Implemented (Dialogue Tracking Enhancement)
 
 - [x] **US-DLG-011**: As a system, I persist dialogue exchanges as StoryEvents for later querying
@@ -179,6 +183,23 @@ This is the heart of the AI game master experience:
 ```
 
 **Status**: ✅ Implemented
+
+### Player End Conversation Button
+
+```
+┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────────────┐
+│ Continue   │ │ Talk       │ │ Examine    │ │ End Conversation   │
+│ [Dialogue] │ │ [Other]    │ │ [Marcus]   │ │ [× Marcus]         │
+└────────────┘ └────────────┘ └────────────┘ └────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  End Conversation?                                                          │
+│  End conversation with Marcus?                                             │
+│  [Yes, End It]  [Keep Talking]                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Status**: ⏳ Pending
 
 ---
 

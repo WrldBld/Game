@@ -22,6 +22,7 @@ pub mod narrative_operations;
 pub mod npc;
 pub mod observation;
 pub mod player_action;
+pub mod prompt_templates;
 pub mod queues;
 pub mod scene;
 pub mod session;
@@ -35,7 +36,7 @@ pub mod world;
 
 // Re-export main types
 // Note: Location and Scene wrapper types were removed per ADR-009.
-// Use the port traits directly: LocationRepo, SceneRepo from infrastructure::ports.
+// Use cases port traits directly: LocationRepo, SceneRepo from infrastructure::ports.
 pub use actantial::ActantialUseCases;
 pub use ai::AiUseCases;
 pub use approval::ApprovalUseCases;
@@ -54,9 +55,11 @@ pub use narrative::NarrativeUseCases;
 pub use narrative_operations::NarrativeOps;
 pub use npc::NpcUseCases;
 pub use player_action::PlayerActionUseCases;
+pub use prompt_templates::PromptTemplateOps;
 pub use queues::QueueUseCases;
 
 pub use session::SessionUseCases;
+pub use settings::SettingsOps;
 pub use staging::StagingUseCases;
 pub use story_events::StoryEventUseCases;
 pub use time::TimeUseCases;

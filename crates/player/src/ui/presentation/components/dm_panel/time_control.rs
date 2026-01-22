@@ -20,6 +20,8 @@ pub fn TimeControlPanel() -> Element {
     let game_state = use_game_state();
     let session_state = use_session_state();
     let command_bus = use_command_bus();
+    let command_bus_toggle = command_bus.clone(); // For time mode toggle
+    let command_bus_skip = command_bus.clone(); // For skip to period
 
     let game_time = game_state.game_time.read().clone();
     let time_mode = game_state.time_mode.read().clone();
@@ -56,16 +58,27 @@ pub fn TimeControlPanel() -> Element {
                 div { class: "text-gray-500 italic text-center py-4", "Time not set" }
             }
 
-            // Time mode indicator
+            // Time mode toggle
             div {
-                class: "mt-3 flex items-center gap-2 text-sm",
-                span { class: "text-gray-500", "Mode:" }
-                span {
-                    class: match time_mode {
-                        TimeMode::Manual => "text-gray-400",
-                        TimeMode::Suggested => "text-blue-400",
+                class: "mt-3 flex items-center justify-between",
+                span { class: "text-gray-500 text-sm", "Mode: {time_mode.display_name()}" }
+                button {
+                    onclick: move |_| {
+                        let new_mode = match *game_state.time_mode.read() {
+                            TimeMode::Manual => TimeMode::Suggested,
+                            TimeMode::Suggested => TimeMode::Manual,
+                        };
+                        if let Some(world_id) = *session_state.connection.world_id.read() {
+                            let shared_mode = match new_mode {
+                                TimeMode::Manual => wrldbldr_shared::types::TimeMode::Manual,
+                                TimeMode::Suggested => wrldbldr_shared::types::TimeMode::Suggested,
+                            };
+                            let msg = ClientMessageBuilder::set_time_mode(&world_id.to_string(), shared_mode);
+                            let _ = command_bus_toggle.send(msg);
+                        }
                     },
-                    "{time_mode.display_name()}"
+                    class: "px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded transition-colors",
+                    "Toggle"
                 }
             }
 
@@ -106,11 +119,11 @@ pub fn TimeControlPanel() -> Element {
                     onclick: move |_| {
                         // Quick skip to next period
                         if let Some(ref gt) = game_time {
-                            if let Some(world_id) = *session_state.world_id().read() {
+                            if let Some(world_id) = *session_state.connection.world_id.read() {
                                 let current_period = time_of_day(gt);
                                 let next_period = crate::presentation::game_time_format::next_period(current_period).to_string();
                                 let msg = ClientMessageBuilder::skip_to_period(&world_id.to_string(), &next_period);
-                                let _ = command_bus.send(msg);
+                                let _ = command_bus_skip.send(msg);
                             }
                         }
                     },
@@ -299,6 +312,7 @@ fn TimeSuggestionCard(suggestion: TimeSuggestionData) -> Element {
 fn AdvanceTimeModal(on_close: EventHandler<()>) -> Element {
     let session_state = use_session_state();
     let command_bus = use_command_bus();
+    let command_bus_clone = command_bus.clone(); // For the advance button
     let mut hours = use_signal(|| 1u32);
     let mut reason = use_signal(|| "DM advanced time".to_string());
 
@@ -374,10 +388,10 @@ fn AdvanceTimeModal(on_close: EventHandler<()>) -> Element {
                         onclick: move |_| {
                             let h = *hours.read();
                             let r = reason.read().clone();
-                            if let Some(world_id) = *session_state.world_id().read() {
+                            if let Some(world_id) = *session_state.connection.world_id.read() {
                                 let seconds = h * 3600;
                                 let msg = ClientMessageBuilder::advance_time(&world_id.to_string(), seconds, &r);
-                                let _ = command_bus.send(msg);
+                                let _ = command_bus_clone.send(msg);
                             }
                             on_close.call(());
                         },
@@ -401,12 +415,14 @@ fn AdvanceTimeModal(on_close: EventHandler<()>) -> Element {
 fn SetTimeModal(current_time: Option<GameTime>, on_close: EventHandler<()>) -> Element {
     let session_state = use_session_state();
     let command_bus = use_command_bus();
+    let command_bus_clone = command_bus.clone(); // For set time button
 
     let initial_day = current_time.as_ref().map(|t| t.day).unwrap_or(1);
     let initial_hour = current_time.as_ref().map(|t| t.hour).unwrap_or(8);
 
     let mut day = use_signal(move || initial_day);
     let mut hour = use_signal(move || initial_hour);
+    let mut notify_players = use_signal(|| true);
 
     rsx! {
         div {
@@ -484,6 +500,21 @@ fn SetTimeModal(current_time: Option<GameTime>, on_close: EventHandler<()>) -> E
                     }
                 }
 
+                // Notify players checkbox
+                div {
+                    class: "mb-4",
+                    label {
+                        class: "flex items-center gap-2 cursor-pointer",
+                        input {
+                            r#type: "checkbox",
+                            checked: "{*notify_players.read()}",
+                            onchange: move |e| notify_players.set(e.checked()),
+                            class: "w-4 h-4 rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500 focus:ring-2",
+                        }
+                        span { class: "text-gray-300 text-sm", "Notify players of time change" }
+                    }
+                }
+
                 div {
                     class: "flex gap-2",
 
@@ -491,9 +522,10 @@ fn SetTimeModal(current_time: Option<GameTime>, on_close: EventHandler<()>) -> E
                         onclick: move |_| {
                             let d = *day.read();
                             let h = *hour.read();
-                            if let Some(world_id) = *session_state.world_id().read() {
-                                let msg = ClientMessageBuilder::set_game_time(&world_id.to_string(), d, h);
-                                let _ = command_bus.send(msg);
+                            let notify = *notify_players.read();
+                            if let Some(world_id) = *session_state.connection.world_id.read() {
+                                let msg = ClientMessageBuilder::set_game_time(&world_id.to_string(), d, h, notify);
+                                let _ = command_bus_clone.send(msg);
                             }
                             on_close.call(());
                         },

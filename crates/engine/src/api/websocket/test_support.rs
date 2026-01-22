@@ -22,7 +22,8 @@ use crate::infrastructure::ports::{
     MockActRepo, MockAssetRepo, MockChallengeRepo, MockCharacterRepo, MockContentRepo,
     MockFlagRepo, MockGoalRepo, MockInteractionRepo, MockItemRepo, MockLocationRepo,
     MockLocationStateRepo, MockLoreRepo, MockNarrativeRepo, MockObservationRepo,
-    MockPlayerCharacterRepo, MockRegionStateRepo, MockSceneRepo, MockSettingsRepo, MockStagingRepo,
+    MockPlayerCharacterRepo, MockPromptTemplateRepo, MockRegionStateRepo, MockSceneRepo,
+    MockSettingsRepo, MockStagingRepo,
 };
 use crate::queue_types::{
     ApprovalRequestData, AssetGenerationData, LlmRequestData, PlayerActionData,
@@ -51,6 +52,7 @@ pub(crate) struct TestAppRepos {
     pub(crate) lore_repo: MockLoreRepo,
     pub(crate) location_state_repo: MockLocationStateRepo,
     pub(crate) region_state_repo: MockRegionStateRepo,
+    pub(crate) prompt_templates: Option<MockPromptTemplateRepo>,
 }
 
 impl TestAppRepos {
@@ -98,6 +100,7 @@ impl TestAppRepos {
             lore_repo: MockLoreRepo::new(),
             location_state_repo: MockLocationStateRepo::new(),
             region_state_repo: MockRegionStateRepo::new(),
+            prompt_templates: None,
         }
     }
 }
@@ -439,8 +442,8 @@ pub(crate) fn build_test_app_with_ports(
     use crate::infrastructure::ports::{
         ActRepo, AssetRepo, ChallengeRepo, CharacterRepo, ContentRepo, FlagRepo, GoalRepo,
         InteractionRepo, ItemRepo, LocationRepo, LocationStateRepo, LoreRepo, NarrativeRepo,
-        ObservationRepo, PlayerCharacterRepo, RegionStateRepo, SceneRepo, SettingsRepo,
-        StagingRepo, WorldRepo,
+        ObservationRepo, PlayerCharacterRepo, PromptTemplateRepo, RegionStateRepo, SceneRepo,
+        SettingsRepo, StagingRepo, WorldRepo,
     };
 
     let world_repo: Arc<dyn WorldRepo> = Arc::new(repos.world_repo);
@@ -484,6 +487,9 @@ pub(crate) fn build_test_app_with_ports(
     ));
 
     // Build Repositories container (ADR-009: port traits injected directly)
+    let prompt_templates_repo: Arc<dyn PromptTemplateRepo> = Arc::new(
+        repos.prompt_templates.unwrap_or_else(|| MockPromptTemplateRepo::new()),
+    );
     let repositories_container = Repositories {
         // Port traits injected directly
         character: character_repo.clone(),
@@ -504,6 +510,7 @@ pub(crate) fn build_test_app_with_ports(
         flag: flag_repo.clone(),
         lore: lore_repo.clone(),
         narrative_repo: narrative_repo.clone(),
+        prompt_templates: prompt_templates_repo.clone(),
         // Wrapper types
         narrative: narrative.clone(),
     };
@@ -652,6 +659,9 @@ pub(crate) fn build_test_app_with_ports(
             narrative.clone(),
             queue_port.clone(),
             tool_executor,
+            suggest_time.clone(),
+            world_repo.clone(),
+            player_character_repo.clone(),
         )),
     );
 
@@ -709,6 +719,7 @@ pub(crate) fn build_test_app_with_ports(
             llm_port.clone(),
             challenge_repo.clone(),
             narrative_repo.clone(),
+            prompt_templates_repo.clone(),
         )),
     );
 
@@ -868,6 +879,11 @@ pub(crate) fn build_test_app_with_ports(
 
     let settings = settings_ops;
 
+    let prompt_templates_ops =
+        Arc::new(crate::use_cases::prompt_templates::PromptTemplateOps::new(
+            prompt_templates_repo.clone(),
+        ));
+
     let join_world = Arc::new(crate::use_cases::session::JoinWorld::new(
         world_repo.clone(),
         location_repo.clone(),
@@ -913,6 +929,7 @@ pub(crate) fn build_test_app_with_ports(
         management,
         session,
         settings,
+        prompt_templates: prompt_templates_ops,
         staging: staging_uc,
         npc: npc_uc,
         story_events: story_events_uc,

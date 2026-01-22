@@ -24,25 +24,29 @@ pub struct LocationFormData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub location_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub atmosphere: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notable_features: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hidden_secrets: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent_location_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub backdrop_asset: Option<String>,
     #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub location_type: Option<String>,
+    /// Setting/atmosphere of the location
+    #[serde(default)]
+    pub atmosphere: Option<String>,
+    #[serde(default)]
+    pub notable_features: Option<String>,
+    #[serde(default)]
+    pub hidden_secrets: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_location_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backdrop_asset: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub backdrop_regions: Vec<serde_json::Value>,
     /// Default TTL in hours for staging cache in this location (default: 4 hours)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub presence_cache_ttl_hours: Option<i32>,
+    /// Whether to use LLM for staging decisions in this location (default: true)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub use_llm_presence: Option<bool>,
 }
 
 /// Location connection data
@@ -79,6 +83,8 @@ impl LocationFormData {
             name: Some(self.name.clone()),
             description: self.description.clone(),
             setting: self.atmosphere.clone(),
+            presence_cache_ttl_hours: self.presence_cache_ttl_hours,
+            use_llm_presence: self.use_llm_presence,
         }
     }
 }

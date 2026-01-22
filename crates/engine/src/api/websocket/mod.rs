@@ -778,6 +778,10 @@ async fn handle_message(
             ws_conversation::handle_start_conversation(state, connection_id, npc_id, message).await
         }
 
+        ClientMessage::EndConversation { npc_id, summary } => {
+            ws_conversation::handle_end_conversation(state, connection_id, npc_id, summary).await
+        }
+
         ClientMessage::ContinueConversation {
             npc_id,
             message,

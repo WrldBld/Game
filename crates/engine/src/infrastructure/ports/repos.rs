@@ -878,3 +878,62 @@ pub trait FlagRepo: Send + Sync {
         Ok(unique_flags.into_iter().collect())
     }
 }
+
+// =============================================================================
+// Prompt Template Storage
+// =============================================================================
+
+#[cfg_attr(test, mockall::automock)]
+#[async_trait]
+pub trait PromptTemplateRepo: Send + Sync {
+    /// Get a global template override by key.
+    async fn get_global_override(&self, key: &str) -> Result<Option<String>, RepoError>;
+
+    /// Get a world-specific template override by key.
+    async fn get_world_override(
+        &self,
+        world_id: WorldId,
+        key: &str,
+    ) -> Result<Option<String>, RepoError>;
+
+    /// Set a global template override.
+    async fn set_global_override(&self, key: &str, value: &str) -> Result<(), RepoError>;
+
+    /// Set a world-specific template override.
+    async fn set_world_override(
+        &self,
+        world_id: WorldId,
+        key: &str,
+        value: &str,
+    ) -> Result<(), RepoError>;
+
+    /// Delete a global template override.
+    async fn delete_global_override(&self, key: &str) -> Result<(), RepoError>;
+
+    /// Delete a world-specific template override.
+    async fn delete_world_override(&self, world_id: WorldId, key: &str) -> Result<(), RepoError>;
+
+    /// List all global template overrides.
+    async fn list_global_overrides(&self) -> Result<Vec<(String, String)>, RepoError>;
+
+    /// List all world-specific template overrides.
+    async fn list_world_overrides(
+        &self,
+        world_id: WorldId,
+    ) -> Result<Vec<(String, String)>, RepoError>;
+
+    /// Resolve a template value for a specific world.
+    ///
+    /// Resolution priority:
+    /// 1. World-specific override
+    /// 2. Global override
+    /// 3. Environment variable
+    /// 4. Default value (from domain)
+    ///
+    /// Returns None if the key is not a recognized template.
+    async fn resolve_template(
+        &self,
+        world_id: Option<WorldId>,
+        key: &str,
+    ) -> Result<Option<String>, RepoError>;
+}

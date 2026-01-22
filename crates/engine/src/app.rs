@@ -11,12 +11,13 @@ use crate::infrastructure::{
     ports::{
         ActRepo, ChallengeRepo, CharacterRepo, ClockPort, ContentRepo, FlagRepo, GoalRepo,
         ImageGenPort, InteractionRepo, ItemRepo, LlmPort, LocationRepo, LocationStateRepo,
-        LoreRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, QueuePort, RandomPort,
-        RegionStateRepo, SceneRepo, SettingsRepo, StagingRepo, WorldRepo,
+        LoreRepo, NarrativeRepo, ObservationRepo, PlayerCharacterRepo, PromptTemplateRepo,
+        QueuePort, RandomPort, RegionStateRepo, SceneRepo, SettingsRepo, StagingRepo, WorldRepo,
     },
 };
 use crate::use_cases;
 use crate::use_cases::content::{ContentService, ContentServiceConfig};
+use crate::use_cases::prompt_templates::PromptTemplateOps;
 use crate::use_cases::settings::SettingsOps;
 
 /// Main application state.
@@ -55,6 +56,7 @@ pub struct Repositories {
     pub flag: Arc<dyn FlagRepo>,
     pub lore: Arc<dyn LoreRepo>,
     pub narrative_repo: Arc<dyn NarrativeRepo>,
+    pub prompt_templates: Arc<dyn PromptTemplateRepo>,
 
     // Wrapper types that add business logic beyond delegation
     pub narrative: Arc<use_cases::NarrativeOps>,
@@ -79,6 +81,7 @@ pub struct UseCases {
     pub management: use_cases::ManagementUseCases,
     pub session: use_cases::SessionUseCases,
     pub settings: Arc<SettingsOps>,
+    pub prompt_templates: Arc<PromptTemplateOps>,
     pub staging: use_cases::StagingUseCases,
     pub npc: use_cases::NpcUseCases,
     pub story_events: use_cases::StoryEventUseCases,
@@ -97,6 +100,7 @@ impl App {
         image_gen: Arc<dyn ImageGenPort>,
         queue: Arc<dyn QueuePort>,
         settings_repo: Arc<dyn SettingsRepo>,
+        prompt_templates_repo: Arc<dyn PromptTemplateRepo>,
         content_config: ContentServiceConfig,
     ) -> Self {
         // Create infrastructure services
@@ -166,6 +170,7 @@ impl App {
             flag: flag_repo.clone(),
             lore: lore_repo.clone(),
             narrative_repo: narrative_repo.clone(),
+            prompt_templates: prompt_templates_repo.clone(),
             // Wrapper types
             narrative: narrative.clone(),
         };
@@ -312,6 +317,9 @@ impl App {
                 narrative.clone(),
                 queue_port.clone(),
                 tool_executor,
+                suggest_time.clone(),
+                repos.world.clone(),
+                repos.player_character.clone(),
             )),
         );
 
@@ -364,6 +372,7 @@ impl App {
                 llm_port.clone(),
                 repos.challenge.clone(),
                 repos.narrative.clone(),
+                prompt_templates_repo.clone(),
             )),
         );
 
@@ -415,6 +424,8 @@ impl App {
         ));
 
         let settings_ops = Arc::new(SettingsOps::new(settings_repo.clone()));
+
+        let prompt_templates_ops = Arc::new(PromptTemplateOps::new(prompt_templates_repo.clone()));
 
         let staging_uc = use_cases::StagingUseCases::new(
             Arc::new(use_cases::staging::RequestStagingApproval::new(
@@ -561,6 +572,7 @@ impl App {
             management,
             session,
             settings,
+            prompt_templates: prompt_templates_ops,
             staging: staging_uc,
             npc: npc_uc,
             story_events: story_events_uc,

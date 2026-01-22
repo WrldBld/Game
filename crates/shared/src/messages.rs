@@ -53,6 +53,13 @@ pub enum ClientMessage {
         #[serde(default)]
         conversation_id: Option<String>,
     },
+    /// End a conversation with an NPC
+    EndConversation {
+        npc_id: String,
+        /// Optional summary of the conversation
+        #[serde(default)]
+        summary: Option<String>,
+    },
     /// Perform a scene interaction by ID
     PerformInteraction { interaction_id: String },
     /// Request to change scene
@@ -1415,6 +1422,30 @@ mod serde_tests {
         let msg = ClientMessage::MoveToRegion {
             pc_id: "pc".to_string(),
             region_id: "region".to_string(),
+        };
+
+        let json = serde_json::to_string(&msg).expect("serialize");
+        let decoded: ClientMessage = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(format!("{:?}", decoded), format!("{:?}", msg));
+    }
+
+    #[test]
+    fn client_message_round_trip_end_conversation() {
+        let msg = ClientMessage::EndConversation {
+            npc_id: "npc".to_string(),
+            summary: Some("Good talk".to_string()),
+        };
+
+        let json = serde_json::to_string(&msg).expect("serialize");
+        let decoded: ClientMessage = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(format!("{:?}", decoded), format!("{:?}", msg));
+    }
+
+    #[test]
+    fn client_message_round_trip_end_conversation_no_summary() {
+        let msg = ClientMessage::EndConversation {
+            npc_id: "npc".to_string(),
+            summary: None,
         };
 
         let json = serde_json::to_string(&msg).expect("serialize");

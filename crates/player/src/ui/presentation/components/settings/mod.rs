@@ -5,6 +5,7 @@
 
 pub mod app_settings;
 pub mod game_settings;
+pub mod prompt_template_editor;
 pub mod skills_panel;
 pub mod workflow_config_editor;
 pub mod workflow_slot_list;
@@ -61,6 +62,12 @@ pub fn SettingsView(props: SettingsViewProps) -> Element {
                     active: active_tab == "world-settings",
                 }
                 SettingsTabLink {
+                    label: "Prompt Templates",
+                    subtab: "prompt-templates",
+                    world_id: props.world_id.clone(),
+                    active: active_tab == "prompt-templates",
+                }
+                SettingsTabLink {
                     label: "App Settings",
                     subtab: "app-settings",
                     world_id: props.world_id.clone(),
@@ -80,6 +87,15 @@ pub fn SettingsView(props: SettingsViewProps) -> Element {
                         div {
                             class: "p-4",
                             game_settings::GameSettingsPanel { world_id: props.world_id.clone() }
+                        }
+                    },
+                    "prompt-templates" => rsx! {
+                        div {
+                            class: "p-4",
+                            prompt_template_editor::PromptTemplateEditor {
+                                world_id: props.world_id.clone(),
+                                template_key: "dialogue.response_format".to_string(),
+                            }
                         }
                     },
                     "app-settings" => rsx! {

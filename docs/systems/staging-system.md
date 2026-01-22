@@ -138,6 +138,10 @@ WrldBldr uses theatre and story terminology throughout:
   - *Requirement*: UI to adjust `staging_timeout_seconds` in world settings
   - *Target files*: World settings UI component
 
+- [ ] **US-STG-017**: As a DM, I can configure location staging defaults (TTL + LLM presence toggle)
+  - *Requirement*: Location settings UI exposes `presence_cache_ttl_hours` and `use_llm_presence`
+  - *Target files*: Location settings UI + location service DTOs
+
 ---
 
 ## UI Mockups
@@ -247,6 +251,36 @@ WrldBldr uses theatre and story terminology throughout:
 ```
 
 **Status**: ✅ Implemented (basic) (`crates/player/src/ui/presentation/components/dm_panel/location_staging.rs`)
+
+### World Settings — Staging Auto-Approve
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Settings                                                           [X]     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  [General]  [Staging]  [Prompts]  [Notifications]                           │
+│  Auto-Approve Staging  [✓] Enabled                                          │
+│  Auto-Approve Timeout  [30] seconds  [5] [15] [30] [60]                     │
+│  [Save Changes] [Reset to Defaults]                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Status**: ⏳ Pending
+
+### Location Settings — Presence Defaults
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Location: Rusty Anchor Tavern                                     [X]     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  [General]  [Presence]  [Events]                                           │
+│  Presence Cache TTL [15] minutes  [5] [10] [15] [30]                        │
+│  Use LLM Presence Detection [✓] Enabled                                     │
+│  [Save Changes] [Reset to Defaults]                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Status**: ⏳ Pending
 
 ### Pre-Staging Editor Modal
 

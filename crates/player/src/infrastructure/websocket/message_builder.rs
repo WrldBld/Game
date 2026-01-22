@@ -276,6 +276,14 @@ impl ClientMessageBuilder {
         }
     }
 
+    /// Create an EndConversation message
+    pub fn end_conversation(npc_id: &str, summary: Option<&str>) -> ClientMessage {
+        ClientMessage::EndConversation {
+            npc_id: npc_id.to_string(),
+            summary: summary.map(|s| s.to_string()),
+        }
+    }
+
     /// Create a PerformInteraction message
     pub fn perform_interaction(interaction_id: &str) -> ClientMessage {
         ClientMessage::PerformInteraction {
@@ -355,12 +363,17 @@ impl ClientMessageBuilder {
     ///
     /// Note: world_id should be provided by the caller from session state.
     /// Pass empty string if not available - handler should fill from session.
-    pub fn set_game_time(world_id: &str, day: u32, hour: u8) -> ClientMessage {
+    pub fn set_game_time(
+        world_id: &str,
+        day: u32,
+        hour: u8,
+        notify_players: bool,
+    ) -> ClientMessage {
         ClientMessage::SetGameTime {
             world_id: world_id.to_string(),
             day,
             hour,
-            notify_players: true,
+            notify_players,
         }
     }
 
@@ -371,6 +384,16 @@ impl ClientMessageBuilder {
         ClientMessage::SkipToPeriod {
             world_id: world_id.to_string(),
             period: period.to_string(),
+        }
+    }
+
+    /// Create a SetTimeMode message
+    ///
+    /// Note: world_id should be provided by caller from session state.
+    pub fn set_time_mode(world_id: &str, mode: wrldbldr_shared::types::TimeMode) -> ClientMessage {
+        ClientMessage::SetTimeMode {
+            world_id: world_id.to_string(),
+            mode,
         }
     }
 

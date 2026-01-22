@@ -39,6 +39,7 @@ use infrastructure::{
     comfyui::ComfyUIClient,
     neo4j::{Neo4jGraph, Neo4jRepositories},
     openai_compatible::OpenAICompatibleClient,
+    prompt_templates::SqlitePromptTemplateRepo,
     queue::SqliteQueue,
     resilient_llm::{ResilientLlmClient, RetryConfig},
     settings::SqliteSettingsRepo,
@@ -108,6 +109,7 @@ async fn main() -> anyhow::Result<()> {
     let queue_db = std::env::var("QUEUE_DB").unwrap_or_else(|_| "queues.db".into());
     let queue = Arc::new(SqliteQueue::new(&queue_db, clock.clone()).await?);
     let settings_repo = Arc::new(SqliteSettingsRepo::new(&queue_db, clock.clone()).await?);
+    let prompt_templates_repo = Arc::new(SqlitePromptTemplateRepo::new(&queue_db, clock.clone()).await?);
 
     // Configure content service
     let content_config = use_cases::content::ContentServiceConfig {
@@ -127,6 +129,7 @@ async fn main() -> anyhow::Result<()> {
         image_gen,
         queue,
         settings_repo,
+        prompt_templates_repo,
         content_config,
     ));
 
@@ -344,7 +347,22 @@ async fn main() -> anyhow::Result<()> {
             for (request_id, pending) in pending_requests {
                 let world_id = pending.world_id;
 
-                let timeout_seconds = crate::use_cases::staging::DEFAULT_STAGING_TIMEOUT_SECONDS;
+                // Get settings for this world with fallback to defaults
+                let settings =
+                    match staging_ws_state.app.use_cases.settings.get_for_world(world_id).await {
+                        Ok(s) => s,
+                        Err(e) => {
+                            tracing::warn!(
+                                error = %e,
+                                world_id = %world_id,
+                                "Failed to load settings for staging timeout, using defaults"
+                            );
+                            crate::infrastructure::app_settings::AppSettings::default()
+                        }
+                    };
+
+                let timeout_seconds = settings.staging_timeout_seconds();
+                let auto_approve = settings.auto_approve_on_timeout();
 
                 // Skip if timeout is disabled (0) or not yet expired
                 if timeout_seconds == 0 {
@@ -356,66 +374,78 @@ async fn main() -> anyhow::Result<()> {
                     continue;
                 }
 
-                // Request has expired - atomically remove from pending
-                // Only process if we successfully removed it (prevents double processing)
-                let was_removed = staging_ws_state
-                    .pending_staging_requests
-                    .remove(&request_id)
-                    .await
-                    .is_some();
+                // Request has expired
+                if auto_approve {
+                    // Auto-approve: atomically remove from pending to prevent double processing
+                    let was_removed = staging_ws_state
+                        .pending_staging_requests
+                        .remove(&request_id)
+                        .await
+                        .is_some();
 
-                if !was_removed {
-                    // Another task (e.g., manual DM approval) already handled this request
-                    tracing::debug!(
+                    if !was_removed {
+                        // Another task (e.g., manual DM approval) already handled this request
+                        tracing::debug!(
+                            request_id = %request_id,
+                            "Staging request already removed by another handler, skipping timeout processing"
+                        );
+                        continue;
+                    }
+
+                    // Auto-approve with rule-based NPCs
+                    match staging_ws_state
+                        .app
+                        .use_cases
+                        .staging
+                        .auto_approve_timeout
+                        .execute(request_id.clone(), pending.clone())
+                        .await
+                    {
+                        Ok(payload) => {
+                            // Convert domain types to protocol types
+                            let npcs_present_proto: Vec<wrldbldr_shared::NpcPresentInfo> =
+                                payload
+                                    .npcs_present
+                                    .iter()
+                                    .map(|n| n.to_protocol())
+                                    .collect();
+
+                            // Broadcast StagingReady to all players in world
+                            staging_ws_state
+                                .connections
+                                .broadcast_to_world(
+                                    world_id,
+                                    wrldbldr_shared::ServerMessage::StagingReady {
+                                        region_id: payload.region_id.to_string(),
+                                        npcs_present: npcs_present_proto,
+                                        visual_state: payload.visual_state.map(|vs| vs.to_protocol()),
+                                    },
+                                )
+                                .await;
+                            tracing::info!(
+                                request_id = %request_id,
+                                world_id = %world_id,
+                                timeout_seconds = %timeout_seconds,
+                                "Auto-approved staging on timeout, broadcast StagingReady"
+                            );
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                error = %e,
+                                request_id = %request_id,
+                                "Failed to auto-approve staging on timeout"
+                            );
+                        }
+                    }
+                } else {
+                    // auto_approve_on_timeout is false: keep request pending for DM approval
+                    // Do NOT remove - the request remains available for manual DM approval
+                    tracing::info!(
                         request_id = %request_id,
-                        "Staging request already removed by another handler, skipping timeout processing"
+                        world_id = %world_id,
+                        timeout_seconds = %timeout_seconds,
+                        "Staging request timed out but auto-approve is disabled, request remains pending for DM approval"
                     );
-                    continue;
-                }
-
-                // Auto-approve with rule-based NPCs
-                match staging_ws_state
-                    .app
-                    .use_cases
-                    .staging
-                    .auto_approve_timeout
-                    .execute(request_id.clone(), pending.clone())
-                    .await
-                {
-                    Ok(payload) => {
-                        // Convert domain types to protocol types
-                        let npcs_present_proto: Vec<wrldbldr_shared::NpcPresentInfo> = payload
-                            .npcs_present
-                            .iter()
-                            .map(|n| n.to_protocol())
-                            .collect();
-
-                        // Broadcast StagingReady to all players in world
-                        staging_ws_state
-                            .connections
-                            .broadcast_to_world(
-                                world_id,
-                                wrldbldr_shared::ServerMessage::StagingReady {
-                                    region_id: payload.region_id.to_string(),
-                                    npcs_present: npcs_present_proto,
-                                    visual_state: payload.visual_state.map(|vs| vs.to_protocol()),
-                                },
-                            )
-                            .await;
-                        tracing::info!(
-                            request_id = %request_id,
-                            world_id = %world_id,
-                            timeout_seconds = %timeout_seconds,
-                            "Auto-approved staging on timeout, broadcast StagingReady"
-                        );
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            error = %e,
-                            request_id = %request_id,
-                            "Failed to auto-approve staging on timeout"
-                        );
-                    }
                 }
             }
 

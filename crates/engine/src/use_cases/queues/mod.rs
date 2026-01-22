@@ -26,14 +26,19 @@ use crate::llm_context::{
     MotivationEntry, MotivationsContext, PlayerActionContext, SceneContext, SecretMotivationEntry,
     TriggerHints,
 };
-use crate::prompt_templates::defaults::{
-    DIALOGUE_CHALLENGE_SUGGESTION_FORMAT, DIALOGUE_NARRATIVE_EVENT_FORMAT, DIALOGUE_RESPONSE_FORMAT,
+use crate::prompt_templates::{
+    defaults::{
+        DIALOGUE_CHALLENGE_SUGGESTION_FORMAT, DIALOGUE_NARRATIVE_EVENT_FORMAT,
+        DIALOGUE_RESPONSE_FORMAT,
+    },
+    get_default,
+    key_to_env_var,
 };
 use crate::queue_types::{LlmRequestData, LlmRequestType, PlayerActionData};
 
 use crate::infrastructure::ports::{
     ChallengeRepo, CharacterRepo, LlmPort, LocationRepo, NarrativeRepo, PlayerCharacterRepo,
-    QueuePort, RepoError, SceneRepo, StagingRepo, WorldRepo,
+    PromptTemplateRepo, QueuePort, RepoError, SceneRepo, StagingRepo, WorldRepo,
 };
 
 /// Events that need to be broadcast to clients after queue processing.
@@ -659,6 +664,7 @@ pub struct ProcessLlmRequest {
     llm: Arc<dyn LlmPort>,
     challenge: Arc<dyn ChallengeRepo>,
     narrative: Arc<dyn NarrativeRepo>,
+    prompt_templates: Arc<dyn PromptTemplateRepo>,
 }
 
 impl ProcessLlmRequest {
@@ -667,12 +673,14 @@ impl ProcessLlmRequest {
         llm: Arc<dyn LlmPort>,
         challenge: Arc<dyn ChallengeRepo>,
         narrative: Arc<dyn NarrativeRepo>,
+        prompt_templates: Arc<dyn PromptTemplateRepo>,
     ) -> Self {
         Self {
             queue,
             llm,
             challenge,
             narrative,
+            prompt_templates,
         }
     }
 
@@ -879,6 +887,9 @@ impl ProcessLlmRequest {
                 // and dealiases them in responses for token efficiency
                 let mut aliaser = UuidAliaser::new();
 
+                // Extract world_id from request_data (needed for template resolution)
+                let world_id = request_data.world_id;
+
                 // Build LLM request from the queued prompt data
                 let llm_request = if let Some(ref prompt) = request_data.prompt {
                     // Use the full GamePromptRequest to build a rich prompt
@@ -936,6 +947,51 @@ impl ProcessLlmRequest {
                         )
                     };
 
+                    // Resolve prompt templates via repository
+                    let response_format_key = DIALOGUE_RESPONSE_FORMAT.trim();
+                    let challenge_format_key = DIALOGUE_CHALLENGE_SUGGESTION_FORMAT.trim();
+                    let event_format_key = DIALOGUE_NARRATIVE_EVENT_FORMAT.trim();
+
+                    let response_format = match self
+                        .prompt_templates
+                        .resolve_template(Some(world_id), response_format_key)
+                        .await?
+                    {
+                        Some(v) => v,
+                        None => {
+                            // Fallback to default if unknown key
+                            get_default(response_format_key)
+                                .map(|s| s.to_string())
+                                .unwrap_or_else(|| DIALOGUE_RESPONSE_FORMAT.to_string())
+                        }
+                    };
+
+                    let challenge_suggestion_format = match self
+                        .prompt_templates
+                        .resolve_template(Some(world_id), challenge_format_key)
+                        .await?
+                    {
+                        Some(v) => v,
+                        None => {
+                            get_default(challenge_format_key)
+                                .map(|s| s.to_string())
+                                .unwrap_or_else(|| DIALOGUE_CHALLENGE_SUGGESTION_FORMAT.to_string())
+                        }
+                    };
+
+                    let narrative_event_format = match self
+                        .prompt_templates
+                        .resolve_template(Some(world_id), event_format_key)
+                        .await?
+                    {
+                        Some(v) => v,
+                        None => {
+                            get_default(event_format_key)
+                                .map(|s| s.to_string())
+                                .unwrap_or_else(|| DIALOGUE_NARRATIVE_EVENT_FORMAT.to_string())
+                        }
+                    };
+
                     let system_prompt = format!(
                         "You are roleplaying as an NPC in a fantasy TTRPG. {}\n\n\
                         Scene: {} at {}\n\
@@ -950,9 +1006,9 @@ impl ProcessLlmRequest {
                         prompt.scene_context.present_characters.join(", "),
                         challenges_context,
                         events_context,
-                        DIALOGUE_RESPONSE_FORMAT,
-                        DIALOGUE_CHALLENGE_SUGGESTION_FORMAT,
-                        DIALOGUE_NARRATIVE_EVENT_FORMAT
+                        response_format,
+                        challenge_suggestion_format,
+                        narrative_event_format
                     );
 
                     let current_message = if let Some(ref dialogue) = prompt.player_action.dialogue

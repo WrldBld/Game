@@ -665,3 +665,4 @@ mod tests {
         assert!(matches!(result, super::SuggestTimeResult::NoCost));
     }
 }
+

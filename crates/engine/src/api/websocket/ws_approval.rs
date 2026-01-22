@@ -1,6 +1,7 @@
 use wrldbldr_domain::ConnectionId;
 
 use super::*;
+use crate::api::websocket::ws_time::time_suggestion_to_protocol;
 
 use crate::api::websocket::error_sanitizer::sanitize_repo_error;
 use wrldbldr_shared::ErrorCode;
@@ -92,11 +93,12 @@ pub(super) async fn handle_approval_decision(
                 state.connections.broadcast_to_dms(world_id, dm_msg).await;
 
                 // Send DialogueResponse to all players (for visual novel display)
+                let npc_id = result.npc_id.clone();
                 if !dialogue.is_empty() {
-                    if let Some(speaker_id) = result.npc_id {
+                    if let Some(ref speaker_id) = npc_id {
                         let dialogue_msg = ServerMessage::DialogueResponse {
-                            speaker_id,
-                            speaker_name: result.npc_name.unwrap_or_else(|| "Unknown".to_string()),
+                            speaker_id: speaker_id.clone(),
+                            speaker_name: result.npc_name.clone().unwrap_or_else(|| "Unknown".to_string()),
                             text: dialogue,
                             choices: vec![], // Free-form input mode
                             conversation_id: result.conversation_id.map(|id| id.to_string()),
@@ -110,6 +112,34 @@ pub(super) async fn handle_approval_decision(
                             "Approved dialogue has no speaker ID, skipping DialogueResponse broadcast"
                         );
                     }
+                }
+
+                // Send time suggestion to DMs (US-TIME-013)
+                if let Some(ref time_suggestion) = result.time_suggestion {
+                    // Remove any existing suggestion for the same PC to prevent unbounded growth
+                    state
+                        .pending_time_suggestions
+                        .remove_for_pc(time_suggestion.pc_id)
+                        .await;
+                    state
+                        .pending_time_suggestions
+                        .insert(time_suggestion.id.to_uuid(), time_suggestion.clone())
+                        .await;
+
+                    let suggestion_msg = ServerMessage::TimeSuggestion {
+                        data: time_suggestion_to_protocol(time_suggestion),
+                    };
+                    state
+                        .connections
+                        .broadcast_to_dms(world_id, suggestion_msg)
+                        .await;
+
+                    tracing::info!(
+                        approval_id = %approval_id,
+                        npc_id = ?npc_id,
+                        suggested_seconds = time_suggestion.suggested_seconds,
+                        "Emitted time suggestion for dialogue approval"
+                    );
                 }
             }
             None

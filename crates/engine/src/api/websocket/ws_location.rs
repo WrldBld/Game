@@ -87,6 +87,7 @@ pub(super) async fn handle_location_request(
                     "atmosphere": location.atmosphere(),
                     "backdrop_asset": location.backdrop_asset(),
                     "presence_cache_ttl_hours": location.presence_cache_ttl_hours(),
+                    "use_llm_presence": location.use_llm_presence(),
                 }))),
                 Ok(None) => Ok(ResponseResult::error(
                     ErrorCode::NotFound,
@@ -123,6 +124,7 @@ pub(super) async fn handle_location_request(
                     "atmosphere": location.atmosphere(),
                     "backdrop_asset": location.backdrop_asset(),
                     "presence_cache_ttl_hours": location.presence_cache_ttl_hours(),
+                    "use_llm_presence": location.use_llm_presence(),
                 }))),
                 Err(crate::use_cases::management::ManagementError::InvalidInput(msg)) => {
                     Ok(ResponseResult::error(ErrorCode::BadRequest, &msg))
@@ -154,7 +156,15 @@ pub(super) async fn handle_location_request(
                 .use_cases
                 .management
                 .location
-                .update_location(world_id, location_id_typed, data.name, data.description, data.setting)
+                .update_location(
+                    world_id,
+                    location_id_typed,
+                    data.name,
+                    data.description,
+                    data.setting,
+                    data.presence_cache_ttl_hours,
+                    data.use_llm_presence,
+                )
                 .await
             {
                 Ok(location) => Ok(ResponseResult::success(serde_json::json!({
@@ -165,6 +175,7 @@ pub(super) async fn handle_location_request(
                     "atmosphere": location.atmosphere(),
                     "backdrop_asset": location.backdrop_asset(),
                     "presence_cache_ttl_hours": location.presence_cache_ttl_hours(),
+                    "use_llm_presence": location.use_llm_presence(),
                 }))),
                 Err(crate::use_cases::management::ManagementError::NotFound { .. }) => Ok(
                     ResponseResult::error(ErrorCode::NotFound, "Location not found"),

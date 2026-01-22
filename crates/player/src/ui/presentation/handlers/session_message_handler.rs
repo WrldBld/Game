@@ -675,11 +675,12 @@ pub fn handle_server_message(
         }
 
         PlayerEvent::GameTimeAdvanced {
+            previous_time,
             new_time,
+            seconds_advanced,
             reason,
             period_changed,
             new_period,
-            ..
         } => {
             let time_display = crate::presentation::game_time_format::display_date(&new_time);
 
@@ -691,6 +692,20 @@ pub fn handle_server_message(
             );
 
             game_state.apply_game_time_update(new_time);
+
+            // Set toast notification if show_time_to_players is enabled
+            if *session_state.should_show_time_to_players().read() {
+                let created_at_ms = platform.now_millis();
+                game_state.set_time_advance_notification(
+                    previous_time,
+                    new_time,
+                    seconds_advanced,
+                    reason,
+                    period_changed,
+                    new_period,
+                    created_at_ms,
+                );
+            }
 
             let message = if period_changed {
                 if let Some(ref period) = new_period {
@@ -784,9 +799,19 @@ pub fn handle_server_message(
             );
         }
 
-        PlayerEvent::TimeConfigUpdated { mode, .. } => {
-            tracing::info!("Time config updated: mode={}", mode);
-            // DM-only notification
+        PlayerEvent::TimeConfigUpdated {
+            mode,
+            show_time_to_players,
+        } => {
+            tracing::info!(
+                "Time config updated: mode={}, show_time_to_players={}",
+                mode,
+                show_time_to_players
+            );
+            // Update time mode (DM-only, but we track it anyway)
+            game_state.set_time_mode(mode.parse().unwrap_or_default());
+            // Update show_time_to_players flag (for player toast)
+            session_state.set_show_time_to_players(show_time_to_players);
         }
 
         // =========================================================================

@@ -119,6 +119,117 @@ pub(super) async fn handle_start_conversation(
     })
 }
 
+pub(super) async fn handle_end_conversation(
+    state: &WsState,
+    connection_id: ConnectionId,
+    npc_id: String,
+    summary: Option<String>,
+) -> Option<ServerMessage> {
+    let conn_info = match state.connections.get(connection_id).await {
+        Some(info) => info,
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Connection not found",
+            ))
+        }
+    };
+
+    let world_id = match conn_info.world_id {
+        Some(id) => id,
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must join a world first",
+            ))
+        }
+    };
+
+    let pc_id = match conn_info.pc_id {
+        Some(id) => id,
+        None => {
+            return Some(error_response(
+                ErrorCode::BadRequest,
+                "Must have a PC to end conversation",
+            ))
+        }
+    };
+
+    let npc_uuid = match parse_character_id(&npc_id) {
+        Ok(id) => id,
+        Err(e) => return Some(e),
+    };
+
+    // Authorization check: only DM can end any conversation, or player ending their own PC's conversation
+    if !conn_info.is_dm() {
+        // For non-DM, ensure the PC being used matches the connection's PC
+        // (i.e., only the player controlling this PC can end their conversation)
+        // This is already enforced by using conn_info.pc_id as the pc_id
+    }
+
+    // Execute end conversation use case
+    let result = match state
+        .app
+        .use_cases
+        .conversation
+        .end
+        .execute(pc_id, npc_uuid, summary)
+        .await
+    {
+        Ok(result) => result,
+        Err(crate::use_cases::conversation::EndConversationError::PlayerCharacterNotFound(id)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                &format!("Player character not found: {}", id),
+            ))
+        }
+        Err(crate::use_cases::conversation::EndConversationError::NpcNotFound(id)) => {
+            return Some(error_response(
+                ErrorCode::NotFound,
+                &format!("NPC not found: {}", id),
+            ))
+        }
+        Err(e) => {
+            return Some(error_response(
+                ErrorCode::InternalError,
+                &sanitize_repo_error(&e, "end conversation"),
+            ))
+        }
+    };
+
+    tracing::info!(
+        conversation_id = ?result.conversation_id,
+        pc_id = %pc_id,
+        pc_name = %result.pc_name,
+        npc_id = %npc_uuid,
+        npc_name = %result.npc_name,
+        "Conversation ended"
+    );
+
+    // Broadcast ConversationEnded to all participants and DMs
+    let broadcast_msg = ServerMessage::ConversationEnded {
+        npc_id: npc_id.clone(),
+        npc_name: result.npc_name.clone(),
+        pc_id: pc_id.to_string(),
+        summary: result.summary.clone(),
+        conversation_id: result.conversation_id.map(|id| id.to_string()),
+    };
+
+    state
+        .connections
+        .broadcast_to_world(world_id, broadcast_msg)
+        .await;
+
+    // Return success response to caller
+    Some(ServerMessage::ConversationEnded {
+        npc_id: npc_id,
+        npc_name: result.npc_name,
+        pc_id: pc_id.to_string(),
+        summary: result.summary,
+        conversation_id: result.conversation_id.map(|id| id.to_string()),
+    })
+}
+
 pub(super) async fn handle_continue_conversation(
     state: &WsState,
     connection_id: ConnectionId,

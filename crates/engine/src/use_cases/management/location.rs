@@ -71,6 +71,8 @@ impl LocationManagement {
         name: Option<String>,
         description: Option<String>,
         setting: Option<String>,
+        presence_cache_ttl_hours: Option<i32>,
+        use_llm_presence: Option<bool>,
     ) -> Result<wrldbldr_domain::Location, ManagementError> {
         let location =
             self.location
@@ -102,6 +104,12 @@ impl LocationManagement {
         if let Some(setting) = setting {
             let atm = value_objects::Atmosphere::new(&setting)?;
             location.set_atmosphere(Some(atm));
+        }
+        if let Some(presence_cache_ttl_hours) = presence_cache_ttl_hours {
+            location.set_presence_ttl(presence_cache_ttl_hours);
+        }
+        if let Some(use_llm_presence) = use_llm_presence {
+            location.set_llm_presence(use_llm_presence);
         }
 
         self.location.save_location(&location).await?;

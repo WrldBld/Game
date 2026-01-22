@@ -1,23 +1,71 @@
 //! HTTP routes.
 
 use axum::{
-    extract::{Path, State},
-    routing::{get, post},
+    extract::{Path, State, Query},
+    routing::{get, post, put},
+    http::StatusCode,
     Json, Router,
 };
 use std::sync::Arc;
 use uuid::Uuid;
+use wrldbldr_domain::WorldId;
 
 use crate::app::App;
 use crate::infrastructure::app_settings::AppSettings;
 use crate::infrastructure::ports::RepoError;
 use crate::use_cases::management::ManagementError;
+use crate::use_cases::prompt_templates::PromptTemplateError;
 use crate::use_cases::settings::SettingsError;
 use crate::use_cases::world::WorldError;
 
 /// Maximum HTTP request body size (10MB).
 /// This should be enforced by middleware in production. For now, individual endpoints should validate their payloads.
 const MAX_HTTP_BODY_SIZE: usize = 10 * 1024 * 1024;
+
+// =============================================================================
+// Prompt Template DTOs (wire format)
+// =============================================================================
+
+/// Information about a prompt template (metadata).
+#[derive(serde::Serialize)]
+struct TemplateInfo {
+    key: String,
+    label: String,
+    description: String,
+    category: String,
+    default_value: String,
+    env_var: String,
+}
+
+/// Information about a template override value.
+#[derive(serde::Serialize)]
+struct TemplateOverrideInfo {
+    key: String,
+    value: String,
+}
+
+/// Request to set a template override.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SetOverrideRequest {
+    value: String,
+}
+
+/// Query parameters for template resolution.
+#[derive(serde::Deserialize)]
+struct ResolveParams {
+    world_id: Option<Uuid>,
+}
+
+/// Resolved template value with override information.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct ResolvedTemplate {
+    key: String,
+    value: String,
+    /// Whether this is a world-specific override
+    is_override: bool,
+    /// Default value (for reset functionality)
+    default_value: String,
+}
 
 /// Create all HTTP routes.
 pub fn routes() -> Router<Arc<App>> {
@@ -43,6 +91,16 @@ pub fn routes() -> Router<Arc<App>> {
             "/api/rule-systems/{system_type}/presets/{variant}",
             get(get_rule_system_preset),
         )
+        // Prompt template management
+        .route("/api/prompt-templates", get(list_templates))
+        .route("/api/prompt-templates/global", get(list_global_overrides))
+        .route("/api/prompt-templates/global/{key}", put(set_global_override).delete(delete_global_override))
+        .route("/api/prompt-templates/world/{world_id}", get(list_world_overrides))
+        .route(
+            "/api/prompt-templates/world/{world_id}/{key}",
+            put(set_world_override).delete(delete_world_override),
+        )
+        .route("/api/prompt-templates/resolve/{key}", get(resolve_template))
     // Add more routes as needed
 }
 
@@ -284,6 +342,180 @@ struct ImportWorldResponse {
 }
 
 // =============================================================================
+// Prompt Template Management
+// =============================================================================
+
+async fn list_templates(
+    State(app): State<Arc<App>>,
+) -> Result<Json<Vec<TemplateInfo>>, ApiError> {
+    let templates = app
+        .use_cases
+        .prompt_templates
+        .all_template_metadata()
+        .into_iter()
+        .map(|m| TemplateInfo {
+            key: m.key,
+            label: m.label,
+            description: m.description,
+            category: m.category.as_str().to_string(),
+            default_value: m.default_value,
+            env_var: m.env_var,
+        })
+        .collect();
+    Ok(Json(templates))
+}
+
+async fn list_global_overrides(
+    State(app): State<Arc<App>>,
+) -> Result<Json<Vec<TemplateOverrideInfo>>, ApiError> {
+    let overrides = app
+        .use_cases
+        .prompt_templates
+        .list_global_overrides()
+        .await
+        .map_err(map_prompt_template_error)?
+        .into_iter()
+        .map(|o| TemplateOverrideInfo {
+            key: o.key,
+            value: o.value,
+        })
+        .collect();
+    Ok(Json(overrides))
+}
+
+async fn set_global_override(
+    State(app): State<Arc<App>>,
+    Path(key): Path<String>,
+    Json(req): Json<SetOverrideRequest>,
+) -> Result<StatusCode, ApiError> {
+    app.use_cases
+        .prompt_templates
+        .set_global_override(key, req.value)
+        .await
+        .map_err(map_prompt_template_error)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn delete_global_override(
+    State(app): State<Arc<App>>,
+    Path(key): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    app.use_cases
+        .prompt_templates
+        .delete_global_override(key)
+        .await
+        .map_err(map_prompt_template_error)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn list_world_overrides(
+    State(app): State<Arc<App>>,
+    Path(world_id): Path<Uuid>,
+) -> Result<Json<Vec<TemplateOverrideInfo>>, ApiError> {
+    let overrides = app
+        .use_cases
+        .prompt_templates
+        .list_world_overrides(WorldId::from_uuid(world_id))
+        .await
+        .map_err(map_prompt_template_error)?
+        .into_iter()
+        .map(|o| TemplateOverrideInfo {
+            key: o.key,
+            value: o.value,
+        })
+        .collect();
+    Ok(Json(overrides))
+}
+
+async fn set_world_override(
+    State(app): State<Arc<App>>,
+    Path((world_id, key)): Path<(Uuid, String)>,
+    Json(req): Json<SetOverrideRequest>,
+) -> Result<StatusCode, ApiError> {
+    app.use_cases
+        .prompt_templates
+        .set_world_override(WorldId::from_uuid(world_id), key, req.value)
+        .await
+        .map_err(map_prompt_template_error)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn delete_world_override(
+    State(app): State<Arc<App>>,
+    Path((world_id, key)): Path<(Uuid, String)>,
+) -> Result<StatusCode, ApiError> {
+    app.use_cases
+        .prompt_templates
+        .delete_world_override(WorldId::from_uuid(world_id), key)
+        .await
+        .map_err(map_prompt_template_error)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn resolve_template(
+    State(app): State<Arc<App>>,
+    Path(key): Path<String>,
+    Query(params): Query<ResolveParams>,
+) -> Result<Json<ResolvedTemplate>, ApiError> {
+    let world_id = params.world_id.map(WorldId::from_uuid);
+
+    // Get the resolved value
+    let value = app
+        .use_cases
+        .prompt_templates
+        .resolve_template(world_id, &key)
+        .await
+        .map_err(map_prompt_template_error)?
+        .ok_or(ApiError::NotFound)?;
+
+    // Get metadata for default value
+    let metadata = app
+        .use_cases
+        .prompt_templates
+        .get_template_metadata(&key)
+        .ok_or(ApiError::NotFound)?;
+
+    // Check if this is a world override by comparing with global value
+    let is_override = if let Some(wid) = world_id {
+        let world_value = app
+            .use_cases
+            .prompt_templates
+            .resolve_template(Some(wid), &key)
+            .await
+            .map_err(map_prompt_template_error)?;
+        let global_value = app
+            .use_cases
+            .prompt_templates
+            .resolve_template(None, &key)
+            .await
+            .map_err(map_prompt_template_error)?;
+        world_value != global_value
+    } else {
+        false
+    };
+
+    Ok(Json(ResolvedTemplate {
+        key,
+        value,
+        is_override,
+        default_value: metadata.default_value,
+    }))
+}
+
+fn map_prompt_template_error(e: PromptTemplateError) -> ApiError {
+    match e {
+        PromptTemplateError::Repo(RepoError::NotFound { .. }) | PromptTemplateError::NotFound(_) => {
+            ApiError::NotFound
+        }
+        PromptTemplateError::UnknownKey(_) => ApiError::NotFound,
+        e => {
+            tracing::error!(error = %e, "Prompt template operation failed");
+            ApiError::Internal(e.to_string())
+        }
+    }
+}
+
+// =============================================================================
 // Error Mapping Helpers
 // =============================================================================
 
@@ -325,6 +557,149 @@ fn map_settings_error(e: SettingsError) -> ApiError {
             tracing::error!(error = %e, "Settings operation failed");
             ApiError::Internal(e.to_string())
         }
+    }
+}
+
+#[cfg(test)]
+mod prompt_template_tests {
+    use super::*;
+    use axum::body::Body;
+    use crate::api::websocket::test_support::build_test_app;
+    use crate::infrastructure::ports::MockPromptTemplateRepo;
+    use chrono::Utc;
+    use tower::ServiceExt;
+
+    // Helper function to read JSON body (shared with main tests module)
+    async fn read_body_json<T: serde::de::DeserializeOwned>(
+        response: axum::response::Response,
+    ) -> T {
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("test helper: failed to read response body");
+        serde_json::from_slice(&body).expect("test helper: failed to parse JSON response")
+    }
+
+    #[tokio::test]
+    async fn list_templates_returns_entries() {
+        let prompt_repo = MockPromptTemplateRepo::new();
+        let mut repos = TestAppRepos::new(MockWorldRepo::new());
+        repos.prompt_templates = Some(prompt_repo);
+
+        let app = build_test_app(repos, Utc::now());
+        let router: Router = routes().with_state(app);
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/prompt-templates")
+                    .method(axum::http::Method::GET)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let templates: Vec<TemplateInfo> = read_body_json(response).await;
+        assert!(!templates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn resolve_template_returns_value() {
+        let mut prompt_repo = MockPromptTemplateRepo::new();
+        prompt_repo
+            .expect_resolve_template()
+            .returning(|_, _| Ok(Some("resolved value".to_string())));
+
+        let mut repos = TestAppRepos::new(MockWorldRepo::new());
+        repos.prompt_templates = Some(prompt_repo);
+
+        let app = build_test_app(repos, Utc::now());
+        let router: Router = routes().with_state(app);
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/prompt-templates/resolve/dialogue.response_format")
+                    .method(axum::http::Method::GET)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let template: ResolvedTemplate = read_body_json(response).await;
+        assert_eq!(template.key, "dialogue.response_format");
+        assert_eq!(template.value, "resolved value");
+        assert_eq!(template.is_override, false);
+        assert!(!template.default_value.is_empty());
+    }
+
+    #[tokio::test]
+    async fn resolve_template_returns_404_when_not_found() {
+        let mut prompt_repo = MockPromptTemplateRepo::new();
+        prompt_repo
+            .expect_resolve_template()
+            .returning(|_, _| Ok(None));
+
+        let mut repos = TestAppRepos::new(MockWorldRepo::new());
+        repos.prompt_templates = Some(prompt_repo);
+
+        let app = build_test_app(repos, Utc::now());
+        let router: Router = routes().with_state(app);
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/prompt-templates/resolve/unknown.key")
+                    .method(axum::http::Method::GET)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn set_global_override_works() {
+        let mut prompt_repo = MockPromptTemplateRepo::new();
+        prompt_repo
+            .expect_set_global_override()
+            .returning(|_, _| Ok(()));
+
+        let mut repos = TestAppRepos::new(MockWorldRepo::new());
+        repos.prompt_templates = Some(prompt_repo);
+
+        let app = build_test_app(repos, Utc::now());
+        let router: Router = routes().with_state(app);
+
+        let payload = SetOverrideRequest {
+            value: "custom format".to_string(),
+        };
+
+        let response = router
+            .into_service()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/prompt-templates/global/dialogue.response_format")
+                    .method(axum::http::Method::PUT)
+                    .header(axum::http::header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::to_vec(&payload).expect("test: payload should serialize"),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // PUT endpoint returns 204 No Content, not 200 OK
+        assert_eq!(response.status(), axum::http::StatusCode::NO_CONTENT);
     }
 }
 
@@ -534,4 +909,5 @@ mod tests {
         let payload: serde_json::Value = read_body_json(response).await;
         assert_eq!(payload["id"], world.id().to_string());
     }
+
 }

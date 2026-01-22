@@ -46,6 +46,8 @@ pub fn LocationForm(
     let mut hidden_secrets = use_signal(String::new);
     let mut parent_location_id: Signal<Option<String>> = use_signal(|| None);
     let mut parent_locations: Signal<Vec<LocationFormData>> = use_signal(Vec::new);
+    let mut presence_cache_ttl_hours: Signal<i32> = use_signal(|| 3);
+    let mut use_llm_presence: Signal<bool> = use_signal(|| true);
     let mut is_loading = use_signal(|| !is_new);
     let mut is_saving = use_signal(|| false);
     let mut success_message: Signal<Option<String>> = use_signal(|| None);
@@ -80,6 +82,7 @@ pub fn LocationForm(
                             backdrop_asset: None,
                             backdrop_regions: Vec::new(),
                             presence_cache_ttl_hours: None,
+                            use_llm_presence: None,
                         })
                         .collect();
                     parent_locations.set(parent_data);
@@ -100,6 +103,8 @@ pub fn LocationForm(
                             notable_features.set(loc_data.notable_features.unwrap_or_default());
                             hidden_secrets.set(loc_data.hidden_secrets.unwrap_or_default());
                             parent_location_id.set(loc_data.parent_location_id);
+                            presence_cache_ttl_hours.set(loc_data.presence_cache_ttl_hours.unwrap_or(3));
+                            use_llm_presence.set(loc_data.use_llm_presence.unwrap_or(true));
                             is_loading.set(false);
                         }
                         Err(e) => {
@@ -313,8 +318,64 @@ pub fn LocationForm(
                                 }
                             }
                         }
+                        }
                     }
-                }
+
+                    // Staging Settings section
+                    div {
+                        class: "staging-settings mt-4",
+                        h3 { class: "text-gray-400 text-sm uppercase mb-3", "Staging Settings" }
+
+                        // Presence Cache TTL
+                        FormField {
+                            label: "Presence Cache TTL (hours)",
+                            required: false,
+                            children: rsx! {
+                                div { class: "flex flex-col gap-2",
+                                    input {
+                                        r#type: "number",
+                                        min: 0,
+                                        max: 24,
+                                        value: "{presence_cache_ttl_hours}",
+                                        oninput: move |e| {
+                                            if let Ok(val) = e.value().parse::<i32>() {
+                                                presence_cache_ttl_hours.set(val.clamp(0, 24));
+                                            }
+                                        },
+                                        class: "w-full p-2 bg-dark-bg border border-gray-700 rounded text-white",
+                                    }
+                                    p {
+                                        class: "text-xs text-gray-500",
+                                        "How long NPC presence approvals remain valid (in game time). 0 = use world default."
+                                    }
+                                }
+                            }
+                        }
+
+                        // Use LLM Presence toggle
+                        FormField {
+                            label: "Use LLM for Staging",
+                            required: false,
+                            children: rsx! {
+                                div { class: "flex flex-col gap-2",
+                                    label {
+                                        class: "flex items-center gap-2 cursor-pointer",
+                                        input {
+                                            r#type: "checkbox",
+                                            checked: *use_llm_presence.read(),
+                                            onchange: move |e| use_llm_presence.set(e.checked()),
+                                            class: "w-4 h-4 rounded border-gray-700 bg-dark-bg text-blue-500 focus:ring-blue-500",
+                                        }
+                                        "Enable AI-driven staging decisions for this location"
+                                    }
+                                    p {
+                                        class: "text-xs text-gray-500 mt-1",
+                                        "When enabled, the AI considers story context to suggest NPC presence. When disabled, only rule-based logic is used."
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     // Parent location section
                     FormField {
@@ -420,7 +481,8 @@ pub fn LocationForm(
                                         parent_location_id: parent_location_id.read().clone(),
                                         backdrop_asset: None,
                                         backdrop_regions: Vec::new(),
-                                        presence_cache_ttl_hours: None, // TTL is set per-staging, not per-location
+                                        presence_cache_ttl_hours: Some(*presence_cache_ttl_hours.read()),
+                                        use_llm_presence: Some(*use_llm_presence.read()),
                                     };
 
                                     match if is_new {

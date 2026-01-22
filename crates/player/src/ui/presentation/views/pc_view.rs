@@ -14,7 +14,8 @@ use crate::infrastructure::spawn_task;
 use crate::infrastructure::websocket::ClientMessageBuilder;
 use crate::presentation::components::action_panel::ActionPanel;
 use crate::presentation::components::character_sheet_viewer::CharacterSheetViewer;
-use crate::presentation::components::event_overlays::{ApproachEventOverlay, LocationEventBanner};
+use crate::presentation::components::common::TimeAdvanceToast;
+use crate::presentation::components::event_overlays::{ApproachEventOverlay, EndConversationConfirmation, LocationEventBanner};
 use crate::presentation::components::inventory_panel::InventoryPanel;
 use crate::presentation::components::known_npcs_panel::{KnownNpcsPanel, NpcObservationData};
 use crate::presentation::components::mini_map::{MapBounds, MapRegionData, MiniMap};
@@ -110,6 +111,9 @@ pub fn PCView() -> Element {
 
     // Region items panel state (items visible in current region)
     let mut show_region_items_panel = use_signal(|| false);
+
+    // End conversation confirmation modal state
+    let mut show_end_conversation_modal = use_signal(|| false);
 
     // Error feedback state for user actions
     let mut action_error: Signal<Option<String>> = use_signal(|| None);
@@ -563,6 +567,14 @@ pub fn PCView() -> Element {
                     show_region_items_panel.set(true);
                 })),
                 region_items_count: game_state.region_items.read().len(),
+                has_conversation: has_dialogue,
+                on_end_conversation: Some(EventHandler::new({
+                    let mut show_end_conversation_modal = show_end_conversation_modal.clone();
+                    move |_| {
+                        tracing::info!("Show end conversation confirmation");
+                        show_end_conversation_modal.set(true);
+                    }
+                })),
             }
 
             // Character sheet viewer modal
@@ -939,6 +951,42 @@ pub fn PCView() -> Element {
                         let mut game_state = game_state.clone();
                         move |_| {
                             game_state.clear_location_event();
+                        }
+                    },
+                }
+            }
+
+            // Time advance toast (when DM advances time)
+            TimeAdvanceToast {}
+
+            // End conversation confirmation modal
+            if *show_end_conversation_modal.read() {
+                EndConversationConfirmation {
+                    npc_name: speaker_name.clone(),
+                    on_confirm: {
+                        let command_bus = command_bus.clone();
+                        let mut show_end_conversation_modal = show_end_conversation_modal.clone();
+                        let dialogue_state_for_closure = dialogue_state.clone();
+                        move |_| {
+                            let speaker_id = dialogue_state_for_closure.speaker_id.read().clone();
+                            if let Some(npc_id) = speaker_id {
+                                // Send EndConversation message
+                                let msg = ClientMessageBuilder::end_conversation(&npc_id, None);
+                                if let Err(e) = command_bus.send(msg) {
+                                    tracing::error!("Failed to send EndConversation message: {}", e);
+                                } else {
+                                    tracing::info!("Sent EndConversation message for NPC: {}", npc_id);
+                                }
+                            } else {
+                                tracing::warn!("No speaker ID available for ending conversation");
+                            }
+                            show_end_conversation_modal.set(false);
+                        }
+                    },
+                    on_cancel: {
+                        let mut show_end_conversation_modal = show_end_conversation_modal.clone();
+                        move |_| {
+                            show_end_conversation_modal.set(false);
                         }
                     },
                 }

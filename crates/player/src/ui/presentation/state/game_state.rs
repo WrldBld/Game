@@ -102,6 +102,25 @@ pub struct PreviousStagingData {
     pub npcs: Vec<StagedNpcData>,
 }
 
+/// Time advance data for toast notification
+#[derive(Clone, Debug, PartialEq)]
+pub struct TimeAdvanceNotification {
+    /// Time before advancement
+    pub previous_time: GameTime,
+    /// Time after advancement
+    pub new_time: GameTime,
+    /// Seconds that were advanced
+    pub seconds_advanced: u32,
+    /// Human-readable reason
+    pub reason: String,
+    /// Whether time period changed
+    pub period_changed: bool,
+    /// New period name if changed
+    pub new_period: Option<String>,
+    /// When this notification was created (for auto-dismiss)
+    pub created_at_ms: u64,
+}
+
 /// PC waiting for staging approval
 #[derive(Clone, Debug, PartialEq)]
 pub struct WaitingPcData {
@@ -240,6 +259,8 @@ pub struct GameState {
     pub time_mode: Signal<TimeMode>,
     /// Whether game time is currently paused
     pub time_paused: Signal<bool>,
+    /// Time advance notification for player toast (respects show_time_to_players)
+    pub time_advance_notification: Signal<Option<TimeAdvanceNotification>>,
     /// Current moods of NPCs in the scene (npc_id -> mood string)
     /// Updated by NpcMoodChanged events, used for expression/sprite display
     pub npc_moods: Signal<HashMap<String, String>>,
@@ -275,6 +296,7 @@ impl GameState {
             pending_time_suggestions: Signal::new(Vec::new()),
             time_mode: Signal::new(TimeMode::default()),
             time_paused: Signal::new(true),
+            time_advance_notification: Signal::new(None),
             npc_moods: Signal::new(HashMap::new()),
             backdrop_transitioning: Signal::new(false),
         }
@@ -546,6 +568,34 @@ impl GameState {
         self.time_paused.set(paused);
     }
 
+    /// Set time advance notification (respects show_time_to_players flag)
+    pub fn set_time_advance_notification(
+        &mut self,
+        previous_time: GameTime,
+        new_time: GameTime,
+        seconds_advanced: u32,
+        reason: String,
+        period_changed: bool,
+        new_period: Option<String>,
+        created_at_ms: u64,
+    ) {
+        self.time_advance_notification
+            .set(Some(TimeAdvanceNotification {
+                previous_time,
+                new_time,
+                seconds_advanced,
+                reason,
+                period_changed,
+                new_period,
+                created_at_ms,
+            }));
+    }
+
+    /// Clear time advance notification
+    pub fn clear_time_advance_notification(&mut self) {
+        self.time_advance_notification.set(None);
+    }
+
     /// Trigger appropriate refresh based on entity change notification
     pub fn trigger_entity_refresh(&mut self, entity_changed: &EntityChangedData) {
         match entity_changed.entity_type.as_str() {
@@ -660,6 +710,7 @@ impl GameState {
         self.pending_time_suggestions.write().clear();
         self.time_mode.set(TimeMode::default());
         self.time_paused.set(true);
+        self.time_advance_notification.set(None);
     }
 
     /// Clear all state

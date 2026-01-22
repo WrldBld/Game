@@ -131,6 +131,17 @@ pub struct AppSettings {
     pub default_max_stat_value: i32,
 
     // ============================================================================
+    // Staging System
+    // ============================================================================
+    /// Auto-approve timeout for staging requests in seconds (default: 30)
+    #[serde(default = "default_staging_timeout_seconds")]
+    pub staging_timeout_seconds: u32,
+
+    /// Whether to auto-approve staging requests when timeout expires (default: true)
+    #[serde(default = "default_auto_approve_on_timeout")]
+    pub auto_approve_on_timeout: bool,
+
+    // ============================================================================
     // Challenge System
     // ============================================================================
     /// Number of outcome branches to generate for each challenge result tier
@@ -195,6 +206,12 @@ fn default_conversation_history_turns() -> usize {
 fn default_suggestion_tokens_per_branch() -> u32 {
     200
 }
+fn default_staging_timeout_seconds() -> u32 {
+    30
+}
+fn default_auto_approve_on_timeout() -> bool {
+    true
+}
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -212,6 +229,8 @@ impl Default for AppSettings {
             typewriter_pause_delay_ms: 80,
             typewriter_char_delay_ms: 30,
             default_max_stat_value: 20,
+            staging_timeout_seconds: default_staging_timeout_seconds(),
+            auto_approve_on_timeout: default_auto_approve_on_timeout(),
             outcome_branch_count: 2,
             outcome_branch_min: 1,
             outcome_branch_max: 4,

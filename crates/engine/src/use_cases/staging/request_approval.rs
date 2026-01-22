@@ -19,7 +19,7 @@ use super::types::{
     GameTimeData, PreviousStagingData, ResolvedStateInfo, ResolvedVisualState, StagedNpc,
     StagingApprovalData, StagingPendingData, StagingRequestResult, StateOption, WaitingPc,
 };
-use super::{get_settings_with_fallback, StagingError, DEFAULT_STAGING_TIMEOUT_SECONDS};
+use super::{get_settings_with_fallback, StagingError};
 
 /// IO dependencies for staging requests (WS-state owned).
 pub struct StagingApprovalContext<'a> {
@@ -104,6 +104,8 @@ impl RequestStagingApproval {
         let settings =
             get_settings_with_fallback(self.settings.as_ref(), input.world_id, "staging").await;
 
+        let timeout_seconds = settings.staging_timeout_seconds();
+
         let location_name = match self.location.get_location(input.region.location_id()).await {
             Ok(Some(l)) => l.name().to_string(),
             Ok(None) => {
@@ -179,7 +181,7 @@ impl RequestStagingApproval {
             pending: StagingPendingData {
                 region_id: input.region.id(),
                 region_name: input.region.name().to_string(),
-                timeout_seconds: DEFAULT_STAGING_TIMEOUT_SECONDS,
+                timeout_seconds,
             },
             approval: StagingApprovalData {
                 request_id,

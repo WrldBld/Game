@@ -14,7 +14,7 @@ mod llm_integration_tests;
 
 use std::sync::Arc;
 
-use wrldbldr_domain::{CharacterId, RegionId, WorldId};
+use wrldbldr_domain::{RegionId, WorldId};
 
 use crate::infrastructure::app_settings::AppSettings;
 use crate::infrastructure::ports::{RepoError, SettingsRepo};
@@ -25,12 +25,6 @@ pub use auto_approve::AutoApproveStagingTimeout;
 pub use regenerate::RegenerateStagingSuggestions;
 pub use request_approval::{RequestStagingApproval, StagingApprovalContext, StagingApprovalInput};
 pub use types::{ApprovedNpc, StagingApprovalData};
-
-/// Timeout in seconds before a pending staging request auto-approves.
-/// This is the delay shown to players while waiting for DM approval.
-/// Not to be confused with TTL (time-to-live), which controls how long
-/// approved staging remains valid (configured via `default_presence_cache_ttl_hours`).
-pub const DEFAULT_STAGING_TIMEOUT_SECONDS: u64 = 30;
 
 /// Fetches world settings with graceful fallback to defaults.
 ///

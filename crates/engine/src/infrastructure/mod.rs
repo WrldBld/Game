@@ -14,6 +14,7 @@ pub mod importers;
 pub mod neo4j;
 pub mod openai_compatible;
 pub mod ports;
+pub mod prompt_templates;
 pub mod queue;
 pub mod resilient_llm;
 pub mod settings;

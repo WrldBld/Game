@@ -16,6 +16,7 @@ pub mod location_service;
 pub mod narrative_event_service;
 pub mod observation_service;
 pub mod player_character_service;
+pub mod prompt_template_service;
 pub mod session_command_service;
 pub mod session_service;
 pub mod settings_service;
@@ -102,6 +103,12 @@ pub use actantial_service::{
 
 // Re-export user service types
 pub use user_service::UserService;
+
+// Re-export prompt template service types
+pub use prompt_template_service::{
+    PromptTemplateService, ResolvedPromptTemplate, SavePromptTemplateRequest,
+    use_prompt_template_service,
+};
 
 // Re-export character sheet service types
 pub use character_sheet_service::{

@@ -41,6 +41,12 @@ pub struct ActionPanelProps {
     /// Whether all action buttons should be disabled (e.g., while waiting for response)
     #[props(default = false)]
     pub disabled: bool,
+    /// Whether a conversation is currently active (for showing End Conversation button)
+    #[props(default = false)]
+    pub has_conversation: bool,
+    /// Handler for end conversation button
+    #[props(default)]
+    pub on_end_conversation: Option<EventHandler<()>>,
 }
 
 /// Action panel - displays system buttons and scene interactions
@@ -116,6 +122,16 @@ pub fn ActionPanel(props: ActionPanelProps) -> Element {
                 if props.region_items_count > 0 {
                     LootButton {
                         count: props.region_items_count,
+                        on_click: *handler,
+                        disabled: props.disabled,
+                    }
+                }
+            }
+
+            // End Conversation button - only shown when conversation is active
+            if props.has_conversation {
+                if let Some(ref handler) = props.on_end_conversation {
+                    EndConversationButton {
                         on_click: *handler,
                         disabled: props.disabled,
                     }
@@ -316,6 +332,46 @@ pub fn LootButton(props: LootButtonProps) -> Element {
                 class: "absolute -top-1 -right-1 bg-amber-500 text-black text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center",
                 "{props.count}"
             }
+        }
+    }
+}
+
+/// Props for EndConversationButton
+#[derive(Props, Clone, PartialEq)]
+pub struct EndConversationButtonProps {
+    /// Click handler
+    pub on_click: EventHandler<()>,
+    /// Whether button is disabled
+    #[props(default = false)]
+    pub disabled: bool,
+}
+
+/// End Conversation button (shown when a conversation is active)
+#[component]
+pub fn EndConversationButton(props: EndConversationButtonProps) -> Element {
+    let opacity_class = if props.disabled {
+        "opacity-50"
+    } else {
+        "opacity-100"
+    };
+    let cursor_class = if props.disabled {
+        "cursor-not-allowed"
+    } else {
+        "cursor-pointer"
+    };
+
+    rsx! {
+        button {
+            class: "btn btn-secondary flex items-center gap-2 px-3 py-2 {opacity_class} {cursor_class} bg-red-500/20 hover:bg-red-500/30 border-red-500/50 text-red-200",
+            disabled: props.disabled,
+            onclick: move |_| {
+                if !props.disabled {
+                    props.on_click.call(())
+                }
+            },
+
+            span { "🚪" }
+            span { "End Conversation" }
         }
     }
 }

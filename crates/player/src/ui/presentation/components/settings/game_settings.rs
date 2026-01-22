@@ -225,6 +225,32 @@ pub fn GameSettingsPanel(props: GameSettingsPanelProps) -> Element {
                         }
                     }
 
+                    // Staging Settings
+                    SettingsSection {
+                        title: "Staging",
+                        description: "NPC presence approval workflow configuration",
+
+                        BooleanField {
+                            label: "Auto-Approve on Timeout",
+                            description: "Auto-approve with rule-based NPCs when DM doesn't respond",
+                            value: settings.read().auto_approve_on_timeout,
+                            onchange: move |val: bool| {
+                                settings.with_mut(|s| s.auto_approve_on_timeout = val);
+                                success_message.set(None);
+                            }
+                        }
+
+                        NumberField {
+                            label: "Auto-Approve Timeout",
+                            description: "Seconds to wait before auto-approving (0 = disabled)",
+                            value: settings.read().staging_timeout_seconds as usize,
+                            onchange: move |val: usize| {
+                                settings.with_mut(|s| s.staging_timeout_seconds = val as u32);
+                                success_message.set(None);
+                            }
+                        }
+                    }
+
                     // Asset Generation Settings
                     SettingsSection {
                         title: "Asset Generation",
